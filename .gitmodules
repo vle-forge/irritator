@@ -1,0 +1,6 @@
+[submodule "external/ut"]
+	path = external/ut
+	url = https://github.com/boost-experimental/ut.git
+[submodule "external/fmt"]
+	path = external/fmt
+	url = https://github.com/fmtlib/fmt.git

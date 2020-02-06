@@ -1,0 +1,58 @@
+= Irritator
+Gauthier Quesnel <gauthier.quesnel@inrae.fr>
+v0.1.0, 2020-xx-xx
+:toc:
+:homepage: https://github.com/quesnel/irritator/
+
+[width="15%"]
+|============
+| https://travis-ci.org/quesnel/irritator[image:https://travis-ci.org/quesnel/irritator.png?branch=master[Build Status]] | https://ci.appveyor.com/project/quesnel/irritator?branch=master[image:https://ci.appveyor.com/api/projects/status/github/quesnel/irritator?branch=master&svg=true[Build Status]] | https://codecov.io/gh/quesnel/irritator[image:https://codecov.io/gh/quesnel/irritator/branch/irritator-0.5/graph/badge.svg[Coverage Status]]
+|============
+
+Copyright © 2020 http://www.inrae.fr/en[INRA]
+
+The software is released under the https://www.boost.org/LICENSE_1_0.txt[Boost
+license]. See the LICENSE file.
+
+== Requirements and recommended
+
+* `cmake` (≥ 3.11)
+* $$C++$$ compiler with $$C++20$$ support:
+** `gcc` ≥ 9 (https://www.gnu.org/software/gcc/projects/cxx-status.html[notes])
+** `clang` ≥ 9 (https://clang.llvm.org/cxx_status.html[notes])
+** `visual studio 2019 16.0` (https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes[notes])
+
+For recent Debian GNU/Linux and Ubuntu derivatives (remove clang to
+only use gcc):
+
+[source,bash]
+....
+apt-get install build-essential cmake clang
+....
+
+== First installation
+
+First, we clone Irritator git repository and the submodule.
+
+....
+git clone https://github.com/quesnel/irritator.git
+cd irritator
+git submodule update --init --recursive
+....
+
+== File format
+
+Simple file
+
+[source]
+''''
+4
+A generator 2 0.0 100.0 0
+B generator 2 0.0 100.0 0
+Add adder 2 1.0 1.0 0
+C counter 1 0.0 0
+3
+A 0 Add 0
+B 0 Add 1
+Add 0 C 0
+''''

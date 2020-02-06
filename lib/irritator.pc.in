@@ -1,0 +1,13 @@
+prefix=@CMAKE_INSTALL_FULL_PREFIX@
+exec_prefix=@CMAKE_INSTALL_FULL_PREFIX@
+libdir=@CMAKE_INSTALL_FULL_LIBDIR@
+includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+
+Name: irritator
+Description: A discrete event simulation tools
+Version: @PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@
+URL: http://www.vle-project.org/irritator
+Requires: @IRRITATOR_DEPENDENCIES@
+Cflags: -I${includedir}/irritator-@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@
+Libs: -L${libdir} -lirritator-@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@
+Libs.private:
