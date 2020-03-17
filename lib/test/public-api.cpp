@@ -8,6 +8,86 @@
 
 #include <fmt/format.h>
 
+#include <cstdio>
+
+static void
+dot_graph_save(const irt::simulation& sim, std::FILE* os)
+{
+    /* With input and output port.
+
+    digraph graphname{
+        graph[rankdir = "LR"];
+        node[shape = "record"];
+        edge[];
+
+        "sum_a"[label = "sum-a | <f0> | <f1>"];
+
+        "sum_a":f0->int_a[id = 1];
+        sum_b->int_b[label = "2-10"];
+        prod->sum_b[label = "3-4"];
+        prod -> "sum_a":f0[label = "3-2"];
+        int_a->qua_a[label = "4-11"];
+        int_a->prod[label = "4-5"];
+        int_a -> "sum_a":f1[label = "4-1"];
+        int_b->qua_b[label = "5-12"];
+        int_b->prod[label = "5-6"];
+        int_b->sum_b[label = "5-3"];
+        qua_a->int_a[label = "6-7"];
+        qua_b->int_b[label = "7-9"];
+    }
+    */
+
+    !boost::ut::expect(os != nullptr);
+
+    std::fputs("digraph graphname {\n", os);
+
+    irt::output_port* output_port = nullptr;
+    while (sim.output_ports.next(output_port)) {
+        for (const irt::input_port_id dst : output_port->connections) {
+            if (auto* input_port = sim.input_ports.try_to_get(dst);
+                input_port) {
+                auto* mdl_src = sim.models.try_to_get(output_port->model);
+                auto* mdl_dst = sim.models.try_to_get(input_port->model);
+
+                if (!(mdl_src && mdl_dst))
+
+                    continue;
+                if (mdl_src->name.empty())
+                    fmt::print(os, "{} -> ", irt::get_key(output_port->model));
+                else
+                    fmt::print(os, "{} -> ", mdl_src->name.c_str());
+
+                if (mdl_dst->name.empty())
+                    fmt::print(os, "{}", irt::get_key(input_port->model));
+                else
+                    fmt::print(os, "{}", mdl_dst->name.c_str());
+
+                std::fputs(" [label=\"", os);
+
+                if (output_port->name.empty())
+                    fmt::print(
+                      os,
+                      "{}",
+                      irt::get_key(sim.output_ports.get_id(*output_port)));
+                else
+                    fmt::print(os, "{}", output_port->name.c_str());
+
+                std::fputs("-", os);
+
+                if (input_port->name.empty())
+                    fmt::print(
+                      os,
+                      "{}",
+                      irt::get_key(sim.input_ports.get_id(*input_port)));
+                else
+                    fmt::print(os, "{}", input_port->name.c_str());
+
+                std::fputs("\"];\n", os);
+            }
+        }
+    }
+}
+
 int
 main()
 {
@@ -20,8 +100,10 @@ main()
                false);
         expect(irt::is_detected_v<irt::transition_function_t, irt::counter> ==
                true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::counter> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::counter> == false);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::counter> ==
+               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::counter> ==
+               false);
 
         expect(
           irt::is_detected_v<irt::initialize_function_t, irt::generator> ==
@@ -31,8 +113,10 @@ main()
         expect(
           irt::is_detected_v<irt::transition_function_t, irt::generator> ==
           false);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::generator> == false);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::generator> == true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::generator> ==
+               false);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::generator> ==
+               true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_2> ==
                true);
@@ -40,8 +124,10 @@ main()
                true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::adder_2> ==
                true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_2> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_2> == true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_2> ==
+               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_2> ==
+               true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_3> ==
                true);
@@ -49,8 +135,10 @@ main()
                true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::adder_3> ==
                true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_3> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_3> == true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_3> ==
+               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_3> ==
+               true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_4> ==
                true);
@@ -58,8 +146,10 @@ main()
                true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::adder_4> ==
                true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_4> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_4> == true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_4> ==
+               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_4> ==
+               true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_2> ==
                true);
@@ -68,7 +158,8 @@ main()
         expect(irt::is_detected_v<irt::transition_function_t, irt::mult_2> ==
                true);
         expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_2> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_2> == true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_2> ==
+               true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_3> ==
                true);
@@ -77,7 +168,8 @@ main()
         expect(irt::is_detected_v<irt::transition_function_t, irt::mult_3> ==
                true);
         expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_3> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_3> == true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_3> ==
+               true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_4> ==
                true);
@@ -86,7 +178,8 @@ main()
         expect(irt::is_detected_v<irt::transition_function_t, irt::mult_4> ==
                true);
         expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_4> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_4> == true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_4> ==
+               true);
 
         expect(
           irt::is_detected_v<irt::initialize_function_t, irt::integrator> ==
@@ -96,8 +189,10 @@ main()
         expect(
           irt::is_detected_v<irt::transition_function_t, irt::integrator> ==
           true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::integrator> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::integrator> == true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::integrator> ==
+               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::integrator> ==
+               true);
 
         expect(
           irt::is_detected_v<irt::initialize_function_t, irt::quantifier> ==
@@ -107,8 +202,10 @@ main()
         expect(
           irt::is_detected_v<irt::transition_function_t, irt::quantifier> ==
           true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::quantifier> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::quantifier> == true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::quantifier> ==
+               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::quantifier> ==
+               true);
     };
 
     "status"_test = [] {
@@ -541,8 +638,8 @@ main()
         auto& cnt = sim.counter_models.alloc();
 
         expect(sim.models.can_alloc(2));
-        expect(irt::is_success(sim.alloc(gen, sim.generator_models)));
-        expect(irt::is_success(sim.alloc(cnt, sim.counter_models)));
+        expect(irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen))));
+        expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
 
         expect(sim.connect(gen.y[0], cnt.x[0]) == irt::status::success);
 
@@ -561,5 +658,126 @@ main()
         } while (t < sim.end);
 
         expect(cnt.number == 9_ul);
+    };
+
+    "lotka_volterra_simulation"_test = [] {
+        irt::simulation sim;
+
+        expect(irt::is_success(sim.init(16lu, 256lu)));
+        expect(sim.adder_2_models.can_alloc(2));
+        expect(sim.mult_2_models.can_alloc(2));
+        expect(sim.integrator_models.can_alloc(2));
+        expect(sim.quantifier_models.can_alloc(2));
+
+        auto& sum_a = sim.adder_2_models.alloc();
+        auto& sum_b = sim.adder_2_models.alloc();
+        auto& product = sim.mult_2_models.alloc();
+        auto& integrator_a = sim.integrator_models.alloc();
+        auto& integrator_b = sim.integrator_models.alloc();
+        auto& quantifier_a = sim.quantifier_models.alloc();
+        auto& quantifier_b = sim.quantifier_models.alloc();
+
+        auto& init_powers = sim.messages.alloc(1.0, 1.0);
+        auto& init_weigths_a = sim.messages.alloc(2.0, -0.4);
+        auto& init_weigths_b = sim.messages.alloc(-1.0, 0.1);
+
+        auto& a_x0 = sim.messages.alloc(18.0);
+
+        auto& allow_offser_a = sim.messages.alloc(irt::i8{ 1 });
+        auto& zero_init_a = sim.messages.alloc(irt::i8{ 1 });
+        auto& quantum_a = sim.messages.alloc(0.01);
+        auto& archive_lenght_a = sim.messages.alloc(irt::i32{ 3 });
+
+        auto& b_x0 = sim.messages.alloc(7.0);
+        auto& allow_offser_b = sim.messages.alloc(irt::i8{ 1 });
+        auto& zero_init_b = sim.messages.alloc(irt::i8{ 1 });
+        auto& quantum_b = sim.messages.alloc(0.01);
+        auto& archive_lenght_b = sim.messages.alloc(irt::i32{ 3 });
+
+        integrator_a.init[0] = sim.messages.get_id(a_x0);
+
+        quantifier_a.init[0] = sim.messages.get_id(allow_offser_a);
+        quantifier_a.init[1] = sim.messages.get_id(zero_init_a);
+        quantifier_a.init[2] = sim.messages.get_id(quantum_a);
+        quantifier_a.init[3] = sim.messages.get_id(archive_lenght_a);
+
+        integrator_b.init[0] = sim.messages.get_id(b_x0);
+
+        quantifier_b.init[0] = sim.messages.get_id(allow_offser_b);
+        quantifier_b.init[1] = sim.messages.get_id(zero_init_b);
+        quantifier_b.init[2] = sim.messages.get_id(quantum_b);
+        quantifier_b.init[3] = sim.messages.get_id(archive_lenght_b);
+
+        product.init[0] = sim.messages.get_id(init_powers);
+        sum_a.init[0] = sim.messages.get_id(init_weigths_a);
+        sum_b.init[0] = sim.messages.get_id(init_weigths_b);
+
+        expect(sim.models.can_alloc(10));
+        !expect(irt::is_success(
+          sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a")));
+        !expect(irt::is_success(
+          sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b")));
+        !expect(irt::is_success(
+          sim.alloc(product, sim.mult_2_models.get_id(product), "prod")));
+        !expect(irt::is_success(sim.alloc(
+          integrator_a, sim.integrator_models.get_id(integrator_a), "int_a")));
+        !expect(irt::is_success(sim.alloc(
+          integrator_b, sim.integrator_models.get_id(integrator_b), "int_b")));
+        !expect(irt::is_success(sim.alloc(
+          quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a")));
+        !expect(irt::is_success(sim.alloc(
+          quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b")));
+
+        !expect(sim.models.size() == 7_ul);
+        !expect(sim.sched.size() == 7_ul);
+
+        expect(sim.connect(sum_a.y[0], integrator_a.x[1]) ==
+               irt::status::success);
+        expect(sim.connect(sum_b.y[0], integrator_b.x[1]) ==
+               irt::status::success);
+
+        expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
+               irt::status::success);
+
+        expect(sim.connect(integrator_a.y[0], product.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(integrator_b.y[0], product.x[1]) ==
+               irt::status::success);
+
+        expect(sim.connect(product.y[0], sum_a.x[1]) == irt::status::success);
+        expect(sim.connect(product.y[0], sum_b.x[1]) == irt::status::success);
+
+        expect(sim.connect(quantifier_a.y[0], integrator_a.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(quantifier_b.y[0], integrator_b.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(integrator_a.y[0], quantifier_a.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(integrator_b.y[0], quantifier_b.x[0]) ==
+               irt::status::success);
+
+        dot_graph_save(sim, stdout);
+
+        irt::time t = 0.0;
+        irt::status st;
+
+        std::FILE* os = std::fopen("output.csv", "w");
+        !expect(os != nullptr);
+
+        do {
+            st = sim.run(t);
+
+            expect(st == irt::status::success);
+
+            fmt::print(os,
+                       "{},{},{}\n",
+                       t,
+                       integrator_a.last_output_value,
+                       integrator_b.last_output_value);
+        } while (t < 15.0);
+
+        std::fclose(os);
     };
 }

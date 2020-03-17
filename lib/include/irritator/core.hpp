@@ -52,21 +52,44 @@ enum class status
     data_array_init_capacity_error,
     data_array_not_enough_memory,
 
+    data_array_archive_init_capacity_error,
+    data_array_archive_not_enough_memory,
+
     model_uninitialized_port_warning,
 
     model_connect_output_port_unknown,
     model_connect_input_port_unknown,
     model_connect_already_exist,
 
+    model_adder_empty_init_message,
+    model_adder_bad_init_message,
+    model_adder_bad_external_message,
+
+    model_mult_empty_init_message,
+    model_mult_bad_init_message,
+    model_mult_bad_external_message,
+
     model_integrator_internal_error,
     model_integrator_output_error,
     model_integrator_running_without_x_dot,
     model_integrator_ta_with_bad_x_dot,
+    model_integrator_empty_init_message,
+    model_integrator_bad_init_message,
+    model_integrator_bad_external_message,
 
+    model_quantifier_empty_init_allow_offsets,
+    model_quantifier_bad_init_allow_offsets,
+    model_quantifier_empty_init_zero_init_offset,
+    model_quantifier_bad_init_zero_init_offset,
+    model_quantifier_empty_init_quantum,
+    model_quantifier_bad_init_quantum,
+    model_quantifier_empty_init_archive_lenght,
+    model_quantifier_bad_init_archive_lenght,
     model_quantifier_bad_quantum_parameter,
     model_quantifier_bad_archive_length_parameter,
     model_quantifier_shifting_value_neg,
     model_quantifier_shifting_value_less_1,
+    model_quantifier_bad_external_message,
 };
 
 constexpr bool
@@ -103,29 +126,66 @@ is_not_enough_memory(status s) noexcept
 }
 
 #ifndef NDEBUG
-#if (defined (__i386__) || defined (__x86_64__)) && defined (__GNUC__) && __GNUC__ >= 2
-#  define irt_breakpoint()        do { __asm__ __volatile__ ("int $03"); } while(0)
-#elif (defined (_MSC_VER) || defined (__DMC__)) && defined (_M_IX86)
-#  define irt_breakpoint()        do { __asm int 3h } while(0)
-#elif defined (_MSC_VER)
-#  define irt_breakpoint()        do { __debugbreak(); } while(0)
-#elif defined (__alpha__) && !defined(__osf__) && defined (__GNUC__) && __GNUC__ >= 2
-#  define irt_breakpoint()        do { __asm__ __volatile__ ("bpt"); } while(0)
-#elif defined (__APPLE__)
-#  define irt_breakpoint()        do { __builtin_trap(); } while(0)
-#else   /* !__i386__ && !__alpha__ */
-#  define irt_breakpoint()        do { raise (SIGTRAP); } while(0)
-#endif  /* __i386__ */
+#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&        \
+  __GNUC__ >= 2
+#define irt_breakpoint()                                                      \
+    do {                                                                      \
+        __asm__ __volatile__("int $03");                                      \
+    } while (0)
+#elif (defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86)
+#define irt_breakpoint()                                                      \
+    do {                                                                      \
+        __asm int 3h                                                          \
+    } while (0)
+#elif defined(_MSC_VER)
+#define irt_breakpoint()                                                      \
+    do {                                                                      \
+        __debugbreak();                                                       \
+    } while (0)
+#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&         \
+  __GNUC__ >= 2
+#define irt_breakpoint()                                                      \
+    do {                                                                      \
+        __asm__ __volatile__("bpt");                                          \
+    } while (0)
+#elif defined(__APPLE__)
+#define irt_breakpoint()                                                      \
+    do {                                                                      \
+        __builtin_trap();                                                     \
+    } while (0)
+#else /* !__i386__ && !__alpha__ */
+#define irt_breakpoint()                                                      \
+    do {                                                                      \
+        raise(SIGTRAP);                                                       \
+    } while (0)
+#endif /* __i386__ */
 #else
-#  define irt_breakpoint()        do { } while(0)
+#define irt_breakpoint()                                                      \
+    do {                                                                      \
+    } while (0)
 #endif
 
-inline status
-return_break(status s) noexcept
-{
-    irt_breakpoint();
-    return s;
-}
+#define irt_bad_return(status__)                                              \
+    do {                                                                      \
+        irt_breakpoint();                                                     \
+        return status__;                                                      \
+    } while (0)
+
+#define irt_return_if_bad(status__)                                           \
+    do {                                                                      \
+        if (status__ != status::success) {                                    \
+            irt_breakpoint();                                                 \
+            return status__;                                                  \
+        }                                                                     \
+    } while (0)
+
+#define irt_return_if_fail(expr__, status__)                                  \
+    do {                                                                      \
+        if (!(expr__)) {                                                      \
+            irt_breakpoint();                                                 \
+            return status__;                                                  \
+        }                                                                     \
+    } while (0)
 
 inline status
 check_return(status s) noexcept
@@ -163,12 +223,12 @@ struct time_domain<time>
       -std::numeric_limits<double>::infinity();
     static constexpr const double zero = 0;
 
-    constexpr bool is_infinity(time t) noexcept
+    static constexpr bool is_infinity(time t) noexcept
     {
         return t == infinity || t == negative_infinity;
     }
 
-    constexpr bool is_zero(time t) noexcept
+    static constexpr bool is_zero(time t) noexcept
     {
         return t == zero;
     }
@@ -264,10 +324,12 @@ public:
 
     constexpr void assign(const std::string_view str) noexcept
     {
-        const size_t copy_length = std::min(str.size(), length);
+        const size_t copy_length = std::min(str.size(), length - 1);
 
         std::memcpy(buffer_, str.data(), copy_length);
-        buffer_[copy_length - 1] = '\0';
+        buffer_[copy_length] = '\0';
+
+        size_ = static_cast<unsigned char>(copy_length);
     }
 
     constexpr std::string_view sv() const noexcept
@@ -339,437 +401,6 @@ public:
     constexpr bool operator<(const char* rhs) const noexcept
     {
         return std::strncmp(buffer_, rhs, length) < 0;
-    }
-};
-
-/*****************************************************************************
- *
- * data-array
- *
- ****************************************************************************/
-
-enum class model_id : std::uint64_t;
-enum class dynamics_id : std::uint64_t;
-enum class message_id : std::uint64_t;
-enum class input_port_id : std::uint64_t;
-enum struct output_port_id : std::uint64_t;
-enum class init_port_id : std::uint64_t;
-
-template<typename T>
-constexpr u32
-get_index(T identifier) noexcept
-{
-    return static_cast<u32>(
-      static_cast<typename std::underlying_type<T>::type>(identifier) &
-      0x00000000ffffffff);
-}
-
-template<typename T>
-constexpr u32
-get_key(T identifier) noexcept
-{
-    return static_cast<u32>(
-      (static_cast<typename std::underlying_type<T>::type>(identifier) &
-       0xffffffff00000000) >>
-      32);
-}
-
-template<typename T>
-constexpr u32
-get_max_key() noexcept
-{
-    return static_cast<u32>(0xffffffff00000000 >> 32);
-}
-
-template<typename T>
-constexpr u32
-get_max_size() noexcept
-{
-    return std::numeric_limits<u32>::max();
-}
-
-template<typename T>
-constexpr bool
-is_valid(T identifier) noexcept
-{
-    return get_key(identifier) > 0;
-}
-
-template<typename T>
-constexpr T
-make_id(u32 key, u32 index) noexcept
-{
-    u64 identifier = key;
-    identifier <<= 32;
-    identifier |= index;
-
-    T ret{ identifier };
-    return ret;
-
-    // return static_cast<T>(identifier);
-}
-
-template<typename T>
-constexpr u32
-make_next_key(u32 key) noexcept
-{
-    return key == get_max_key<T>() ? 1u : key + 1;
-}
-
-/**
- * @brief An optimized fixed size array for dynamics objects.
- *
- * A container to handle everything from trivial, pod or object.
- * - linear memory/iteration
- * - O(1) alloc/free
- * - stable indices
- * - weak references
- * - zero overhead dereferences
- *
- * @tparam T The type of object the data_array holds.
- * @tparam Identifier A enum class identifier to store identifier unsigned
- *     number.
- * @todo Make Identifier split key|id automatically for all unsigned.
- */
-template<typename T, typename Identifier>
-class data_array
-{
-private:
-    static_assert(
-      std::is_enum<Identifier>::value,
-      "Identifier must be a enumeration: enum class id : unsigned {};");
-
-    struct item
-    {
-        T item;
-        Identifier id;
-    };
-
-    item* m_items = nullptr; // items vector.
-    u32 m_max_size = 0;      // total size
-    u32 m_max_used = 0;      // highest index ever allocated
-    u32 m_capacity = 0;      // num allocated items
-    u32 m_next_key = 1;      // [1..2^32] (don't let == 0)
-    u32 m_free_head = none;  // index of first free entry
-
-public:
-    using identifier_type = Identifier;
-    using value_type = T;
-
-    static constexpr u32 none = std::numeric_limits<u32>::max();
-
-    data_array() = default;
-
-    ~data_array() noexcept
-    {
-        clear();
-
-        if (m_items)
-            std::free(m_items);
-    }
-
-    /**
-     * @brief Initialize the underlying byffer of T.
-     *
-     * @return @c is_success(status) or is_bad(status).
-     */
-    status init(std::size_t capacity) noexcept
-    {
-        clear();
-
-        if (capacity > get_max_size<Identifier>())
-            return status::data_array_init_capacity_error;
-
-        m_items = static_cast<item*>(std::malloc(capacity * sizeof(item)));
-        if (!m_items)
-            return status::data_array_not_enough_memory;
-
-        m_max_size = 0;
-        m_max_used = 0;
-        m_capacity = static_cast<u32>(capacity);
-        m_next_key = 1;
-        m_free_head = none;
-
-        return status::success;
-    }
-
-    /**
-     * @brief Resets data members
-     *
-     * Run destructor on outstanding items and re-initialize of size.
-     */
-    void clear() noexcept
-    {
-        if constexpr (!std::is_trivial_v<T>) {
-            for (u32 i = 0; i != m_max_used; ++i) {
-                if (is_valid(m_items[i].id)) {
-                    m_items[i].item.~T();
-                    m_items[i].id = static_cast<identifier_type>(0);
-                }
-            }
-        }
-
-        m_max_size = 0;
-        m_max_used = 0;
-        m_capacity = 0;
-        m_next_key = 1;
-        m_free_head = none;
-    }
-
-    /**
-     * @brief Alloc a new element.
-     *
-     * If allocator can not allocate new item, this function abort() if NDEBUG
-     * macro is not defined. Before using this function, tries @c can_alloc()
-     * for example.
-     *
-     * Use @c m_free_head if not empty or use a new items from buffer
-     * (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
-     * index to build unique identifier.
-     *
-     * @return A reference to the newly allocated element.
-     */
-    template<typename... Args>
-    T& alloc(Args&&... args) noexcept
-    {
-        assert(can_alloc(1) && "check alloc() with full() before using use.");
-
-        u32 new_index;
-
-        if (m_free_head != none) {
-            new_index = m_free_head;
-            if (is_valid(m_items[m_free_head].id))
-                m_free_head = none;
-            else
-                m_free_head = get_index(m_items[m_free_head].id);
-        } else {
-            new_index = m_max_used++;
-        }
-
-        new (&m_items[new_index].item) T(std::forward<Args>(args)...);
-
-        m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
-        m_next_key = make_next_key<Identifier>(m_next_key);
-
-        ++m_max_size;
-
-        return m_items[new_index].item;
-    }
-
-    /**
-     * @brief Alloc a new element.
-     *
-     * Use @c m_free_head if not empty or use a new items from buffer
-     * (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
-     * index to build unique identifier.
-     *
-     * @return A pair with a boolean if the allocation success and a pointer to
-     *     the newly element.
-     */
-    template<typename... Args>
-    std::pair<bool, T*> try_alloc(Args&&... args) noexcept
-    {
-        if (!can_alloc(1))
-            return { false, nullptr };
-
-        u32 new_index;
-
-        if (m_free_head != none) {
-            new_index = m_free_head;
-            if (is_valid(m_items[m_free_head].id))
-                m_free_head = none;
-            else
-                m_free_head = get_index(m_items[m_free_head].id);
-        } else {
-            new_index = m_max_used++;
-        }
-
-        new (&m_items[new_index].item) T(std::forward<Args>(args)...);
-
-        m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
-        m_next_key = make_next_key<Identifier>(m_next_key);
-
-        ++m_max_size;
-
-        return { true, &m_items[new_index].item };
-    }
-
-    /**
-     * @brief Free the element @c t.
-     *
-     * Internally, puts the elelent @c t entry on free list and use id to store
-     * next.
-     */
-    void free(T& t) noexcept
-    {
-        auto id = get_id(t);
-        auto index = get_index(id);
-
-        assert(&m_items[index] == static_cast<void*>(&t));
-        assert(m_items[index].id == id);
-        assert(is_valid(id));
-
-        if constexpr (!std::is_trivial_v<T>)
-            m_items[index].item.~T();
-
-        m_items[index].id = static_cast<Identifier>(m_free_head);
-        m_free_head = index;
-
-        --m_max_size;
-    }
-
-    /**
-     * @brief Free the element pointer by @c id.
-     *
-     * Internally, puts the elelent @c t entry on free list and use id to store
-     * next.
-     */
-    void free(Identifier id) noexcept
-    {
-        auto index = get_index(id);
-
-        assert(m_items[index].id == id);
-        assert(valid(id));
-
-        if constexpr (std::is_trivial_v<T>)
-            m_items[index].item.~T();
-
-        m_items[index].id = static_cast<Identifier>(m_free_head);
-        m_free_head = index;
-
-        --m_max_size;
-    }
-
-    /**
-     * @brief Accessor to the id part of the item
-     *
-     * @return @c Identifier.
-     */
-    Identifier get_id(const T& t) noexcept
-    {
-        auto* ptr = reinterpret_cast<const item*>(&t);
-        return ptr->id;
-    }
-
-    /**
-     * @brief Accessor to the item part of the id.
-     *
-     * @return @c T
-     */
-    T& get(Identifier id) noexcept
-    {
-        return m_items[get_index(id)].item;
-    }
-
-    /**
-     * @brief Accessor to the item part of the id.
-     *
-     * @return @c T
-     */
-    const T& get(Identifier id) const noexcept
-    {
-        return m_items[get_index(id)].item;
-    }
-
-    /**
-     * @brief Get a T from an ID.
-     *
-     * @details Validates ID, then returns item, returns null if invalid.
-     * For cases like AI references and others where 'the thing might have
-     * been deleted out from under me.
-     */
-    T* try_to_get(Identifier id) noexcept
-    {
-        if (get_key(id)) {
-            auto index = get_index(id);
-            if (m_items[index].id == id)
-                return &m_items[index].item;
-        }
-
-        return nullptr;
-    }
-
-    /**
-     * @brief Return next valid item.
-     * @code
-     * data_array<int> d;
-     * ...
-     * int* value = nullptr;
-     * while (d.next(value)) {
-     *     std::cout << *value;
-     * }
-     * @endcode
-     *
-     * Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not on free
-     * list).
-     *
-     * @return true if the paramter @c t is valid false otherwise.
-     */
-    bool next(T*& t) noexcept
-    {
-        u32 index;
-
-        if (t) {
-            auto id = get_id(*t);
-            index = get_index(id);
-            ++index;
-
-            for (; index < m_max_used; ++index) {
-                if (is_valid(m_items[index].id)) {
-                    t = &m_items[index].item;
-                    return true;
-                }
-            }
-        } else {
-            for (index = 0; index < m_max_used; ++index) {
-                if (is_valid(m_items[index].id)) {
-                    t = &m_items[index].item;
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    constexpr bool full() const noexcept
-    {
-        return m_free_head == none && m_max_used == m_capacity;
-    }
-
-    constexpr std::size_t size() const noexcept
-    {
-        return m_max_size;
-    }
-
-    constexpr bool can_alloc(std::size_t place) const noexcept
-    {
-        return m_capacity - m_max_size >= place;
-    }
-
-    constexpr u32 max_size() const noexcept
-    {
-        return m_max_size;
-    }
-
-    constexpr u32 max_used() const noexcept
-    {
-        return m_max_used;
-    }
-
-    constexpr u32 capacity() const noexcept
-    {
-        return m_capacity;
-    }
-
-    constexpr u32 next_key() const noexcept
-    {
-        return m_next_key;
-    }
-
-    constexpr bool is_free_list_empty() const noexcept
-    {
-        return m_free_head == none;
     }
 };
 
@@ -868,7 +499,7 @@ struct message
         i8 integer_8[32];  // 32 bytes
         i32 integer_32[8]; // 8 * 4 bytes
         i64 integer_64[4]; // 4 * 8 bytes
-        float real_32[8];  // 8 * 4 bytes 
+        float real_32[8];  // 8 * 4 bytes
         double real_64[4]; // 4 * 8 bytes
     };
 
@@ -1647,7 +1278,7 @@ public:
 
         const_iterator operator++(int) noexcept
         {
-            iterator tmp(*this);
+            const_iterator tmp(*this);
 
             node = (node == nullptr) ? list->m_front : node->next;
 
@@ -1663,7 +1294,7 @@ public:
 
         const_iterator operator--(int) noexcept
         {
-            iterator tmp(*this);
+            const_iterator tmp(*this);
 
             node = (node == nullptr) ? list->m_back : node->prev;
 
@@ -1938,7 +1569,7 @@ public:
 
     bool empty() const noexcept
     {
-        return m_front == nullptr;
+        return m_size == 0;
     }
 
     i64 size() const noexcept
@@ -1961,6 +1592,8 @@ public:
     using pointer = T*;
     using difference_type = std::ptrdiff_t;
     using size_type = std::size_t;
+    using iterator = T*;
+    using const_iterator = const T*;
 
 private:
     value_type* items{ nullptr };
@@ -2004,6 +1637,547 @@ private:
     {
         assert(i < capacity);
         return items[i];
+    }
+
+    iterator begin() noexcept
+    {
+        return items;
+    }
+
+    iterator end() noexcept
+    {
+        return items + capacity;
+    }
+
+    const_iterator begin() const noexcept
+    {
+        return items;
+    }
+
+    const_iterator end() const noexcept
+    {
+        return items + capacity;
+    }
+};
+
+/*****************************************************************************
+ *
+ * data-array
+ *
+ ****************************************************************************/
+
+enum class model_id : std::uint64_t;
+enum class dynamics_id : std::uint64_t;
+enum class message_id : std::uint64_t;
+enum class input_port_id : std::uint64_t;
+enum struct output_port_id : std::uint64_t;
+enum class init_port_id : std::uint64_t;
+
+template<typename T>
+constexpr u32
+get_index(T identifier) noexcept
+{
+    return static_cast<u32>(
+      static_cast<typename std::underlying_type<T>::type>(identifier) &
+      0x00000000ffffffff);
+}
+
+template<typename T>
+constexpr u32
+get_key(T identifier) noexcept
+{
+    return static_cast<u32>(
+      (static_cast<typename std::underlying_type<T>::type>(identifier) &
+       0xffffffff00000000) >>
+      32);
+}
+
+template<typename T>
+constexpr u32
+get_max_key() noexcept
+{
+    return static_cast<u32>(0xffffffff00000000 >> 32);
+}
+
+template<typename T>
+constexpr u32
+get_max_size() noexcept
+{
+    return std::numeric_limits<u32>::max();
+}
+
+template<typename T>
+constexpr bool
+is_valid(T identifier) noexcept
+{
+    return get_key(identifier) > 0;
+}
+
+template<typename T>
+constexpr T
+make_id(u32 key, u32 index) noexcept
+{
+    u64 identifier = key;
+    identifier <<= 32;
+    identifier |= index;
+
+    T ret{ identifier };
+    return ret;
+
+    // return static_cast<T>(identifier);
+}
+
+template<typename T>
+constexpr u32
+make_next_key(u32 key) noexcept
+{
+    return key == get_max_key<T>() ? 1u : key + 1;
+}
+
+/**
+ * @brief An optimized fixed size array for dynamics objects.
+ *
+ * A container to handle everything from trivial, pod or object.
+ * - linear memory/iteration
+ * - O(1) alloc/free
+ * - stable indices
+ * - weak references
+ * - zero overhead dereferences
+ *
+ * @tparam T The type of object the data_array holds.
+ * @tparam Identifier A enum class identifier to store identifier unsigned
+ *     number.
+ * @todo Make Identifier split key|id automatically for all unsigned.
+ */
+template<typename T, typename Identifier>
+class data_array
+{
+private:
+    static_assert(
+      std::is_enum<Identifier>::value,
+      "Identifier must be a enumeration: enum class id : unsigned {};");
+
+    struct item
+    {
+        T item;
+        Identifier id;
+    };
+
+    item* m_items = nullptr; // items vector.
+    u32 m_max_size = 0;      // total size
+    u32 m_max_used = 0;      // highest index ever allocated
+    u32 m_capacity = 0;      // num allocated items
+    u32 m_next_key = 1;      // [1..2^32] (don't let == 0)
+    u32 m_free_head = none;  // index of first free entry
+
+public:
+    using identifier_type = Identifier;
+    using value_type = T;
+
+    static constexpr u32 none = std::numeric_limits<u32>::max();
+
+    data_array() = default;
+
+    ~data_array() noexcept
+    {
+        clear();
+
+        if (m_items)
+            std::free(m_items);
+    }
+
+    /**
+     * @brief Initialize the underlying byffer of T.
+     *
+     * @return @c is_success(status) or is_bad(status).
+     */
+    status init(std::size_t capacity) noexcept
+    {
+        clear();
+
+        if (capacity > get_max_size<Identifier>())
+            return status::data_array_init_capacity_error;
+
+        m_items = static_cast<item*>(std::malloc(capacity * sizeof(item)));
+        if (!m_items)
+            return status::data_array_not_enough_memory;
+
+        m_max_size = 0;
+        m_max_used = 0;
+        m_capacity = static_cast<u32>(capacity);
+        m_next_key = 1;
+        m_free_head = none;
+
+        return status::success;
+    }
+
+    /**
+     * @brief Resets data members
+     *
+     * Run destructor on outstanding items and re-initialize of size.
+     */
+    void clear() noexcept
+    {
+        if constexpr (!std::is_trivial_v<T>) {
+            for (u32 i = 0; i != m_max_used; ++i) {
+                if (is_valid(m_items[i].id)) {
+                    m_items[i].item.~T();
+                    m_items[i].id = static_cast<identifier_type>(0);
+                }
+            }
+        }
+
+        m_max_size = 0;
+        m_max_used = 0;
+        m_capacity = 0;
+        m_next_key = 1;
+        m_free_head = none;
+    }
+
+    /**
+     * @brief Alloc a new element.
+     *
+     * If allocator can not allocate new item, this function abort() if NDEBUG
+     * macro is not defined. Before using this function, tries @c can_alloc()
+     * for example.
+     *
+     * Use @c m_free_head if not empty or use a new items from buffer
+     * (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
+     * index to build unique identifier.
+     *
+     * @return A reference to the newly allocated element.
+     */
+    template<typename... Args>
+    T& alloc(Args&&... args) noexcept
+    {
+        assert(can_alloc(1) && "check alloc() with full() before using use.");
+
+        u32 new_index;
+
+        if (m_free_head != none) {
+            new_index = m_free_head;
+            if (is_valid(m_items[m_free_head].id))
+                m_free_head = none;
+            else
+                m_free_head = get_index(m_items[m_free_head].id);
+        } else {
+            new_index = m_max_used++;
+        }
+
+        new (&m_items[new_index].item) T(std::forward<Args>(args)...);
+
+        m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
+        m_next_key = make_next_key<Identifier>(m_next_key);
+
+        ++m_max_size;
+
+        return m_items[new_index].item;
+    }
+
+    /**
+     * @brief Alloc a new element.
+     *
+     * Use @c m_free_head if not empty or use a new items from buffer
+     * (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
+     * index to build unique identifier.
+     *
+     * @return A pair with a boolean if the allocation success and a pointer to
+     *     the newly element.
+     */
+    template<typename... Args>
+    std::pair<bool, T*> try_alloc(Args&&... args) noexcept
+    {
+        if (!can_alloc(1))
+            return { false, nullptr };
+
+        u32 new_index;
+
+        if (m_free_head != none) {
+            new_index = m_free_head;
+            if (is_valid(m_items[m_free_head].id))
+                m_free_head = none;
+            else
+                m_free_head = get_index(m_items[m_free_head].id);
+        } else {
+            new_index = m_max_used++;
+        }
+
+        new (&m_items[new_index].item) T(std::forward<Args>(args)...);
+
+        m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
+        m_next_key = make_next_key<Identifier>(m_next_key);
+
+        ++m_max_size;
+
+        return { true, &m_items[new_index].item };
+    }
+
+    /**
+     * @brief Free the element @c t.
+     *
+     * Internally, puts the elelent @c t entry on free list and use id to store
+     * next.
+     */
+    void free(T& t) noexcept
+    {
+        auto id = get_id(t);
+        auto index = get_index(id);
+
+        assert(&m_items[index] == static_cast<void*>(&t));
+        assert(m_items[index].id == id);
+        assert(is_valid(id));
+
+        if constexpr (!std::is_trivial_v<T>)
+            m_items[index].item.~T();
+
+        m_items[index].id = static_cast<Identifier>(m_free_head);
+        m_free_head = index;
+
+        --m_max_size;
+    }
+
+    /**
+     * @brief Free the element pointer by @c id.
+     *
+     * Internally, puts the elelent @c t entry on free list and use id to store
+     * next.
+     */
+    void free(Identifier id) noexcept
+    {
+        auto index = get_index(id);
+
+        assert(m_items[index].id == id);
+        assert(valid(id));
+
+        if constexpr (std::is_trivial_v<T>)
+            m_items[index].item.~T();
+
+        m_items[index].id = static_cast<Identifier>(m_free_head);
+        m_free_head = index;
+
+        --m_max_size;
+    }
+
+    /**
+     * @brief Accessor to the id part of the item
+     *
+     * @return @c Identifier.
+     */
+    Identifier get_id(const T& t) const noexcept
+    {
+        auto* ptr = reinterpret_cast<const item*>(&t);
+        return ptr->id;
+    }
+
+    /**
+     * @brief Accessor to the item part of the id.
+     *
+     * @return @c T
+     */
+    T& get(Identifier id) noexcept
+    {
+        return m_items[get_index(id)].item;
+    }
+
+    /**
+     * @brief Accessor to the item part of the id.
+     *
+     * @return @c T
+     */
+    const T& get(Identifier id) const noexcept
+    {
+        return m_items[get_index(id)].item;
+    }
+
+    /**
+     * @brief Get a T from an ID.
+     *
+     * @details Validates ID, then returns item, returns null if invalid.
+     * For cases like AI references and others where 'the thing might have
+     * been deleted out from under me.
+     */
+    T* try_to_get(Identifier id) const noexcept
+    {
+        if (get_key(id)) {
+            auto index = get_index(id);
+            if (m_items[index].id == id)
+                return &m_items[index].item;
+        }
+
+        return nullptr;
+    }
+
+    /**
+     * @brief Return next valid item.
+     * @code
+     * data_array<int> d;
+     * ...
+     * int* value = nullptr;
+     * while (d.next(value)) {
+     *     std::cout << *value;
+     * }
+     * @endcode
+     *
+     * Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not on free
+     * list).
+     *
+     * @return true if the paramter @c t is valid false otherwise.
+     */
+    bool next(T*& t) const noexcept
+    {
+        u32 index;
+
+        if (t) {
+            auto id = get_id(*t);
+            index = get_index(id);
+            ++index;
+
+            for (; index < m_max_used; ++index) {
+                if (is_valid(m_items[index].id)) {
+                    t = &m_items[index].item;
+                    return true;
+                }
+            }
+        } else {
+            for (index = 0; index < m_max_used; ++index) {
+                if (is_valid(m_items[index].id)) {
+                    t = &m_items[index].item;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    constexpr bool full() const noexcept
+    {
+        return m_free_head == none && m_max_used == m_capacity;
+    }
+
+    constexpr std::size_t size() const noexcept
+    {
+        return m_max_size;
+    }
+
+    constexpr bool can_alloc(std::size_t place) const noexcept
+    {
+        return m_capacity - m_max_size >= place;
+    }
+
+    constexpr u32 max_size() const noexcept
+    {
+        return m_max_size;
+    }
+
+    constexpr u32 max_used() const noexcept
+    {
+        return m_max_used;
+    }
+
+    constexpr u32 capacity() const noexcept
+    {
+        return m_capacity;
+    }
+
+    constexpr u32 next_key() const noexcept
+    {
+        return m_next_key;
+    }
+
+    constexpr bool is_free_list_empty() const noexcept
+    {
+        return m_free_head == none;
+    }
+};
+
+struct record
+{
+    record() noexcept = default;
+
+    record(double x_dot_, time date_) noexcept
+      : x_dot{ x_dot_ }
+      , date{ date_ }
+    {}
+
+    double x_dot{ 0 };
+    time date{ time_domain<time>::infinity };
+};
+
+template<typename T, typename Identifier>
+class data_array_archive
+{
+private:
+    flat_double_list<record>::allocator_type shared_allocator;
+    data_array<T, Identifier> data;
+
+public:
+    data_array_archive() = default;
+
+    ~data_array_archive() noexcept = default;
+
+    status init(std::size_t capacity, std::size_t archive_capacity)
+    {
+        irt_return_if_bad(data.init(capacity));
+        irt_return_if_bad(shared_allocator.init(archive_capacity));
+
+        return status::success;
+    }
+
+    template<typename... Args>
+    T& alloc(Args&&... args) noexcept
+    {
+        assert(can_alloc(1) && "check alloc() with full() before using use.");
+
+        auto& ret = data.alloc(std::forward<Args>(args)...);
+        ret.archive.set_allocator(&shared_allocator);
+
+        return ret;
+    }
+
+    template<typename... Args>
+    std::pair<bool, T*> try_alloc(Args&&... args) noexcept
+    {
+        auto ret = data.try_alloc(std::forward<Args>(args)...);
+        if (ret.first)
+            ret.second->set_allocator(&shared_allocator);
+
+        return ret;
+    }
+
+    /**
+     * @brief Accessor to the id part of the item
+     *
+     * @return @c Identifier.
+     */
+    Identifier get_id(const T& t) const noexcept
+    {
+        return data.get_id(t);
+    }
+
+    /**
+     * @brief Accessor to the item part of the id.
+     *
+     * @return @c T
+     */
+    T& get(Identifier id) noexcept
+    {
+        return data.get(id);
+    }
+
+    /**
+     * @brief Accessor to the item part of the id.
+     *
+     * @return @c T
+     */
+    const T& get(Identifier id) const noexcept
+    {
+        return data.get(id);
+    }
+
+    constexpr bool can_alloc(std::size_t place) const noexcept
+    {
+        return data.can_alloc(place);
     }
 };
 
@@ -2293,14 +2467,9 @@ struct model
 
 struct init_message
 {
-    message msg;
-    flat_list<model_id> models;
-    small_string<8> name;
-};
-
-struct init_port
-{
-    flat_list<message> messages;
+    message_id msg;
+    flat_list<std::pair<model_id, int>> models;
+    small_string<7> name;
 };
 
 struct input_port
@@ -2352,9 +2521,9 @@ using lambda_function_t = decltype(
 
 template<class T>
 using transition_function_t = decltype(
-  detail::helper<status (
-                   T::*)(data_array<input_port, input_port_id>&, time, time),
-                 &T::transition>{});
+  detail::helper<
+    status (T::*)(data_array<input_port, input_port_id>&, time, time, time),
+    &T::transition>{});
 
 template<class T>
 using initialize_function_t =
@@ -2382,24 +2551,32 @@ struct adder
     output_port_id y[1];
     message_id init[1];
 
-    double factors[PortNumber];
+    double input_coeffs[PortNumber];
     double values[PortNumber];
     time sigma;
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        std::fill_n(std::begin(factors), PortNumber, 1.0);
-        std::fill_n(std::begin(values), PortNumber, 1.0);
+        std::fill_n(std::begin(input_coeffs),
+                    PortNumber,
+                    1.0 / static_cast<double>(PortNumber));
+        std::fill_n(std::begin(values),
+                    PortNumber,
+                    1.0 / static_cast<double>(PortNumber));
 
         sigma = time_domain<time>::infinity;
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (const message* msg = init_messages.try_to_get(init[0]); msg) {
-                if (msg->type == value_type::real_64 && msg->size() == i)
-                    for (size_t j = 0; j != PortNumber; ++j)
-                        factors[j] = msg->to_real_64(j);
-            }
-        }
+        const message* msg = init_messages.try_to_get(init[0]);
+
+        irt_return_if_fail(msg != nullptr,
+                           status::model_adder_empty_init_message);
+        irt_return_if_fail(msg->type == value_type::real_64,
+                           status::model_adder_bad_init_message);
+        irt_return_if_fail(msg->size() == PortNumber,
+                           status::model_adder_bad_init_message);
+
+        for (size_t j = 0; j != PortNumber; ++j)
+            input_coeffs[j] = msg->to_real_64(j);
 
         return status::success;
     }
@@ -2411,7 +2588,7 @@ struct adder
 
         if (auto* port = output_ports.try_to_get(y[0]); port) {
             for (size_t i = 0; i != PortNumber; ++i)
-                to_send += factors[i] * values[i];
+                to_send += input_coeffs[i] * values[i];
 
             port->messages.emplace_front(to_send);
         }
@@ -2421,17 +2598,24 @@ struct adder
 
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
-                      time /*e*/) noexcept
+                      time /*e*/,
+                      time /*r*/) noexcept
     {
         bool have_message = false;
+
         for (size_t i = 0; i != PortNumber; ++i) {
             if (auto* port = input_ports.try_to_get(x[i]); port) {
                 for (const auto& msg : port->messages) {
-                    if (msg.type == value_type::real_64 && msg.size() == 1) {
-                        values[i] = msg.to_real_64(0);
+                    irt_return_if_fail(
+                      msg.type == value_type::real_64,
+                      status::model_adder_bad_external_message);
+                    irt_return_if_fail(
+                      msg.size() == 1,
+                      status::model_adder_bad_external_message);
 
-                        have_message = true;
-                    }
+                    values[i] = msg.to_real_64(0);
+
+                    have_message = true;
                 }
             }
         }
@@ -2453,24 +2637,28 @@ struct mult
     output_port_id y[1];
     message_id init[1];
 
-    double weight[PortNumber];
+    double input_coeffs[PortNumber];
     double values[PortNumber];
     time sigma;
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        std::fill_n(std::begin(weight), PortNumber, 1.0);
+        std::fill_n(std::begin(input_coeffs), PortNumber, 1.0);
         std::fill_n(std::begin(values), PortNumber, 1.0);
 
         sigma = time_domain<time>::infinity;
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (const message* msg = init_messages.try_to_get(init[0]); msg) {
-                if (msg->type == value_type::real_64 && msg->size() == i)
-                    for (size_t j = 0; j != PortNumber; ++j)
-                        weight[j] = msg->to_real_64(j);
-            }
-        }
+        const message* msg = init_messages.try_to_get(init[0]);
+
+        irt_return_if_fail(msg != nullptr,
+                           status::model_mult_empty_init_message);
+        irt_return_if_fail(msg->type == value_type::real_64,
+                           status::model_mult_bad_init_message);
+        irt_return_if_fail(msg->size() == PortNumber,
+                           status::model_mult_bad_init_message);
+
+        for (size_t j = 0; j != PortNumber; ++j)
+            input_coeffs[j] = msg->to_real_64(j);
 
         return status::success;
     }
@@ -2482,7 +2670,7 @@ struct mult
 
         if (auto* port = output_ports.try_to_get(y[0]); port) {
             for (size_t i = 0; i != PortNumber; ++i)
-                to_send += std::pow(values[i], weight[i]);
+                to_send *= std::pow(values[i], input_coeffs[i]);
 
             port->messages.emplace_front(to_send);
         }
@@ -2492,17 +2680,22 @@ struct mult
 
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
-                      time /*e*/) noexcept
+                      time /*e*/,
+                      time /*r*/) noexcept
     {
         bool have_message = false;
         for (size_t i = 0; i != PortNumber; ++i) {
             if (auto* port = input_ports.try_to_get(x[i]); port) {
                 for (const auto& msg : port->messages) {
-                    if (msg.type == value_type::real_64 && msg.size() == 1) {
-                        values[i] = msg.to_real_64(0);
+                    irt_return_if_fail(
+                      msg.type == value_type::real_64,
+                      status::model_mult_bad_external_message);
+                    irt_return_if_fail(
+                      msg.size() == 1,
+                      status::model_mult_bad_external_message);
 
-                        have_message = true;
-                    }
+                    values[i] = msg.to_real_64(0);
+                    have_message = true;
                 }
             }
         }
@@ -2540,9 +2733,9 @@ struct counter
 
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
-                      time /*e*/) noexcept
+                      time /*e*/,
+                      time /*r*/) noexcept
     {
-        sigma = time_domain<double>::infinity;
         std::ptrdiff_t diff{ 0 };
         if (auto* port = input_ports.try_to_get(x[0]); port)
             diff += std::distance(std::begin(port->messages),
@@ -2555,8 +2748,6 @@ struct counter
 
     status internal(time /*t*/) noexcept
     {
-        sigma = time_domain<double>::infinity;
-
         return status::success;
     }
 };
@@ -2614,76 +2805,63 @@ struct integrator
         running
     };
 
-    struct record
-    {
-        record() noexcept = default;
-
-        record(double x_dot_, time date_) noexcept
-          : x_dot{ x_dot_ }
-          , date{ date_ }
-        {}
-
-        double x_dot{ 0 };
-        time date{ time_domain<time>::infinity };
-    };
-
-    time last_output_date;
-    double current = 0.0;
-    double up_threshold;
-    double down_threshold;
-    double last_output_value;
-    double current_value;
-    double expected_value;
+    double up_threshold = 0.0;
+    double down_threshold = 0.0;
+    double last_output_value = 0.0;
+    double current_value = 0.0;
+    double expected_value = 0.0;
     flat_double_list<record> archive;
-
     state st = state::init;
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        status ret = status::model_uninitialized_port_warning;
+        const message* msg = init_messages.try_to_get(init[0]);
+
+        irt_return_if_fail(msg != nullptr,
+                           status::model_integrator_empty_init_message);
+
+        irt_return_if_fail(msg->type == value_type::real_64 &&
+                             msg->size() == 1,
+                           status::model_integrator_bad_init_message);
+
+        current_value = msg->to_real_64(0);
         sigma = time_domain<time>::zero;
-
-        if (const message* msg = init_messages.try_to_get(init[0]); msg) {
-            if (msg->type == value_type::real_64 && msg->size() == 1) {
-                current = msg->to_real_64(0);
-                ret = status::success;
-            }
-        }
-
         st = state::init;
 
-        return ret;
+        return status::success;
     }
 
-    status external(data_array<input_port, input_port_id>& input_ports,
-                    time t,
-                    time /*e*/) noexcept
+    status external(input_port& port_quanta,
+                    input_port& port_x_dot,
+                    time t) noexcept
     {
-        if (auto* port = input_ports.try_to_get(x[port_quanta]); port) {
-            for (const auto& msg : port->messages) {
-                if (msg.type == value_type::real_64 && msg.size() == 2) {
-                    up_threshold = msg.to_real_64(0);
-                    down_threshold = msg.to_real_64(1);
+        for (const auto& msg : port_quanta.messages) {
+            irt_return_if_fail(msg.type == value_type::real_64 &&
+                                 msg.size() == 2,
+                               status::model_integrator_bad_external_message);
 
-                    if (st == state::wait_for_quanta)
-                        st = state::running;
-                    else if (st == state::wait_for_both)
-                        st = state::wait_for_both;
-                }
-            }
+            up_threshold = msg.to_real_64(0);
+            down_threshold = msg.to_real_64(1);
+
+            if (st == state::wait_for_quanta)
+                st = state::running;
+
+            if (st == state::wait_for_both)
+                st = state::wait_for_x_dot;
         }
 
-        if (auto* port = input_ports.try_to_get(x[port_x_dot]); port) {
-            for (const auto& msg : port->messages) {
-                if (msg.type == value_type::real_64 && msg.size() == 2) {
-                    archive.emplace_back(msg.to_real_64(0), t);
+        for (const auto& msg : port_x_dot.messages) {
+            irt_return_if_fail(msg.type == value_type::real_64 &&
+                                 msg.size() == 1,
+                               status::model_integrator_bad_external_message);
 
-                    if (st == state::wait_for_x_dot)
-                        st = state::running;
-                    else if (st == state::wait_for_both)
-                        st = state::wait_for_quanta;
-                }
-            }
+            archive.emplace_back(msg.to_real_64(0), t);
+
+            if (st == state::wait_for_x_dot)
+                st = state::running;
+
+            if (st == state::wait_for_both)
+                st = state::wait_for_quanta;
         }
 
         if (st == state::running) {
@@ -2691,7 +2869,7 @@ struct integrator
             expected_value = compute_expected_value();
         }
 
-        return ta();
+        return status::success;
     }
 
     status internal(time t) noexcept
@@ -2699,21 +2877,18 @@ struct integrator
         switch (st) {
         case state::running: {
             last_output_value = expected_value;
-            last_output_date = t;
 
             const double last_derivative_value = archive.back().x_dot;
             archive.clear();
-
-            archive.emplace_back(t, last_derivative_value);
+            archive.emplace_back(last_derivative_value, t);
             current_value = expected_value;
             st = state::wait_for_quanta;
-            return ta();
+            return status::success;
         }
         case state::init:
             st = state::wait_for_both;
             last_output_value = current_value;
-            last_output_date = t;
-            return ta();
+            return status::success;
         default:
             return status::model_integrator_internal_error;
         }
@@ -2721,18 +2896,22 @@ struct integrator
 
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time t,
-                      time e) noexcept
+                      time /*e*/,
+                      time r) noexcept
     {
         auto* port_1 = input_ports.try_to_get(x[port_quanta]);
         auto* port_2 = input_ports.try_to_get(x[port_x_dot]);
 
-        if (port_1 && port_2) {
-            if (e == 0)
-                internal(t);
-            return external(input_ports, t, e);
+        if (port_1->messages.empty() && port_2->messages.empty()) {
+            irt_return_if_bad(internal(t));
+        } else {
+            if (time_domain<time>::is_zero(r))
+                irt_return_if_bad(internal(t));
+
+            irt_return_if_bad(external(*port_1, *port_2, t));
         }
 
-        return internal(t);
+        return ta();
     }
 
     status lambda(
@@ -2758,8 +2937,8 @@ private:
     status ta() noexcept
     {
         if (st == state::running) {
-            if (archive.empty())
-                return status::model_integrator_running_without_x_dot;
+            irt_return_if_fail(!archive.empty(),
+                               status::model_integrator_running_without_x_dot);
 
             const auto current_derivative = archive.back().x_dot;
 
@@ -2769,15 +2948,15 @@ private:
             }
 
             if (current_derivative > 0) {
-                if ((up_threshold - current_value) < 0)
-                    return status::model_integrator_ta_with_bad_x_dot;
+                irt_return_if_fail((up_threshold - current_value) >= 0,
+                                   status::model_integrator_ta_with_bad_x_dot);
 
                 sigma = (up_threshold - current_value) / current_derivative;
                 return status::success;
             }
 
-            if ((down_threshold - current_value) > 0)
-                return status::model_integrator_ta_with_bad_x_dot;
+            irt_return_if_fail((down_threshold - current_value) <= 0,
+                               status::model_integrator_ta_with_bad_x_dot);
 
             sigma = (down_threshold - current_value) / current_derivative;
             return status::success;
@@ -2789,21 +2968,21 @@ private:
 
     double compute_current_value(time t) const noexcept
     {
+        if (archive.empty())
+            return last_output_value;
+
         auto val = last_output_value;
+        auto end = archive.end();
+        auto it = archive.begin();
+        auto next = archive.begin();
 
-        if (!archive.empty()) {
-            auto end = archive.end();
-            auto it = archive.begin();
-            auto next = archive.begin();
+        if (next != end)
+            ++next;
 
-            if (next != end)
-                ++next;
+        for (; next != end; it = next++)
+            val += (next->date - it->date) * it->x_dot;
 
-            for (; next != end; ++next, ++it)
-                val += ((*next).date - it->date) * it->x_dot;
-
-            val += (t - archive.back().date) * archive.back().x_dot;
-        }
+        val += (t - archive.back().date) * archive.back().x_dot;
 
         return val;
     }
@@ -2854,27 +3033,14 @@ struct quantifier
         down
     };
 
-    struct record
-    {
-        record() noexcept = default;
-
-        record(double x_dot_, time date_) noexcept
-          : x_dot{ x_dot_ }
-          , date{ date_ }
-        {}
-
-        double x_dot{ 0 };
-        time date{ time_domain<time>::infinity };
-    };
-
-    double m_upthreshold;
-    double m_downthreshold;
-    double m_offset;
-    double m_step_size;
-    int m_step_number;
-    int m_past_length;
+    double m_upthreshold = 0.0;
+    double m_downthreshold = 0.0;
+    double m_offset = 0.0;
+    double m_step_size = 0.0;
+    int m_step_number = 0;
+    int m_past_length = 0;
     flat_double_list<record> archive;
-    bool m_zero_init_offset;
+    bool m_zero_init_offset = false;
 
     enum init_port_name
     {
@@ -2886,73 +3052,78 @@ struct quantifier
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        status ret = status::model_uninitialized_port_warning;
-        sigma = time_domain<time>::zero;
         m_adapt_state = adapt_state::possible;
         m_zero_init_offset = false;
         m_step_size = 0.1;
-
-        if (const auto* msg = init_messages.try_to_get(init[i_allow_offsets]);
-            msg) {
-            if (msg->type == value_type::integer_8 && msg->size() == 1) {
-                m_adapt_state = msg->to_integer_8(0) != 0
-                                  ? adapt_state::possible
-                                  : adapt_state::impossible;
-                ret = status::success;
-            }
-        }
-
-        if (const auto* msg =
-              init_messages.try_to_get(init[i_zero_init_offset]);
-            msg) {
-            if (msg->type == value_type::integer_8 && msg->size() == 1) {
-                m_zero_init_offset = msg->to_integer_8(0) != 0;
-                ret = status::success;
-            }
-        }
-
-        if (const auto* msg = init_messages.try_to_get(init[i_quantum]); msg) {
-            if (msg->type == value_type::real_64 && msg->size() == 1) {
-                m_step_size = msg->to_real_64(0) != 0;
-                ret = status::success;
-            }
-        }
-
-        if (const auto* msg = init_messages.try_to_get(init[i_archive_length]);
-            msg) {
-            if (msg->type == value_type::integer_32 && msg->size() == 1) {
-                m_past_length = msg->to_integer_32(0);
-                ret = status::success;
-            }
-        }
-
-        if (m_step_size <= 0)
-            return status::model_quantifier_bad_quantum_parameter;
-
-        if (m_past_length <= 2)
-            return status::model_quantifier_bad_archive_length_parameter;
-
         m_offset = 0.0;
         m_state = state::init;
         sigma = time_domain<time>::infinity;
 
-        return ret;
+        if (const auto* msg = init_messages.try_to_get(init[i_allow_offsets]);
+            msg) {
+            irt_return_if_fail(
+              msg->type == value_type::integer_8 && msg->size() == 1,
+              status::model_quantifier_bad_init_allow_offsets);
+
+            m_adapt_state = msg->to_integer_8(0) != 0
+                              ? adapt_state::possible
+                              : adapt_state::impossible;
+        } else
+            irt_bad_return(status::model_quantifier_empty_init_allow_offsets);
+
+        if (const auto* msg =
+              init_messages.try_to_get(init[i_zero_init_offset]);
+            msg) {
+            irt_return_if_fail(
+              msg->type == value_type::integer_8 && msg->size() == 1,
+              status::model_quantifier_bad_init_zero_init_offset);
+
+            m_zero_init_offset = msg->to_integer_8(0) != 0;
+        } else
+            irt_bad_return(
+              status::model_quantifier_empty_init_zero_init_offset);
+
+        if (const auto* msg = init_messages.try_to_get(init[i_quantum]); msg) {
+            irt_return_if_fail(msg->type == value_type::real_64 &&
+                                 msg->size() == 1,
+                               status::model_quantifier_bad_init_quantum);
+
+            m_step_size = msg->to_real_64(0);
+
+            irt_return_if_fail(m_step_size > 0,
+                               status::model_quantifier_bad_quantum_parameter);
+        } else
+            irt_bad_return(status::model_quantifier_empty_init_quantum);
+
+        if (const auto* msg = init_messages.try_to_get(init[i_archive_length]);
+            msg) {
+            irt_return_if_fail(
+              msg->type == value_type::integer_32 && msg->size() == 1,
+              status::model_quantifier_bad_init_archive_lenght);
+
+            m_past_length = msg->to_integer_32(0);
+            irt_return_if_fail(
+              m_past_length > 2,
+              status::model_quantifier_bad_archive_length_parameter);
+        } else
+            irt_bad_return(status::model_quantifier_empty_init_archive_lenght);
+
+        return status::success;
     }
 
-    status external(data_array<input_port, input_port_id>& input_ports,
-                    time t,
-                    time /*e*/) noexcept
+    status external(input_port& port, time t) noexcept
     {
         double val = 0.0, shifting_factor = 0.0;
 
-        if (auto* port = input_ports.try_to_get(x[0]); port) {
+        {
             double sum = 0.0;
             double nb = 0.0;
-            for (const auto& msg : port->messages) {
-                if (msg.type == value_type::real_64 && msg.size() == 1) {
-                    sum += msg.to_real_64(0);
-                    ++nb;
-                }
+            for (const auto& msg : port.messages) {
+                irt_return_if_fail(
+                  msg.type == value_type::real_64 && msg.size() == 1,
+                  status::model_quantifier_bad_external_message);
+                sum += msg.to_real_64(0);
+                ++nb;
             }
 
             val = sum / nb;
@@ -2962,76 +3133,75 @@ struct quantifier
             init_step_number_and_offset(val);
             update_thresholds();
             m_state = state::response;
-        } else {
-            while ((val >= m_upthreshold) || (val <= m_downthreshold)) {
-                m_step_number =
-                  val >= m_upthreshold ? m_step_number + 1 : m_step_number - 1;
+            return status::success;
+        }
 
-                switch (m_adapt_state) {
-                case adapt_state::impossible:
+        while ((val >= m_upthreshold) || (val <= m_downthreshold)) {
+            m_step_number =
+              val >= m_upthreshold ? m_step_number + 1 : m_step_number - 1;
+
+            switch (m_adapt_state) {
+            case adapt_state::impossible:
+                update_thresholds();
+                break;
+            case adapt_state::possible:
+                store_change(val >= m_upthreshold ? m_step_size : -m_step_size,
+                             t);
+
+                shifting_factor = shift_quanta();
+
+                irt_return_if_fail(
+                  shifting_factor >= 0,
+                  status::model_quantifier_shifting_value_neg);
+                irt_return_if_fail(
+                  shifting_factor <= 1,
+                  status::model_quantifier_shifting_value_less_1);
+
+                if ((0 != shifting_factor) && (1 != shifting_factor)) {
+                    update_thresholds(shifting_factor,
+                                      val >= m_upthreshold ? direction::down
+                                                           : direction::up);
+                    m_adapt_state = adapt_state::done;
+                } else {
                     update_thresholds();
-                    break;
-                case adapt_state::possible:
-                    store_change(
-                      val >= m_upthreshold ? m_step_size : -m_step_size, t);
-
-                    shifting_factor = shift_quanta();
-                    if (shifting_factor < 0)
-                        return status::model_quantifier_shifting_value_neg;
-
-                    if (shifting_factor > 1)
-                        return status::model_quantifier_shifting_value_less_1;
-
-                    if ((0 != shifting_factor) && (1 != shifting_factor)) {
-                        update_thresholds(shifting_factor,
-                                          val >= m_upthreshold
-                                            ? direction::down
-                                            : direction::up);
-                        m_adapt_state = adapt_state::done;
-                    } else {
-                        update_thresholds();
-                    }
-                    break;
-                case adapt_state::done:
-                    init_step_number_and_offset(val);
-                    m_adapt_state = adapt_state::possible;
-                    update_thresholds();
-                    break;
                 }
+                break;
+            case adapt_state::done:
+                init_step_number_and_offset(val);
+                m_adapt_state = adapt_state::possible;
+                update_thresholds();
+                break;
             }
         }
+
         m_state = state::response;
         return status::success;
     }
 
-    status internal(time /*t*/) noexcept
+    status internal() noexcept
     {
-        switch (m_state) {
-        case state::init:
-            break;
-        case state::idle:
-            break;
-        case state::response:
+        if (m_state == state::response)
             m_state = state::idle;
-            break;
-        }
 
         return status::success;
     }
 
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time t,
-                      time e) noexcept
+                      time /*e*/,
+                      time r) noexcept
     {
         auto* port = input_ports.try_to_get(x[0]);
+        if (port && port->messages.empty()) {
+            irt_return_if_bad(internal());
+        } else {
+            if (time_domain<time>::is_zero(r))
+                irt_return_if_bad(internal());
 
-        if (port) {
-            if (e == 0)
-                internal(t);
-            external(input_ports, t, e);
+            irt_return_if_bad(external(*port, t));
         }
 
-        return internal(t);
+        return ta();
     }
 
     status lambda(
@@ -3249,9 +3419,11 @@ public:
         m_list.emplace_front(m_heap.top()->id);
         m_heap.pop();
 
+        auto nb = 1u;
         while (!m_heap.empty() && t == tn()) {
             m_list.emplace_front(m_heap.top()->id);
             m_heap.pop();
+            nb++;
         }
 
         return m_list;
@@ -3265,6 +3437,11 @@ public:
     bool empty() const noexcept
     {
         return m_heap.empty();
+    }
+
+    size_t size() const noexcept
+    {
+        return m_heap.size();
     }
 };
 
@@ -3285,14 +3462,14 @@ struct simulation
 
     data_array<model, model_id> models;
 
-    data_array<message, message_id> init_messages;
+    data_array<init_message, message_id> init_messages;
     data_array<message, message_id> messages;
     data_array<input_port, input_port_id> input_ports;
     data_array<output_port, output_port_id> output_ports;
 
     data_array<none, dynamics_id> none_models;
-    data_array<integrator, dynamics_id> integrator_models;
-    data_array<quantifier, dynamics_id> quantifier_models;
+    data_array_archive<integrator, dynamics_id> integrator_models;
+    data_array_archive<quantifier, dynamics_id> quantifier_models;
     data_array<adder_2, dynamics_id> adder_2_models;
     data_array<adder_3, dynamics_id> adder_3_models;
     data_array<adder_4, dynamics_id> adder_4_models;
@@ -3311,57 +3488,33 @@ struct simulation
     {
         constexpr size_t ten{ 10 };
 
-        if (auto ret = model_list_allocator.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = message_list_allocator.init(messages_capacity);
-            is_bad(ret))
-            return ret;
-        if (auto ret = input_port_list_allocator.init(model_capacity * ten);
-            is_bad(ret))
-            return ret;
-        if (auto ret = output_port_list_allocator.init(model_capacity * ten);
-            is_bad(ret))
-            return ret;
-        if (auto ret = emitting_output_port_allocator.init(model_capacity);
-            is_bad(ret))
-            return ret;
+        irt_return_if_bad(model_list_allocator.init(model_capacity));
+        irt_return_if_bad(message_list_allocator.init(messages_capacity));
+        irt_return_if_bad(input_port_list_allocator.init(model_capacity));
+        irt_return_if_bad(output_port_list_allocator.init(model_capacity));
+        irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
 
-        if (auto ret = sched.init(model_capacity); is_bad(ret))
-            return ret;
+        irt_return_if_bad(sched.init(model_capacity));
 
-        if (auto ret = models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = init_messages.init(model_capacity * ten); is_bad(ret))
-            return ret;
-        if (auto ret = messages.init(messages_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = input_ports.init(model_capacity * ten); is_bad(ret))
-            return ret;
-        if (auto ret = output_ports.init(model_capacity * ten); is_bad(ret))
-            return ret;
+        irt_return_if_bad(models.init(model_capacity));
+        irt_return_if_bad(init_messages.init(model_capacity * ten));
+        irt_return_if_bad(messages.init(messages_capacity));
+        irt_return_if_bad(input_ports.init(model_capacity * ten));
+        irt_return_if_bad(output_ports.init(model_capacity * ten));
 
-        if (auto ret = none_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = integrator_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = quantifier_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = adder_2_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = adder_3_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = adder_4_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = mult_2_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = mult_3_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = mult_4_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = counter_models.init(model_capacity); is_bad(ret))
-            return ret;
-        if (auto ret = generator_models.init(model_capacity); is_bad(ret))
-            return ret;
+        irt_return_if_bad(none_models.init(model_capacity));
+        irt_return_if_bad(integrator_models.init(
+          model_capacity, model_capacity * ten * ten * ten));
+        irt_return_if_bad(quantifier_models.init(
+          model_capacity, model_capacity * ten * ten * ten));
+        irt_return_if_bad(adder_2_models.init(model_capacity));
+        irt_return_if_bad(adder_3_models.init(model_capacity));
+        irt_return_if_bad(adder_4_models.init(model_capacity));
+        irt_return_if_bad(mult_2_models.init(model_capacity));
+        irt_return_if_bad(mult_3_models.init(model_capacity));
+        irt_return_if_bad(mult_4_models.init(model_capacity));
+        irt_return_if_bad(counter_models.init(model_capacity));
+        irt_return_if_bad(generator_models.init(model_capacity));
 
         return status::success;
     }
@@ -3373,14 +3526,18 @@ struct simulation
 
     template<typename Dynamics>
     status alloc(Dynamics& dynamics,
-                 data_array<Dynamics, dynamics_id>& dynamics_r) noexcept
+                 dynamics_id id,
+                 const char* name = nullptr) noexcept
     {
-        if (models.full())
-            return status::simulation_not_enough_model;
+        irt_return_if_fail(!models.full(),
+                           status::simulation_not_enough_model);
 
         model& mdl = models.alloc();
         model_id mdl_id = models.get_id(mdl);
-        mdl.id = dynamics_r.get_id(dynamics);
+        mdl.id = id;
+        if (name)
+            mdl.name.assign(name);
+
         dynamics.id = mdl_id;
 
         if constexpr (std::is_same_v<Dynamics, none>)
@@ -3406,9 +3563,26 @@ struct simulation
         else
             mdl.type = dynamics_type::generator;
 
-        if constexpr (is_detected_v<initialize_function_t, Dynamics>)
-            if (auto ret = dynamics.initialize(init_messages); is_bad(ret))
-                return ret;
+        if constexpr (is_detected_v<initialize_function_t, Dynamics>) {
+            if constexpr (is_detected_v<has_init_port_t, Dynamics>) {
+                /* Combine all init_message from the init_messages
+                   structure where the model equals mdl_id. */
+
+                init_message* msg = nullptr;
+                while (init_messages.next(msg)) {
+                    auto it = std::find_if(std::begin(msg->models),
+                                           std::end(msg->models),
+                                           [mdl_id](const auto& pair) {
+                                               return pair.first == mdl_id;
+                                           });
+
+                    if (it != std::end(msg->models))
+                        dynamics.init[it->second] = msg->msg;
+                }
+            }
+
+            irt_return_if_bad(dynamics.initialize(messages));
+        }
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dynamics.x); i != e; ++i) {
@@ -3461,22 +3635,22 @@ struct simulation
 
     status run(time& t) noexcept
     {
-        if (sched.empty())
+        if (sched.empty()) {
+            t = time_domain<time>::infinity;
             return status::success;
+        }
 
         t = sched.tn();
+
         const auto& bag = sched.pop();
 
         flat_list<output_port_id> emitting_output_ports(
           &emitting_output_port_allocator);
 
-        for (const auto id : bag) {
-            if (auto* mdl = models.try_to_get(id); mdl) {
-                if (auto ret = make_transition(*mdl, t, emitting_output_ports);
-                    is_bad(ret))
-                    return ret;
-            }
-        }
+        for (const auto id : bag)
+            if (auto* mdl = models.try_to_get(id); mdl)
+                irt_return_if_bad(
+                  make_transition(*mdl, t, emitting_output_ports));
 
         for (const output_port_id src : emitting_output_ports) {
             if (auto* port_src = output_ports.try_to_get(src); port_src) {
@@ -3508,16 +3682,14 @@ struct simulation
       time t,
       flat_list<output_port_id>& emitting_output_ports) noexcept
     {
-        status ret = status::success;
-
         if (mdl.tn == mdl.handle->tn) {
             if constexpr (is_detected_v<lambda_function_t, Dynamics>) {
                 if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    if (ret = dyn.lambda(output_ports); is_bad(ret))
-                        return ret;
+                    irt_return_if_bad(dyn.lambda(output_ports));
 
                     for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                        if (auto* port_src = output_ports.try_to_get(dyn.y[i]); port_src) {
+                        if (auto* port_src = output_ports.try_to_get(dyn.y[i]);
+                            port_src) {
                             if (!port_src->messages.empty())
                                 emitting_output_ports.emplace_front(dyn.y[i]);
                         }
@@ -3527,8 +3699,8 @@ struct simulation
         }
 
         if constexpr (is_detected_v<transition_function_t, Dynamics>)
-            if (ret = dyn.transition(input_ports, t, mdl.tn - t); is_bad(ret))
-                return ret;
+            irt_return_if_bad(
+              dyn.transition(input_ports, t, t - mdl.tl, mdl.tn - t));
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>)
             for (size_t i = 0, e = std::size(dyn.x); i != e; ++i)
@@ -3542,7 +3714,7 @@ struct simulation
 
         sched.reintegrate(mdl, mdl.tn);
 
-        return ret;
+        return status::success;
     }
 
     status make_transition(model& mdl,
