@@ -117,7 +117,7 @@ is_not_enough_memory(status s) noexcept
 #  define irt_breakpoint()        do { raise (SIGTRAP); } while(0)
 #endif  /* __i386__ */
 #else
-#  define irt_breakpoint()        do { (void); } while(0)
+#  define irt_breakpoint()        do { } while(0)
 #endif
 
 inline status
