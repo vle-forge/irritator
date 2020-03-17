@@ -56,13 +56,21 @@ Simple file
 
 [source]
 ''''
-4
-A generator 2 0.0 100.0 0
-B generator 2 0.0 100.0 0
-Add adder 2 1.0 1.0 0
-C counter 1 0.0 0
-3
-A 0 Add 0
-B 0 Add 1
-Add 0 C 0
+#							'#' means comment until end of line
+4							# 4 models will be allocated
+A generator 2 0.0 100.0 0	# Model 'A' is a generator with one double real message
+B generator 2 0.0 100.0 0	# Model 'B' is a generator with one double real message
+Add adder_2 2 1.0 1.0 0		# Model 'Add' is a adder_2 with one double real message
+C counter 1 0.0 0			# Model 'C' is a counter with one real message
+3							# 3 internal connections
+A 0 Add 0					# Model 'A' output port '0' connected to model 'Add' input port '0'
+B 0 Add 1					# Model 'A' output port '0' connected to model 'Add' input port '0'
+Add 0 C 0					# Model 'Add' output port '0' connected to model 'C' input port '0'
+0							# 0 input connection
+1							# 1 output connection
+C 0	0						# Model 'C' output port '0' connected to coupled model port '0'
 ''''
+
+The `string` for name contains only the following no-utf8 characters from the
+POSIX, BSD and C99 norms: `isalnum() || isdigit(c) || _` in the  i.e.
+`0-9|a-z|A-Z|_`.
