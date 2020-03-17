@@ -28,7 +28,7 @@ jobs:
   include:
     - os: linux
       dist: xenial
-      env: CXX_COMPILER=g++-9 CXX_FLAGS=-std=c++2a
+      env: USE_COVERAGE=no CC=gcc-9 CXX=g++-9 CXXFLAGS="-std=c++2a -O2 -g"
       addons:
         apt:
           sources:
@@ -38,7 +38,17 @@ jobs:
             - g++-9
     - os: linux
       dist: xenial
-      env: CXX_COMPILER="clang++-9 -stdlib=libc++" CXX_FLAGS=-std=c++2a
+      env: USE_COVERAGE=yes CC=gcc-9 CXX=g++-9 CXXFLAGS="-std=c++2a -ggdb3 -O0 --coverage -fprofile-arcs -ftest-coverage"
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - *common_packages
+            - g++-9
+    - os: linux
+      dist: xenial
+      env: USE_COVERAGE=no CC=clang-9 CXX=clang++-9 CXXFLAGS="-stdlib=libc++ -std=c++2a -O2 -g"
       addons:
         apt:
           sources:
@@ -49,17 +59,17 @@ jobs:
             - *common_packages
             - clang-9
             - libc++-9-dev
+            - libc++abi-9-dev
     - os: osx
       osx_image: xcode11.2
-      env: CXX_COMPILER=clang++ CXX_FLAGS=c++2a
+      env: USE_COVERAGE=no CC=clang CXX=clang++ CXXFLAGS="-std=c++2a -O2 -g"
 
 install:
   - cd ..
   - cd irritator
   - mkdir build
   - cd build
-  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then CXXFLAGS="$CXX_FLAGS" cmake -DCMAKE_CXX_COMPILER=$CXX_COMPILER -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_COLOR_MAKEFILE=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=Debug .. ; fi
-  - if [ "$TRAVIS_OS_NAME" != "osx" ]; then CXXFLAGS="$CXX_FLAGS" -g -O0 --coverage -fprofile-arcs -ftest-coverage" cmake -DCMAKE_CXX_COMPILER=$CXX_COMPILER -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_COLOR_MAKEFILE=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=None .. ; fi
+  - cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_COLOR_MAKEFILE=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=None ..
 
 script:
   - make
@@ -67,12 +77,12 @@ script:
   - ctest
 
 after_success:
-  - if [ "$TRAVIS_OS_NAME" != "osx" ]; then cd ${TRAVIS_BUILD_DIR} ; fi
-  - if [ "$TRAVIS_OS_NAME" != "osx" ]; then lcov --directory . --capture --output-file coverage.info ; fi
-  - if [ "$TRAVIS_OS_NAME" != "osx" ]; then lcov --remove coverage.info '/usr/*' --output-file coverage.info ; fi
-  - if [ "$TRAVIS_OS_NAME" != "osx" ]; then lcov --remove coverage.info 'external/*' --output-file coverage.info ; fi
-  - if [ "$TRAVIS_OS_NAME" != "osx" ]; then lcov --list coverage.info ; fi
-  - if [ "$TRAVIS_OS_NAME" != "osx" ]; then bash <(curl -s https://codecov.io/bash) ; fi
+  - if [[ "$USE_COVERAGE" == "yes" ]]; then cd ${TRAVIS_BUILD_DIR} ; fi
+  - if [[ "$USE_COVERAGE" == "yes" ]]; then lcov --directory . --capture --output-file coverage.info ; fi
+  - if [[ "$USE_COVERAGE" == "yes" ]]; then lcov --remove coverage.info '/usr/*' --output-file coverage.info ; fi
+  - if [[ "$USE_COVERAGE" == "yes" ]]; then lcov --remove coverage.info 'external/*' --output-file coverage.info ; fi
+  - if [[ "$USE_COVERAGE" == "yes" ]]; then lcov --list coverage.info ; fi
+  - if [[ "$USE_COVERAGE" == "yes" ]]; then bash <(curl -s https://codecov.io/bash) ; fi
 
 notifications:
   email:
