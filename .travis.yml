@@ -37,19 +37,21 @@ jobs:
             - *common_packages
             - g++-9
     - os: linux
+      dist: xenial
       env: CXX_COMPILER="clang++-9 -stdlib=libc++" CXX_FLAGS=-std=c++2a
       addons:
         apt:
           sources:
+            - sourceline: 'deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-9 main'
+              key_url: https://apt.llvm.org/llvm-snapshot.gpg.key
             - ubuntu-toolchain-r-test
-            - llvm-toolchain-xenial-9
           packages:
             - *common_packages
             - clang-9
             - libc++-9-dev
     - os: osx
       osx_image: xcode11.2
-      env: CXX_COMPILER=clang++ CXXSTD=c++2a
+      env: CXX_COMPILER=clang++ CXX_FLAGS=c++2a
 
 install:
   - cd ..
