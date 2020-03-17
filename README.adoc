@@ -6,7 +6,7 @@ v0.1.0, 2020-xx-xx
 
 [width="15%"]
 |============
-| https://travis-ci.org/quesnel/irritator[image:https://travis-ci.org/quesnel/irritator.png?branch=master[Build Status]] | https://ci.appveyor.com/project/quesnel/irritator?branch=master[image:https://ci.appveyor.com/api/projects/status/github/quesnel/irritator?branch=master&svg=true[Build Status]] | https://codecov.io/gh/quesnel/irritator[image:https://codecov.io/gh/quesnel/irritator/branch/irritator-0.5/graph/badge.svg[Coverage Status]]
+| https://travis-ci.org/vle-forge/irritator[image:https://travis-ci.org/vle-forge/irritator.png?branch=master[Build Status]] | https://ci.appveyor.com/project/vle-forge/irritator?branch=master[image:https://ci.appveyor.com/api/projects/status/github/vle-forge/irritator?branch=master&svg=true[Build Status]] | https://codecov.io/gh/vle-forge/irritator[image:https://codecov.io/gh/vle-forge/irritator/branch/irritator-0.5/graph/badge.svg[Coverage Status]]
 |============
 
 Copyright © 2020 http://www.inrae.fr/en[INRA]
@@ -18,7 +18,7 @@ license]. See the LICENSE file.
 
 * `cmake` (≥ 3.11)
 * $$C++$$ compiler with $$C++20$$ support:
-** `gcc` ≥ 9 (https://www.gnu.org/software/gcc/projects/cxx-status.html[notes])
+** `gcc` ≥ 8 (https://www.gnu.org/software/gcc/projects/cxx-status.html[notes])
 ** `clang` ≥ 9 (https://clang.llvm.org/cxx_status.html[notes])
 ** `visual studio 2019 16.0` (https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes[notes])
 
@@ -32,10 +32,20 @@ apt-get install build-essential cmake clang
 
 == First installation
 
-First, we clone Irritator git repository and the submodule.
+First, we clone Irritator git repository and the submodule:
+
+* from https://github.com/vle-forge/irritator[Github]:
 
 ....
-git clone https://github.com/quesnel/irritator.git
+git clone https://github.com/vle-forge/irritator.git
+cd irritator
+git submodule update --init --recursive
+....
+
+* from https://forgemia.inra.fr/gauthier.quesnel/baryonyx[ForgeMIA]:
+
+....
+git clone https://forgemia.inra.fr/gauthier.quesnel/baryonyx.git
 cd irritator
 git submodule update --init --recursive
 ....
