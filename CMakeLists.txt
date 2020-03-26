@@ -5,6 +5,8 @@ project(irritator VERSION 0.1.0 LANGUAGES CXX)
 # https://cmake.org/cmake/help/v3.0/module/GNUInstallDirs.html
 include(GNUInstallDirs)
 
+option(WITH_GUI "Build the graphical user interface [default: ON]" ON)
+
 find_package(Threads REQUIRED)
 add_library(threads INTERFACE IMPORTED)
 set_property(TARGET threads PROPERTY

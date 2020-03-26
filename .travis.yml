@@ -12,6 +12,8 @@ branches:
 addons:
   apt:
     packages: &common_packages
+      - libglew-dev
+      - libglfw3-dev
       - lcov
       - cmake
       - make
