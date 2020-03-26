@@ -90,6 +90,9 @@ enum class status
     model_quantifier_shifting_value_neg,
     model_quantifier_shifting_value_less_1,
     model_quantifier_bad_external_message,
+
+    model_constant_empty_init_message,
+    model_constant_bad_init_message,
 };
 
 constexpr bool
@@ -2450,7 +2453,8 @@ enum class dynamics_type : i8
     mult_3,
     mult_4,
     counter,
-    generator
+    generator,
+    constant
 };
 
 struct model
@@ -2771,6 +2775,52 @@ struct generator
     {
         if (auto* port = output_ports.try_to_get(y[0]); port)
             port->messages.emplace_front(0.0);
+
+        return status::success;
+    }
+};
+
+struct constant
+{
+    model_id id;
+    output_port_id y[1];
+    message_id init[1];
+    time sigma;
+    double value = 0.0;
+
+    status initialize(data_array<message, message_id>& init_messages) noexcept
+    {
+        const message* msg = init_messages.try_to_get(init[0]);
+
+        irt_return_if_fail(msg != nullptr,
+            status::model_constant_empty_init_message);
+
+        irt_return_if_fail(msg->type == value_type::real_64 &&
+            msg->size() == 1,
+            status::model_constant_bad_init_message);
+
+        value = msg->to_real_64(0);
+        sigma = time_domain<time>::zero;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+        time /*t*/,
+        time /*e*/,
+        time /*r*/) noexcept
+    {
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+        data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        auto& port = output_ports.get(y[0]);
+
+        port.messages.emplace_front(value);
 
         return status::success;
     }
@@ -3478,6 +3528,7 @@ struct simulation
     data_array<mult_4, dynamics_id> mult_4_models;
     data_array<counter, dynamics_id> counter_models;
     data_array<generator, dynamics_id> generator_models;
+    data_array<constant, dynamics_id> constant_models;
 
     scheduller sched;
 
@@ -3515,6 +3566,7 @@ struct simulation
         irt_return_if_bad(mult_4_models.init(model_capacity));
         irt_return_if_bad(counter_models.init(model_capacity));
         irt_return_if_bad(generator_models.init(model_capacity));
+        irt_return_if_bad(constant_models.init(model_capacity));
 
         return status::success;
     }
@@ -3560,8 +3612,10 @@ struct simulation
             mdl.type = dynamics_type::mult_4;
         else if constexpr (std::is_same_v<Dynamics, counter>)
             mdl.type = dynamics_type::counter;
-        else
+        else if constexpr (std::is_same_v<Dynamics, generator>)
             mdl.type = dynamics_type::generator;
+        else
+            mdl.type = dynamics_type::constant;
 
         if constexpr (is_detected_v<initialize_function_t, Dynamics>) {
             if constexpr (is_detected_v<has_init_port_t, Dynamics>) {
@@ -3744,6 +3798,8 @@ struct simulation
             return make_transition(mdl, counter_models.get(mdl.id), t, o);
         case dynamics_type::generator:
             return make_transition(mdl, generator_models.get(mdl.id), t, o);
+        case dynamics_type::constant:
+            return make_transition(mdl, constant_models.get(mdl.id), t, o);
         }
 
         return make_transition(mdl, none_models.get(mdl.id), t, o);

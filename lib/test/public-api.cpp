@@ -627,6 +627,40 @@ main()
         }
     };
 
+    "constant_simulation"_test = [] {
+        irt::simulation sim;
+
+        expect(irt::is_success(sim.init(16lu, 256lu)));
+        expect(sim.constant_models.can_alloc(2));
+        expect(sim.counter_models.can_alloc(1));
+
+        auto& cnt = sim.counter_models.alloc();
+        auto& c1 = sim.constant_models.alloc();
+        auto& c2 = sim.constant_models.alloc();
+
+        auto& value = sim.messages.alloc(0.0);
+        c1.init[0] = sim.messages.get_id(value);
+        c2.init[0] = sim.messages.get_id(value);
+
+        expect(sim.models.can_alloc(3));
+        expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
+        expect(irt::is_success(sim.alloc(c1, sim.constant_models.get_id(c1))));
+        expect(irt::is_success(sim.alloc(c2, sim.constant_models.get_id(c2))));
+
+        expect(sim.connect(c1.y[0], cnt.x[0]) == irt::status::success);
+        expect(sim.connect(c2.y[0], cnt.x[0]) == irt::status::success);
+
+        irt::time t = 0.0;
+        irt::status st;
+
+        do {
+            st = sim.run(t);
+            expect(irt::is_success(st));
+        } while (t < sim.end);
+
+        expect(cnt.number == 2_ul);
+    };
+
     "generator_counter_simluation"_test = [] {
         irt::simulation sim;
 
