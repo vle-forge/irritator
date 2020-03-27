@@ -7,6 +7,8 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
+#include "gui.hpp"
+
 #include <cstdio>
 #include <cstring>
 
@@ -52,7 +54,7 @@ glfw_error_callback(int error, const char* description)
 }
 
 int
-main(int argc, char* argv[])
+main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -118,6 +120,7 @@ main(int argc, char* argv[])
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
     imnodes::Initialize();
+    irt::node_editor_initialize();
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can
@@ -165,6 +168,8 @@ main(int argc, char* argv[])
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
+
+        irt::node_editor_show();
 
         // 1. Show the big demo window (Most of the sample code is in
         // ImGui::ShowDemoWindow()! You can browse its code to learn more about
@@ -241,6 +246,7 @@ main(int argc, char* argv[])
 
     // Cleanup
 
+    irt::node_editor_shutdown();
     imnodes::Shutdown();
 
     ImGui_ImplOpenGL3_Shutdown();

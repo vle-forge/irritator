@@ -707,6 +707,20 @@ struct EditorContext
         : nodes(), pins(), links(), panning(0.f, 0.f), link_dragged(),
           box_selector()
     {
+        nodes.pool.reserve(1024);
+        nodes.in_use.reserve(1024);
+        nodes.free_list.reserve(1024);
+        nodes.id_map.Data.reserve(1024);
+
+        pins.pool.reserve(1024);
+        pins.in_use.reserve(1024);
+        pins.free_list.reserve(1024);
+        pins.id_map.Data.reserve(1024);
+
+        links.pool.reserve(1024);
+        links.in_use.reserve(1024);
+        links.free_list.reserve(1024);
+        links.id_map.Data.reserve(1024);
     }
 };
 

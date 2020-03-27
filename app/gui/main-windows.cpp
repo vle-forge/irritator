@@ -14,6 +14,8 @@
 #include <dxgi1_4.h>
 #include <tchar.h>
 
+#include "gui.hpp"
+
 //#define DX12_ENABLE_DEBUG_LAYER
 
 #ifdef DX12_ENABLE_DEBUG_LAYER
@@ -95,6 +97,7 @@ int main(int, char**)
         g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
     imnodes::Initialize();
+    irt::node_editor_initialize();
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -137,6 +140,8 @@ int main(int, char**)
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
+
+        irt::node_editor_show();
 
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         if (show_demo_window)
@@ -210,6 +215,8 @@ int main(int, char**)
         g_fenceLastSignaledValue = fenceValue;
         frameCtxt->FenceValue = fenceValue;
     }
+
+    irt::node_editor_shutdown();
 
     imnodes::Shutdown();
 
