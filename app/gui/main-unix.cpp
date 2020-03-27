@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "imgui.h"
+#include "imnodes.hpp"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
@@ -116,6 +117,7 @@ main(int argc, char* argv[])
     // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
+    imnodes::Initialize();
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can
@@ -238,6 +240,9 @@ main(int argc, char* argv[])
     }
 
     // Cleanup
+
+    imnodes::Shutdown();
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
