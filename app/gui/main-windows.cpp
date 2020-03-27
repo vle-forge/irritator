@@ -7,6 +7,7 @@
 // FIXME: 64-bit only for now! (Because sizeof(ImTextureId) == sizeof(void*))
 
 #include "imgui.h"
+#include "imnodes.hpp"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx12.h"
 #include <d3d12.h>
@@ -92,6 +93,8 @@ int main(int, char**)
         DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap,
         g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
         g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+
+    imnodes::Initialize();
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -207,6 +210,8 @@ int main(int, char**)
         g_fenceLastSignaledValue = fenceValue;
         frameCtxt->FenceValue = fenceValue;
     }
+
+    imnodes::Shutdown();
 
     WaitForLastSubmittedFrame();
     ImGui_ImplDX12_Shutdown();
