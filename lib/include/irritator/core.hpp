@@ -1602,7 +1602,7 @@ private:
     value_type* items{ nullptr };
     size_type capacity{ 0 };
 
-private:
+public:
     array() = default;
 
     ~array() noexcept
@@ -1620,7 +1620,7 @@ private:
             if (items)
                 std::free(items);
             items =
-              static_cast<value_type*>(new_capacity * sizeof(value_type));
+                static_cast<value_type*>(std::malloc(new_capacity * sizeof(value_type)));
             if (items == nullptr)
                 return status::block_allocator_not_enough_memory;
         }
