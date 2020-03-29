@@ -1673,7 +1673,7 @@ enum class model_id : std::uint64_t;
 enum class dynamics_id : std::uint64_t;
 enum class message_id : std::uint64_t;
 enum class input_port_id : std::uint64_t;
-enum struct output_port_id : std::uint64_t;
+enum class output_port_id : std::uint64_t;
 enum class init_port_id : std::uint64_t;
 
 template<typename T>
@@ -1959,6 +1959,19 @@ public:
         m_free_head = index;
 
         --m_max_size;
+    }
+
+    /**
+     * @brief Accessor to the id part of the item
+     *
+     * @return @c Identifier.
+     */
+    Identifier get_id(const T* t) const noexcept
+    {
+        assert(t != nullptr);
+
+        auto* ptr = reinterpret_cast<const item*>(t);
+        return ptr->id;
     }
 
     /**
