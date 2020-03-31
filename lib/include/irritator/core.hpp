@@ -2566,34 +2566,18 @@ struct adder
     model_id id;
     input_port_id x[PortNumber];
     output_port_id y[1];
-    message_id init[1];
 
-    double input_coeffs[PortNumber];
-    double values[PortNumber];
+    double input_coeffs[PortNumber] = { 0 };
+    double values[PortNumber] = { 0 };
     time sigma;
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        std::fill_n(std::begin(input_coeffs),
-                    PortNumber,
-                    1.0 / static_cast<double>(PortNumber));
         std::fill_n(std::begin(values),
                     PortNumber,
                     1.0 / static_cast<double>(PortNumber));
 
         sigma = time_domain<time>::infinity;
-
-        const message* msg = init_messages.try_to_get(init[0]);
-
-        irt_return_if_fail(msg != nullptr,
-                           status::model_adder_empty_init_message);
-        irt_return_if_fail(msg->type == value_type::real_64,
-                           status::model_adder_bad_init_message);
-        irt_return_if_fail(msg->size() == PortNumber,
-                           status::model_adder_bad_init_message);
-
-        for (size_t j = 0; j != PortNumber; ++j)
-            input_coeffs[j] = msg->to_real_64(j);
 
         return status::success;
     }
@@ -2652,30 +2636,16 @@ struct mult
     model_id id;
     input_port_id x[PortNumber];
     output_port_id y[1];
-    message_id init[1];
 
-    double input_coeffs[PortNumber];
+    double input_coeffs[PortNumber] = { 0 };
     double values[PortNumber];
     time sigma;
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        std::fill_n(std::begin(input_coeffs), PortNumber, 1.0);
         std::fill_n(std::begin(values), PortNumber, 1.0);
 
         sigma = time_domain<time>::infinity;
-
-        const message* msg = init_messages.try_to_get(init[0]);
-
-        irt_return_if_fail(msg != nullptr,
-                           status::model_mult_empty_init_message);
-        irt_return_if_fail(msg->type == value_type::real_64,
-                           status::model_mult_bad_init_message);
-        irt_return_if_fail(msg->size() == PortNumber,
-                           status::model_mult_bad_init_message);
-
-        for (size_t j = 0; j != PortNumber; ++j)
-            input_coeffs[j] = msg->to_real_64(j);
 
         return status::success;
     }
@@ -2797,22 +2767,11 @@ struct constant
 {
     model_id id;
     output_port_id y[1];
-    message_id init[1];
     time sigma;
     double value = 0.0;
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        const message* msg = init_messages.try_to_get(init[0]);
-
-        irt_return_if_fail(msg != nullptr,
-            status::model_constant_empty_init_message);
-
-        irt_return_if_fail(msg->type == value_type::real_64 &&
-            msg->size() == 1,
-            status::model_constant_bad_init_message);
-
-        value = msg->to_real_64(0);
         sigma = time_domain<time>::zero;
 
         return status::success;
@@ -2851,7 +2810,6 @@ struct integrator
     time sigma = time_domain<time>::zero;
     input_port_id x[2];
     output_port_id y[1];
-    message_id init[1];
 
     enum port_name
     {
@@ -2876,18 +2834,8 @@ struct integrator
     flat_double_list<record> archive;
     state st = state::init;
 
-    status initialize(data_array<message, message_id>& init_messages) noexcept
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        const message* msg = init_messages.try_to_get(init[0]);
-
-        irt_return_if_fail(msg != nullptr,
-                           status::model_integrator_empty_init_message);
-
-        irt_return_if_fail(msg->type == value_type::real_64 &&
-                             msg->size() == 1,
-                           status::model_integrator_bad_init_message);
-
-        current_value = msg->to_real_64(0);
         sigma = time_domain<time>::zero;
         st = state::init;
 
@@ -3070,7 +3018,6 @@ struct quantifier
     time sigma = time_domain<time>::infinity;
     input_port_id x[1];
     output_port_id y[1];
-    message_id init[4];
 
     enum class state
     {
@@ -3079,8 +3026,6 @@ struct quantifier
         response
     };
 
-    state m_state;
-
     enum class adapt_state
     {
         impossible,
@@ -3088,7 +3033,6 @@ struct quantifier
         done
     };
 
-    adapt_state m_adapt_state;
 
     enum class direction
     {
@@ -3104,6 +3048,8 @@ struct quantifier
     int m_past_length = 0;
     flat_double_list<record> archive;
     bool m_zero_init_offset = false;
+    state m_state = state::init;
+    adapt_state m_adapt_state = adapt_state::possible;
 
     enum init_port_name
     {
@@ -3115,61 +3061,18 @@ struct quantifier
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        m_adapt_state = adapt_state::possible;
-        m_zero_init_offset = false;
-        m_step_size = 0.1;
+        m_upthreshold = 0.0;
+        m_downthreshold = 0.0;
         m_offset = 0.0;
+        m_step_number = 0;
         m_state = state::init;
-        sigma = time_domain<time>::infinity;
 
-        if (const auto* msg = init_messages.try_to_get(init[i_allow_offsets]);
-            msg) {
-            irt_return_if_fail(
-              msg->type == value_type::integer_8 && msg->size() == 1,
-              status::model_quantifier_bad_init_allow_offsets);
+        irt_return_if_fail(m_step_size > 0, status::model_quantifier_bad_quantum_parameter);
 
-            m_adapt_state = msg->to_integer_8(0) != 0
-                              ? adapt_state::possible
-                              : adapt_state::impossible;
-        } else
-            irt_bad_return(status::model_quantifier_empty_init_allow_offsets);
-
-        if (const auto* msg =
-              init_messages.try_to_get(init[i_zero_init_offset]);
-            msg) {
-            irt_return_if_fail(
-              msg->type == value_type::integer_8 && msg->size() == 1,
-              status::model_quantifier_bad_init_zero_init_offset);
-
-            m_zero_init_offset = msg->to_integer_8(0) != 0;
-        } else
-            irt_bad_return(
-              status::model_quantifier_empty_init_zero_init_offset);
-
-        if (const auto* msg = init_messages.try_to_get(init[i_quantum]); msg) {
-            irt_return_if_fail(msg->type == value_type::real_64 &&
-                                 msg->size() == 1,
-                               status::model_quantifier_bad_init_quantum);
-
-            m_step_size = msg->to_real_64(0);
-
-            irt_return_if_fail(m_step_size > 0,
-                               status::model_quantifier_bad_quantum_parameter);
-        } else
-            irt_bad_return(status::model_quantifier_empty_init_quantum);
-
-        if (const auto* msg = init_messages.try_to_get(init[i_archive_length]);
-            msg) {
-            irt_return_if_fail(
-              msg->type == value_type::integer_32 && msg->size() == 1,
-              status::model_quantifier_bad_init_archive_lenght);
-
-            m_past_length = msg->to_integer_32(0);
-            irt_return_if_fail(
-              m_past_length > 2,
+        irt_return_if_fail(m_past_length > 2,
               status::model_quantifier_bad_archive_length_parameter);
-        } else
-            irt_bad_return(status::model_quantifier_empty_init_archive_lenght);
+
+        sigma = time_domain<time>::infinity;
 
         return status::success;
     }
@@ -3631,22 +3534,22 @@ struct simulation
             mdl.type = dynamics_type::constant;
 
         if constexpr (is_detected_v<initialize_function_t, Dynamics>) {
-            if constexpr (is_detected_v<has_init_port_t, Dynamics>) {
-                /* Combine all init_message from the init_messages
-                   structure where the model equals mdl_id. */
+            //if constexpr (is_detected_v<has_init_port_t, Dynamics>) {
+            //    /* Combine all init_message from the init_messages
+            //       structure where the model equals mdl_id. */
 
-                init_message* msg = nullptr;
-                while (init_messages.next(msg)) {
-                    auto it = std::find_if(std::begin(msg->models),
-                                           std::end(msg->models),
-                                           [mdl_id](const auto& pair) {
-                                               return pair.first == mdl_id;
-                                           });
+            //    init_message* msg = nullptr;
+            //    while (init_messages.next(msg)) {
+            //        auto it = std::find_if(std::begin(msg->models),
+            //                               std::end(msg->models),
+            //                               [mdl_id](const auto& pair) {
+            //                                   return pair.first == mdl_id;
+            //                               });
 
-                    if (it != std::end(msg->models))
-                        dynamics.init[it->second] = msg->msg;
-                }
-            }
+            //        if (it != std::end(msg->models))
+            //            dynamics.init[it->second] = msg->msg;
+            //    }
+            //}
 
             irt_return_if_bad(dynamics.initialize(messages));
         }

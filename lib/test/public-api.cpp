@@ -638,9 +638,8 @@ main()
         auto& c1 = sim.constant_models.alloc();
         auto& c2 = sim.constant_models.alloc();
 
-        auto& value = sim.messages.alloc(0.0);
-        c1.init[0] = sim.messages.get_id(value);
-        c2.init[0] = sim.messages.get_id(value);
+        c1.value = 0.0;
+        c2.value = 0.0;
 
         expect(sim.models.can_alloc(3));
         expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
@@ -711,40 +710,43 @@ main()
         auto& quantifier_a = sim.quantifier_models.alloc();
         auto& quantifier_b = sim.quantifier_models.alloc();
 
-        auto& init_powers = sim.messages.alloc(1.0, 1.0);
-        auto& init_weigths_a = sim.messages.alloc(2.0, -0.4);
-        auto& init_weigths_b = sim.messages.alloc(-1.0, 0.1);
+        //auto& init_powers = sim.messages.alloc(1.0, 1.0);
+        //auto& init_weigths_a = sim.messages.alloc(2.0, -0.4);
+        //auto& init_weigths_b = sim.messages.alloc(-1.0, 0.1);
 
-        auto& a_x0 = sim.messages.alloc(18.0);
+        //auto& a_x0 = sim.messages.alloc(18.0);
 
-        auto& allow_offser_a = sim.messages.alloc(irt::i8{ 1 });
-        auto& zero_init_a = sim.messages.alloc(irt::i8{ 1 });
-        auto& quantum_a = sim.messages.alloc(0.01);
-        auto& archive_lenght_a = sim.messages.alloc(irt::i32{ 3 });
+        //auto& allow_offser_a = sim.messages.alloc(irt::i8{ 1 });
+        //auto& zero_init_a = sim.messages.alloc(irt::i8{ 1 });
+        //auto& quantum_a = sim.messages.alloc(0.01);
+        //auto& archive_lenght_a = sim.messages.alloc(irt::i32{ 3 });
 
-        auto& b_x0 = sim.messages.alloc(7.0);
-        auto& allow_offser_b = sim.messages.alloc(irt::i8{ 1 });
-        auto& zero_init_b = sim.messages.alloc(irt::i8{ 1 });
-        auto& quantum_b = sim.messages.alloc(0.01);
-        auto& archive_lenght_b = sim.messages.alloc(irt::i32{ 3 });
+        //auto& b_x0 = sim.messages.alloc(7.0);
+        //auto& allow_offser_b = sim.messages.alloc(irt::i8{ 1 });
+        //auto& zero_init_b = sim.messages.alloc(irt::i8{ 1 });
+        //auto& quantum_b = sim.messages.alloc(0.01);
+        //auto& archive_lenght_b = sim.messages.alloc(irt::i32{ 3 });
 
-        integrator_a.init[0] = sim.messages.get_id(a_x0);
+        integrator_a.current_value = 18.0;
 
-        quantifier_a.init[0] = sim.messages.get_id(allow_offser_a);
-        quantifier_a.init[1] = sim.messages.get_id(zero_init_a);
-        quantifier_a.init[2] = sim.messages.get_id(quantum_a);
-        quantifier_a.init[3] = sim.messages.get_id(archive_lenght_a);
+        quantifier_a.m_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_a.m_zero_init_offset = true;
+        quantifier_a.m_step_size = 0.01;
+        quantifier_a.m_past_length = 3;
 
-        integrator_b.init[0] = sim.messages.get_id(b_x0);
+        integrator_b.current_value = 7.0;
 
-        quantifier_b.init[0] = sim.messages.get_id(allow_offser_b);
-        quantifier_b.init[1] = sim.messages.get_id(zero_init_b);
-        quantifier_b.init[2] = sim.messages.get_id(quantum_b);
-        quantifier_b.init[3] = sim.messages.get_id(archive_lenght_b);
+        quantifier_b.m_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_b.m_zero_init_offset = true;
+        quantifier_b.m_step_size = 0.01;
+        quantifier_b.m_past_length = 3;
 
-        product.init[0] = sim.messages.get_id(init_powers);
-        sum_a.init[0] = sim.messages.get_id(init_weigths_a);
-        sum_b.init[0] = sim.messages.get_id(init_weigths_b);
+        product.input_coeffs[0] = 1.0;
+        product.input_coeffs[1] = 1.0;
+        sum_a.input_coeffs[0] = 2.0;
+        sum_a.input_coeffs[1] = -0.4;
+        sum_b.input_coeffs[0] = -1.0;
+        sum_b.input_coeffs[1] = 0.1;
 
         expect(sim.models.can_alloc(10));
         !expect(irt::is_success(
