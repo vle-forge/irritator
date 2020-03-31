@@ -2,6 +2,10 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <future>
+#include <mutex>
+#include <thread>
+
 #include "imgui.h"
 #include "imnodes.hpp"
 
@@ -11,40 +15,70 @@
 
 namespace irt {
 
-struct node
+enum class simulation_status
 {
-    int id;
-
-    model_id model;
+    success,
+    running,
+    uninitialized,
+    internal_error,
 };
 
-struct link
+static void
+run_simulation(simulation& sim,
+               double begin,
+               double end,
+               double obs_freq,
+               double& current,
+               simulation_status& st,
+               std::vector<float>& obs_a,
+               std::vector<float>& obs_b,
+               int& obs_id,
+               double* a,
+               double* b) noexcept
 {
-    int id;
-    int start; // start node
-    int end;   // end node
+    double last = begin;
+    current = begin;
+    obs_id = 0;
 
-    output_port_id out;
-    input_port_id in;
-};
+    do {
+        if (!is_success(sim.run(current))) {
+            st = simulation_status::internal_error;
+            return;
+        }
+
+        if (current - last > obs_freq) {
+            obs_a[obs_id] = static_cast<float>(*a);
+            obs_b[obs_id] = static_cast<float>(*b);
+            last = current;
+            obs_id++;
+        }
+    } while (current < end);
+
+    st = simulation_status::success;
+}
 
 struct editor
 {
     imnodes::EditorContext* context = nullptr;
 
     simulation sim;
-    array<node> nodes;
-    array<link> links;
+    double simulation_begin = 0.0;
+    double simulation_end = 10.0;
+    double simulation_current = 10.0;
+    int simulation_observation_number = 100;
+    std::future<std::tuple<std::string, status>> future_content;
+    std::thread simulation_thread;
+    simulation_status st = simulation_status::uninitialized;
+    bool show_simulation_box = true;
+    double *value_a = nullptr, *value_b = nullptr;
+    int obs_id = 0;
+
+    std::vector<float> obs_a;
+    std::vector<float> obs_b;
 
     bool initialize()
     {
         if (!is_success(sim.init(1024u, 32768u)))
-            return false;
-
-        if (!is_success(nodes.init(1024u)))
-            return false;
-
-        if (!is_success(links.init(4096u)))
             return false;
 
         return true;
@@ -55,8 +89,7 @@ struct editor
         if (!sim.adder_2_models.can_alloc(2) ||
             !sim.mult_2_models.can_alloc(2) ||
             !sim.integrator_models.can_alloc(2) ||
-            !sim.quantifier_models.can_alloc(2) ||
-            !sim.models.can_alloc(10))
+            !sim.quantifier_models.can_alloc(2) || !sim.models.can_alloc(10))
             return status::simulation_not_enough_model;
 
         auto& sum_a = sim.adder_2_models.alloc();
@@ -88,22 +121,20 @@ struct editor
         sum_b.input_coeffs[0] = -1.0;
         sum_b.input_coeffs[1] = 0.1;
 
+        irt_return_if_bad(
+          sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
+        irt_return_if_bad(
+          sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
+        irt_return_if_bad(
+          sim.alloc(product, sim.mult_2_models.get_id(product), "prod"));
         irt_return_if_bad(sim.alloc(
-            sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
+          integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
         irt_return_if_bad(sim.alloc(
-            sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
+          integrator_b, sim.integrator_models.get_id(integrator_b), "int_b"));
         irt_return_if_bad(sim.alloc(
-            product, sim.mult_2_models.get_id(product), "prod"));
-        irt_return_if_bad(sim.alloc(integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
+          quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a"));
         irt_return_if_bad(sim.alloc(
-            integrator_b, sim.integrator_models.get_id(integrator_b),
-            "int_b"));
-        irt_return_if_bad(sim.alloc(
-            quantifier_a, sim.quantifier_models.get_id(quantifier_a),
-            "qua_a"));
-        irt_return_if_bad(sim.alloc(
-            quantifier_b, sim.quantifier_models.get_id(quantifier_b),
-            "qua_b"));
+          quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
 
         irt_return_if_bad(sim.connect(sum_a.y[0], integrator_a.x[1]));
         irt_return_if_bad(sim.connect(sum_b.y[0], integrator_b.x[1]));
@@ -122,6 +153,9 @@ struct editor
         irt_return_if_bad(sim.connect(integrator_a.y[0], quantifier_a.x[0]));
         irt_return_if_bad(sim.connect(integrator_b.y[0], quantifier_b.x[0]));
 
+        value_a = &integrator_a.expected_value;
+        value_b = &integrator_b.expected_value;
+
         return status::success;
     }
 };
@@ -133,49 +167,60 @@ to_int(u32 value) noexcept
     return static_cast<int>(value);
 }
 
-int get_model(model_id id)
+int
+get_model(model_id id)
 {
     return to_int(get_key(id));
 }
 
-int get_model(const data_array<model, model_id>& array, const model& mdl)
+int
+get_model(const data_array<model, model_id>& array, const model& mdl)
 {
     return get_model(array.get_id(mdl));
 }
 
-int get_model(const data_array<model, model_id>& array, const model* mdl)
+int
+get_model(const data_array<model, model_id>& array, const model* mdl)
 {
     assert(mdl);
     return get_model(array.get_id(*mdl));
 }
 
-int get_out(output_port_id id)
+int
+get_out(output_port_id id)
 {
     return to_int(get_key(id)) << 16;
 }
 
-int get_out(const data_array<output_port, output_port_id>& array, const output_port& out)
+int
+get_out(const data_array<output_port, output_port_id>& array,
+        const output_port& out)
 {
     return get_out(array.get_id(out));
 }
 
-int get_out(const data_array<output_port, output_port_id>& array, const output_port* out)
+int
+get_out(const data_array<output_port, output_port_id>& array,
+        const output_port* out)
 {
     assert(out);
     return get_out(array.get_id(*out));
 }
 
-int get_in(input_port_id id)
+int
+get_in(input_port_id id)
 {
     return to_int(get_key(id));
 }
 
-int get_in(const data_array<input_port, input_port_id>& array, const input_port& in)
+int
+get_in(const data_array<input_port, input_port_id>& array, const input_port& in)
 {
     return get_in(array.get_id(in));
 }
 
-int get_in(const data_array<input_port, input_port_id>& array, const input_port* in)
+int
+get_in(const data_array<input_port, input_port_id>& array, const input_port* in)
 {
     assert(in);
     return get_in(array.get_id(*in));
@@ -200,7 +245,8 @@ show_connections(simulation& sim) noexcept
     }
 }
 
-static void show_model_dynamics(simulation& sim, model& mdl)
+static void
+show_model_dynamics(simulation& sim, model& mdl)
 {
     switch (mdl.type) {
     case dynamics_type::none: /* none does not have input port. */
@@ -470,6 +516,75 @@ show_editor(const char* editor_name, editor& ed)
     */
 
     ImGui::End();
+
+    if (!ImGui::Begin("Simulation box", &ed.show_simulation_box)) {
+        ImGui::End();
+    } else {
+        if (ed.st != simulation_status::running) {
+            if (ed.simulation_thread.joinable()) {
+                ed.simulation_thread.join();
+                ed.st = simulation_status::success;
+            }
+
+            ImGui::InputDouble("Begin", &ed.simulation_begin);
+            ImGui::InputDouble("End", &ed.simulation_end);
+            ImGui::SliderInt(
+              "Observations", &ed.simulation_observation_number, 1, 10000);
+
+            if (ImGui::Button("Start")) {
+                ed.st = simulation_status::running;
+                ed.obs_a.resize(ed.simulation_observation_number, 0.0);
+                ed.obs_b.resize(ed.simulation_observation_number, 0.0);
+                ed.obs_id = 0;
+
+                ed.simulation_thread = std::thread(
+                  &run_simulation,
+                  std::ref(ed.sim),
+                  ed.simulation_begin,
+                  ed.simulation_end,
+                  (ed.simulation_end - ed.simulation_begin) /
+                    static_cast<double>(ed.simulation_observation_number),
+                  std::ref(ed.simulation_current),
+                  std::ref(ed.st),
+                  std::ref(ed.obs_a),
+                  std::ref(ed.obs_b),
+                  std::ref(ed.obs_id),
+                  ed.value_a,
+                  ed.value_b);
+            }
+        }
+
+        if (ed.st == simulation_status::success ||
+            ed.st == simulation_status::running) {
+            ImGui::Text("Begin: %g", ed.simulation_begin);
+            ImGui::Text("End: %g", ed.simulation_end);
+            ImGui::Text("Current: %g", ed.simulation_current);
+            ImGui::Text("Observations: %d", ed.simulation_observation_number);
+
+            const double duration = ed.simulation_end - ed.simulation_begin;
+            const double elapsed = ed.simulation_current - ed.simulation_begin;
+            const double fraction = elapsed / duration;
+            ImGui::ProgressBar(static_cast<float>(fraction));
+            ImGui::PlotLines("A",
+                             ed.obs_a.data(),
+                             ed.simulation_observation_number,
+                             0,
+                             nullptr,
+                             -5.0,
+                             +30.0,
+                             ImVec2(0, 50));
+            ImGui::PlotLines("B",
+                             ed.obs_b.data(),
+                             ed.simulation_observation_number,
+                             0,
+                             nullptr,
+                             -5.0,
+                             +30.0,
+                             ImVec2(0, 50));
+        }
+
+        ImGui::End();
+    }
 }
 
 editor ed;
