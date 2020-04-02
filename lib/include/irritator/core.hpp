@@ -14,6 +14,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include <functional>
+
 namespace irt {
 
 using i8 = int8_t;
