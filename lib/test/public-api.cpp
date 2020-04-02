@@ -87,7 +87,7 @@ dot_graph_save(const irt::simulation& sim, std::FILE* os)
         }
     }
 }
-
+double f (double t) {return t*t;}
 int
 main()
 {
@@ -744,7 +744,8 @@ main()
         auto& time_fun = sim.time_func_models.alloc();
         auto& cnt = sim.counter_models.alloc();
 
-        time_fun.f = [](double t) { return t*t; };
+        double f(double t);
+        time_fun.f = &f;
         expect(sim.models.can_alloc(2));
         expect(irt::is_success(sim.alloc(time_fun, sim.time_func_models.get_id(time_fun))));
         expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
@@ -930,6 +931,8 @@ main()
         double d = -16.0; 
         double I = -99.0; 
         double vt = 30.0;
+        double f(double);
+
        
         integrator_a.current_value = 0.0;
 
@@ -965,7 +968,7 @@ main()
         cross.threshold = vt;
         cross2.threshold = vt;
 
-        time_fun.f = [](double t) { return t*t; };
+        time_fun.f = &f;
      
         expect(sim.models.can_alloc(12));
         !expect(irt::is_success(

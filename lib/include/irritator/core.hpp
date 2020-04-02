@@ -14,7 +14,6 @@
 #include <cstdint>
 #include <cstring>
 
-#include <functional>
 
 namespace irt {
 
@@ -2815,7 +2814,7 @@ struct time_func
     output_port_id y[1];
     time sigma;
     double value;
-    std::function<double (double)> f;
+    double (*f)(double);
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
         sigma = 1.0;
@@ -2825,11 +2824,11 @@ struct time_func
 
     status transition(data_array<input_port, input_port_id>& input_ports,
         time t,
-        time e,
-        time r) noexcept
+        time /*e*/,
+        time /*r*/) noexcept
     {
 
-        sigma = f(t) ;
+        sigma = (*f)(t) ;
         value = sigma;
 
         return status::success;
