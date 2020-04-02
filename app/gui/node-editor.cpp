@@ -32,13 +32,18 @@ run_simulation(simulation& sim,
                simulation_status& st,
                std::vector<float>& obs_a,
                std::vector<float>& obs_b,
-               int& obs_id,
                double* a,
-               double* b) noexcept
+               double* b,
+               const bool& stop) noexcept
 {
-    double last = begin;
+    double last{ begin };
+    size_t obs_id{ 0 };
+
     current = begin;
-    obs_id = 0;
+    if (irt::is_bad(sim.initialize(current))) {
+        st = simulation_status::internal_error;
+        return;
+    }
 
     do {
         if (!is_success(sim.run(current))) {
@@ -46,13 +51,15 @@ run_simulation(simulation& sim,
             return;
         }
 
-        if (current - last > obs_freq) {
+        while (current - last > obs_freq &&
+            obs_a.size() > (size_t)obs_id &&
+            !stop) {
             obs_a[obs_id] = static_cast<float>(*a);
             obs_b[obs_id] = static_cast<float>(*b);
-            last = current;
+            last += obs_freq;
             obs_id++;
         }
-    } while (current < end);
+    } while (current < end && !stop);
 
     st = simulation_status::success;
 }
@@ -71,7 +78,7 @@ struct editor
     simulation_status st = simulation_status::uninitialized;
     bool show_simulation_box = true;
     double *value_a = nullptr, *value_b = nullptr;
-    int obs_id = 0;
+    bool stop = false;
 
     std::vector<float> obs_a;
     std::vector<float> obs_b;
@@ -100,26 +107,26 @@ struct editor
         auto& quantifier_a = sim.quantifier_models.alloc();
         auto& quantifier_b = sim.quantifier_models.alloc();
 
-        integrator_a.current_value = 18.0;
+        integrator_a.default_current_value = 18.0;
 
-        quantifier_a.m_adapt_state = irt::quantifier::adapt_state::possible;
-        quantifier_a.m_zero_init_offset = true;
-        quantifier_a.m_step_size = 0.01;
-        quantifier_a.m_past_length = 3;
+        quantifier_a.default_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_a.default_zero_init_offset = true;
+        quantifier_a.default_step_size = 0.01;
+        quantifier_a.default_past_length = 3;
 
-        integrator_b.current_value = 7.0;
+        integrator_b.default_current_value = 7.0;
 
-        quantifier_b.m_adapt_state = irt::quantifier::adapt_state::possible;
-        quantifier_b.m_zero_init_offset = true;
-        quantifier_b.m_step_size = 0.01;
-        quantifier_b.m_past_length = 3;
+        quantifier_b.default_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_b.default_zero_init_offset = true;
+        quantifier_b.default_step_size = 0.01;
+        quantifier_b.default_past_length = 3;
 
-        product.input_coeffs[0] = 1.0;
-        product.input_coeffs[1] = 1.0;
-        sum_a.input_coeffs[0] = 2.0;
-        sum_a.input_coeffs[1] = -0.4;
-        sum_b.input_coeffs[0] = -1.0;
-        sum_b.input_coeffs[1] = 0.1;
+        product.default_input_coeffs[0] = 1.0;
+        product.default_input_coeffs[1] = 1.0;
+        sum_a.default_input_coeffs[0] = 2.0;
+        sum_a.default_input_coeffs[1] = -0.4;
+        sum_b.default_input_coeffs[0] = -1.0;
+        sum_b.default_input_coeffs[1] = 0.1;
 
         irt_return_if_bad(
           sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
@@ -253,21 +260,25 @@ show_model_dynamics(simulation& sim, model& mdl)
         break;
     case dynamics_type::integrator: {
         auto& dyn = sim.integrator_models.get(mdl.id);
-        imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-        ImGui::TextUnformatted("x_dot");
-        imnodes::EndAttribute();
         imnodes::BeginInputAttribute(get_in(dyn.x[0]));
         ImGui::TextUnformatted("quanta");
         imnodes::EndAttribute();
+        imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+        ImGui::TextUnformatted("x_dot");
+        imnodes::EndAttribute();
+        imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+        ImGui::TextUnformatted("reset");
+        imnodes::EndAttribute();
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("value", &dyn.current_value);
+        ImGui::InputDouble("value", &dyn.default_current_value);
+        ImGui::InputDouble("reset", &dyn.default_reset_value);
         ImGui::PopItemWidth();
 
-        imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-        const float text_width = ImGui::CalcTextSize("prod").x;
-        ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x - text_width);
-        ImGui::TextUnformatted("x_dot");
+        imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+        const float text_width = ImGui::CalcTextSize("x").x;
+        ImGui::Indent(120.f + ImGui::CalcTextSize("quanta").x - text_width);
+        ImGui::TextUnformatted("x");
         imnodes::EndAttribute();
     } break;
     case dynamics_type::quantifier: {
@@ -277,8 +288,8 @@ show_model_dynamics(simulation& sim, model& mdl)
         imnodes::EndAttribute();
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("quantum", &dyn.m_step_size);
-        ImGui::SliderInt("archive length", &dyn.m_past_length, 3, 100);
+        ImGui::InputDouble("quantum", &dyn.default_step_size);
+        ImGui::SliderInt("archive length", &dyn.default_past_length, 3, 100);
         ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
@@ -295,8 +306,8 @@ show_model_dynamics(simulation& sim, model& mdl)
         imnodes::EndAttribute();
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("coeff-0", &dyn.input_coeffs[0]);
-        ImGui::InputDouble("coeff-1", &dyn.input_coeffs[1]);
+        ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+        ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
         ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
@@ -318,9 +329,9 @@ show_model_dynamics(simulation& sim, model& mdl)
         imnodes::EndAttribute();
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("coeff-0", &dyn.input_coeffs[0]);
-        ImGui::InputDouble("coeff-1", &dyn.input_coeffs[1]);
-        ImGui::InputDouble("coeff-2", &dyn.input_coeffs[2]);
+        ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+        ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+        ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
         ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
@@ -345,10 +356,10 @@ show_model_dynamics(simulation& sim, model& mdl)
         imnodes::EndAttribute();
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("coeff-0", &dyn.input_coeffs[0]);
-        ImGui::InputDouble("coeff-1", &dyn.input_coeffs[1]);
-        ImGui::InputDouble("coeff-2", &dyn.input_coeffs[2]);
-        ImGui::InputDouble("coeff-2", &dyn.input_coeffs[3]);
+        ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+        ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+        ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+        ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[3]);
         ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
@@ -367,8 +378,8 @@ show_model_dynamics(simulation& sim, model& mdl)
         imnodes::EndAttribute();
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("coeff-0", &dyn.input_coeffs[0]);
-        ImGui::InputDouble("coeff-1", &dyn.input_coeffs[1]);
+        ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+        ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
         ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
@@ -390,9 +401,9 @@ show_model_dynamics(simulation& sim, model& mdl)
         imnodes::EndAttribute();
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("coeff-0", &dyn.input_coeffs[0]);
-        ImGui::InputDouble("coeff-1", &dyn.input_coeffs[1]);
-        ImGui::InputDouble("coeff-2", &dyn.input_coeffs[2]);
+        ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+        ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+        ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
         ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
@@ -417,10 +428,10 @@ show_model_dynamics(simulation& sim, model& mdl)
         imnodes::EndAttribute();
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("coeff-0", &dyn.input_coeffs[0]);
-        ImGui::InputDouble("coeff-1", &dyn.input_coeffs[1]);
-        ImGui::InputDouble("coeff-2", &dyn.input_coeffs[2]);
-        ImGui::InputDouble("coeff-3", &dyn.input_coeffs[3]);
+        ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+        ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+        ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+        ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
         ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
@@ -445,7 +456,7 @@ show_model_dynamics(simulation& sim, model& mdl)
         auto& dyn = sim.constant_models.get(mdl.id);
 
         ImGui::PushItemWidth(120.0f);
-        ImGui::InputDouble("value", &dyn.value);
+        ImGui::InputDouble("value", &dyn.default_value);
         ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
@@ -520,22 +531,22 @@ show_editor(const char* editor_name, editor& ed)
     if (!ImGui::Begin("Simulation box", &ed.show_simulation_box)) {
         ImGui::End();
     } else {
+        ImGui::InputDouble("Begin", &ed.simulation_begin);
+        ImGui::InputDouble("End", &ed.simulation_end);
+        ImGui::SliderInt(
+          "Observations", &ed.simulation_observation_number, 1, 10000);
+
         if (ed.st != simulation_status::running) {
             if (ed.simulation_thread.joinable()) {
                 ed.simulation_thread.join();
                 ed.st = simulation_status::success;
             }
 
-            ImGui::InputDouble("Begin", &ed.simulation_begin);
-            ImGui::InputDouble("End", &ed.simulation_end);
-            ImGui::SliderInt(
-              "Observations", &ed.simulation_observation_number, 1, 10000);
-
             if (ImGui::Button("Start")) {
                 ed.st = simulation_status::running;
                 ed.obs_a.resize(ed.simulation_observation_number, 0.0);
                 ed.obs_b.resize(ed.simulation_observation_number, 0.0);
-                ed.obs_id = 0;
+                ed.stop = false;
 
                 ed.simulation_thread = std::thread(
                   &run_simulation,
@@ -548,23 +559,24 @@ show_editor(const char* editor_name, editor& ed)
                   std::ref(ed.st),
                   std::ref(ed.obs_a),
                   std::ref(ed.obs_b),
-                  std::ref(ed.obs_id),
                   ed.value_a,
-                  ed.value_b);
+                  ed.value_b,
+                  std::cref(ed.stop));
             }
         }
 
         if (ed.st == simulation_status::success ||
             ed.st == simulation_status::running) {
-            ImGui::Text("Begin: %g", ed.simulation_begin);
-            ImGui::Text("End: %g", ed.simulation_end);
             ImGui::Text("Current: %g", ed.simulation_current);
-            ImGui::Text("Observations: %d", ed.simulation_observation_number);
+
+            if (ImGui::Button("Stop"))
+                ed.stop = true;
 
             const double duration = ed.simulation_end - ed.simulation_begin;
             const double elapsed = ed.simulation_current - ed.simulation_begin;
             const double fraction = elapsed / duration;
             ImGui::ProgressBar(static_cast<float>(fraction));
+
             ImGui::PlotLines("A",
                              ed.obs_a.data(),
                              ed.simulation_observation_number,
@@ -573,6 +585,7 @@ show_editor(const char* editor_name, editor& ed)
                              -5.0,
                              +30.0,
                              ImVec2(0, 50));
+
             ImGui::PlotLines("B",
                              ed.obs_b.data(),
                              ed.simulation_observation_number,

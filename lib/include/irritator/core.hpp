@@ -2267,6 +2267,13 @@ public:
         return status::success;
     }
 
+    void clear()
+    {
+        m_size = 0;
+        max_size = 0;
+        root = nullptr;
+    }
+
     handle insert(time tn, model_id id) noexcept
     {
         node* new_node = &nodes[max_size++];
@@ -2576,16 +2583,32 @@ struct adder
     model_id id;
     input_port_id x[PortNumber];
     output_port_id y[1];
-
-    double input_coeffs[PortNumber] = { 0 };
-    double values[PortNumber] = { 0 };
     time sigma;
+
+    double default_values[PortNumber];
+    double default_input_coeffs[PortNumber];
+
+    double values[PortNumber];
+    double input_coeffs[PortNumber];
+
+    adder() noexcept
+    {
+        std::fill_n(std::begin(default_values),
+                    PortNumber,
+                    1.0 / static_cast<double>(PortNumber));
+
+        std::fill_n(std::begin(default_input_coeffs),
+                    PortNumber,
+                    0.0);
+    }
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        std::fill_n(std::begin(values),
+        std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
+
+        std::copy_n(std::begin(default_input_coeffs),
                     PortNumber,
-                    1.0 / static_cast<double>(PortNumber));
+                    std::begin(input_coeffs));
 
         sigma = time_domain<time>::infinity;
 
@@ -2646,14 +2669,28 @@ struct mult
     model_id id;
     input_port_id x[PortNumber];
     output_port_id y[1];
-
-    double input_coeffs[PortNumber] = { 0 };
-    double values[PortNumber];
     time sigma;
+
+    double default_values[PortNumber];
+    double default_input_coeffs[PortNumber];
+
+    double values[PortNumber];
+    double input_coeffs[PortNumber];
+
+    mult() noexcept
+    {
+        std::fill_n(std::begin(default_values), PortNumber, 1.0);
+        std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
+    }
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
-        std::fill_n(std::begin(values), PortNumber, 1.0);
+        std::copy_n(
+          std::begin(default_values), PortNumber, std::begin(values));
+
+        std::copy_n(std::begin(default_input_coeffs),
+                    PortNumber,
+                    std::begin(input_coeffs));
 
         sigma = time_domain<time>::infinity;
 
@@ -2716,8 +2753,8 @@ struct counter
 {
     model_id id;
     input_port_id x[1];
-    long unsigned number;
     time sigma;
+    long unsigned number;
 
     status initialize(
       data_array<message, message_id>& /*init_messages*/) noexcept
@@ -2758,7 +2795,7 @@ struct generator
     status initialize(
       data_array<message, message_id>& /*init_messages*/) noexcept
     {
-        sigma = 1;
+        sigma = 1.0;
 
         return status::success;
     }
@@ -2778,11 +2815,16 @@ struct constant
     model_id id;
     output_port_id y[1];
     time sigma;
+
+    double default_value = 0.0;
+
     double value = 0.0;
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
         sigma = time_domain<time>::zero;
+
+        value = default_value;
 
         return status::success;
     }
@@ -2813,10 +2855,15 @@ struct time_func
     model_id id;
     output_port_id y[1];
     time sigma;
+
+    double(*default_f)(double);
+
     double value;
-    double (*f)(double);
+    double (*f)(double) = nullptr;
+
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
+        f = default_f;
         sigma = 1.0;
         value = sigma;
         return status::success;
@@ -2843,16 +2890,20 @@ struct time_func
         return status::success;
     }
 };
+
 struct cross
 {
     model_id id;
     input_port_id x[3];
     output_port_id y[1];
     time sigma;
+
+    double default_threshold = 0.0;
+
     double threshold;
-    double value = threshold - 1.0;
-    double if_value = 0.0;
-    double else_value = 0.0;
+    double value;
+    double if_value;
+    double else_value;
 
     enum port_name
     {
@@ -2863,12 +2914,15 @@ struct cross
 
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
+        threshold = default_threshold;
+        value = threshold - 1.0;
+        if_value = 0.0;
+        else_value = 0.0;
 
         sigma = time_domain<time>::zero;
 
         return status::success;
     }
-
 
     status transition(data_array<input_port, input_port_id>& input_ports,
         time /*t*/,
@@ -2948,9 +3002,9 @@ struct none
 struct integrator
 {
     model_id id;
-    time sigma = time_domain<time>::zero;
     input_port_id x[3];
     output_port_id y[1];
+    time sigma = time_domain<time>::zero;
 
     enum port_name
     {
@@ -2968,20 +3022,32 @@ struct integrator
         running
     };
 
+    double default_current_value = 0.0;
+    double default_reset_value = 0.0;
+    flat_double_list<record> archive;
+
+    double current_value = 0.0;
+    double reset_value = 0.0;
     double up_threshold = 0.0;
     double down_threshold = 0.0;
     double last_output_value = 0.0;
-    double current_value = 0.0;
     double expected_value = 0.0;    
     bool reset = false;
-    double reset_value;
-    flat_double_list<record> archive;
     state st = state::init;
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        sigma = time_domain<time>::zero;
+        current_value = default_current_value;
+        reset_value = default_reset_value;
+        up_threshold = 0.0;
+        down_threshold = 0.0;
+        last_output_value = 0.0;
+        expected_value = 0.0;
+        reset = false;
+        archive.clear();
         st = state::init;
+
+        sigma = time_domain<time>::zero;
 
         return status::success;
     }
@@ -3099,7 +3165,6 @@ struct integrator
         return status::success;
     }
 
-private:
     status ta() noexcept
     {
         if (st == state::running) {
@@ -3170,9 +3235,9 @@ private:
 struct quantifier
 {
     model_id id;
-    time sigma = time_domain<time>::infinity;
     input_port_id x[1];
     output_port_id y[1];
+    time sigma = time_domain<time>::infinity;
 
     enum class state
     {
@@ -3188,12 +3253,18 @@ struct quantifier
         done
     };
 
-
     enum class direction
     {
         up,
         down
     };
+
+
+    double default_step_size = 0.0;
+    int default_past_length = 3;
+    adapt_state default_adapt_state = adapt_state::possible;
+    bool default_zero_init_offset = false;
+    flat_double_list<record> archive;
 
     double m_upthreshold = 0.0;
     double m_downthreshold = 0.0;
@@ -3201,25 +3272,21 @@ struct quantifier
     double m_step_size = 0.0;
     int m_step_number = 0;
     int m_past_length = 0;
-    flat_double_list<record> archive;
     bool m_zero_init_offset = false;
     state m_state = state::init;
     adapt_state m_adapt_state = adapt_state::possible;
 
-    enum init_port_name
-    {
-        i_allow_offsets,
-        i_zero_init_offset,
-        i_quantum,
-        i_archive_length
-    };
-
     status initialize(data_array<message, message_id>& init_messages) noexcept
     {
+        m_step_size = default_step_size;
+        m_past_length = default_past_length;
+        m_zero_init_offset = default_zero_init_offset;
+        m_adapt_state = default_adapt_state;
         m_upthreshold = 0.0;
         m_downthreshold = 0.0;
         m_offset = 0.0;
         m_step_number = 0;
+        archive.clear();
         m_state = state::init;
 
         irt_return_if_fail(m_step_size > 0, status::model_quantifier_bad_quantum_parameter);
@@ -3497,6 +3564,12 @@ public:
         return status::success;
     }
 
+    void clear()
+    {
+        m_heap.clear();
+        m_list.clear();
+    }
+
     /**
      * @brief Insert a newly model into the scheduller.
      */
@@ -3696,27 +3769,6 @@ struct simulation
         else
             mdl.type = dynamics_type::time_func;
 
-        if constexpr (is_detected_v<initialize_function_t, Dynamics>) {
-            //if constexpr (is_detected_v<has_init_port_t, Dynamics>) {
-            //    /* Combine all init_message from the init_messages
-            //       structure where the model equals mdl_id. */
-
-            //    init_message* msg = nullptr;
-            //    while (init_messages.next(msg)) {
-            //        auto it = std::find_if(std::begin(msg->models),
-            //                               std::end(msg->models),
-            //                               [mdl_id](const auto& pair) {
-            //                                   return pair.first == mdl_id;
-            //                               });
-
-            //        if (it != std::end(msg->models))
-            //            dynamics.init[it->second] = msg->msg;
-            //    }
-            //}
-
-            irt_return_if_bad(dynamics.initialize(messages));
-        }
-
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dynamics.x); i != e; ++i) {
                 auto& port = input_ports.alloc();
@@ -3766,6 +3818,25 @@ struct simulation
         return status::success;
     }
 
+    status initialize(time t) noexcept
+    {
+        sched.clear();
+
+        input_port* in = nullptr;
+        while (input_ports.next(in))
+            in->messages.clear();
+
+        output_port* out = nullptr;
+        while (output_ports.next(out))
+            out->messages.clear();
+
+        irt::model* mdl = nullptr;
+        while (models.next(mdl))
+            irt_return_if_bad(make_initialize(*mdl, t));
+
+        return status::success;
+    }
+
     status run(time& t) noexcept
     {
         if (sched.empty()) {
@@ -3806,6 +3877,58 @@ struct simulation
         }
 
         return status::success;
+    }
+
+    template<typename Dynamics>
+    status make_initialize(
+      model& mdl,
+      Dynamics& dyn,
+      time t) noexcept
+    {
+        if constexpr (is_detected_v<initialize_function_t, Dynamics>)
+            irt_return_if_bad(dyn.initialize(messages));
+
+        mdl.tl = begin;
+        mdl.tn = begin + dyn.sigma;
+        mdl.handle = nullptr;
+
+        sched.insert(mdl, dyn.id, mdl.tn);
+
+        return status::success;
+    }
+
+    status make_initialize(model& mdl, time t) noexcept
+    {
+        switch (mdl.type) {
+        case dynamics_type::none:
+            return make_initialize(mdl, none_models.get(mdl.id), t);
+        case dynamics_type::integrator:
+            return make_initialize(mdl, integrator_models.get(mdl.id), t);
+        case dynamics_type::quantifier:
+            return make_initialize(mdl, quantifier_models.get(mdl.id), t);
+        case dynamics_type::adder_2:
+            return make_initialize(mdl, adder_2_models.get(mdl.id), t);
+        case dynamics_type::adder_3:
+            return make_initialize(mdl, adder_3_models.get(mdl.id), t);
+        case dynamics_type::adder_4:
+            return make_initialize(mdl, adder_4_models.get(mdl.id), t);
+        case dynamics_type::mult_2:
+            return make_initialize(mdl, mult_2_models.get(mdl.id), t);
+        case dynamics_type::mult_3:
+            return make_initialize(mdl, mult_3_models.get(mdl.id), t);
+        case dynamics_type::mult_4:
+            return make_initialize(mdl, mult_4_models.get(mdl.id), t);
+        case dynamics_type::counter:
+            return make_initialize(mdl, counter_models.get(mdl.id), t);
+        case dynamics_type::generator:
+            return make_initialize(mdl, generator_models.get(mdl.id), t);
+        case dynamics_type::constant:
+            return make_initialize(mdl, constant_models.get(mdl.id), t);
+        case dynamics_type::cross:
+            return make_initialize(mdl, cross_models.get(mdl.id), t);
+        case dynamics_type::time_func:
+            return make_initialize(mdl, time_func_models.get(mdl.id), t);
+        }
     }
 
     template<typename Dynamics>
@@ -3884,8 +4007,6 @@ struct simulation
         case dynamics_type::time_func:
             return make_transition(mdl, time_func_models.get(mdl.id), t, o);
         }
-
-        return make_transition(mdl, none_models.get(mdl.id), t, o);
     }
 };
 
