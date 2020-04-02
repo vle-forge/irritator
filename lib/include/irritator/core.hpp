@@ -13,7 +13,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-//#include <iostream>
+
+
 namespace irt {
 
 using i8 = int8_t;
@@ -97,6 +98,9 @@ enum class status
     model_cross_empty_init_message,
     model_cross_bad_init_message,
     model_cross_bad_external_message,
+
+    model_time_func_empty_init_message,
+    model_time_func_bad_init_message,
 };
 
 constexpr bool
@@ -2472,7 +2476,8 @@ enum class dynamics_type : i8
     counter,
     generator,
     constant,
-    cross
+    cross,
+    time_func
 };
 
 struct model
@@ -2802,6 +2807,42 @@ struct constant
         return status::success;
     }
 };
+
+struct time_func
+{
+    model_id id;
+    output_port_id y[1];
+    time sigma;
+    double value;
+    double (*f)(double);
+    status initialize(data_array<message, message_id>& init_messages) noexcept
+    {
+        sigma = 1.0;
+        value = sigma;
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+        time t,
+        time /*e*/,
+        time /*r*/) noexcept
+    {
+
+        sigma = (*f)(t) ;
+        value = sigma;
+
+        return status::success;
+    }
+
+    status lambda(
+        data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        auto& port = output_ports.get(y[0]);
+        port.messages.emplace_front(value);
+
+        return status::success;
+    }
+};
 struct cross
 {
     model_id id;
@@ -2847,6 +2888,7 @@ struct cross
                     status::model_cross_bad_external_message);
 
                 value =  msg.to_real_64(0) ;
+                
                 have_message = true;
             }
         }
@@ -2862,6 +2904,7 @@ struct cross
                     status::model_cross_bad_external_message);
 
                 if_value = msg.to_real_64(0);
+                have_message = true;
             }
         }
         if (auto* port = input_ports.try_to_get(x[port_else_value]); port) {
@@ -2875,6 +2918,7 @@ struct cross
                     status::model_cross_bad_external_message);
 
                 else_value = msg.to_real_64(0);
+                have_message = true;
             }
         }
 
@@ -3557,6 +3601,7 @@ struct simulation
     data_array<generator, dynamics_id> generator_models;
     data_array<constant, dynamics_id> constant_models;
     data_array<cross, dynamics_id> cross_models;
+    data_array<time_func, dynamics_id> time_func_models;
 
     scheduller sched;
 
@@ -3596,6 +3641,7 @@ struct simulation
         irt_return_if_bad(generator_models.init(model_capacity));
         irt_return_if_bad(constant_models.init(model_capacity));
         irt_return_if_bad(cross_models.init(model_capacity));
+        irt_return_if_bad(time_func_models.init(model_capacity));
 
         return status::success;
     }
@@ -3645,8 +3691,10 @@ struct simulation
             mdl.type = dynamics_type::generator;
         else if constexpr (std::is_same_v<Dynamics, constant>)
             mdl.type = dynamics_type::constant;
-        else
+        else if constexpr (std::is_same_v<Dynamics, cross>)
             mdl.type = dynamics_type::cross;
+        else
+            mdl.type = dynamics_type::time_func;
 
         if constexpr (is_detected_v<initialize_function_t, Dynamics>) {
             //if constexpr (is_detected_v<has_init_port_t, Dynamics>) {
@@ -3833,6 +3881,8 @@ struct simulation
             return make_transition(mdl, constant_models.get(mdl.id), t, o);
         case dynamics_type::cross:
             return make_transition(mdl, cross_models.get(mdl.id), t, o);
+        case dynamics_type::time_func:
+            return make_transition(mdl, time_func_models.get(mdl.id), t, o);
         }
 
         return make_transition(mdl, none_models.get(mdl.id), t, o);
