@@ -10,7 +10,6 @@
 
 #include <cstdio>
 
-#include <functional>
 
 static void
 dot_graph_save(const irt::simulation& sim, std::FILE* os)
