@@ -101,6 +101,8 @@ enum class status
 
     model_time_func_empty_init_message,
     model_time_func_bad_init_message,
+
+    gui_not_enough_memory
 };
 
 constexpr bool
@@ -2613,7 +2615,7 @@ struct adder
                     0.0);
     }
 
-    status initialize(data_array<message, message_id>& init_messages) noexcept
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
 
@@ -2694,7 +2696,7 @@ struct mult
         std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
     }
 
-    status initialize(data_array<message, message_id>& init_messages) noexcept
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         std::copy_n(
           std::begin(default_values), PortNumber, std::begin(values));
@@ -2831,7 +2833,7 @@ struct constant
 
     double value = 0.0;
 
-    status initialize(data_array<message, message_id>& init_messages) noexcept
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         sigma = time_domain<time>::zero;
 
@@ -2840,7 +2842,7 @@ struct constant
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
+    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
         time /*t*/,
         time /*e*/,
         time /*r*/) noexcept
@@ -2872,7 +2874,7 @@ struct time_func
     double value;
     double (*f)(double) = nullptr;
 
-    status initialize(data_array<message, message_id>& init_messages) noexcept
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         f = default_f;
         sigma = 1.0;
@@ -2880,7 +2882,7 @@ struct time_func
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
+    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
         time t,
         time /*e*/,
         time /*r*/) noexcept
@@ -2923,7 +2925,7 @@ struct cross
         port_else_value
     };
 
-    status initialize(data_array<message, message_id>& init_messages) noexcept
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         threshold = default_threshold;
         value = threshold - 1.0;
@@ -3287,7 +3289,7 @@ struct quantifier
     state m_state = state::init;
     adapt_state m_adapt_state = adapt_state::possible;
 
-    status initialize(data_array<message, message_id>& init_messages) noexcept
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         m_step_size = default_step_size;
         m_past_length = default_past_length;
@@ -3899,8 +3901,8 @@ struct simulation
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
             irt_return_if_bad(dyn.initialize(messages));
 
-        mdl.tl = begin;
-        mdl.tn = begin + dyn.sigma;
+        mdl.tl = t;
+        mdl.tn = t + dyn.sigma;
         mdl.handle = nullptr;
 
         sched.insert(mdl, dyn.id, mdl.tn);
@@ -3940,6 +3942,8 @@ struct simulation
         case dynamics_type::time_func:
             return make_initialize(mdl, time_func_models.get(mdl.id), t);
         }
+
+        assert(false);
     }
 
     template<typename Dynamics>
@@ -4018,6 +4022,8 @@ struct simulation
         case dynamics_type::time_func:
             return make_transition(mdl, time_func_models.get(mdl.id), t, o);
         }
+
+        assert(false);
     }
 };
 
