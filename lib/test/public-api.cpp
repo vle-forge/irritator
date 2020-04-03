@@ -914,7 +914,7 @@ main()
         double b = 2.0; 
         double c = -56.0; 
         double d = -16.0; 
-        double I = -99.0; 
+        // double I = -99.0;
         double vt = 30.0;
 
         constant.default_value = 1.0;
