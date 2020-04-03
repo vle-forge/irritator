@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 
+
 namespace irt {
 
 using i8 = int8_t;
@@ -93,6 +94,13 @@ enum class status
 
     model_constant_empty_init_message,
     model_constant_bad_init_message,
+
+    model_cross_empty_init_message,
+    model_cross_bad_init_message,
+    model_cross_bad_external_message,
+
+    model_time_func_empty_init_message,
+    model_time_func_bad_init_message,
 };
 
 constexpr bool
@@ -2467,7 +2475,9 @@ enum class dynamics_type : i8
     mult_4,
     counter,
     generator,
-    constant
+    constant,
+    cross,
+    time_func
 };
 
 struct model
@@ -2798,6 +2808,137 @@ struct constant
     }
 };
 
+struct time_func
+{
+    model_id id;
+    output_port_id y[1];
+    time sigma;
+    double value;
+    double (*f)(double);
+    status initialize(data_array<message, message_id>& init_messages) noexcept
+    {
+        sigma = 1.0;
+        value = sigma;
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+        time t,
+        time /*e*/,
+        time /*r*/) noexcept
+    {
+
+        sigma = (*f)(t) ;
+        value = sigma;
+
+        return status::success;
+    }
+
+    status lambda(
+        data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        auto& port = output_ports.get(y[0]);
+        port.messages.emplace_front(value);
+
+        return status::success;
+    }
+};
+struct cross
+{
+    model_id id;
+    input_port_id x[3];
+    output_port_id y[1];
+    time sigma;
+    double threshold;
+    double value = threshold - 1.0;
+    double if_value = 0.0;
+    double else_value = 0.0;
+
+    enum port_name
+    {
+        port_value,
+        port_if_value,
+        port_else_value
+    };
+
+    status initialize(data_array<message, message_id>& init_messages) noexcept
+    {
+
+        sigma = time_domain<time>::zero;
+
+        return status::success;
+    }
+
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+        time /*t*/,
+        time /*e*/,
+        time /*r*/) noexcept
+    {
+        bool have_message = false;
+
+        if (auto* port = input_ports.try_to_get(x[port_value]); port) {
+            for (const auto& msg : port->messages) {
+
+                irt_return_if_fail(
+                    msg.type == value_type::real_64,
+                    status::model_cross_bad_external_message);
+                irt_return_if_fail(
+                    msg.size() == 1,
+                    status::model_cross_bad_external_message);
+
+                value =  msg.to_real_64(0) ;
+                
+                have_message = true;
+            }
+        }
+
+        if (auto* port = input_ports.try_to_get(x[port_if_value]); port) {
+            for (const auto& msg : port->messages) {
+
+                irt_return_if_fail(
+                    msg.type == value_type::real_64,
+                    status::model_cross_bad_external_message);
+                irt_return_if_fail(
+                    msg.size() == 1,
+                    status::model_cross_bad_external_message);
+
+                if_value = msg.to_real_64(0);
+                have_message = true;
+            }
+        }
+        if (auto* port = input_ports.try_to_get(x[port_else_value]); port) {
+            for (const auto& msg : port->messages) {
+
+                irt_return_if_fail(
+                    msg.type == value_type::real_64,
+                    status::model_cross_bad_external_message);
+                irt_return_if_fail(
+                    msg.size() == 1,
+                    status::model_cross_bad_external_message);
+
+                else_value = msg.to_real_64(0);
+                have_message = true;
+            }
+        }
+
+        sigma =
+          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+        return status::success;
+    }
+
+    status lambda(
+        data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        double output_value = 0.0;
+        if (auto* port = output_ports.try_to_get(y[0]); port) {
+            output_value = value  >= threshold ? if_value : else_value;
+            port->messages.emplace_front(output_value);
+        }
+        return status::success;
+    }
+};
+
 struct none
 {
     model_id id;
@@ -2808,13 +2949,14 @@ struct integrator
 {
     model_id id;
     time sigma = time_domain<time>::zero;
-    input_port_id x[2];
+    input_port_id x[3];
     output_port_id y[1];
 
     enum port_name
     {
         port_quanta,
-        port_x_dot
+        port_x_dot,
+        port_reset
     };
 
     enum class state
@@ -2830,7 +2972,9 @@ struct integrator
     double down_threshold = 0.0;
     double last_output_value = 0.0;
     double current_value = 0.0;
-    double expected_value = 0.0;
+    double expected_value = 0.0;    
+    bool reset = false;
+    double reset_value;
     flat_double_list<record> archive;
     state st = state::init;
 
@@ -2844,6 +2988,7 @@ struct integrator
 
     status external(input_port& port_quanta,
                     input_port& port_x_dot,
+                    input_port& port_reset,
                     time t) noexcept
     {
         for (const auto& msg : port_quanta.messages) {
@@ -2873,6 +3018,15 @@ struct integrator
 
             if (st == state::wait_for_both)
                 st = state::wait_for_quanta;
+        }
+
+        for (const auto& msg : port_reset.messages) {
+            irt_return_if_fail(msg.type == value_type::real_64 &&
+                                 msg.size() == 1,
+                               status::model_integrator_bad_external_message);
+
+            reset_value = msg.to_real_64(0);
+            reset = true;
         }
 
         if (st == state::running) {
@@ -2912,14 +3066,15 @@ struct integrator
     {
         auto* port_1 = input_ports.try_to_get(x[port_quanta]);
         auto* port_2 = input_ports.try_to_get(x[port_x_dot]);
+        auto* port_3 = input_ports.try_to_get(x[port_reset]);
 
-        if (port_1->messages.empty() && port_2->messages.empty()) {
-            irt_return_if_bad(internal(t));
+        if (port_1->messages.empty() && port_2->messages.empty() && port_3->messages.empty()) {      
+            irt_return_if_bad(internal(t));      
         } else {
             if (time_domain<time>::is_zero(r))
                 irt_return_if_bad(internal(t));
 
-            irt_return_if_bad(external(*port_1, *port_2, t));
+            irt_return_if_bad(external(*port_1, *port_2, *port_3, t));
         }
 
         return ta();
@@ -2982,7 +3137,7 @@ private:
         if (archive.empty())
             return last_output_value;
 
-        auto val = last_output_value;
+        auto val = reset ? reset_value : last_output_value;
         auto end = archive.end();
         auto it = archive.begin();
         auto next = archive.begin();
@@ -3445,6 +3600,8 @@ struct simulation
     data_array<counter, dynamics_id> counter_models;
     data_array<generator, dynamics_id> generator_models;
     data_array<constant, dynamics_id> constant_models;
+    data_array<cross, dynamics_id> cross_models;
+    data_array<time_func, dynamics_id> time_func_models;
 
     scheduller sched;
 
@@ -3483,6 +3640,8 @@ struct simulation
         irt_return_if_bad(counter_models.init(model_capacity));
         irt_return_if_bad(generator_models.init(model_capacity));
         irt_return_if_bad(constant_models.init(model_capacity));
+        irt_return_if_bad(cross_models.init(model_capacity));
+        irt_return_if_bad(time_func_models.init(model_capacity));
 
         return status::success;
     }
@@ -3530,8 +3689,12 @@ struct simulation
             mdl.type = dynamics_type::counter;
         else if constexpr (std::is_same_v<Dynamics, generator>)
             mdl.type = dynamics_type::generator;
-        else
+        else if constexpr (std::is_same_v<Dynamics, constant>)
             mdl.type = dynamics_type::constant;
+        else if constexpr (std::is_same_v<Dynamics, cross>)
+            mdl.type = dynamics_type::cross;
+        else
+            mdl.type = dynamics_type::time_func;
 
         if constexpr (is_detected_v<initialize_function_t, Dynamics>) {
             //if constexpr (is_detected_v<has_init_port_t, Dynamics>) {
@@ -3716,6 +3879,10 @@ struct simulation
             return make_transition(mdl, generator_models.get(mdl.id), t, o);
         case dynamics_type::constant:
             return make_transition(mdl, constant_models.get(mdl.id), t, o);
+        case dynamics_type::cross:
+            return make_transition(mdl, cross_models.get(mdl.id), t, o);
+        case dynamics_type::time_func:
+            return make_transition(mdl, time_func_models.get(mdl.id), t, o);
         }
 
         return make_transition(mdl, none_models.get(mdl.id), t, o);
