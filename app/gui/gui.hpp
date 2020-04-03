@@ -9,8 +9,10 @@ namespace irt {
 
 void
 node_editor_initialize();
+
 void
 node_editor_show();
+
 void
 node_editor_shutdown();
 
