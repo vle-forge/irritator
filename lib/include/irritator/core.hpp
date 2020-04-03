@@ -14,7 +14,6 @@
 #include <cstdint>
 #include <cstring>
 
-
 namespace irt {
 
 using i8 = int8_t;
@@ -139,65 +138,65 @@ is_not_enough_memory(status s) noexcept
 }
 
 #ifndef NDEBUG
-#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&        \
+#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
   __GNUC__ >= 2
-#define irt_breakpoint()                                                      \
-    do {                                                                      \
-        __asm__ __volatile__("int $03");                                      \
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __asm__ __volatile__("int $03");                                       \
     } while (0)
 #elif (defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86)
-#define irt_breakpoint()                                                      \
-    do {                                                                      \
-        __asm int 3h                                                          \
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __asm int 3h                                                           \
     } while (0)
 #elif defined(_MSC_VER)
-#define irt_breakpoint()                                                      \
-    do {                                                                      \
-        __debugbreak();                                                       \
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __debugbreak();                                                        \
     } while (0)
-#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&         \
+#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&          \
   __GNUC__ >= 2
-#define irt_breakpoint()                                                      \
-    do {                                                                      \
-        __asm__ __volatile__("bpt");                                          \
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __asm__ __volatile__("bpt");                                           \
     } while (0)
 #elif defined(__APPLE__)
-#define irt_breakpoint()                                                      \
-    do {                                                                      \
-        __builtin_trap();                                                     \
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __builtin_trap();                                                      \
     } while (0)
 #else /* !__i386__ && !__alpha__ */
-#define irt_breakpoint()                                                      \
-    do {                                                                      \
-        raise(SIGTRAP);                                                       \
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        raise(SIGTRAP);                                                        \
     } while (0)
 #endif /* __i386__ */
 #else
-#define irt_breakpoint()                                                      \
-    do {                                                                      \
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
     } while (0)
 #endif
 
-#define irt_bad_return(status__)                                              \
-    do {                                                                      \
-        irt_breakpoint();                                                     \
-        return status__;                                                      \
+#define irt_bad_return(status__)                                               \
+    do {                                                                       \
+        irt_breakpoint();                                                      \
+        return status__;                                                       \
     } while (0)
 
-#define irt_return_if_bad(status__)                                           \
-    do {                                                                      \
-        if (status__ != status::success) {                                    \
-            irt_breakpoint();                                                 \
-            return status__;                                                  \
-        }                                                                     \
+#define irt_return_if_bad(status__)                                            \
+    do {                                                                       \
+        if (status__ != status::success) {                                     \
+            irt_breakpoint();                                                  \
+            return status__;                                                   \
+        }                                                                      \
     } while (0)
 
-#define irt_return_if_fail(expr__, status__)                                  \
-    do {                                                                      \
-        if (!(expr__)) {                                                      \
-            irt_breakpoint();                                                 \
-            return status__;                                                  \
-        }                                                                     \
+#define irt_return_if_fail(expr__, status__)                                   \
+    do {                                                                       \
+        if (!(expr__)) {                                                       \
+            irt_breakpoint();                                                  \
+            return status__;                                                   \
+        }                                                                      \
     } while (0)
 
 inline status
@@ -1636,8 +1635,8 @@ public:
                     std::free(items);
             }
 
-            items = static_cast<value_type*>(std::malloc(
-                    new_capacity * sizeof(value_type)));
+            items = static_cast<value_type*>(
+              std::malloc(new_capacity * sizeof(value_type)));
 
             for (u32 i = 0; i != capacity; ++i)
                 new (&items[i]) T();
@@ -1681,6 +1680,11 @@ public:
     const_iterator end() const noexcept
     {
         return items + capacity;
+    }
+
+    size_t size() const noexcept
+    {
+        return capacity;
     }
 };
 
@@ -2040,6 +2044,14 @@ public:
             if (m_items[index].id == id)
                 return &m_items[index].item;
         }
+
+        return nullptr;
+    }
+
+    T* try_to_get(u32 index) const noexcept
+    {
+        if (is_valid(m_items[index].id))
+            return &m_items[index].item;
 
         return nullptr;
     }
@@ -2554,8 +2566,7 @@ struct helper
 } // namespace detail
 
 template<template<class...> class Operation, typename... Arguments>
-using is_detected =
-  detail::is_detected<std::void_t<>, Operation, Arguments...>;
+using is_detected = detail::is_detected<std::void_t<>, Operation, Arguments...>;
 
 template<template<class...> class Operation, typename... Arguments>
 constexpr bool is_detected_v =
@@ -2610,9 +2621,7 @@ struct adder
                     PortNumber,
                     1.0 / static_cast<double>(PortNumber));
 
-        std::fill_n(std::begin(default_input_coeffs),
-                    PortNumber,
-                    0.0);
+        std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
     }
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
@@ -2698,8 +2707,7 @@ struct mult
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        std::copy_n(
-          std::begin(default_values), PortNumber, std::begin(values));
+        std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
 
         std::copy_n(std::begin(default_input_coeffs),
                     PortNumber,
@@ -2734,12 +2742,10 @@ struct mult
         for (size_t i = 0; i != PortNumber; ++i) {
             if (auto* port = input_ports.try_to_get(x[i]); port) {
                 for (const auto& msg : port->messages) {
-                    irt_return_if_fail(
-                      msg.type == value_type::real_64,
-                      status::model_mult_bad_external_message);
-                    irt_return_if_fail(
-                      msg.size() == 1,
-                      status::model_mult_bad_external_message);
+                    irt_return_if_fail(msg.type == value_type::real_64,
+                                       status::model_mult_bad_external_message);
+                    irt_return_if_fail(msg.size() == 1,
+                                       status::model_mult_bad_external_message);
 
                     values[i] = msg.to_real_64(0);
                     have_message = true;
@@ -2843,9 +2849,9 @@ struct constant
     }
 
     status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-        time /*t*/,
-        time /*e*/,
-        time /*r*/) noexcept
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
     {
         sigma = time_domain<time>::infinity;
 
@@ -2853,7 +2859,7 @@ struct constant
     }
 
     status lambda(
-        data_array<output_port, output_port_id>& output_ports) noexcept
+      data_array<output_port, output_port_id>& output_ports) noexcept
     {
         auto& port = output_ports.get(y[0]);
 
@@ -2869,7 +2875,7 @@ struct time_func
     output_port_id y[1];
     time sigma;
 
-    double(*default_f)(double);
+    double (*default_f)(double);
 
     double value;
     double (*f)(double) = nullptr;
@@ -2883,19 +2889,19 @@ struct time_func
     }
 
     status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-        time t,
-        time /*e*/,
-        time /*r*/) noexcept
+                      time t,
+                      time /*e*/,
+                      time /*r*/) noexcept
     {
 
-        sigma = (*f)(t) ;
+        sigma = (*f)(t);
         value = sigma;
 
         return status::success;
     }
 
     status lambda(
-        data_array<output_port, output_port_id>& output_ports) noexcept
+      data_array<output_port, output_port_id>& output_ports) noexcept
     {
         auto& port = output_ports.get(y[0]);
         port.messages.emplace_front(value);
@@ -2938,24 +2944,22 @@ struct cross
     }
 
     status transition(data_array<input_port, input_port_id>& input_ports,
-        time /*t*/,
-        time /*e*/,
-        time /*r*/) noexcept
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
     {
         bool have_message = false;
 
         if (auto* port = input_ports.try_to_get(x[port_value]); port) {
             for (const auto& msg : port->messages) {
 
-                irt_return_if_fail(
-                    msg.type == value_type::real_64,
-                    status::model_cross_bad_external_message);
-                irt_return_if_fail(
-                    msg.size() == 1,
-                    status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.type == value_type::real_64,
+                                   status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.size() == 1,
+                                   status::model_cross_bad_external_message);
 
-                value =  msg.to_real_64(0) ;
-                
+                value = msg.to_real_64(0);
+
                 have_message = true;
             }
         }
@@ -2963,12 +2967,10 @@ struct cross
         if (auto* port = input_ports.try_to_get(x[port_if_value]); port) {
             for (const auto& msg : port->messages) {
 
-                irt_return_if_fail(
-                    msg.type == value_type::real_64,
-                    status::model_cross_bad_external_message);
-                irt_return_if_fail(
-                    msg.size() == 1,
-                    status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.type == value_type::real_64,
+                                   status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.size() == 1,
+                                   status::model_cross_bad_external_message);
 
                 if_value = msg.to_real_64(0);
                 have_message = true;
@@ -2977,12 +2979,10 @@ struct cross
         if (auto* port = input_ports.try_to_get(x[port_else_value]); port) {
             for (const auto& msg : port->messages) {
 
-                irt_return_if_fail(
-                    msg.type == value_type::real_64,
-                    status::model_cross_bad_external_message);
-                irt_return_if_fail(
-                    msg.size() == 1,
-                    status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.type == value_type::real_64,
+                                   status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.size() == 1,
+                                   status::model_cross_bad_external_message);
 
                 else_value = msg.to_real_64(0);
                 have_message = true;
@@ -2995,11 +2995,11 @@ struct cross
     }
 
     status lambda(
-        data_array<output_port, output_port_id>& output_ports) noexcept
+      data_array<output_port, output_port_id>& output_ports) noexcept
     {
         double output_value = 0.0;
         if (auto* port = output_ports.try_to_get(y[0]); port) {
-            output_value = value  >= threshold ? if_value : else_value;
+            output_value = value >= threshold ? if_value : else_value;
             port->messages.emplace_front(output_value);
         }
         return status::success;
@@ -3044,7 +3044,7 @@ struct integrator
     double up_threshold = 0.0;
     double down_threshold = 0.0;
     double last_output_value = 0.0;
-    double expected_value = 0.0;    
+    double expected_value = 0.0;
     bool reset = false;
     state st = state::init;
 
@@ -3147,8 +3147,9 @@ struct integrator
         auto* port_2 = input_ports.try_to_get(x[port_x_dot]);
         auto* port_3 = input_ports.try_to_get(x[port_reset]);
 
-        if (port_1->messages.empty() && port_2->messages.empty() && port_3->messages.empty()) {      
-            irt_return_if_bad(internal(t));      
+        if (port_1->messages.empty() && port_2->messages.empty() &&
+            port_3->messages.empty()) {
+            irt_return_if_bad(internal(t));
         } else {
             if (time_domain<time>::is_zero(r))
                 irt_return_if_bad(internal(t));
@@ -3272,7 +3273,6 @@ struct quantifier
         down
     };
 
-
     double default_step_size = 0.0;
     int default_past_length = 3;
     adapt_state default_adapt_state = adapt_state::possible;
@@ -3302,10 +3302,12 @@ struct quantifier
         archive.clear();
         m_state = state::init;
 
-        irt_return_if_fail(m_step_size > 0, status::model_quantifier_bad_quantum_parameter);
+        irt_return_if_fail(m_step_size > 0,
+                           status::model_quantifier_bad_quantum_parameter);
 
-        irt_return_if_fail(m_past_length > 2,
-              status::model_quantifier_bad_archive_length_parameter);
+        irt_return_if_fail(
+          m_past_length > 2,
+          status::model_quantifier_bad_archive_length_parameter);
 
         sigma = time_domain<time>::infinity;
 
@@ -3351,9 +3353,8 @@ struct quantifier
 
                 shifting_factor = shift_quanta();
 
-                irt_return_if_fail(
-                  shifting_factor >= 0,
-                  status::model_quantifier_shifting_value_neg);
+                irt_return_if_fail(shifting_factor >= 0,
+                                   status::model_quantifier_shifting_value_neg);
                 irt_return_if_fail(
                   shifting_factor <= 1,
                   status::model_quantifier_shifting_value_less_1);
@@ -3435,8 +3436,7 @@ private:
     {
         const auto step_number = static_cast<double>(m_step_number);
 
-        m_upthreshold =
-          m_offset + m_step_size * (step_number + (1.0 - factor));
+        m_upthreshold = m_offset + m_step_size * (step_number + (1.0 - factor));
         m_downthreshold =
           m_offset + m_step_size * (step_number - (1.0 - factor));
     }
@@ -3463,8 +3463,7 @@ private:
         if (m_zero_init_offset) {
             m_offset = 0.0;
         } else {
-            m_offset =
-              value - static_cast<double>(m_step_number) * m_step_size;
+            m_offset = value - static_cast<double>(m_step_number) * m_step_size;
         }
     }
 
@@ -3488,8 +3487,8 @@ private:
                         local_estim = 1 - (it_1->date - it_0->date) /
                                             (it_2->date - it_0->date);
                     } else {
-                        local_estim = (it_1->date - it_0->date) /
-                                      (it_2->date - it_0->date);
+                        local_estim =
+                          (it_1->date - it_0->date) / (it_2->date - it_0->date);
                     }
 
                     acc += local_estim;
@@ -3742,8 +3741,7 @@ struct simulation
                  dynamics_id id,
                  const char* name = nullptr) noexcept
     {
-        irt_return_if_fail(!models.full(),
-                           status::simulation_not_enough_model);
+        irt_return_if_fail(!models.full(), status::simulation_not_enough_model);
 
         model& mdl = models.alloc();
         model_id mdl_id = models.get_id(mdl);
@@ -3893,10 +3891,7 @@ struct simulation
     }
 
     template<typename Dynamics>
-    status make_initialize(
-      model& mdl,
-      Dynamics& dyn,
-      time t) noexcept
+    status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     {
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
             irt_return_if_bad(dyn.initialize(messages));
