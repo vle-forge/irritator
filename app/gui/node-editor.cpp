@@ -53,9 +53,8 @@ run_simulation(simulation& sim,
             return;
         }
 
-        while (current - last > obs_freq &&
-            obs_a.size() > (size_t)obs_id &&
-            !stop) {
+        while (current - last > obs_freq && obs_a.size() > (size_t)obs_id &&
+               !stop) {
             obs_a[obs_id] = static_cast<float>(*a);
             obs_b[obs_id] = static_cast<float>(*b);
             last += obs_freq;
@@ -90,14 +89,53 @@ struct editor
         return g_models[get_index(id)].index;
     }
 
+    std::pair<bool, model_id> get_model(int index) const noexcept
+    {
+        model* mdl = nullptr;
+        while (sim.models.next(mdl)) {
+            auto id = sim.models.get_id(*mdl);
+            if (index == get_model(id)) {
+                return std::make_pair(true, id);
+            }
+        }
+
+        return { false, static_cast<model_id>(0) };
+    }
+
     int get_in(const input_port_id id) const noexcept
     {
         return g_input_ports[get_index(id)];
     }
 
+    std::pair<bool, input_port_id> get_in(int index) const noexcept
+    {
+        input_port* port = nullptr;
+        while (sim.input_ports.next(port)) {
+            auto id = sim.input_ports.get_id(*port);
+            if (index == get_in(id)) {
+                return std::make_pair(true, id);
+            }
+        }
+
+        return { false, static_cast<input_port_id>(0) };
+    }
+
     int get_out(const output_port_id id) const noexcept
     {
         return g_output_ports[get_index(id)];
+    }
+
+    std::pair<bool, output_port_id> get_out(int index) const noexcept
+    {
+        output_port* port = nullptr;
+        while (sim.output_ports.next(port)) {
+            auto id = sim.output_ports.get_id(*port);
+            if (index == get_out(id)) {
+                return std::make_pair(true, id);
+            }
+        }
+
+        return { false, static_cast<output_port_id>(0) };
     }
 
     simulation sim;
@@ -135,8 +173,9 @@ struct editor
     }
 
     template<typename Dynamics>
-    status alloc(Dynamics& dynamics, dynamics_id dyn_id,
-               const char* name = nullptr) noexcept
+    status alloc(Dynamics& dynamics,
+                 dynamics_id dyn_id,
+                 const char* name = nullptr) noexcept
     {
         irt_return_if_bad(sim.alloc(dynamics, dyn_id, name));
 
@@ -173,14 +212,16 @@ struct editor
 
         integrator_a.default_current_value = 18.0;
 
-        quantifier_a.default_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_a.default_adapt_state =
+          irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
         quantifier_a.default_step_size = 0.01;
         quantifier_a.default_past_length = 3;
 
         integrator_b.default_current_value = 7.0;
 
-        quantifier_b.default_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_b.default_adapt_state =
+          irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
         quantifier_b.default_step_size = 0.01;
         quantifier_b.default_past_length = 3;
@@ -192,13 +233,20 @@ struct editor
         sum_b.default_input_coeffs[0] = -1.0;
         sum_b.default_input_coeffs[1] = 0.1;
 
-        irt_return_if_bad(alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
-        irt_return_if_bad(alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
-        irt_return_if_bad(alloc(product, sim.mult_2_models.get_id(product), "prod"));
-        irt_return_if_bad(alloc(integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
-        irt_return_if_bad(alloc(integrator_b, sim.integrator_models.get_id(integrator_b), "int_b"));
-        irt_return_if_bad(alloc(quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a"));
-        irt_return_if_bad(alloc(quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
+        irt_return_if_bad(
+          alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
+        irt_return_if_bad(
+          alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
+        irt_return_if_bad(
+          alloc(product, sim.mult_2_models.get_id(product), "prod"));
+        irt_return_if_bad(alloc(
+          integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
+        irt_return_if_bad(alloc(
+          integrator_b, sim.integrator_models.get_id(integrator_b), "int_b"));
+        irt_return_if_bad(alloc(
+          quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a"));
+        irt_return_if_bad(alloc(
+          quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
 
         irt_return_if_bad(sim.connect(sum_a.y[0], integrator_a.x[1]));
         irt_return_if_bad(sim.connect(sum_b.y[0], integrator_b.x[1]));
@@ -494,8 +542,18 @@ show_editor(const char* editor_name, editor& ed)
     }
 
     show_connections(ed);
-
     imnodes::EndNodeEditor();
+
+    {
+        int start = 0, end = 0;
+        if (imnodes::IsLinkCreated(&start, &end)) {
+            auto [found_1, out] = ed.get_out(start);
+            auto [found_2, in] = ed.get_in(end);
+
+            if (found_1 && found_2)
+                ed.sim.connect(out, in);
+        }
+    }
 
     /*
     {
