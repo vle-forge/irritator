@@ -1593,13 +1593,9 @@ template<typename T>
 class array
 {
 public:
-    static_assert(std::is_trivially_constructible_v<T>,
-                  "array is only for POD object");
-    static_assert(std::is_trivially_destructible_v<T>,
-                  "array is only for POD object");
-
     using value_type = T;
     using reference = T&;
+    using const_reference = const T&;
     using pointer = T*;
     using difference_type = std::ptrdiff_t;
     using size_type = std::size_t;
@@ -1615,6 +1611,10 @@ public:
 
     ~array() noexcept
     {
+        if constexpr (!std::is_trivial_v<T>)
+            for (u32 i = 0; i != capacity; ++i)
+                items[i].~T();
+
         if (items)
             std::free(items);
     }
@@ -1625,10 +1625,21 @@ public:
             return status::block_allocator_bad_capacity;
 
         if (new_capacity != capacity) {
-            if (items)
-                std::free(items);
-            items =
-                static_cast<value_type*>(std::malloc(new_capacity * sizeof(value_type)));
+            if (items) {
+                if constexpr (!std::is_trivial_v<T>)
+                    for (u32 i = 0; i != capacity; ++i)
+                        items[i].~T();
+
+                if (items)
+                    std::free(items);
+            }
+
+            items = static_cast<value_type*>(std::malloc(
+                    new_capacity * sizeof(value_type)));
+
+            for (u32 i = 0; i != capacity; ++i)
+                new (&items[i]) T();
+
             if (items == nullptr)
                 return status::block_allocator_not_enough_memory;
         }
@@ -1638,13 +1649,13 @@ public:
         return status::success;
     }
 
-    reference operator[](difference_type i) noexcept
+    reference operator[](size_type i) noexcept
     {
-        assert(i >= 0 && i < capacity);
+        assert(i < capacity);
         return items[i];
     }
 
-    reference operator[](size_type i) noexcept
+    const_reference operator[](size_type i) const noexcept
     {
         assert(i < capacity);
         return items[i];
