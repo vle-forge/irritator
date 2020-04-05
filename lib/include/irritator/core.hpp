@@ -3144,6 +3144,7 @@ struct cross
     double value;
     double if_value;
     double else_value;
+    double result;
 
     enum port_name
     {
@@ -3158,6 +3159,7 @@ struct cross
         value = threshold - 1.0;
         if_value = 0.0;
         else_value = 0.0;
+        result = 0.0;
 
         sigma = time_domain<time>::zero;
 
@@ -3170,6 +3172,8 @@ struct cross
                       time /*r*/) noexcept
     {
         bool have_message = false;
+        double before_value = value;
+        double before_if_value = if_value;
 
         if (auto* port = input_ports.try_to_get(x[port_value]); port) {
             for (const auto& msg : port->messages) {
@@ -3209,6 +3213,10 @@ struct cross
                 have_message = true;
             }
         }
+        if(value != before_value ) {
+            else_value = value  >= threshold ? if_value : else_value;
+        }
+        result = else_value;
 
         sigma =
           have_message ? time_domain<time>::zero : time_domain<time>::infinity;
@@ -3218,11 +3226,9 @@ struct cross
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        double output_value = 0.0;
-        if (auto* port = output_ports.try_to_get(y[0]); port) {
-            output_value = value >= threshold ? if_value : else_value;
-            port->messages.emplace_front(output_value);
-        }
+        if (auto* port = output_ports.try_to_get(y[0]); port)
+            port->messages.emplace_front(result);
+
         return status::success;
     }
 };
