@@ -2853,6 +2853,7 @@ struct cross
     double value = threshold - 1.0;
     double if_value = 0.0;
     double else_value = 0.0;
+    double res = 0.0;
 
     enum port_name
     {
@@ -2876,6 +2877,8 @@ struct cross
         time /*r*/) noexcept
     {
         bool have_message = false;
+        double before_value = value;
+        double before_if_value = if_value;
 
         if (auto* port = input_ports.try_to_get(x[port_value]); port) {
             for (const auto& msg : port->messages) {
@@ -2919,8 +2922,15 @@ struct cross
 
                 else_value = msg.to_real_64(0);
                 have_message = true;
+
             }
         }
+
+        if(value != before_value ) {
+            else_value = value  >= threshold ? if_value : else_value;
+        }
+        res = else_value;
+
 
         sigma =
           have_message ? time_domain<time>::zero : time_domain<time>::infinity;
@@ -2930,10 +2940,10 @@ struct cross
     status lambda(
         data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        double output_value = 0.0;
+        
         if (auto* port = output_ports.try_to_get(y[0]); port) {
-            output_value = value  >= threshold ? if_value : else_value;
-            port->messages.emplace_front(output_value);
+            
+            port->messages.emplace_front(res);
         }
         return status::success;
     }
@@ -3024,7 +3034,7 @@ struct integrator
             irt_return_if_fail(msg.type == value_type::real_64 &&
                                  msg.size() == 1,
                                status::model_integrator_bad_external_message);
-
+            
             reset_value = msg.to_real_64(0);
             reset = true;
         }
