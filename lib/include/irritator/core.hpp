@@ -3173,7 +3173,6 @@ struct cross
     {
         bool have_message = false;
         double before_value = value;
-        double before_if_value = if_value;
 
         if (auto* port = input_ports.try_to_get(x[port_value]); port) {
             for (const auto& msg : port->messages) {
@@ -3201,6 +3200,7 @@ struct cross
                 have_message = true;
             }
         }
+
         if (auto* port = input_ports.try_to_get(x[port_else_value]); port) {
             for (const auto& msg : port->messages) {
 
@@ -3213,9 +3213,11 @@ struct cross
                 have_message = true;
             }
         }
-        if(value != before_value ) {
-            else_value = value  >= threshold ? if_value : else_value;
+
+        if (value != before_value) {
+            else_value = value >= threshold ? if_value : else_value;
         }
+
         result = else_value;
 
         sigma =

@@ -979,18 +979,19 @@ main()
         irt::simulation sim;
 
         expect(irt::is_success(sim.init(64lu, 256lu)));
-        expect(sim.constant_models.can_alloc(2));
+        expect(sim.constant_models.can_alloc(3));
         expect(sim.adder_2_models.can_alloc(3));
         expect(sim.adder_4_models.can_alloc(1));
         expect(sim.mult_2_models.can_alloc(1));
         expect(sim.integrator_models.can_alloc(2));
         expect(sim.quantifier_models.can_alloc(2));
         expect(sim.cross_models.can_alloc(2));
-        expect(sim.time_func_models.can_alloc(1));
+        // expect(sim.time_func_models.can_alloc(1));
 
-        auto& time_fun = sim.time_func_models.alloc();
+        // auto& time_fun = sim.time_func_models.alloc();
         auto& constant = sim.constant_models.alloc();
         auto& constant2 = sim.constant_models.alloc();
+        auto& constant3 = sim.constant_models.alloc();
         auto& sum_a = sim.adder_2_models.alloc();
         auto& sum_b = sim.adder_2_models.alloc();
         auto& sum_c = sim.adder_4_models.alloc();
@@ -1007,11 +1008,15 @@ main()
         double b = 2.0;
         double c = -56.0;
         double d = -16.0;
-        // double I = -99.0;
+        double I = -99.0;
         double vt = 30.0;
 
         constant.default_value = 1.0;
         constant2.default_value = c;
+        constant3.default_value = I;
+
+        cross.default_threshold = vt;
+        cross2.default_threshold = vt;
 
         integrator_a.default_current_value = 0.0;
 
@@ -1043,14 +1048,9 @@ main()
         sum_d.default_input_coeffs[0] = 1.0;
         sum_d.default_input_coeffs[1] = d;
 
-        cross.default_threshold = vt;
-        cross2.default_threshold = vt;
-
-        time_fun.default_f = &f;
-
-        expect(sim.models.can_alloc(12));
+        expect(sim.models.can_alloc(14));
         !expect(irt::is_success(
-          sim.alloc(time_fun, sim.time_func_models.get_id(time_fun), "tfun")));
+          sim.alloc(constant3, sim.constant_models.get_id(constant3), "tfun")));
         !expect(irt::is_success(
           sim.alloc(constant, sim.constant_models.get_id(constant), "1.0")));
         !expect(irt::is_success(sim.alloc(
@@ -1062,6 +1062,8 @@ main()
           sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b")));
         !expect(irt::is_success(
           sim.alloc(sum_c, sim.adder_4_models.get_id(sum_c), "sum_c")));
+        !expect(irt::is_success(
+          sim.alloc(sum_d, sim.adder_2_models.get_id(sum_d), "sum_d")));
 
         !expect(irt::is_success(
           sim.alloc(product, sim.mult_2_models.get_id(product), "prod")));
@@ -1075,9 +1077,11 @@ main()
           quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b")));
         !expect(irt::is_success(
           sim.alloc(cross, sim.cross_models.get_id(cross), "cross")));
+        !expect(irt::is_success(
+          sim.alloc(cross2, sim.cross_models.get_id(cross2), "cross2")));
 
-        !expect(sim.models.size() == 12_ul);
-        !expect(sim.sched.size() == 12_ul);
+        !expect(sim.models.size() == 14_ul);
+        !expect(sim.sched.size() == 14_ul);
 
         expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
                irt::status::success);
@@ -1094,11 +1098,12 @@ main()
         expect(sim.connect(cross.y[0], sum_b.x[1]) == irt::status::success);
 
         expect(sim.connect(constant.y[0], sum_c.x[2]) == irt::status::success);
-        expect(sim.connect(time_fun.y[0], sum_c.x[3]) == irt::status::success);
+        expect(sim.connect(constant3.y[0], sum_c.x[3]) == irt::status::success);
 
         expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
         expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
                irt::status::success);
+        expect(sim.connect(cross2.y[0], sum_a.x[1]) == irt::status::success);
         expect(sim.connect(sum_a.y[0], integrator_a.x[1]) ==
                irt::status::success);
         expect(sim.connect(cross.y[0], integrator_a.x[2]) ==
@@ -1106,34 +1111,44 @@ main()
         expect(sim.connect(quantifier_a.y[0], integrator_a.x[0]) ==
                irt::status::success);
 
-        expect(sim.connect(integrator_b.y[0], quantifier_b.x[0]) ==
+        expect(sim.connect(cross2.y[0], quantifier_b.x[0]) ==
                irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
-               irt::status::success);
+        expect(sim.connect(cross2.y[0], sum_b.x[0]) == irt::status::success);
         expect(sim.connect(quantifier_b.y[0], integrator_b.x[0]) ==
                irt::status::success);
         expect(sim.connect(sum_b.y[0], integrator_b.x[1]) ==
                irt::status::success);
 
+        expect(sim.connect(cross2.y[0], integrator_b.x[2]) ==
+               irt::status::success);
+        expect(sim.connect(integrator_a.y[0], cross2.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(integrator_b.y[0], cross2.x[2]) ==
+               irt::status::success);
+        expect(sim.connect(sum_d.y[0], cross2.x[1]) == irt::status::success);
+        expect(sim.connect(integrator_b.y[0], sum_d.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(constant.y[0], sum_d.x[1]) == irt::status::success);
+
         dot_graph_save(sim, stdout);
 
         irt::time t = 0.0;
-        expect(sim.initialize(t) == irt::status::success);
-
         std::FILE* os = std::fopen("output_izhikevitch.csv", "w");
         !expect(os != nullptr);
+        fmt::print(os, "t,v,u\n");
 
-        fmt::print(os, "t,v,y\n");
+        expect(irt::status::success == sim.initialize(t));
+
         do {
             irt::status st = sim.run(t);
-
             expect(st == irt::status::success);
+
             fmt::print(os,
                        "{},{},{}\n",
                        t,
                        integrator_a.last_output_value,
                        integrator_b.last_output_value);
-        } while (t < 6.0);
+        } while (t < 120);
 
         std::fclose(os);
     };
