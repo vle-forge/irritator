@@ -55,6 +55,10 @@ enum class status
     data_array_archive_init_capacity_error,
     data_array_archive_not_enough_memory,
 
+    vector_init_capacity_zero,
+    vector_init_capacity_too_big,
+    vector_init_not_enough_memory,
+
     model_uninitialized_port_warning,
 
     model_connect_output_port_unknown,
@@ -1587,6 +1591,194 @@ public:
     i64 size() const noexcept
     {
         return m_size;
+    }
+};
+
+template<typename T>
+class vector
+{
+public:
+    using value_type = T;
+    using reference = T&;
+    using const_reference = const T&;
+    using pointer = T*;
+    using difference_type = std::ptrdiff_t;
+    using size_type = std::size_t;
+    using iterator = T*;
+    using const_iterator = const T*;
+
+private:
+    value_type* m_items{ nullptr };
+    unsigned m_capacity = 0u;
+    unsigned m_size = 0u;
+
+public:
+    vector() = default;
+
+    ~vector() noexcept
+    {
+        clear();
+
+        if (m_items)
+            std::free(m_items);
+    }
+
+    vector(const vector&) noexcept = delete;
+    vector& operator=(const vector&) noexcept = delete;
+    vector(vector&&) noexcept = delete;
+    vector& operator=(vector&&) noexcept = delete;
+
+    status init(std::size_t new_capacity) noexcept
+    {
+        if (new_capacity > std::numeric_limits<unsigned>::max())
+            return status::vector_init_capacity_too_big;
+
+        if (new_capacity == 0)
+            return status::vector_init_capacity_zero;
+
+        if (new_capacity != m_capacity) {
+            if (m_items) {
+                if constexpr (!std::is_trivial_v<T>)
+                    for (auto i = 0u; i != m_capacity; ++i)
+                        m_items[i].~T();
+
+                if (m_items)
+                    std::free(m_items);
+            }
+
+            m_items = static_cast<value_type*>(
+              std::malloc(new_capacity * sizeof(value_type)));
+
+            for (auto i = 0u; i != m_capacity; ++i)
+                new (&m_items[i]) T();
+
+            if (m_items == nullptr)
+                return status::block_allocator_not_enough_memory;
+        }
+
+        m_capacity = new_capacity;
+        m_size = 0;
+
+        return status::success;
+    }
+
+    void clear() noexcept
+    {
+        if constexpr (!std::is_trivial_v<T>)
+            for (auto i = 0u; i != m_capacity; ++i)
+                m_items[i].~T();
+
+        m_size = 0;
+    }
+
+    bool can_alloc(size_type number) const noexcept
+    {
+        return number + m_size <= m_capacity;
+    }
+
+    template<typename... Args>
+    std::pair<bool, iterator> try_emplace_back(Args&&... args) noexcept
+    {
+        if (!can_alloc(1u))
+            return std::make_pair(false, end());
+
+        unsigned ret = m_size++;
+        new (&m_items[ret]) T(std::forward<Args>(args)...);
+
+        return std::pair(true, begin() + ret);
+    }
+
+    template<typename... Args>
+    iterator emplace_back(Args&&... args) noexcept
+    {
+        assert(m_size < m_capacity);
+
+        unsigned ret = m_size++;
+        new (&m_items[ret]) T(std::forward<Args>(args)...);
+
+        return begin() + ret;
+    }
+
+    void pop_back() noexcept
+    {
+        if (m_size == 0)
+            return;
+
+        --m_size;
+
+        if constexpr (!std::is_trivial_v<T>)
+            m_items[m_size].~T();
+    }
+
+    iterator erase_and_swap(const_iterator it) noexcept
+    {
+        auto diff = std::distance(cbegin(), it);
+        assert(diff < std::numeric_limits<unsigned>::max());
+
+        auto i = static_cast<unsigned>(diff);
+        assert(i < m_size);
+
+        if (m_size - 1 == i) {
+            pop_back();
+            return end();
+        } else {
+            using std::swap;
+            swap(m_items[m_size - 1], m_items[i]);
+            pop_back();
+            return begin() + i;
+        }
+    }
+
+    reference operator[](size_type i) noexcept
+    {
+        assert(i < m_size);
+        return m_items[i];
+    }
+
+    const_reference operator[](size_type i) const noexcept
+    {
+        assert(i < m_size);
+        return m_items[i];
+    }
+
+    iterator begin() noexcept
+    {
+        return m_items;
+    }
+
+    iterator end() noexcept
+    {
+        return m_items + m_size;
+    }
+
+    const_iterator begin() const noexcept
+    {
+        return m_items;
+    }
+
+    const_iterator end() const noexcept
+    {
+        return m_items + m_size;
+    }
+
+    const_iterator cbegin() const noexcept
+    {
+        return m_items;
+    }
+
+    const_iterator cend() const noexcept
+    {
+        return m_items + m_size;
+    }
+
+    size_t size() const noexcept
+    {
+        return m_size;
+    }
+
+    size_type capacity() const noexcept
+    {
+        return m_capacity;
     }
 };
 

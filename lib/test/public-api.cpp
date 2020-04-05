@@ -88,7 +88,8 @@ dot_graph_save(const irt::simulation& sim, std::FILE* os)
     }
 }
 
-double f(double t) noexcept
+double
+f(double t) noexcept
 {
     return t * t;
 }
@@ -105,19 +106,16 @@ main()
                false);
         expect(irt::is_detected_v<irt::transition_function_t, irt::counter> ==
                true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::counter> ==
-               true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::counter> == true);
         expect(irt::is_detected_v<irt::has_output_port_t, irt::counter> ==
                false);
 
-        expect(
-          irt::is_detected_v<irt::initialize_function_t, irt::generator> ==
-          true);
+        expect(irt::is_detected_v<irt::initialize_function_t, irt::generator> ==
+               true);
         expect(irt::is_detected_v<irt::lambda_function_t, irt::generator> ==
                true);
-        expect(
-          irt::is_detected_v<irt::transition_function_t, irt::generator> ==
-          false);
+        expect(irt::is_detected_v<irt::transition_function_t, irt::generator> ==
+               false);
         expect(irt::is_detected_v<irt::has_input_port_t, irt::generator> ==
                false);
         expect(irt::is_detected_v<irt::has_output_port_t, irt::generator> ==
@@ -129,8 +127,7 @@ main()
                true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::adder_2> ==
                true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_2> ==
-               true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_2> == true);
         expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_2> ==
                true);
 
@@ -140,8 +137,7 @@ main()
                true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::adder_3> ==
                true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_3> ==
-               true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_3> == true);
         expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_3> ==
                true);
 
@@ -151,40 +147,33 @@ main()
                true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::adder_4> ==
                true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_4> ==
-               true);
+        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_4> == true);
         expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_4> ==
                true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_2> ==
                true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_2> ==
-               true);
+        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_2> == true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::mult_2> ==
                true);
         expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_2> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_2> ==
-               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_2> == true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_3> ==
                true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_3> ==
-               true);
+        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_3> == true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::mult_3> ==
                true);
         expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_3> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_3> ==
-               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_3> == true);
 
         expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_4> ==
                true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_4> ==
-               true);
+        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_4> == true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::mult_4> ==
                true);
         expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_4> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_4> ==
-               true);
+        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_4> == true);
 
         expect(
           irt::is_detected_v<irt::initialize_function_t, irt::integrator> ==
@@ -357,6 +346,75 @@ main()
             --it;
             expect(*it == 7);
         }
+    };
+
+    "vector_api"_test = [] {
+        struct position
+        {
+            position() noexcept = default;
+
+            position(int x_, int y_)
+              : x(x_)
+              , y(y_)
+            {}
+
+            int x = 0, y = 0;
+        };
+
+        irt::vector<position> positions;
+        !expect(irt::status::success == positions.init(16u));
+
+        expect(positions.size() == 0_u);
+        expect(positions.capacity() == 16u);
+
+        {
+            expect(positions.can_alloc(1u));
+            auto it = positions.emplace_back(0, 1);
+            expect(positions.size() == 1_u);
+            expect(positions.begin() == it);
+            expect(it->x == 0);
+            expect(it->y == 1);
+        }
+
+        {
+            auto ret = positions.try_emplace_back(2, 3);
+            expect(ret.first == true);
+            expect(ret.second == positions.begin() + 1);
+            expect(positions.size() == 2_u);
+            expect(positions.begin()->x == 0);
+            expect(positions.begin()->y == 1);
+            expect((positions.begin() + 1)->x == 2);
+            expect((positions.begin() + 1)->y == 3);
+        }
+
+        {
+            auto it = positions.erase_and_swap(positions.begin());
+            expect(positions.size() == 1_u);
+            expect(it == positions.begin());
+            expect(it->x == 2);
+            expect(it->y == 3);
+        }
+
+        positions.clear();
+        expect(positions.size() == 0_ul);
+        expect(positions.capacity() == 16_u);
+
+        expect(positions.can_alloc(16u));
+        for (int i = 0; i != 16; ++i)
+            positions.emplace_back(i, i);
+
+        auto ret = positions.try_emplace_back(16, 16);
+        expect(ret.first == false);
+
+        expect(positions.size() == 16_ul);
+        expect(positions.capacity() == 16_u);
+
+        auto it = positions.begin();
+        while (it != positions.end())
+            it = positions.erase_and_swap(it);
+
+        expect(positions.size() == 0_ul);
+        expect(positions.capacity() == 16_u);
     };
 
     "data_array_api"_test = [] {
@@ -679,18 +737,19 @@ main()
         auto& cross1 = sim.cross_models.alloc();
         auto& c1 = sim.constant_models.alloc();
 
-        //auto& value = sim.messages.alloc(3.0);
-        //auto& threshold = sim.messages.alloc(0.0);
+        // auto& value = sim.messages.alloc(3.0);
+        // auto& threshold = sim.messages.alloc(0.0);
         //
-        //c1.init[0] = sim.messages.get_id(value);
-        //cross1.init[0] = sim.messages.get_id(threshold);
+        // c1.init[0] = sim.messages.get_id(value);
+        // cross1.init[0] = sim.messages.get_id(threshold);
 
         c1.default_value = 3.0;
         cross1.default_threshold = 0.0;
 
         expect(sim.models.can_alloc(3));
         expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
-        expect(irt::is_success(sim.alloc(cross1, sim.cross_models.get_id(cross1))));
+        expect(
+          irt::is_success(sim.alloc(cross1, sim.cross_models.get_id(cross1))));
         expect(irt::is_success(sim.alloc(c1, sim.constant_models.get_id(c1))));
 
         expect(sim.connect(c1.y[0], cross1.x[0]) == irt::status::success);
@@ -703,7 +762,7 @@ main()
 
         irt::status st;
 
-        do {    
+        do {
             st = sim.run(t);
             expect(irt::is_success(st));
         } while (t < sim.end);
@@ -722,7 +781,8 @@ main()
         auto& cnt = sim.counter_models.alloc();
 
         expect(sim.models.can_alloc(2));
-        expect(irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen))));
+        expect(
+          irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen))));
         expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
 
         expect(sim.connect(gen.y[0], cnt.x[0]) == irt::status::success);
@@ -759,7 +819,8 @@ main()
         time_fun.default_f = &f;
 
         expect(sim.models.can_alloc(2));
-        expect(irt::is_success(sim.alloc(time_fun, sim.time_func_models.get_id(time_fun))));
+        expect(irt::is_success(
+          sim.alloc(time_fun, sim.time_func_models.get_id(time_fun))));
         expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
 
         expect(sim.connect(time_fun.y[0], cnt.x[0]) == irt::status::success);
@@ -793,14 +854,16 @@ main()
 
         integrator_a.default_current_value = 18.0;
 
-        quantifier_a.default_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_a.default_adapt_state =
+          irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
         quantifier_a.default_step_size = 0.01;
         quantifier_a.default_past_length = 3;
 
         integrator_b.default_current_value = 7.0;
 
-        quantifier_b.default_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_b.default_adapt_state =
+          irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
         quantifier_b.default_step_size = 0.01;
         quantifier_b.default_past_length = 3;
@@ -882,9 +945,9 @@ main()
         std::fclose(os);
     };
 
-     "izhikevitch_simulation"_test = [] {
+    "izhikevitch_simulation"_test = [] {
         irt::simulation sim;
-        
+
         expect(irt::is_success(sim.init(64lu, 256lu)));
         expect(sim.constant_models.can_alloc(2));
         expect(sim.adder_2_models.can_alloc(3));
@@ -910,26 +973,28 @@ main()
         auto& cross = sim.cross_models.alloc();
         auto& cross2 = sim.cross_models.alloc();
 
-        double a = 0.2; 
-        double b = 2.0; 
-        double c = -56.0; 
-        double d = -16.0; 
+        double a = 0.2;
+        double b = 2.0;
+        double c = -56.0;
+        double d = -16.0;
         // double I = -99.0;
         double vt = 30.0;
 
         constant.default_value = 1.0;
         constant2.default_value = c;
-       
+
         integrator_a.default_current_value = 0.0;
 
-        quantifier_a.default_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_a.default_adapt_state =
+          irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
         quantifier_a.default_step_size = 0.01;
         quantifier_a.default_past_length = 3;
 
         integrator_b.default_current_value = 0.0;
 
-        quantifier_b.default_adapt_state = irt::quantifier::adapt_state::possible;
+        quantifier_b.default_adapt_state =
+          irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
         quantifier_b.default_step_size = 0.01;
         quantifier_b.default_past_length = 3;
@@ -940,7 +1005,7 @@ main()
         sum_a.default_input_coeffs[0] = 1.0;
         sum_a.default_input_coeffs[1] = -1.0;
         sum_b.default_input_coeffs[0] = -a;
-        sum_b.default_input_coeffs[1] = a*b;
+        sum_b.default_input_coeffs[1] = a * b;
         sum_c.default_input_coeffs[0] = 0.04;
         sum_c.default_input_coeffs[1] = 5.0;
         sum_c.default_input_coeffs[2] = 140.0;
@@ -952,14 +1017,14 @@ main()
         cross2.default_threshold = vt;
 
         time_fun.default_f = &f;
-     
+
         expect(sim.models.can_alloc(12));
         !expect(irt::is_success(
-               sim.alloc(time_fun, sim.time_func_models.get_id(time_fun),"tfun")));
+          sim.alloc(time_fun, sim.time_func_models.get_id(time_fun), "tfun")));
         !expect(irt::is_success(
-               sim.alloc(constant, sim.constant_models.get_id(constant),"1.0")));
-        !expect(irt::is_success(
-               sim.alloc(constant2, sim.constant_models.get_id(constant2),"-56.0")));
+          sim.alloc(constant, sim.constant_models.get_id(constant), "1.0")));
+        !expect(irt::is_success(sim.alloc(
+          constant2, sim.constant_models.get_id(constant2), "-56.0")));
 
         !expect(irt::is_success(
           sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a")));
@@ -978,55 +1043,46 @@ main()
           quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a")));
         !expect(irt::is_success(sim.alloc(
           quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b")));
-        !expect(irt::is_success(sim.alloc(
-          cross, sim.cross_models.get_id(cross), "cross")));
+        !expect(irt::is_success(
+          sim.alloc(cross, sim.cross_models.get_id(cross), "cross")));
 
         !expect(sim.models.size() == 12_ul);
         !expect(sim.sched.size() == 12_ul);
 
         expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
                irt::status::success);
-        expect(sim.connect(constant2.y[0], cross.x[1]) ==
-               irt::status::success);
+        expect(sim.connect(constant2.y[0], cross.x[1]) == irt::status::success);
         expect(sim.connect(integrator_a.y[0], cross.x[2]) ==
                irt::status::success);
 
-        expect(sim.connect( cross.y[0], quantifier_a.x[0]) ==
+        expect(sim.connect(cross.y[0], quantifier_a.x[0]) ==
                irt::status::success);
-        expect(sim.connect( cross.y[0], product.x[0]) ==
-               irt::status::success);
-        expect(sim.connect( cross.y[0], product.x[1]) ==
-               irt::status::success);
-        expect(sim.connect( product.y[0] , sum_c.x[0]) ==
-               irt::status::success);
-        expect(sim.connect( cross.y[0], sum_c.x[1]) ==
-               irt::status::success);
-        expect(sim.connect( cross.y[0], sum_b.x[1]) ==
-               irt::status::success);
+        expect(sim.connect(cross.y[0], product.x[0]) == irt::status::success);
+        expect(sim.connect(cross.y[0], product.x[1]) == irt::status::success);
+        expect(sim.connect(product.y[0], sum_c.x[0]) == irt::status::success);
+        expect(sim.connect(cross.y[0], sum_c.x[1]) == irt::status::success);
+        expect(sim.connect(cross.y[0], sum_b.x[1]) == irt::status::success);
 
-        expect(sim.connect(constant.y[0] ,sum_c.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(time_fun.y[0] ,sum_c.x[3]) ==
-               irt::status::success);
+        expect(sim.connect(constant.y[0], sum_c.x[2]) == irt::status::success);
+        expect(sim.connect(time_fun.y[0], sum_c.x[3]) == irt::status::success);
 
-        expect(sim.connect(sum_c.y[0],sum_a.x[0]) ==
+        expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
+        expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
                irt::status::success);
-        expect(sim.connect(integrator_b.y[0],sum_a.x[1]) ==
+        expect(sim.connect(sum_a.y[0], integrator_a.x[1]) ==
                irt::status::success);
-        expect(sim.connect(sum_a.y[0],integrator_a.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(cross.y[0],integrator_a.x[2]) ==
+        expect(sim.connect(cross.y[0], integrator_a.x[2]) ==
                irt::status::success);
         expect(sim.connect(quantifier_a.y[0], integrator_a.x[0]) ==
                irt::status::success);
 
-        expect(sim.connect(integrator_b.y[0],quantifier_b.x[0]) ==
+        expect(sim.connect(integrator_b.y[0], quantifier_b.x[0]) ==
                irt::status::success);
-        expect(sim.connect(integrator_b.y[0],sum_b.x[0]) ==
+        expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
                irt::status::success);
-        expect(sim.connect(quantifier_b.y[0],integrator_b.x[0]) ==
+        expect(sim.connect(quantifier_b.y[0], integrator_b.x[0]) ==
                irt::status::success);
-        expect(sim.connect(sum_b.y[0],integrator_b.x[1]) ==
+        expect(sim.connect(sum_b.y[0], integrator_b.x[1]) ==
                irt::status::success);
 
         dot_graph_save(sim, stdout);
@@ -1040,7 +1096,7 @@ main()
         fmt::print(os, "t,v,y\n");
         do {
             irt::status st = sim.run(t);
-        
+
             expect(st == irt::status::success);
             fmt::print(os,
                        "{},{},{}\n",
