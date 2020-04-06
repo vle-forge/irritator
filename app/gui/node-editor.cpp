@@ -193,9 +193,13 @@ struct editor
     template<typename Dynamics>
     status alloc(Dynamics& dynamics,
                  dynamics_id dyn_id,
-                 const char* name = nullptr) noexcept
+                 const char* name = nullptr,
+                 int *id = nullptr) noexcept
     {
         irt_return_if_bad(sim.alloc(dynamics, dyn_id, name));
+
+        if (id != nullptr)
+            *id = current_model_id;
 
         g_models[get_index(dynamics.id)].index = current_model_id++;
 
@@ -206,8 +210,6 @@ struct editor
         if constexpr (is_detected_v<has_output_port_t, Dynamics>)
             for (size_t i = 0, e = std::size(dynamics.y); i != e; ++i)
                 g_output_ports[get_index(dynamics.y[i])] = current_port_id++;
-
-        printf("mdl %d port %d\n", current_model_id, current_port_id);
 
         return status::success;
     }
@@ -225,10 +227,10 @@ struct editor
 
     void disconnect(int i)
     {
-        assert(0 <= i && static_cast<size_t>(i) < g_connections.size());
-
-        sim.disconnect(g_connections[i].src, g_connections[i].dst);
-        g_connections.erase_and_swap(g_connections.begin() + i);
+        if (0 <= i && static_cast<size_t>(i) < g_connections.size()) {
+            sim.disconnect(g_connections[i].src, g_connections[i].dst);
+            g_connections.erase_and_swap(g_connections.begin() + i);
+        }
     }
 
     status initialize_lotka_volterra() noexcept
@@ -323,8 +325,6 @@ show_model_dynamics(editor& ed, model& mdl)
 {
     switch (mdl.type) {
     case dynamics_type::none: /* none does not have input port. */
-    case dynamics_type::cross:
-    case dynamics_type::time_func:
         break;
     case dynamics_type::integrator: {
         auto& dyn = ed.sim.integrator_models.get(mdl.id);
@@ -533,6 +533,41 @@ show_model_dynamics(editor& ed, model& mdl)
         ImGui::TextUnformatted("out");
         imnodes::EndAttribute();
     } break;
+    case dynamics_type::cross: {
+        auto& dyn = ed.sim.cross_models.get(mdl.id);
+        imnodes::BeginInputAttribute(ed.get_in(dyn.x[0]));
+        ImGui::TextUnformatted("value");
+        imnodes::EndAttribute();
+        imnodes::BeginInputAttribute(ed.get_in(dyn.x[1]));
+        ImGui::TextUnformatted("if_value");
+        imnodes::EndAttribute();
+        imnodes::BeginInputAttribute(ed.get_in(dyn.x[2]));
+        ImGui::TextUnformatted("else");
+        imnodes::EndAttribute();
+
+        ImGui::PushItemWidth(120.0f);
+        ImGui::InputDouble("threshold", &dyn.default_threshold);
+        ImGui::PopItemWidth();
+
+        imnodes::BeginOutputAttribute(ed.get_out(dyn.y[0]));
+        const float text_width = ImGui::CalcTextSize("out").x;
+        ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
+        ImGui::TextUnformatted("out");
+        imnodes::EndAttribute();
+    } break;
+    case dynamics_type::time_func: {
+        auto& dyn = ed.sim.time_func_models.get(mdl.id);
+        // ImGui::PushItemWidth(120.0f);
+        //ImGui::InputDouble("threshold", &dyn.default_threshold);
+        //ImGui::PopItemWidth();
+
+        imnodes::BeginOutputAttribute(ed.get_out(dyn.y[0]));
+        const float text_width = ImGui::CalcTextSize("out").x;
+        ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
+        ImGui::TextUnformatted("out");
+        imnodes::EndAttribute();
+    } break;
+
     }
 }
 
@@ -542,7 +577,7 @@ show_editor(const char* editor_name, editor& ed)
     imnodes::EditorContextSet(ed.context);
 
     ImGui::Begin(editor_name);
-    ImGui::TextUnformatted("A -- add node");
+    ImGui::TextUnformatted("D -- delete selected nodes and/or connections");
 
     imnodes::BeginNodeEditor();
 
@@ -560,6 +595,124 @@ show_editor(const char* editor_name, editor& ed)
     }
 
     show_connections(ed);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+
+    if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1)) {
+        ImGui::OpenPopup("context menu");
+    }
+
+    if (ImGui::BeginPopup("context menu")) {
+        ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+        int new_node = -1;
+
+        if (ImGui::MenuItem("none")) {
+            if (ed.sim.none_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.none_models.alloc();
+                ed.alloc(mdl, ed.sim.none_models.get_id(mdl), "none", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("integrator")) {
+            if (ed.sim.integrator_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.integrator_models.alloc();
+                ed.alloc(mdl, ed.sim.integrator_models.get_id(mdl), "integrator", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("quantifier")) {
+            if (ed.sim.quantifier_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.quantifier_models.alloc();
+                ed.alloc(mdl, ed.sim.quantifier_models.get_id(mdl), "quantifier", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("adder_2")) {
+            if (ed.sim.adder_2_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.adder_2_models.alloc();
+                ed.alloc(mdl, ed.sim.adder_2_models.get_id(mdl), "adder", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("adder_3")) {
+            if (ed.sim.adder_3_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.adder_3_models.alloc();
+                ed.alloc(mdl, ed.sim.adder_3_models.get_id(mdl), "adder", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("adder_4")) {
+            if (ed.sim.adder_4_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.adder_4_models.alloc();
+                ed.alloc(mdl, ed.sim.adder_4_models.get_id(mdl), "adder", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("mult_2")) {
+            if (ed.sim.mult_2_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.mult_2_models.alloc();
+                ed.alloc(mdl, ed.sim.mult_2_models.get_id(mdl), "mult", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("mult_3")) {
+            if (ed.sim.mult_3_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.mult_3_models.alloc();
+                ed.alloc(mdl, ed.sim.mult_3_models.get_id(mdl), "mult", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("mult_4")) {
+            if (ed.sim.mult_4_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.mult_4_models.alloc();
+                ed.alloc(mdl, ed.sim.mult_4_models.get_id(mdl), "mult", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("counter")) {
+            if (ed.sim.counter_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.counter_models.alloc();
+                ed.alloc(mdl, ed.sim.counter_models.get_id(mdl), "counter", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("generator")) {
+            if (ed.sim.generator_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.generator_models.alloc();
+                ed.alloc(mdl, ed.sim.generator_models.get_id(mdl), "generator", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("constant")) {
+            if (ed.sim.constant_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.constant_models.alloc();
+                ed.alloc(mdl, ed.sim.constant_models.get_id(mdl), "constant", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("cross")) {
+            if (ed.sim.cross_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.cross_models.alloc();
+                ed.alloc(mdl, ed.sim.cross_models.get_id(mdl), "cross", &new_node);
+            }
+        }
+
+        if (ImGui::MenuItem("time_func")) {
+            if (ed.sim.time_func_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+                auto& mdl = ed.sim.time_func_models.alloc();
+                ed.alloc(mdl, ed.sim.time_func_models.get_id(mdl), "time-func", &new_node);
+            }
+        }
+
+        ImGui::EndPopup();
+
+        if (new_node != -1) {
+            imnodes::SetNodeScreenSpacePos(new_node, click_pos);
+        }
+    }
+
+    ImGui::PopStyleVar();
+
     imnodes::EndNodeEditor();
 
     {
