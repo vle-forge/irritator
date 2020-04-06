@@ -111,7 +111,8 @@ enum class status
     model_time_func_empty_init_message,
     model_time_func_bad_init_message,
 
-    gui_not_enough_memory
+    gui_not_enough_memory,
+    gui_too_many_connection
 };
 
 constexpr bool
@@ -801,6 +802,7 @@ public:
     };
 
 public:
+    using this_container = flat_list<T>;
     using allocator_type = block_allocator<node_type>;
     using value_type = T;
     using reference = T&;
@@ -876,6 +878,8 @@ public:
         {
             std::swap(node, other.node);
         }
+
+        friend class this_container;
     };
 
     class const_iterator
@@ -948,6 +952,8 @@ public:
         {
             std::swap(node, other.node);
         }
+
+        friend class this_container;
     };
 
 private:
@@ -4078,6 +4084,55 @@ struct simulation
 
         src_port->connections.emplace_front(dst);
         dst_port->connections.emplace_front(src);
+
+        return status::success;
+    }
+
+    status disconnect(output_port_id src, input_port_id dst) noexcept
+    {
+        auto* src_port = output_ports.try_to_get(src);
+        if (!src_port)
+            return status::model_connect_output_port_unknown;
+
+        auto* dst_port = input_ports.try_to_get(dst);
+        if (!dst_port)
+            return status::model_connect_input_port_unknown;
+
+        {
+            const auto end = std::end(src_port->connections);
+            auto prev = std::begin(src_port->connections);
+
+            if (*prev == dst) {
+                src_port->connections.pop_front();
+            } else {
+                auto it = ++prev;
+                while (it != end) {
+                    if (*it == dst) {
+                        src_port->connections.erase_after(it);
+                        break;
+                    }
+                    prev = it++;
+                }
+            }
+        }
+
+        {
+            const auto end = std::end(dst_port->connections);
+            auto prev = std::begin(dst_port->connections);
+
+            if (*prev == src) {
+                dst_port->connections.pop_front();
+            } else {
+                auto it = ++prev;
+                while (it != end) {
+                    if (*it == src) {
+                        dst_port->connections.erase_after(it);
+                        break;
+                    }
+                    prev = it++;
+                }
+            }
+        }
 
         return status::success;
     }

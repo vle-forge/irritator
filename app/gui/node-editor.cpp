@@ -73,6 +73,19 @@ struct g_model
     int index{ -1 };
 };
 
+struct g_connection
+{
+    g_connection() = default;
+
+    g_connection(output_port_id src_, input_port_id dst_)
+      : src(src_)
+      , dst(dst_)
+    {}
+
+    output_port_id src;
+    input_port_id dst;
+};
+
 struct editor
 {
     imnodes::EditorContext* context = nullptr;
@@ -80,6 +93,8 @@ struct editor
     array<int> g_input_ports;
     array<int> g_output_ports;
     array<g_model> g_models;
+    vector<g_connection> g_connections;
+
     int current_model_id = 0;
     int current_port_id = 0;
     bool initialized = false;
@@ -167,6 +182,9 @@ struct editor
         if (!is_success(g_output_ports.init(sim.output_ports.capacity())))
             return false;
 
+        if (!is_success(g_connections.init(sim.models.capacity() * 10u)))
+            return false;
+
         initialized = true;
 
         return true;
@@ -192,6 +210,25 @@ struct editor
         printf("mdl %d port %d\n", current_model_id, current_port_id);
 
         return status::success;
+    }
+
+    status connect(output_port_id src, input_port_id dst)
+    {
+        irt_return_if_bad(sim.connect(src, dst));
+
+        auto [ success, ptr ] = g_connections.try_emplace_back(src, dst);
+        
+        irt_return_if_fail(success, status::gui_too_many_connection);
+
+        return status::success;
+    }
+
+    void disconnect(int i)
+    {
+        assert(0 <= i && static_cast<size_t>(i) < g_connections.size());
+
+        sim.disconnect(g_connections[i].src, g_connections[i].dst);
+        g_connections.erase_and_swap(g_connections.begin() + i);
     }
 
     status initialize_lotka_volterra() noexcept
@@ -248,22 +285,22 @@ struct editor
         irt_return_if_bad(alloc(
           quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
 
-        irt_return_if_bad(sim.connect(sum_a.y[0], integrator_a.x[1]));
-        irt_return_if_bad(sim.connect(sum_b.y[0], integrator_b.x[1]));
+        irt_return_if_bad(connect(sum_a.y[0], integrator_a.x[1]));
+        irt_return_if_bad(connect(sum_b.y[0], integrator_b.x[1]));
 
-        irt_return_if_bad(sim.connect(integrator_a.y[0], sum_a.x[0]));
-        irt_return_if_bad(sim.connect(integrator_b.y[0], sum_b.x[0]));
+        irt_return_if_bad(connect(integrator_a.y[0], sum_a.x[0]));
+        irt_return_if_bad(connect(integrator_b.y[0], sum_b.x[0]));
 
-        irt_return_if_bad(sim.connect(integrator_a.y[0], product.x[0]));
-        irt_return_if_bad(sim.connect(integrator_b.y[0], product.x[1]));
+        irt_return_if_bad(connect(integrator_a.y[0], product.x[0]));
+        irt_return_if_bad(connect(integrator_b.y[0], product.x[1]));
 
-        irt_return_if_bad(sim.connect(product.y[0], sum_a.x[1]));
-        irt_return_if_bad(sim.connect(product.y[0], sum_b.x[1]));
+        irt_return_if_bad(connect(product.y[0], sum_a.x[1]));
+        irt_return_if_bad(connect(product.y[0], sum_b.x[1]));
 
-        irt_return_if_bad(sim.connect(quantifier_a.y[0], integrator_a.x[0]));
-        irt_return_if_bad(sim.connect(quantifier_b.y[0], integrator_b.x[0]));
-        irt_return_if_bad(sim.connect(integrator_a.y[0], quantifier_a.x[0]));
-        irt_return_if_bad(sim.connect(integrator_b.y[0], quantifier_b.x[0]));
+        irt_return_if_bad(connect(quantifier_a.y[0], integrator_a.x[0]));
+        irt_return_if_bad(connect(quantifier_b.y[0], integrator_b.x[0]));
+        irt_return_if_bad(connect(integrator_a.y[0], quantifier_a.x[0]));
+        irt_return_if_bad(connect(integrator_b.y[0], quantifier_b.x[0]));
 
         value_a = &integrator_a.expected_value;
         value_b = &integrator_b.expected_value;
@@ -275,19 +312,10 @@ struct editor
 static void
 show_connections(editor& ed) noexcept
 {
-    int number = 1;
-    irt::output_port* output_port = nullptr;
-    while (ed.sim.output_ports.next(output_port)) {
-        output_port_id src = ed.sim.output_ports.get_id(output_port);
-
-        for (const input_port_id id_dst : output_port->connections) {
-            if (auto* input_port = ed.sim.input_ports.try_to_get(id_dst);
-                input_port) {
-                ++number;
-                imnodes::Link(number, ed.get_out(src), ed.get_in(id_dst));
-            }
-        }
-    }
+    for (size_t i = 0, e = ed.g_connections.size(); i != e; ++i)
+        imnodes::Link(static_cast<int>(i),
+                      ed.get_out(ed.g_connections[i].src),
+                      ed.get_in(ed.g_connections[i].dst));
 }
 
 static void
@@ -528,16 +556,6 @@ show_editor(const char* editor_name, editor& ed)
 
         show_model_dynamics(ed, *mdl);
 
-        // ImGui::PushItemWidth(120.0f);
-        // ImGui::DragFloat("value", &node.value, 0.01f);
-        // ImGui::PopItemWidth();
-
-        // imnodes::BeginOutputAttribute(node.id << 16);
-        // const float text_width = ImGui::CalcTextSize("output").x;
-        // ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-        // ImGui::TextUnformatted("output");
-        // imnodes::EndAttribute();
-
         imnodes::EndNode();
     }
 
@@ -551,21 +569,29 @@ show_editor(const char* editor_name, editor& ed)
             auto [found_2, in] = ed.get_in(end);
 
             if (found_1 && found_2)
-                ed.sim.connect(out, in);
+                ed.connect(out, in);
         }
     }
 
-    /*
     {
-        Link link;
-        int start = 0, end = 0;
-        if (imnodes::IsLinkCreated(&start, &end)) {
+        const int num_selected = imnodes::NumSelectedLinks();
+        if (num_selected > 0 && ImGui::IsKeyReleased('D')) {
+            static array<int> selected_links;
+            if (selected_links.capacity() < static_cast<size_t>(num_selected))
+                selected_links.init(num_selected);
 
-            link.id = ++editor.current_id;
-            editor.links.push_back(link);
+            std::fill_n(selected_links.data(), selected_links.size(), -1);
+            imnodes::GetSelectedLinks(selected_links.data());
+            std::sort(selected_links.begin(),
+                      selected_links.end(),
+                      std::greater<int>());
+
+            for (const int link_id : selected_links)
+                ed.disconnect(link_id);
+
+            selected_links.clear();
         }
     }
-    */
 
     /*
     if (ImGui::IsKeyReleased(SDL_SCANCODE_A) &&
