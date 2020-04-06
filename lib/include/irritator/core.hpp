@@ -1606,6 +1606,7 @@ public:
     using reference = T&;
     using const_reference = const T&;
     using pointer = T*;
+    using const_pointer = const T*;
     using difference_type = std::ptrdiff_t;
     using size_type = std::size_t;
     using iterator = T*;
@@ -1742,6 +1743,16 @@ public:
         return m_items[i];
     }
 
+    pointer data() noexcept
+    {
+        return m_items;
+    }
+
+    const_pointer data() const noexcept
+    {
+        return m_items;
+    }
+
     iterator begin() noexcept
     {
         return m_items;
@@ -1791,6 +1802,7 @@ public:
     using reference = T&;
     using const_reference = const T&;
     using pointer = T*;
+    using const_pointer = const T*;
     using difference_type = std::ptrdiff_t;
     using size_type = std::size_t;
     using iterator = T*;
@@ -1830,15 +1842,15 @@ public:
                     for (auto i = 0u; i != m_capacity; ++i)
                         m_items[i].~T();
 
-                if (m_items)
-                    std::free(m_items);
+                std::free(m_items);
             }
 
             m_items = static_cast<value_type*>(
               std::malloc(new_capacity * sizeof(value_type)));
 
-            for (auto i = 0u; i != m_capacity; ++i)
-                new (&m_items[i]) T();
+            if constexpr (!std::is_trivial_v<T>)
+                for (auto i = 0u; i != m_capacity; ++i)
+                    new (&m_items[i]) T();
 
             if (m_items == nullptr)
                 return status::array_init_not_enough_memory;
@@ -1866,6 +1878,16 @@ public:
     {
         assert(i < m_capacity);
         return m_items[i];
+    }
+
+    pointer data() noexcept
+    {
+        return m_items;
+    }
+
+    const_pointer data() const noexcept
+    {
+        return m_items;
     }
 
     iterator begin() noexcept
