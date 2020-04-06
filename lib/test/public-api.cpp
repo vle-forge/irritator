@@ -348,6 +348,36 @@ main()
         }
     };
 
+    "array_api"_test = [] {
+        struct position
+        {
+            position() noexcept = default;
+
+            position(int x_, int y_)
+              : x(x_)
+              , y(y_)
+            {}
+
+            int x = 0, y = 0;
+        };
+
+        irt::array<position> positions;
+        !expect(irt::status::success == positions.init(16u));
+
+        expect(positions.size() == 16_u);
+        expect(positions.capacity() == 16u);
+
+        for (int i = 0; i != 16; ++i) {
+            positions[i].x = i;
+            positions[i].y = i;
+        }
+
+        for (int i = 0; i != 16; ++i) {
+            expect(positions[i].x == i);
+            expect(positions[i].y == i);
+        }
+    };
+
     "vector_api"_test = [] {
         struct position
         {

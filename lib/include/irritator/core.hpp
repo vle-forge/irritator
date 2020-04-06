@@ -55,6 +55,10 @@ enum class status
     data_array_archive_init_capacity_error,
     data_array_archive_not_enough_memory,
 
+    array_init_capacity_zero,
+    array_init_capacity_too_big,
+    array_init_not_enough_memory,
+
     vector_init_capacity_zero,
     vector_init_capacity_too_big,
     vector_init_not_enough_memory,
@@ -1649,11 +1653,8 @@ public:
             m_items = static_cast<value_type*>(
               std::malloc(new_capacity * sizeof(value_type)));
 
-            for (auto i = 0u; i != m_capacity; ++i)
-                new (&m_items[i]) T();
-
             if (m_items == nullptr)
-                return status::block_allocator_not_enough_memory;
+                return status::vector_init_not_enough_memory;
         }
 
         m_capacity = new_capacity;
@@ -1796,87 +1797,115 @@ public:
     using const_iterator = const T*;
 
 private:
-    value_type* items{ nullptr };
-    size_type capacity{ 0 };
+    value_type* m_items{ nullptr };
+    unsigned m_capacity{ 0 };
 
 public:
     array() = default;
 
     ~array() noexcept
     {
-        if constexpr (!std::is_trivial_v<T>)
-            for (u32 i = 0; i != capacity; ++i)
-                items[i].~T();
+        clear();
 
-        if (items)
-            std::free(items);
+        if (m_items)
+            std::free(m_items);
     }
+
+    array(const array&) noexcept = delete;
+    array& operator=(const array&) noexcept = delete;
+    array(array&&) noexcept = delete;
+    array& operator=(array&&) noexcept = delete;
 
     status init(std::size_t new_capacity) noexcept
     {
+        if (new_capacity > std::numeric_limits<unsigned>::max())
+            return status::array_init_capacity_too_big;
+
         if (new_capacity == 0)
-            return status::block_allocator_bad_capacity;
+            return status::array_init_capacity_zero;
 
-        if (new_capacity != capacity) {
-            if (items) {
+        if (new_capacity != m_capacity) {
+            if (m_items) {
                 if constexpr (!std::is_trivial_v<T>)
-                    for (u32 i = 0; i != capacity; ++i)
-                        items[i].~T();
+                    for (auto i = 0u; i != m_capacity; ++i)
+                        m_items[i].~T();
 
-                if (items)
-                    std::free(items);
+                if (m_items)
+                    std::free(m_items);
             }
 
-            items = static_cast<value_type*>(
+            m_items = static_cast<value_type*>(
               std::malloc(new_capacity * sizeof(value_type)));
 
-            for (u32 i = 0; i != capacity; ++i)
-                new (&items[i]) T();
+            for (auto i = 0u; i != m_capacity; ++i)
+                new (&m_items[i]) T();
 
-            if (items == nullptr)
-                return status::block_allocator_not_enough_memory;
+            if (m_items == nullptr)
+                return status::array_init_not_enough_memory;
         }
 
-        capacity = new_capacity;
+        m_capacity = new_capacity;
 
         return status::success;
     }
 
+    void clear() noexcept
+    {
+        if constexpr (!std::is_trivial_v<T>)
+            for (auto i = 0u; i != m_capacity; ++i)
+                m_items[i].~T();
+    }
+
     reference operator[](size_type i) noexcept
     {
-        assert(i < capacity);
-        return items[i];
+        assert(i < m_capacity);
+        return m_items[i];
     }
 
     const_reference operator[](size_type i) const noexcept
     {
-        assert(i < capacity);
-        return items[i];
+        assert(i < m_capacity);
+        return m_items[i];
     }
 
     iterator begin() noexcept
     {
-        return items;
+        return m_items;
     }
 
     iterator end() noexcept
     {
-        return items + capacity;
+        return m_items + m_capacity;
     }
 
     const_iterator begin() const noexcept
     {
-        return items;
+        return m_items;
     }
 
     const_iterator end() const noexcept
     {
-        return items + capacity;
+        return m_items + m_capacity;
+    }
+
+    const_iterator cbegin() const noexcept
+    {
+        return m_items;
+    }
+
+    const_iterator cend() const noexcept
+    {
+        return m_items + m_capacity;
     }
 
     size_t size() const noexcept
     {
-        return capacity;
+        return m_capacity;
+    }
+
+    size_t capacity() const noexcept
+    {
+        return m_capacity;
     }
 };
 
