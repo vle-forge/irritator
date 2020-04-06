@@ -646,7 +646,7 @@ show_editor(const char* editor_name, editor& ed)
 
             ImGui::PlotLines("A",
                              ed.obs_a.data(),
-                             ed.obs_a.size(),
+                             static_cast<int>(ed.obs_a.size()),
                              0,
                              nullptr,
                              -5.0,
@@ -655,7 +655,7 @@ show_editor(const char* editor_name, editor& ed)
 
             ImGui::PlotLines("B",
                              ed.obs_b.data(),
-                             ed.obs_a.size(),
+                             static_cast<int>(ed.obs_b.size()),
                              0,
                              nullptr,
                              -5.0,

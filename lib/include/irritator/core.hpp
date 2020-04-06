@@ -36,6 +36,8 @@ enum class status
 {
     success,
 
+    unknown_dynamics,
+
     block_allocator_bad_capacity,
     block_allocator_not_enough_memory,
 
@@ -1658,7 +1660,7 @@ public:
                 return status::vector_init_not_enough_memory;
         }
 
-        m_capacity = new_capacity;
+        m_capacity = static_cast<unsigned>(new_capacity);
         m_size = 0;
 
         return status::success;
@@ -1856,7 +1858,7 @@ public:
                 return status::array_init_not_enough_memory;
         }
 
-        m_capacity = new_capacity;
+        m_capacity = static_cast<unsigned>(new_capacity);
 
         return status::success;
     }
@@ -4189,7 +4191,7 @@ struct simulation
             return make_initialize(mdl, time_func_models.get(mdl.id), t);
         }
 
-        assert(false);
+        irt_bad_return(status::unknown_dynamics);
     }
 
     template<typename Dynamics>
@@ -4269,7 +4271,7 @@ struct simulation
             return make_transition(mdl, time_func_models.get(mdl.id), t, o);
         }
 
-        assert(false);
+        irt_bad_return(status::unknown_dynamics);
     }
 };
 
