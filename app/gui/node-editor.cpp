@@ -32,8 +32,8 @@ run_simulation(simulation& sim,
                double obs_freq,
                double& current,
                simulation_status& st,
-               std::vector<float>& obs_a,
-               std::vector<float>& obs_b,
+               array<float>& obs_a,
+               array<float>& obs_b,
                double* a,
                double* b,
                const bool& stop) noexcept
@@ -150,8 +150,8 @@ struct editor
     double *value_a = nullptr, *value_b = nullptr;
     bool stop = false;
 
-    std::vector<float> obs_a;
-    std::vector<float> obs_b;
+    array<float> obs_a;
+    array<float> obs_b;
 
     bool initialize() noexcept
     {
@@ -581,10 +581,22 @@ show_editor(const char* editor_name, editor& ed)
     if (!ImGui::Begin("Simulation box", &ed.show_simulation_box)) {
         ImGui::End();
     } else {
-        ImGui::InputDouble("Begin", &ed.simulation_begin);
-        ImGui::InputDouble("End", &ed.simulation_end);
-        ImGui::SliderInt(
-          "Observations", &ed.simulation_observation_number, 1, 10000);
+        bool reset_observation = false;
+
+        if (ImGui::InputDouble("Begin", &ed.simulation_begin))
+            reset_observation = true;
+
+        if (ImGui::InputDouble("End", &ed.simulation_end))
+            reset_observation = true;
+
+        if (ImGui::SliderInt(
+              "Observations", &ed.simulation_observation_number, 1, 10000))
+            reset_observation = true;
+
+        if (reset_observation) {
+            std::fill_n(ed.obs_a.data(), ed.obs_a.size(), 0.0f);
+            std::fill_n(ed.obs_b.data(), ed.obs_b.size(), 0.0f);
+        }
 
         if (ed.st != simulation_status::running) {
             if (ed.simulation_thread.joinable()) {
@@ -594,24 +606,29 @@ show_editor(const char* editor_name, editor& ed)
 
             if (ImGui::Button("Start")) {
                 ed.st = simulation_status::running;
-                ed.obs_a.resize(ed.simulation_observation_number, 0.0);
-                ed.obs_b.resize(ed.simulation_observation_number, 0.0);
-                ed.stop = false;
+                if (is_bad(ed.obs_a.init(ed.simulation_observation_number)) ||
+                    is_bad(ed.obs_b.init(ed.simulation_observation_number))) {
+                    ImGui::Text("Fail to allocate observation memory.");
+                } else {
+                    std::fill_n(ed.obs_a.data(), ed.obs_a.size(), 0.0f);
+                    std::fill_n(ed.obs_b.data(), ed.obs_b.size(), 0.0f);
+                    ed.stop = false;
 
-                ed.simulation_thread = std::thread(
-                  &run_simulation,
-                  std::ref(ed.sim),
-                  ed.simulation_begin,
-                  ed.simulation_end,
-                  (ed.simulation_end - ed.simulation_begin) /
-                    static_cast<double>(ed.simulation_observation_number),
-                  std::ref(ed.simulation_current),
-                  std::ref(ed.st),
-                  std::ref(ed.obs_a),
-                  std::ref(ed.obs_b),
-                  ed.value_a,
-                  ed.value_b,
-                  std::cref(ed.stop));
+                    ed.simulation_thread = std::thread(
+                      &run_simulation,
+                      std::ref(ed.sim),
+                      ed.simulation_begin,
+                      ed.simulation_end,
+                      (ed.simulation_end - ed.simulation_begin) /
+                        static_cast<double>(ed.simulation_observation_number),
+                      std::ref(ed.simulation_current),
+                      std::ref(ed.st),
+                      std::ref(ed.obs_a),
+                      std::ref(ed.obs_b),
+                      ed.value_a,
+                      ed.value_b,
+                      std::cref(ed.stop));
+                }
             }
         }
 
@@ -629,7 +646,7 @@ show_editor(const char* editor_name, editor& ed)
 
             ImGui::PlotLines("A",
                              ed.obs_a.data(),
-                             ed.simulation_observation_number,
+                             ed.obs_a.size(),
                              0,
                              nullptr,
                              -5.0,
@@ -638,7 +655,7 @@ show_editor(const char* editor_name, editor& ed)
 
             ImGui::PlotLines("B",
                              ed.obs_b.data(),
-                             ed.simulation_observation_number,
+                             ed.obs_a.size(),
                              0,
                              nullptr,
                              -5.0,
