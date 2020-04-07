@@ -2226,7 +2226,7 @@ public:
         auto index = get_index(id);
 
         assert(m_items[index].id == id);
-        assert(valid(id));
+        assert(is_valid(id));
 
         if constexpr (std::is_trivial_v<T>)
             m_items[index].item.~T();
@@ -2445,6 +2445,22 @@ public:
         return ret;
     }
 
+    void free(T& t) noexcept
+    {
+        data.free(id);
+    }
+
+    /**
+     * @brief Free the element pointer by @c id.
+     *
+     * Internally, puts the elelent @c t entry on free list and use id to store
+     * next.
+     */
+    void free(Identifier id) noexcept
+    {
+        data.free(id);
+    }
+       
     /**
      * @brief Accessor to the id part of the item
      *
@@ -3863,6 +3879,14 @@ public:
         m_heap.insert(mdl.handle);
     }
 
+    void erase(model& mdl) noexcept
+    {
+        assert(mdl.handle != nullptr);
+
+        m_heap.remove(mdl.handle);
+        mdl.handle = nullptr;
+    }
+
     void update(model& mdl, time tn) noexcept
     {
         assert(mdl.handle != nullptr);
@@ -4065,6 +4089,114 @@ struct simulation
         sched.insert(mdl, dynamics.id, mdl.tn);
 
         return status::success;
+    }
+
+    status deallocate(model_id id)
+    {
+        auto* mdl = models.try_to_get(id);
+        if (!mdl)
+            return status::success;
+
+        switch (mdl->type) {
+        case dynamics_type::none:
+            do_deallocate(*mdl, none_models.get(mdl->id));
+            none_models.free(mdl->id);
+            break;
+        case dynamics_type::integrator:
+            do_deallocate(*mdl, integrator_models.get(mdl->id));
+            integrator_models.free(mdl->id);
+            break;
+        case dynamics_type::quantifier:
+            do_deallocate(*mdl, quantifier_models.get(mdl->id));
+            quantifier_models.free(mdl->id);
+            break;
+        case dynamics_type::adder_2:
+            do_deallocate(*mdl, adder_2_models.get(mdl->id));
+            adder_2_models.free(mdl->id);
+            break;
+        case dynamics_type::adder_3:
+            do_deallocate(*mdl, adder_3_models.get(mdl->id));
+            adder_3_models.free(mdl->id);
+            break;
+        case dynamics_type::adder_4:
+            do_deallocate(*mdl, adder_4_models.get(mdl->id));
+            adder_4_models.free(mdl->id);
+            break;
+        case dynamics_type::mult_2:
+            do_deallocate(*mdl, mult_2_models.get(mdl->id));
+            mult_2_models.free(mdl->id);
+            break;
+        case dynamics_type::mult_3:
+            do_deallocate(*mdl, mult_3_models.get(mdl->id));
+            mult_3_models.free(mdl->id);
+            break;
+        case dynamics_type::mult_4:
+            do_deallocate(*mdl, mult_4_models.get(mdl->id));
+            mult_4_models.free(mdl->id);
+            break;
+        case dynamics_type::counter:
+            do_deallocate(*mdl, counter_models.get(mdl->id));
+            counter_models.free(mdl->id);
+            break;
+        case dynamics_type::generator:
+            do_deallocate(*mdl, generator_models.get(mdl->id));
+            generator_models.free(mdl->id);
+            break;
+        case dynamics_type::constant:
+            do_deallocate(*mdl, constant_models.get(mdl->id));
+            constant_models.free(mdl->id);
+            break;
+        case dynamics_type::cross:
+            do_deallocate(*mdl, cross_models.get(mdl->id));
+            cross_models.free(mdl->id);
+            break;
+        case dynamics_type::time_func:
+            do_deallocate(*mdl, time_func_models.get(mdl->id));
+            time_func_models.free(mdl->id);
+            break;
+        default:
+            irt_bad_return(status::unknown_dynamics);
+        }
+
+        sched.erase(*mdl);
+        models.free(*mdl);
+
+        return status::success;
+
+    }
+
+    template<typename Dynamics>
+    void do_deallocate(model& mdl, Dynamics& dyn)
+    {
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+            for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+                auto& src = output_ports.get(dyn.y[i]);
+
+                for (input_port_id dst : src.connections)
+                    disconnect(dyn.y[i], dst);
+
+                src.messages.clear();
+            }
+        }
+
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
+                auto& dst = input_ports.get(dyn.x[i]);
+
+                for (output_port_id src : dst.connections)
+                    disconnect(src, dyn.x[i]);
+
+                dst.messages.clear();
+            }
+        }
+
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+            for (size_t i = 0, e = std::size(dyn.y); i != e; ++i)
+                output_ports.free(dyn.y[i]);
+
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i)
+                input_ports.free(dyn.x[i]);
     }
 
     status connect(output_port_id src, input_port_id dst) noexcept
