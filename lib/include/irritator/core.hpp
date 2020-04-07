@@ -3881,10 +3881,10 @@ public:
 
     void erase(model& mdl) noexcept
     {
-        assert(mdl.handle != nullptr);
-
-        m_heap.remove(mdl.handle);
-        mdl.handle = nullptr;
+        if (mdl.handle) {
+            m_heap.remove(mdl.handle);
+            mdl.handle = nullptr;
+        }
     }
 
     void update(model& mdl, time tn) noexcept
@@ -4028,7 +4028,9 @@ struct simulation
 
         model& mdl = models.alloc();
         model_id mdl_id = models.get_id(mdl);
+        mdl.handle = nullptr;
         mdl.id = id;
+
         if (name)
             mdl.name.assign(name);
 
@@ -4082,11 +4084,6 @@ struct simulation
                 dynamics.y[i] = output_ports.get_id(port);
             }
         }
-
-        mdl.tl = begin;
-        mdl.tn = begin + dynamics.sigma;
-
-        sched.insert(mdl, dynamics.id, mdl.tn);
 
         return status::success;
     }
@@ -4162,7 +4159,6 @@ struct simulation
         models.free(*mdl);
 
         return status::success;
-
     }
 
     template<typename Dynamics>
