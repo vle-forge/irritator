@@ -69,21 +69,29 @@ struct g_model
 {
     g_model() = default;
 
-    ImVec2 position{ 0.f, 0.f };
-    int index{ -1 };
+    g_model(const model_id id_, const int current_model_id) noexcept
+      : id(id_)
+      , index(current_model_id)
+    {}
+
+    model_id id;
+    int index;
 };
 
 struct g_connection
 {
     g_connection() = default;
 
-    g_connection(output_port_id src_, input_port_id dst_)
+    g_connection(output_port_id src_, input_port_id dst_,
+        int current_connection_id)
       : src(src_)
       , dst(dst_)
+      , index(current_connection_id)
     {}
 
     output_port_id src;
     input_port_id dst;
+    int index;
 };
 
 struct editor
@@ -92,29 +100,21 @@ struct editor
 
     array<int> g_input_ports;
     array<int> g_output_ports;
-    array<g_model> g_models;
+    vector<g_model> g_models;
     vector<g_connection> g_connections;
 
     int current_model_id = 0;
     int current_port_id = 0;
+    int current_connection_id = 0;
     bool initialized = false;
 
-    int get_model(const model_id id) const noexcept
+    model_id get_model(int index) const noexcept
     {
-        return g_models[get_index(id)].index;
-    }
+        for (size_t i = 0, e = g_models.size(); i != e; ++i)
+            if (g_models[i].index == index)
+                return g_models[i].id;
 
-    std::pair<bool, model_id> get_model(int index) const noexcept
-    {
-        model* mdl = nullptr;
-        while (sim.models.next(mdl)) {
-            auto id = sim.models.get_id(*mdl);
-            if (index == get_model(id)) {
-                return std::make_pair(true, id);
-            }
-        }
-
-        return { false, static_cast<model_id>(0) };
+        return static_cast<model_id>(0);
     }
 
     int get_in(const input_port_id id) const noexcept
@@ -182,7 +182,7 @@ struct editor
         if (!is_success(g_output_ports.init(sim.output_ports.capacity())))
             return false;
 
-        if (!is_success(g_connections.init(sim.models.capacity() * 10u)))
+        if (!is_success(g_connections.init(sim.models.capacity() * 10lu)))
             return false;
 
         initialized = true;
@@ -198,10 +198,9 @@ struct editor
     {
         irt_return_if_bad(sim.alloc(dynamics, dyn_id, name));
 
+        auto* gmdl = g_models.emplace_back(dynamics.id, current_model_id++);
         if (id != nullptr)
-            *id = current_model_id;
-
-        g_models[get_index(dynamics.id)].index = current_model_id++;
+            *id = gmdl->index;
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>)
             for (size_t i = 0, e = std::size(dynamics.x); i != e; ++i)
@@ -214,22 +213,131 @@ struct editor
         return status::success;
     }
 
+    template<typename Dynamics>
+    void do_free(model& mdl, Dynamics& dyn)
+    {
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+            for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+                auto& src = sim.output_ports.get(dyn.y[i]);
+
+                for (input_port_id dst : src.connections)
+                    disconnect(dyn.y[i], dst);
+            }
+        }
+
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
+                auto& dst = sim.input_ports.get(dyn.x[i]);
+
+                for (output_port_id src : dst.connections)
+                    disconnect(src, dyn.x[i]);
+            }
+        }
+    }
+
+    status free(const int node_id) noexcept
+    {
+        auto mdl_id = get_model(node_id);
+        auto* mdl = sim.models.try_to_get(mdl_id);
+        if (!mdl)
+            return status::success;
+
+        fmt::print("delete model {}\n", mdl->name.c_str());
+
+        switch (mdl->type) {
+        case dynamics_type::none:
+            do_free(*mdl, sim.none_models.get(mdl->id));
+            break;
+        case dynamics_type::integrator:
+            do_free(*mdl, sim.integrator_models.get(mdl->id));
+            break;
+        case dynamics_type::quantifier:
+            do_free(*mdl, sim.quantifier_models.get(mdl->id));
+            break;
+        case dynamics_type::adder_2:
+            do_free(*mdl, sim.adder_2_models.get(mdl->id));
+            break;
+        case dynamics_type::adder_3:
+            do_free(*mdl, sim.adder_3_models.get(mdl->id));
+            break;
+        case dynamics_type::adder_4:
+            do_free(*mdl, sim.adder_4_models.get(mdl->id));
+            break;
+        case dynamics_type::mult_2:
+            do_free(*mdl, sim.mult_2_models.get(mdl->id));
+            break;
+        case dynamics_type::mult_3:
+            do_free(*mdl, sim.mult_3_models.get(mdl->id));
+            break;
+        case dynamics_type::mult_4:
+            do_free(*mdl, sim.mult_4_models.get(mdl->id));
+            break;
+        case dynamics_type::counter:
+            do_free(*mdl, sim.counter_models.get(mdl->id));
+            break;
+        case dynamics_type::generator:
+            do_free(*mdl, sim.generator_models.get(mdl->id));
+            break;
+        case dynamics_type::constant:
+            do_free(*mdl, sim.constant_models.get(mdl->id));
+            break;
+        case dynamics_type::cross:
+            do_free(*mdl, sim.cross_models.get(mdl->id));
+            break;
+        case dynamics_type::time_func:
+            do_free(*mdl, sim.time_func_models.get(mdl->id));
+            break;
+        default:
+            irt_bad_return(status::unknown_dynamics);
+        }
+
+        sim.deallocate(mdl_id);
+
+        for (size_t i = 0, e = g_models.size(); i != e; ++i) {
+            if (g_models[i].id == mdl_id) {
+                g_models.erase_and_swap(g_models.data() + i);
+                break;
+            }
+        }
+
+        return status::success;
+    }
+
     status connect(output_port_id src, input_port_id dst)
     {
         irt_return_if_bad(sim.connect(src, dst));
 
-        auto [ success, ptr ] = g_connections.try_emplace_back(src, dst);
+        auto [ success, ptr ] = g_connections.try_emplace_back(src, dst, current_connection_id++);
         
         irt_return_if_fail(success, status::gui_too_many_connection);
 
         return status::success;
     }
 
-    void disconnect(int i)
+    void disconnect(const int link_id) noexcept
     {
-        if (0 <= i && static_cast<size_t>(i) < g_connections.size()) {
-            sim.disconnect(g_connections[i].src, g_connections[i].dst);
-            g_connections.erase_and_swap(g_connections.begin() + i);
+        if (link_id >= 0) {
+            for (size_t i = 0, e = g_connections.size(); i != e; ++i) {
+                if (g_connections[i].index == link_id) {
+                    sim.disconnect(g_connections[i].src,
+                                   g_connections[i].dst);
+
+                    g_connections.erase_and_swap(g_connections.begin() + i);
+                    break;
+                }
+            }
+        }
+    }
+
+    void disconnect(output_port_id src, input_port_id dst) noexcept
+    {
+        for (size_t i = 0, e = g_connections.size(); i != e; ++i) {
+            if (g_connections[i].src == src && g_connections[i].dst == dst) {
+                sim.disconnect(src, dst);
+
+                g_connections.erase_and_swap(g_connections.begin() + i);
+                break;
+            }
         }
     }
 
@@ -315,7 +423,7 @@ static void
 show_connections(editor& ed) noexcept
 {
     for (size_t i = 0, e = ed.g_connections.size(); i != e; ++i)
-        imnodes::Link(static_cast<int>(i),
+        imnodes::Link(ed.g_connections[i].index,
                       ed.get_out(ed.g_connections[i].src),
                       ed.get_in(ed.g_connections[i].dst));
 }
@@ -581,26 +689,40 @@ show_editor(const char* editor_name, editor& ed)
 
     imnodes::BeginNodeEditor();
 
-    irt::model* mdl = nullptr;
-    while (ed.sim.models.next(mdl)) {
-        imnodes::BeginNode(ed.get_model(ed.sim.models.get_id(mdl)));
+    //irt::model* mdl = nullptr;
+    //while (ed.sim.models.next(mdl)) {
+    //    imnodes::BeginNode(ed.get_model(ed.sim.models.get_id(mdl)));
 
-        imnodes::BeginNodeTitleBar();
-        ImGui::TextUnformatted(mdl->name.c_str());
-        imnodes::EndNodeTitleBar();
+    //    imnodes::BeginNodeTitleBar();
+    //    ImGui::TextUnformatted(mdl->name.c_str());
+    //    imnodes::EndNodeTitleBar();
 
-        show_model_dynamics(ed, *mdl);
+    //    show_model_dynamics(ed, *mdl);
 
-        imnodes::EndNode();
+    //    imnodes::EndNode();
+    //}
+
+    for (size_t i = 0, e = ed.g_models.size(); i != e; ++i) {
+        irt::model* mdl = ed.sim.models.try_to_get(ed.g_models[i].id);
+        if (mdl) {
+            imnodes::BeginNode(ed.g_models[i].index);
+
+            imnodes::BeginNodeTitleBar();
+            ImGui::TextUnformatted(mdl->name.c_str());
+            imnodes::EndNodeTitleBar();
+
+            show_model_dynamics(ed, *mdl);
+
+            imnodes::EndNode();
+        }
     }
 
     show_connections(ed);
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
-    if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1)) {
+    if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1))
         ImGui::OpenPopup("context menu");
-    }
 
     if (ImGui::BeginPopup("context menu")) {
         ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
@@ -743,6 +865,23 @@ show_editor(const char* editor_name, editor& ed)
                 ed.disconnect(link_id);
 
             selected_links.clear();
+        }
+    }
+
+    {
+        const int num_selected = imnodes::NumSelectedNodes();
+        if (num_selected > 0 && ImGui::IsKeyReleased('D')) {
+            static array<int> selected_nodes;
+            if (selected_nodes.capacity() < static_cast<size_t>(num_selected))
+                selected_nodes.init(num_selected);
+
+            std::fill_n(selected_nodes.data(), selected_nodes.size(), -1);
+            imnodes::GetSelectedNodes(selected_nodes.data());
+
+            for (const int node_id : selected_nodes)
+                ed.free(node_id);
+
+            selected_nodes.clear();
         }
     }
 
