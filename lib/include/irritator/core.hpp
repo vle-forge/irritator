@@ -803,7 +803,6 @@ public:
     };
 
 public:
-    using this_container = flat_list<T>;
     using allocator_type = block_allocator<node_type>;
     using value_type = T;
     using reference = T&;
@@ -880,7 +879,7 @@ public:
             std::swap(node, other.node);
         }
 
-        friend class this_container;
+        friend class flat_list<T>;
     };
 
     class const_iterator
@@ -954,7 +953,7 @@ public:
             std::swap(node, other.node);
         }
 
-        friend class this_container;
+        friend class flat_list<T>;
     };
 
 private:
@@ -2452,7 +2451,7 @@ public:
 
     void free(T& t) noexcept
     {
-        data.free(id);
+        data.free(t);
     }
 
     /**
@@ -4170,59 +4169,59 @@ struct simulation
 
         switch (mdl->type) {
         case dynamics_type::none:
-            do_deallocate(*mdl, none_models.get(mdl->id));
+            do_deallocate(none_models.get(mdl->id));
             none_models.free(mdl->id);
             break;
         case dynamics_type::integrator:
-            do_deallocate(*mdl, integrator_models.get(mdl->id));
+            do_deallocate(integrator_models.get(mdl->id));
             integrator_models.free(mdl->id);
             break;
         case dynamics_type::quantifier:
-            do_deallocate(*mdl, quantifier_models.get(mdl->id));
+            do_deallocate(quantifier_models.get(mdl->id));
             quantifier_models.free(mdl->id);
             break;
         case dynamics_type::adder_2:
-            do_deallocate(*mdl, adder_2_models.get(mdl->id));
+            do_deallocate(adder_2_models.get(mdl->id));
             adder_2_models.free(mdl->id);
             break;
         case dynamics_type::adder_3:
-            do_deallocate(*mdl, adder_3_models.get(mdl->id));
+            do_deallocate(adder_3_models.get(mdl->id));
             adder_3_models.free(mdl->id);
             break;
         case dynamics_type::adder_4:
-            do_deallocate(*mdl, adder_4_models.get(mdl->id));
+            do_deallocate(adder_4_models.get(mdl->id));
             adder_4_models.free(mdl->id);
             break;
         case dynamics_type::mult_2:
-            do_deallocate(*mdl, mult_2_models.get(mdl->id));
+            do_deallocate(mult_2_models.get(mdl->id));
             mult_2_models.free(mdl->id);
             break;
         case dynamics_type::mult_3:
-            do_deallocate(*mdl, mult_3_models.get(mdl->id));
+            do_deallocate(mult_3_models.get(mdl->id));
             mult_3_models.free(mdl->id);
             break;
         case dynamics_type::mult_4:
-            do_deallocate(*mdl, mult_4_models.get(mdl->id));
+            do_deallocate(mult_4_models.get(mdl->id));
             mult_4_models.free(mdl->id);
             break;
         case dynamics_type::counter:
-            do_deallocate(*mdl, counter_models.get(mdl->id));
+            do_deallocate(counter_models.get(mdl->id));
             counter_models.free(mdl->id);
             break;
         case dynamics_type::generator:
-            do_deallocate(*mdl, generator_models.get(mdl->id));
+            do_deallocate(generator_models.get(mdl->id));
             generator_models.free(mdl->id);
             break;
         case dynamics_type::constant:
-            do_deallocate(*mdl, constant_models.get(mdl->id));
+            do_deallocate(constant_models.get(mdl->id));
             constant_models.free(mdl->id);
             break;
         case dynamics_type::cross:
-            do_deallocate(*mdl, cross_models.get(mdl->id));
+            do_deallocate(cross_models.get(mdl->id));
             cross_models.free(mdl->id);
             break;
         case dynamics_type::time_func:
-            do_deallocate(*mdl, time_func_models.get(mdl->id));
+            do_deallocate(time_func_models.get(mdl->id));
             time_func_models.free(mdl->id);
             break;
         default:
@@ -4236,7 +4235,7 @@ struct simulation
     }
 
     template<typename Dynamics>
-    void do_deallocate(model& mdl, Dynamics& dyn)
+    void do_deallocate([[maybe_unused]] Dynamics& dyn) noexcept
     {
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {

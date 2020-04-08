@@ -226,7 +226,7 @@ struct editor
     }
 
     template<typename Dynamics>
-    void do_free(model& mdl, Dynamics& dyn)
+    void do_free([[maybe_unused]] Dynamics& dyn)
     {
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
@@ -258,46 +258,46 @@ struct editor
 
         switch (mdl->type) {
         case dynamics_type::none:
-            do_free(*mdl, sim.none_models.get(mdl->id));
+            do_free(sim.none_models.get(mdl->id));
             break;
         case dynamics_type::integrator:
-            do_free(*mdl, sim.integrator_models.get(mdl->id));
+            do_free(sim.integrator_models.get(mdl->id));
             break;
         case dynamics_type::quantifier:
-            do_free(*mdl, sim.quantifier_models.get(mdl->id));
+            do_free(sim.quantifier_models.get(mdl->id));
             break;
         case dynamics_type::adder_2:
-            do_free(*mdl, sim.adder_2_models.get(mdl->id));
+            do_free(sim.adder_2_models.get(mdl->id));
             break;
         case dynamics_type::adder_3:
-            do_free(*mdl, sim.adder_3_models.get(mdl->id));
+            do_free(sim.adder_3_models.get(mdl->id));
             break;
         case dynamics_type::adder_4:
-            do_free(*mdl, sim.adder_4_models.get(mdl->id));
+            do_free(sim.adder_4_models.get(mdl->id));
             break;
         case dynamics_type::mult_2:
-            do_free(*mdl, sim.mult_2_models.get(mdl->id));
+            do_free(sim.mult_2_models.get(mdl->id));
             break;
         case dynamics_type::mult_3:
-            do_free(*mdl, sim.mult_3_models.get(mdl->id));
+            do_free(sim.mult_3_models.get(mdl->id));
             break;
         case dynamics_type::mult_4:
-            do_free(*mdl, sim.mult_4_models.get(mdl->id));
+            do_free(sim.mult_4_models.get(mdl->id));
             break;
         case dynamics_type::counter:
-            do_free(*mdl, sim.counter_models.get(mdl->id));
+            do_free(sim.counter_models.get(mdl->id));
             break;
         case dynamics_type::generator:
-            do_free(*mdl, sim.generator_models.get(mdl->id));
+            do_free(sim.generator_models.get(mdl->id));
             break;
         case dynamics_type::constant:
-            do_free(*mdl, sim.constant_models.get(mdl->id));
+            do_free(sim.constant_models.get(mdl->id));
             break;
         case dynamics_type::cross:
-            do_free(*mdl, sim.cross_models.get(mdl->id));
+            do_free(sim.cross_models.get(mdl->id));
             break;
         case dynamics_type::time_func:
-            do_free(*mdl, sim.time_func_models.get(mdl->id));
+            do_free(sim.time_func_models.get(mdl->id));
             break;
         default:
             irt_bad_return(status::unknown_dynamics);
