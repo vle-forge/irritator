@@ -514,7 +514,7 @@ main()
 
         expect(array.max_size() == 0);
         expect(array.max_used() == 0);
-        expect(array.capacity() == 0);
+        expect(array.capacity() == 3);
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
 
@@ -922,7 +922,6 @@ main()
           quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b")));
 
         !expect(sim.models.size() == 7_ul);
-        !expect(sim.sched.size() == 7_ul);
 
         expect(sim.connect(sum_a.y[0], integrator_a.x[1]) ==
                irt::status::success);
@@ -956,6 +955,7 @@ main()
         irt::time t = 0.0;
 
         expect(sim.initialize(t) == irt::status::success);
+        !expect(sim.sched.size() == 7_ul);
 
         std::FILE* os = std::fopen("output.csv", "w");
         !expect(os != nullptr);
@@ -1081,7 +1081,6 @@ main()
           sim.alloc(cross2, sim.cross_models.get_id(cross2), "cross2")));
 
         !expect(sim.models.size() == 14_ul);
-        !expect(sim.sched.size() == 14_ul);
 
         expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
                irt::status::success);
@@ -1138,6 +1137,7 @@ main()
         fmt::print(os, "t,v,u\n");
 
         expect(irt::status::success == sim.initialize(t));
+        !expect(sim.sched.size() == 14_ul);
 
         do {
             irt::status st = sim.run(t);

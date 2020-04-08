@@ -62,6 +62,8 @@ run_simulation(simulation& sim,
         }
     } while (current < end && !stop);
 
+    sim.clean();
+
     st = simulation_status::success;
 }
 
@@ -107,6 +109,16 @@ struct editor
     int current_port_id = 0;
     int current_connection_id = 0;
     bool initialized = false;
+
+    void clear()
+    {
+        g_input_ports.clear();
+        g_output_ports.clear();
+        g_models.clear();
+        g_connections.clear();
+
+        sim.clear();
+    }
 
     model_id get_model(int index) const noexcept
     {
@@ -417,6 +429,122 @@ struct editor
 
         return status::success;
     }
+
+    status initialize_izhikevitch()
+    {
+        auto& constant = sim.constant_models.alloc();
+        auto& constant2 = sim.constant_models.alloc();
+        auto& constant3 = sim.constant_models.alloc();
+        auto& sum_a = sim.adder_2_models.alloc();
+        auto& sum_b = sim.adder_2_models.alloc();
+        auto& sum_c = sim.adder_4_models.alloc();
+        auto& sum_d = sim.adder_2_models.alloc();
+        auto& product = sim.mult_2_models.alloc();
+        auto& integrator_a = sim.integrator_models.alloc();
+        auto& integrator_b = sim.integrator_models.alloc();
+        auto& quantifier_a = sim.quantifier_models.alloc();
+        auto& quantifier_b = sim.quantifier_models.alloc();
+        auto& cross = sim.cross_models.alloc();
+        auto& cross2 = sim.cross_models.alloc();
+
+        double a = 0.2;
+        double b = 2.0;
+        double c = -56.0;
+        double d = -16.0;
+        double I = -99.0;
+        double vt = 30.0;
+
+        constant.default_value = 1.0;
+        constant2.default_value = c;
+        constant3.default_value = I;
+
+        cross.default_threshold = vt;
+        cross2.default_threshold = vt;
+
+        integrator_a.default_current_value = 0.0;
+
+        quantifier_a.default_adapt_state =
+          irt::quantifier::adapt_state::possible;
+        quantifier_a.default_zero_init_offset = true;
+        quantifier_a.default_step_size = 0.01;
+        quantifier_a.default_past_length = 3;
+
+        integrator_b.default_current_value = 0.0;
+
+        quantifier_b.default_adapt_state =
+          irt::quantifier::adapt_state::possible;
+        quantifier_b.default_zero_init_offset = true;
+        quantifier_b.default_step_size = 0.01;
+        quantifier_b.default_past_length = 3;
+
+        product.default_input_coeffs[0] = 1.0;
+        product.default_input_coeffs[1] = 1.0;
+
+        sum_a.default_input_coeffs[0] = 1.0;
+        sum_a.default_input_coeffs[1] = -1.0;
+        sum_b.default_input_coeffs[0] = -a;
+        sum_b.default_input_coeffs[1] = a * b;
+        sum_c.default_input_coeffs[0] = 0.04;
+        sum_c.default_input_coeffs[1] = 5.0;
+        sum_c.default_input_coeffs[2] = 140.0;
+        sum_c.default_input_coeffs[3] = 1.0;
+        sum_d.default_input_coeffs[0] = 1.0;
+        sum_d.default_input_coeffs[1] = d;
+
+        irt_return_if_fail(sim.models.can_alloc(14), status::gui_too_many_model);
+
+        irt_return_if_bad(alloc(constant3, sim.constant_models.get_id(constant3), "tfun"));
+        irt_return_if_bad(alloc(constant, sim.constant_models.get_id(constant), "1.0"));
+        irt_return_if_bad(alloc(constant2, sim.constant_models.get_id(constant2), "-56.0"));
+
+        irt_return_if_bad(alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
+        irt_return_if_bad(alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
+        irt_return_if_bad(alloc(sum_c, sim.adder_4_models.get_id(sum_c), "sum_c"));
+        irt_return_if_bad(alloc(sum_d, sim.adder_2_models.get_id(sum_d), "sum_d"));
+
+        irt_return_if_bad(alloc(product, sim.mult_2_models.get_id(product), "prod"));
+        irt_return_if_bad(alloc(integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
+        irt_return_if_bad(alloc(integrator_b, sim.integrator_models.get_id(integrator_b), "int_b"));
+        irt_return_if_bad(alloc(quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a"));
+        irt_return_if_bad(alloc(quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
+        irt_return_if_bad(alloc(cross, sim.cross_models.get_id(cross), "cross"));
+        irt_return_if_bad(alloc(cross2, sim.cross_models.get_id(cross2), "cross2"));
+
+        irt_return_if_bad(connect(integrator_a.y[0], cross.x[0]));
+        irt_return_if_bad(connect(constant2.y[0], cross.x[1]));
+        irt_return_if_bad(connect(integrator_a.y[0], cross.x[2]));
+
+        irt_return_if_bad(connect(cross.y[0], quantifier_a.x[0]));
+        irt_return_if_bad(connect(cross.y[0], product.x[0]));
+        irt_return_if_bad(connect(cross.y[0], product.x[1]));
+        irt_return_if_bad(connect(product.y[0], sum_c.x[0]));
+        irt_return_if_bad(connect(cross.y[0], sum_c.x[1]));
+        irt_return_if_bad(connect(cross.y[0], sum_b.x[1]));
+
+        irt_return_if_bad(connect(constant.y[0], sum_c.x[2]));
+        irt_return_if_bad(connect(constant3.y[0], sum_c.x[3]));
+
+        irt_return_if_bad(connect(sum_c.y[0], sum_a.x[0]));
+        irt_return_if_bad(connect(integrator_b.y[0], sum_a.x[1]));
+        irt_return_if_bad(connect(cross2.y[0], sum_a.x[1]));
+        irt_return_if_bad(connect(sum_a.y[0], integrator_a.x[1]));
+        irt_return_if_bad(connect(cross.y[0], integrator_a.x[2]));
+        irt_return_if_bad(connect(quantifier_a.y[0], integrator_a.x[0]));
+
+        irt_return_if_bad(connect(cross2.y[0], quantifier_b.x[0]));
+        irt_return_if_bad(connect(cross2.y[0], sum_b.x[0]));
+        irt_return_if_bad(connect(quantifier_b.y[0], integrator_b.x[0]));
+        irt_return_if_bad(connect(sum_b.y[0], integrator_b.x[1]));
+
+        irt_return_if_bad(connect(cross2.y[0], integrator_b.x[2]));
+        irt_return_if_bad(connect(integrator_a.y[0], cross2.x[0]));
+        irt_return_if_bad(connect(integrator_b.y[0], cross2.x[2]));
+        irt_return_if_bad(connect(sum_d.y[0], cross2.x[1]));
+        irt_return_if_bad(connect(integrator_b.y[0], sum_d.x[0]));
+        irt_return_if_bad(connect(constant.y[0], sum_d.x[1]));
+
+        return status::success;
+    }
 };
 
 static void
@@ -684,23 +812,40 @@ show_editor(const char* editor_name, editor& ed)
 {
     imnodes::EditorContextSet(ed.context);
 
-    ImGui::Begin(editor_name);
-    ImGui::TextUnformatted("D -- delete selected nodes and/or connections");
+    ImGuiWindowFlags windows_flags = 0;
+    windows_flags |= ImGuiWindowFlags_MenuBar;
+
+    ImGui::Begin(editor_name, nullptr, windows_flags);
+
+    if (ImGui::BeginMenuBar()) {
+        if (ImGui::BeginMenu("Edition")) {
+            if (ImGui::MenuItem("Clear"))
+                ed.clear();
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Examples")) {
+            if (ImGui::MenuItem("Insert Lotka Volterra model")) {
+                if (is_bad(ed.initialize_lotka_volterra()))
+                    fmt::print("Error: fail to initialize a lotka volterra");
+            }
+
+            if (ImGui::MenuItem("Insert Izzhikevitch model")) {
+                if (is_bad(ed.initialize_izhikevitch()))
+                    fmt::print(stderr, "fail to initialize an Izzhikevitch model\n");
+            }
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenuBar();
+    }
+
+    ImGui::Text("D -- delete selected nodes and/or connections");
 
     imnodes::BeginNodeEditor();
 
-    //irt::model* mdl = nullptr;
-    //while (ed.sim.models.next(mdl)) {
-    //    imnodes::BeginNode(ed.get_model(ed.sim.models.get_id(mdl)));
-
-    //    imnodes::BeginNodeTitleBar();
-    //    ImGui::TextUnformatted(mdl->name.c_str());
-    //    imnodes::EndNodeTitleBar();
-
-    //    show_model_dynamics(ed, *mdl);
-
-    //    imnodes::EndNode();
-    //}
 
     for (size_t i = 0, e = ed.g_models.size(); i != e; ++i) {
         irt::model* mdl = ed.sim.models.try_to_get(ed.g_models[i].id);
@@ -718,6 +863,7 @@ show_editor(const char* editor_name, editor& ed)
     }
 
     show_connections(ed);
+    imnodes::EndNodeEditor();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
@@ -835,7 +981,6 @@ show_editor(const char* editor_name, editor& ed)
 
     ImGui::PopStyleVar();
 
-    imnodes::EndNodeEditor();
 
     {
         int start = 0, end = 0;
@@ -995,7 +1140,6 @@ node_editor_initialize()
         return;
     }
 
-    ed.initialize_lotka_volterra();
     ed.context = imnodes::EditorContextCreate();
 }
 

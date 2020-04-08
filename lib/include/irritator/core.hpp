@@ -112,6 +112,7 @@ enum class status
     model_time_func_bad_init_message,
 
     gui_not_enough_memory,
+    gui_too_many_model,
     gui_too_many_connection
 };
 
@@ -2108,7 +2109,6 @@ public:
 
         m_max_size = 0;
         m_max_used = 0;
-        m_capacity = 0;
         m_next_key = 1;
         m_free_head = none;
     }
@@ -2424,6 +2424,11 @@ public:
         return status::success;
     }
 
+    void clear() noexcept
+    {
+        data.clear();
+    }
+
     template<typename... Args>
     T& alloc(Args&&... args) noexcept
     {
@@ -2606,12 +2611,22 @@ public:
             return;
         }
 
-        assert(m_size > 0);
+         if (m_size > 0) {
+            m_size--;
+            detach_subheap(elem);
+            elem = merge_subheaps(elem);
+            root = merge(root, elem);
+         }
+         else {
+             root = nullptr;
+         }
 
-        m_size--;
-        detach_subheap(elem);
-        elem = merge_subheaps(elem);
-        root = merge(root, elem);
+        //assert(m_size > 0);
+
+        //m_size--;
+        //detach_subheap(elem);
+        //elem = merge_subheaps(elem);
+        //root = merge(root, elem);
     }
 
     void pop() noexcept
@@ -4019,6 +4034,65 @@ struct simulation
         return models.can_alloc(place);
     }
 
+    /**
+     * @brief cleanup simulation object
+     * 
+     * Clean scheduller and input/output port from message. This function
+     * must be call at the end of the simulation.
+     */
+    void clean() noexcept
+    {
+        sched.clear();
+
+        output_port* out = nullptr;
+        while (output_ports.next(out))
+            out->messages.clear();
+
+        input_port* in = nullptr;
+        while (input_ports.next(in))
+            in->messages.clear();
+    }
+
+    /**
+     * @brief cleanup simulation and destroy all models and connections
+     */
+    void clear() noexcept
+    {
+        clean();
+
+        model_list_allocator.reset();
+        message_list_allocator.reset();
+        input_port_list_allocator.reset();
+        output_port_list_allocator.reset();
+
+        emitting_output_port_allocator.reset();
+
+        models.clear();
+
+        init_messages.clear();
+        messages.clear();
+        input_ports.clear();
+        output_ports.clear();
+
+        none_models.clear();
+        integrator_models.clear();
+        quantifier_models.clear();
+        adder_2_models.clear();
+        adder_3_models.clear();
+        adder_4_models.clear();
+        mult_2_models.clear();
+        mult_3_models.clear();
+        mult_4_models.clear();
+        counter_models.clear();
+        generator_models.clear();
+        constant_models.clear();
+        cross_models.clear();
+        time_func_models.clear();
+
+        begin = time_domain<time>::zero;
+        end = time_domain<time>::infinity;
+    }
+
     template<typename Dynamics>
     status alloc(Dynamics& dynamics,
                  dynamics_id id,
@@ -4267,15 +4341,7 @@ struct simulation
 
     status initialize(time t) noexcept
     {
-        sched.clear();
-
-        input_port* in = nullptr;
-        while (input_ports.next(in))
-            in->messages.clear();
-
-        output_port* out = nullptr;
-        while (output_ports.next(out))
-            out->messages.clear();
+        clean();
 
         irt::model* mdl = nullptr;
         while (models.next(mdl))
