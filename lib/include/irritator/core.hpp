@@ -1652,7 +1652,7 @@ public:
         if (new_capacity != m_capacity) {
             if (m_items) {
                 if constexpr (!std::is_trivial_v<T>)
-                    for (auto i = 0u; i != m_capacity; ++i)
+                    for (auto i = 0u; i != m_size; ++i)
                         m_items[i].~T();
 
                 if (m_items)
@@ -1675,7 +1675,7 @@ public:
     void clear() noexcept
     {
         if constexpr (!std::is_trivial_v<T>)
-            for (auto i = 0u; i != m_capacity; ++i)
+            for (auto i = 0u; i != m_size; ++i)
                 m_items[i].~T();
 
         m_size = 0;
@@ -1799,6 +1799,30 @@ public:
     size_type capacity() const noexcept
     {
         return m_capacity;
+    }
+
+    reference front() noexcept
+    {
+        assert(m_size > 0);
+        return m_items[0];
+    }
+
+    const_reference front() const noexcept
+    {
+        assert(m_size > 0);
+        return m_items[0];
+    }
+
+    reference back() noexcept
+    {
+        assert(m_size > 0);
+        return m_items[m_size - 1];
+    }
+
+    const_reference back() const noexcept
+    {
+        assert(m_size > 0);
+        return m_items[m_size - 1];
     }
 };
 
@@ -1951,6 +1975,7 @@ enum class message_id : std::uint64_t;
 enum class input_port_id : std::uint64_t;
 enum class output_port_id : std::uint64_t;
 enum class init_port_id : std::uint64_t;
+enum class observer_id : std::uint64_t;
 
 template<typename T>
 constexpr u32
@@ -2464,7 +2489,7 @@ public:
     {
         data.free(id);
     }
-       
+
     /**
      * @brief Accessor to the id part of the item
      *
@@ -2610,22 +2635,21 @@ public:
             return;
         }
 
-         if (m_size > 0) {
+        if (m_size > 0) {
             m_size--;
             detach_subheap(elem);
             elem = merge_subheaps(elem);
             root = merge(root, elem);
-         }
-         else {
-             root = nullptr;
-         }
+        } else {
+            root = nullptr;
+        }
 
-        //assert(m_size > 0);
+        // assert(m_size > 0);
 
-        //m_size--;
-        //detach_subheap(elem);
-        //elem = merge_subheaps(elem);
-        //root = merge(root, elem);
+        // m_size--;
+        // detach_subheap(elem);
+        // elem = merge_subheaps(elem);
+        // root = merge(root, elem);
     }
 
     void pop() noexcept
@@ -2800,9 +2824,36 @@ struct model
     heap::handle handle{ nullptr };
 
     dynamics_id id{ 0 };
+    observer_id obs_id{ 0 };
+
     dynamics_type type{ dynamics_type::none };
 
     small_string<7> name;
+};
+
+struct observer
+{
+    observer() noexcept = default;
+
+    observer(const time time_step_, const char* name_, void* user_data_)
+      : time_step(std::clamp(time_step_, 0.0, time_domain<time>::infinity))
+      , name(name_)
+      , user_data(user_data_)
+    {}
+
+    double tl = 0.0;
+    double time_step = 0.0;
+    small_string<8> name;
+
+    void* user_data = nullptr;
+
+    void (*initialize)(const observer& obs, const time t) noexcept = nullptr;
+
+    void (*observe)(const observer& obs,
+                    const time t,
+                    const message& msg) noexcept = nullptr;
+
+    void (*free)(const observer& obs, const time t) noexcept = nullptr;
 };
 
 struct init_message
@@ -2863,6 +2914,10 @@ using transition_function_t = decltype(
   detail::helper<
     status (T::*)(data_array<input_port, input_port_id>&, time, time, time),
     &T::transition>{});
+
+template<class T>
+using observation_function_t =
+  decltype(detail::helper<message (T::*)(time) const, &T::observation>{});
 
 template<class T>
 using initialize_function_t =
@@ -2962,6 +3017,16 @@ struct adder
 
         return status::success;
     }
+
+    message observation(time /*t*/) const noexcept
+    {
+        double ret = 0.0;
+
+        for (size_t i = 0; i != PortNumber; ++i)
+            ret += input_coeffs[i] * values[i];
+
+        return message(ret);
+    }
 };
 
 template<size_t PortNumber>
@@ -3039,6 +3104,16 @@ struct mult
 
         return status::success;
     }
+
+    message observation(time /*t*/) const noexcept
+    {
+        double ret = 1.0;
+
+        for (size_t i = 0; i != PortNumber; ++i)
+            ret *= std::pow(values[i], input_coeffs[i]);
+
+        return message(ret);
+    }
 };
 
 using adder_2 = adder<2>;
@@ -3083,6 +3158,11 @@ struct counter
     status internal(time /*t*/) noexcept
     {
         return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(number);
     }
 };
 
@@ -3148,6 +3228,11 @@ struct constant
 
         return status::success;
     }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value);
+    }
 };
 
 struct time_func
@@ -3188,6 +3273,11 @@ struct time_func
         port.messages.emplace_front(value);
 
         return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value);
     }
 };
 
@@ -3292,6 +3382,11 @@ struct cross
             port->messages.emplace_front(result);
 
         return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value, if_value, else_value);
     }
 };
 
@@ -3466,6 +3561,11 @@ struct integrator
         }
 
         return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(last_output_value);
     }
 
     status ta() noexcept
@@ -3702,6 +3802,11 @@ struct quantifier
             port->messages.emplace_front(m_upthreshold, m_downthreshold);
 
         return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(m_upthreshold, m_downthreshold);
     }
 
 private:
@@ -3985,6 +4090,8 @@ struct simulation
     data_array<cross, dynamics_id> cross_models;
     data_array<time_func, dynamics_id> time_func_models;
 
+    data_array<observer, observer_id> observers;
+
     scheduller sched;
 
     time begin = time_domain<time>::zero;
@@ -3994,8 +4101,8 @@ struct simulation
     {
         constexpr size_t ten{ 10 };
 
-        irt_return_if_bad(model_list_allocator.init(model_capacity));
-        irt_return_if_bad(message_list_allocator.init(messages_capacity));
+        irt_return_if_bad(model_list_allocator.init(model_capacity * ten));
+        irt_return_if_bad(message_list_allocator.init(messages_capacity * ten));
         irt_return_if_bad(input_port_list_allocator.init(model_capacity));
         irt_return_if_bad(output_port_list_allocator.init(model_capacity));
         irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
@@ -4025,6 +4132,8 @@ struct simulation
         irt_return_if_bad(cross_models.init(model_capacity));
         irt_return_if_bad(time_func_models.init(model_capacity));
 
+        irt_return_if_bad(observers.init(model_capacity));
+
         return status::success;
     }
 
@@ -4035,7 +4144,7 @@ struct simulation
 
     /**
      * @brief cleanup simulation object
-     * 
+     *
      * Clean scheduller and input/output port from message. This function
      * must be call at the end of the simulation.
      */
@@ -4087,6 +4196,8 @@ struct simulation
         constant_models.clear();
         cross_models.clear();
         time_func_models.clear();
+
+        observers.clear();
 
         begin = time_domain<time>::zero;
         end = time_domain<time>::infinity;
@@ -4346,6 +4457,13 @@ struct simulation
         while (models.next(mdl))
             irt_return_if_bad(make_initialize(*mdl, t));
 
+        irt::observer* obs = nullptr;
+        while (observers.next(obs)) {
+            obs->tl = t;
+            if (obs->initialize)
+                obs->initialize(*obs, t);
+        }
+
         return status::success;
     }
 
@@ -4473,6 +4591,21 @@ struct simulation
             for (size_t i = 0, e = std::size(dyn.x); i != e; ++i)
                 if (auto* port = input_ports.try_to_get(dyn.x[i]); port)
                     port->messages.clear();
+
+        if constexpr (is_detected_v<observation_function_t, Dynamics>) {
+            if (mdl.obs_id != static_cast<observer_id>(0)) {
+                if (auto* observer = observers.try_to_get(mdl.obs_id);
+                    observer && observer->observe) {
+                    if (observer->time_step == 0.0 ||
+                        t - observer->tl >= observer->time_step) {
+                        observer->observe(*observer, t, dyn.observation(t));
+                        observer->tl = t;
+                    }
+                } else {
+                    mdl.obs_id = static_cast<observer_id>(0);
+                }
+            }
+        }
 
         mdl.tl = t;
         mdl.tn = t + dyn.sigma;

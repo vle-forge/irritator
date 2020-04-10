@@ -94,6 +94,43 @@ f(double t) noexcept
     return t * t;
 }
 
+struct file_output
+{
+    file_output(const char* file_path) noexcept
+      : os(std::fopen(file_path, "w"))
+    {}
+
+    ~file_output() noexcept
+    {
+        if (os)
+            std::fclose(os);
+    }
+
+    std::FILE* os = nullptr;
+};
+
+void
+file_output_initialize(const irt::observer& obs, const irt::time /*t*/) noexcept
+{
+    if (!obs.user_data)
+        return;
+
+    auto* output = reinterpret_cast<file_output*>(obs.user_data);
+    fmt::print(output->os, "t,{}\n", obs.name.c_str());
+}
+
+void
+file_output_observe(const irt::observer& obs,
+                    const irt::time t,
+                    const irt::message& msg) noexcept
+{
+    if (!obs.user_data)
+        return;
+
+    auto* output = reinterpret_cast<file_output*>(obs.user_data);
+    fmt::print(output->os, "{},{}\n", t, msg.to_real_64(0));
+}
+
 int
 main()
 {
@@ -952,27 +989,29 @@ main()
 
         dot_graph_save(sim, stdout);
 
+        file_output fo_a("lotka-volterra_a.csv");
+        file_output fo_b("lotka-volterra_b.csv");
+        auto& obs_a = sim.observers.alloc(0.01, "A", static_cast<void*>(&fo_a));
+        auto& obs_b = sim.observers.alloc(0.01, "B", static_cast<void*>(&fo_b));
+        obs_a.initialize = &file_output_initialize;
+        obs_a.observe = &file_output_observe;
+        obs_b.initialize = &file_output_initialize;
+        obs_b.observe = &file_output_observe;
+
+        sim.models.get(integrator_a.id).obs_id = sim.observers.get_id(obs_a);
+        sim.models.get(integrator_b.id).obs_id = sim.observers.get_id(obs_b);
+        expect(fo_a.os != nullptr);
+        expect(fo_b.os != nullptr);
+
         irt::time t = 0.0;
 
         expect(sim.initialize(t) == irt::status::success);
         !expect(sim.sched.size() == 7_ul);
 
-        std::FILE* os = std::fopen("output.csv", "w");
-        !expect(os != nullptr);
-        fmt::print(os, "t,x,y\n");
         do {
             auto st = sim.run(t);
-
             expect(st == irt::status::success);
-
-            fmt::print(os,
-                       "{},{},{}\n",
-                       t,
-                       integrator_a.last_output_value,
-                       integrator_b.last_output_value);
         } while (t < 15.0);
-
-        std::fclose(os);
     };
 
     "izhikevitch_simulation"_test = [] {
@@ -1131,10 +1170,21 @@ main()
 
         dot_graph_save(sim, stdout);
 
+        file_output fo_a("izhikevitch_a.csv");
+        file_output fo_b("izhikevitch_b.csv");
+        auto& obs_a = sim.observers.alloc(0.01, "A", static_cast<void*>(&fo_a));
+        auto& obs_b = sim.observers.alloc(0.01, "B", static_cast<void*>(&fo_b));
+        obs_a.initialize = &file_output_initialize;
+        obs_a.observe = &file_output_observe;
+        obs_b.initialize = &file_output_initialize;
+        obs_b.observe = &file_output_observe;
+
+        sim.models.get(integrator_a.id).obs_id = sim.observers.get_id(obs_a);
+        sim.models.get(integrator_b.id).obs_id = sim.observers.get_id(obs_b);
+        expect(fo_a.os != nullptr);
+        expect(fo_b.os != nullptr);
+
         irt::time t = 0.0;
-        std::FILE* os = std::fopen("output_izhikevitch.csv", "w");
-        !expect(os != nullptr);
-        fmt::print(os, "t,v,u\n");
 
         expect(irt::status::success == sim.initialize(t));
         !expect(sim.sched.size() == 14_ul);
@@ -1142,14 +1192,6 @@ main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
-
-            fmt::print(os,
-                       "{},{},{}\n",
-                       t,
-                       integrator_a.last_output_value,
-                       integrator_b.last_output_value);
         } while (t < 120);
-
-        std::fclose(os);
     };
 }

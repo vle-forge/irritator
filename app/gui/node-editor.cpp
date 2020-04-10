@@ -25,22 +25,66 @@ enum class simulation_status
     internal_error,
 };
 
+struct observation_output
+{
+    observation_output() = default;
+
+    observation_output(const char* name_)
+      : name(name_)
+    {}
+
+    const char* name = nullptr;
+    array<float> data;
+    double tl = 0.0;
+    float min = -1.f;
+    float max = +1.f;
+    int id = 0;
+};
+
+static void
+observation_output_initialize(const irt::observer& obs,
+                              const irt::time t) noexcept
+{
+    if (!obs.user_data)
+        return;
+
+    auto* output = reinterpret_cast<observation_output*>(obs.user_data);
+    std::fill_n(output->data.data(), output->data.size(), 0.0f);
+    output->tl = t;
+    output->min = -1.f;
+    output->max = +1.f;
+    output->id = 0;
+}
+
+static void
+observation_output_observe(const irt::observer& obs,
+                           const irt::time t,
+                           const irt::message& msg) noexcept
+{
+    if (!obs.user_data)
+        return;
+
+    auto* output = reinterpret_cast<observation_output*>(obs.user_data);
+
+    auto value = static_cast<float>(msg.to_real_64(0));
+    output->min = std::min(output->min, value);
+    output->max = std::max(output->max, value);
+
+    for (double to_fill = output->tl; to_fill < t; to_fill += obs.time_step)
+        if (static_cast<size_t>(output->id) < output->data.size())
+            output->data[output->id++] = value;
+
+    output->tl = t;
+}
+
 static void
 run_simulation(simulation& sim,
                double begin,
                double end,
-               double obs_freq,
                double& current,
                simulation_status& st,
-               array<float>& obs_a,
-               array<float>& obs_b,
-               double* a,
-               double* b,
                const bool& stop) noexcept
 {
-    double last{ begin };
-    size_t obs_id{ 0 };
-
     current = begin;
     if (irt::is_bad(sim.initialize(current))) {
         st = simulation_status::internal_error;
@@ -51,14 +95,6 @@ run_simulation(simulation& sim,
         if (!is_success(sim.run(current))) {
             st = simulation_status::internal_error;
             return;
-        }
-
-        while (current - last > obs_freq && obs_a.size() > (size_t)obs_id &&
-               !stop) {
-            obs_a[obs_id] = static_cast<float>(*a);
-            obs_b[obs_id] = static_cast<float>(*b);
-            last += obs_freq;
-            obs_id++;
         }
     } while (current < end && !stop);
 
@@ -84,8 +120,9 @@ struct g_connection
 {
     g_connection() = default;
 
-    g_connection(output_port_id src_, input_port_id dst_,
-        int current_connection_id)
+    g_connection(output_port_id src_,
+                 input_port_id dst_,
+                 int current_connection_id)
       : src(src_)
       , dst(dst_)
       , index(current_connection_id)
@@ -110,12 +147,15 @@ struct editor
     int current_connection_id = 0;
     bool initialized = false;
 
+    vector<observation_output> observation_outputs;
+
     void clear()
     {
         g_input_ports.clear();
         g_output_ports.clear();
         g_models.clear();
         g_connections.clear();
+        observation_outputs.clear();
 
         sim.clear();
     }
@@ -169,7 +209,6 @@ struct editor
     double simulation_begin = 0.0;
     double simulation_end = 10.0;
     double simulation_current = 10.0;
-    int simulation_observation_number = 100;
     std::future<std::tuple<std::string, status>> future_content;
     std::thread simulation_thread;
     simulation_status st = simulation_status::uninitialized;
@@ -197,6 +236,9 @@ struct editor
         if (!is_success(g_connections.init(sim.models.capacity() * 10lu)))
             return false;
 
+        if (!is_success(observation_outputs.init(sim.models.capacity())))
+            return false;
+
         initialized = true;
 
         return true;
@@ -206,7 +248,7 @@ struct editor
     status alloc(Dynamics& dynamics,
                  dynamics_id dyn_id,
                  const char* name = nullptr,
-                 int *id = nullptr) noexcept
+                 int* id = nullptr) noexcept
     {
         irt_return_if_bad(sim.alloc(dynamics, dyn_id, name));
 
@@ -253,8 +295,6 @@ struct editor
         auto* mdl = sim.models.try_to_get(mdl_id);
         if (!mdl)
             return status::success;
-
-        fmt::print("delete model {}\n", mdl->name.c_str());
 
         switch (mdl->type) {
         case dynamics_type::none:
@@ -319,8 +359,9 @@ struct editor
     {
         irt_return_if_bad(sim.connect(src, dst));
 
-        auto [ success, ptr ] = g_connections.try_emplace_back(src, dst, current_connection_id++);
-        
+        auto [success, ptr] =
+          g_connections.try_emplace_back(src, dst, current_connection_id++);
+
         irt_return_if_fail(success, status::gui_too_many_connection);
 
         return status::success;
@@ -331,8 +372,7 @@ struct editor
         if (link_id >= 0) {
             for (size_t i = 0, e = g_connections.size(); i != e; ++i) {
                 if (g_connections[i].index == link_id) {
-                    sim.disconnect(g_connections[i].src,
-                                   g_connections[i].dst);
+                    sim.disconnect(g_connections[i].src, g_connections[i].dst);
 
                     g_connections.erase_and_swap(g_connections.begin() + i);
                     break;
@@ -491,24 +531,39 @@ struct editor
         sum_d.default_input_coeffs[0] = 1.0;
         sum_d.default_input_coeffs[1] = d;
 
-        irt_return_if_fail(sim.models.can_alloc(14), status::gui_too_many_model);
+        irt_return_if_fail(sim.models.can_alloc(14),
+                           status::gui_too_many_model);
 
-        irt_return_if_bad(alloc(constant3, sim.constant_models.get_id(constant3), "tfun"));
-        irt_return_if_bad(alloc(constant, sim.constant_models.get_id(constant), "1.0"));
-        irt_return_if_bad(alloc(constant2, sim.constant_models.get_id(constant2), "-56.0"));
+        irt_return_if_bad(
+          alloc(constant3, sim.constant_models.get_id(constant3), "tfun"));
+        irt_return_if_bad(
+          alloc(constant, sim.constant_models.get_id(constant), "1.0"));
+        irt_return_if_bad(
+          alloc(constant2, sim.constant_models.get_id(constant2), "-56.0"));
 
-        irt_return_if_bad(alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
-        irt_return_if_bad(alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
-        irt_return_if_bad(alloc(sum_c, sim.adder_4_models.get_id(sum_c), "sum_c"));
-        irt_return_if_bad(alloc(sum_d, sim.adder_2_models.get_id(sum_d), "sum_d"));
+        irt_return_if_bad(
+          alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
+        irt_return_if_bad(
+          alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
+        irt_return_if_bad(
+          alloc(sum_c, sim.adder_4_models.get_id(sum_c), "sum_c"));
+        irt_return_if_bad(
+          alloc(sum_d, sim.adder_2_models.get_id(sum_d), "sum_d"));
 
-        irt_return_if_bad(alloc(product, sim.mult_2_models.get_id(product), "prod"));
-        irt_return_if_bad(alloc(integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
-        irt_return_if_bad(alloc(integrator_b, sim.integrator_models.get_id(integrator_b), "int_b"));
-        irt_return_if_bad(alloc(quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a"));
-        irt_return_if_bad(alloc(quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
-        irt_return_if_bad(alloc(cross, sim.cross_models.get_id(cross), "cross"));
-        irt_return_if_bad(alloc(cross2, sim.cross_models.get_id(cross2), "cross2"));
+        irt_return_if_bad(
+          alloc(product, sim.mult_2_models.get_id(product), "prod"));
+        irt_return_if_bad(alloc(
+          integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
+        irt_return_if_bad(alloc(
+          integrator_b, sim.integrator_models.get_id(integrator_b), "int_b"));
+        irt_return_if_bad(alloc(
+          quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a"));
+        irt_return_if_bad(alloc(
+          quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
+        irt_return_if_bad(
+          alloc(cross, sim.cross_models.get_id(cross), "cross"));
+        irt_return_if_bad(
+          alloc(cross2, sim.cross_models.get_id(cross2), "cross2"));
 
         irt_return_if_bad(connect(integrator_a.y[0], cross.x[0]));
         irt_return_if_bad(connect(constant2.y[0], cross.x[1]));
@@ -559,6 +614,32 @@ show_connections(editor& ed) noexcept
 static void
 show_model_dynamics(editor& ed, model& mdl)
 {
+    auto* obs = ed.sim.observers.try_to_get(mdl.obs_id);
+    bool open = obs != nullptr;
+
+    ImGui::PushItemWidth(120.0f);
+    if (ImGui::Checkbox("observation", &open)) {
+        if (open) {
+            if (auto* old = ed.sim.observers.try_to_get(mdl.obs_id); old)
+                ed.sim.observers.free(*old);
+
+            auto& o = ed.sim.observers.alloc(0.01, mdl.name.c_str(), nullptr);
+            mdl.obs_id = ed.sim.observers.get_id(o);
+        } else {
+            if (auto* old = ed.sim.observers.try_to_get(mdl.obs_id); old)
+                ed.sim.observers.free(*old);
+
+            mdl.obs_id = static_cast<observer_id>(0);
+        }
+    }
+
+    if (auto* o = ed.sim.observers.try_to_get(mdl.obs_id); o) {
+        float v = static_cast<float>(o->time_step);
+        if (ImGui::InputFloat("freq.", &v, 0.001f, 0.1f, "%.3f", 0))
+            o->time_step = static_cast<double>(v);
+    }
+    ImGui::PopItemWidth();
+
     switch (mdl.type) {
     case dynamics_type::none: /* none does not have input port. */
         break;
@@ -794,8 +875,8 @@ show_model_dynamics(editor& ed, model& mdl)
     case dynamics_type::time_func: {
         auto& dyn = ed.sim.time_func_models.get(mdl.id);
         // ImGui::PushItemWidth(120.0f);
-        //ImGui::InputDouble("threshold", &dyn.default_threshold);
-        //ImGui::PopItemWidth();
+        // ImGui::InputDouble("threshold", &dyn.default_threshold);
+        // ImGui::PopItemWidth();
 
         imnodes::BeginOutputAttribute(ed.get_out(dyn.y[0]));
         const float text_width = ImGui::CalcTextSize("out").x;
@@ -803,7 +884,6 @@ show_model_dynamics(editor& ed, model& mdl)
         ImGui::TextUnformatted("out");
         imnodes::EndAttribute();
     } break;
-
     }
 }
 
@@ -833,7 +913,8 @@ show_editor(const char* editor_name, editor& ed)
 
             if (ImGui::MenuItem("Insert Izzhikevitch model")) {
                 if (is_bad(ed.initialize_izhikevitch()))
-                    fmt::print(stderr, "fail to initialize an Izzhikevitch model\n");
+                    fmt::print(stderr,
+                               "fail to initialize an Izzhikevitch model\n");
             }
 
             ImGui::EndMenu();
@@ -845,7 +926,6 @@ show_editor(const char* editor_name, editor& ed)
     ImGui::Text("D -- delete selected nodes and/or connections");
 
     imnodes::BeginNodeEditor();
-
 
     for (size_t i = 0, e = ed.g_models.size(); i != e; ++i) {
         irt::model* mdl = ed.sim.models.try_to_get(ed.g_models[i].id);
@@ -875,100 +955,138 @@ show_editor(const char* editor_name, editor& ed)
         int new_node = -1;
 
         if (ImGui::MenuItem("none")) {
-            if (ed.sim.none_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.none_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.none_models.alloc();
-                ed.alloc(mdl, ed.sim.none_models.get_id(mdl), "none", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.none_models.get_id(mdl), "none", &new_node);
             }
         }
 
         if (ImGui::MenuItem("integrator")) {
-            if (ed.sim.integrator_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.integrator_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.integrator_models.alloc();
-                ed.alloc(mdl, ed.sim.integrator_models.get_id(mdl), "integrator", &new_node);
+                ed.alloc(mdl,
+                         ed.sim.integrator_models.get_id(mdl),
+                         "integrator",
+                         &new_node);
             }
         }
 
         if (ImGui::MenuItem("quantifier")) {
-            if (ed.sim.quantifier_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.quantifier_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.quantifier_models.alloc();
-                ed.alloc(mdl, ed.sim.quantifier_models.get_id(mdl), "quantifier", &new_node);
+                ed.alloc(mdl,
+                         ed.sim.quantifier_models.get_id(mdl),
+                         "quantifier",
+                         &new_node);
             }
         }
 
         if (ImGui::MenuItem("adder_2")) {
-            if (ed.sim.adder_2_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.adder_2_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.adder_2_models.alloc();
-                ed.alloc(mdl, ed.sim.adder_2_models.get_id(mdl), "adder", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.adder_2_models.get_id(mdl), "adder", &new_node);
             }
         }
 
         if (ImGui::MenuItem("adder_3")) {
-            if (ed.sim.adder_3_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.adder_3_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.adder_3_models.alloc();
-                ed.alloc(mdl, ed.sim.adder_3_models.get_id(mdl), "adder", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.adder_3_models.get_id(mdl), "adder", &new_node);
             }
         }
 
         if (ImGui::MenuItem("adder_4")) {
-            if (ed.sim.adder_4_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.adder_4_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.adder_4_models.alloc();
-                ed.alloc(mdl, ed.sim.adder_4_models.get_id(mdl), "adder", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.adder_4_models.get_id(mdl), "adder", &new_node);
             }
         }
 
         if (ImGui::MenuItem("mult_2")) {
-            if (ed.sim.mult_2_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.mult_2_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.mult_2_models.alloc();
-                ed.alloc(mdl, ed.sim.mult_2_models.get_id(mdl), "mult", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.mult_2_models.get_id(mdl), "mult", &new_node);
             }
         }
 
         if (ImGui::MenuItem("mult_3")) {
-            if (ed.sim.mult_3_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.mult_3_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.mult_3_models.alloc();
-                ed.alloc(mdl, ed.sim.mult_3_models.get_id(mdl), "mult", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.mult_3_models.get_id(mdl), "mult", &new_node);
             }
         }
 
         if (ImGui::MenuItem("mult_4")) {
-            if (ed.sim.mult_4_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.mult_4_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.mult_4_models.alloc();
-                ed.alloc(mdl, ed.sim.mult_4_models.get_id(mdl), "mult", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.mult_4_models.get_id(mdl), "mult", &new_node);
             }
         }
 
         if (ImGui::MenuItem("counter")) {
-            if (ed.sim.counter_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.counter_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.counter_models.alloc();
-                ed.alloc(mdl, ed.sim.counter_models.get_id(mdl), "counter", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.counter_models.get_id(mdl), "counter", &new_node);
             }
         }
 
         if (ImGui::MenuItem("generator")) {
-            if (ed.sim.generator_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.generator_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.generator_models.alloc();
-                ed.alloc(mdl, ed.sim.generator_models.get_id(mdl), "generator", &new_node);
+                ed.alloc(mdl,
+                         ed.sim.generator_models.get_id(mdl),
+                         "generator",
+                         &new_node);
             }
         }
 
         if (ImGui::MenuItem("constant")) {
-            if (ed.sim.constant_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.constant_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.constant_models.alloc();
-                ed.alloc(mdl, ed.sim.constant_models.get_id(mdl), "constant", &new_node);
+                ed.alloc(mdl,
+                         ed.sim.constant_models.get_id(mdl),
+                         "constant",
+                         &new_node);
             }
         }
 
         if (ImGui::MenuItem("cross")) {
-            if (ed.sim.cross_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.cross_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.cross_models.alloc();
-                ed.alloc(mdl, ed.sim.cross_models.get_id(mdl), "cross", &new_node);
+                ed.alloc(
+                  mdl, ed.sim.cross_models.get_id(mdl), "cross", &new_node);
             }
         }
 
         if (ImGui::MenuItem("time_func")) {
-            if (ed.sim.time_func_models.can_alloc(1u) && ed.sim.models.can_alloc(1u)) {
+            if (ed.sim.time_func_models.can_alloc(1u) &&
+                ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.time_func_models.alloc();
-                ed.alloc(mdl, ed.sim.time_func_models.get_id(mdl), "time-func", &new_node);
+                ed.alloc(mdl,
+                         ed.sim.time_func_models.get_id(mdl),
+                         "time-func",
+                         &new_node);
             }
         }
 
@@ -980,7 +1098,6 @@ show_editor(const char* editor_name, editor& ed)
     }
 
     ImGui::PopStyleVar();
-
 
     {
         int start = 0, end = 0;
@@ -1044,22 +1161,8 @@ show_editor(const char* editor_name, editor& ed)
     if (!ImGui::Begin("Simulation box", &ed.show_simulation_box)) {
         ImGui::End();
     } else {
-        bool reset_observation = false;
-
-        if (ImGui::InputDouble("Begin", &ed.simulation_begin))
-            reset_observation = true;
-
-        if (ImGui::InputDouble("End", &ed.simulation_end))
-            reset_observation = true;
-
-        if (ImGui::SliderInt(
-              "Observations", &ed.simulation_observation_number, 1, 10000))
-            reset_observation = true;
-
-        if (reset_observation) {
-            std::fill_n(ed.obs_a.data(), ed.obs_a.size(), 0.0f);
-            std::fill_n(ed.obs_b.data(), ed.obs_b.size(), 0.0f);
-        }
+        ImGui::InputDouble("Begin", &ed.simulation_begin);
+        ImGui::InputDouble("End", &ed.simulation_end);
 
         if (ed.st != simulation_status::running) {
             if (ed.simulation_thread.joinable()) {
@@ -1068,30 +1171,33 @@ show_editor(const char* editor_name, editor& ed)
             }
 
             if (ImGui::Button("Start")) {
-                ed.st = simulation_status::running;
-                if (is_bad(ed.obs_a.init(ed.simulation_observation_number)) ||
-                    is_bad(ed.obs_b.init(ed.simulation_observation_number))) {
-                    ImGui::Text("Fail to allocate observation memory.");
-                } else {
-                    std::fill_n(ed.obs_a.data(), ed.obs_a.size(), 0.0f);
-                    std::fill_n(ed.obs_b.data(), ed.obs_b.size(), 0.0f);
-                    ed.stop = false;
+                ed.observation_outputs.clear();
+                observer* obs = nullptr;
+                while (ed.sim.observers.next(obs)) {
+                    ed.observation_outputs.emplace_back(obs->name.c_str());
 
-                    ed.simulation_thread = std::thread(
-                      &run_simulation,
-                      std::ref(ed.sim),
-                      ed.simulation_begin,
-                      ed.simulation_end,
-                      (ed.simulation_end - ed.simulation_begin) /
-                        static_cast<double>(ed.simulation_observation_number),
-                      std::ref(ed.simulation_current),
-                      std::ref(ed.st),
-                      std::ref(ed.obs_a),
-                      std::ref(ed.obs_b),
-                      ed.value_a,
-                      ed.value_b,
-                      std::cref(ed.stop));
+                    const auto diff = ed.simulation_end - ed.simulation_begin;
+                    const auto freq = diff / obs->time_step;
+                    const size_t lenght = static_cast<size_t>(freq);
+
+                    ed.observation_outputs.back().data.init(lenght);
+                    obs->initialize = &observation_output_initialize;
+                    obs->observe = &observation_output_observe;
+                    obs->user_data =
+                      static_cast<void*>(&ed.observation_outputs.back());
                 }
+
+                ed.st = simulation_status::running;
+                ed.stop = false;
+
+                ed.simulation_thread =
+                  std::thread(&run_simulation,
+                              std::ref(ed.sim),
+                              ed.simulation_begin,
+                              ed.simulation_end,
+                              std::ref(ed.simulation_current),
+                              std::ref(ed.st),
+                              std::cref(ed.stop));
             }
         }
 
@@ -1107,23 +1213,15 @@ show_editor(const char* editor_name, editor& ed)
             const double fraction = elapsed / duration;
             ImGui::ProgressBar(static_cast<float>(fraction));
 
-            ImGui::PlotLines("A",
-                             ed.obs_a.data(),
-                             static_cast<int>(ed.obs_a.size()),
-                             0,
-                             nullptr,
-                             -5.0,
-                             +30.0,
-                             ImVec2(0, 50));
-
-            ImGui::PlotLines("B",
-                             ed.obs_b.data(),
-                             static_cast<int>(ed.obs_b.size()),
-                             0,
-                             nullptr,
-                             -5.0,
-                             +30.0,
-                             ImVec2(0, 50));
+            for (const auto& obs : ed.observation_outputs)
+                ImGui::PlotLines(obs.name,
+                                 obs.data.data(),
+                                 static_cast<int>(obs.data.size()),
+                                 0,
+                                 nullptr,
+                                 obs.min,
+                                 obs.max,
+                                 ImVec2(0.f, 50.f));
         }
 
         ImGui::End();
