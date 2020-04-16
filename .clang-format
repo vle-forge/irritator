@@ -1,7 +1,7 @@
 BasedOnStyle: Mozilla
 BreakBeforeBraces: Mozilla
 AccessModifierOffset: -4
-ColumnLimit: 79
+ColumnLimit: 80
 UseTab: Never
 IndentWidth: 4
 BinPackArguments: false

@@ -67,6 +67,10 @@ enum class status
 
     model_uninitialized_port_warning,
 
+    dynamics_unknown_id,
+    dynamics_unknown_port_id,
+    dynamics_not_enough_memory,
+
     model_connect_output_port_unknown,
     model_connect_input_port_unknown,
     model_connect_already_exist,
@@ -195,8 +199,9 @@ is_not_enough_memory(status s) noexcept
         return status__;                                                       \
     } while (0)
 
-#define irt_return_if_bad(status__)                                            \
+#define irt_return_if_bad(expr__)                                              \
     do {                                                                       \
+        auto status__ = (expr__);                                              \
         if (status__ != status::success) {                                     \
             irt_breakpoint();                                                  \
             return status__;                                                   \
@@ -701,7 +706,7 @@ public:
     };
 
 private:
-    block* blocks{ nullptr };    // containts all pre-allocatede blocks
+    block* blocks{ nullptr };    // contains all preallocated blocks
     block* free_head{ nullptr }; // a free list
     sz size{ 0 };                // number of active elements allocated
     sz max_size{ 0 }; // number of elements allocated (with free_head)
@@ -1381,6 +1386,11 @@ public:
         m_front = nullptr;
         m_back = nullptr;
         m_size = 0;
+    }
+
+    allocator_type* get_allocator() const noexcept
+    {
+        return m_allocator;
     }
 
     flat_double_list& operator=(flat_double_list&& other) noexcept
@@ -2436,6 +2446,9 @@ private:
     data_array<T, Identifier> data;
 
 public:
+    using identifier_type = Identifier;
+    using value_type = T;
+
     data_array_archive() = default;
 
     ~data_array_archive() noexcept = default;
@@ -2518,6 +2531,18 @@ public:
     const T& get(Identifier id) const noexcept
     {
         return data.get(id);
+    }
+
+    /**
+     * @brief Get a T from an ID.
+     *
+     * @details Validates ID, then returns item, returns null if invalid.
+     * For cases like AI references and others where 'the thing might have
+     * been deleted out from under me.
+     */
+    T* try_to_get(Identifier id) const noexcept
+    {
+        return data.try_to_get(id);
     }
 
     constexpr bool can_alloc(std::size_t place) const noexcept
@@ -3432,6 +3457,22 @@ struct integrator
     bool reset = false;
     state st = state::init;
 
+    integrator() = default;
+
+    integrator(const integrator& other) noexcept
+      : default_current_value(other.default_current_value)
+      , default_reset_value(other.default_reset_value)
+      , archive(other.archive.get_allocator())
+      , current_value(other.current_value)
+      , reset_value(other.reset_value)
+      , up_threshold(other.up_threshold)
+      , down_threshold(other.down_threshold)
+      , last_output_value(other.last_output_value)
+      , expected_value(other.expected_value)
+      , reset(other.reset)
+      , st(other.st)
+    {}
+
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         current_value = default_current_value;
@@ -3677,6 +3718,25 @@ struct quantifier
     bool m_zero_init_offset = false;
     state m_state = state::init;
     adapt_state m_adapt_state = adapt_state::possible;
+
+    quantifier() noexcept = default;
+
+    quantifier(const quantifier& other) noexcept
+      : default_step_size(other.default_step_size)
+      , default_past_length(other.default_past_length)
+      , default_adapt_state(other.default_adapt_state)
+      , default_zero_init_offset(other.default_zero_init_offset)
+      , archive(other.archive.get_allocator())
+      , m_upthreshold(other.m_upthreshold)
+      , m_downthreshold(other.m_downthreshold)
+      , m_offset(other.m_offset)
+      , m_step_size(other.m_step_size)
+      , m_step_number(other.m_step_number)
+      , m_past_length(other.m_past_length)
+      , m_zero_init_offset(other.m_zero_init_offset)
+      , m_state(other.m_state)
+      , m_adapt_state(other.m_adapt_state)
+    {}
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
@@ -4096,6 +4156,353 @@ struct simulation
 
     time begin = time_domain<time>::zero;
     time end = time_domain<time>::infinity;
+
+private:
+    template<typename Function>
+    status dispatch(const dynamics_type type, Function f) noexcept
+    {
+        switch (type) {
+        case dynamics_type::none:
+            return f(none_models);
+        case dynamics_type::integrator:
+            return f(integrator_models);
+        case dynamics_type::quantifier:
+            return f(quantifier_models);
+        case dynamics_type::adder_2:
+            return f(adder_2_models);
+        case dynamics_type::adder_3:
+            return f(adder_3_models);
+        case dynamics_type::adder_4:
+            return f(adder_4_models);
+        case dynamics_type::mult_2:
+            return f(mult_2_models);
+        case dynamics_type::mult_3:
+            return f(mult_3_models);
+        case dynamics_type::mult_4:
+            return f(mult_4_models);
+        case dynamics_type::counter:
+            return f(counter_models);
+        case dynamics_type::generator:
+            return f(generator_models);
+        case dynamics_type::constant:
+            return f(constant_models);
+        case dynamics_type::cross:
+            return f(cross_models);
+        case dynamics_type::time_func:
+            return f(time_func_models);
+        }
+
+        irt_bad_return(status::unknown_dynamics);
+    }
+
+    template<typename Dynamics>
+    int get_input_port_index(const Dynamics& dynamics,
+                             const input_port_id id) const noexcept
+    {
+        static_assert(is_detected_v<has_input_port_t, Dynamics>);
+
+        auto it = std::find(std::begin(dynamics.x), std::end(dynamics.x), id);
+        if (it == std::end(dynamics.x))
+            return -1;
+
+        return static_cast<int>(std::distance(std::begin(dynamics.x), it));
+    }
+
+    template<typename Dynamics>
+    int get_output_port_index(const Dynamics& dynamics,
+                              const output_port_id id) const noexcept
+    {
+        static_assert(is_detected_v<has_output_port_t, Dynamics>);
+
+        auto it = std::find(std::begin(dynamics.y), std::end(dynamics.y), id);
+        if (it == std::end(dynamics.y))
+            return -1;
+
+        return static_cast<int>(std::distance(std::begin(dynamics.y), it));
+    }
+
+    status get_output_port_index(const model& mdl,
+                                 const output_port_id port,
+                                 int* index) noexcept
+    {
+        return dispatch(
+          mdl.type,
+          [ dyn_id = mdl.id, port,
+            index ]<typename DynamicsM>(DynamicsM & dyn_models)
+            ->status {
+                using Dynamics = typename DynamicsM::value_type;
+
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    auto* dyn = dyn_models.try_to_get(dyn_id);
+                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+
+                    for (size_t i = 0, e = std::size(dyn->y); i != e; ++i) {
+                        if (dyn->y[i] == port) {
+                            *index = static_cast<int>(i);
+                            return status::success;
+                        }
+                    }
+                }
+
+                return status::dynamics_unknown_port_id;
+            });
+    }
+
+    status get_input_port_index(const model& mdl,
+                                const input_port_id port,
+                                int* index) noexcept
+    {
+        return dispatch(
+          mdl.type,
+          [ dyn_id = mdl.id, port,
+            index ]<typename DynamicsM>(DynamicsM & dyn_models)
+            ->status {
+                using Dynamics = typename DynamicsM::value_type;
+
+                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                    auto* dyn = dyn_models.try_to_get(dyn_id);
+                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+
+                    for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
+                        if (dyn->x[i] == port) {
+                            *index = static_cast<int>(i);
+                            return status::success;
+                        }
+                    }
+                }
+
+                return status::dynamics_unknown_port_id;
+            });
+    }
+
+    status get_output_port_id(const model& mdl,
+                              int index,
+                              output_port_id* port) noexcept
+    {
+        return dispatch(
+          mdl.type,
+          [ dyn_id = mdl.id, index,
+            port ]<typename DynamicsM>(DynamicsM & dyn_models)
+            ->status {
+                using Dynamics = typename DynamicsM::value_type;
+
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    auto* dyn = dyn_models.try_to_get(dyn_id);
+                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+
+                    irt_return_if_fail(0 <= index &&
+                                         static_cast<size_t>(index) <
+                                           std::size(dyn->y),
+                                       status::dynamics_unknown_port_id);
+
+                    *port = dyn->y[index];
+                    return status::success;
+                }
+
+                return status::dynamics_unknown_port_id;
+            });
+    }
+
+    status get_input_port_id(const model& mdl,
+                             int index,
+                             input_port_id* port) noexcept
+    {
+        return dispatch(
+          mdl.type,
+          [ dyn_id = mdl.id, index,
+            port ]<typename DynamicsM>(DynamicsM & dyn_models)
+            ->status {
+                using Dynamics = typename DynamicsM::value_type;
+
+                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                    auto* dyn = dyn_models.try_to_get(dyn_id);
+                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+
+                    irt_return_if_fail(0 <= index &&
+                                         static_cast<size_t>(index) <
+                                           std::size(dyn->x),
+                                       status::dynamics_unknown_port_id);
+
+                    *port = dyn->x[index];
+                    return status::success;
+                }
+
+                return status::dynamics_unknown_port_id;
+            });
+    }
+
+    template<typename Iterator>
+    status copy_connections(Iterator first_orig,
+                            Iterator last_orig,
+                            Iterator copy,
+                            const input_port& orig_port,
+                            const input_port& copy_port) noexcept
+    {
+        for (output_port_id output_id : orig_port.connections) {
+            auto* output = output_ports.try_to_get(output_id);
+            irt_return_if_fail(output, status::dynamics_unknown_port_id);
+
+            auto it = std::find(first_orig, last_orig, output->model);
+            if (it == last_orig) {
+                irt_return_if_bad(
+                  connect(output_id, input_ports.get_id(copy_port)));
+            } else {
+                auto* orig_model = models.try_to_get(output->model);
+                irt_return_if_fail(orig_model, status::dynamics_unknown_id);
+
+                int index_port = -1;
+                irt_return_if_bad(
+                  get_output_port_index(*orig_model, output_id, &index_port));
+
+                auto index_model = std::distance(first_orig, it);
+                auto to_change_id = *(copy + index_model);
+
+                auto* to_change_mdl = models.try_to_get(to_change_id);
+                irt_return_if_fail(to_change_mdl, status::dynamics_unknown_id);
+
+                output_port_id copy_port_id;
+                irt_return_if_bad(get_output_port_id(
+                  *to_change_mdl, index_port, &copy_port_id));
+
+                connect(copy_port_id, input_ports.get_id(copy_port));
+            }
+        }
+
+        return status::success;
+    }
+
+    template<typename Iterator>
+    status copy_connections(Iterator first_orig,
+                            Iterator last_orig,
+                            Iterator copy,
+                            const output_port& orig_port,
+                            const output_port& copy_port) noexcept
+    {
+        for (input_port_id input_id : orig_port.connections) {
+            auto* input = input_ports.try_to_get(input_id);
+            irt_return_if_fail(input, status::dynamics_unknown_port_id);
+
+            auto it = std::find(first_orig, last_orig, input->model);
+
+            if (it == last_orig) {
+                irt_return_if_bad(
+                  connect(output_ports.get_id(copy_port), input_id));
+            } else {
+                auto* orig_model = models.try_to_get(input->model);
+                irt_return_if_fail(orig_model, status::dynamics_unknown_id);
+
+                int index_port = -1;
+                irt_return_if_bad(
+                  get_input_port_index(*orig_model, input_id, &index_port));
+
+                auto index_model = std::distance(first_orig, it);
+                auto to_change_id = *(copy + index_model);
+
+                auto* to_change_mdl = models.try_to_get(to_change_id);
+                irt_return_if_fail(to_change_mdl, status::dynamics_unknown_id);
+
+                input_port_id copy_port_id;
+                irt_return_if_bad(
+                  get_input_port_id(*to_change_mdl, index_port, &copy_port_id));
+
+                connect(output_ports.get_id(copy_port), copy_port_id);
+            }
+        }
+
+        return status::success;
+    }
+
+public:
+    template<typename InputIterator, typename OutputIterator>
+    status copy(InputIterator first, InputIterator last, OutputIterator out)
+    {
+        for (auto it = first, copy = out; it != last; ++it, ++copy) {
+            model_id model_id = *it;
+            const model* mdl = models.try_to_get(model_id);
+            irt_return_if_fail(mdl, status::dynamics_unknown_id);
+
+            auto ret = dispatch(
+              mdl->type,
+              [ this, &mdl,
+                copy ]<typename DynamicsM>(DynamicsM & dynamics_models)
+                ->status {
+                    using Dynamics = typename DynamicsM::value_type;
+
+                    irt_return_if_fail(dynamics_models.can_alloc(1),
+                                       status::dynamics_not_enough_memory);
+
+                    auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
+                    irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
+
+                    auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
+                    auto new_dyn_id = dynamics_models.get_id(new_dyn);
+
+                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                        std::fill_n(new_dyn.x,
+                                    std::size(new_dyn.x),
+                                    static_cast<input_port_id>(0));
+
+                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                        std::fill_n(new_dyn.y,
+                                    std::size(new_dyn.y),
+                                    static_cast<output_port_id>(0));
+
+                    irt_return_if_bad(
+                      this->alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
+
+                    *copy = new_dyn.id;
+
+                    return status::success;
+                });
+
+            irt_return_if_bad(ret);
+        }
+
+        size_t model_it = 0;
+        for (auto it = first; it != last; ++it, ++model_it) {
+            const model* mdl = models.try_to_get(*(first + model_it));
+            irt_return_if_fail(mdl, status::dynamics_unknown_id);
+
+            auto ret = dispatch(
+              mdl->type,
+              [ this, model_it, first, last,
+                out ]<typename DynamicsM>(DynamicsM & dynamics_models) {
+                  using Dynamics = typename DynamicsM::value_type;
+
+                  auto* mdl_src = this->models.try_to_get(*(first + model_it));
+                  auto* mdl_dst = this->models.try_to_get(*(out + model_it));
+                  irt_return_if_fail(mdl_src, status::dynamics_unknown_id);
+                  irt_return_if_fail(mdl_dst, status::dynamics_unknown_id);
+
+                  auto* dyn_src = dynamics_models.try_to_get(mdl_src->id);
+                  auto* dyn_dst = dynamics_models.try_to_get(mdl_dst->id);
+                  irt_return_if_fail(dyn_src, status::dynamics_unknown_id);
+                  irt_return_if_fail(dyn_dst, status::dynamics_unknown_id);
+
+                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                      for (size_t i = 0, e = std::size(dyn_src->x); i != e; ++i)
+                          copy_connections(first,
+                                           last,
+                                           out,
+                                           input_ports.get(dyn_src->x[i]),
+                                           input_ports.get(dyn_dst->x[i]));
+
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                      for (size_t i = 0, e = std::size(dyn_src->y); i != e; ++i)
+                          copy_connections(first,
+                                           last,
+                                           out,
+                                           output_ports.get(dyn_src->y[i]),
+                                           output_ports.get(dyn_dst->y[i]));
+
+                  return status::success;
+              });
+
+            irt_return_if_bad(ret);
+        }
+
+        return status::success;
+    }
 
     status init(size_t model_capacity, size_t messages_capacity)
     {
@@ -4621,6 +5028,13 @@ struct simulation
                            time t,
                            flat_list<output_port_id>& o) noexcept
     {
+        // return dispatch(
+        //  mdl.type,
+        //  [ mdl, t, o ]<typename DynamicsModels>(DynamicsModels & dyn_models)
+        //  {
+        //      return make_transition(mdl, dyn_models.get(mdl.id), t, o);
+        //  });
+
         switch (mdl.type) {
         case dynamics_type::none:
             return make_transition(mdl, none_models.get(mdl.id), t, o);

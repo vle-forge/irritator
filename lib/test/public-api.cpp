@@ -873,6 +873,117 @@ main()
         expect(cnt.number == 9_ul);
     };
 
+    "generator_counter_and_copy_simluation"_test = [] {
+        irt::simulation sim;
+
+        expect(irt::is_success(sim.init(16lu, 256lu)));
+        expect(sim.generator_models.can_alloc(1));
+        expect(sim.counter_models.can_alloc(1));
+
+        auto& gen = sim.generator_models.alloc();
+        auto& cnt = sim.counter_models.alloc();
+
+        expect(sim.models.can_alloc(2));
+        expect(
+          irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen))));
+        expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
+
+        expect(sim.connect(gen.y[0], cnt.x[0]) == irt::status::success);
+
+        irt::model_id sources[2], destinations[2];
+        sources[0] = gen.id;
+        sources[1] = cnt.id;
+        destinations[0] = static_cast<irt::model_id>(0);
+        destinations[1] = static_cast<irt::model_id>(0);
+
+        expect(sim.copy(std::begin(sources),
+                        std::end(sources),
+                        std::begin(destinations)) == irt::status::success);
+
+        expect(destinations[0] != static_cast<irt::model_id>(0));
+        expect(destinations[1] != static_cast<irt::model_id>(0));
+        expect(destinations[0] != sources[0]);
+        expect(destinations[1] != sources[0]);
+        expect(destinations[0] != sources[1]);
+        expect(destinations[1] != sources[1]);
+
+        irt::model& gen_copy = sim.models.get(destinations[0]);
+        expect(gen_copy.type == irt::dynamics_type::generator);
+        irt::model& cnt_copy = sim.models.get(destinations[1]);
+        expect(cnt_copy.type == irt::dynamics_type::counter);
+
+        irt::time t = 0.0;
+        expect(sim.initialize(t) == irt::status::success);
+        expect(sim.models.size() == 4);
+
+        irt::status st;
+
+        do {
+            st = sim.run(t);
+            expect(irt::is_success(st));
+            expect(cnt.number <= static_cast<long unsigned>(t));
+        } while (t < 10.0);
+
+        expect(cnt.number == 9_ul);
+
+        irt::counter* dyn_cnt_copy = sim.counter_models.try_to_get(cnt_copy.id);
+        expect(dyn_cnt_copy != nullptr);
+        expect(dyn_cnt_copy->number == 9_ul);
+    };
+
+    "generators_counter"_test = [] {
+        irt::simulation sim;
+
+        expect(irt::is_success(sim.init(16lu, 256lu)));
+        expect(sim.generator_models.can_alloc(1));
+        expect(sim.counter_models.can_alloc(1));
+
+        auto& gen = sim.generator_models.alloc();
+        auto& cnt = sim.counter_models.alloc();
+
+        expect(sim.models.can_alloc(2));
+        expect(
+          irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen))));
+        expect(
+          irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
+
+        expect(sim.connect(gen.y[0], cnt.x[0]) == irt::status::success);
+
+        irt::model_id sources[1], destinations[1];
+        sources[0] = gen.id;
+        destinations[0] = static_cast<irt::model_id>(0);
+
+        expect(sim.copy(std::begin(sources),
+                        std::end(sources),
+                        std::begin(destinations)) == irt::status::success);
+
+        expect(destinations[0] != static_cast<irt::model_id>(0));
+        expect(destinations[0] != sources[0]);
+
+        destinations[0] = static_cast<irt::model_id>(0);
+
+        expect(sim.copy(std::begin(sources),
+                        std::end(sources),
+                        std::begin(destinations)) == irt::status::success);
+
+        expect(destinations[0] != static_cast<irt::model_id>(0));
+        expect(destinations[0] != sources[0]);
+
+        irt::time t = 0.0;
+        expect(sim.initialize(t) == irt::status::success);
+        expect(sim.models.size() == 4);
+
+        irt::status st;
+
+        do {
+            st = sim.run(t);
+            expect(irt::is_success(st));
+            expect(cnt.number <= static_cast<long unsigned>(3 * t));
+        } while (t < 10.0);
+
+        expect(cnt.number == 27_ul);
+    };
+
     "time_func"_test = [] {
         irt::simulation sim;
 
