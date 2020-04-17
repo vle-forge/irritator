@@ -117,7 +117,15 @@ enum class status
 
     gui_not_enough_memory,
     gui_too_many_model,
-    gui_too_many_connection
+    gui_too_many_connection,
+
+    io_file_format_error,
+    io_file_format_model_error,
+    io_file_format_model_number_error,
+    io_file_format_model_unknown,
+    io_file_format_dynamics_unknown,
+    io_file_format_dynamics_limit_reach,
+    io_file_format_dynamics_init_error
 };
 
 constexpr bool
@@ -4157,7 +4165,6 @@ struct simulation
     time begin = time_domain<time>::zero;
     time end = time_domain<time>::infinity;
 
-private:
     template<typename Function>
     status dispatch(const dynamics_type type, Function f) noexcept
     {
@@ -4195,35 +4202,72 @@ private:
         irt_bad_return(status::unknown_dynamics);
     }
 
-    template<typename Dynamics>
-    int get_input_port_index(const Dynamics& dynamics,
-                             const input_port_id id) const noexcept
+    template<typename Function>
+    status dispatch(const dynamics_type type, Function f) const noexcept
     {
-        static_assert(is_detected_v<has_input_port_t, Dynamics>);
+        switch (type) {
+        case dynamics_type::none:
+            return f(none_models);
+        case dynamics_type::integrator:
+            return f(integrator_models);
+        case dynamics_type::quantifier:
+            return f(quantifier_models);
+        case dynamics_type::adder_2:
+            return f(adder_2_models);
+        case dynamics_type::adder_3:
+            return f(adder_3_models);
+        case dynamics_type::adder_4:
+            return f(adder_4_models);
+        case dynamics_type::mult_2:
+            return f(mult_2_models);
+        case dynamics_type::mult_3:
+            return f(mult_3_models);
+        case dynamics_type::mult_4:
+            return f(mult_4_models);
+        case dynamics_type::counter:
+            return f(counter_models);
+        case dynamics_type::generator:
+            return f(generator_models);
+        case dynamics_type::constant:
+            return f(constant_models);
+        case dynamics_type::cross:
+            return f(cross_models);
+        case dynamics_type::time_func:
+            return f(time_func_models);
+        }
 
-        auto it = std::find(std::begin(dynamics.x), std::end(dynamics.x), id);
-        if (it == std::end(dynamics.x))
-            return -1;
-
-        return static_cast<int>(std::distance(std::begin(dynamics.x), it));
+        irt_bad_return(status::unknown_dynamics);
     }
 
-    template<typename Dynamics>
-    int get_output_port_index(const Dynamics& dynamics,
-                              const output_port_id id) const noexcept
-    {
-        static_assert(is_detected_v<has_output_port_t, Dynamics>);
+    //template<typename Dynamics>
+    //int get_input_port_index(const Dynamics& dynamics,
+    //                         const input_port_id id) const noexcept
+    //{
+    //    static_assert(is_detected_v<has_input_port_t, Dynamics>);
 
-        auto it = std::find(std::begin(dynamics.y), std::end(dynamics.y), id);
-        if (it == std::end(dynamics.y))
-            return -1;
+    //    auto it = std::find(std::begin(dynamics.x), std::end(dynamics.x), id);
+    //    if (it == std::end(dynamics.x))
+    //        return -1;
 
-        return static_cast<int>(std::distance(std::begin(dynamics.y), it));
-    }
+    //    return static_cast<int>(std::distance(std::begin(dynamics.x), it));
+    //}
+
+    //template<typename Dynamics>
+    //int get_output_port_index(const Dynamics& dynamics,
+    //                          const output_port_id id) const noexcept
+    //{
+    //    static_assert(is_detected_v<has_output_port_t, Dynamics>);
+
+    //    auto it = std::find(std::begin(dynamics.y), std::end(dynamics.y), id);
+    //    if (it == std::end(dynamics.y))
+    //        return -1;
+
+    //    return static_cast<int>(std::distance(std::begin(dynamics.y), it));
+    //}
 
     status get_output_port_index(const model& mdl,
                                  const output_port_id port,
-                                 int* index) noexcept
+                                 int* index) const noexcept
     {
         return dispatch(
           mdl.type,
@@ -4250,7 +4294,7 @@ private:
 
     status get_input_port_index(const model& mdl,
                                 const input_port_id port,
-                                int* index) noexcept
+                                int* index) const noexcept
     {
         return dispatch(
           mdl.type,
@@ -4277,7 +4321,7 @@ private:
 
     status get_output_port_id(const model& mdl,
                               int index,
-                              output_port_id* port) noexcept
+                              output_port_id* port) const noexcept
     {
         return dispatch(
           mdl.type,
@@ -4305,7 +4349,7 @@ private:
 
     status get_input_port_id(const model& mdl,
                              int index,
-                             input_port_id* port) noexcept
+                             input_port_id* port) const noexcept
     {
         return dispatch(
           mdl.type,

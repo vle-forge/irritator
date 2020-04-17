@@ -3,90 +3,13 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/io.hpp>
 
 #include <boost/ut.hpp>
 
 #include <fmt/format.h>
 
 #include <cstdio>
-
-static void
-dot_graph_save(const irt::simulation& sim, std::FILE* os)
-{
-    /* With input and output port.
-
-    digraph graphname{
-        graph[rankdir = "LR"];
-        node[shape = "record"];
-        edge[];
-
-        "sum_a"[label = "sum-a | <f0> | <f1>"];
-
-        "sum_a":f0->int_a[id = 1];
-        sum_b->int_b[label = "2-10"];
-        prod->sum_b[label = "3-4"];
-        prod -> "sum_a":f0[label = "3-2"];
-        int_a->qua_a[label = "4-11"];
-        int_a->prod[label = "4-5"];
-        int_a -> "sum_a":f1[label = "4-1"];
-        int_b->qua_b[label = "5-12"];
-        int_b->prod[label = "5-6"];
-        int_b->sum_b[label = "5-3"];
-        qua_a->int_a[label = "6-7"];
-        qua_b->int_b[label = "7-9"];
-    }
-    */
-
-    !boost::ut::expect(os != nullptr);
-
-    std::fputs("digraph graphname {\n", os);
-
-    irt::output_port* output_port = nullptr;
-    while (sim.output_ports.next(output_port)) {
-        for (const irt::input_port_id dst : output_port->connections) {
-            if (auto* input_port = sim.input_ports.try_to_get(dst);
-                input_port) {
-                auto* mdl_src = sim.models.try_to_get(output_port->model);
-                auto* mdl_dst = sim.models.try_to_get(input_port->model);
-
-                if (!(mdl_src && mdl_dst))
-
-                    continue;
-                if (mdl_src->name.empty())
-                    fmt::print(os, "{} -> ", irt::get_key(output_port->model));
-                else
-                    fmt::print(os, "{} -> ", mdl_src->name.c_str());
-
-                if (mdl_dst->name.empty())
-                    fmt::print(os, "{}", irt::get_key(input_port->model));
-                else
-                    fmt::print(os, "{}", mdl_dst->name.c_str());
-
-                std::fputs(" [label=\"", os);
-
-                if (output_port->name.empty())
-                    fmt::print(
-                      os,
-                      "{}",
-                      irt::get_key(sim.output_ports.get_id(*output_port)));
-                else
-                    fmt::print(os, "{}", output_port->name.c_str());
-
-                std::fputs("-", os);
-
-                if (input_port->name.empty())
-                    fmt::print(
-                      os,
-                      "{}",
-                      irt::get_key(sim.input_ports.get_id(*input_port)));
-                else
-                    fmt::print(os, "{}", input_port->name.c_str());
-
-                std::fputs("\"];\n", os);
-            }
-        }
-    }
-}
 
 double
 f(double t) noexcept
@@ -1098,7 +1021,7 @@ main()
         expect(sim.connect(integrator_b.y[0], quantifier_b.x[0]) ==
                irt::status::success);
 
-        dot_graph_save(sim, stdout);
+        irt::dot_writer(stdout)(sim);
 
         file_output fo_a("lotka-volterra_a.csv");
         file_output fo_b("lotka-volterra_b.csv");
@@ -1279,7 +1202,7 @@ main()
                irt::status::success);
         expect(sim.connect(constant.y[0], sum_d.x[1]) == irt::status::success);
 
-        dot_graph_save(sim, stdout);
+        irt::dot_writer(stdout)(sim);
 
         file_output fo_a("izhikevitch_a.csv");
         file_output fo_b("izhikevitch_b.csv");

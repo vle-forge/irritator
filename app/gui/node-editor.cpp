@@ -1111,9 +1111,10 @@ show_editor(const char* editor_name, editor& ed)
     }
 
     {
+        static array<int> selected_links;
+
         const int num_selected = imnodes::NumSelectedLinks();
-        if (num_selected > 0 && ImGui::IsKeyReleased('D')) {
-            static array<int> selected_links;
+        if (num_selected > 0 && ImGui::IsKeyReleased('X')) {
             if (selected_links.capacity() < static_cast<size_t>(num_selected))
                 selected_links.init(num_selected);
 
@@ -1131,19 +1132,30 @@ show_editor(const char* editor_name, editor& ed)
     }
 
     {
+        static array<int> selected_nodes;
+
         const int num_selected = imnodes::NumSelectedNodes();
-        if (num_selected > 0 && ImGui::IsKeyReleased('D')) {
-            static array<int> selected_nodes;
-            if (selected_nodes.capacity() < static_cast<size_t>(num_selected))
-                selected_nodes.init(num_selected);
+        if (num_selected > 0) {
+            if (ImGui::IsKeyReleased('X')) {
+                if (selected_nodes.capacity() <
+                    static_cast<size_t>(num_selected))
+                    selected_nodes.init(num_selected);
 
-            std::fill_n(selected_nodes.data(), selected_nodes.size(), -1);
-            imnodes::GetSelectedNodes(selected_nodes.data());
+                std::fill_n(selected_nodes.data(), selected_nodes.size(), -1);
+                imnodes::GetSelectedNodes(selected_nodes.data());
 
-            for (const int node_id : selected_nodes)
-                ed.free(node_id);
+                for (const int node_id : selected_nodes)
+                    ed.free(node_id);
 
-            selected_nodes.clear();
+                selected_nodes.clear();
+            } else if (ImGui::IsKeyReleased('D')) {
+                if (selected_nodes.capacity() <
+                    static_cast<size_t>(num_selected))
+                    selected_nodes.init(num_selected);
+
+                std::fill_n(selected_nodes.data(), selected_nodes.size(), -1);
+                imnodes::GetSelectedNodes(selected_nodes.data());
+            }
         }
     }
 
