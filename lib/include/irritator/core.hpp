@@ -819,6 +819,7 @@ public:
     using allocator_type = block_allocator<node_type>;
     using value_type = T;
     using reference = T&;
+    using const_reference = const T&;
     using pointer = T*;
 
     class iterator
@@ -1052,6 +1053,20 @@ public:
         return const_iterator(nullptr);
     }
 
+    reference front() noexcept
+    {
+        assert(!empty());
+
+        return node->value;
+    }
+
+    const_reference front() const noexcept
+    {
+        assert(!empty());
+
+        return node->value;
+    }
+
     template<typename... Args>
     iterator emplace_front(Args&&... args) noexcept
     {
@@ -1124,7 +1139,7 @@ public:
         node = node->next;
 
         if constexpr (!std::is_trivial_v<T>)
-            node->value.~T();
+            to_delete->value.~T();
 
         allocator->free(to_delete);
     }
@@ -1144,7 +1159,7 @@ public:
         it.node->next = next;
 
         if constexpr (!std::is_trivial_v<T>)
-            node->value.~T();
+            to_delete->value.~T();
 
         allocator->free(to_delete);
 
@@ -4239,32 +4254,6 @@ struct simulation
         irt_bad_return(status::unknown_dynamics);
     }
 
-    //template<typename Dynamics>
-    //int get_input_port_index(const Dynamics& dynamics,
-    //                         const input_port_id id) const noexcept
-    //{
-    //    static_assert(is_detected_v<has_input_port_t, Dynamics>);
-
-    //    auto it = std::find(std::begin(dynamics.x), std::end(dynamics.x), id);
-    //    if (it == std::end(dynamics.x))
-    //        return -1;
-
-    //    return static_cast<int>(std::distance(std::begin(dynamics.x), it));
-    //}
-
-    //template<typename Dynamics>
-    //int get_output_port_index(const Dynamics& dynamics,
-    //                          const output_port_id id) const noexcept
-    //{
-    //    static_assert(is_detected_v<has_output_port_t, Dynamics>);
-
-    //    auto it = std::find(std::begin(dynamics.y), std::end(dynamics.y), id);
-    //    if (it == std::end(dynamics.y))
-    //        return -1;
-
-    //    return static_cast<int>(std::distance(std::begin(dynamics.y), it));
-    //}
-
     status get_output_port_index(const model& mdl,
                                  const output_port_id port,
                                  int* index) const noexcept
@@ -4803,9 +4792,10 @@ public:
             for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
                 auto& src = output_ports.get(dyn.y[i]);
 
-                for (input_port_id dst : src.connections)
-                    disconnect(dyn.y[i], dst);
+                while (!src.connections.empty())
+                    disconnect(dyn.y[i], src.connections.front());
 
+                src.connections.clear();
                 src.messages.clear();
             }
         }
@@ -4814,9 +4804,10 @@ public:
             for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
                 auto& dst = input_ports.get(dyn.x[i]);
 
-                for (output_port_id src : dst.connections)
-                    disconnect(src, dyn.x[i]);
+                while (!dst.connections.empty())
+                    disconnect(dst.connections.front(), dyn.x[i]);
 
+                dst.connections.clear();
                 dst.messages.clear();
             }
         }
@@ -4863,15 +4854,15 @@ public:
 
         {
             const auto end = std::end(src_port->connections);
-            auto prev = std::begin(src_port->connections);
+            auto it = std::begin(src_port->connections);
 
-            if (*prev == dst) {
+            if (*it == dst) {
                 src_port->connections.pop_front();
             } else {
-                auto it = ++prev;
+                auto prev = it++;
                 while (it != end) {
                     if (*it == dst) {
-                        src_port->connections.erase_after(it);
+                        src_port->connections.erase_after(prev);
                         break;
                     }
                     prev = it++;
@@ -4881,15 +4872,15 @@ public:
 
         {
             const auto end = std::end(dst_port->connections);
-            auto prev = std::begin(dst_port->connections);
+            auto it  = std::begin(dst_port->connections);
 
-            if (*prev == src) {
+            if (*it == src) {
                 dst_port->connections.pop_front();
             } else {
-                auto it = ++prev;
+                auto prev = it++;
                 while (it != end) {
                     if (*it == src) {
-                        dst_port->connections.erase_after(it);
+                        dst_port->connections.erase_after(prev);
                         break;
                     }
                     prev = it++;
