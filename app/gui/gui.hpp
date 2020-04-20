@@ -26,7 +26,7 @@ struct window_logger
 
     bool auto_scroll = true;
     bool scroll_to_bottom = false;
-
+    window_logger() = default;
     void clear() noexcept;
 
     void log(const int level, const char* fmt, ...) IM_FMTARGS(3);

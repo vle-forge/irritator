@@ -88,15 +88,16 @@ run_simulation(simulation& sim,
                const bool& stop) noexcept
 {
     current = begin;
-    if (irt::is_bad(sim.initialize(current))) {
-        log_w.log(3, "Simulation initialization failure");
+    if (auto ret = sim.initialize(current); irt::is_bad(ret)) {
+        log_w.log(
+          3, "Simulation initialization failure (%d)", static_cast<int>(ret));
         st = simulation_status::internal_error;
         return;
     }
 
     do {
-        if (!is_success(sim.run(current))) {
-            log_w.log(3, "Simulation run failure");
+        if (auto ret = sim.run(current); irt::is_bad(ret)) {
+            log_w.log(3, "Simulation run failure (%d)", static_cast<int>(ret));
             st = simulation_status::internal_error;
             return;
         }
@@ -913,6 +914,8 @@ show_editor(const char* editor_name, editor& ed)
             int link_id_to_delete = selected_links[0];
             int current_link_id = 0;
 
+            log_w.log(7, "%d connections to delete\n", num_selected);
+
             output_port* o_port = nullptr;
             while (ed.sim.output_ports.next(o_port) &&
                    link_id_to_delete != -1) {
@@ -1055,8 +1058,9 @@ editor ed;
 void
 node_editor_initialize()
 {
-    if (!ed.initialize()) {
-        log_w.log(3, "Fail to initialize node editor\n");
+    if (auto ret = ed.initialize(); is_bad(ret)) {
+        log_w.log(
+          3, "Fail to initialize node editor: %d\n", static_cast<int>(ret));
         return;
     }
 
