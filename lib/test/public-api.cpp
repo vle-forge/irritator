@@ -166,12 +166,10 @@ main()
         irt::status s1 = irt::status::success;
         expect(irt::is_success(s1) == true);
         expect(irt::is_bad(s1) == false);
-        expect(irt::is_not_enough_memory(s1) == false);
 
         irt::status s2 = irt::status::block_allocator_not_enough_memory;
         expect(irt::is_success(s2) == false);
         expect(irt::is_bad(s2) == true);
-        expect(irt::is_not_enough_memory(s2) == true);
     };
 
     "time"_test = [] {

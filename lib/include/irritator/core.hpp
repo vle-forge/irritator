@@ -44,8 +44,6 @@ enum class status
     head_allocator_bad_capacity,
     head_allocator_not_enough_memory,
 
-    scheduller_not_enough_memory,
-
     simulation_not_enough_model,
     simulation_not_enough_memory_message_list_allocator,
     simulation_not_enough_memory_input_port_list_allocator,
@@ -64,8 +62,6 @@ enum class status
     vector_init_capacity_zero,
     vector_init_capacity_too_big,
     vector_init_not_enough_memory,
-
-    model_uninitialized_port_warning,
 
     dynamics_unknown_id,
     dynamics_unknown_port_id,
@@ -87,37 +83,19 @@ enum class status
     model_integrator_output_error,
     model_integrator_running_without_x_dot,
     model_integrator_ta_with_bad_x_dot,
-    model_integrator_empty_init_message,
-    model_integrator_bad_init_message,
     model_integrator_bad_external_message,
 
-    model_quantifier_empty_init_allow_offsets,
-    model_quantifier_bad_init_allow_offsets,
-    model_quantifier_empty_init_zero_init_offset,
-    model_quantifier_bad_init_zero_init_offset,
-    model_quantifier_empty_init_quantum,
-    model_quantifier_bad_init_quantum,
-    model_quantifier_empty_init_archive_lenght,
-    model_quantifier_bad_init_archive_lenght,
     model_quantifier_bad_quantum_parameter,
     model_quantifier_bad_archive_length_parameter,
     model_quantifier_shifting_value_neg,
     model_quantifier_shifting_value_less_1,
     model_quantifier_bad_external_message,
 
-    model_constant_empty_init_message,
-    model_constant_bad_init_message,
-
-    model_cross_empty_init_message,
-    model_cross_bad_init_message,
     model_cross_bad_external_message,
 
-    model_time_func_empty_init_message,
     model_time_func_bad_init_message,
 
     gui_not_enough_memory,
-    gui_too_many_model,
-    gui_too_many_connection,
 
     io_file_format_error,
     io_file_format_model_error,
@@ -145,20 +123,6 @@ constexpr bool
 is_status_equal(status s, Args... args) noexcept
 {
     return ((s == args) || ... || false);
-}
-
-constexpr bool
-is_not_enough_memory(status s) noexcept
-{
-    return is_status_equal(
-      s,
-      status::block_allocator_not_enough_memory,
-      status::head_allocator_not_enough_memory,
-      status::scheduller_not_enough_memory,
-      status::simulation_not_enough_memory_message_list_allocator,
-      status::simulation_not_enough_memory_input_port_list_allocator,
-      status::simulation_not_enough_memory_output_port_list_allocator,
-      status::data_array_not_enough_memory);
 }
 
 #ifndef NDEBUG
@@ -4042,11 +4006,8 @@ public:
 
     status init(size_t capacity) noexcept
     {
-        if (auto ret = m_heap.init(capacity); is_bad(ret))
-            return ret;
-
-        if (auto ret = m_list_allocator.init(capacity); is_bad(ret))
-            return ret;
+        irt_return_if_bad(m_heap.init(capacity));
+        irt_return_if_bad(m_list_allocator.init(capacity));
 
         m_list.set_allocator(&m_list_allocator);
 

@@ -181,17 +181,15 @@ struct editor
     bool show_simulation_box = true;
     bool stop = false;
 
-    bool initialize() noexcept
+    status initialize() noexcept
     {
-        if (!is_success(sim.init(1024u, 32768u)))
-            return false;
-
-        if (!is_success(observation_outputs.init(sim.models.capacity())))
-            return false;
+        if (is_bad(sim.init(1024u, 32768u)) ||
+            is_bad(observation_outputs.init(sim.models.capacity())))
+            return status::gui_not_enough_memory;
 
         initialized = true;
 
-        return true;
+        return status::success;
     }
 
     status initialize_lotka_volterra() noexcept
@@ -270,6 +268,15 @@ struct editor
 
     status initialize_izhikevitch()
     {
+        if (!sim.constant_models.can_alloc(3) ||
+            !sim.adder_2_models.can_alloc(3) ||
+            !sim.adder_4_models.can_alloc(1) ||
+            !sim.mult_2_models.can_alloc(1) ||
+            !sim.integrator_models.can_alloc(2) ||
+            !sim.quantifier_models.can_alloc(2) ||
+            !sim.cross_models.can_alloc(2) || !sim.models.can_alloc(14))
+            return status::simulation_not_enough_model;
+
         auto& constant = sim.constant_models.alloc();
         auto& constant2 = sim.constant_models.alloc();
         auto& constant3 = sim.constant_models.alloc();
@@ -328,9 +335,6 @@ struct editor
         sum_c.default_input_coeffs[3] = 1.0;
         sum_d.default_input_coeffs[0] = 1.0;
         sum_d.default_input_coeffs[1] = d;
-
-        irt_return_if_fail(sim.models.can_alloc(14),
-                           status::gui_too_many_model);
 
         irt_return_if_bad(
           sim.alloc(constant3, sim.constant_models.get_id(constant3), "tfun"));
