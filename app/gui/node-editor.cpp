@@ -951,28 +951,37 @@ show_editor(const char* editor_name, editor& ed)
         static array<int> selected_nodes;
 
         const int num_selected = imnodes::NumSelectedNodes();
-        if (num_selected > 0 && ImGui::IsKeyReleased('X')) {
-            selected_nodes.init(num_selected);
+        if (num_selected > 0) {
+            if (ImGui::IsKeyReleased('X')) {
+                selected_nodes.init(num_selected);
+                imnodes::GetSelectedNodes(selected_nodes.data());
 
-            std::fill_n(selected_nodes.data(), selected_nodes.size(), -1);
-            imnodes::GetSelectedNodes(selected_nodes.data());
+                log_w.log(7, "%d connections to delete\n", num_selected);
 
-            for (const int node_id : selected_nodes) {
-                auto id = ed.get_model(node_id);
-                if (auto* mdl = ed.sim.models.try_to_get(id); mdl)
-                    ed.sim.deallocate(ed.sim.models.get_id(mdl));
+                for (const int node_id : selected_nodes) {
+                    auto id = ed.get_model(node_id);
+                    if (auto* mdl = ed.sim.models.try_to_get(id); mdl) {
+                        log_w.log(7, "delete %s\n", mdl->name.c_str());
+                        ed.sim.deallocate(ed.sim.models.get_id(mdl));
+                    }
+                }
+            } else if (ImGui::IsKeyReleased('D')) {
+                selected_nodes.init(num_selected);
+                imnodes::GetSelectedNodes(selected_nodes.data());
+
+                array<model_id> sources;
+                array<model_id> destinations;
+                if (is_success(sources.init(num_selected)) &&
+                    is_success(destinations.init(num_selected))) {
+
+                    for (size_t i = 0; i != selected_nodes.size(); ++i)
+                        sources[i] = ed.get_model(selected_nodes[i]);
+                }
+
+                ed.sim.copy(std::begin(sources),
+                            std::end(sources),
+                            std::begin(destinations));
             }
-
-            selected_nodes.clear();
-
-            //} else if (ImGui::IsKeyReleased('D')) {
-            //    if (selected_nodes.capacity() <
-            //        static_cast<size_t>(num_selected))
-            //        selected_nodes.init(num_selected);
-
-            //    std::fill_n(selected_nodes.data(), selected_nodes.size(), -1);
-            //    imnodes::GetSelectedNodes(selected_nodes.data());
-            //}
         }
     }
 
