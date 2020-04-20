@@ -17,6 +17,8 @@
 
 namespace irt {
 
+window_logger log_w;
+
 enum class simulation_status
 {
     success,
@@ -87,12 +89,14 @@ run_simulation(simulation& sim,
 {
     current = begin;
     if (irt::is_bad(sim.initialize(current))) {
+        log_w.log(3, "Simulation initialization failure");
         st = simulation_status::internal_error;
         return;
     }
 
     do {
         if (!is_success(sim.run(current))) {
+            log_w.log(3, "Simulation run failure");
             st = simulation_status::internal_error;
             return;
         }
@@ -130,7 +134,7 @@ struct editor
 
     model_id get_model(int index) const noexcept
     {
-        auto *mdl = sim.models.try_to_get(static_cast<u32>(index));
+        auto* mdl = sim.models.try_to_get(static_cast<u32>(index));
 
         return sim.models.get_id(mdl);
     }
@@ -708,13 +712,12 @@ show_editor(const char* editor_name, editor& ed)
         if (ImGui::BeginMenu("Examples")) {
             if (ImGui::MenuItem("Insert Lotka Volterra model")) {
                 if (is_bad(ed.initialize_lotka_volterra()))
-                    fmt::print("Error: fail to initialize a lotka volterra");
+                    log_w.log(3, "Fail to initialize a Lotka Volterra");
             }
 
-            if (ImGui::MenuItem("Insert Izzhikevitch model")) {
+            if (ImGui::MenuItem("Insert Izhikevitch model")) {
                 if (is_bad(ed.initialize_izhikevitch()))
-                    fmt::print(stderr,
-                               "fail to initialize an Izzhikevitch model\n");
+                    log_w.log(3, "Fail to initialize an Izhikevitch model");
             }
 
             ImGui::EndMenu();
@@ -724,7 +727,7 @@ show_editor(const char* editor_name, editor& ed)
     }
 
     ImGui::Text("X -- delete selected nodes and/or connections /"
-        " D -- duplicate selected nodes and/or connections ");
+                " D -- duplicate selected nodes");
 
     imnodes::BeginNodeEditor();
 
@@ -758,8 +761,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.none_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.none_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.none_models.get_id(mdl), "none");
+                ed.sim.alloc(mdl, ed.sim.none_models.get_id(mdl), "none");
             }
         }
 
@@ -767,9 +769,8 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.integrator_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.integrator_models.alloc();
-                ed.sim.alloc(mdl,
-                         ed.sim.integrator_models.get_id(mdl),
-                         "integrator");
+                ed.sim.alloc(
+                  mdl, ed.sim.integrator_models.get_id(mdl), "integrator");
             }
         }
 
@@ -777,9 +778,8 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.quantifier_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.quantifier_models.alloc();
-                ed.sim.alloc(mdl,
-                         ed.sim.quantifier_models.get_id(mdl),
-                         "quantifier");
+                ed.sim.alloc(
+                  mdl, ed.sim.quantifier_models.get_id(mdl), "quantifier");
             }
         }
 
@@ -787,8 +787,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.adder_2_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.adder_2_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.adder_2_models.get_id(mdl), "adder");
+                ed.sim.alloc(mdl, ed.sim.adder_2_models.get_id(mdl), "adder");
             }
         }
 
@@ -796,8 +795,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.adder_3_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.adder_3_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.adder_3_models.get_id(mdl), "adder");
+                ed.sim.alloc(mdl, ed.sim.adder_3_models.get_id(mdl), "adder");
             }
         }
 
@@ -805,8 +803,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.adder_4_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.adder_4_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.adder_4_models.get_id(mdl), "adder");
+                ed.sim.alloc(mdl, ed.sim.adder_4_models.get_id(mdl), "adder");
             }
         }
 
@@ -814,8 +811,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.mult_2_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.mult_2_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.mult_2_models.get_id(mdl), "mult");
+                ed.sim.alloc(mdl, ed.sim.mult_2_models.get_id(mdl), "mult");
             }
         }
 
@@ -823,8 +819,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.mult_3_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.mult_3_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.mult_3_models.get_id(mdl), "mult");
+                ed.sim.alloc(mdl, ed.sim.mult_3_models.get_id(mdl), "mult");
             }
         }
 
@@ -832,8 +827,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.mult_4_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.mult_4_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.mult_4_models.get_id(mdl), "mult");
+                ed.sim.alloc(mdl, ed.sim.mult_4_models.get_id(mdl), "mult");
             }
         }
 
@@ -841,8 +835,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.counter_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.counter_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.counter_models.get_id(mdl), "counter");
+                ed.sim.alloc(mdl, ed.sim.counter_models.get_id(mdl), "counter");
             }
         }
 
@@ -850,9 +843,8 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.generator_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.generator_models.alloc();
-                ed.sim.alloc(mdl,
-                         ed.sim.generator_models.get_id(mdl),
-                         "generator");
+                ed.sim.alloc(
+                  mdl, ed.sim.generator_models.get_id(mdl), "generator");
             }
         }
 
@@ -860,9 +852,8 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.constant_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.constant_models.alloc();
-                ed.sim.alloc(mdl,
-                         ed.sim.constant_models.get_id(mdl),
-                         "constant");
+                ed.sim.alloc(
+                  mdl, ed.sim.constant_models.get_id(mdl), "constant");
             }
         }
 
@@ -870,8 +861,7 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.cross_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.cross_models.alloc();
-                ed.sim.alloc(
-                  mdl, ed.sim.cross_models.get_id(mdl), "cross");
+                ed.sim.alloc(mdl, ed.sim.cross_models.get_id(mdl), "cross");
             }
         }
 
@@ -879,14 +869,13 @@ show_editor(const char* editor_name, editor& ed)
             if (ed.sim.time_func_models.can_alloc(1u) &&
                 ed.sim.models.can_alloc(1u)) {
                 auto& mdl = ed.sim.time_func_models.alloc();
-                ed.sim.alloc(mdl,
-                         ed.sim.time_func_models.get_id(mdl),
-                         "time-func");
+                ed.sim.alloc(
+                  mdl, ed.sim.time_func_models.get_id(mdl), "time-func");
             }
         }
 
         ImGui::EndPopup();
-            //imnodes::SetNodeScreenSpacePos(new_node, click_pos);
+        // imnodes::SetNodeScreenSpacePos(new_node, click_pos);
     }
 
     ImGui::PopStyleVar();
@@ -914,9 +903,8 @@ show_editor(const char* editor_name, editor& ed)
 
             std::fill_n(selected_links.data(), selected_links.size(), -1);
             imnodes::GetSelectedLinks(selected_links.data());
-            std::sort(selected_links.begin(),
-                      selected_links.end(),
-                      std::less<int>());
+            std::sort(
+              selected_links.begin(), selected_links.end(), std::less<int>());
 
             for (size_t i = 0; i != selected_links.size(); ++i)
                 assert(selected_links[i] != -1);
@@ -926,11 +914,14 @@ show_editor(const char* editor_name, editor& ed)
             int current_link_id = 0;
 
             output_port* o_port = nullptr;
-            while (ed.sim.output_ports.next(o_port) && link_id_to_delete != -1) {
+            while (ed.sim.output_ports.next(o_port) &&
+                   link_id_to_delete != -1) {
                 for (const auto dst : o_port->connections) {
-                    if (auto* i_port = ed.sim.input_ports.try_to_get(dst); i_port) {
+                    if (auto* i_port = ed.sim.input_ports.try_to_get(dst);
+                        i_port) {
                         if (current_link_id == link_id_to_delete) {
-                            ed.sim.disconnect(ed.sim.output_ports.get_id(o_port), dst);
+                            ed.sim.disconnect(
+                              ed.sim.output_ports.get_id(o_port), dst);
 
                             ++i;
 
@@ -1065,7 +1056,7 @@ void
 node_editor_initialize()
 {
     if (!ed.initialize()) {
-        fmt::print(stderr, "node_editor_initialize failed\n");
+        log_w.log(3, "Fail to initialize node editor\n");
         return;
     }
 
@@ -1076,7 +1067,10 @@ void
 node_editor_show()
 {
     if (ed.initialized)
-        show_editor("editor1", ed);
+        show_editor("Editor 1", ed);
+
+    static bool show_log = true;
+    log_w.show(&show_log);
 }
 
 void
