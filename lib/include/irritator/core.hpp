@@ -248,6 +248,8 @@ class small_string
     u8 size_;
 
 public:
+    using iterator = char*;
+    using const_iterator = const char*;
     using size_type = u8;
 
     static_assert(length > size_t{ 1 } && length < size_t{ 254 });
@@ -313,6 +315,14 @@ public:
         return zero == size_;
     }
 
+    constexpr void size(std::size_t sz) noexcept
+    {
+        if (sz <= capacity()) {
+            buffer_[sz] = '\0';
+            size_ = static_cast<u8>(sz);
+        }
+    }
+
     constexpr std::size_t size() const noexcept
     {
         return size_;
@@ -320,7 +330,7 @@ public:
 
     constexpr std::size_t capacity() const noexcept
     {
-        return length;
+        return length - 1;
     }
 
     constexpr void assign(const std::string_view str) noexcept
@@ -362,6 +372,26 @@ public:
     constexpr const char* c_str() const noexcept
     {
         return buffer_;
+    }
+
+    constexpr iterator begin() noexcept
+    {
+        return buffer_;
+    }
+
+    constexpr iterator end() noexcept
+    {
+        return buffer_ + size_;
+    }
+
+    constexpr const_iterator begin() const noexcept
+    {
+        return buffer_;
+    }
+
+    constexpr const_iterator end() const noexcept
+    {
+        return buffer_ + size_;
     }
 
     constexpr bool operator==(const small_string& rhs) const noexcept
