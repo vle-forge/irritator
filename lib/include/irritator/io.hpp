@@ -231,7 +231,11 @@ private:
             return status::success;
         });
 
+        irt_return_if_bad(ret);
+
         map.emplace_back(id, mdl);
+
+        return status::success;
     }
 
     bool read(none& /*dyn*/) noexcept
@@ -455,7 +459,7 @@ struct writer
     }
 
 private:
-    void write(const none& dyn) noexcept
+    void write(const none& /*dyn*/) noexcept
     {
         std::fprintf(file, "none\n");
     }

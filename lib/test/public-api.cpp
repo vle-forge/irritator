@@ -1021,7 +1021,8 @@ main()
         expect(sim.connect(integrator_b.y[0], quantifier_b.x[0]) ==
                irt::status::success);
 
-        irt::dot_writer(stdout)(sim);
+        irt::dot_writer dw(stdout);
+        dw(sim);
 
         file_output fo_a("lotka-volterra_a.csv");
         file_output fo_b("lotka-volterra_b.csv");
@@ -1202,7 +1203,8 @@ main()
                irt::status::success);
         expect(sim.connect(constant.y[0], sum_d.x[1]) == irt::status::success);
 
-        irt::dot_writer(stdout)(sim);
+        irt::dot_writer dw(stdout);
+        dw(sim);
 
         file_output fo_a("izhikevitch_a.csv");
         file_output fo_b("izhikevitch_b.csv");
