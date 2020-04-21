@@ -317,10 +317,8 @@ public:
 
     constexpr void size(std::size_t sz) noexcept
     {
-        if (sz <= capacity()) {
-            buffer_[sz] = '\0';
-            size_ = static_cast<u8>(sz);
-        }
+        size_ = static_cast<u8>(std::min(sz, length - 1));
+        buffer_[size_] = '\0';
     }
 
     constexpr std::size_t size() const noexcept
@@ -330,7 +328,7 @@ public:
 
     constexpr std::size_t capacity() const noexcept
     {
-        return length - 1;
+        return length;
     }
 
     constexpr void assign(const std::string_view str) noexcept
@@ -4863,7 +4861,7 @@ public:
 
         {
             const auto end = std::end(dst_port->connections);
-            auto it  = std::begin(dst_port->connections);
+            auto it = std::begin(dst_port->connections);
 
             if (*it == src) {
                 dst_port->connections.pop_front();
