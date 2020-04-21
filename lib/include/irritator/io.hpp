@@ -208,7 +208,10 @@ private:
         return sim.models.try_to_get(it->second);
     }
 
-    status read(simulation& sim, int id, const char* name, const char* dynamics_name) noexcept
+    status read(simulation& sim,
+                int id,
+                const char* name,
+                const char* dynamics_name) noexcept
     {
         dynamics_type type;
 
@@ -216,8 +219,7 @@ private:
                            status::io_file_format_dynamics_unknown);
 
         model_id mdl = static_cast<model_id>(0);
-        auto ret = sim.dispatch(
-          type, [ this, &sim, name ](auto& dyn_models) {
+        auto ret = sim.dispatch(type, [this, &sim, name](auto& dyn_models) {
             irt_return_if_fail(dyn_models.can_alloc(1),
                                status::io_file_format_dynamics_limit_reach);
             auto& dyn = dyn_models.alloc();
@@ -411,7 +413,8 @@ struct writer
 
     status operator()(const simulation& sim) noexcept
     {
-        std::fprintf(file, "%lu\n", static_cast<long unsigned>(sim.models.size()));
+        std::fprintf(
+          file, "%lu\n", static_cast<long unsigned>(sim.models.size()));
 
         model* mdl = nullptr;
         while (sim.models.next(mdl)) {
@@ -424,33 +427,33 @@ struct writer
                 write(dyn_models.get(mdl->id));
                 return status::success;
             });
+        }
 
-            irt::output_port* out = nullptr;
-            while (sim.output_ports.next(out)) {
-                for (auto dst : out->connections) {
-                    if (auto* in = sim.input_ports.try_to_get(dst); in) {
-                        auto* mdl_src = sim.models.try_to_get(out->model);
-                        auto* mdl_dst = sim.models.try_to_get(in->model);
+        irt::output_port* out = nullptr;
+        while (sim.output_ports.next(out)) {
+            for (auto dst : out->connections) {
+                if (auto* in = sim.input_ports.try_to_get(dst); in) {
+                    auto* mdl_src = sim.models.try_to_get(out->model);
+                    auto* mdl_dst = sim.models.try_to_get(in->model);
 
-                        if (!(mdl_src && mdl_dst))
-                            continue;
+                    if (!(mdl_src && mdl_dst))
+                        continue;
 
-                        int src_index = -1;
-                        int dst_index = -1;
+                    int src_index = -1;
+                    int dst_index = -1;
 
-                        irt_return_if_bad(
-                          sim.get_input_port_index(*mdl_dst, dst, &src_index));
+                    irt_return_if_bad(
+                      sim.get_input_port_index(*mdl_dst, dst, &src_index));
 
-                        irt_return_if_bad(sim.get_output_port_index(
-                          *mdl_src, sim.output_ports.get_id(out), &dst_index));
+                    irt_return_if_bad(sim.get_output_port_index(
+                      *mdl_src, sim.output_ports.get_id(out), &dst_index));
 
-                        std::fprintf(file,
-                                     "%u %d %u %d\n",
-                                     irt::get_index(out->model),
-                                     src_index,
-                                     irt::get_index(in->model),
-                                     dst_index);
-                    }
+                    std::fprintf(file,
+                                 "%u %d %u %d\n",
+                                 irt::get_index(out->model),
+                                 src_index,
+                                 irt::get_index(in->model),
+                                 dst_index);
                 }
             }
         }

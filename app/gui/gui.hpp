@@ -7,6 +7,9 @@
 
 #include <imgui.h>
 
+#include <filesystem>
+#include <string>
+
 namespace irt {
 
 void
@@ -33,6 +36,18 @@ struct window_logger
     void log(const int level, const char* fmt, va_list args) IM_FMTLIST(3);
     void show(bool* is_show);
 };
+
+/* Filesytem dialog box */
+
+bool
+load_file_dialog(const char* description,
+                 const char* filters[],
+                 std::filesystem::path& out);
+
+bool
+save_file_dialog(const char* description,
+                 const char* filters[],
+                 std::filesystem::path& out);
 
 } // namespace irt
 

@@ -2,18 +2,18 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <future>
-#include <mutex>
-#include <thread>
-
-#include "imgui.h"
+#include "gui.hpp"
 #include "imnodes.hpp"
 
-#include "gui.hpp"
+#include <filesystem>
+#include <future>
+#include <mutex>
+#include <string>
+#include <thread>
 
 #include <fmt/format.h>
-
 #include <irritator/core.hpp>
+#include <irritator/io.hpp>
 
 namespace irt {
 
@@ -90,14 +90,14 @@ run_simulation(simulation& sim,
     current = begin;
     if (auto ret = sim.initialize(current); irt::is_bad(ret)) {
         log_w.log(
-          3, "Simulation initialization failure (%d)", static_cast<int>(ret));
+          3, "Simulation initialization failure (%d)\n", static_cast<int>(ret));
         st = simulation_status::internal_error;
         return;
     }
 
     do {
         if (auto ret = sim.run(current); irt::is_bad(ret)) {
-            log_w.log(3, "Simulation run failure (%d)", static_cast<int>(ret));
+            log_w.log(3, "Simulation run failure (%d)\n", static_cast<int>(ret));
             st = simulation_status::internal_error;
             return;
         }
@@ -111,9 +111,19 @@ run_simulation(simulation& sim,
 struct editor
 {
     small_string<16> name;
+    std::filesystem::path path;
     imnodes::EditorContext* context = nullptr;
     bool initialized = false;
     bool show = true;
+
+    simulation sim;
+    double simulation_begin = 0.0;
+    double simulation_end = 10.0;
+    double simulation_current = 10.0;
+    std::future<std::tuple<std::string, status>> future_content;
+    std::thread simulation_thread;
+    simulation_status st = simulation_status::uninitialized;
+    bool stop = false;
 
     vector<observation_output> observation_outputs;
 
@@ -171,15 +181,6 @@ struct editor
 
         return sim.output_ports.get_id(port);
     }
-
-    simulation sim;
-    double simulation_begin = 0.0;
-    double simulation_end = 10.0;
-    double simulation_current = 10.0;
-    std::future<std::tuple<std::string, status>> future_content;
-    std::thread simulation_thread;
-    simulation_status st = simulation_status::uninitialized;
-    bool stop = false;
 
     status initialize(u32 id) noexcept
     {
@@ -707,6 +708,8 @@ struct editor
     bool show_editor()
     {
         imnodes::EditorContextSet(context);
+        static bool show_load_file_dialog = false;
+        static bool show_save_file_dialog = false;
 
         ImGuiWindowFlags windows_flags = 0;
         windows_flags |= ImGuiWindowFlags_MenuBar;
@@ -718,9 +721,21 @@ struct editor
 
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("File")) {
-                ImGui::MenuItem("Open");
-                ImGui::MenuItem("Save");
-                ImGui::MenuItem("Save as...");
+                if (ImGui::MenuItem("Open"))
+                    show_load_file_dialog = true;
+
+                if (!path.empty() && ImGui::MenuItem("Save")) {
+                    log_w.log(3, "Write into file %s\n", path.string().c_str());
+                    writer w(std::fopen(path.string().c_str(), "w"));
+                    auto ret = w(sim);
+                    if (is_success(ret))
+                        log_w.log(5, "success\n");
+                    else
+                        log_w.log(4, "error writing\n");
+                }
+
+                if (ImGui::MenuItem("Save as..."))
+                    show_save_file_dialog = true;
 
                 if (ImGui::MenuItem("Close")) {
                     ImGui::EndMenu();
@@ -741,18 +756,55 @@ struct editor
             if (ImGui::BeginMenu("Examples")) {
                 if (ImGui::MenuItem("Insert Lotka Volterra model")) {
                     if (is_bad(initialize_lotka_volterra()))
-                        log_w.log(3, "Fail to initialize a Lotka Volterra");
+                        log_w.log(3, "Fail to initialize a Lotka Volterra\n");
                 }
 
                 if (ImGui::MenuItem("Insert Izhikevitch model")) {
                     if (is_bad(initialize_izhikevitch()))
-                        log_w.log(3, "Fail to initialize an Izhikevitch model");
+                        log_w.log(3, "Fail to initialize an Izhikevitch model\n");
                 }
 
                 ImGui::EndMenu();
             }
 
             ImGui::EndMenuBar();
+        }
+
+        if (show_load_file_dialog) {
+            static std::string out;
+            static const char* filters[] = { "irt", nullptr };
+
+            ImGui::OpenPopup("Select file path to load");
+
+            if (load_file_dialog("Select a file path to load", filters, path)) {
+                show_load_file_dialog = false;
+                log_w.log(5, "Load file from %s\n", path.string().c_str());
+                reader r(std::fopen(path.string().c_str(), "r"));
+                auto ret = r(sim);
+                if (is_success(ret))
+                    log_w.log(5, "success\n");
+                else
+                    log_w.log(4, "error writing\n");
+            }
+        }
+
+        if (show_save_file_dialog) {
+            static std::string out;
+
+            ImGui::OpenPopup("Select file path to save");
+
+            if (save_file_dialog("Select a file path to save", nullptr, path)) {
+                show_save_file_dialog = false;
+                log_w.log(5, "Save file to %s\n", path.string().c_str());
+
+                log_w.log(3, "Write into file %s\n", path.string().c_str());
+                writer w(std::fopen(path.string().c_str(), "w"));
+                auto ret = w(sim);
+                if (is_success(ret))
+                    log_w.log(5, "success\n");
+                else
+                    log_w.log(4, "error writing\n");
+            }
         }
 
         ImGui::Text("X -- delete selected nodes and/or connections /"
@@ -1030,7 +1082,7 @@ editor*
 editors_new()
 {
     if (!editors.can_alloc(1u)) {
-        log_w.log(2, "Too many open editor");
+        log_w.log(2, "Too many open editor\n");
         return nullptr;
     }
 
@@ -1042,14 +1094,14 @@ editors_new()
         return nullptr;
     }
 
-    log_w.log(5, "Open editor %s", ed.name.c_str());
+    log_w.log(5, "Open editor %s\n", ed.name.c_str());
     return &ed;
 }
 
 void
 editors_free(editor& ed)
 {
-    log_w.log(5, "Close editor %s", ed.name.c_str());
+    log_w.log(5, "Close editor %s\n", ed.name.c_str());
     editors.free(ed);
 }
 
@@ -1062,7 +1114,7 @@ show_simulation_box(bool* show_simulation)
         ImGui::End();
         return;
     }
-    
+
     const char* combo_name = "";
     if (auto* ed = editors.try_to_get(current_editor_id); !ed) {
         ed = nullptr;
@@ -1180,8 +1232,6 @@ node_editor_show()
             if (ImGui::MenuItem("New")) {
                 if (auto* ed = editors_new(); ed)
                     ed->context = imnodes::EditorContextCreate();
-            }
-            if (ImGui::MenuItem("Open", "Ctrl+O")) {
             }
             ImGui::EndMenu();
         }
