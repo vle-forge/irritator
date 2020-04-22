@@ -215,7 +215,7 @@ load_file_dialog(std::filesystem::path& out)
 
         if (!path_click) {
             ImVec2 size = ImGui::GetContentRegionMax();
-            size.y /= 1.5f;
+            size.y *= 0.8f;
 
             ImGui::BeginChild("##select_files", size);
 
@@ -323,10 +323,9 @@ save_file_dialog(std::filesystem::path& out)
 
         if (!path_click) {
             ImVec2 size = ImGui::GetContentRegionMax();
-            size.y /= 1.5f;
+            size.y *= 0.8f;
 
             ImGui::BeginChild("##select_files", size);
-
             if (ImGui::Selectable("..##select_file", (fd.selected == ".."))) {
                 if (next.empty()) {
                     next = fd.current.parent_path();
