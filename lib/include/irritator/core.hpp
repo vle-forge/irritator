@@ -3275,13 +3275,25 @@ struct constant
     }
 };
 
+inline double
+square_time_function(double t) noexcept
+{
+    return t * t;
+}
+
+inline double
+time_function(double t) noexcept
+{
+    return t;
+}
+
 struct time_func
 {
     model_id id;
     output_port_id y[1];
     time sigma;
 
-    double (*default_f)(double);
+    double (*default_f)(double) = &time_function;
 
     double value;
     double (*f)(double) = nullptr;

@@ -357,11 +357,9 @@ private:
             return false;
 
         if (std::strcmp(fn, "square") == 0)
-            dyn.default_f = nullptr;
-        else if (std::strcmp(fn, "nullptr") == 0)
-            dyn.default_f = nullptr;
-        else
-            return false;
+            dyn.default_f = &square_time_function;
+        else 
+            dyn.default_f = &time_function;
 
         return true;
     }
@@ -434,10 +432,10 @@ struct writer
                     assert(it_in != map.end());
 
                     std::fprintf(file,
-                                 "%ld %d %ld %d\n",
-                                 std::distance(map.begin(), it_out),
+                                 "%d %d %d %d\n",
+                                 static_cast<int>(std::distance(map.begin(), it_out)),
                                  src_index,
-                                 std::distance(map.begin(), it_in),
+                                 static_cast<int>(std::distance(map.begin(), it_in)),
                                  dst_index);
                 }
             }
@@ -571,7 +569,7 @@ private:
     {
         std::fprintf(file,
                      "time_func %s\n",
-                     dyn.default_f == nullptr ? "nullptr" : "square");
+                     dyn.default_f == &time_function ? "time" : "square");
     }
 };
 

@@ -11,12 +11,6 @@
 
 #include <cstdio>
 
-double
-f(double t) noexcept
-{
-    return t * t;
-}
-
 struct file_output
 {
     file_output(const char* file_path) noexcept
@@ -915,7 +909,7 @@ main()
         auto& time_fun = sim.time_func_models.alloc();
         auto& cnt = sim.counter_models.alloc();
 
-        time_fun.default_f = &f;
+        time_fun.default_f = &irt::square_time_function;
 
         expect(sim.models.can_alloc(2));
         expect(irt::is_success(
@@ -1058,9 +1052,7 @@ main()
         expect(sim.integrator_models.can_alloc(2));
         expect(sim.quantifier_models.can_alloc(2));
         expect(sim.cross_models.can_alloc(2));
-        // expect(sim.time_func_models.can_alloc(1));
 
-        // auto& time_fun = sim.time_func_models.alloc();
         auto& constant = sim.constant_models.alloc();
         auto& constant2 = sim.constant_models.alloc();
         auto& constant3 = sim.constant_models.alloc();

@@ -97,7 +97,8 @@ run_simulation(simulation& sim,
 
     do {
         if (auto ret = sim.run(current); irt::is_bad(ret)) {
-            log_w.log(3, "Simulation run failure (%d)\n", static_cast<int>(ret));
+            log_w.log(
+              3, "Simulation run failure (%d)\n", static_cast<int>(ret));
             st = simulation_status::internal_error;
             return;
         }
@@ -692,9 +693,15 @@ struct editor
         } break;
         case dynamics_type::time_func: {
             auto& dyn = sim.time_func_models.get(mdl.id);
-            // ImGui::PushItemWidth(120.0f);
-            // ImGui::InputDouble("threshold", &dyn.default_threshold);
-            // ImGui::PopItemWidth();
+            const char* items[] = { "time", "square" };
+            ImGui::PushItemWidth(120.0f);
+            int item_current = dyn.default_f == &time_function ? 0 : 1;
+            if (ImGui::Combo(
+                  "function", &item_current, items, IM_ARRAYSIZE(items))) {
+                dyn.default_f =
+                  item_current == 0 ? &time_function : square_time_function;
+            }
+            ImGui::PopItemWidth();
 
             imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
             const float text_width = ImGui::CalcTextSize("out").x;
@@ -761,7 +768,8 @@ struct editor
 
                 if (ImGui::MenuItem("Insert Izhikevitch model")) {
                     if (is_bad(initialize_izhikevitch()))
-                        log_w.log(3, "Fail to initialize an Izhikevitch model\n");
+                        log_w.log(3,
+                                  "Fail to initialize an Izhikevitch model\n");
                 }
 
                 ImGui::EndMenu();
