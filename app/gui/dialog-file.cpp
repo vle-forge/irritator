@@ -11,7 +11,9 @@
 #include <filesystem>
 #include <vector>
 
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 namespace irt {
 
@@ -45,6 +47,9 @@ struct file_dialog
 
         drives = ret;
     }
+#else
+    void fill_drives()
+    {}
 #endif
 
     const char** file_filters;
@@ -57,7 +62,7 @@ struct file_dialog
 
         const char** filters = file_filters;
         while (*filters) {
-            if (p.string().starts_with(*filters))
+            if (p.string().find(*filters) == 0)
                 return true;
 
             ++filters;
@@ -188,9 +193,7 @@ struct file_dialog
 file_dialog fd;
 
 bool
-load_file_dialog(const char* description,
-                 const char* filters[],
-                 std::filesystem::path& out)
+load_file_dialog(std::filesystem::path& out)
 {
     if (fd.current.empty()) {
         fd.fill_drives();
@@ -212,7 +215,7 @@ load_file_dialog(const char* description,
 
         if (!path_click) {
             ImVec2 size = ImGui::GetContentRegionMax();
-            size.y /= 1.5;
+            size.y /= 1.5f;
 
             ImGui::BeginChild("##select_files", size);
 
@@ -297,9 +300,7 @@ load_file_dialog(const char* description,
 }
 
 bool
-save_file_dialog(const char* description,
-                 const char* filters[],
-                 std::filesystem::path& out)
+save_file_dialog(std::filesystem::path& out)
 {
     if (fd.current.empty()) {
         fd.fill_drives();
@@ -322,7 +323,7 @@ save_file_dialog(const char* description,
 
         if (!path_click) {
             ImVec2 size = ImGui::GetContentRegionMax();
-            size.y /= 1.5;
+            size.y /= 1.5f;
 
             ImGui::BeginChild("##select_files", size);
 

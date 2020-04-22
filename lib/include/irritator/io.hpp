@@ -396,7 +396,6 @@ struct writer
         int id = 0;
         while (sim.models.next(mdl)) {
             const auto mdl_id = sim.models.get_id(mdl);
-            const auto mdl_index = irt::get_index(mdl_id);
 
             std::fprintf(file, "%d %s ", id, mdl->name.c_str());
             map[id] = mdl_id;
@@ -435,7 +434,7 @@ struct writer
                     assert(it_in != map.end());
 
                     std::fprintf(file,
-                                 "%u %d %u %d\n",
+                                 "%ld %d %ld %d\n",
                                  std::distance(map.begin(), it_out),
                                  src_index,
                                  std::distance(map.begin(), it_in),

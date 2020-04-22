@@ -772,11 +772,10 @@ struct editor
 
         if (show_load_file_dialog) {
             static std::string out;
-            static const char* filters[] = { "irt", nullptr };
 
             ImGui::OpenPopup("Select file path to load");
 
-            if (load_file_dialog("Select a file path to load", filters, path)) {
+            if (load_file_dialog(path)) {
                 show_load_file_dialog = false;
                 log_w.log(5, "Load file from %s\n", path.string().c_str());
                 reader r(std::fopen(path.string().c_str(), "r"));
@@ -793,7 +792,7 @@ struct editor
 
             ImGui::OpenPopup("Select file path to save");
 
-            if (save_file_dialog("Select a file path to save", nullptr, path)) {
+            if (save_file_dialog(path)) {
                 show_save_file_dialog = false;
                 log_w.log(5, "Save file to %s\n", path.string().c_str());
 

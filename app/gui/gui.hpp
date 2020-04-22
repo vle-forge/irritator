@@ -40,14 +40,10 @@ struct window_logger
 /* Filesytem dialog box */
 
 bool
-load_file_dialog(const char* description,
-                 const char* filters[],
-                 std::filesystem::path& out);
+load_file_dialog(std::filesystem::path& out);
 
 bool
-save_file_dialog(const char* description,
-                 const char* filters[],
-                 std::filesystem::path& out);
+save_file_dialog(std::filesystem::path& out);
 
 } // namespace irt
 
