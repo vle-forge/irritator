@@ -18,20 +18,7 @@ class reader
 private:
     ::std::FILE* file = stdin;
 
-    struct map_value
-    {
-        map_value() noexcept = default;
-
-        map_value(int first_, model_id second_) noexcept
-          : first(first_)
-          , second(second_)
-        {}
-
-        int first = 0;
-        model_id second = static_cast<model_id>(0);
-    };
-
-    vector<map_value> map;
+    array<model_id> map;
     int model_error = 0;
     int connection_error = 0;
 
@@ -57,9 +44,7 @@ public:
 
         irt_return_if_bad(map.init(model_number));
 
-        std::fill_n(std::begin(map),
-                    std::size(map),
-                    map_value(-1, static_cast<model_id>(0)));
+        std::fill_n(std::begin(map), std::size(map), static_cast<model_id>(0));
 
         int id;
         char name[8];
@@ -70,13 +55,11 @@ public:
               3 == std::fscanf(file, "%d %7s %10s", &id, name, dynamics),
               status::io_file_format_model_error);
 
+            irt_return_if_fail(0 <= id && id < model_number,
+                               status::io_file_format_model_error);
+
             irt_return_if_bad(read(sim, id, name, dynamics));
         }
-
-        std::sort(
-          std::begin(map), std::end(map), [](const auto& rhs, const auto& lhs) {
-              return rhs.first < lhs.first;
-          });
 
         while (!std::feof(file)) {
             int mdl_src_index, port_src_index, mdl_dst_index, port_dst_index;
@@ -88,15 +71,18 @@ public:
                                    &mdl_dst_index,
                                    &port_dst_index);
 
-            irt_return_if_fail(read == 0 || read == 4,
+            irt_return_if_fail(read == -1 || read == 0 || read == 4,
                                status::io_file_format_error);
 
+            if (read == -1)
+                break;
+
             if (read == 4) {
-                auto* mdl_src = get_model(sim, mdl_src_index);
+                auto* mdl_src = sim.models.try_to_get(mdl_src_index);
                 irt_return_if_fail(mdl_src,
                                    status::io_file_format_model_unknown);
 
-                auto* mdl_dst = get_model(sim, mdl_dst_index);
+                auto* mdl_dst = sim.models.try_to_get(mdl_dst_index);
                 irt_return_if_fail(mdl_dst,
                                    status::io_file_format_model_unknown);
 
@@ -192,22 +178,6 @@ private:
         return false;
     }
 
-    model* get_model(simulation& sim, int index) noexcept
-    {
-        const map_value value(index, static_cast<model_id>(0));
-        const auto it = std::lower_bound(std::begin(map),
-                                         std::end(map),
-                                         value,
-                                         [](const auto& lhs, const auto& rhs) {
-                                             return lhs.first < rhs.first;
-                                         });
-
-        if (it == std::end(map) && value.first < it->first)
-            return nullptr;
-
-        return sim.models.try_to_get(it->second);
-    }
-
     status read(simulation& sim,
                 int id,
                 const char* name,
@@ -235,7 +205,7 @@ private:
 
         irt_return_if_bad(ret);
 
-        map.emplace_back(id, mdl);
+        map[id] = mdl;
 
         return status::success;
     }
@@ -401,6 +371,8 @@ struct writer
 {
     std::FILE* file = stdout;
 
+    array<model_id> map;
+
     writer(std::FILE* file_ = stdout) noexcept
       : file(file_)
     {}
@@ -416,17 +388,25 @@ struct writer
         std::fprintf(
           file, "%lu\n", static_cast<long unsigned>(sim.models.size()));
 
+        irt_return_if_bad(map.init(sim.models.size()));
+
+        std::fill_n(std::begin(map), std::size(map), static_cast<model_id>(0));
+
         model* mdl = nullptr;
+        int id = 0;
         while (sim.models.next(mdl)) {
             const auto mdl_id = sim.models.get_id(mdl);
             const auto mdl_index = irt::get_index(mdl_id);
 
-            std::fprintf(file, "%u %s ", mdl_index, mdl->name.c_str());
+            std::fprintf(file, "%d %s ", id, mdl->name.c_str());
+            map[id] = mdl_id;
 
             sim.dispatch(mdl->type, [this, mdl](auto& dyn_models) {
                 write(dyn_models.get(mdl->id));
                 return status::success;
             });
+
+            ++id;
         }
 
         irt::output_port* out = nullptr;
@@ -443,16 +423,22 @@ struct writer
                     int dst_index = -1;
 
                     irt_return_if_bad(
-                      sim.get_input_port_index(*mdl_dst, dst, &src_index));
+                      sim.get_input_port_index(*mdl_dst, dst, &dst_index));
 
                     irt_return_if_bad(sim.get_output_port_index(
-                      *mdl_src, sim.output_ports.get_id(out), &dst_index));
+                      *mdl_src, sim.output_ports.get_id(out), &src_index));
+
+                    auto it_out = std::find(map.begin(), map.end(), out->model);
+                    auto it_in = std::find(map.begin(), map.end(), in->model);
+
+                    assert(it_out != map.end());
+                    assert(it_in != map.end());
 
                     std::fprintf(file,
                                  "%u %d %u %d\n",
-                                 irt::get_index(out->model),
+                                 std::distance(map.begin(), it_out),
                                  src_index,
-                                 irt::get_index(in->model),
+                                 std::distance(map.begin(), it_in),
                                  dst_index);
                 }
             }
