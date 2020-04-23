@@ -3230,12 +3230,26 @@ struct generator
     model_id id;
     output_port_id y[1];
     time sigma;
+    double value = 0.0;
+    double period = 1.0;
+    double offset = 1.0;
+    double counter;
 
     status initialize(
       data_array<message, message_id>& /*init_messages*/) noexcept
     {
-        sigma = 1.0;
+        sigma = offset;
+	counter = value;
 
+        return status::success;
+    }
+    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        sigma = period;
+	counter++;
         return status::success;
     }
 
@@ -3243,7 +3257,7 @@ struct generator
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
         if (auto* port = output_ports.try_to_get(y[0]); port)
-            port->messages.emplace_front(0.0);
+            port->messages.emplace_front(counter);
 
         return status::success;
     }
@@ -3360,7 +3374,9 @@ struct cross
     time sigma;
 
     double default_threshold = 0.0;
+    double default_quantum = 0.0;
 
+    double quantum;
     double threshold;
     double value;
     double if_value;
@@ -3377,6 +3393,7 @@ struct cross
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         threshold = default_threshold;
+        quantum = default_quantum;
         value = threshold - 1.0;
         if_value = 0.0;
         else_value = 0.0;
@@ -3418,6 +3435,7 @@ struct cross
                                    status::model_cross_bad_external_message);
 
                 if_value = msg.to_real_64(0);
+
                 have_message = true;
             }
         }
@@ -3437,6 +3455,7 @@ struct cross
 
         if (value != before_value) {
             else_value = value >= threshold ? if_value : else_value;
+	        else_value -= quantum;
         }
 
         result = else_value;
@@ -3577,6 +3596,7 @@ struct integrator
 
             reset_value = msg.to_real_64(0);
             reset = true;
+
         }
 
         if (st == state::running) {
@@ -3690,7 +3710,7 @@ struct integrator
     double compute_current_value(time t) const noexcept
     {
         if (archive.empty())
-            return last_output_value;
+            return reset ? reset_value : last_output_value;
 
         auto val = reset ? reset_value : last_output_value;
         auto end = archive.end();
