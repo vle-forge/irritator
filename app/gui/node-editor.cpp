@@ -733,7 +733,9 @@ struct editor
                     show_load_file_dialog = true;
 
                 if (!path.empty() && ImGui::MenuItem("Save")) {
-                    log_w.log(3, "Write into file %s\n", path.string().c_str());
+                    log_w.log(3,
+                              "Write into file %s\n",
+                              (const char*)path.u8string().c_str());
                     if (auto os = std::ofstream(path); os.is_open()) {
                         writer w(os);
                         auto ret = w(sim);
@@ -782,15 +784,15 @@ struct editor
         }
 
         if (show_load_file_dialog) {
-            static std::string out;
-
             auto size = ImGui::GetContentRegionMax();
             ImGui::SetNextWindowSize(ImVec2(size.x * 0.7f, size.y * 0.7f));
             ImGui::OpenPopup("Select file path to load");
 
             if (load_file_dialog(path)) {
                 show_load_file_dialog = false;
-                log_w.log(5, "Load file from %s\n", path.string().c_str());
+                log_w.log(5,
+                          "Load file from %s\n",
+                          (const char*)path.u8string().c_str());
                 if (auto is = std::ifstream(path); is.is_open()) {
                     reader r(is);
                     auto ret = r(sim);
@@ -803,24 +805,28 @@ struct editor
         }
 
         if (show_save_file_dialog) {
-            static std::string out;
+            if (sim.models.size()) {
+                ImGui::OpenPopup("Select file path to save");
 
-            ImGui::OpenPopup("Select file path to save");
+                auto size = ImGui::GetContentRegionMax();
+                ImGui::SetNextWindowSize(ImVec2(size.x * 0.7f, size.y * 0.7f));
+                if (save_file_dialog(path)) {
+                    show_save_file_dialog = false;
+                    log_w.log(5,
+                              "Save file to %s\n",
+                              (const char*)path.u8string().c_str());
 
-            auto size = ImGui::GetContentRegionMax();
-            ImGui::SetNextWindowSize(ImVec2(size.x * 0.7f, size.y * 0.7f));
-            if (save_file_dialog(path)) {
-                show_save_file_dialog = false;
-                log_w.log(5, "Save file to %s\n", path.string().c_str());
-
-                log_w.log(3, "Write into file %s\n", path.string().c_str());
-                if (auto os = std::ofstream(path); os.is_open()) {
-                    writer w(os);
-                    auto ret = w(sim);
-                    if (is_success(ret))
-                        log_w.log(5, "success\n");
-                    else
-                        log_w.log(4, "error writing\n");
+                    log_w.log(3,
+                              "Write into file %s\n",
+                              (const char*)path.u8string().c_str());
+                    if (auto os = std::ofstream(path); os.is_open()) {
+                        writer w(os);
+                        auto ret = w(sim);
+                        if (is_success(ret))
+                            log_w.log(5, "success\n");
+                        else
+                            log_w.log(4, "error writing\n");
+                    }
                 }
             }
         }

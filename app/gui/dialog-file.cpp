@@ -22,8 +22,8 @@ struct file_dialog
     std::vector<std::filesystem::path> paths;
     std::filesystem::path current;
     std::filesystem::path selected;
-    std::string temp;
-    char buffer[128];
+    std::u8string temp;
+    char8_t buffer[MAX_PATH];
 
     bool is_open = true;
 
@@ -52,17 +52,17 @@ struct file_dialog
     {}
 #endif
 
-    const char** file_filters;
-    const char** extension_filters;
+    const char8_t** file_filters;
+    const char8_t** extension_filters;
 
     bool have_good_file_name_starts(const std::filesystem::path& p)
     {
         if (file_filters == nullptr)
             return true;
 
-        const char** filters = file_filters;
+        const char8_t** filters = file_filters;
         while (*filters) {
-            if (p.string().find(*filters) == 0)
+            if (p.u8string().find(*filters) == 0)
                 return true;
 
             ++filters;
@@ -76,9 +76,9 @@ struct file_dialog
         if (extension_filters == nullptr)
             return true;
 
-        const char** filters = extension_filters;
+        const char8_t** filters = extension_filters;
         while (*filters) {
-            if (p.extension().string() == *filters)
+            if (p.extension().u8string() == *filters)
                 return true;
 
             ++filters;
@@ -89,9 +89,10 @@ struct file_dialog
 
     void copy_files_and_directories(const std::filesystem::path& current_path)
     {
-        for (std::filesystem::directory_iterator it(current_path), et; it != et;
+        std::error_code err;
+        for (std::filesystem::directory_iterator it(current_path, err), et;
+             !err && it != et;
              ++it) {
-            std::error_code err;
 
             if (it->is_directory(err) && !err) {
                 paths.emplace_back(*it);
@@ -176,7 +177,7 @@ struct file_dialog
             if (it != current.begin())
                 ImGui::SameLine();
 
-            if (ImGui::Button(it->string().c_str())) {
+            if (ImGui::Button((const char*)it->u8string().c_str())) {
                 next->clear();
                 for (auto jt = current.begin(); jt != it; ++jt)
                     *next /= jt->native();
@@ -230,14 +231,13 @@ load_file_dialog(std::filesystem::path& out)
             for (auto it = fd.paths.begin(), et = fd.paths.end(); it != et;
                  ++it) {
                 fd.temp.clear();
-                if (std::filesystem::is_directory(*it))
-                    fmt::format_to(std::back_inserter(fd.temp),
-                                   "[Dir] {}",
-                                   it->filename().string());
-                else
-                    fd.temp = it->filename().string();
+                if (std::filesystem::is_directory(*it)) {
+                    fd.temp = u8"[Dir] ";
+                    fd.temp += it->filename().u8string();
+                } else
+                    fd.temp = it->filename().u8string();
 
-                if (ImGui::Selectable(fd.temp.c_str(),
+                if (ImGui::Selectable((const char*)fd.temp.c_str(),
                                       (it->filename() == fd.selected))) {
                     fd.selected = it->filename();
 
@@ -258,7 +258,7 @@ load_file_dialog(std::filesystem::path& out)
 
         if (path_click) {
             fd.paths.clear();
-            static const char* filters[] = { ".irt", nullptr };
+            static const char8_t* filters[] = { u8".irt", nullptr };
             fd.extension_filters = filters;
             fd.file_filters = nullptr;
 
@@ -267,7 +267,8 @@ load_file_dialog(std::filesystem::path& out)
             fd.current = next;
         }
 
-        ImGui::Text("File Name: %s", fd.selected.string().c_str());
+        ImGui::Text("File Name: %s",
+                    (const char*)fd.selected.u8string().c_str());
 
         float width = ImGui::GetContentRegionAvailWidth();
         ImGui::PushItemWidth(width);
@@ -307,7 +308,13 @@ save_file_dialog(std::filesystem::path& out)
         fd.selected.clear();
         std::error_code error;
         fd.current = std::filesystem::current_path(error);
-        std::strcpy(fd.buffer, "file-name.irt");
+
+        static const std::u8string default_file_name = u8"file-name.irt";
+        const size_t max_size =
+          std::min(std::size(default_file_name), std::size(fd.buffer) - 1);
+
+        std::copy_n(std::begin(default_file_name), max_size, fd.buffer);
+        fd.buffer[max_size] = u8'\0';
     }
 
     std::filesystem::path next;
@@ -338,13 +345,11 @@ save_file_dialog(std::filesystem::path& out)
                  ++it) {
                 fd.temp.clear();
                 if (std::filesystem::is_directory(*it))
-                    fmt::format_to(std::back_inserter(fd.temp),
-                                   "[Dir] {}",
-                                   it->filename().string());
-                else
-                    fd.temp = it->filename().string();
+                    fd.temp = u8"[Dir] ";
 
-                if (ImGui::Selectable(fd.temp.c_str(),
+                fd.temp = it->filename().u8string();
+
+                if (ImGui::Selectable((const char*)fd.temp.c_str(),
                                       (it->filename() == fd.selected))) {
                     fd.selected = it->filename();
 
@@ -358,9 +363,14 @@ save_file_dialog(std::filesystem::path& out)
                     }
 
                     if (std::filesystem::is_regular_file(*it)) {
-                        strncpy(fd.buffer,
-                                it->filename().string().c_str(),
-                                IM_ARRAYSIZE(fd.buffer));
+                        const size_t max_size =
+                          std::min(std::size(it->filename().u8string()),
+                                   std::size(fd.buffer) - 1);
+
+                        std::copy_n(std::begin(it->filename().u8string()),
+                                    max_size,
+                                    fd.buffer);
+                        fd.buffer[max_size] = u8'\0';
                     }
 
                     break;
@@ -372,7 +382,7 @@ save_file_dialog(std::filesystem::path& out)
 
         if (path_click) {
             fd.paths.clear();
-            static const char* filters[] = { ".irt", nullptr };
+            static const char8_t* filters[] = { u8".irt", nullptr };
             fd.extension_filters = filters;
             fd.file_filters = nullptr;
 
@@ -381,8 +391,9 @@ save_file_dialog(std::filesystem::path& out)
             fd.current = next;
         }
 
-        ImGui::InputText("File Name", fd.buffer, IM_ARRAYSIZE(fd.buffer));
-        ImGui::Text("Directory name: %s", fd.current.string().c_str());
+        ImGui::InputText(
+          "File Name", (char*)fd.buffer, IM_ARRAYSIZE(fd.buffer));
+        ImGui::Text("Directory name: %s", fd.current.u8string().c_str());
 
         float width = ImGui::GetContentRegionAvailWidth();
         ImGui::PushItemWidth(width);
