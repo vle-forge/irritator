@@ -23,7 +23,7 @@ struct file_dialog
     std::filesystem::path current;
     std::filesystem::path selected;
     std::u8string temp;
-    char8_t buffer[MAX_PATH];
+    char8_t buffer[512];
 
     bool is_open = true;
 
@@ -393,7 +393,7 @@ save_file_dialog(std::filesystem::path& out)
 
         ImGui::InputText(
           "File Name", (char*)fd.buffer, IM_ARRAYSIZE(fd.buffer));
-        ImGui::Text("Directory name: %s", fd.current.u8string().c_str());
+        ImGui::Text("Directory name: %s", (const char*)fd.current.u8string().c_str());
 
         float width = ImGui::GetContentRegionAvailWidth();
         ImGui::PushItemWidth(width);
