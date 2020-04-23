@@ -122,4 +122,5 @@ endfunction()
 
 if (NOT BUILD_SHARED_LIBS)
   irritator_add_test(test-api test/public-api.cpp)
+  irritator_add_test(simulations test/simulations.cpp)
 endif ()

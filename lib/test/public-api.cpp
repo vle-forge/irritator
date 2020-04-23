@@ -69,7 +69,7 @@ main()
         expect(irt::is_detected_v<irt::lambda_function_t, irt::generator> ==
                true);
         expect(irt::is_detected_v<irt::transition_function_t, irt::generator> ==
-               false);
+               true);
         expect(irt::is_detected_v<irt::has_input_port_t, irt::generator> ==
                false);
         expect(irt::is_detected_v<irt::has_output_port_t, irt::generator> ==
@@ -1079,7 +1079,9 @@ main()
         constant3.default_value = I;
 
         cross.default_threshold = vt;
+        cross.default_quantum = 0.0;
         cross2.default_threshold = vt;
+        cross2.default_quantum = 0.0;
 
         integrator_a.default_current_value = 0.0;
 
@@ -1220,3 +1222,4 @@ main()
         } while (t < 120);
     };
 }
+
