@@ -6,6 +6,7 @@
 #include "imnodes.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <future>
 #include <mutex>
 #include <string>
@@ -733,12 +734,14 @@ struct editor
 
                 if (!path.empty() && ImGui::MenuItem("Save")) {
                     log_w.log(3, "Write into file %s\n", path.string().c_str());
-                    writer w(std::fopen(path.string().c_str(), "w"));
-                    auto ret = w(sim);
-                    if (is_success(ret))
-                        log_w.log(5, "success\n");
-                    else
-                        log_w.log(4, "error writing\n");
+                    if (auto os = std::ofstream(path); os.is_open()) {
+                        writer w(os);
+                        auto ret = w(sim);
+                        if (is_success(ret))
+                            log_w.log(5, "success\n");
+                        else
+                            log_w.log(4, "error writing\n");
+                    }
                 }
 
                 if (ImGui::MenuItem("Save as..."))
@@ -788,12 +791,14 @@ struct editor
             if (load_file_dialog(path)) {
                 show_load_file_dialog = false;
                 log_w.log(5, "Load file from %s\n", path.string().c_str());
-                reader r(std::fopen(path.string().c_str(), "r"));
-                auto ret = r(sim);
-                if (is_success(ret))
-                    log_w.log(5, "success\n");
-                else
-                    log_w.log(4, "error writing\n");
+                if (auto is = std::ifstream(path); is.is_open()) {
+                    reader r(is);
+                    auto ret = r(sim);
+                    if (is_success(ret))
+                        log_w.log(5, "success\n");
+                    else
+                        log_w.log(4, "error writing\n");
+                }
             }
         }
 
@@ -809,12 +814,14 @@ struct editor
                 log_w.log(5, "Save file to %s\n", path.string().c_str());
 
                 log_w.log(3, "Write into file %s\n", path.string().c_str());
-                writer w(std::fopen(path.string().c_str(), "w"));
-                auto ret = w(sim);
-                if (is_success(ret))
-                    log_w.log(5, "success\n");
-                else
-                    log_w.log(4, "error writing\n");
+                if (auto os = std::ofstream(path); os.is_open()) {
+                    writer w(os);
+                    auto ret = w(sim);
+                    if (is_success(ret))
+                        log_w.log(5, "success\n");
+                    else
+                        log_w.log(4, "error writing\n");
+                }
             }
         }
 

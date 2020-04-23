@@ -9,7 +9,7 @@
 
 #include <fmt/format.h>
 
-#include <cstdio>
+#include <iostream>
 
 struct file_output
 {
@@ -859,8 +859,7 @@ main()
         expect(sim.models.can_alloc(2));
         expect(
           irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen))));
-        expect(
-          irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
+        expect(irt::is_success(sim.alloc(cnt, sim.counter_models.get_id(cnt))));
 
         expect(sim.connect(gen.y[0], cnt.x[0]) == irt::status::success);
 
@@ -1013,7 +1012,7 @@ main()
         expect(sim.connect(integrator_b.y[0], quantifier_b.x[0]) ==
                irt::status::success);
 
-        irt::dot_writer dw(stdout);
+        irt::dot_writer dw(std::cout);
         dw(sim);
 
         file_output fo_a("lotka-volterra_a.csv");
@@ -1193,7 +1192,7 @@ main()
                irt::status::success);
         expect(sim.connect(constant.y[0], sum_d.x[1]) == irt::status::success);
 
-        irt::dot_writer dw(stdout);
+        irt::dot_writer dw(std::cout);
         dw(sim);
 
         file_output fo_a("izhikevitch_a.csv");
