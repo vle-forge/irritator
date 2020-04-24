@@ -1017,17 +1017,24 @@ main()
 
         file_output fo_a("lotka-volterra_a.csv");
         file_output fo_b("lotka-volterra_b.csv");
-        auto& obs_a = sim.observers.alloc(0.01, "A", static_cast<void*>(&fo_a));
-        auto& obs_b = sim.observers.alloc(0.01, "B", static_cast<void*>(&fo_b));
-        obs_a.initialize = &file_output_initialize;
-        obs_a.observe = &file_output_observe;
-        obs_b.initialize = &file_output_initialize;
-        obs_b.observe = &file_output_observe;
-
-        sim.models.get(integrator_a.id).obs_id = sim.observers.get_id(obs_a);
-        sim.models.get(integrator_b.id).obs_id = sim.observers.get_id(obs_b);
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
+
+        auto& obs_a = sim.observers.alloc(0.01,
+                                          "A",
+                                          static_cast<void*>(&fo_a),
+                                          file_output_initialize,
+                                          &file_output_observe,
+                                          nullptr);
+        auto& obs_b = sim.observers.alloc(0.01,
+                                          "B",
+                                          static_cast<void*>(&fo_b),
+                                          file_output_initialize,
+                                          &file_output_observe,
+                                          nullptr);
+
+        sim.observe(sim.models.get(integrator_a.id), obs_a);
+        sim.observe(sim.models.get(integrator_b.id), obs_b);
 
         irt::time t = 0.0;
 
@@ -1196,18 +1203,26 @@ main()
         dw(sim);
 
         file_output fo_a("izhikevitch_a.csv");
-        file_output fo_b("izhikevitch_b.csv");
-        auto& obs_a = sim.observers.alloc(0.01, "A", static_cast<void*>(&fo_a));
-        auto& obs_b = sim.observers.alloc(0.01, "B", static_cast<void*>(&fo_b));
-        obs_a.initialize = &file_output_initialize;
-        obs_a.observe = &file_output_observe;
-        obs_b.initialize = &file_output_initialize;
-        obs_b.observe = &file_output_observe;
-
-        sim.models.get(integrator_a.id).obs_id = sim.observers.get_id(obs_a);
-        sim.models.get(integrator_b.id).obs_id = sim.observers.get_id(obs_b);
         expect(fo_a.os != nullptr);
+
+        auto& obs_a = sim.observers.alloc(0.01,
+                                          "A",
+                                          static_cast<void*>(&fo_a),
+                                          &file_output_initialize,
+                                          &file_output_observe,
+                                          nullptr);
+
+        file_output fo_b("izhikevitch_b.csv");
         expect(fo_b.os != nullptr);
+        auto& obs_b = sim.observers.alloc(0.01,
+                                          "B",
+                                          static_cast<void*>(&fo_b),
+                                          &file_output_initialize,
+                                          &file_output_observe,
+                                          nullptr);
+
+        sim.observe(sim.models.get(integrator_a.id), obs_a);
+        sim.observe(sim.models.get(integrator_b.id), obs_b);
 
         irt::time t = 0.0;
 

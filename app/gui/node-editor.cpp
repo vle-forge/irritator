@@ -30,18 +30,28 @@ enum class simulation_status
 
 struct observation_output
 {
+    enum class type
+    {
+        none,
+        plot,
+        file,
+        both
+    };
+
     observation_output() = default;
 
     observation_output(const char* name_)
       : name(name_)
     {}
 
+    std::ofstream ofs;
     const char* name = nullptr;
     array<float> data;
     double tl = 0.0;
     float min = -1.f;
     float max = +1.f;
     int id = 0;
+    type observation_type = type::none;
 };
 
 static void
@@ -52,11 +62,26 @@ observation_output_initialize(const irt::observer& obs,
         return;
 
     auto* output = reinterpret_cast<observation_output*>(obs.user_data);
-    std::fill_n(output->data.data(), output->data.size(), 0.0f);
-    output->tl = t;
-    output->min = -1.f;
-    output->max = +1.f;
-    output->id = 0;
+    if (output->observation_type == observation_output::type::plot ||
+        output->observation_type == observation_output::type::both) {
+        std::fill_n(output->data.data(), output->data.size(), 0.0f);
+        output->tl = t;
+        output->min = -1.f;
+        output->max = +1.f;
+        output->id = 0;
+    }
+
+    if (output->observation_type == observation_output::type::file ||
+        output->observation_type == observation_output::type::both) {
+
+        if (!output->ofs.is_open()) {
+            if (output->observation_type == observation_output::type::both)
+                output->observation_type = observation_output::type::plot;
+            else
+                output->observation_type = observation_output::type::none;
+        } else
+            output->ofs << "t," << output->name << '\n';
+    }
 }
 
 static void
@@ -68,16 +93,38 @@ observation_output_observe(const irt::observer& obs,
         return;
 
     auto* output = reinterpret_cast<observation_output*>(obs.user_data);
+    const auto value = static_cast<float>(msg.to_real_64(0));
 
-    auto value = static_cast<float>(msg.to_real_64(0));
-    output->min = std::min(output->min, value);
-    output->max = std::max(output->max, value);
+    if (output->observation_type == observation_output::type::plot ||
+        output->observation_type == observation_output::type::both) {
+        output->min = std::min(output->min, value);
+        output->max = std::max(output->max, value);
 
-    for (double to_fill = output->tl; to_fill < t; to_fill += obs.time_step)
-        if (static_cast<size_t>(output->id) < output->data.size())
-            output->data[output->id++] = value;
+        for (double to_fill = output->tl; to_fill < t; to_fill += obs.time_step)
+            if (static_cast<size_t>(output->id) < output->data.size())
+                output->data[output->id++] = value;
+    }
+
+    if (output->observation_type == observation_output::type::file ||
+        output->observation_type == observation_output::type::both) {
+        output->ofs << t << ',' << value << '\n';
+    }
 
     output->tl = t;
+}
+
+static void
+observation_output_free(const irt::observer& obs, const irt::time t) noexcept
+{
+    if (!obs.user_data)
+        return;
+
+    auto* output = reinterpret_cast<observation_output*>(obs.user_data);
+
+    if (output->observation_type == observation_output::type::file ||
+        output->observation_type == observation_output::type::both) {
+        output->ofs.close();
+    }
 }
 
 static void
@@ -128,10 +175,14 @@ struct editor
     bool stop = false;
 
     vector<observation_output> observation_outputs;
+    array<observation_output::type> observation_types;
+    std::filesystem::path observation_directory;
 
     void clear()
     {
         observation_outputs.clear();
+        observation_types.clear();
+        observation_directory.clear();
 
         sim.clear();
     }
@@ -187,7 +238,8 @@ struct editor
     status initialize(u32 id) noexcept
     {
         if (is_bad(sim.init(1024u, 32768u)) ||
-            is_bad(observation_outputs.init(sim.models.capacity())))
+            is_bad(observation_outputs.init(sim.models.capacity())) ||
+            is_bad(observation_types.init(sim.models.capacity())))
             return status::gui_not_enough_memory;
 
         auto sz =
@@ -427,30 +479,48 @@ struct editor
 
     void show_model_dynamics(model& mdl)
     {
-        auto* obs = sim.observers.try_to_get(mdl.obs_id);
-        bool open = obs != nullptr;
-
         ImGui::PushItemWidth(100.0f);
-        if (ImGui::Checkbox("observation", &open)) {
-            if (open) {
-                if (auto* old = sim.observers.try_to_get(mdl.obs_id); old)
-                    sim.observers.free(*old);
 
-                auto& o = sim.observers.alloc(0.01, mdl.name.c_str(), nullptr);
-                mdl.obs_id = sim.observers.get_id(o);
-            } else {
-                if (auto* old = sim.observers.try_to_get(mdl.obs_id); old)
-                    sim.observers.free(*old);
+        {
+            const char* items[] = { "none", "plot", "file", "both" };
+            int current_item = 0; /* Default show none */
+            auto* obs = sim.observers.try_to_get(mdl.obs_id);
 
-                mdl.obs_id = static_cast<observer_id>(0);
+            if (obs)
+                current_item =
+                  static_cast<int>(observation_types[get_index(mdl.obs_id)]);
+
+            if (ImGui::Combo(
+                  "observation", &current_item, items, IM_ARRAYSIZE(items))) {
+                if (current_item == 0) {
+                    if (obs) {
+                        observation_types[get_index(mdl.obs_id)] =
+                          observation_output::type::none;
+                        sim.observers.free(*obs);
+                        mdl.obs_id = static_cast<observer_id>(0);
+                    }
+                } else {
+                    if (!obs) {
+                        auto& o =
+                          sim.observers.alloc(0.01, mdl.name.c_str(), nullptr);
+                        sim.observe(mdl, o);
+                    }
+
+                    observation_types[get_index(mdl.obs_id)] =
+                      current_item == 1
+                        ? observation_output::type::plot
+                        : current_item == 2 ? observation_output::type::file
+                                            : observation_output::type::both;
+                }
+
+                if (auto* o = sim.observers.try_to_get(mdl.obs_id); o) {
+                    float v = static_cast<float>(o->time_step);
+                    if (ImGui::InputFloat("freq.", &v, 0.001f, 0.1f, "%.3f", 0))
+                        o->time_step = static_cast<double>(v);
+                }
             }
         }
 
-        if (auto* o = sim.observers.try_to_get(mdl.obs_id); o) {
-            float v = static_cast<float>(o->time_step);
-            if (ImGui::InputFloat("freq.", &v, 0.001f, 0.1f, "%.3f", 0))
-                o->time_step = static_cast<double>(v);
-        }
         ImGui::PopItemWidth();
 
         switch (mdl.type) {
@@ -860,7 +930,8 @@ struct editor
             ImGui::OpenPopup("Context menu");
 
         if (ImGui::BeginPopup("Context menu")) {
-            // ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+            // ImVec2 click_pos =
+            // ImGui::GetMousePosOnOpeningCurrentPopup();
 
             if (ImGui::MenuItem("none")) {
                 if (sim.none_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
@@ -1086,10 +1157,11 @@ struct editor
 
         /*
         if (ImGui::IsKeyReleased(SDL_SCANCODE_A) &&
-            ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
-            const int node_id = ++editor.current_id;
-            imnodes::SetNodeScreenSpacePos(node_id, ImGui::GetMousePos());
-            editor.nodes.push_back(Node{ node_id, 0.f });
+            ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+        { const int node_id = ++editor.current_id;
+            imnodes::SetNodeScreenSpacePos(node_id,
+        ImGui::GetMousePos()); editor.nodes.push_back(Node{ node_id, 0.f
+        });
         }
         */
 
@@ -1178,17 +1250,41 @@ show_simulation_box(bool* show_simulation)
                 ed->observation_outputs.clear();
                 observer* obs = nullptr;
                 while (ed->sim.observers.next(obs)) {
-                    ed->observation_outputs.emplace_back(obs->name.c_str());
+                    auto* output =
+                      ed->observation_outputs.emplace_back(obs->name.c_str());
 
+                    const auto type = ed->observation_types[get_index(
+                      ed->sim.observers.get_id(*obs))];
                     const auto diff = ed->simulation_end - ed->simulation_begin;
                     const auto freq = diff / obs->time_step;
-                    const size_t lenght = static_cast<size_t>(freq);
+                    const auto length = static_cast<size_t>(freq);
+                    output->observation_type = type;
 
-                    ed->observation_outputs.back().data.init(lenght);
+                    if (type == observation_output::type::plot ||
+                        type == observation_output::type::both) {
+                        output->data.init(length);
+                    }
+
+                    if (!obs->name.empty()) {
+                        const std::filesystem::path obs_file_path =
+                          ed->observation_directory / obs->name.c_str();
+
+                        if (type == observation_output::type::file ||
+                            type == observation_output::type::both) {
+                            if (output->ofs.open(obs_file_path);
+                                !output->ofs.is_open())
+                                log_w.log(
+                                  4,
+                                  "Fail to open observation file: %s in %s\n",
+                                  obs->name.c_str(),
+                                  ed->observation_directory.u8string().c_str());
+                        }
+                    }
+
                     obs->initialize = &observation_output_initialize;
                     obs->observe = &observation_output_observe;
-                    obs->user_data =
-                      static_cast<void*>(&ed->observation_outputs.back());
+                    obs->free = &observation_output_free;
+                    obs->user_data = static_cast<void*>(output);
                 }
 
                 ed->st = simulation_status::running;
@@ -1218,15 +1314,22 @@ show_simulation_box(bool* show_simulation)
             const double fraction = elapsed / duration;
             ImGui::ProgressBar(static_cast<float>(fraction));
 
-            for (const auto& obs : ed->observation_outputs)
-                ImGui::PlotLines(obs.name,
-                                 obs.data.data(),
-                                 static_cast<int>(obs.data.size()),
-                                 0,
-                                 nullptr,
-                                 obs.min,
-                                 obs.max,
-                                 ImVec2(0.f, 50.f));
+            for (const auto& obs : ed->observation_outputs) {
+                if (obs.observation_type == observation_output::type::plot ||
+                    obs.observation_type == observation_output::type::both)
+                    ImGui::PlotLines(obs.name,
+                                     obs.data.data(),
+                                     static_cast<int>(obs.data.size()),
+                                     0,
+                                     nullptr,
+                                     obs.min,
+                                     obs.max,
+                                     ImVec2(0.f, 50.f));
+
+                if (obs.observation_type == observation_output::type::file ||
+                    obs.observation_type == observation_output::type::both)
+                    ImGui::Text("%s: output file", obs.name);
+            }
         }
     }
 

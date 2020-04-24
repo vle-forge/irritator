@@ -2875,15 +2875,34 @@ struct observer
 {
     observer() noexcept = default;
 
-    observer(const time time_step_, const char* name_, void* user_data_)
+    observer(const time time_step_,
+             const char* name_,
+             void* user_data_) noexcept
       : time_step(std::clamp(time_step_, 0.0, time_domain<time>::infinity))
       , name(name_)
       , user_data(user_data_)
     {}
 
+    observer(const time time_step_,
+             const char* name_,
+             void* user_data_,
+             void (*initialize_)(const observer& obs, const time t) noexcept,
+             void (*observe_)(const observer& obs,
+                              const time t,
+                              const message& msg) noexcept,
+             void (*free_)(const observer& obs, const time t) noexcept)
+      : time_step(std::clamp(time_step_, 0.0, time_domain<time>::infinity))
+      , name(name_)
+      , user_data(user_data_)
+      , initialize(initialize_)
+      , observe(observe_)
+      , free(free_)
+    {}
+
     double tl = 0.0;
     double time_step = 0.0;
     small_string<8> name;
+    model_id model = static_cast<model_id>(0);
 
     void* user_data = nullptr;
 
@@ -4711,6 +4730,12 @@ public:
         }
 
         return status::success;
+    }
+
+    void observe(model& mdl, observer& obs) noexcept
+    {
+        mdl.obs_id = observers.get_id(obs);
+        obs.model = models.get_id(mdl);
     }
 
     status deallocate(model_id id)
