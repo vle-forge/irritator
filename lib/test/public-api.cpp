@@ -1079,9 +1079,7 @@ main()
         constant3.default_value = I;
 
         cross.default_threshold = vt;
-        cross.default_quantum = 0.0;
         cross2.default_threshold = vt;
-        cross2.default_quantum = 0.0;
 
         integrator_a.default_current_value = 0.0;
 

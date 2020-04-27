@@ -112,6 +112,7 @@ struct synapse {
   irt::dynamics_id  cross_post;
 
   irt::dynamics_id  constant_syn;
+  irt::dynamics_id  accumulator_syn;
 };
 
 struct neuron 
@@ -229,14 +230,15 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   auto& cross_post = sim->cross_models.alloc();
 
   auto& const_syn = sim->constant_models.alloc();
+  auto& accumulator_syn = sim->accumulator_2_models.alloc();
+
 
   cross_pre.default_threshold = 1.0;
-  cross_pre.default_quantum = 1e-5;
   int_pre.default_current_value = 0.0;
   quant_pre.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quant_pre.default_zero_init_offset = true;
-  quant_pre.default_step_size = 1e-5;
+  quant_pre.default_step_size = 1e-6;
   quant_pre.default_past_length = 3;
   sum_pre.default_input_coeffs[0] = 1.0;
   sum_pre.default_input_coeffs[1] = dApre;
@@ -244,12 +246,11 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   mult_pre.default_input_coeffs[1] = 0.0;
 
   cross_post.default_threshold = 1.0;
-  cross_post.default_quantum = 1e-5;
   int_post.default_current_value = 0.0;
   quant_post.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quant_post.default_zero_init_offset = true;
-  quant_post.default_step_size = 1e-5;
+  quant_post.default_step_size = 1e-6;
   quant_post.default_past_length = 3;
   sum_post.default_input_coeffs[0] = 1.0;
   sum_post.default_input_coeffs[1] = dApost;
@@ -258,9 +259,10 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
 
   const_syn.default_value = 1.0;
 
+
   char intpre[7];char quapre[7];char addpre[7];char propre[7];char crosspre[7];
   char intpost[7];char quapost[7];char addpost[7];char propost[7];char crosspost[7];
-  char ctesyn[7];
+  char ctesyn[7];char accumsyn[7];
 
 
   snprintf(intpre, 7,"int%ld%ld-",source,target);snprintf(quapre, 7,"qua%ld%ld-",source,target);
@@ -269,7 +271,7 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   snprintf(intpost, 7,"int%ld%ld+",source,target);snprintf(quapost, 7,"qua%ld%ld+",source,target);snprintf(addpost, 7,"add%ld%ld+",source,target);
   snprintf(propost, 7,"pro%ld%ld+",source,target);snprintf(crosspost, 7,"cro%ld%ld+",source,target);
 
-  snprintf(ctesyn, 7,"cte%ld%ld",source,target);
+  snprintf(ctesyn, 7,"cte%ld%ld",source,target);snprintf(accumsyn, 7,"acc%ld%ld",source,target);
 
 
   !expect(irt::is_success(sim->alloc(int_pre, sim->integrator_models.get_id(int_pre), intpre)));
@@ -285,6 +287,7 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   !expect(irt::is_success(sim->alloc(cross_post, sim->cross_models.get_id(cross_post), crosspost)));
 
   !expect(irt::is_success(sim->alloc(const_syn, sim->constant_models.get_id(const_syn), ctesyn)));
+  !expect(irt::is_success(sim->alloc(accumulator_syn, sim->accumulator_2_models.get_id(accumulator_syn), accumsyn)));
 
   struct synapse synapse_model = {sim->adder_2_models.get_id(sum_pre),
                                   sim->adder_2_models.get_id(mult_pre),
@@ -298,7 +301,8 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
                                   sim->quantifier_models.get_id(quant_post),
                                   sim->cross_models.get_id(cross_post),  
 
-                                  sim->constant_models.get_id(const_syn),                                                                                                                                          
+                                  sim->constant_models.get_id(const_syn),   
+                                  sim->accumulator_2_models.get_id(accumulator_syn),                                                                                                                                             
                                   }; 
 
 
@@ -371,8 +375,21 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   expect(sim->connect(postsynaptic, 
                       cross_post.x[0]) ==
                         irt::status::success);
-  
 
+
+  expect(sim->connect(postsynaptic, 
+                      accumulator_syn.x[0]) ==
+                        irt::status::success);
+  expect(sim->connect(presynaptic, 
+                      accumulator_syn.x[1]) ==
+                        irt::status::success);
+  expect(sim->connect(int_post.y[0], 
+                      accumulator_syn.x[2]) ==
+                        irt::status::success);
+  expect(sim->connect(cross_pre.y[0], 
+                      accumulator_syn.x[3]) ==
+                        irt::status::success);
+  
   return synapse_model;
 } 
 
@@ -385,7 +402,7 @@ main()
     "song_1_simulation"_test = [] {
         irt::simulation sim;
         // Neuron constants
-        long unsigned int N = 4;
+        long unsigned int N = 2;
         double F = 15.0;
 
         double Eex = 0.0;
@@ -449,6 +466,8 @@ main()
                 + ",Apost" + std::to_string(i)
                 + ",";
         }
+        for (long unsigned int i = 0; i < N*N; i++)   
+        s =  s + "W" + std::to_string(i) + ",";
         fmt::print(os, s + "\n");
         expect(irt::status::success == sim.initialize(t));
 
@@ -460,11 +479,13 @@ main()
             std::string s = std::to_string(t)+",";
             for (long unsigned int i = 0; i < N*N; i++)
             {
-              s =  s + std::to_string(sim.integrator_models.get(synapses[i].integrator_pre).current_value)
+              s =  s + std::to_string(sim.integrator_models.get(synapses[i].integrator_pre).last_output_value)
                     + ","
-                    + std::to_string(sim.integrator_models.get(synapses[i].integrator_post).current_value)
+                    + std::to_string(sim.integrator_models.get(synapses[i].integrator_post).last_output_value)
                     + ",";
             }
+            for (long unsigned int i = 0; i < N*N; i++)   
+            s =  s + std::to_string(sim.accumulator_2_models.get(synapses[i].accumulator_syn).number) + ",";
             fmt::print(os, s + "\n");
 
         } while (t < 30);
