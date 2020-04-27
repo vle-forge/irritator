@@ -20,14 +20,6 @@ namespace irt {
 
 window_logger log_w;
 
-enum class simulation_status
-{
-    success,
-    running,
-    uninitialized,
-    internal_error,
-};
-
 struct observation_output
 {
     enum class type
@@ -137,16 +129,19 @@ run_simulation(simulation& sim,
 {
     current = begin;
     if (auto ret = sim.initialize(current); irt::is_bad(ret)) {
-        log_w.log(
-          3, "Simulation initialization failure (%d)\n", static_cast<int>(ret));
+        log_w.log(3,
+                  "Simulation initialization failure (%s)\n",
+                  irt::status_string[static_cast<int>(ret)]);
         st = simulation_status::internal_error;
         return;
     }
 
     do {
         if (auto ret = sim.run(current); irt::is_bad(ret)) {
-            log_w.log(
-              3, "Simulation run failure (%d)\n", static_cast<int>(ret));
+            log_w.log(3,
+                      "Simulation failure (%s)\n",
+                      irt::status_string[static_cast<int>(ret)]);
+
             st = simulation_status::internal_error;
             return;
         }
@@ -837,14 +832,19 @@ struct editor
 
             if (ImGui::BeginMenu("Examples")) {
                 if (ImGui::MenuItem("Insert Lotka Volterra model")) {
-                    if (is_bad(initialize_lotka_volterra()))
-                        log_w.log(3, "Fail to initialize a Lotka Volterra\n");
+                    if (auto ret = initialize_lotka_volterra(); is_bad(ret))
+                        log_w.log(
+                          3,
+                          "Fail to initialize a Lotka Volterra model (%s)\n",
+                          status_string[static_cast<int>(ret)]);
                 }
 
                 if (ImGui::MenuItem("Insert Izhikevitch model")) {
-                    if (is_bad(initialize_izhikevitch()))
-                        log_w.log(3,
-                                  "Fail to initialize an Izhikevitch model\n");
+                    if (auto ret = initialize_izhikevitch(); is_bad(ret))
+                        log_w.log(
+                          3,
+                          "Fail to initialize an Izhikevitch model (%s)\n",
+                          status_string[static_cast<int>(ret)]);
                 }
 
                 ImGui::EndMenu();
@@ -1184,8 +1184,9 @@ editors_new()
 
     auto& ed = editors.alloc();
     if (auto ret = ed.initialize(get_index(editors.get_id(ed))); is_bad(ret)) {
-        log_w.log(
-          2, "Fail to initialize irritator: %d\n", static_cast<int>(ret));
+        log_w.log(2,
+                  "Fail to initialize irritator: %s\n",
+                  status_string[static_cast<int>(ret)]);
         editors.free(ed);
         return nullptr;
     }
@@ -1340,8 +1341,9 @@ void
 node_editor_initialize()
 {
     if (auto ret = editors.init(50u); is_bad(ret)) {
-        log_w.log(
-          2, "Fail to initialize irritator: %d\n", static_cast<int>(ret));
+        log_w.log(2,
+                  "Fail to initialize irritator: %s\n",
+                  irt::status_string[static_cast<int>(ret)]);
     } else {
         if (auto* ed = editors_new(); ed)
             ed->context = imnodes::EditorContextCreate();
