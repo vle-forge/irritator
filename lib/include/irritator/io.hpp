@@ -279,9 +279,11 @@ private:
         return true;
     }
 
-    bool read(generator& /*dyn*/) noexcept
+    bool read(generator& dyn) noexcept
     {
-        return true;
+        return !!(is >> dyn.default_value >> dyn.default_period >>
+                  dyn.default_offset);;
+
     }
 
     bool read(constant& dyn) noexcept
@@ -292,6 +294,11 @@ private:
     bool read(cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
+    }
+
+    bool read(accumulator_2& /*dyn*/) noexcept
+    {
+        return true;
     }
 
     bool read(time_func& dyn) noexcept
@@ -455,9 +462,10 @@ private:
         os << "counter\n";
     }
 
-    void write(const generator& /*dyn*/) noexcept
+    void write(const generator& dyn) noexcept
     {
-        os << "generator\n";
+        os << "generator"<< dyn.default_value << ' ' << dyn.default_period
+           << ' ' << dyn.default_offset << '\n';;
     }
 
     void write(const constant& dyn) noexcept
@@ -468,6 +476,11 @@ private:
     void write(const cross& dyn) noexcept
     {
         os << "cross " << dyn.default_threshold << '\n';
+    }
+
+    void write(const accumulator_2& /*dyn*/) noexcept
+    {
+        os << "accumulator_2\n";
     }
 
     void write(const time_func& dyn) noexcept
