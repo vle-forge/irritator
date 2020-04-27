@@ -3295,14 +3295,22 @@ struct generator
     model_id id;
     output_port_id y[1];
     time sigma;
+    double default_value = 0.0;
+    double default_period = 1.0;
+    double default_offset = 1.0;
     double value = 0.0;
     double period = 1.0;
     double offset = 1.0;
+    
     double counter;
 
     status initialize(
       data_array<message, message_id>& /*init_messages*/) noexcept
     {
+        value = default_value;
+        period = default_period;
+        offset = default_offset;
+
         sigma = offset;
 	    counter = value;
 
@@ -3779,7 +3787,7 @@ struct integrator
         if (archive.empty())
             return reset ? reset_value : last_output_value;
 
-        auto val = last_output_value;
+        auto val =  reset ? reset_value : last_output_value;
         auto end = archive.end();
         auto it = archive.begin();
         auto next = archive.begin();
@@ -3792,7 +3800,7 @@ struct integrator
 
         val += (t - archive.back().date) * archive.back().x_dot;
 
-        return reset ? reset_value : val;
+        return  up_threshold < val  ? reset_value : val;
     }
 
     double compute_expected_value() const noexcept
@@ -4318,6 +4326,8 @@ struct simulation
             return f(constant_models);
         case dynamics_type::cross:
             return f(cross_models);
+        case dynamics_type::accumulator_2:
+            return f(accumulator_2_models);
         case dynamics_type::time_func:
             return f(time_func_models);
         }
@@ -4355,6 +4365,8 @@ struct simulation
             return f(constant_models);
         case dynamics_type::cross:
             return f(cross_models);
+        case dynamics_type::accumulator_2:
+            return f(accumulator_2_models);
         case dynamics_type::time_func:
             return f(time_func_models);
         }
