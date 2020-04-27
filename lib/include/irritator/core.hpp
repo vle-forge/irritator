@@ -3749,7 +3749,7 @@ struct quantifier
         down
     };
 
-    double default_step_size = 0.0;
+    double default_step_size = 0.001;
     int default_past_length = 3;
     adapt_state default_adapt_state = adapt_state::possible;
     bool default_zero_init_offset = false;
