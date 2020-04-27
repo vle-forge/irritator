@@ -377,13 +377,13 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
                         irt::status::success);
 
 
-  expect(sim->connect(postsynaptic, 
+  expect(sim->connect(presynaptic, 
                       accumulator_syn.x[0]) ==
                         irt::status::success);
-  expect(sim->connect(presynaptic, 
+  expect(sim->connect(postsynaptic, 
                       accumulator_syn.x[1]) ==
                         irt::status::success);
-  expect(sim->connect(int_post.y[0], 
+  expect(sim->connect(cross_post.y[0], 
                       accumulator_syn.x[2]) ==
                         irt::status::success);
   expect(sim->connect(cross_pre.y[0], 
@@ -402,17 +402,17 @@ main()
     "song_1_simulation"_test = [] {
         irt::simulation sim;
         // Neuron constants
-        long unsigned int N = 2;
-        double F = 15.0;
+        long unsigned int N = 4;
+        /*double F = 15.0;
 
         double Eex = 0.0;
         double Ein = -70*0.001;
         double tauex = 5*0.001;
-        double tauin = tauex;
+        double tauin = tauex;*/
 
         // Synapse constants
 
-        double ginbar = 0.05;
+        //double ginbar = 0.05;
 
         expect(irt::is_success(sim.init(512lu, 8192lu)));
 
@@ -431,9 +431,9 @@ main()
         std::vector<irt::dynamics_id> generators;
         for (long unsigned int i = 0 ; i < N; i++) {
           auto& gen = sim.generator_models.alloc();
-          gen.value = 3.0;
-          gen.offset = i+1;
-          gen.period = 10.0;
+          gen.default_value = 3.0;
+          gen.default_offset = i+1;
+          gen.default_period = 10.0;
 
           char genstr[5];
           snprintf(genstr, 5,"gen%ld", i);
@@ -495,4 +495,5 @@ main()
 
    
 }
+
 
