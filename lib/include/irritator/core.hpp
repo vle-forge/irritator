@@ -3192,7 +3192,7 @@ struct accumulator
                     status::model_accumulator_bad_external_message);
                     irt_return_if_fail(msg.size() == 1,
                     status::model_accumulator_bad_external_message);
-                    numbers[i] = i%2 == 0 ? msg.to_real_64(0) - 0.0001575: msg.to_real_64(0) + 0.000150;
+                    numbers[i] = msg.to_real_64(0);
                 }
             }
         }
@@ -3205,7 +3205,7 @@ struct accumulator
                     status::model_accumulator_bad_external_message);
 
                     if(static_cast<bool>(msg.to_real_64(0))) {
-                        number = i%2 == 0 ?  number + numbers[i] + 0.000150 : number  + numbers[i] - 0.0001575;
+                        number += numbers[i];
                     }
                 }
             }
@@ -3282,8 +3282,6 @@ struct generator
     double value = 0.0;
     double period = 1.0;
     double offset = 1.0;
-    
-    double counter;
 
     status initialize(
       data_array<message, message_id>& /*init_messages*/) noexcept
@@ -3293,7 +3291,6 @@ struct generator
         offset = default_offset;
 
         sigma = offset;
-	    counter = value;
 
         return status::success;
     }
@@ -3303,7 +3300,6 @@ struct generator
                       time /*r*/) noexcept
     {
         sigma = period;
-	    counter++;
         return status::success;
     }
 
@@ -3311,7 +3307,7 @@ struct generator
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
         if (auto* port = output_ports.try_to_get(y[0]); port)
-            port->messages.emplace_front(counter);
+            port->messages.emplace_front(value);
 
         return status::success;
     }
@@ -3463,7 +3459,7 @@ struct cross
                       time /*r*/) noexcept
     {
         bool have_message = false;
-        double before_value = value;
+        bool have_message_value = false;
 
         if (auto* port = input_ports.try_to_get(x[port_value]); port) {
             for (const auto& msg : port->messages) {
@@ -3474,6 +3470,7 @@ struct cross
                                    status::model_cross_bad_external_message);
 
                 value = msg.to_real_64(0);
+                have_message_value = true;
 
                 have_message = true;
             }
@@ -3506,7 +3503,7 @@ struct cross
             }
         }
 
-        if (value != before_value) {
+        if (have_message_value) {
             else_value = value >= threshold ? if_value : else_value;
             event = value >= threshold ? 1.0 : 0.0;
         }
@@ -5221,3 +5218,4 @@ public:
 } // namespace irt
 
 #endif
+
