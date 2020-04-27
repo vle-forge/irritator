@@ -95,6 +95,10 @@ enum class status
 
     model_time_func_bad_init_message,
 
+    model_accumulator_empty_init_message,
+    model_accumulator_bad_init_message,
+    model_accumulator_bad_external_message,
+
     gui_not_enough_memory,
 
     io_file_format_error,
@@ -2854,7 +2858,8 @@ enum class dynamics_type : i8
     generator,
     constant,
     cross,
-    time_func
+    time_func,
+    accumulator_2
 };
 
 struct model
@@ -3175,6 +3180,64 @@ struct mult
     }
 };
 
+template<size_t PortNumber>
+struct accumulator
+{
+    model_id id;
+    input_port_id x[2*PortNumber];
+    time sigma;
+    double number;
+    double numbers[PortNumber];
+
+    status initialize(
+      data_array<message, message_id>& /*init_messages*/) noexcept
+    {
+        number = 0.0;
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            if (auto* port = input_ports.try_to_get(x[i+PortNumber]); port) {
+                for (const auto& msg : port->messages) {
+                    irt_return_if_fail(msg.type == value_type::real_64,
+                    status::model_accumulator_bad_external_message);
+                    irt_return_if_fail(msg.size() == 1,
+                    status::model_accumulator_bad_external_message);
+                    numbers[i] = i%2 == 0 ? msg.to_real_64(0) - 0.0001575: msg.to_real_64(0) + 0.000150;
+                }
+            }
+        }
+        for (size_t i = 0; i != PortNumber; ++i) {
+            if (auto* port = input_ports.try_to_get(x[i]); port) {
+                for (const auto& msg : port->messages) {
+                    irt_return_if_fail(msg.type == value_type::real_64,
+                    status::model_accumulator_bad_external_message);
+                    irt_return_if_fail(msg.size() == 1,
+                    status::model_accumulator_bad_external_message);
+
+                    if(static_cast<bool>(msg.to_real_64(0))) {
+                        number = i%2 == 0 ?  number + numbers[i] + 0.000150 : number  + numbers[i] - 0.0001575;
+                    }
+                }
+            }
+        }
+        return status::success;
+    }
+
+    status internal(time /*t*/) noexcept
+    {
+        return status::success;
+    }
+};
+
 using adder_2 = adder<2>;
 using adder_3 = adder<3>;
 using adder_4 = adder<4>;
@@ -3182,6 +3245,8 @@ using adder_4 = adder<4>;
 using mult_2 = mult<2>;
 using mult_3 = mult<3>;
 using mult_4 = mult<4>;
+
+using accumulator_2 = accumulator<2>;
 
 struct counter
 {
@@ -3239,7 +3304,7 @@ struct generator
       data_array<message, message_id>& /*init_messages*/) noexcept
     {
         sigma = offset;
-	counter = value;
+	    counter = value;
 
         return status::success;
     }
@@ -3249,7 +3314,7 @@ struct generator
                       time /*r*/) noexcept
     {
         sigma = period;
-	counter++;
+	    counter++;
         return status::success;
     }
 
@@ -3370,18 +3435,17 @@ struct cross
 {
     model_id id;
     input_port_id x[3];
-    output_port_id y[1];
+    output_port_id y[2];
     time sigma;
 
     double default_threshold = 0.0;
-    double default_quantum = 0.0;
 
-    double quantum;
     double threshold;
     double value;
     double if_value;
     double else_value;
     double result;
+    double event;
 
     enum port_name
     {
@@ -3393,11 +3457,11 @@ struct cross
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         threshold = default_threshold;
-        quantum = default_quantum;
         value = threshold - 1.0;
         if_value = 0.0;
         else_value = 0.0;
         result = 0.0;
+        event = 0.0;
 
         sigma = time_domain<time>::zero;
 
@@ -3455,7 +3519,7 @@ struct cross
 
         if (value != before_value) {
             else_value = value >= threshold ? if_value : else_value;
-	        else_value -= quantum;
+            event = value >= threshold ? 1.0 : 0.0;
         }
 
         result = else_value;
@@ -3470,6 +3534,9 @@ struct cross
     {
         if (auto* port = output_ports.try_to_get(y[0]); port)
             port->messages.emplace_front(result);
+        if (auto* port = output_ports.try_to_get(y[1]); port)
+            port->messages.emplace_front(event);
+
 
         return status::success;
     }
@@ -3712,7 +3779,7 @@ struct integrator
         if (archive.empty())
             return reset ? reset_value : last_output_value;
 
-        auto val = reset ? reset_value : last_output_value;
+        auto val = last_output_value;
         auto end = archive.end();
         auto it = archive.begin();
         auto next = archive.begin();
@@ -3725,7 +3792,7 @@ struct integrator
 
         val += (t - archive.back().date) * archive.back().x_dot;
 
-        return val;
+        return reset ? reset_value : val;
     }
 
     double compute_expected_value() const noexcept
@@ -4212,6 +4279,7 @@ struct simulation
     data_array<constant, dynamics_id> constant_models;
     data_array<cross, dynamics_id> cross_models;
     data_array<time_func, dynamics_id> time_func_models;
+    data_array<accumulator_2, dynamics_id> accumulator_2_models;
 
     data_array<observer, observer_id> observers;
 
@@ -4611,6 +4679,7 @@ public:
         irt_return_if_bad(constant_models.init(model_capacity));
         irt_return_if_bad(cross_models.init(model_capacity));
         irt_return_if_bad(time_func_models.init(model_capacity));
+        irt_return_if_bad(accumulator_2_models.init(model_capacity));
 
         irt_return_if_bad(observers.init(model_capacity));
 
@@ -4676,6 +4745,7 @@ public:
         constant_models.clear();
         cross_models.clear();
         time_func_models.clear();
+        accumulator_2_models.clear();
 
         observers.clear();
 
@@ -4726,6 +4796,8 @@ public:
             mdl.type = dynamics_type::constant;
         else if constexpr (std::is_same_v<Dynamics, cross>)
             mdl.type = dynamics_type::cross;
+        else if constexpr (std::is_same_v<Dynamics, accumulator_2>)
+            mdl.type = dynamics_type::accumulator_2;
         else
             mdl.type = dynamics_type::time_func;
 
@@ -4820,6 +4892,10 @@ public:
         case dynamics_type::time_func:
             do_deallocate(time_func_models.get(mdl->id));
             time_func_models.free(mdl->id);
+            break;
+        case dynamics_type::accumulator_2:
+            do_deallocate(accumulator_2_models.get(mdl->id));
+            accumulator_2_models.free(mdl->id);
             break;
         default:
             irt_bad_return(status::unknown_dynamics);
@@ -5043,6 +5119,8 @@ public:
             return make_initialize(mdl, cross_models.get(mdl.id), t);
         case dynamics_type::time_func:
             return make_initialize(mdl, time_func_models.get(mdl.id), t);
+        case dynamics_type::accumulator_2:
+            return make_initialize(mdl, accumulator_2_models.get(mdl.id), t);
         }
 
         irt_bad_return(status::unknown_dynamics);
@@ -5145,6 +5223,8 @@ public:
             return make_transition(mdl, cross_models.get(mdl.id), t, o);
         case dynamics_type::time_func:
             return make_transition(mdl, time_func_models.get(mdl.id), t, o);
+        case dynamics_type::accumulator_2:
+            return make_transition(mdl, accumulator_2_models.get(mdl.id), t, o);
         }
 
         irt_bad_return(status::unknown_dynamics);
