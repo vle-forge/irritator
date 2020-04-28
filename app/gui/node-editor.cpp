@@ -718,6 +718,13 @@ struct editor
         } break;
         case dynamics_type::generator: {
             auto& dyn = sim.generator_models.get(mdl.id);
+
+            ImGui::PushItemWidth(120.0f);
+            ImGui::InputDouble("value", &dyn.default_value);
+            ImGui::InputDouble("period", &dyn.default_period);
+            ImGui::InputDouble("offset", &dyn.default_offset);
+            ImGui::PopItemWidth();
+
             imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
             ImGui::TextUnformatted("prod");
             imnodes::EndAttribute();
@@ -755,6 +762,21 @@ struct editor
             const float text_width = ImGui::CalcTextSize("out").x;
             ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
             ImGui::TextUnformatted("out");
+            imnodes::EndAttribute();
+        } break;
+        case dynamics_type::accumulator_2: {
+            auto& dyn = sim.accumulator_2_models.get(mdl.id);
+            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+            ImGui::TextUnformatted("number-1");
+            imnodes::EndAttribute();
+            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+            ImGui::TextUnformatted("number-2");
+            imnodes::EndAttribute();
+            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+            ImGui::TextUnformatted("acc-1");
+            imnodes::EndAttribute();
+            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
+            ImGui::TextUnformatted("acc-2");
             imnodes::EndAttribute();
         } break;
         case dynamics_type::time_func: {
@@ -1036,6 +1058,14 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.cross_models.alloc();
                     sim.alloc(mdl, sim.cross_models.get_id(mdl), "cross");
+                }
+            }
+
+            if (ImGui::MenuItem("accumulator-2")) {
+                if (sim.accumulator_2_models.can_alloc(1u) &&
+                    sim.models.can_alloc(1u)) {
+                    auto& mdl = sim.accumulator_2_models.alloc();
+                    sim.alloc(mdl, sim.accumulator_2_models.get_id(mdl), "acc-2");
                 }
             }
 

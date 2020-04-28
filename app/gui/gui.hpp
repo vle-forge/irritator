@@ -105,6 +105,7 @@ static inline const char* status_string[] = {
     "model_quantifier_bad_external_message",
     "model_cross_bad_external_message",
     "model_time_func_bad_init_message",
+    "model_accumulator_bad_external_message",
     "gui_not_enough_memory",
     "io_file_format_error",
     "io_file_format_model_error",
