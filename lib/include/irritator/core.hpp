@@ -4844,6 +4844,12 @@ public:
         if (!mdl)
             return status::success;
 
+        if (auto* obs = observers.try_to_get(mdl->obs_id); obs) {
+            obs->model = static_cast<model_id>(0);
+            mdl->obs_id = static_cast<observer_id>(0);
+            observers.free(*obs);
+        }
+
         switch (mdl->type) {
         case dynamics_type::none:
             do_deallocate(none_models.get(mdl->id));
