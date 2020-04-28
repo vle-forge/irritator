@@ -157,6 +157,11 @@ private:
             return true;
         }
 
+        if (dynamics_name == "accumulator_2") {
+            *type = dynamics_type::accumulator_2;
+            return true;
+        }
+
         if (dynamics_name == "time_func") {
             *type = dynamics_type::time_func;
             return true;
@@ -282,8 +287,7 @@ private:
     bool read(generator& dyn) noexcept
     {
         return !!(is >> dyn.default_value >> dyn.default_period >>
-                  dyn.default_offset);;
-
+                  dyn.default_offset);
     }
 
     bool read(constant& dyn) noexcept
@@ -464,8 +468,9 @@ private:
 
     void write(const generator& dyn) noexcept
     {
-        os << "generator"<< dyn.default_value << ' ' << dyn.default_period
-           << ' ' << dyn.default_offset << '\n';;
+        os << "generator " << dyn.default_value << ' ' << dyn.default_period
+           << ' ' << dyn.default_offset << '\n';
+        ;
     }
 
     void write(const constant& dyn) noexcept
@@ -576,4 +581,3 @@ public:
 } // namespace irt
 
 #endif
-
