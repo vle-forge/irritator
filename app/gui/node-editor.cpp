@@ -1380,11 +1380,13 @@ node_editor_initialize()
     }
 }
 
-void
+bool
 node_editor_show()
 {
     static bool show_log = true;
     static bool show_simulation = true;
+    static bool show_demo_window = false;
+    bool ret = true;
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
@@ -1392,17 +1394,27 @@ node_editor_show()
                 if (auto* ed = editors_new(); ed)
                     ed->context = imnodes::EditorContextCreate();
             }
+
+            ImGui::Separator();
+            if (ImGui::MenuItem("Quit"))
+                ret = false;
+
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Window")) {
-
             editor* ed = nullptr;
             while (editors.next(ed))
                 ImGui::MenuItem(ed->name.c_str(), nullptr, &ed->show);
 
             ImGui::MenuItem("Simulation", nullptr, &show_simulation);
             ImGui::MenuItem("Log", nullptr, &show_log);
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Help")) {
+            ImGui::MenuItem("Demo window", nullptr, &show_demo_window);
 
             ImGui::EndMenu();
         }
@@ -1426,6 +1438,11 @@ node_editor_show()
 
     if (show_simulation)
         show_simulation_box(&show_simulation);
+
+    if (show_demo_window)
+        ImGui::ShowDemoWindow();
+
+    return ret;
 }
 
 void

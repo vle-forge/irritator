@@ -23,7 +23,7 @@ enum class simulation_status
 void
 node_editor_initialize();
 
-void
+bool
 node_editor_show();
 
 void
