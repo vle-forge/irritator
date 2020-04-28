@@ -809,6 +809,7 @@ struct editor
         ImGuiWindowFlags windows_flags = 0;
         windows_flags |= ImGuiWindowFlags_MenuBar;
 
+        ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_Once);
         if (!ImGui::Begin(name.c_str(), &show, windows_flags)) {
             ImGui::End();
             return true;
@@ -1237,6 +1238,7 @@ show_simulation_box(bool* show_simulation)
 {
     static editor_id current_editor_id = static_cast<editor_id>(0);
 
+    ImGui::SetNextWindowSize(ImVec2(250, 400), ImGuiCond_Always);
     if (!ImGui::Begin("Simulation", show_simulation)) {
         ImGui::End();
         return;
