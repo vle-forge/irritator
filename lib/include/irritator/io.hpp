@@ -379,8 +379,8 @@ struct writer
                     assert(it_in != map.end());
 
                     os << std::distance(map.begin(), it_out) << ' ' << src_index
-                       << std::distance(map.begin(), it_in) << ' ' << dst_index
-                       << '\n';
+                       << ' ' << std::distance(map.begin(), it_in) << ' '
+                       << dst_index << '\n';
                 }
             }
         }
