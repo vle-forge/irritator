@@ -95,8 +95,6 @@ enum class status
 
     model_time_func_bad_init_message,
 
-    model_accumulator_empty_init_message,
-    model_accumulator_bad_init_message,
     model_accumulator_bad_external_message,
 
     gui_not_enough_memory,
@@ -3184,7 +3182,7 @@ template<size_t PortNumber>
 struct accumulator
 {
     model_id id;
-    input_port_id x[2*PortNumber];
+    input_port_id x[2 * PortNumber];
     time sigma;
     double number;
     double numbers[PortNumber];
@@ -3193,6 +3191,8 @@ struct accumulator
       data_array<message, message_id>& /*init_messages*/) noexcept
     {
         number = 0.0;
+        std::fill_n(numbers, PortNumber, 0.0);
+
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -3205,35 +3205,36 @@ struct accumulator
     {
 
         for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i+PortNumber]); port) {
+            if (auto* port = input_ports.try_to_get(x[i + PortNumber]); port) {
                 for (const auto& msg : port->messages) {
-                    irt_return_if_fail(msg.type == value_type::real_64,
-                    status::model_accumulator_bad_external_message);
-                    irt_return_if_fail(msg.size() == 1,
-                    status::model_accumulator_bad_external_message);
+                    irt_return_if_fail(
+                      msg.type == value_type::real_64,
+                      status::model_accumulator_bad_external_message);
+                    irt_return_if_fail(
+                      msg.size() == 1,
+                      status::model_accumulator_bad_external_message);
                     numbers[i] = msg.to_real_64(0);
                 }
             }
         }
+
         for (size_t i = 0; i != PortNumber; ++i) {
             if (auto* port = input_ports.try_to_get(x[i]); port) {
                 for (const auto& msg : port->messages) {
-                    irt_return_if_fail(msg.type == value_type::real_64,
-                    status::model_accumulator_bad_external_message);
-                    irt_return_if_fail(msg.size() == 1,
-                    status::model_accumulator_bad_external_message);
+                    irt_return_if_fail(
+                      msg.type == value_type::real_64,
+                      status::model_accumulator_bad_external_message);
+                    irt_return_if_fail(
+                      msg.size() == 1,
+                      status::model_accumulator_bad_external_message);
 
-                    if(static_cast<bool>(msg.to_real_64(0))) {
+                    if (msg.to_real_64(0) != 0.0) {
                         number += numbers[i];
                     }
                 }
             }
         }
-        return status::success;
-    }
 
-    status internal(time /*t*/) noexcept
-    {
         return status::success;
     }
 };
@@ -3542,7 +3543,6 @@ struct cross
         if (auto* port = output_ports.try_to_get(y[1]); port)
             port->messages.emplace_front(event);
 
-
         return status::success;
     }
 
@@ -3668,7 +3668,6 @@ struct integrator
 
             reset_value = msg.to_real_64(0);
             reset = true;
-
         }
 
         if (st == state::running) {
@@ -3784,7 +3783,7 @@ struct integrator
         if (archive.empty())
             return reset ? reset_value : last_output_value;
 
-        auto val =  reset ? reset_value : last_output_value;
+        auto val = reset ? reset_value : last_output_value;
         auto end = archive.end();
         auto it = archive.begin();
         auto next = archive.begin();
@@ -3797,7 +3796,7 @@ struct integrator
 
         val += (t - archive.back().date) * archive.back().x_dot;
 
-        return  up_threshold < val  ? reset_value : val;
+        return up_threshold < val ? reset_value : val;
     }
 
     double compute_expected_value() const noexcept
@@ -5243,4 +5242,3 @@ public:
 } // namespace irt
 
 #endif
-
