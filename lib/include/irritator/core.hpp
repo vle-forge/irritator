@@ -684,6 +684,28 @@ struct message
 
         return real_64[i];
     }
+
+    template<typename T>
+    constexpr double cast_to_real_64(T i) const
+    {
+        if constexpr (std::is_signed_v<T>)
+            assert(i >= 0);
+
+        switch (type) {
+        case value_type::integer_8:
+            return static_cast<double>(to_integer_8(i));
+        case value_type::integer_32:
+            return static_cast<double>(to_integer_32(i));
+        case value_type::integer_64:
+            return static_cast<double>(to_integer_64(i));
+        case value_type::real_32:
+            return static_cast<double>(to_real_32(i));
+        case value_type::real_64:
+            return static_cast<double>(to_real_64(i));
+        }
+
+        return 0.0;
+    }
 };
 
 /*****************************************************************************
@@ -3254,12 +3276,12 @@ struct counter
     model_id id;
     input_port_id x[1];
     time sigma;
-    long unsigned number;
+    i64 number;
 
     status initialize(
       data_array<message, message_id>& /*init_messages*/) noexcept
     {
-        number = 0ul;
+        number = { 0 };
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -3275,13 +3297,8 @@ struct counter
             diff += std::distance(std::begin(port->messages),
                                   std::end(port->messages));
 
-        number += static_cast<long unsigned>(diff);
+        number += static_cast<i64>(diff);
 
-        return status::success;
-    }
-
-    status internal(time /*t*/) noexcept
-    {
         return status::success;
     }
 
