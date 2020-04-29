@@ -3343,10 +3343,14 @@ struct generator
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        if (auto* port = output_ports.try_to_get(y[0]); port)
-            port->messages.emplace_front(value);
+        output_ports.get(y[0]).messages.emplace_front(value);
 
         return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value);
     }
 };
 
