@@ -80,7 +80,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     // Create window with graphics context
     GLFWwindow* window = glfwCreateWindow(
-      1280, 720, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+      1280, 720, "irritator", NULL, NULL);
     if (window == NULL)
         return 1;
     glfwMakeContextCurrent(window);
