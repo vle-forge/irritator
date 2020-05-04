@@ -5125,40 +5125,12 @@ public:
 
     status make_initialize(model& mdl, time t) noexcept
     {
-        switch (mdl.type) {
-        case dynamics_type::none:
-            return make_initialize(mdl, none_models.get(mdl.id), t);
-        case dynamics_type::integrator:
-            return make_initialize(mdl, integrator_models.get(mdl.id), t);
-        case dynamics_type::quantifier:
-            return make_initialize(mdl, quantifier_models.get(mdl.id), t);
-        case dynamics_type::adder_2:
-            return make_initialize(mdl, adder_2_models.get(mdl.id), t);
-        case dynamics_type::adder_3:
-            return make_initialize(mdl, adder_3_models.get(mdl.id), t);
-        case dynamics_type::adder_4:
-            return make_initialize(mdl, adder_4_models.get(mdl.id), t);
-        case dynamics_type::mult_2:
-            return make_initialize(mdl, mult_2_models.get(mdl.id), t);
-        case dynamics_type::mult_3:
-            return make_initialize(mdl, mult_3_models.get(mdl.id), t);
-        case dynamics_type::mult_4:
-            return make_initialize(mdl, mult_4_models.get(mdl.id), t);
-        case dynamics_type::counter:
-            return make_initialize(mdl, counter_models.get(mdl.id), t);
-        case dynamics_type::generator:
-            return make_initialize(mdl, generator_models.get(mdl.id), t);
-        case dynamics_type::constant:
-            return make_initialize(mdl, constant_models.get(mdl.id), t);
-        case dynamics_type::cross:
-            return make_initialize(mdl, cross_models.get(mdl.id), t);
-        case dynamics_type::time_func:
-            return make_initialize(mdl, time_func_models.get(mdl.id), t);
-        case dynamics_type::accumulator_2:
-            return make_initialize(mdl, accumulator_2_models.get(mdl.id), t);
-        }
-
-        irt_bad_return(status::unknown_dynamics);
+        return dispatch(
+          mdl.type,
+          [ this, &mdl,
+            t ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
+              return this->make_initialize(mdl, dyn_models.get(mdl.id), t);
+          });
     }
 
     template<typename Dynamics>
@@ -5222,47 +5194,12 @@ public:
                            time t,
                            flat_list<output_port_id>& o) noexcept
     {
-        // return dispatch(
-        //  mdl.type,
-        //  [ mdl, t, o ]<typename DynamicsModels>(DynamicsModels & dyn_models)
-        //  {
-        //      return make_transition(mdl, dyn_models.get(mdl.id), t, o);
-        //  });
-
-        switch (mdl.type) {
-        case dynamics_type::none:
-            return make_transition(mdl, none_models.get(mdl.id), t, o);
-        case dynamics_type::integrator:
-            return make_transition(mdl, integrator_models.get(mdl.id), t, o);
-        case dynamics_type::quantifier:
-            return make_transition(mdl, quantifier_models.get(mdl.id), t, o);
-        case dynamics_type::adder_2:
-            return make_transition(mdl, adder_2_models.get(mdl.id), t, o);
-        case dynamics_type::adder_3:
-            return make_transition(mdl, adder_3_models.get(mdl.id), t, o);
-        case dynamics_type::adder_4:
-            return make_transition(mdl, adder_4_models.get(mdl.id), t, o);
-        case dynamics_type::mult_2:
-            return make_transition(mdl, mult_2_models.get(mdl.id), t, o);
-        case dynamics_type::mult_3:
-            return make_transition(mdl, mult_3_models.get(mdl.id), t, o);
-        case dynamics_type::mult_4:
-            return make_transition(mdl, mult_4_models.get(mdl.id), t, o);
-        case dynamics_type::counter:
-            return make_transition(mdl, counter_models.get(mdl.id), t, o);
-        case dynamics_type::generator:
-            return make_transition(mdl, generator_models.get(mdl.id), t, o);
-        case dynamics_type::constant:
-            return make_transition(mdl, constant_models.get(mdl.id), t, o);
-        case dynamics_type::cross:
-            return make_transition(mdl, cross_models.get(mdl.id), t, o);
-        case dynamics_type::time_func:
-            return make_transition(mdl, time_func_models.get(mdl.id), t, o);
-        case dynamics_type::accumulator_2:
-            return make_transition(mdl, accumulator_2_models.get(mdl.id), t, o);
-        }
-
-        irt_bad_return(status::unknown_dynamics);
+        return dispatch(
+          mdl.type,
+          [ this, &mdl, t, &
+            o ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
+              return this->make_transition(mdl, dyn_models.get(mdl.id), t, o);
+          });
     }
 };
 
