@@ -1690,33 +1690,42 @@ public:
     vector(vector&&) noexcept = delete;
     vector& operator=(vector&&) noexcept = delete;
 
-    status init(std::size_t new_capacity) noexcept
+    status init(std::size_t new_capacity_) noexcept
     {
-        if (new_capacity > std::numeric_limits<unsigned>::max())
+        if (new_capacity_ > std::numeric_limits<unsigned>::max())
             return status::vector_init_capacity_too_big;
 
-        if (new_capacity == 0)
+        if (new_capacity_ == 0)
             return status::vector_init_capacity_zero;
 
-        if (new_capacity != m_capacity) {
-            if (m_items) {
-                if constexpr (!std::is_trivial_v<T>)
-                    for (auto i = 0u; i != m_size; ++i)
-                        m_items[i].~T();
+        clear();
 
-                if (m_items)
-                    std::free(m_items);
-            }
+        const auto new_capacity = static_cast<unsigned int>(new_capacity_);
+
+        if (new_capacity > m_capacity) {
+            if (m_items)
+                std::free(m_items);
 
             m_items = static_cast<value_type*>(
               std::malloc(new_capacity * sizeof(value_type)));
 
             if (m_items == nullptr)
                 return status::vector_init_not_enough_memory;
+
+            m_capacity = new_capacity;
         }
 
-        m_capacity = static_cast<unsigned>(new_capacity);
-        m_size = 0;
+        return status::success;
+    }
+
+    status resize(std::size_t new_capacity_) noexcept
+    {
+        static_assert(std::is_trivial_v<T>,
+                      "vector::resize only for trivial data");
+
+        irt_return_if_bad(init(new_capacity_));
+
+        m_size = m_capacity;
 
         return status::success;
     }
