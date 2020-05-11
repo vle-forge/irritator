@@ -178,6 +178,7 @@ struct editor
     std::future<std::tuple<std::string, status>> future_content;
     std::thread simulation_thread;
     simulation_status st = simulation_status::uninitialized;
+    bool simulation_show_value = false;
     bool stop = false;
 
     vector<observation_output> observation_outputs;
@@ -531,285 +532,581 @@ struct editor
 
         ImGui::PopItemWidth();
 
-        switch (mdl.type) {
-        case dynamics_type::none: /* none does not have input port. */
-            break;
-        case dynamics_type::integrator: {
-            auto& dyn = sim.integrator_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("quanta");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x_dot");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("reset");
-            imnodes::EndAttribute();
+        if (simulation_show_value &&
+            match(st, simulation_status::success, simulation_status::running)) {
+            switch (mdl.type) {
+            case dynamics_type::none: /* none does not have input port. */
+                break;
+            case dynamics_type::integrator: {
+                auto& dyn = sim.integrator_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("quanta");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x_dot");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("reset");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("value", &dyn.default_current_value);
-            ImGui::InputDouble("reset", &dyn.default_reset_value);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("value %.3f", dyn.current_value);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("x").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("quanta").x - text_width);
-            ImGui::TextUnformatted("x");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::quantifier: {
-            auto& dyn = sim.quantifier_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x_dot");
-            imnodes::EndAttribute();
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("x").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("quanta").x -
+                              text_width);
+                ImGui::TextUnformatted("x");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::quantifier: {
+                auto& dyn = sim.quantifier_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x_dot");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("quantum", &dyn.default_step_size);
-            ImGui::SliderInt(
-              "archive length", &dyn.default_past_length, 3, 100);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("up threshold %.3f", dyn.m_upthreshold);
+                ImGui::Text("down threshold %.3f", dyn.m_downthreshold);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            ImGui::TextUnformatted("quanta");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_2: {
-            auto& dyn = sim.adder_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                ImGui::TextUnformatted("quanta");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::adder_2: {
+                auto& dyn = sim.adder_2_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+                ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_3: {
-            auto& dyn = sim.adder_3_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("sum").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("sum");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::adder_3: {
+                auto& dyn = sim.adder_3_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("x2");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+                ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+                ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_4: {
-            auto& dyn = sim.adder_4_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("x3");
-            imnodes::EndAttribute();
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("sum").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("sum");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::adder_4: {
+                auto& dyn = sim.adder_4_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("x2");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[3]));
+                ImGui::TextUnformatted("x3");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[3]);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+                ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+                ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+                ImGui::Text("%.3f * %.3f", dyn.values[3], dyn.input_coeffs[3]);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_2: {
-            auto& dyn = sim.mult_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("sum").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("sum");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::mult_2: {
+                auto& dyn = sim.mult_2_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+                ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_3: {
-            auto& dyn = sim.mult_3_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("prod").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("prod");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::mult_3: {
+                auto& dyn = sim.mult_3_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("x2");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+                ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+                ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_4: {
-            auto& dyn = sim.mult_4_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("x3");
-            imnodes::EndAttribute();
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("prod").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("prod");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::mult_4: {
+                auto& dyn = sim.mult_4_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("x2");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[3]));
+                ImGui::TextUnformatted("x3");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-            ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+                ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+                ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+                ImGui::Text("%.3f * %.3f", dyn.values[3], dyn.input_coeffs[3]);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::counter: {
-            auto& dyn = sim.counter_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("in");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::generator: {
-            auto& dyn = sim.generator_models.get(mdl.id);
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("prod").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("prod");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::counter: {
+                auto& dyn = sim.counter_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("in");
+                imnodes::EndAttribute();
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("value", &dyn.default_value);
-            ImGui::InputDouble("period", &dyn.default_period);
-            ImGui::InputDouble("offset", &dyn.default_offset);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("number %ld", static_cast<long>(dyn.number));
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::constant: {
-            auto& dyn = sim.constant_models.get(mdl.id);
+            } break;
+            case dynamics_type::generator: {
+                auto& dyn = sim.generator_models.get(mdl.id);
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("value", &dyn.default_value);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("next %.3f", dyn.sigma);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::cross: {
-            auto& dyn = sim.cross_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("value");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("if_value");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("else");
-            imnodes::EndAttribute();
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                ImGui::TextUnformatted("prod");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::constant: {
+                auto& dyn = sim.constant_models.get(mdl.id);
 
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("threshold", &dyn.default_threshold);
-            ImGui::PopItemWidth();
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("value %.3f", dyn.value);
+                ImGui::PopItemWidth();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::accumulator_2: {
-            auto& dyn = sim.accumulator_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("number-1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("number-2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("acc-1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("acc-2");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::time_func: {
-            auto& dyn = sim.time_func_models.get(mdl.id);
-            const char* items[] = { "time", "square" };
-            ImGui::PushItemWidth(120.0f);
-            int item_current = dyn.default_f == &time_function ? 0 : 1;
-            if (ImGui::Combo(
-                  "function", &item_current, items, IM_ARRAYSIZE(items))) {
-                dyn.default_f =
-                  item_current == 0 ? &time_function : square_time_function;
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("out").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("value").x -
+                              text_width);
+                ImGui::TextUnformatted("out");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::cross: {
+                auto& dyn = sim.cross_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("value");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("if_value");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("else");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("value: %.3f", dyn.value);
+                ImGui::Text("if-value: %.3f", dyn.if_value);
+                ImGui::Text("else-value: %.3f", dyn.else_value);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("out").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("value").x -
+                              text_width);
+                ImGui::TextUnformatted("out");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::accumulator_2: {
+                auto& dyn = sim.accumulator_2_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("number-1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("number-2");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("acc-1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[3]));
+                ImGui::TextUnformatted("acc-2");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("number %.3f", dyn.number);
+                ImGui::Text("- 0: %.3f", dyn.numbers[0]);
+                ImGui::Text("- 1: %.3f", dyn.numbers[1]);
+                ImGui::PopItemWidth();
+            } break;
+            case dynamics_type::time_func: {
+                auto& dyn = sim.time_func_models.get(mdl.id);
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::Text("value %.3f", dyn.value);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("out").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("value").x -
+                              text_width);
+                ImGui::TextUnformatted("out");
+                imnodes::EndAttribute();
+            } break;
             }
-            ImGui::PopItemWidth();
+        } else {
+            switch (mdl.type) {
+            case dynamics_type::none: /* none does not have input port. */
+                break;
+            case dynamics_type::integrator: {
+                auto& dyn = sim.integrator_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("quanta");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x_dot");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("reset");
+                imnodes::EndAttribute();
 
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("value", &dyn.default_current_value);
+                ImGui::InputDouble("reset", &dyn.default_reset_value);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("x").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("quanta").x -
+                              text_width);
+                ImGui::TextUnformatted("x");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::quantifier: {
+                auto& dyn = sim.quantifier_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x_dot");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("quantum", &dyn.default_step_size);
+                ImGui::SliderInt(
+                  "archive length", &dyn.default_past_length, 3, 100);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                ImGui::TextUnformatted("quanta");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::adder_2: {
+                auto& dyn = sim.adder_2_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+                ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("sum").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("sum");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::adder_3: {
+                auto& dyn = sim.adder_3_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("x2");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+                ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+                ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("sum").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("sum");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::adder_4: {
+                auto& dyn = sim.adder_4_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("x2");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[3]));
+                ImGui::TextUnformatted("x3");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+                ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+                ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+                ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[3]);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("sum").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("sum");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::mult_2: {
+                auto& dyn = sim.mult_2_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+                ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("prod").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("prod");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::mult_3: {
+                auto& dyn = sim.mult_3_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("x2");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+                ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+                ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("prod").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("prod");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::mult_4: {
+                auto& dyn = sim.mult_4_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("x0");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("x1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("x2");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[3]));
+                ImGui::TextUnformatted("x3");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+                ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+                ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+                ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("prod").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
+                              text_width);
+                ImGui::TextUnformatted("prod");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::counter: {
+                auto& dyn = sim.counter_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("in");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::generator: {
+                auto& dyn = sim.generator_models.get(mdl.id);
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("value", &dyn.default_value);
+                ImGui::InputDouble("period", &dyn.default_period);
+                ImGui::InputDouble("offset", &dyn.default_offset);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                ImGui::TextUnformatted("prod");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::constant: {
+                auto& dyn = sim.constant_models.get(mdl.id);
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("value", &dyn.default_value);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("out").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("value").x -
+                              text_width);
+                ImGui::TextUnformatted("out");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::cross: {
+                auto& dyn = sim.cross_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("value");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("if_value");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("else");
+                imnodes::EndAttribute();
+
+                ImGui::PushItemWidth(120.0f);
+                ImGui::InputDouble("threshold", &dyn.default_threshold);
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("out").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("value").x -
+                              text_width);
+                ImGui::TextUnformatted("out");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::accumulator_2: {
+                auto& dyn = sim.accumulator_2_models.get(mdl.id);
+                imnodes::BeginInputAttribute(get_in(dyn.x[0]));
+                ImGui::TextUnformatted("number-1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[1]));
+                ImGui::TextUnformatted("number-2");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[2]));
+                ImGui::TextUnformatted("acc-1");
+                imnodes::EndAttribute();
+                imnodes::BeginInputAttribute(get_in(dyn.x[3]));
+                ImGui::TextUnformatted("acc-2");
+                imnodes::EndAttribute();
+            } break;
+            case dynamics_type::time_func: {
+                auto& dyn = sim.time_func_models.get(mdl.id);
+                const char* items[] = { "time", "square" };
+                ImGui::PushItemWidth(120.0f);
+                int item_current = dyn.default_f == &time_function ? 0 : 1;
+                if (ImGui::Combo(
+                      "function", &item_current, items, IM_ARRAYSIZE(items))) {
+                    dyn.default_f =
+                      item_current == 0 ? &time_function : square_time_function;
+                }
+                ImGui::PopItemWidth();
+
+                imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
+                const float text_width = ImGui::CalcTextSize("out").x;
+                ImGui::Indent(120.f + ImGui::CalcTextSize("value").x -
+                              text_width);
+                ImGui::TextUnformatted("out");
+                imnodes::EndAttribute();
+            } break;
+            }
         }
     }
 
@@ -1290,6 +1587,7 @@ show_simulation_box(bool* show_simulation)
     if (auto* ed = editors.try_to_get(current_editor_id); ed) {
         ImGui::InputDouble("Begin", &ed->simulation_begin);
         ImGui::InputDouble("End", &ed->simulation_end);
+        ImGui::Checkbox("Show values", &ed->simulation_show_value);
 
         if (ed->st != simulation_status::running) {
             if (ed->simulation_thread.joinable()) {
