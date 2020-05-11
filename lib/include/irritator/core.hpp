@@ -127,6 +127,13 @@ is_status_equal(status s, Args... args) noexcept
     return ((s == args) || ... || false);
 }
 
+template<typename T, typename... Args>
+constexpr bool
+match(const T &s, Args... args) noexcept
+{
+    return ((s == args) || ... || false);
+}
+
 #ifndef NDEBUG
 #if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
   __GNUC__ >= 2
