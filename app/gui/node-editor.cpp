@@ -20,6 +20,17 @@ namespace irt {
 
 window_logger log_w;
 
+template<typename Identifier>
+constexpr Identifier
+undefined() noexcept
+{
+    static_assert(
+      std::is_enum<Identifier>::value,
+      "Identifier must be a enumeration: enum class id : unsigned {};");
+
+    return static_cast<Identifier>(0);
+}
+
 struct observation_output
 {
     enum class type
@@ -196,7 +207,7 @@ struct editor
     {
         auto* mdl = sim.models.try_to_get(static_cast<u32>(index));
 
-        return mdl ? sim.models.get_id(mdl) : static_cast<model_id>(0);
+        return mdl ? sim.models.get_id(mdl) : undefined<model_id>();
     }
 
     int get_in(input_port_id id) const noexcept
@@ -955,13 +966,14 @@ struct editor
             ImGui::OpenPopup("Context menu");
 
         if (ImGui::BeginPopup("Context menu")) {
-            // ImVec2 click_pos =
-            // ImGui::GetMousePosOnOpeningCurrentPopup();
+            model_id new_model = undefined<model_id>();
+            ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
             if (ImGui::MenuItem("none")) {
                 if (sim.none_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
                     auto& mdl = sim.none_models.alloc();
                     sim.alloc(mdl, sim.none_models.get_id(mdl), "none");
+                    new_model = mdl.id;
                 }
             }
 
@@ -971,6 +983,7 @@ struct editor
                     auto& mdl = sim.integrator_models.alloc();
                     sim.alloc(
                       mdl, sim.integrator_models.get_id(mdl), "integrator");
+                    new_model = mdl.id;
                 }
             }
 
@@ -980,6 +993,7 @@ struct editor
                     auto& mdl = sim.quantifier_models.alloc();
                     sim.alloc(
                       mdl, sim.quantifier_models.get_id(mdl), "quantifier");
+                    new_model = mdl.id;
                 }
             }
 
@@ -988,6 +1002,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.adder_2_models.alloc();
                     sim.alloc(mdl, sim.adder_2_models.get_id(mdl), "adder");
+                    new_model = mdl.id;
                 }
             }
 
@@ -996,6 +1011,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.adder_3_models.alloc();
                     sim.alloc(mdl, sim.adder_3_models.get_id(mdl), "adder");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1004,6 +1020,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.adder_4_models.alloc();
                     sim.alloc(mdl, sim.adder_4_models.get_id(mdl), "adder");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1012,6 +1029,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.mult_2_models.alloc();
                     sim.alloc(mdl, sim.mult_2_models.get_id(mdl), "mult");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1020,6 +1038,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.mult_3_models.alloc();
                     sim.alloc(mdl, sim.mult_3_models.get_id(mdl), "mult");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1028,6 +1047,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.mult_4_models.alloc();
                     sim.alloc(mdl, sim.mult_4_models.get_id(mdl), "mult");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1036,6 +1056,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.counter_models.alloc();
                     sim.alloc(mdl, sim.counter_models.get_id(mdl), "counter");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1045,6 +1066,7 @@ struct editor
                     auto& mdl = sim.generator_models.alloc();
                     sim.alloc(
                       mdl, sim.generator_models.get_id(mdl), "generator");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1053,6 +1075,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.constant_models.alloc();
                     sim.alloc(mdl, sim.constant_models.get_id(mdl), "constant");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1061,6 +1084,7 @@ struct editor
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.cross_models.alloc();
                     sim.alloc(mdl, sim.cross_models.get_id(mdl), "cross");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1070,6 +1094,7 @@ struct editor
                     auto& mdl = sim.accumulator_2_models.alloc();
                     sim.alloc(
                       mdl, sim.accumulator_2_models.get_id(mdl), "acc-2");
+                    new_model = mdl.id;
                 }
             }
 
@@ -1079,11 +1104,13 @@ struct editor
                     auto& mdl = sim.time_func_models.alloc();
                     sim.alloc(
                       mdl, sim.time_func_models.get_id(mdl), "time-func");
+                    new_model = mdl.id;
                 }
             }
 
             ImGui::EndPopup();
-            // imnodes::SetNodeScreenSpacePos(new_node, click_pos);
+            if (new_model != undefined<model_id>())
+                imnodes::SetNodeScreenSpacePos(get_model(new_model), click_pos);
         }
 
         ImGui::PopStyleVar();
@@ -1104,16 +1131,18 @@ struct editor
 
         const int num_selected_links = imnodes::NumSelectedLinks();
         const int num_selected_nodes = imnodes::NumSelectedNodes();
-        static array<int> selected_nodes;
-        static array<int> selected_links;
+        static vector<int> selected_nodes;
+        static vector<int> selected_links;
+        static vector<model_id> sources;
+        static vector<model_id> destinations;
 
         if (num_selected_nodes > 0) {
-            selected_nodes.init(num_selected_nodes);
+            selected_nodes.resize(num_selected_nodes);
 
             if (ImGui::IsKeyReleased('X')) {
                 imnodes::GetSelectedNodes(selected_nodes.data());
 
-                log_w.log(7, "%d connections to delete\n", num_selected_nodes);
+                log_w.log(7, "%d model(s) to delete\n", num_selected_nodes);
 
                 for (const int node_id : selected_nodes) {
                     auto id = get_model(node_id);
@@ -1125,10 +1154,8 @@ struct editor
             } else if (ImGui::IsKeyReleased('D')) {
                 imnodes::GetSelectedNodes(selected_nodes.data());
 
-                array<model_id> sources;
-                array<model_id> destinations;
-                if (is_success(sources.init(num_selected_nodes)) &&
-                    is_success(destinations.init(num_selected_nodes))) {
+                if (is_success(sources.resize(num_selected_nodes)) &&
+                    is_success(destinations.resize(num_selected_nodes))) {
 
                     for (size_t i = 0; i != selected_nodes.size(); ++i)
                         sources[i] = get_model(selected_nodes[i]);
@@ -1138,8 +1165,10 @@ struct editor
                          std::end(sources),
                          std::begin(destinations));
             }
+
+            selected_nodes.clear();
         } else if (num_selected_links > 0) {
-            selected_links.init(static_cast<size_t>(num_selected_links));
+            selected_links.resize(static_cast<size_t>(num_selected_links));
 
             if (ImGui::IsKeyReleased('X')) {
                 std::fill_n(selected_links.data(), selected_links.size(), -1);
@@ -1155,7 +1184,8 @@ struct editor
                 int link_id_to_delete = selected_links[0];
                 int current_link_id = 0;
 
-                log_w.log(7, "%d connections to delete\n", num_selected_links);
+                log_w.log(
+                  7, "%d connection(s) to delete\n", num_selected_links);
 
                 output_port* o_port = nullptr;
                 while (sim.output_ports.next(o_port) &&
@@ -1179,20 +1209,10 @@ struct editor
                         }
                     }
                 }
-
-                selected_links.clear();
             }
-        }
 
-        /*
-        if (ImGui::IsKeyReleased(SDL_SCANCODE_A) &&
-            ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
-        { const int node_id = ++editor.current_id;
-            imnodes::SetNodeScreenSpacePos(node_id,
-        ImGui::GetMousePos()); editor.nodes.push_back(Node{ node_id, 0.f
-        });
+            selected_links.clear();
         }
-        */
 
         ImGui::End();
 
