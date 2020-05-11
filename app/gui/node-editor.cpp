@@ -196,7 +196,7 @@ struct editor
     {
         auto* mdl = sim.models.try_to_get(static_cast<u32>(index));
 
-        return sim.models.get_id(mdl);
+        return mdl ? sim.models.get_id(mdl) : static_cast<model_id>(0);
     }
 
     int get_in(input_port_id id) const noexcept
@@ -208,7 +208,8 @@ struct editor
     {
         auto* port = sim.input_ports.try_to_get(static_cast<u32>(index));
 
-        return sim.input_ports.get_id(port);
+        return port ? sim.input_ports.get_id(port)
+                    : static_cast<input_port_id>(0);
     }
 
     int get_out(output_port_id id) const noexcept
@@ -227,7 +228,8 @@ struct editor
 
         auto* port = sim.output_ports.try_to_get(static_cast<u32>(index));
 
-        return sim.output_ports.get_id(port);
+        return port ? sim.output_ports.get_id(port)
+                    : static_cast<output_port_id>(0);
     }
 
     status initialize(u32 id) noexcept
@@ -1066,7 +1068,8 @@ struct editor
                 if (sim.accumulator_2_models.can_alloc(1u) &&
                     sim.models.can_alloc(1u)) {
                     auto& mdl = sim.accumulator_2_models.alloc();
-                    sim.alloc(mdl, sim.accumulator_2_models.get_id(mdl), "acc-2");
+                    sim.alloc(
+                      mdl, sim.accumulator_2_models.get_id(mdl), "acc-2");
                 }
             }
 
@@ -1099,13 +1102,46 @@ struct editor
             }
         }
 
-        {
-            static array<int> selected_links;
+        const int num_selected_links = imnodes::NumSelectedLinks();
+        const int num_selected_nodes = imnodes::NumSelectedNodes();
+        static array<int> selected_nodes;
+        static array<int> selected_links;
 
-            const int num_selected = imnodes::NumSelectedLinks();
-            if (num_selected > 0 && ImGui::IsKeyReleased('X')) {
-                selected_links.init(static_cast<size_t>(num_selected));
+        if (num_selected_nodes > 0) {
+            selected_nodes.init(num_selected_nodes);
 
+            if (ImGui::IsKeyReleased('X')) {
+                imnodes::GetSelectedNodes(selected_nodes.data());
+
+                log_w.log(7, "%d connections to delete\n", num_selected_nodes);
+
+                for (const int node_id : selected_nodes) {
+                    auto id = get_model(node_id);
+                    if (auto* mdl = sim.models.try_to_get(id); mdl) {
+                        log_w.log(7, "delete %s\n", mdl->name.c_str());
+                        sim.deallocate(sim.models.get_id(mdl));
+                    }
+                }
+            } else if (ImGui::IsKeyReleased('D')) {
+                imnodes::GetSelectedNodes(selected_nodes.data());
+
+                array<model_id> sources;
+                array<model_id> destinations;
+                if (is_success(sources.init(num_selected_nodes)) &&
+                    is_success(destinations.init(num_selected_nodes))) {
+
+                    for (size_t i = 0; i != selected_nodes.size(); ++i)
+                        sources[i] = get_model(selected_nodes[i]);
+                }
+
+                sim.copy(std::begin(sources),
+                         std::end(sources),
+                         std::begin(destinations));
+            }
+        } else if (num_selected_links > 0) {
+            selected_links.init(static_cast<size_t>(num_selected_links));
+
+            if (ImGui::IsKeyReleased('X')) {
                 std::fill_n(selected_links.data(), selected_links.size(), -1);
                 imnodes::GetSelectedLinks(selected_links.data());
                 std::sort(selected_links.begin(),
@@ -1119,7 +1155,7 @@ struct editor
                 int link_id_to_delete = selected_links[0];
                 int current_link_id = 0;
 
-                log_w.log(7, "%d connections to delete\n", num_selected);
+                log_w.log(7, "%d connections to delete\n", num_selected_links);
 
                 output_port* o_port = nullptr;
                 while (sim.output_ports.next(o_port) &&
@@ -1145,44 +1181,6 @@ struct editor
                 }
 
                 selected_links.clear();
-            }
-        }
-
-        {
-            static array<int> selected_nodes;
-
-            const int num_selected = imnodes::NumSelectedNodes();
-            if (num_selected > 0) {
-                if (ImGui::IsKeyReleased('X')) {
-                    selected_nodes.init(num_selected);
-                    imnodes::GetSelectedNodes(selected_nodes.data());
-
-                    log_w.log(7, "%d connections to delete\n", num_selected);
-
-                    for (const int node_id : selected_nodes) {
-                        auto id = get_model(node_id);
-                        if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                            log_w.log(7, "delete %s\n", mdl->name.c_str());
-                            sim.deallocate(sim.models.get_id(mdl));
-                        }
-                    }
-                } else if (ImGui::IsKeyReleased('D')) {
-                    selected_nodes.init(num_selected);
-                    imnodes::GetSelectedNodes(selected_nodes.data());
-
-                    array<model_id> sources;
-                    array<model_id> destinations;
-                    if (is_success(sources.init(num_selected)) &&
-                        is_success(destinations.init(num_selected))) {
-
-                        for (size_t i = 0; i != selected_nodes.size(); ++i)
-                            sources[i] = get_model(selected_nodes[i]);
-                    }
-
-                    sim.copy(std::begin(sources),
-                             std::end(sources),
-                             std::begin(destinations));
-                }
             }
         }
 
