@@ -3019,560 +3019,6 @@ using has_init_port_t = decltype(&T::init);
 
 struct simulation;
 
-template<size_t PortNumber>
-struct adder
-{
-    static_assert(PortNumber > 1, "adder model need at least two input port");
-
-    model_id id;
-    input_port_id x[PortNumber];
-    output_port_id y[1];
-    time sigma;
-
-    double default_values[PortNumber];
-    double default_input_coeffs[PortNumber];
-
-    double values[PortNumber];
-    double input_coeffs[PortNumber];
-
-    adder() noexcept
-    {
-        std::fill_n(std::begin(default_values),
-                    PortNumber,
-                    1.0 / static_cast<double>(PortNumber));
-
-        std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
-    }
-
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
-    {
-        std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
-
-        std::copy_n(std::begin(default_input_coeffs),
-                    PortNumber,
-                    std::begin(input_coeffs));
-
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
-    {
-        double to_send = 0.0;
-
-        if (auto* port = output_ports.try_to_get(y[0]); port) {
-            for (size_t i = 0; i != PortNumber; ++i)
-                to_send += input_coeffs[i] * values[i];
-
-            port->messages.emplace_front(to_send);
-        }
-
-        return status::success;
-    }
-
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        bool have_message = false;
-
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i]); port) {
-                for (const auto& msg : port->messages) {
-                    irt_return_if_fail(
-                      msg.type == value_type::real_64,
-                      status::model_adder_bad_external_message);
-                    irt_return_if_fail(
-                      msg.size() == 1,
-                      status::model_adder_bad_external_message);
-
-                    values[i] = msg.to_real_64(0);
-
-                    have_message = true;
-                }
-            }
-        }
-
-        sigma =
-          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    message observation(time /*t*/) const noexcept
-    {
-        double ret = 0.0;
-
-        for (size_t i = 0; i != PortNumber; ++i)
-            ret += input_coeffs[i] * values[i];
-
-        return message(ret);
-    }
-};
-
-template<size_t PortNumber>
-struct mult
-{
-    static_assert(PortNumber > 1, "mult model need at least two input port");
-
-    model_id id;
-    input_port_id x[PortNumber];
-    output_port_id y[1];
-    time sigma;
-
-    double default_values[PortNumber];
-    double default_input_coeffs[PortNumber];
-
-    double values[PortNumber];
-    double input_coeffs[PortNumber];
-
-    mult() noexcept
-    {
-        std::fill_n(std::begin(default_values), PortNumber, 1.0);
-        std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
-    }
-
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
-    {
-        std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
-
-        std::copy_n(std::begin(default_input_coeffs),
-                    PortNumber,
-                    std::begin(input_coeffs));
-
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
-    {
-        double to_send = 1.0;
-
-        if (auto* port = output_ports.try_to_get(y[0]); port) {
-            for (size_t i = 0; i != PortNumber; ++i)
-                to_send *= std::pow(values[i], input_coeffs[i]);
-
-            port->messages.emplace_front(to_send);
-        }
-
-        return status::success;
-    }
-
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        bool have_message = false;
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i]); port) {
-                for (const auto& msg : port->messages) {
-                    irt_return_if_fail(msg.type == value_type::real_64,
-                                       status::model_mult_bad_external_message);
-                    irt_return_if_fail(msg.size() == 1,
-                                       status::model_mult_bad_external_message);
-
-                    values[i] = msg.to_real_64(0);
-                    have_message = true;
-                }
-            }
-        }
-
-        sigma =
-          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    message observation(time /*t*/) const noexcept
-    {
-        double ret = 1.0;
-
-        for (size_t i = 0; i != PortNumber; ++i)
-            ret *= std::pow(values[i], input_coeffs[i]);
-
-        return message(ret);
-    }
-};
-
-template<size_t PortNumber>
-struct accumulator
-{
-    model_id id;
-    input_port_id x[2 * PortNumber];
-    time sigma;
-    double number;
-    double numbers[PortNumber];
-
-    status initialize(
-      data_array<message, message_id>& /*init_messages*/) noexcept
-    {
-        number = 0.0;
-        std::fill_n(numbers, PortNumber, 0.0);
-
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i + PortNumber]); port) {
-                for (const auto& msg : port->messages) {
-                    irt_return_if_fail(
-                      msg.type == value_type::real_64,
-                      status::model_accumulator_bad_external_message);
-                    irt_return_if_fail(
-                      msg.size() == 1,
-                      status::model_accumulator_bad_external_message);
-                    numbers[i] = msg.to_real_64(0);
-                }
-            }
-        }
-
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i]); port) {
-                for (const auto& msg : port->messages) {
-                    irt_return_if_fail(
-                      msg.type == value_type::real_64,
-                      status::model_accumulator_bad_external_message);
-                    irt_return_if_fail(
-                      msg.size() == 1,
-                      status::model_accumulator_bad_external_message);
-
-                    if (msg.to_real_64(0) != 0.0) {
-                        number += numbers[i];
-                    }
-                }
-            }
-        }
-
-        return status::success;
-    }
-};
-
-using adder_2 = adder<2>;
-using adder_3 = adder<3>;
-using adder_4 = adder<4>;
-
-using mult_2 = mult<2>;
-using mult_3 = mult<3>;
-using mult_4 = mult<4>;
-
-using accumulator_2 = accumulator<2>;
-
-struct counter
-{
-    model_id id;
-    input_port_id x[1];
-    time sigma;
-    i64 number;
-
-    status initialize(
-      data_array<message, message_id>& /*init_messages*/) noexcept
-    {
-        number = { 0 };
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        std::ptrdiff_t diff{ 0 };
-        if (auto* port = input_ports.try_to_get(x[0]); port)
-            diff += std::distance(std::begin(port->messages),
-                                  std::end(port->messages));
-
-        number += static_cast<i64>(diff);
-
-        return status::success;
-    }
-
-    message observation(time /*t*/) const noexcept
-    {
-        return message(number);
-    }
-};
-
-struct generator
-{
-    model_id id;
-    output_port_id y[1];
-    time sigma;
-    double default_value = 0.0;
-    double default_period = 1.0;
-    double default_offset = 1.0;
-    double value = 0.0;
-    double period = 1.0;
-    double offset = 1.0;
-
-    status initialize(
-      data_array<message, message_id>& /*init_messages*/) noexcept
-    {
-        value = default_value;
-        period = default_period;
-        offset = default_offset;
-
-        sigma = offset;
-
-        return status::success;
-    }
-    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        sigma = period;
-        return status::success;
-    }
-
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
-    {
-        output_ports.get(y[0]).messages.emplace_front(value);
-
-        return status::success;
-    }
-
-    message observation(time /*t*/) const noexcept
-    {
-        return message(value);
-    }
-};
-
-struct constant
-{
-    model_id id;
-    output_port_id y[1];
-    time sigma;
-
-    double default_value = 0.0;
-
-    double value = 0.0;
-
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
-    {
-        sigma = time_domain<time>::zero;
-
-        value = default_value;
-
-        return status::success;
-    }
-
-    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
-    {
-        auto& port = output_ports.get(y[0]);
-
-        port.messages.emplace_front(value);
-
-        return status::success;
-    }
-
-    message observation(time /*t*/) const noexcept
-    {
-        return message(value);
-    }
-};
-
-inline double
-square_time_function(double t) noexcept
-{
-    return t * t;
-}
-
-inline double
-time_function(double t) noexcept
-{
-    return t;
-}
-
-struct time_func
-{
-    model_id id;
-    output_port_id y[1];
-    time sigma;
-
-    double (*default_f)(double) = &time_function;
-
-    double value;
-    double (*f)(double) = nullptr;
-
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
-    {
-        f = default_f;
-        sigma = 1.0;
-        value = sigma;
-        return status::success;
-    }
-
-    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-                      time t,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-
-        sigma = (*f)(t);
-        value = sigma;
-
-        return status::success;
-    }
-
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
-    {
-        auto& port = output_ports.get(y[0]);
-        port.messages.emplace_front(value);
-
-        return status::success;
-    }
-
-    message observation(time /*t*/) const noexcept
-    {
-        return message(value);
-    }
-};
-
-struct cross
-{
-    model_id id;
-    input_port_id x[3];
-    output_port_id y[2];
-    time sigma;
-
-    double default_threshold = 0.0;
-
-    double threshold;
-    double value;
-    double if_value;
-    double else_value;
-    double result;
-    double event;
-
-    enum port_name
-    {
-        port_value,
-        port_if_value,
-        port_else_value
-    };
-
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
-    {
-        threshold = default_threshold;
-        value = threshold - 1.0;
-        if_value = 0.0;
-        else_value = 0.0;
-        result = 0.0;
-        event = 0.0;
-
-        sigma = time_domain<time>::zero;
-
-        return status::success;
-    }
-
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        bool have_message = false;
-        bool have_message_value = false;
-
-        if (auto* port = input_ports.try_to_get(x[port_value]); port) {
-            for (const auto& msg : port->messages) {
-
-                irt_return_if_fail(msg.type == value_type::real_64,
-                                   status::model_cross_bad_external_message);
-                irt_return_if_fail(msg.size() == 1,
-                                   status::model_cross_bad_external_message);
-
-                value = msg.to_real_64(0);
-                have_message_value = true;
-
-                have_message = true;
-            }
-        }
-
-        if (auto* port = input_ports.try_to_get(x[port_if_value]); port) {
-            for (const auto& msg : port->messages) {
-
-                irt_return_if_fail(msg.type == value_type::real_64,
-                                   status::model_cross_bad_external_message);
-                irt_return_if_fail(msg.size() == 1,
-                                   status::model_cross_bad_external_message);
-
-                if_value = msg.to_real_64(0);
-
-                have_message = true;
-            }
-        }
-
-        if (auto* port = input_ports.try_to_get(x[port_else_value]); port) {
-            for (const auto& msg : port->messages) {
-
-                irt_return_if_fail(msg.type == value_type::real_64,
-                                   status::model_cross_bad_external_message);
-                irt_return_if_fail(msg.size() == 1,
-                                   status::model_cross_bad_external_message);
-
-                else_value = msg.to_real_64(0);
-                have_message = true;
-            }
-        }
-
-        if (have_message_value) {
-            else_value = value >= threshold ? if_value : else_value;
-            event = value >= threshold ? 1.0 : 0.0;
-        }
-
-        result = else_value;
-
-        sigma =
-          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
-        return status::success;
-    }
-
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
-    {
-        if (auto* port = output_ports.try_to_get(y[0]); port)
-            port->messages.emplace_front(result);
-        if (auto* port = output_ports.try_to_get(y[1]); port)
-            port->messages.emplace_front(event);
-
-        return status::success;
-    }
-
-    message observation(time /*t*/) const noexcept
-    {
-        return message(value, if_value, else_value);
-    }
-};
-
 struct none
 {
     model_id id;
@@ -4155,6 +3601,560 @@ private:
         return true;
     }
 };
+
+template<size_t PortNumber>
+struct adder
+{
+    static_assert(PortNumber > 1, "adder model need at least two input port");
+
+    model_id id;
+    input_port_id x[PortNumber];
+    output_port_id y[1];
+    time sigma;
+
+    double default_values[PortNumber];
+    double default_input_coeffs[PortNumber];
+
+    double values[PortNumber];
+    double input_coeffs[PortNumber];
+
+    adder() noexcept
+    {
+        std::fill_n(std::begin(default_values),
+                    PortNumber,
+                    1.0 / static_cast<double>(PortNumber));
+
+        std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
+    }
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
+
+        std::copy_n(std::begin(default_input_coeffs),
+                    PortNumber,
+                    std::begin(input_coeffs));
+
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        double to_send = 0.0;
+
+        if (auto* port = output_ports.try_to_get(y[0]); port) {
+            for (size_t i = 0; i != PortNumber; ++i)
+                to_send += input_coeffs[i] * values[i];
+
+            port->messages.emplace_front(to_send);
+        }
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        bool have_message = false;
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            if (auto* port = input_ports.try_to_get(x[i]); port) {
+                for (const auto& msg : port->messages) {
+                    irt_return_if_fail(
+                      msg.type == value_type::real_64,
+                      status::model_adder_bad_external_message);
+                    irt_return_if_fail(
+                      msg.size() == 1,
+                      status::model_adder_bad_external_message);
+
+                    values[i] = msg.to_real_64(0);
+
+                    have_message = true;
+                }
+            }
+        }
+
+        sigma =
+          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        double ret = 0.0;
+
+        for (size_t i = 0; i != PortNumber; ++i)
+            ret += input_coeffs[i] * values[i];
+
+        return message(ret);
+    }
+};
+
+template<size_t PortNumber>
+struct mult
+{
+    static_assert(PortNumber > 1, "mult model need at least two input port");
+
+    model_id id;
+    input_port_id x[PortNumber];
+    output_port_id y[1];
+    time sigma;
+
+    double default_values[PortNumber];
+    double default_input_coeffs[PortNumber];
+
+    double values[PortNumber];
+    double input_coeffs[PortNumber];
+
+    mult() noexcept
+    {
+        std::fill_n(std::begin(default_values), PortNumber, 1.0);
+        std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
+    }
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
+
+        std::copy_n(std::begin(default_input_coeffs),
+                    PortNumber,
+                    std::begin(input_coeffs));
+
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        double to_send = 1.0;
+
+        if (auto* port = output_ports.try_to_get(y[0]); port) {
+            for (size_t i = 0; i != PortNumber; ++i)
+                to_send *= std::pow(values[i], input_coeffs[i]);
+
+            port->messages.emplace_front(to_send);
+        }
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        bool have_message = false;
+        for (size_t i = 0; i != PortNumber; ++i) {
+            if (auto* port = input_ports.try_to_get(x[i]); port) {
+                for (const auto& msg : port->messages) {
+                    irt_return_if_fail(msg.type == value_type::real_64,
+                                       status::model_mult_bad_external_message);
+                    irt_return_if_fail(msg.size() == 1,
+                                       status::model_mult_bad_external_message);
+
+                    values[i] = msg.to_real_64(0);
+                    have_message = true;
+                }
+            }
+        }
+
+        sigma =
+          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        double ret = 1.0;
+
+        for (size_t i = 0; i != PortNumber; ++i)
+            ret *= std::pow(values[i], input_coeffs[i]);
+
+        return message(ret);
+    }
+};
+
+struct counter
+{
+    model_id id;
+    input_port_id x[1];
+    time sigma;
+    i64 number;
+
+    status initialize(
+      data_array<message, message_id>& /*init_messages*/) noexcept
+    {
+        number = { 0 };
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        std::ptrdiff_t diff{ 0 };
+        if (auto* port = input_ports.try_to_get(x[0]); port)
+            diff += std::distance(std::begin(port->messages),
+                                  std::end(port->messages));
+
+        number += static_cast<i64>(diff);
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(number);
+    }
+};
+
+struct generator
+{
+    model_id id;
+    output_port_id y[1];
+    time sigma;
+    double default_value = 0.0;
+    double default_period = 1.0;
+    double default_offset = 1.0;
+    double value = 0.0;
+    double period = 1.0;
+    double offset = 1.0;
+
+    status initialize(
+      data_array<message, message_id>& /*init_messages*/) noexcept
+    {
+        value = default_value;
+        period = default_period;
+        offset = default_offset;
+
+        sigma = offset;
+
+        return status::success;
+    }
+    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        sigma = period;
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        output_ports.get(y[0]).messages.emplace_front(value);
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value);
+    }
+};
+
+struct constant
+{
+    model_id id;
+    output_port_id y[1];
+    time sigma;
+
+    double default_value = 0.0;
+
+    double value = 0.0;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        sigma = time_domain<time>::zero;
+
+        value = default_value;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        auto& port = output_ports.get(y[0]);
+
+        port.messages.emplace_front(value);
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value);
+    }
+};
+
+template<size_t PortNumber>
+struct accumulator
+{
+    model_id id;
+    input_port_id x[2 * PortNumber];
+    time sigma;
+    double number;
+    double numbers[PortNumber];
+
+    status initialize(
+      data_array<message, message_id>& /*init_messages*/) noexcept
+    {
+        number = 0.0;
+        std::fill_n(numbers, PortNumber, 0.0);
+
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            if (auto* port = input_ports.try_to_get(x[i + PortNumber]); port) {
+                for (const auto& msg : port->messages) {
+                    irt_return_if_fail(
+                      msg.type == value_type::real_64,
+                      status::model_accumulator_bad_external_message);
+                    irt_return_if_fail(
+                      msg.size() == 1,
+                      status::model_accumulator_bad_external_message);
+                    numbers[i] = msg.to_real_64(0);
+                }
+            }
+        }
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            if (auto* port = input_ports.try_to_get(x[i]); port) {
+                for (const auto& msg : port->messages) {
+                    irt_return_if_fail(
+                      msg.type == value_type::real_64,
+                      status::model_accumulator_bad_external_message);
+                    irt_return_if_fail(
+                      msg.size() == 1,
+                      status::model_accumulator_bad_external_message);
+
+                    if (msg.to_real_64(0) != 0.0) {
+                        number += numbers[i];
+                    }
+                }
+            }
+        }
+
+        return status::success;
+    }
+};
+
+struct cross
+{
+    model_id id;
+    input_port_id x[3];
+    output_port_id y[2];
+    time sigma;
+
+    double default_threshold = 0.0;
+
+    double threshold;
+    double value;
+    double if_value;
+    double else_value;
+    double result;
+    double event;
+
+    enum port_name
+    {
+        port_value,
+        port_if_value,
+        port_else_value
+    };
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        threshold = default_threshold;
+        value = threshold - 1.0;
+        if_value = 0.0;
+        else_value = 0.0;
+        result = 0.0;
+        event = 0.0;
+
+        sigma = time_domain<time>::zero;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        bool have_message = false;
+        bool have_message_value = false;
+
+        if (auto* port = input_ports.try_to_get(x[port_value]); port) {
+            for (const auto& msg : port->messages) {
+
+                irt_return_if_fail(msg.type == value_type::real_64,
+                                   status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.size() == 1,
+                                   status::model_cross_bad_external_message);
+
+                value = msg.to_real_64(0);
+                have_message_value = true;
+
+                have_message = true;
+            }
+        }
+
+        if (auto* port = input_ports.try_to_get(x[port_if_value]); port) {
+            for (const auto& msg : port->messages) {
+
+                irt_return_if_fail(msg.type == value_type::real_64,
+                                   status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.size() == 1,
+                                   status::model_cross_bad_external_message);
+
+                if_value = msg.to_real_64(0);
+
+                have_message = true;
+            }
+        }
+
+        if (auto* port = input_ports.try_to_get(x[port_else_value]); port) {
+            for (const auto& msg : port->messages) {
+
+                irt_return_if_fail(msg.type == value_type::real_64,
+                                   status::model_cross_bad_external_message);
+                irt_return_if_fail(msg.size() == 1,
+                                   status::model_cross_bad_external_message);
+
+                else_value = msg.to_real_64(0);
+                have_message = true;
+            }
+        }
+
+        if (have_message_value) {
+            else_value = value >= threshold ? if_value : else_value;
+            event = value >= threshold ? 1.0 : 0.0;
+        }
+
+        result = else_value;
+
+        sigma =
+          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        if (auto* port = output_ports.try_to_get(y[0]); port)
+            port->messages.emplace_front(result);
+        if (auto* port = output_ports.try_to_get(y[1]); port)
+            port->messages.emplace_front(event);
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value, if_value, else_value);
+    }
+};
+
+inline double
+square_time_function(double t) noexcept
+{
+    return t * t;
+}
+
+inline double
+time_function(double t) noexcept
+{
+    return t;
+}
+
+struct time_func
+{
+    model_id id;
+    output_port_id y[1];
+    time sigma;
+
+    double (*default_f)(double) = &time_function;
+
+    double value;
+    double (*f)(double) = nullptr;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        f = default_f;
+        sigma = 1.0;
+        value = sigma;
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
+                      time t,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+
+        sigma = (*f)(t);
+        value = sigma;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        auto& port = output_ports.get(y[0]);
+        port.messages.emplace_front(value);
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value);
+    }
+};
+
+using adder_2 = adder<2>;
+using adder_3 = adder<3>;
+using adder_4 = adder<4>;
+
+using mult_2 = mult<2>;
+using mult_3 = mult<3>;
+using mult_4 = mult<4>;
+
+using accumulator_2 = accumulator<2>;
 
 /*****************************************************************************
  *
