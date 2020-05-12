@@ -129,7 +129,7 @@ is_status_equal(status s, Args... args) noexcept
 
 template<typename T, typename... Args>
 constexpr bool
-match(const T &s, Args... args) noexcept
+match(const T& s, Args... args) noexcept
 {
     return ((s == args) || ... || false);
 }
@@ -3188,18 +3188,18 @@ struct integrator
                       time /*e*/,
                       time r) noexcept
     {
-        auto* port_1 = input_ports.try_to_get(x[port_quanta]);
-        auto* port_2 = input_ports.try_to_get(x[port_x_dot]);
-        auto* port_3 = input_ports.try_to_get(x[port_reset]);
+        auto& port_1 = input_ports.get(x[port_quanta]);
+        auto& port_2 = input_ports.get(x[port_x_dot]);
+        auto& port_3 = input_ports.get(x[port_reset]);
 
-        if (port_1->messages.empty() && port_2->messages.empty() &&
-            port_3->messages.empty()) {
+        if (port_1.messages.empty() && port_2.messages.empty() &&
+            port_3.messages.empty()) {
             irt_return_if_bad(internal(t));
         } else {
             if (time_domain<time>::is_zero(r))
                 irt_return_if_bad(internal(t));
 
-            irt_return_if_bad(external(*port_1, *port_2, *port_3, t));
+            irt_return_if_bad(external(port_1, port_2, port_3, t));
         }
 
         return ta();
@@ -3208,17 +3208,16 @@ struct integrator
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        if (auto* port = output_ports.try_to_get(y[0]); port) {
-            switch (st) {
-            case state::running:
-                port->messages.emplace_front(expected_value);
-                return status::success;
-            case state::init:
-                port->messages.emplace_front(current_value);
-                return status::success;
-            default:
-                return status::model_integrator_output_error;
-            }
+        auto& port = output_ports.get(y[0]);
+        switch (st) {
+        case state::running:
+            port.messages.emplace_front(expected_value);
+            return status::success;
+        case state::init:
+            port.messages.emplace_front(current_value);
+            return status::success;
+        default:
+            return status::model_integrator_output_error;
         }
 
         return status::success;
@@ -3462,14 +3461,15 @@ struct quantifier
                       time /*e*/,
                       time r) noexcept
     {
-        auto* port = input_ports.try_to_get(x[0]);
-        if (port && port->messages.empty()) {
+        auto& port = input_ports.get(x[0]);
+
+        if (port.messages.empty()) {
             irt_return_if_bad(internal());
         } else {
             if (time_domain<time>::is_zero(r))
                 irt_return_if_bad(internal());
 
-            irt_return_if_bad(external(*port, t));
+            irt_return_if_bad(external(port, t));
         }
 
         return ta();
@@ -3661,12 +3661,10 @@ struct adder
     {
         double to_send = 0.0;
 
-        if (auto* port = output_ports.try_to_get(y[0]); port) {
-            for (size_t i = 0; i != PortNumber; ++i)
-                to_send += input_coeffs[i] * values[i];
+        for (size_t i = 0; i != PortNumber; ++i)
+            to_send += input_coeffs[i] * values[i];
 
-            port->messages.emplace_front(to_send);
-        }
+        output_ports.get(y[0]).messages.emplace_front(to_send);
 
         return status::success;
     }
@@ -3679,19 +3677,15 @@ struct adder
         bool have_message = false;
 
         for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i]); port) {
-                for (const auto& msg : port->messages) {
-                    irt_return_if_fail(
-                      msg.type == value_type::real_64,
-                      status::model_adder_bad_external_message);
-                    irt_return_if_fail(
-                      msg.size() == 1,
-                      status::model_adder_bad_external_message);
+            for (const auto& msg : input_ports.get(x[i]).messages) {
+                irt_return_if_fail(msg.type == value_type::real_64,
+                                   status::model_adder_bad_external_message);
+                irt_return_if_fail(msg.size() == 1,
+                                   status::model_adder_bad_external_message);
 
-                    values[i] = msg.to_real_64(0);
+                values[i] = msg.to_real_64(0);
 
-                    have_message = true;
-                }
+                have_message = true;
             }
         }
 
@@ -3752,12 +3746,10 @@ struct mult
     {
         double to_send = 1.0;
 
-        if (auto* port = output_ports.try_to_get(y[0]); port) {
-            for (size_t i = 0; i != PortNumber; ++i)
-                to_send *= std::pow(values[i], input_coeffs[i]);
+        for (size_t i = 0; i != PortNumber; ++i)
+            to_send *= std::pow(values[i], input_coeffs[i]);
 
-            port->messages.emplace_front(to_send);
-        }
+        output_ports.get(y[0]).messages.emplace_front(to_send);
 
         return status::success;
     }
@@ -3769,16 +3761,14 @@ struct mult
     {
         bool have_message = false;
         for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i]); port) {
-                for (const auto& msg : port->messages) {
-                    irt_return_if_fail(msg.type == value_type::real_64,
-                                       status::model_mult_bad_external_message);
-                    irt_return_if_fail(msg.size() == 1,
-                                       status::model_mult_bad_external_message);
+            for (const auto& msg : input_ports.get(x[i]).messages) {
+                irt_return_if_fail(msg.type == value_type::real_64,
+                                   status::model_mult_bad_external_message);
+                irt_return_if_fail(msg.size() == 1,
+                                   status::model_mult_bad_external_message);
 
-                    values[i] = msg.to_real_64(0);
-                    have_message = true;
-                }
+                values[i] = msg.to_real_64(0);
+                have_message = true;
             }
         }
 
@@ -3820,10 +3810,10 @@ struct counter
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        std::ptrdiff_t diff{ 0 };
-        if (auto* port = input_ports.try_to_get(x[0]); port)
-            diff += std::distance(std::begin(port->messages),
-                                  std::end(port->messages));
+        auto& port = input_ports.get(x[0]);
+
+        const auto diff =
+          std::distance(std::begin(port.messages), std::end(port.messages));
 
         number += static_cast<i64>(diff);
 
@@ -3914,9 +3904,7 @@ struct constant
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        auto& port = output_ports.get(y[0]);
-
-        port.messages.emplace_front(value);
+        output_ports.get(y[0]).messages.emplace_front(value);
 
         return status::success;
     }
@@ -3954,33 +3942,31 @@ struct accumulator
     {
 
         for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i + PortNumber]); port) {
-                for (const auto& msg : port->messages) {
-                    irt_return_if_fail(
-                      msg.type == value_type::real_64,
-                      status::model_accumulator_bad_external_message);
-                    irt_return_if_fail(
-                      msg.size() == 1,
-                      status::model_accumulator_bad_external_message);
-                    numbers[i] = msg.to_real_64(0);
-                }
+            auto& port = input_ports.get(x[i + PortNumber]);
+            for (const auto& msg : port.messages) {
+                irt_return_if_fail(
+                  msg.type == value_type::real_64,
+                  status::model_accumulator_bad_external_message);
+                irt_return_if_fail(
+                  msg.size() == 1,
+                  status::model_accumulator_bad_external_message);
+
+                numbers[i] = msg.to_real_64(0);
             }
         }
 
         for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* port = input_ports.try_to_get(x[i]); port) {
-                for (const auto& msg : port->messages) {
-                    irt_return_if_fail(
-                      msg.type == value_type::real_64,
-                      status::model_accumulator_bad_external_message);
-                    irt_return_if_fail(
-                      msg.size() == 1,
-                      status::model_accumulator_bad_external_message);
+            auto& port = input_ports.get(x[i]);
+            for (const auto& msg : port.messages) {
+                irt_return_if_fail(
+                  msg.type == value_type::real_64,
+                  status::model_accumulator_bad_external_message);
+                irt_return_if_fail(
+                  msg.size() == 1,
+                  status::model_accumulator_bad_external_message);
 
-                    if (msg.to_real_64(0) != 0.0) {
-                        number += numbers[i];
-                    }
-                }
+                if (msg.to_real_64(0) != 0.0)
+                    number += numbers[i];
             }
         }
 
@@ -4033,67 +4019,59 @@ struct cross
         bool have_message = false;
         bool have_message_value = false;
 
-        if (auto* port = input_ports.try_to_get(x[port_value]); port) {
-            for (const auto& msg : port->messages) {
+        for (const auto& msg : input_ports.get(x[port_value]).messages) {
+            irt_return_if_fail(msg.type == value_type::real_64,
+                               status::model_cross_bad_external_message);
+            irt_return_if_fail(msg.size() == 1,
+                               status::model_cross_bad_external_message);
 
-                irt_return_if_fail(msg.type == value_type::real_64,
-                                   status::model_cross_bad_external_message);
-                irt_return_if_fail(msg.size() == 1,
-                                   status::model_cross_bad_external_message);
-
-                value = msg.to_real_64(0);
-                have_message_value = true;
-
-                have_message = true;
-            }
+            value = msg.to_real_64(0);
+            have_message_value = true;
+            have_message = true;
         }
 
-        if (auto* port = input_ports.try_to_get(x[port_if_value]); port) {
-            for (const auto& msg : port->messages) {
+        for (const auto& msg : input_ports.get(x[port_if_value]).messages) {
+            irt_return_if_fail(msg.type == value_type::real_64,
+                               status::model_cross_bad_external_message);
+            irt_return_if_fail(msg.size() == 1,
+                               status::model_cross_bad_external_message);
 
-                irt_return_if_fail(msg.type == value_type::real_64,
-                                   status::model_cross_bad_external_message);
-                irt_return_if_fail(msg.size() == 1,
-                                   status::model_cross_bad_external_message);
-
-                if_value = msg.to_real_64(0);
-
-                have_message = true;
-            }
+            if_value = msg.to_real_64(0);
+            have_message = true;
         }
 
-        if (auto* port = input_ports.try_to_get(x[port_else_value]); port) {
-            for (const auto& msg : port->messages) {
+        for (const auto& msg : input_ports.get(x[port_else_value]).messages) {
+            irt_return_if_fail(msg.type == value_type::real_64,
+                               status::model_cross_bad_external_message);
+            irt_return_if_fail(msg.size() == 1,
+                               status::model_cross_bad_external_message);
 
-                irt_return_if_fail(msg.type == value_type::real_64,
-                                   status::model_cross_bad_external_message);
-                irt_return_if_fail(msg.size() == 1,
-                                   status::model_cross_bad_external_message);
-
-                else_value = msg.to_real_64(0);
-                have_message = true;
-            }
+            else_value = msg.to_real_64(0);
+            have_message = true;
         }
 
         if (have_message_value) {
-            else_value = value >= threshold ? if_value : else_value;
-            event = value >= threshold ? 1.0 : 0.0;
+            if (value >= threshold) {
+                else_value = if_value;
+                event = 1.0;
+            } else {
+                event = 0.0;
+            }
         }
 
         result = else_value;
 
         sigma =
           have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+
         return status::success;
     }
 
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        if (auto* port = output_ports.try_to_get(y[0]); port)
-            port->messages.emplace_front(result);
-        if (auto* port = output_ports.try_to_get(y[1]); port)
-            port->messages.emplace_front(event);
+        output_ports.get(y[0]).messages.emplace_front(result);
+        output_ports.get(y[1]).messages.emplace_front(event);
 
         return status::success;
     }
@@ -4150,8 +4128,7 @@ struct time_func
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        auto& port = output_ports.get(y[0]);
-        port.messages.emplace_front(value);
+        output_ports.get(y[0]).messages.emplace_front(value);
 
         return status::success;
     }
