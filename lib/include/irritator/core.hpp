@@ -2913,7 +2913,8 @@ enum class dynamics_type : i8
     constant,
     cross,
     time_func,
-    accumulator_2
+    accumulator_2,
+    flow
 };
 
 struct model
@@ -3296,7 +3297,7 @@ struct integrator
 
         val += (t - archive.back().date) * archive.back().x_dot;
 
-        return up_threshold < val ? reset_value : val;
+        return (up_threshold < val ) ? reset_value : val;
     }
 
     double compute_expected_value() const noexcept
@@ -4496,6 +4497,56 @@ struct constant
     }
 };
 
+struct flow
+{
+    model_id id;
+    output_port_id y[1];
+    time sigma;
+
+    double default_value = 0.0;
+    std::vector<double> default_data;
+    double default_samplerate = 44100.0;
+
+    double value = 0.0;
+    std::vector<double> data;
+    double samplerate = 44100.0;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+
+        sigma = 1.0/samplerate;
+
+        value = default_value;
+        data = default_data;
+        samplerate = default_samplerate;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
+                      time t,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        value = data[static_cast<int>(t*samplerate)];
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {     
+        output_ports.get(y[0]).messages.emplace_front(value);
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value);
+    }
+};
+
 template<size_t PortNumber>
 struct accumulator
 {
@@ -4898,6 +4949,7 @@ struct simulation
     data_array<cross, dynamics_id> cross_models;
     data_array<time_func, dynamics_id> time_func_models;
     data_array<accumulator_2, dynamics_id> accumulator_2_models;
+    data_array<flow, dynamics_id> flow_models;
 
     data_array<observer, observer_id> observers;
 
@@ -4961,6 +5013,8 @@ struct simulation
             return f(accumulator_2_models);
         case dynamics_type::time_func:
             return f(time_func_models);
+        case dynamics_type::flow:
+            return f(flow_models);
         }
 
         irt_bad_return(status::unknown_dynamics);
@@ -5021,6 +5075,8 @@ struct simulation
             return f(accumulator_2_models);
         case dynamics_type::time_func:
             return f(time_func_models);
+        case dynamics_type::flow:
+            return f(flow_models);
         }
 
         irt_bad_return(status::unknown_dynamics);
@@ -5225,6 +5281,7 @@ public:
         irt_return_if_bad(cross_models.init(model_capacity));
         irt_return_if_bad(time_func_models.init(model_capacity));
         irt_return_if_bad(accumulator_2_models.init(model_capacity));
+        irt_return_if_bad(flow_models.init(model_capacity));
 
         irt_return_if_bad(observers.init(model_capacity));
 
@@ -5303,6 +5360,7 @@ public:
         cross_models.clear();
         time_func_models.clear();
         accumulator_2_models.clear();
+        flow_models.clear();
 
         observers.clear();
 
@@ -5376,6 +5434,8 @@ public:
             mdl.type = dynamics_type::cross;
         else if constexpr (std::is_same_v<Dynamics, accumulator_2>)
             mdl.type = dynamics_type::accumulator_2;
+        else if constexpr (std::is_same_v<Dynamics, flow>)
+            mdl.type = dynamics_type::flow;
         else
             mdl.type = dynamics_type::time_func;
 
