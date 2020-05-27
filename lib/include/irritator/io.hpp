@@ -146,6 +146,11 @@ private:
             return true;
         }
 
+        if (dynamics_name == "flow") {
+            *type = dynamics_type::flow;
+            return true;
+        }
+
         return false;
     }
 
@@ -358,6 +363,11 @@ private:
             dyn.default_f = &time_function;
 
         return true;
+    }
+
+    bool read(flow& dyn) noexcept
+    {
+        return !!(is >> dyn.default_value);
     }
 };
 
@@ -586,6 +596,11 @@ private:
     {
         os << "time_func "
            << (dyn.default_f == &time_function ? "time\n" : "square\n");
+    }
+
+    void write(const flow& dyn) noexcept
+    {
+        os << "flow " << dyn.default_value << '\n';
     }
 };
 
