@@ -4411,6 +4411,48 @@ struct simulation
             });
     }
 
+    template<typename Function>
+    void for_all_input_port(const model& mdl, Function f)
+    {
+        dispatch(
+          mdl.type,
+          [ this, &f, dyn_id = mdl.id ]<typename DynamicsM>(DynamicsM &
+                                                            dyn_models) 
+        {
+                using Dynamics = typename DynamicsM::value_type;
+
+                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                    if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
+                        for (size_t i = 0, e = std::size(dyn->x); i != e; ++i)
+                            if (auto* port = input_ports.try_to_get(dyn->x[i]);
+                                port)
+                                f(*port);
+                }
+                return status::success;
+            });
+    }
+
+    template<typename Function>
+    void for_all_output_port(const model& mdl, Function f)
+    {
+        dispatch(
+          mdl.type,
+          [ this, &f, dyn_id = mdl.id ]<typename DynamicsM>(DynamicsM &
+                                                            dyn_models) {
+                using Dynamics = typename DynamicsM::value_type;
+
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
+                        for (size_t i = 0, e = std::size(dyn->y); i != e; ++i)
+                            if (auto* port = output_ports.try_to_get(dyn->y[i]);
+                                port)
+                                f(*port);
+                }
+
+                return status::success;
+            });
+    }
+
     status get_input_port_index(const model& mdl,
                                 const input_port_id port,
                                 int* index) const noexcept

@@ -2,7 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "gui.hpp"
+#include "node-editor.hpp"
 
 namespace irt {
 

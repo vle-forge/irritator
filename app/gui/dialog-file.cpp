@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "gui.hpp"
+#include "node-editor.hpp"
 
 #include <fmt/format.h>
 

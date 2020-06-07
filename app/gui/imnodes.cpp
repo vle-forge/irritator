@@ -1942,6 +1942,35 @@ SetNodeGridSpacePos(int node_id, const ImVec2& grid_pos)
     node.origin = grid_pos;
 }
 
+ImVec2
+GetNodeScreenSpacePos(int node_id)
+{
+    // Remember to call Initialize() before using any other functions!
+    assert(initialized);
+    EditorContext& editor = editor_context_get();
+    NodeData& node = editor.nodes.find_or_create_new(node_id);
+    return grid_space_to_editor_space(node.origin);
+}
+
+ImVec2
+GetNodeGridSpacePos(int node_id)
+{
+    // Remember to call Initialize() before using any other functions!
+    assert(initialized);
+    EditorContext& editor = editor_context_get();
+    NodeData& node = editor.nodes.find_or_create_new(node_id);
+    return node.origin;
+}
+
+void
+ClearSelectedNodesAndLinks()
+{
+    assert(initialized);
+    EditorContext& editor = editor_context_get();
+    editor.selected_link_indices.clear();
+    editor.selected_node_indices.clear();
+}
+
 void
 SetNodeDraggable(int node_id, const bool draggable)
 {
