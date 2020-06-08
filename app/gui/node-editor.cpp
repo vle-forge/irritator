@@ -378,7 +378,7 @@ editor::free_group(cluster& group) noexcept
     clusters.free(group);
 }
 
-void 
+void
 editor::free_children(const ImVector<int>& nodes) noexcept
 {
     for (int i = 0, e = nodes.size(); i != e; ++i) {
@@ -1434,6 +1434,18 @@ editor::show_top() noexcept
                 imnodes::BeginNode(top.nodes[i]);
                 imnodes::BeginNodeTitleBar();
                 ImGui::TextUnformatted(mdl->name.c_str());
+                ImGui::OpenPopupOnItemClick("Rename model", 1);
+
+                bool is_rename = true;
+                ImGui::SetNextWindowSize(ImVec2(250, 200), ImGuiCond_Always);
+                if (ImGui::BeginPopupModal("Rename model", &is_rename)) {
+                    ImGui::InputText(
+                      "Name##edit-1", mdl->name.begin(), mdl->name.capacity());
+                    if (ImGui::Button("Close"))
+                        ImGui::CloseCurrentPopup();
+                    ImGui::EndPopup();
+                }
+
                 imnodes::EndNodeTitleBar();
                 show_model_dynamics(*mdl);
                 imnodes::EndNode();
@@ -1454,11 +1466,13 @@ editor::show_top() noexcept
                 imnodes::BeginNode(top.nodes[i]);
                 imnodes::BeginNodeTitleBar();
                 ImGui::TextUnformatted(gp->name.c_str());
+                ImGui::OpenPopupOnItemClick("Rename group", 1);
 
-                if (ImGui::BeginPopupContextItem("Rename")) {
-                    ImGui::Text("Edit name:");
+                bool is_rename = true;
+                ImGui::SetNextWindowSize(ImVec2(250, 200), ImGuiCond_Always);
+                if (ImGui::BeginPopupModal("Rename group", &is_rename)) {
                     ImGui::InputText(
-                      "##edit", gp->name.begin(), gp->name.capacity());
+                      "Name##edit-2", gp->name.begin(), gp->name.capacity());
                     if (ImGui::Button("Close"))
                         ImGui::CloseCurrentPopup();
                     ImGui::EndPopup();
@@ -1789,15 +1803,15 @@ editor::show_editor() noexcept
             static std::vector<child_id> destinations;
 
             try {
-                //sources.resize(num_selected_nodes);
-                //destinations.resize(num_selected_nodes);
+                // sources.resize(num_selected_nodes);
+                // destinations.resize(num_selected_nodes);
 
-                //auto& top = clusters.get(top_group);
-                //for (size_t i = 0; i != selected_nodes.size(); ++i)
+                // auto& top = clusters.get(top_group);
+                // for (size_t i = 0; i != selected_nodes.size(); ++i)
                 //    sources[i] = top.children[selected_nodes[i]];
 
-                //copy_group(sources.data(), sources.size(), destinations.data());
-                //imnodes::ClearSelectedNodesAndLinks();
+                // copy_group(sources.data(), sources.size(),
+                // destinations.data()); imnodes::ClearSelectedNodesAndLinks();
             } catch (const std::bad_alloc&) {
                 log_w.log(4,
                           "Fail to allocate copy buffer (%ul)",
