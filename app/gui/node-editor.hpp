@@ -71,22 +71,6 @@ struct top_cluster
         return static_cast<int>(std::distance(std::begin(nodes), it));
     }
 
-    //const child_id get_child(const int node) const noexcept
-    //{
-    //    if (auto found = get_index(node); found != not_found)
-    //        return children[found];
-
-    //    return undefined<child_id>();
-    //}
-
-    //const int get_node(const child_id id) const noexcept
-    //{
-    //    if (auto found = get_index(id); found != not_found)
-    //        return nodes[found];
-
-    //    return not_found;
-    //}
-
     void clear() noexcept
     {
         children.clear();
@@ -121,11 +105,11 @@ struct cluster
 
     int get(const child_id id) const noexcept
     {
-        for (size_t i = 0, e = children.size(); i != e; ++i)
-            if (id == children[i])
-                return static_cast<int>(i);
+        auto it = std::find(std::begin(children), std::end(children), id);
+        if (it == std::end(children))
+            return not_found;
 
-        return not_found;
+        return static_cast<int>(std::distance(std::begin(children), it));
     }
 };
 
@@ -206,9 +190,8 @@ struct editor
     void ungroup(const int node) noexcept;
     void free_group(cluster& group) noexcept;
     void free_children(const ImVector<int>& nodes) noexcept;
-    void copy_group(const child_id* sources,
-                    const size_t size,
-                    child_id* destination) noexcept;
+    status copy(const ImVector<int>& nodes) noexcept;
+
     void reorder_subgroup(const size_t from,
                           const size_t length,
                           ImVec2 click_pos) noexcept;
