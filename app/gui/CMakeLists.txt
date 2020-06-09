@@ -22,6 +22,7 @@ if (WIN32)
         ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_dx12.h
         ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_dx12.cpp)
 else ()
+    find_package(OpenGL REQUIRED)
     find_package(glfw3 REQUIRED)
     find_package(GLEW REQUIRED)
     list(APPEND gui_sources
@@ -55,7 +56,7 @@ target_link_libraries(irritator-gui
     $<$<CXX_COMPILER_ID:Clang>:c++fs>
     threads
     $<$<PLATFORM_ID:Linux>:dl>
-    $<$<PLATFORM_ID:Linux>:GL>
+    $<$<PLATFORM_ID:Linux>:OpenGL::OpenGL>
     $<$<PLATFORM_ID:Linux>:glfw>
     $<$<PLATFORM_ID:Windows>:d3d12>
     $<$<PLATFORM_ID:Windows>:dxguid>
