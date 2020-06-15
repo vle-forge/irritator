@@ -121,8 +121,20 @@ function(irritator_add_test test_name)
   add_test(${test_name} ${test_name})
 endfunction()
 
+function(irritator_add_benchmark benchmark_name)
+  include_directories(
+    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
+  )
+
+  add_executable(${benchmark_name} ${ARGN})
+
+
+endfunction()
+
 if (NOT BUILD_SHARED_LIBS)
   irritator_add_test(test-api test/public-api.cpp)
   irritator_add_test(simulations test/simulations.cpp)
   irritator_add_test(auditory test/auditory.cpp)
+  irritator_add_benchmark(benchmark benchmark/benchmark.cpp)
 endif ()
