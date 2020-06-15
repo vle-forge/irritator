@@ -138,7 +138,7 @@ vector<vector<double>> parse2DCsvFile(string inputFileName) {
 }
 
 // Global data
-vector<vector<double>> sound_data = parse2DCsvFile("output_cochlea.csv");
+vector<vector<double>> sound_data = {};//parse2DCsvFile("output_cochlea.csv");
 double samplerate = 44100.0;
 
 struct neuron {
@@ -152,14 +152,19 @@ struct neuron {
   irt::dynamics_id  constant_cross;
 };
 
-/*typedef double Fn(double);
-
-template<long unsigned int i>
-double
-time_f(double t) noexcept
-{
-  return sound_data[i][static_cast<int>(t*samplerate)];
-}*/
+struct neuron_adaptive {
+  irt::dynamics_id  sum1;
+  irt::dynamics_id  sum2;
+  irt::dynamics_id  sum3;
+  irt::dynamics_id  integrator1;
+  irt::dynamics_id  integrator2;
+  irt::dynamics_id  quantifier1;
+  irt::dynamics_id  quantifier2;
+  irt::dynamics_id  constant;
+  irt::dynamics_id  cross1;
+  irt::dynamics_id  cross2;
+  irt::dynamics_id  constant_cross;
+};
 
 struct neuron 
 make_neuron(irt::simulation* sim, long unsigned int i) noexcept
@@ -259,7 +264,146 @@ make_neuron(irt::simulation* sim, long unsigned int i) noexcept
   return neuron_model;
 }
 
+struct neuron_adaptive 
+make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
+{
+  using namespace boost::ut;
+  double tau_lif = 10*0.001;
+  double Vr_lif = 0.0;
+  double Vt_lif = 10.0;
 
+  double tau_threshold = 15*0.001;
+
+
+  auto& sum_lif = sim->adder_2_models.alloc();
+  auto& integrator_lif = sim->integrator_models.alloc();
+  auto& quantifier_lif = sim->quantifier_models.alloc();
+  auto& constant_cross_lif = sim->constant_models.alloc();
+  auto& cross_lif = sim->cross_models.alloc();
+
+  auto& sum_threshold = sim->adder_2_models.alloc();
+  auto& integrator_threshold = sim->integrator_models.alloc();
+  auto& quantifier_threshold = sim->quantifier_models.alloc();
+  auto& cross_threshold = sim->cross_models.alloc();
+
+  auto& sum_reset = sim->adder_2_models.alloc();
+  auto& constant = sim->constant_models.alloc();
+
+  //LIF
+  sum_lif.default_input_coeffs[0] = -1.0/tau_lif;
+  sum_lif.default_input_coeffs[1] = 20.0/tau_lif;
+  
+  integrator_lif.default_current_value = 0.0;
+
+  quantifier_lif.default_adapt_state =
+    irt::quantifier::adapt_state::possible;
+  quantifier_lif.default_zero_init_offset = true;
+  quantifier_lif.default_step_size = 0.1;
+  quantifier_lif.default_past_length = 3;
+
+  constant_cross_lif.default_value = Vr_lif;
+  
+  cross_lif.default_threshold = Vt_lif;
+
+
+  //Threshold
+  sum_threshold.default_input_coeffs[0] = -1.0/tau_threshold;
+  sum_threshold.default_input_coeffs[1] = 10.0/tau_threshold;
+  
+  integrator_threshold.default_current_value = Vt_lif;
+
+  quantifier_threshold.default_adapt_state =
+    irt::quantifier::adapt_state::possible;
+  quantifier_threshold.default_zero_init_offset = true;
+  quantifier_threshold.default_step_size = 0.1;
+  quantifier_threshold.default_past_length = 3;
+  
+  cross_threshold.default_threshold = Vt_lif;
+
+
+  sum_reset.default_input_coeffs[0] = 1.0;
+  sum_reset.default_input_coeffs[1] = 3.0;
+  constant.default_value = 1.0;
+
+
+  sim->alloc(sum_lif, sim->adder_2_models.get_id(sum_lif));
+  sim->alloc(integrator_lif, sim->integrator_models.get_id(integrator_lif));
+  sim->alloc(quantifier_lif, sim->quantifier_models.get_id(quantifier_lif));
+  sim->alloc(cross_lif, sim->cross_models.get_id(cross_lif));
+  sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif));
+
+  sim->alloc(sum_threshold, sim->adder_2_models.get_id(sum_threshold));
+  sim->alloc(integrator_threshold, sim->integrator_models.get_id(integrator_threshold));
+  sim->alloc(quantifier_threshold, sim->quantifier_models.get_id(quantifier_threshold));
+  sim->alloc(cross_threshold, sim->cross_models.get_id(cross_threshold));
+
+  sim->alloc(sum_reset, sim->adder_2_models.get_id(sum_reset));
+  sim->alloc(constant, sim->constant_models.get_id(constant));
+
+  struct neuron_adaptive neuron_model = {sim->adder_2_models.get_id(sum_lif),
+                                sim->adder_2_models.get_id(sum_threshold),
+                                sim->adder_2_models.get_id(sum_reset),
+                                sim->integrator_models.get_id(integrator_lif),
+                                sim->integrator_models.get_id(integrator_threshold),
+                                sim->quantifier_models.get_id(quantifier_lif),
+                                sim->quantifier_models.get_id(quantifier_threshold),                                
+                                sim->constant_models.get_id(constant),
+                                sim->cross_models.get_id(cross_lif),
+                                sim->cross_models.get_id(cross_threshold),                                                                                                                                
+                                sim->constant_models.get_id(constant_cross_lif),                                                                
+                                }; 
+
+
+  // Connections
+  expect(sim->connect(quantifier_lif.y[0], integrator_lif.x[0]) ==
+          irt::status::success);
+  expect(sim->connect(cross_lif.y[0], integrator_lif.x[2]) ==
+          irt::status::success);
+  expect(sim->connect(cross_lif.y[0], quantifier_lif.x[0]) ==
+          irt::status::success);
+  expect(sim->connect(cross_lif.y[0], sum_lif.x[0]) ==
+          irt::status::success);
+  expect(sim->connect(integrator_lif.y[0],cross_lif.x[0]) ==
+          irt::status::success);     
+  expect(sim->connect(integrator_lif.y[0],cross_lif.x[2]) ==
+          irt::status::success);
+  expect(sim->connect(constant_cross_lif.y[0],cross_lif.x[1]) ==
+          irt::status::success); 
+  expect(sim->connect(sum_lif.y[0],integrator_lif.x[1]) ==
+          irt::status::success);
+
+  expect(sim->connect(quantifier_threshold.y[0], integrator_threshold.x[0]) ==
+          irt::status::success);
+  expect(sim->connect(cross_threshold.y[0], integrator_threshold.x[2]) ==
+          irt::status::success);
+  expect(sim->connect(cross_threshold.y[0], quantifier_threshold.x[0]) ==
+          irt::status::success);
+  expect(sim->connect(cross_threshold.y[0], sum_threshold.x[0]) ==
+          irt::status::success);
+  expect(sim->connect(integrator_lif.y[0],cross_threshold.x[0]) ==
+          irt::status::success);     
+  expect(sim->connect(integrator_threshold.y[0],cross_threshold.x[2]) ==
+          irt::status::success);
+  expect(sim->connect(sum_reset.y[0],cross_threshold.x[1]) ==
+          irt::status::success);  
+  expect(sim->connect(integrator_threshold.y[0],sum_reset.x[0]) ==
+          irt::status::success);  
+  expect(sim->connect(constant.y[0],sum_reset.x[1]) ==
+          irt::status::success);  
+  expect(sim->connect(sum_threshold.y[0],integrator_threshold.x[1]) ==
+          irt::status::success);
+
+  expect(sim->connect(constant.y[0],sum_lif.x[1]) ==
+          irt::status::success);     
+  expect(sim->connect(constant.y[0],sum_threshold.x[1]) ==
+          irt::status::success);     
+
+  expect(sim->connect(integrator_threshold.y[0],cross_lif.x[3]) ==
+          irt::status::success);
+  expect(sim->connect(integrator_threshold.y[0],cross_threshold.x[3]) ==
+          irt::status::success);
+  return neuron_model;
+}
 int
 main()
 {
@@ -270,7 +414,8 @@ main()
         irt::simulation sim;
 
         // Neuron constants
-        long unsigned int N = sound_data.size() - 1;
+        long unsigned int N = 1;
+        /*long unsigned int N = sound_data.size() - 1;
         
 
 
@@ -284,8 +429,14 @@ main()
 
           struct neuron neuron_model = make_neuron(&sim,i);
           first_layer_neurons.emplace_back(neuron_model);
-        } 
+        } */
 
+        std::vector<struct neuron_adaptive> second_layer_neurons;
+        for (long unsigned int i = 0 ; i < N; i++) {
+
+          struct neuron_adaptive neuron_adaptive_model = make_neuron_adaptive(&sim,i);
+          second_layer_neurons.emplace_back(neuron_adaptive_model);
+        } 
 
         dot_graph_save(sim, stdout);
 
@@ -312,13 +463,13 @@ main()
             for (long unsigned int i = 0; i < N; i++)
             {
               //s =  s + std::to_string(sim.cross_models.get(first_layer_neurons[i].cross).event)
-              s =  s + std::to_string(sim.integrator_models.get(first_layer_neurons[i].integrator).last_output_value)
+              s =  s + std::to_string(sim.integrator_models.get(second_layer_neurons[i].integrator1).last_output_value)
                     + ",";
 
             }
             fmt::print(os, s + "\n");
 
-        } while (t < sound_data[0].size()/samplerate);
+        } while (t < 200);
 
         std::fclose(os);
       };
