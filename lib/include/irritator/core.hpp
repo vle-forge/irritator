@@ -14,6 +14,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include <vector>
+
 namespace irt {
 
 using i8 = int8_t;
@@ -4729,23 +4731,23 @@ public:
 
         irt_return_if_bad(model_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(message_list_allocator.init(messages_capacity * ten));
-        irt_return_if_bad(input_port_list_allocator.init(model_capacity));
-        irt_return_if_bad(output_port_list_allocator.init(model_capacity));
+        irt_return_if_bad(input_port_list_allocator.init(model_capacity * ten));
+        irt_return_if_bad(output_port_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
 
         irt_return_if_bad(sched.init(model_capacity));
 
         irt_return_if_bad(models.init(model_capacity));
-        irt_return_if_bad(init_messages.init(model_capacity * ten));
+        irt_return_if_bad(init_messages.init(model_capacity ));
         irt_return_if_bad(messages.init(messages_capacity));
-        irt_return_if_bad(input_ports.init(model_capacity * ten));
-        irt_return_if_bad(output_ports.init(model_capacity * ten));
+        irt_return_if_bad(input_ports.init(model_capacity ));
+        irt_return_if_bad(output_ports.init(model_capacity ));
 
         irt_return_if_bad(none_models.init(model_capacity));
         irt_return_if_bad(integrator_models.init(
-          model_capacity, model_capacity * ten * ten * ten));
+          model_capacity, model_capacity * ten  ));
         irt_return_if_bad(quantifier_models.init(
-          model_capacity, model_capacity * ten * ten * ten));
+          model_capacity, model_capacity * ten  ));
         irt_return_if_bad(adder_2_models.init(model_capacity));
         irt_return_if_bad(adder_3_models.init(model_capacity));
         irt_return_if_bad(adder_4_models.init(model_capacity));
