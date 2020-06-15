@@ -4030,7 +4030,7 @@ struct accumulator
 struct cross
 {
     model_id id;
-    input_port_id x[3];
+    input_port_id x[4];
     output_port_id y[2];
     time sigma;
 
@@ -4047,7 +4047,8 @@ struct cross
     {
         port_value,
         port_if_value,
-        port_else_value
+        port_else_value,
+        port_threshold
     };
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
@@ -4071,6 +4072,17 @@ struct cross
     {
         bool have_message = false;
         bool have_message_value = false;
+
+       for (const auto& msg : input_ports.get(x[port_threshold]).messages) {
+            irt_return_if_fail(msg.type == value_type::real_64,
+                               status::model_cross_bad_external_message);
+            irt_return_if_fail(msg.size() == 1,
+                               status::model_cross_bad_external_message);
+
+            
+            threshold = msg.to_real_64(0);
+            have_message = true;
+        }
 
         for (const auto& msg : input_ports.get(x[port_value]).messages) {
             irt_return_if_fail(msg.type == value_type::real_64,
