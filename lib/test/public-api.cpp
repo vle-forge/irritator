@@ -930,7 +930,7 @@ main()
     "lotka_volterra_simulation"_test = [] {
         irt::simulation sim;
 
-        expect(irt::is_success(sim.init(16lu, 256lu)));
+        expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.adder_2_models.can_alloc(2));
         expect(sim.mult_2_models.can_alloc(2));
         expect(sim.integrator_models.can_alloc(2));
