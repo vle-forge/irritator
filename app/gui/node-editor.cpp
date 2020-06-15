@@ -23,6 +23,57 @@ format(small_string<N>& str, const char* fmt, const Args&... args)
     str.size(ret.size);
 }
 
+template<typename DataArray, typename Container, typename Function>
+void
+for_each(DataArray& d_array, Container& container, Function f) noexcept
+{
+    using identifier_type = typename DataArray::identifier_type;
+
+    static_assert(
+      std::is_same<identifier_type, typename Container::value_type>::value,
+      "Container must store same identifier_type as DataArray");
+
+    auto first = std::begin(container);
+    [[maybe_unused]] auto previous = first;
+    auto last = std::end(container);
+
+    while (first != last) {
+        if (auto* ptr = d_array.try_to_get(*first); ptr) {
+            f(*ptr, *first);
+
+            if constexpr (std::is_same_v<std::vector<identifier_type>,
+                                         std::remove_cvref_t<Container>>) {
+                ++first;
+            } else if constexpr (std::is_same_v<
+                                   flat_list<identifier_type>,
+                                   std::remove_cvref_t<Container>>) {
+                previous = first++;
+            } else {
+                abort();
+            }
+        } else {
+            if constexpr (std::is_same_v<std::vector<identifier_type>,
+                                         std::remove_cvref_t<Container>>) {
+                std::swap(*first, container.back());
+                container.pop_back();
+                last = std::end(container);
+            } else if constexpr (std::is_same_v<
+                                   flat_list<identifier_type>,
+                                   std::remove_cvref_t<Container>>) {
+                if (previous == first) {
+                    container.pop_front();
+                    first = container.begin();
+                    previous = first;
+                } else {
+                    first = container.erase_after(previous);
+                }
+            } else {
+                abort();
+            }
+        }
+    }
+}
+
 static window_logger log_w;
 static data_array<editor, editor_id> editors;
 
@@ -86,7 +137,8 @@ observation_output_observe(const irt::observer& obs,
 }
 
 static void
-observation_output_free(const irt::observer& obs, const irt::time t) noexcept
+observation_output_free(const irt::observer& obs,
+                        const irt::time /*t*/) noexcept
 {
     if (!obs.user_data)
         return;
@@ -153,25 +205,47 @@ editor::clear() noexcept
     top.clear();
 }
 
-void
-editor::reorder() noexcept
+cluster_id
+editor::ancestor(const child_id child) const noexcept
 {
-    constexpr size_t zero{ 0 };
-    const auto view_pos = imnodes::EditorContextGetPanning();
+    if (child.index() == 0) {
+        const auto mdl_id = std::get<model_id>(child);
+        auto parent = models_mapper[get_index(mdl_id)];
+        auto ret = parent;
 
-    reorder_subgroup(zero, top.children.size(), view_pos);
+        while (parent != undefined<cluster_id>()) {
+            ret = parent;
+            parent = clusters_mapper[get_index(parent)];
+        }
+
+        return ret;
+    } else {
+        const auto gp_id = std::get<cluster_id>(child);
+        auto parent = clusters_mapper[get_index(gp_id)];
+        auto ret = parent;
+
+        while (parent != undefined<cluster_id>()) {
+            ret = parent;
+            parent = clusters_mapper[get_index(parent)];
+        }
+
+        return ret;
+    }
 }
 
-static bool
-is_in_hierarchy(const data_array<cluster, cluster_id>& clusters,
-                const cluster& group,
-                const cluster_id group_to_search) noexcept
+int
+editor::get_top_group_ref(const child_id child) const noexcept
 {
-    log_w.log(7,
-              "Tries is_in_hierarchy %s %s\n",
-              group.name.c_str(),
-              clusters.get(group_to_search).name.c_str());
+    const auto top_ref = ancestor(child);
 
+    return top_ref == undefined<cluster_id>() ? top.get_index(child)
+                                              : top.get_index(top_ref);
+}
+
+bool
+editor::is_in_hierarchy(const cluster& group,
+                        const cluster_id group_to_search) const noexcept
+{
     if (clusters.get_id(group) == group_to_search) {
         log_w.log(7, "clusters.get_id(group) == group_to_search\n");
         return true;
@@ -188,7 +262,7 @@ is_in_hierarchy(const data_array<cluster, cluster_id>& clusters,
             }
 
             if (const auto* gp = clusters.try_to_get(id); gp) {
-                if (is_in_hierarchy(clusters, *gp, group_to_search)) {
+                if (is_in_hierarchy(*gp, group_to_search)) {
                     log_w.log(7, "is_in_hierarchy = true\n");
                     return true;
                 }
@@ -217,7 +291,7 @@ editor::group(const ImVector<int>& nodes) noexcept
 
     for (int i = 0, e = nodes.size(); i != e; ++i) {
         if (auto index = top.get_index(nodes[i]); index != not_found) {
-            new_cluster.children.push_back(top.children[index]);
+            new_cluster.children.push_back(top.children[index].first);
             top.pop(index);
         }
     }
@@ -239,35 +313,37 @@ editor::group(const ImVector<int>& nodes) noexcept
        same cluster. */
 
     for (const auto child : top.children) {
-        if (child.index() == 0) {
-            const auto child_id = std::get<model_id>(child);
+        if (child.first.index() == 0) {
+            const auto child_id = std::get<model_id>(child.first);
 
             if (auto* model = sim.models.try_to_get(child_id); model) {
                 sim.for_all_input_port(
-                  *model, [this, &new_cluster](const input_port& port) {
+                  *model,
+                  [this, &new_cluster](const input_port& port,
+                                       input_port_id /*pid*/) {
                       for (const auto id : port.connections) {
                           if (auto* p = this->sim.output_ports.try_to_get(id);
                               p)
-                              if (is_in_hierarchy(this->clusters,
-                                                  new_cluster,
+                              if (is_in_hierarchy(new_cluster,
                                                   this->parent(p->model)))
                                   new_cluster.output_ports.emplace_back(id);
                       }
                   });
 
                 sim.for_all_output_port(
-                  *model, [this, &new_cluster](const output_port& port) {
+                  *model,
+                  [this, &new_cluster](const output_port& port,
+                                       output_port_id /*pid*/) {
                       for (const auto id : port.connections) {
                           if (auto* p = this->sim.input_ports.try_to_get(id); p)
-                              if (is_in_hierarchy(this->clusters,
-                                                  new_cluster,
+                              if (is_in_hierarchy(new_cluster,
                                                   this->parent(p->model)))
                                   new_cluster.input_ports.emplace_back(id);
                       }
                   });
             }
         } else {
-            const auto child_id = std::get<cluster_id>(child);
+            const auto child_id = std::get<cluster_id>(child.first);
 
             if (auto* group = clusters.try_to_get(child_id); group) {
                 for (const auto id : group->input_ports) {
@@ -275,8 +351,7 @@ editor::group(const ImVector<int>& nodes) noexcept
                         for (const auto d_id : p->connections) {
                             if (auto* d_p = sim.output_ports.try_to_get(d_id);
                                 d_p) {
-                                if (is_in_hierarchy(this->clusters,
-                                                    new_cluster,
+                                if (is_in_hierarchy(new_cluster,
                                                     this->parent(d_p->model)))
                                     new_cluster.output_ports.emplace_back(d_id);
                             }
@@ -289,8 +364,7 @@ editor::group(const ImVector<int>& nodes) noexcept
                         for (const auto d_id : p->connections) {
                             if (auto* d_p = sim.input_ports.try_to_get(d_id);
                                 d_p) {
-                                if (is_in_hierarchy(this->clusters,
-                                                    new_cluster,
+                                if (is_in_hierarchy(new_cluster,
                                                     this->parent(d_p->model)))
                                     new_cluster.input_ports.emplace_back(d_id);
                             }
@@ -312,35 +386,31 @@ editor::ungroup(const int node) noexcept
         return;
     }
 
-    if (top.children[index].index() == 0) {
+    if (top.children[index].first.index() == 0) {
         log_w.log(5, "node is not a group\n");
         return;
     }
 
     auto* group =
-      clusters.try_to_get(std::get<cluster_id>(top.children[index]));
+      clusters.try_to_get(std::get<cluster_id>(top.children[index].first));
     if (!group) {
         log_w.log(5, "group does not exist\n");
         return;
     }
 
     const auto group_id = clusters.get_id(*group);
-
-    /* Remove the group to ungroup from the top cluster using the swap
-       idiom and affect the old position. */
-
     top.pop(index);
 
     for (size_t i = 0, e = group->children.size(); i != e; ++i) {
         if (group->children[i].index() == 0) {
             const auto id = std::get<model_id>(group->children[i]);
-            if (auto* mdl = sim.models.try_to_get(id)) {
+            if (auto* mdl = sim.models.try_to_get(id); mdl) {
                 parent(id, undefined<cluster_id>());
                 top.emplace_back(group->children[i]);
             }
         } else {
             auto id = std::get<cluster_id>(group->children[i]);
-            if (auto* gp = clusters.try_to_get(id)) {
+            if (auto* gp = clusters.try_to_get(id); gp) {
                 parent(id, undefined<cluster_id>());
                 top.emplace_back(group->children[i]);
             }
@@ -388,8 +458,8 @@ editor::free_children(const ImVector<int>& nodes) noexcept
 
         const auto child = top.children[index];
 
-        if (child.index() == 0) {
-            const auto id = std::get<model_id>(child);
+        if (child.first.index() == 0) {
+            const auto id = std::get<model_id>(child.first);
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
                 models_mapper[get_index(id)] = undefined<cluster_id>();
                 log_w.log(7, "delete %s\n", mdl->name.c_str());
@@ -397,7 +467,7 @@ editor::free_children(const ImVector<int>& nodes) noexcept
                 sim.deallocate(id);
             }
         } else {
-            const auto id = std::get<cluster_id>(child);
+            const auto id = std::get<cluster_id>(child.first);
             if (auto* gp = clusters.try_to_get(id); gp) {
                 clusters_mapper[get_index(id)] = undefined<cluster_id>();
                 log_w.log(7, "delete group %s\n", gp->name.c_str());
@@ -691,6 +761,196 @@ struct copier
     }
 };
 
+static void
+compute_connection_distance(output_port& port, editor& ed, const float k)
+{
+    for_each(ed.sim.input_ports,
+             port.connections,
+             [&](const auto& i_port, const auto /*i_id*/) {
+                 const auto v = ed.get_top_group_ref(port.model);
+                 const auto u = ed.get_top_group_ref(i_port.model);
+
+                 const float dx = ed.positions[v].x - ed.positions[u].x;
+                 const float dy = ed.positions[v].y - ed.positions[u].y;
+                 if (dx && dy) {
+                     const float d2 = dx * dx / dy * dy;
+                     const float coeff = std::sqrt(d2) / k;
+
+                     ed.displacements[v].x -= dx * coeff;
+                     ed.displacements[v].y -= dy * coeff;
+                     ed.displacements[u].x += dx * coeff;
+                     ed.displacements[u].y += dy * coeff;
+                 }
+             });
+}
+
+static float
+square_distance_attractive_force(const float k, const float d)
+{
+    return d * d / k;
+}
+
+static float
+square_distance_repulsive_force(const float k, const float d)
+{
+    return k * k / d;
+}
+
+void
+editor::reorder() noexcept
+{
+    const auto size = length(top.children);
+    const auto tmp = std::sqrt(size);
+    const auto column = static_cast<int>(tmp);
+    auto line = column;
+    auto remaining = size - (column * line);
+
+    while (remaining > column) {
+        ++line;
+        remaining -= column;
+    }
+
+    const auto x_distance = 250.f;
+    const auto y_distance = 250.f;
+
+    const auto panning = imnodes::EditorContextGetPanning();
+    auto new_pos = panning;
+
+    int elem = 0;
+
+    for (int i = 0; i < column; ++i) {
+        new_pos.y = panning.y + static_cast<float>(i) * y_distance;
+        for (int j = 0; j < line; ++j) {
+            new_pos.x = panning.x + static_cast<float>(j) * x_distance;
+            imnodes::SetNodeScreenSpacePos(top.children[elem].second, new_pos);
+            positions[elem].x = new_pos.x;
+            positions[elem].y = new_pos.y;
+
+            fmt::print("{} {} ({},{})\n",
+                       elem,
+                       top.children[elem].second,
+                       positions[elem].x,
+                       positions[elem].y);
+
+            ++elem;
+        }
+    }
+
+    fmt::print("Initial:\n");
+    new_pos.x = panning.x;
+    new_pos.y = panning.y + static_cast<float>(column) * y_distance;
+    for (int j = 0; j < remaining; ++j) {
+        new_pos.x = panning.x + static_cast<float>(j) * x_distance;
+        imnodes::SetNodeScreenSpacePos(top.children[elem].second, new_pos);
+        positions[elem].x = new_pos.x;
+        positions[elem].y = new_pos.y;
+
+        fmt::print("{} {} ({},{})\n",
+                   elem,
+                   top.children[elem].second,
+                   elem,
+                   positions[elem].x,
+                   positions[elem].y);
+
+        ++elem;
+    }
+
+    /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
+       Fruchterman and Edward M. Reingold in Software--Pratice and
+       Experience, Vol. 21(1 1), 1129-1164 (november 1991). */
+
+    const int iteration_limit = 100;
+    const float W = static_cast<float>(column) * 350.f;
+    const float L = line + (remaining > 0) ? 350.f : 0.f;
+    const float area = W * L;
+    const float k_square = area / static_cast<float>(top.children.size());
+    const float k = std::sqrt(k_square);
+
+    for (int iteration = 0; iteration < iteration_limit; ++iteration) {
+        float t = 1.f - static_cast<float>(iteration) /
+                          static_cast<float>(iteration_limit);
+        t *= t;
+
+        for (int i_v = 0; i_v < size; ++i_v) {
+            const int v = i_v;
+
+            displacements[v].x = displacements[v].y = 0.f;
+
+            for (int i_u = 0; i_u < size; ++i_u) {
+                const int u = i_u;
+
+                if (u != v) {
+                    const ImVec2 delta{ positions[v].x - positions[u].x,
+                                        positions[v].y - positions[u].y };
+
+                    if (delta.x && delta.y) {
+                        const float d2 = delta.x * delta.x + delta.y * delta.y;
+                        const float coeff = k_square / d2;
+
+                        displacements[v].x += coeff * delta.x;
+                        displacements[v].y += coeff * delta.y;
+                    }
+                }
+            }
+
+            fmt::print(
+              "Displacements {},{}\n", displacements[v].x, displacements[v].y);
+        }
+
+        for (size_t i = 0, e = top.children.size(); i != e; ++i) {
+            if (top.children[i].first.index() == 0) {
+                const auto id = std::get<model_id>(top.children[i].first);
+                if (const auto* mdl = sim.models.try_to_get(id); mdl) {
+                    sim.for_all_output_port(
+                      *mdl,
+                      [this, k](output_port& port, output_port_id /*id*/) {
+                          compute_connection_distance(port, *this, k);
+                      });
+                }
+            } else {
+                const auto id = std::get<cluster_id>(top.children[i].first);
+                if (auto* gp = clusters.try_to_get(id); gp) {
+                    for_each(
+                      sim.output_ports,
+                      gp->output_ports,
+                      [this, k](output_port& port, output_port_id /*id*/) {
+                          compute_connection_distance(port, *this, k);
+                      });
+                }
+            }
+        }
+
+        fmt::print("iteration {}\n", iteration);
+
+        auto sum = 0.f;
+        for (int i_v = 0; i_v < size; ++i_v) {
+            const int v = i_v;
+
+            const float d2 = displacements[v].x * displacements[v].x +
+                             displacements[v].y * displacements[v].y;
+            const float d = std::sqrt(d2);
+
+            if (d > t) {
+                const float coeff = t / d;
+                displacements[v].x *= coeff;
+                displacements[v].y *= coeff;
+                sum += t;
+            } else {
+                sum += d;
+            }
+
+            positions[v].x += displacements[v].x;
+            positions[v].y += displacements[v].y;
+
+            fmt::print(
+              "{} {} ({},{})\n", i_v, v, positions[v].x, positions[v].y);
+
+            imnodes::SetNodeScreenSpacePos(top.children[v].second,
+                                           positions[v]);
+        }
+    }
+}
+
 status
 editor::copy(const ImVector<int>& nodes) noexcept
 {
@@ -705,12 +965,12 @@ editor::copy(const ImVector<int>& nodes) noexcept
 
         const auto child = top.children[index];
 
-        if (child.index() == 0) {
-            const auto id = std::get<model_id>(child);
+        if (child.first.index() == 0) {
+            const auto id = std::get<model_id>(child.first);
             if (auto* mdl = sim.models.try_to_get(id); mdl)
                 cp.c_models.emplace_back(id, undefined<model_id>());
         } else {
-            const auto id = std::get<cluster_id>(child);
+            const auto id = std::get<cluster_id>(child.first);
             if (auto* gp = clusters.try_to_get(id); gp) {
                 cp.c_clusters.emplace_back(id, undefined<cluster_id>());
                 copy_stack.emplace_back(id);
@@ -745,44 +1005,6 @@ editor::copy(const ImVector<int>& nodes) noexcept
     return cp.copy(*this, models_to_merge_with_top, clusters_to_merge_with_top);
 }
 
-void
-editor::reorder_subgroup(const size_t from,
-                         const size_t length,
-                         ImVec2 click_pos) noexcept
-{
-    const auto tmp = std::sqrt(static_cast<double>(length));
-    const auto column = static_cast<int>(tmp);
-    auto line = column;
-    auto remaining = static_cast<int>(length) - (column * line);
-
-    while (remaining > column) {
-        ++line;
-        remaining -= column;
-    }
-
-    log_w.log(7, "reorder with: %d * %d + %d\n", column, line, remaining);
-
-    const auto x_distance = 250.0f;
-    const auto y_distance = 250.0f;
-    auto elem = static_cast<int>(from);
-    ImVec2 new_pos = click_pos;
-
-    for (int i = 0; i < column; ++i) {
-        new_pos.y = click_pos.y + i * y_distance;
-        for (int j = 0; j < line; ++j) {
-            new_pos.x = click_pos.x + j * x_distance;
-            imnodes::SetNodeScreenSpacePos(elem++, new_pos);
-        }
-    }
-
-    new_pos.x = click_pos.x;
-    new_pos.y = click_pos.y + column * y_distance;
-    for (int j = 0; j < remaining; ++j) {
-        new_pos.x = click_pos.x + j * x_distance;
-        imnodes::SetNodeScreenSpacePos(elem++, new_pos);
-    }
-}
-
 status
 editor::initialize(u32 id) noexcept
 {
@@ -791,10 +1013,14 @@ editor::initialize(u32 id) noexcept
         is_bad(observation_types.init(sim.models.capacity())) ||
         is_bad(clusters.init(sim.models.capacity())) ||
         is_bad(models_mapper.init(sim.models.capacity())) ||
-        is_bad(clusters_mapper.init(sim.models.capacity())))
+        is_bad(clusters_mapper.init(sim.models.capacity())) ||
+        is_bad(top.init(sim.models.capacity())))
         return status::gui_not_enough_memory;
 
-    auto& gp = clusters.alloc();
+    positions.resize(sim.models.capacity() + clusters.capacity());
+    displacements.resize(sim.models.capacity() + clusters.capacity(),
+                         ImVec2{ 0.f, 0.f });
+
     format(name, "Editor {}", id);
 
     initialized = true;
@@ -1054,39 +1280,55 @@ editor::add_izhikevitch() noexcept
     return status::success;
 }
 
+static int
+show_connection(output_port& port,
+                output_port_id id,
+                data_array<input_port, input_port_id>& input_ports,
+                int connection_id)
+{
+    for_each(input_ports,
+             port.connections,
+             [&connection_id, id](const auto& /*i_port*/, const auto i_id) {
+                 imnodes::Link(
+                   connection_id++, editor::get_out(id), editor::get_in(i_id));
+             });
+
+    return connection_id;
+}
+
 void
 editor::show_connections() noexcept
 {
     int connection_id = 0;
 
     for (size_t i = 0, e = top.children.size(); i != e; ++i) {
-        if (top.children[i].index() == 0) {
-            const auto id = std::get<model_id>(top.children[i]);
+        if (top.children[i].first.index() == 0) {
+            const auto id = std::get<model_id>(top.children[i].first);
             if (const auto* mdl = sim.models.try_to_get(id); mdl) {
-
-                sim.for_all_input_port(
-                  *mdl, [this, &connection_id](const input_port& port) {
-                      const auto i_port_id = this->sim.input_ports.get_id(port);
-                      for (const auto id : port.connections) {
-                          if (auto* p = this->sim.output_ports.try_to_get(id);
-                              p)
-                              imnodes::Link(connection_id++,
-                                            get_out(id),
-                                            get_in(i_port_id));
-                      }
-                  });
-
                 sim.for_all_output_port(
-                  *mdl, [this, &connection_id](const output_port& port) {
-                      const auto o_port_id =
-                        this->sim.output_ports.get_id(port);
-                      for (const auto id : port.connections) {
-                          if (auto* p = this->sim.input_ports.try_to_get(id); p)
-                              imnodes::Link(connection_id++,
-                                            get_out(o_port_id),
-                                            get_in(id));
-                      }
+                  *mdl,
+                  [this, &connection_id](output_port& port,
+                                         output_port_id /*id*/) {
+                      connection_id =
+                        show_connection(port,
+                                        this->sim.output_ports.get_id(port),
+                                        this->sim.input_ports,
+                                        connection_id);
                   });
+            }
+        } else {
+            const auto id = std::get<cluster_id>(top.children[i].first);
+            if (auto* gp = clusters.try_to_get(id); gp) {
+                for_each(sim.output_ports,
+                         gp->output_ports,
+                         [this, &connection_id](output_port& port,
+                                                output_port_id /*id*/) {
+                             connection_id = show_connection(
+                               port,
+                               this->sim.output_ports.get_id(port),
+                               this->sim.input_ports,
+                               connection_id);
+                         });
             }
         }
     }
@@ -1749,8 +1991,8 @@ void
 editor::show_top() noexcept
 {
     for (size_t i = 0, e = top.children.size(); i != e; ++i) {
-        if (top.children[i].index() == 0) {
-            const auto id = std::get<model_id>(top.children[i]);
+        if (top.children[i].first.index() == 0) {
+            const auto id = std::get<model_id>(top.children[i].first);
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBar,
                                         IM_COL32(70, 70, 140, 255));
@@ -1759,7 +2001,7 @@ editor::show_top() noexcept
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarSelected,
                                         IM_COL32(100, 100, 170, 255));
 
-                imnodes::BeginNode(top.nodes[i]);
+                imnodes::BeginNode(top.children[i].second);
                 imnodes::BeginNodeTitleBar();
                 ImGui::TextUnformatted(mdl->name.c_str());
                 ImGui::OpenPopupOnItemClick("Rename model", 1);
@@ -1782,7 +2024,7 @@ editor::show_top() noexcept
                 imnodes::PopColorStyle();
             }
         } else {
-            const auto id = std::get<cluster_id>(top.children[i]);
+            const auto id = std::get<cluster_id>(top.children[i].first);
             if (auto* gp = clusters.try_to_get(id); gp) {
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBar,
                                         IM_COL32(70, 140, 70, 255));
@@ -1791,7 +2033,7 @@ editor::show_top() noexcept
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarSelected,
                                         IM_COL32(100, 170, 100, 255));
 
-                imnodes::BeginNode(top.nodes[i]);
+                imnodes::BeginNode(top.children[i].second);
                 imnodes::BeginNodeTitleBar();
                 ImGui::TextUnformatted(gp->name.c_str());
                 ImGui::OpenPopupOnItemClick("Rename group", 1);
@@ -1873,7 +2115,7 @@ editor::show_editor() noexcept
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Examples")) {
+        if (ImGui::BeginMenu("Exa   mples")) {
             if (ImGui::MenuItem("Insert Lotka Volterra model")) {
                 if (auto ret = add_lotka_volterra(); is_bad(ret))
                     log_w.log(
@@ -2089,8 +2331,8 @@ editor::show_editor() noexcept
         ImGui::EndPopup();
         if (new_model != undefined<model_id>()) {
             parent(new_model, undefined<cluster_id>());
-            top.emplace_back(new_model);
-            imnodes::SetNodeScreenSpacePos(top.nodes.back(), click_pos);
+            imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
+                                           click_pos);
         }
     }
 

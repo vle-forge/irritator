@@ -10,7 +10,6 @@
 #include <filesystem>
 #include <fstream>
 #include <thread>
-#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -18,6 +17,22 @@
 #include <imgui.h>
 
 namespace irt {
+
+template<class C>
+constexpr int
+length(const C& c) noexcept
+{
+    return static_cast<int>(c.size());
+}
+
+template<class T, size_t N>
+constexpr int
+length(const T (&array)[N]) noexcept
+{
+    (void)array;
+
+    return static_cast<int>(N);
+}
 
 template<typename Identifier>
 constexpr Identifier
@@ -47,50 +62,59 @@ static inline constexpr int not_found = -1;
 
 struct top_cluster
 {
-    std::vector<child_id> children;
-    std::vector<int> nodes;
+    std::vector<std::pair<child_id, int>> children;
     int next_node_id = 0;
 
     static inline constexpr int not_found = -1;
 
+    status init(size_t models) noexcept
+    {
+        try {
+            children.reserve(models);
+        } catch (const std::bad_alloc&) {
+            std::vector<std::pair<child_id, int>>().swap(children);
+            irt_bad_return(status::gui_not_enough_memory);
+        }
+
+        return status::success;
+    }
+
     int get_index(const child_id id) const noexcept
     {
-        auto it = std::find(std::begin(children), std::end(children), id);
-        if (it == std::end(children))
-            return not_found;
+        for (int i = 0, e = length(children); i != e; ++i)
+            if (children[i].first == id)
+                return i;
 
-        return static_cast<int>(std::distance(std::begin(children), it));
+        return not_found;
     }
 
     int get_index(const int node) const noexcept
     {
-        auto it = std::find(std::begin(nodes), std::end(nodes), node);
-        if (it == std::end(nodes))
-            return not_found;
+        for (int i = 0, e = length(children); i != e; ++i)
+            if (children[i].second == node)
+                return i;
 
-        return static_cast<int>(std::distance(std::begin(nodes), it));
+        return not_found;
     }
 
     void clear() noexcept
     {
         children.clear();
-        nodes.clear();
     }
 
     void pop(const int index) noexcept
     {
         std::swap(children[index], children.back());
         children.pop_back();
-
-        std::swap(nodes[index], nodes.back());
-        nodes.pop_back();
     }
 
-    void emplace_back(const child_id id)
+    int emplace_back(const child_id id)
     {
-        children.emplace_back(id);
-        nodes.emplace_back(next_node_id);
-        ++next_node_id;
+        int ret = next_node_id++;
+
+        children.emplace_back(id, ret);
+
+        return ret;
     }
 };
 
@@ -180,11 +204,13 @@ struct editor
     array<cluster_id> clusters_mapper; /* group per cluster_id */
     array<cluster_id> models_mapper;   /* group per model_id */
 
+    ImVector<ImVec2> positions;
+    ImVector<ImVec2> displacements;
+
     top_cluster top;
 
     status initialize(u32 id) noexcept;
     void clear() noexcept;
-    void reorder() noexcept;
 
     void group(const ImVector<int>& nodes) noexcept;
     void ungroup(const int node) noexcept;
@@ -192,9 +218,12 @@ struct editor
     void free_children(const ImVector<int>& nodes) noexcept;
     status copy(const ImVector<int>& nodes) noexcept;
 
-    void reorder_subgroup(const size_t from,
-                          const size_t length,
-                          ImVec2 click_pos) noexcept;
+    void reorder() noexcept;
+
+    bool is_in_hierarchy(const cluster& group,
+                         const cluster_id group_to_search) const noexcept;
+    cluster_id ancestor(const child_id child) const noexcept;
+    int get_top_group_ref(const child_id child) const noexcept;
 
     cluster_id parent(cluster_id child) const noexcept
     {
@@ -216,7 +245,7 @@ struct editor
         models_mapper[get_index(child)] = parent;
     }
 
-    int get_in(input_port_id id) const noexcept
+    static int get_in(input_port_id id) noexcept
     {
         return static_cast<int>(get_index(id));
     }
@@ -228,7 +257,7 @@ struct editor
         return port ? sim.input_ports.get_id(port) : undefined<input_port_id>();
     }
 
-    int get_out(output_port_id id) const noexcept
+    static int get_out(output_port_id id) noexcept
     {
         constexpr u32 is_output = 1 << 31;
         u32 index = get_index(id);
