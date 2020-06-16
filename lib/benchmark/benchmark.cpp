@@ -12,6 +12,8 @@
 
 #include <chrono>
 
+#include <hayai/hayai.hpp>
+
 static void
 dot_graph_save(const irt::simulation& sim, std::FILE* os)
 {
@@ -208,7 +210,7 @@ make_neuron(irt::simulation* sim, long unsigned int i) noexcept
 }
 
 struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long unsigned int target,
-                              irt::output_port_id presynaptic,irt::output_port_id postsynaptic)
+                              irt::output_port_id presynaptic,irt::output_port_id postsynaptic,double quantum)
 {
   using namespace boost::ut;
   double taupre = 20.0*1;
@@ -240,7 +242,7 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   quant_pre.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quant_pre.default_zero_init_offset = true;
-  quant_pre.default_step_size = 1e-5;
+  quant_pre.default_step_size = quantum;
   quant_pre.default_past_length = 3;
   sum_pre.default_input_coeffs[0] = 1.0;
   sum_pre.default_input_coeffs[1] = dApre;
@@ -252,7 +254,7 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   quant_post.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quant_post.default_zero_init_offset = true;
-  quant_post.default_step_size = 1e-5;
+  quant_post.default_step_size = quantum;
   quant_post.default_past_length = 3;
   sum_post.default_input_coeffs[0] = 1.0;
   sum_post.default_input_coeffs[1] = dApost;
@@ -384,124 +386,96 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   return synapse_model;
 } 
 
+void network(long unsigned int N, double simulation_duration, double quantum)
+{
+ using namespace boost::ut;
+
+   
+
+      irt::simulation sim;
+      // Neuron constants
+      //long unsigned int N = 10;
+
+
+      expect(irt::is_success(sim.init(100000000lu, 10000000lu)));
+
+
+      //struct neuron neuron_model0 = make_neuron(&sim,0lu);
+      
+      printf(">> Allocating neurones ... ");
+      auto start = std::chrono::steady_clock::now();
+      // Neurons
+      std::vector<irt::dynamics_id> generators;
+      for (long unsigned int i = 0 ; i < N; i++) {
+        auto& gen = sim.generator_models.alloc();
+        gen.default_value = 3.0;
+        gen.default_offset = i+1;
+        gen.default_period = N+1;
+
+
+        !expect(irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen))));
+        
+        generators.emplace_back(sim.generator_models.get_id(gen));
+      } 
+      auto end = std::chrono::steady_clock::now();
+      printf(" [%f] ms.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()));
+
+      printf(">> Allocating synapses ... ");
+      start = std::chrono::steady_clock::now();
+      std::vector<struct synapse> synapses;
+      synapses.reserve(256*N);
+      for (long unsigned int i = 0 ; i < N; i++) {
+        for (long unsigned int j = 0 ; j < N; j++) {
+
+          struct synapse synapse_model = make_synapse(&sim,i,j,
+                                          sim.generator_models.get(generators[i]).y[0],
+                                            sim.generator_models.get(generators[j]).y[0],quantum);
+          synapses.emplace_back(synapse_model);
+        }
+      }
+      end = std::chrono::steady_clock::now();
+      printf(" [%f] s.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(end - start).count()));
+      printf(">> synapses size %ld \n",synapses.capacity());
+
+      irt::time t = 0.0;
+
+
+      printf(">> Initializing simulation ... \n");
+      start = std::chrono::steady_clock::now();
+      expect(irt::status::success == sim.initialize(t));
+      end = std::chrono::steady_clock::now();
+      printf(">> Simulation initialized in : %f ms.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()));
+
+      printf(">> Start running ... \n");
+      start = std::chrono::steady_clock::now();
+      do {
+
+          irt::status st = sim.run(t);
+          expect(st == irt::status::success);
+
+
+
+      } while (t < simulation_duration);
+      end = std::chrono::steady_clock::now();
+      printf(">> Simulation done in : %f s.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(end - start).count()));
+            
+}
+
+BENCHMARK_P(Network, N, 10, 1,(long unsigned int N, double simulation_duration, double quantum))
+{
+  network(N,simulation_duration,quantum);
+}
+BENCHMARK_P_INSTANCE(Network, N, (10,30,1e-5));
+BENCHMARK_P_INSTANCE(Network, N, (100,30,1e-5));
+BENCHMARK_P_INSTANCE(Network, N, (500,30,1e-5));
 int
 main()
 {
-    using namespace boost::ut;
+      hayai::ConsoleOutputter consoleOutputter;
 
-   
-    "song_1_simulation"_test = [] {
-        
-        
-        irt::simulation sim;
-        // Neuron constants
-        long unsigned int N = 10;
-        /*double F = 15.0;
+      hayai::Benchmarker::AddOutputter(consoleOutputter);
+      hayai::Benchmarker::RunAllTests();
 
-        double Eex = 0.0;
-        double Ein = -70*0.001;
-        double tauex = 5*0.001;
-        double tauin = tauex;*/
-
-        // Synapse constants
-
-        //double ginbar = 0.05;
-
-        expect(irt::is_success(sim.init(100000000lu, 10000000lu)));
-
-
-        expect(sim.generator_models.can_alloc(N));
-        expect(sim.integrator_models.can_alloc(2*N*N));
-        expect(sim.quantifier_models.can_alloc(2*N*N));
-        expect(sim.adder_2_models.can_alloc(4*N*N));
-        expect(sim.constant_models.can_alloc(N));
-        expect(sim.cross_models.can_alloc(2*N*N));
-
-
-        //struct neuron neuron_model0 = make_neuron(&sim,0lu);
-        
-        printf(">> Allocating neurones ... ");
-        auto start = std::chrono::steady_clock::now();
-        // Neurons
-        std::vector<irt::dynamics_id> generators;
-        for (long unsigned int i = 0 ; i < N; i++) {
-          auto& gen = sim.generator_models.alloc();
-          gen.default_value = 3.0;
-          gen.default_offset = i+1;
-          gen.default_period = N+1;
-
-
-          !expect(irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen))));
-          
-          generators.emplace_back(sim.generator_models.get_id(gen));
-        } 
-        auto end = std::chrono::steady_clock::now();
-        printf(" [%f] ms.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()));
-
-        printf(">> Allocating synapses ... ");
-        start = std::chrono::steady_clock::now();
-        std::vector<struct synapse> synapses;
-        for (long unsigned int i = 0 ; i < N; i++) {
-          for (long unsigned int j = 0 ; j < N; j++) {
-
-            struct synapse synapse_model = make_synapse(&sim,i,j,
-                                            sim.generator_models.get(generators[i]).y[0],
-                                              sim.generator_models.get(generators[j]).y[0]);
-            synapses.emplace_back(synapse_model);
-          }
-        }
-        end = std::chrono::steady_clock::now();
-        printf(" [%f] s.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(end - start).count()));
-        //dot_graph_save(sim, stdout);
-
-        irt::time t = 0.0;
-        /*std::FILE* os = std::fopen("output_song.csv", "w");
-        !expect(os != nullptr);
-        
-        std::string s = "t,";
-        for (long unsigned int i = 0; i < N*N; i++)
-        {
-          s =  s + "Apre" + std::to_string(i)
-                + ",Apost" + std::to_string(i)
-                + ",";
-        }
-        for (long unsigned int i = 0; i < N*N; i++)   
-        s =  s + "W" + std::to_string(i) + ",";
-        fmt::print(os, s + "\n");*/
-
-        printf(">> Initializing simulation ... \n");
-        start = std::chrono::steady_clock::now();
-        expect(irt::status::success == sim.initialize(t));
-
-        end = std::chrono::steady_clock::now();
-        printf(">> Simulation initialized in : %f ms.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()));
-        printf(">> Start running ... \n");
-        start = std::chrono::steady_clock::now();
-        do {
-
-            irt::status st = sim.run(t);
-            expect(st == irt::status::success);
-
-            /*std::string s = std::to_string(t)+",";
-            for (long unsigned int i = 0; i < N*N; i++)
-            {
-              s =  s + std::to_string(sim.integrator_models.get(synapses[i].integrator_pre).last_output_value)
-                    + ","
-                    + std::to_string(sim.integrator_models.get(synapses[i].integrator_post).last_output_value)
-                    + ",";
-            }
-            for (long unsigned int i = 0; i < N*N; i++)   
-            s =  s + std::to_string(sim.accumulator_2_models.get(synapses[i].accumulator_syn).number) + ",";
-            fmt::print(os, s + "\n");*/
-
-        } while (t < N);
-        end = std::chrono::steady_clock::now();
-        printf(">> Simulation done in : %f s.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(end - start).count()));
-
-        //std::fclose(os);
-      };
-
-   
 }
 
 
