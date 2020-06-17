@@ -281,6 +281,8 @@ editor::group(const ImVector<int>& nodes) noexcept
         return;
     }
 
+    iteration = 0;
+
     /* First, move children models and groups from the current cluster into the
        newly allocated cluster. */
 
@@ -397,6 +399,8 @@ editor::ungroup(const int node) noexcept
         log_w.log(5, "group does not exist\n");
         return;
     }
+
+    iteration = 0;
 
     const auto group_id = clusters.get_id(*group);
     top.pop(index);
@@ -825,18 +829,10 @@ editor::reorder() noexcept
             imnodes::SetNodeScreenSpacePos(top.children[elem].second, new_pos);
             positions[elem].x = new_pos.x;
             positions[elem].y = new_pos.y;
-
-            fmt::print("{} {} ({},{})\n",
-                       elem,
-                       top.children[elem].second,
-                       positions[elem].x,
-                       positions[elem].y);
-
             ++elem;
         }
     }
 
-    fmt::print("Initial:\n");
     new_pos.x = panning.x;
     new_pos.y = panning.y + static_cast<float>(column) * y_distance;
     for (int j = 0; j < remaining; ++j) {
@@ -844,20 +840,28 @@ editor::reorder() noexcept
         imnodes::SetNodeScreenSpacePos(top.children[elem].second, new_pos);
         positions[elem].x = new_pos.x;
         positions[elem].y = new_pos.y;
-
-        fmt::print("{} {} ({},{})\n",
-                   elem,
-                   top.children[elem].second,
-                   elem,
-                   positions[elem].x,
-                   positions[elem].y);
-
         ++elem;
     }
+}
 
+void
+editor::compute_automatic_layout_iteration() noexcept
+{
     /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
        Fruchterman and Edward M. Reingold in Software--Pratice and
-       Experience, Vol. 21(1 1), 1129-1164 (november 1991). */
+       Experience, Vol. 21(1 1), 1129-1164 (november 1991).
+       */
+
+    const auto size = length(top.children);
+    const auto tmp = std::sqrt(size);
+    const auto column = static_cast<int>(tmp);
+    auto line = column;
+    auto remaining = size - (column * line);
+
+    while (remaining > column) {
+        ++line;
+        remaining -= column;
+    }
 
     const int iteration_limit = 100;
     const float W = static_cast<float>(column) * 350.f;
@@ -866,89 +870,81 @@ editor::reorder() noexcept
     const float k_square = area / static_cast<float>(top.children.size());
     const float k = std::sqrt(k_square);
 
-    for (int iteration = 0; iteration < iteration_limit; ++iteration) {
-        float t = 1.f - static_cast<float>(iteration) /
-                          static_cast<float>(iteration_limit);
-        t *= t;
+    float t =
+      1.f - static_cast<float>(iteration) / static_cast<float>(iteration_limit);
+    t *= t;
 
-        for (int i_v = 0; i_v < size; ++i_v) {
-            const int v = i_v;
+    for (int i_v = 0; i_v < size; ++i_v) {
+        const int v = i_v;
 
-            displacements[v].x = displacements[v].y = 0.f;
+        displacements[v].x = displacements[v].y = 0.f;
 
-            for (int i_u = 0; i_u < size; ++i_u) {
-                const int u = i_u;
+        for (int i_u = 0; i_u < size; ++i_u) {
+            const int u = i_u;
 
-                if (u != v) {
-                    const ImVec2 delta{ positions[v].x - positions[u].x,
-                                        positions[v].y - positions[u].y };
+            if (u != v) {
+                const ImVec2 delta{ positions[v].x - positions[u].x,
+                                    positions[v].y - positions[u].y };
 
-                    if (delta.x && delta.y) {
-                        const float d2 = delta.x * delta.x + delta.y * delta.y;
-                        const float coeff = k_square / d2;
+                if (delta.x && delta.y) {
+                    const float d2 = delta.x * delta.x + delta.y * delta.y;
+                    const float coeff = k_square / d2;
 
-                        displacements[v].x += coeff * delta.x;
-                        displacements[v].y += coeff * delta.y;
-                    }
-                }
-            }
-
-            fmt::print(
-              "Displacements {},{}\n", displacements[v].x, displacements[v].y);
-        }
-
-        for (size_t i = 0, e = top.children.size(); i != e; ++i) {
-            if (top.children[i].first.index() == 0) {
-                const auto id = std::get<model_id>(top.children[i].first);
-                if (const auto* mdl = sim.models.try_to_get(id); mdl) {
-                    sim.for_all_output_port(
-                      *mdl,
-                      [this, k](output_port& port, output_port_id /*id*/) {
-                          compute_connection_distance(port, *this, k);
-                      });
-                }
-            } else {
-                const auto id = std::get<cluster_id>(top.children[i].first);
-                if (auto* gp = clusters.try_to_get(id); gp) {
-                    for_each(
-                      sim.output_ports,
-                      gp->output_ports,
-                      [this, k](output_port& port, output_port_id /*id*/) {
-                          compute_connection_distance(port, *this, k);
-                      });
+                    displacements[v].x += coeff * delta.x;
+                    displacements[v].y += coeff * delta.y;
                 }
             }
         }
 
-        fmt::print("iteration {}\n", iteration);
+        fmt::print(
+          "Displacements {},{}\n", displacements[v].x, displacements[v].y);
+    }
 
-        auto sum = 0.f;
-        for (int i_v = 0; i_v < size; ++i_v) {
-            const int v = i_v;
-
-            const float d2 = displacements[v].x * displacements[v].x +
-                             displacements[v].y * displacements[v].y;
-            const float d = std::sqrt(d2);
-
-            if (d > t) {
-                const float coeff = t / d;
-                displacements[v].x *= coeff;
-                displacements[v].y *= coeff;
-                sum += t;
-            } else {
-                sum += d;
+    for (size_t i = 0, e = top.children.size(); i != e; ++i) {
+        if (top.children[i].first.index() == 0) {
+            const auto id = std::get<model_id>(top.children[i].first);
+            if (const auto* mdl = sim.models.try_to_get(id); mdl) {
+                sim.for_all_output_port(
+                  *mdl, [this, k](output_port& port, output_port_id /*id*/) {
+                      compute_connection_distance(port, *this, k);
+                  });
             }
-
-            positions[v].x += displacements[v].x;
-            positions[v].y += displacements[v].y;
-
-            fmt::print(
-              "{} {} ({},{})\n", i_v, v, positions[v].x, positions[v].y);
-
-            imnodes::SetNodeScreenSpacePos(top.children[v].second,
-                                           positions[v]);
+        } else {
+            const auto id = std::get<cluster_id>(top.children[i].first);
+            if (auto* gp = clusters.try_to_get(id); gp) {
+                for_each(sim.output_ports,
+                         gp->output_ports,
+                         [this, k](output_port& port, output_port_id /*id*/) {
+                             compute_connection_distance(port, *this, k);
+                         });
+            }
         }
     }
+
+    auto sum = 0.f;
+    for (int i_v = 0; i_v < size; ++i_v) {
+        const int v = i_v;
+
+        const float d2 = displacements[v].x * displacements[v].x +
+                         displacements[v].y * displacements[v].y;
+        const float d = std::sqrt(d2);
+
+        if (d > t) {
+            const float coeff = t / d;
+            displacements[v].x *= coeff;
+            displacements[v].y *= coeff;
+            sum += t;
+        } else {
+            sum += d;
+        }
+
+        positions[v].x += displacements[v].x;
+        positions[v].y += displacements[v].y;
+
+        imnodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
+    }
+
+    ++iteration;
 }
 
 status
@@ -1113,6 +1109,8 @@ editor::add_lotka_volterra() noexcept
     parent(quantifier_a.id, undefined<cluster_id>());
     parent(quantifier_b.id, undefined<cluster_id>());
 
+    iteration = 0;
+
     return status::success;
 }
 
@@ -1276,6 +1274,8 @@ editor::add_izhikevitch() noexcept
     parent(quantifier_b.id, undefined<cluster_id>());
     parent(cross.id, undefined<cluster_id>());
     parent(cross2.id, undefined<cluster_id>());
+
+    iteration = 0;
 
     return status::success;
 }
@@ -2111,11 +2111,13 @@ editor::show_editor() noexcept
                 clear();
             if (ImGui::MenuItem("Grid Reorder"))
                 reorder();
+            if (ImGui::MenuItem("Automatic Layout", nullptr, &automatic_layout))
+                iteration = 0;
 
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Exa   mples")) {
+        if (ImGui::BeginMenu("Examples")) {
             if (ImGui::MenuItem("Insert Lotka Volterra model")) {
                 if (auto ret = add_lotka_volterra(); is_bad(ret))
                     log_w.log(
@@ -2195,6 +2197,12 @@ editor::show_editor() noexcept
     imnodes::EndNodeEditor();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+
+    if (imnodes::IsAnyAttributeActive(nullptr))
+        iteration = 0;
+
+    if (automatic_layout && iteration < iteration_limit)
+        compute_automatic_layout_iteration();
 
     if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1))
         ImGui::OpenPopup("Context menu");
@@ -2333,6 +2341,7 @@ editor::show_editor() noexcept
             parent(new_model, undefined<cluster_id>());
             imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
                                            click_pos);
+            iteration = 0;
         }
     }
 
