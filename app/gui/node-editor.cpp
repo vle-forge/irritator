@@ -15,6 +15,43 @@
 
 namespace irt {
 
+static int kernel_model_cache = 1024;
+static int kernel_message_cache = 32768;
+
+static int gui_node_cache = 1024;
+static ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
+static ImVec4 gui_cluster_color{ .27f, .54f, .27f, 1.f };
+
+static ImU32 gui_hovered_model_color;
+static ImU32 gui_hovered_cluster_color;
+static ImU32 gui_selected_model_color;
+static ImU32 gui_selected_cluster_color;
+
+static int automatic_layout_iteration_limit = 200;
+static auto automatic_layout_x_distance = 350.f;
+static auto automatic_layout_y_distance = 350.f;
+static auto grid_layout_x_distance = 250.f;
+static auto grid_layout_y_distance = 250.f;
+
+static inline ImVec4 operator*(const ImVec4& lhs, const float rhs)
+{
+    return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
+}
+
+static inline void
+compute_color()
+{
+    gui_hovered_model_color =
+      ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.25f);
+    gui_selected_model_color =
+      ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.5f);
+
+    gui_hovered_cluster_color =
+      ImGui::ColorConvertFloat4ToU32(gui_cluster_color * 1.25f);
+    gui_selected_cluster_color =
+      ImGui::ColorConvertFloat4ToU32(gui_cluster_color * 1.5f);
+}
+
 template<size_t N, typename... Args>
 void
 format(small_string<N>& str, const char* fmt, const Args&... args)
@@ -622,48 +659,49 @@ struct copier
 
             auto ret = sim.dispatch(
               mdl->type,
-              [this, &sim, mdl, &mdl_id_dst]<typename DynamicsM>(
-                DynamicsM& dynamics_models) -> status {
-                  using Dynamics = typename DynamicsM::value_type;
+              [ this, &sim, mdl, &
+                mdl_id_dst ]<typename DynamicsM>(DynamicsM & dynamics_models)
+                ->status {
+                    using Dynamics = typename DynamicsM::value_type;
 
-                  irt_return_if_fail(dynamics_models.can_alloc(1),
-                                     status::dynamics_not_enough_memory);
+                    irt_return_if_fail(dynamics_models.can_alloc(1),
+                                       status::dynamics_not_enough_memory);
 
-                  auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
-                  irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
+                    auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
+                    irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
 
-                  auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
-                  auto new_dyn_id = dynamics_models.get_id(new_dyn);
+                    auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
+                    auto new_dyn_id = dynamics_models.get_id(new_dyn);
 
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      std::fill_n(new_dyn.x,
-                                  std::size(new_dyn.x),
-                                  static_cast<input_port_id>(0));
+                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                        std::fill_n(new_dyn.x,
+                                    std::size(new_dyn.x),
+                                    static_cast<input_port_id>(0));
 
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      std::fill_n(new_dyn.y,
-                                  std::size(new_dyn.y),
-                                  static_cast<output_port_id>(0));
+                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                        std::fill_n(new_dyn.y,
+                                    std::size(new_dyn.y),
+                                    static_cast<output_port_id>(0));
 
-                  irt_return_if_bad(
-                    sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
+                    irt_return_if_bad(
+                      sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
 
-                  *mdl_id_dst = new_dyn.id;
+                    *mdl_id_dst = new_dyn.id;
 
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
-                           ++j)
-                          this->c_input_ports.emplace_back(dyn_ptr->x[j],
-                                                           new_dyn.x[j]);
+                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                        for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
+                             ++j)
+                            this->c_input_ports.emplace_back(dyn_ptr->x[j],
+                                                             new_dyn.x[j]);
 
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
-                           ++j)
-                          this->c_output_ports.emplace_back(dyn_ptr->y[j],
-                                                            new_dyn.y[j]);
+                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                        for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
+                             ++j)
+                            this->c_output_ports.emplace_back(dyn_ptr->y[j],
+                                                              new_dyn.y[j]);
 
-                  return status::success;
-              });
+                    return status::success;
+                });
 
             irt_return_if_bad(ret);
         }
@@ -788,18 +826,6 @@ compute_connection_distance(output_port& port, editor& ed, const float k)
              });
 }
 
-static float
-square_distance_attractive_force(const float k, const float d)
-{
-    return d * d / k;
-}
-
-static float
-square_distance_repulsive_force(const float k, const float d)
-{
-    return k * k / d;
-}
-
 void
 editor::reorder() noexcept
 {
@@ -814,18 +840,16 @@ editor::reorder() noexcept
         remaining -= column;
     }
 
-    const auto x_distance = 250.f;
-    const auto y_distance = 250.f;
-
     const auto panning = imnodes::EditorContextGetPanning();
     auto new_pos = panning;
 
     int elem = 0;
 
     for (int i = 0; i < column; ++i) {
-        new_pos.y = panning.y + static_cast<float>(i) * y_distance;
+        new_pos.y = panning.y + static_cast<float>(i) * grid_layout_y_distance;
         for (int j = 0; j < line; ++j) {
-            new_pos.x = panning.x + static_cast<float>(j) * x_distance;
+            new_pos.x =
+              panning.x + static_cast<float>(j) * grid_layout_x_distance;
             imnodes::SetNodeScreenSpacePos(top.children[elem].second, new_pos);
             positions[elem].x = new_pos.x;
             positions[elem].y = new_pos.y;
@@ -834,9 +858,9 @@ editor::reorder() noexcept
     }
 
     new_pos.x = panning.x;
-    new_pos.y = panning.y + static_cast<float>(column) * y_distance;
+    new_pos.y = panning.y + static_cast<float>(column) * grid_layout_y_distance;
     for (int j = 0; j < remaining; ++j) {
-        new_pos.x = panning.x + static_cast<float>(j) * x_distance;
+        new_pos.x = panning.x + static_cast<float>(j) * grid_layout_x_distance;
         imnodes::SetNodeScreenSpacePos(top.children[elem].second, new_pos);
         positions[elem].x = new_pos.x;
         positions[elem].y = new_pos.y;
@@ -863,16 +887,17 @@ editor::compute_automatic_layout_iteration() noexcept
         remaining -= column;
     }
 
-    const int iteration_limit = 100;
-    const float W = static_cast<float>(column) * 350.f;
-    const float L = line + (remaining > 0) ? 350.f : 0.f;
+    const float W = static_cast<float>(column) * automatic_layout_x_distance;
+    const float L = line + (remaining > 0) ? automatic_layout_y_distance : 0.f;
     const float area = W * L;
     const float k_square = area / static_cast<float>(top.children.size());
     const float k = std::sqrt(k_square);
 
-    float t =
-      1.f - static_cast<float>(iteration) / static_cast<float>(iteration_limit);
-    t *= t;
+    // float t = 1.f - static_cast<float>(iteration) /
+    //                   static_cast<float>(automatic_layout_iteration_limit);
+    // t *= t;
+
+    float t = 1.f - 1.f / static_cast<float>(automatic_layout_iteration_limit);
 
     for (int i_v = 0; i_v < size; ++i_v) {
         const int v = i_v;
@@ -895,9 +920,6 @@ editor::compute_automatic_layout_iteration() noexcept
                 }
             }
         }
-
-        fmt::print(
-          "Displacements {},{}\n", displacements[v].x, displacements[v].y);
     }
 
     for (size_t i = 0, e = top.children.size(); i != e; ++i) {
@@ -1004,13 +1026,14 @@ editor::copy(const ImVector<int>& nodes) noexcept
 status
 editor::initialize(u32 id) noexcept
 {
-    if (is_bad(sim.init(1024u, 32768u)) ||
+    if (is_bad(sim.init(static_cast<unsigned>(kernel_model_cache),
+                        static_cast<unsigned>(kernel_message_cache))) ||
         is_bad(observation_outputs.init(sim.models.capacity())) ||
         is_bad(observation_types.init(sim.models.capacity())) ||
         is_bad(clusters.init(sim.models.capacity())) ||
         is_bad(models_mapper.init(sim.models.capacity())) ||
         is_bad(clusters_mapper.init(sim.models.capacity())) ||
-        is_bad(top.init(sim.models.capacity())))
+        is_bad(top.init(static_cast<unsigned>(gui_node_cache))))
         return status::gui_not_enough_memory;
 
     positions.resize(sim.models.capacity() + clusters.capacity());
@@ -1994,12 +2017,13 @@ editor::show_top() noexcept
         if (top.children[i].first.index() == 0) {
             const auto id = std::get<model_id>(top.children[i].first);
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                imnodes::PushColorStyle(imnodes::ColorStyle_TitleBar,
-                                        IM_COL32(70, 70, 140, 255));
+                imnodes::PushColorStyle(
+                  imnodes::ColorStyle_TitleBar,
+                  ImGui::ColorConvertFloat4ToU32(gui_model_color));
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
-                                        IM_COL32(85, 85, 155, 255));
+                                        gui_hovered_model_color);
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarSelected,
-                                        IM_COL32(100, 100, 170, 255));
+                                        gui_selected_model_color);
 
                 imnodes::BeginNode(top.children[i].second);
                 imnodes::BeginNodeTitleBar();
@@ -2026,12 +2050,13 @@ editor::show_top() noexcept
         } else {
             const auto id = std::get<cluster_id>(top.children[i].first);
             if (auto* gp = clusters.try_to_get(id); gp) {
-                imnodes::PushColorStyle(imnodes::ColorStyle_TitleBar,
-                                        IM_COL32(70, 140, 70, 255));
+                imnodes::PushColorStyle(
+                  imnodes::ColorStyle_TitleBar,
+                  ImGui::ColorConvertFloat4ToU32(gui_cluster_color));
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
-                                        IM_COL32(85, 155, 85, 255));
+                                        gui_hovered_cluster_color);
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarSelected,
-                                        IM_COL32(100, 170, 100, 255));
+                                        gui_selected_cluster_color);
 
                 imnodes::BeginNode(top.children[i].second);
                 imnodes::BeginNodeTitleBar();
@@ -2201,7 +2226,7 @@ editor::show_editor() noexcept
     if (imnodes::IsAnyAttributeActive(nullptr))
         iteration = 0;
 
-    if (automatic_layout && iteration < iteration_limit)
+    if (automatic_layout && iteration < automatic_layout_iteration_limit)
         compute_automatic_layout_iteration();
 
     if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1))
@@ -2605,6 +2630,45 @@ show_simulation_box(bool* show_simulation)
     ImGui::End();
 }
 
+static void
+show_settings_window(bool* is_open)
+{
+    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Always);
+    if (!ImGui::Begin("Settings", is_open)) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Text("Kernel");
+    ImGui::DragInt("model cache", &kernel_model_cache, 1.f, 1024, 1024 * 1024);
+    ImGui::DragInt("msg cache", &kernel_message_cache, 1.f, 1024, 1024 * 1024);
+
+    ImGui::Text("Graphics");
+    ImGui::DragInt("node cache", &gui_node_cache, 1.f, 1024, 1024 * 1024);
+    if (ImGui::ColorEdit3(
+          "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
+        compute_color();
+    if (ImGui::ColorEdit3(
+          "cluster", (float*)&gui_cluster_color, ImGuiColorEditFlags_NoOptions))
+        compute_color();
+
+    ImGui::Text("Automatic layout parameters");
+    ImGui::DragInt(
+      "max iteration", &automatic_layout_iteration_limit, 1.f, 0, 1000);
+    ImGui::DragFloat(
+      "a-x-distance", &automatic_layout_x_distance, 1.f, 150.f, 500.f);
+    ImGui::DragFloat(
+      "a-y-distance", &automatic_layout_y_distance, 1.f, 150.f, 500.f);
+
+    ImGui::Text("Grid layout parameters");
+    ImGui::DragFloat(
+      "g-x-distance", &grid_layout_x_distance, 1.f, 150.f, 500.f);
+    ImGui::DragFloat(
+      "g-y-distance", &grid_layout_y_distance, 1.f, 150.f, 500.f);
+
+    ImGui::End();
+}
+
 void
 node_editor_initialize()
 {
@@ -2613,6 +2677,7 @@ node_editor_initialize()
                   "Fail to initialize irritator: %s\n",
                   irt::status_string[static_cast<int>(ret)]);
     } else {
+        compute_color();
         if (auto* ed = editors_new(); ed)
             ed->context = imnodes::EditorContextCreate();
     }
@@ -2623,7 +2688,8 @@ node_editor_show()
 {
     static bool show_log = true;
     static bool show_simulation = true;
-    static bool show_demo_window = false;
+    static bool show_demo = false;
+    static bool show_settings = false;
     bool ret = true;
 
     if (ImGui::BeginMainMenuBar()) {
@@ -2646,13 +2712,15 @@ node_editor_show()
                 ImGui::MenuItem(ed->name.c_str(), nullptr, &ed->show);
 
             ImGui::MenuItem("Simulation", nullptr, &show_simulation);
+
+            ImGui::MenuItem("Settings", nullptr, &show_settings);
             ImGui::MenuItem("Log", nullptr, &show_log);
 
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Help")) {
-            ImGui::MenuItem("Demo window", nullptr, &show_demo_window);
+            ImGui::MenuItem("Demo window", nullptr, &show_demo);
 
             ImGui::EndMenu();
         }
@@ -2677,8 +2745,11 @@ node_editor_show()
     if (show_simulation)
         show_simulation_box(&show_simulation);
 
-    if (show_demo_window)
+    if (show_demo)
         ImGui::ShowDemoWindow();
+
+    if (show_settings)
+        show_settings_window(&show_settings);
 
     return ret;
 }

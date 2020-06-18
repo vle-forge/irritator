@@ -187,7 +187,6 @@ struct editor
     bool initialized = false;
     bool show = true;
     bool automatic_layout = false;
-    int iteration_limit = 240;
     int iteration = 0;
 
     simulation sim;
