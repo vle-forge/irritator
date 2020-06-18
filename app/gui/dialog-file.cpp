@@ -2,6 +2,12 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#ifdef _WIN32
+#define NOMINMAX
+#define WINDOWS_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 #include "gui.hpp"
 #include "node-editor.hpp"
 
@@ -11,10 +17,6 @@
 #include <array>
 #include <filesystem>
 #include <vector>
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 namespace irt {
 
@@ -394,7 +396,8 @@ save_file_dialog(std::filesystem::path& out)
 
         ImGui::InputText(
           "File Name", (char*)fd.buffer, IM_ARRAYSIZE(fd.buffer));
-        ImGui::Text("Directory name: %s", (const char*)fd.current.u8string().c_str());
+        ImGui::Text("Directory name: %s",
+                    (const char*)fd.current.u8string().c_str());
 
         float width = ImGui::GetContentRegionAvailWidth();
         ImGui::PushItemWidth(width);
