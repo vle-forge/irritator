@@ -5014,20 +5014,79 @@ public:
                 input_ports.free(dyn.x[i]);
     }
 
+    bool is_ports_compatible(const output_port_id src_id,
+                             const output_port& src,
+                             const input_port_id dst_id,
+                             const input_port& dst) const noexcept
+    {
+        auto* mdl_src = models.try_to_get(src.model);
+        auto* mdl_dst = models.try_to_get(dst.model);
+        int o_port_index, i_port_index;
+
+        if (is_bad(get_output_port_index(*mdl_src, src_id, &o_port_index)) ||
+            is_bad(get_input_port_index(*mdl_dst, dst_id, &i_port_index)))
+            return false;
+
+        switch (mdl_src->type) {
+        case dynamics_type::none:
+            return false;
+        case dynamics_type::integrator:
+            return mdl_dst->type != dynamics_type::integrator;
+        case dynamics_type::quantifier:
+            return mdl_dst->type == dynamics_type::integrator &&
+                   i_port_index ==
+                     static_cast<int>(integrator::port_name::port_quanta);
+        case dynamics_type::adder_2:
+        case dynamics_type::adder_3:
+        case dynamics_type::adder_4:
+        case dynamics_type::mult_2:
+        case dynamics_type::mult_3:
+        case dynamics_type::mult_4:
+            if (mdl_dst->type != dynamics_type::quantifier)
+                return false;
+
+            if (mdl_dst->type == dynamics_type::integrator &&
+                i_port_index ==
+                  static_cast<int>(integrator::port_name::port_quanta))
+                return false;
+
+            return true;
+        case dynamics_type::counter:
+        case dynamics_type::generator:
+        case dynamics_type::constant:
+        case dynamics_type::cross:
+        case dynamics_type::time_func:
+        case dynamics_type::accumulator_2:
+            if (mdl_dst->type != dynamics_type::quantifier)
+                return false;
+
+            if (mdl_dst->type == dynamics_type::integrator &&
+                i_port_index ==
+                  static_cast<int>(integrator::port_name::port_quanta))
+                return false;
+
+            return true;
+        }
+
+        return false;
+    }
+
     status connect(output_port_id src, input_port_id dst) noexcept
     {
         auto* src_port = output_ports.try_to_get(src);
-        if (!src_port)
-            return status::model_connect_output_port_unknown;
+        irt_return_if_fail(!src_port,
+                           status::model_connect_output_port_unknown);
 
         auto* dst_port = input_ports.try_to_get(dst);
-        if (!dst_port)
-            return status::model_connect_input_port_unknown;
+        irt_return_if_fail(!dst_port, status::model_connect_input_port_unknown);
 
-        if (std::find(std::begin(src_port->connections),
-                      std::end(src_port->connections),
-                      dst) != std::end(src_port->connections))
-            return status::model_connect_already_exist;
+        irt_return_if_fail(std::find(std::begin(src_port->connections),
+                                     std::end(src_port->connections),
+                                     dst) != std::end(src_port->connections),
+                           status::model_connect_already_exist);
+
+        irt_return_if_fail(is_ports_compatible(src, *src_port, dst, *dst_port),
+                           status::model_connect_bad_dynamics);
 
         src_port->connections.emplace_front(dst);
         dst_port->connections.emplace_front(src);
