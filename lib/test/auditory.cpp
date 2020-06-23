@@ -138,7 +138,7 @@ vector<vector<double>> parse2DCsvFile(string inputFileName) {
 }
 
 // Global data
-vector<vector<double>> sound_data = {};//parse2DCsvFile("output_cochlea.csv");
+vector<vector<double>> sound_data  = parse2DCsvFile("output_cochlea_small.csv");
 double samplerate = 44100.0;
 
 struct neuron {
@@ -160,8 +160,15 @@ struct neuron_adaptive {
   irt::dynamics_id  quantifier1;
   irt::dynamics_id  quantifier2;
   irt::dynamics_id  constant;
-  irt::dynamics_id  cross1;
+  irt::dynamics_id  cross;
   irt::dynamics_id  constant_cross;
+};
+
+struct synapse {
+  irt::dynamics_id  sum_pre;
+  irt::dynamics_id  cross_pre;
+
+  irt::dynamics_id  constant_syn;
 };
 
 struct neuron 
@@ -208,22 +215,16 @@ make_neuron(irt::simulation* sim, long unsigned int i) noexcept
 
   cross_lif.default_threshold = Vt_lif;
 
-  char crosslif[7];char ctecrosslif[7];char intlif[7];char flowlif[7];
-  char quantlif[7];char sumlif[7];char prodlif[7];char ctelif[7];
-
-  snprintf(crosslif, 7,"croli%ld", i);snprintf(ctecrosslif, 7,"ctcli%ld", i);snprintf(intlif, 7,"intli%ld", i);
-  snprintf(quantlif, 7,"quali%ld", i);snprintf(sumlif, 7,"sumli%ld", i);snprintf(prodlif, 7,"prdli%ld", i);
-  snprintf(ctelif, 7,"cteli%ld", i);snprintf(flowlif, 7,"flwli%ld", i);
   
 
-  sim->alloc(sum_lif, sim->adder_2_models.get_id(sum_lif), sumlif);
-  sim->alloc(prod_lif, sim->adder_2_models.get_id(prod_lif), prodlif);
-  sim->alloc(integrator_lif, sim->integrator_models.get_id(integrator_lif), intlif);
-  sim->alloc(quantifier_lif, sim->quantifier_models.get_id(quantifier_lif), quantlif);
-  sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif), ctelif);
-  sim->alloc(flow_lif, sim->flow_models.get_id(flow_lif), flowlif);
-  sim->alloc(cross_lif, sim->cross_models.get_id(cross_lif), crosslif);
-  sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif), ctecrosslif);
+  sim->alloc(sum_lif, sim->adder_2_models.get_id(sum_lif));
+  sim->alloc(prod_lif, sim->adder_2_models.get_id(prod_lif));
+  sim->alloc(integrator_lif, sim->integrator_models.get_id(integrator_lif));
+  sim->alloc(quantifier_lif, sim->quantifier_models.get_id(quantifier_lif));
+  sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif));
+  sim->alloc(flow_lif, sim->flow_models.get_id(flow_lif));
+  sim->alloc(cross_lif, sim->cross_models.get_id(cross_lif));
+  sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif));
 
   struct neuron neuron_model = {sim->adder_2_models.get_id(sum_lif),
                                 sim->adder_2_models.get_id(prod_lif),
@@ -266,11 +267,11 @@ struct neuron_adaptive
 make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
 {
   using namespace boost::ut;
-  double tau_lif = 10;
+  double tau_lif = 0.5*0.001;
   double Vr_lif = 0.0;
-  double Vt_lif = 10.0;
+  double Vt_lif = 2.0;
 
-  double tau_threshold = 15;
+  double tau_threshold = 5*0.001;
 
 
   auto& sum_lif = sim->adder_2_models.alloc();
@@ -287,7 +288,7 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
 
   //LIF
   sum_lif.default_input_coeffs[0] = -1.0/tau_lif;
-  sum_lif.default_input_coeffs[1] = 20.0/tau_lif;
+  sum_lif.default_input_coeffs[1] = 0.0/tau_lif;
   
   integrator_lif.default_current_value = 0.0;
 
@@ -304,10 +305,10 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
 
   //Threshold
   sum_threshold.default_input_coeffs[0] = -1.0/tau_threshold;
-  sum_threshold.default_input_coeffs[1] = 10.0/tau_threshold;
+  sum_threshold.default_input_coeffs[1] = 1.0/tau_threshold;
   sum_threshold.default_input_coeffs[2] = 1.0/tau_threshold;
   
-  integrator_threshold.default_current_value = Vr_lif;
+  integrator_threshold.default_current_value = Vt_lif;
 
   quantifier_threshold.default_adapt_state =
     irt::quantifier::adapt_state::possible;
@@ -351,10 +352,10 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
           irt::status::success);
   expect(sim->connect(cross_lif.y[0], sum_lif.x[0]) ==
           irt::status::success);
-  expect(sim->connect(integrator_lif.y[0],cross_lif.x[0]) ==
+  /*expect(sim->connect(integrator_lif.y[0],cross_lif.x[0]) ==
           irt::status::success);     
   expect(sim->connect(integrator_lif.y[0],cross_lif.x[2]) ==
-          irt::status::success);
+          irt::status::success);*/
   expect(sim->connect(constant_cross_lif.y[0],cross_lif.x[1]) ==
           irt::status::success); 
   expect(sim->connect(sum_lif.y[0],integrator_lif.x[1]) ==
@@ -381,6 +382,72 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
 
   return neuron_model;
 }
+
+struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long unsigned int target,
+                              irt::output_port_id presynaptic,irt::input_port_id postsynaptic1,irt::input_port_id postsynaptic2,irt::output_port_id other)
+{
+  using namespace boost::ut;
+
+
+  double w = 0.7;
+
+  auto& sum_pre = sim->adder_2_models.alloc();
+  auto& cross_pre = sim->cross_models.alloc();
+
+  auto& const_syn = sim->constant_models.alloc();
+
+
+
+  cross_pre.default_threshold = 1.0;
+  sum_pre.default_input_coeffs[0] = 1.0;
+  sum_pre.default_input_coeffs[1] = w;
+
+  const_syn.default_value = 1.0;
+
+
+
+
+
+  !expect(irt::is_success(sim->alloc(sum_pre, sim->adder_2_models.get_id(sum_pre))));
+  !expect(irt::is_success(sim->alloc(cross_pre, sim->cross_models.get_id(cross_pre))));
+
+
+  !expect(irt::is_success(sim->alloc(const_syn, sim->constant_models.get_id(const_syn))));
+
+
+  struct synapse synapse_model = {sim->adder_2_models.get_id(sum_pre),
+                                  sim->cross_models.get_id(cross_pre),  
+
+                                  sim->constant_models.get_id(const_syn),                                                                                                                                            
+                                  }; 
+
+
+  // Connections
+  expect(sim->connect(other, 
+                      sum_pre.x[0]) ==
+                        irt::status::success);
+  expect(sim->connect(other, 
+                      cross_pre.x[2]) ==
+                        irt::status::success);
+  expect(sim->connect(const_syn.y[0], 
+                      sum_pre.x[1]) ==
+                        irt::status::success);
+  expect(sim->connect(sum_pre.y[0], 
+                      cross_pre.x[1]) ==
+                        irt::status::success);
+  expect(sim->connect(presynaptic, 
+                      cross_pre.x[0]) ==
+                        irt::status::success);
+  expect(sim->connect(cross_pre.y[0], 
+                      postsynaptic1) ==
+                        irt::status::success);
+  expect(sim->connect(cross_pre.y[0], 
+                      postsynaptic2) ==
+                        irt::status::success);
+  
+  return synapse_model;
+} 
+
 int
 main()
 {
@@ -391,13 +458,12 @@ main()
         irt::simulation sim;
 
         // Neuron constants
-        long unsigned int N = 1;
-        expect(irt::is_success(sim.init(2048lu, 800lu)));
-        /*long unsigned int N = sound_data.size() - 1;
+        long unsigned int N = sound_data.size() - 1;
+        long unsigned int M = N;
         
 
 
-        expect(irt::is_success(sim.init(512lu, 8192lu)));
+        expect(irt::is_success(sim.init(10000000lu, 1000000lu)));
 
 
         
@@ -407,14 +473,27 @@ main()
 
           struct neuron neuron_model = make_neuron(&sim,i);
           first_layer_neurons.emplace_back(neuron_model);
-        } */
+        } 
 
         std::vector<struct neuron_adaptive> second_layer_neurons;
-        for (long unsigned int i = 0 ; i < N; i++) {
+        for (long unsigned int i = 0 ; i < M; i++) {
 
           struct neuron_adaptive neuron_adaptive_model = make_neuron_adaptive(&sim,i);
           second_layer_neurons.emplace_back(neuron_adaptive_model);
         } 
+
+        std::vector<struct synapse> synapses;
+        for (long unsigned int i = 0 ; i < N; i++) {
+          for (long unsigned int j = 0 ; j < M; j++) {
+
+            struct synapse synapse_model = make_synapse(&sim,i,j,
+                                            sim.cross_models.get(first_layer_neurons[i].cross).y[1],
+                                              sim.cross_models.get(second_layer_neurons[j].cross).x[0],
+                                              sim.cross_models.get(second_layer_neurons[j].cross).x[2],
+                                                sim.integrator_models.get(second_layer_neurons[j].integrator1).y[0]);
+            synapses.emplace_back(synapse_model);
+          }
+        }
 
         dot_graph_save(sim, stdout);
 
@@ -423,11 +502,11 @@ main()
         !expect(os != nullptr);
         
         std::string s = "t,";
-        for (long unsigned int i = 0; i < N; i++)
+        for (long unsigned int i = 0; i < 1; i++)
         {
           s =  s + "Neuron" + std::to_string(i)
-                + ","
-                + "Neuront" + std::to_string(i)     
+                + "," 
+                + "Neuront" + std::to_string(i)
                 + ",";
         }
         fmt::print(os, s + "\n");
@@ -435,14 +514,12 @@ main()
         expect(irt::status::success == sim.initialize(t));
 
         do {
-                            //printf("%f\n",t);
-
 
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
 
             std::string s = std::to_string(t)+",";
-            for (long unsigned int i = 0; i < N; i++)
+            for (long unsigned int i = 0; i < 1; i++)
             {
               //s =  s + std::to_string(sim.cross_models.get(first_layer_neurons[i].cross).event)
               s =  s + std::to_string(sim.integrator_models.get(second_layer_neurons[i].integrator1).last_output_value)
@@ -453,8 +530,7 @@ main()
             }
             fmt::print(os, s + "\n");
 
-        } while (t < 100);
-        //} while (t < sound_data[0].size()/samplerate);
+        } while (t < sound_data[0].size()/samplerate);
         std::fclose(os);
       };
 
