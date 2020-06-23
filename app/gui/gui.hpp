@@ -60,6 +60,7 @@ static inline const char* status_string[] = {
     "model_connect_output_port_unknown",
     "model_connect_input_port_unknown",
     "model_connect_already_exist",
+    "model_connect_bad_dynamics",
     "model_adder_empty_init_message",
     "model_adder_bad_init_message",
     "model_adder_bad_external_message",
