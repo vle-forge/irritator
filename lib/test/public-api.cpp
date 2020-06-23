@@ -782,7 +782,7 @@ main()
         do {
             st = sim.run(t);
             expect(irt::is_success(st));
-            expect(cnt.number <= static_cast<long unsigned>(t));
+            expect(cnt.number <= static_cast<irt::i64>(t));
         } while (t < sim.end);
 
         expect(cnt.number == 9_ul);
@@ -836,7 +836,7 @@ main()
         do {
             st = sim.run(t);
             expect(irt::is_success(st));
-            expect(cnt.number <= static_cast<long unsigned>(t));
+            expect(cnt.number <= static_cast<irt::i64>(t));
         } while (t < 10.0);
 
         expect(cnt.number == 9_ul);
@@ -892,7 +892,7 @@ main()
         do {
             st = sim.run(t);
             expect(irt::is_success(st));
-            expect(cnt.number <= static_cast<long unsigned>(3 * t));
+            expect(cnt.number <= static_cast<irt::i64>(3 * t));
         } while (t < 10.0);
 
         expect(cnt.number == 27_ul);
@@ -923,7 +923,7 @@ main()
             auto st = sim.run(t);
             !expect(irt::is_success(st));
             expect(time_fun.value == t * t);
-            expect(cnt.number <= static_cast<long unsigned>(t));
+            expect(cnt.number <= static_cast<irt::i64>(t));
         } while (t < 30);
     };
 
@@ -1235,5 +1235,3 @@ main()
         } while (t < 120);
     };
 }
-
-

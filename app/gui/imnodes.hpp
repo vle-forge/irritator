@@ -272,6 +272,12 @@ void
 SetNodeScreenSpacePos(int node_id, const ImVec2& screen_space_pos);
 void
 SetNodeGridSpacePos(int node_id, const ImVec2& grid_pos);
+
+ImVec2
+GetNodeScreenSpacePos(int node_id);
+ImVec2
+GetNodeGridSpacePos(int node_id);
+
 // Enable or disable the ability to click and drag a specific node.
 void
 SetNodeDraggable(int node_id, const bool draggable);
@@ -303,6 +309,9 @@ void
 GetSelectedNodes(int* node_ids);
 void
 GetSelectedLinks(int* link_ids);
+
+void
+ClearSelectedNodesAndLinks();
 
 // Was the previous attribute active? This will continuously return true while
 // the left mouse button is being pressed over the UI content of the attribute.
