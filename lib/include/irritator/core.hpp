@@ -3283,7 +3283,18 @@ struct integrator
 
         val += (t - archive.back().date) * archive.back().x_dot;
 
-        return (up_threshold < val ) ? reset_value : val;
+        if(up_threshold < val) 
+        {
+            return reset_value;
+        }
+        else if (down_threshold > val)
+        {
+            return down_threshold;
+        }
+        else 
+        {
+            return val;
+        }
     }
 
     double compute_expected_value() const noexcept
@@ -4118,12 +4129,11 @@ struct cross
         }
 
         if (have_message_value) {
+            event = 0.0;
             if (value >= threshold) {
                 else_value = if_value;
                 event = 1.0;
-            } else {
-                event = 0.0;
-            }
+            } 
         }
 
         result = else_value;
