@@ -92,78 +92,57 @@ private:
     bool convert(const std::string_view dynamics_name,
                  dynamics_type* type) noexcept
     {
-        if (dynamics_name == "none") {
-            *type = dynamics_type::none;
-            return true;
-        }
+        struct string_to_type
+        {
+            constexpr string_to_type(const std::string_view n,
+                                     const dynamics_type t)
+              : name(n)
+              , type(t)
+            {}
 
-        if (dynamics_name == "integrator") {
-            *type = dynamics_type::integrator;
-            return true;
-        }
+            const std::string_view name;
+            dynamics_type type;
+        };
 
-        if (dynamics_name == "quantifier") {
-            *type = dynamics_type::quantifier;
-            return true;
-        }
+        static constexpr string_to_type table[] = {
+            { "accumulator_2", dynamics_type::accumulator_2 },
+            { "adder_2", dynamics_type::adder_2 },
+            { "adder_3", dynamics_type::adder_3 },
+            { "adder_4", dynamics_type::adder_4 },
+            { "constant", dynamics_type::constant },
+            { "counter", dynamics_type::counter },
+            { "cross", dynamics_type::cross },
+            { "generator", dynamics_type::generator },
+            { "integrator", dynamics_type::integrator },
+            { "mult_2", dynamics_type::mult_2 },
+            { "mult_3", dynamics_type::mult_3 },
+            { "mult_4", dynamics_type::mult_4 },
+            { "none", dynamics_type::none },
+            { "quantifier", dynamics_type::quantifier },
+            { "qss1_integrator", dynamics_type::qss1_integrator },
+            { "qss2_integrator", dynamics_type::qss2_integrator },
+            { "qss2_multiplier", dynamics_type::qss2_multiplier },
+            { "qss2_sum_2", dynamics_type::qss2_sum_2 },
+            { "qss2_sum_3", dynamics_type::qss2_sum_3 },
+            { "qss2_sum_4", dynamics_type::qss2_sum_4 },
+            { "qss2_wsum_2", dynamics_type::qss2_wsum_2 },
+            { "qss2_wsum_3", dynamics_type::qss2_wsum_3 },
+            { "qss2_wsum_4", dynamics_type::qss2_wsum_4 },
+            { "time_func", dynamics_type::time_func }
+        };
 
-        if (dynamics_name == "adder_2") {
-            *type = dynamics_type::adder_2;
-            return true;
-        }
+        static_assert(std::size(table) ==
+                      static_cast<size_t>(dynamics_type::accumulator_2) + 1);
 
-        if (dynamics_name == "adder_3") {
-            *type = dynamics_type::adder_3;
-            return true;
-        }
+        const auto it =
+          std::lower_bound(std::begin(table),
+                           std::end(table),
+                           dynamics_name,
+                           [](const string_to_type& l,
+                              const std::string_view r) { return l.name < r; });
 
-        if (dynamics_name == "adder_4") {
-            *type = dynamics_type::adder_4;
-            return true;
-        }
-
-        if (dynamics_name == "mult_2") {
-            *type = dynamics_type::mult_2;
-            return true;
-        }
-
-        if (dynamics_name == "mult_3") {
-            *type = dynamics_type::mult_3;
-            return true;
-        }
-
-        if (dynamics_name == "mult_4") {
-            *type = dynamics_type::mult_4;
-            return true;
-        }
-
-        if (dynamics_name == "counter") {
-            *type = dynamics_type::counter;
-            return true;
-        }
-
-        if (dynamics_name == "generator") {
-            *type = dynamics_type::generator;
-            return true;
-        }
-
-        if (dynamics_name == "constant") {
-            *type = dynamics_type::constant;
-            return true;
-        }
-
-        if (dynamics_name == "cross") {
-            *type = dynamics_type::cross;
-            return true;
-        }
-
-        if (dynamics_name == "accumulator_2") {
-            *type = dynamics_type::accumulator_2;
-            return true;
-        }
-
-        if (dynamics_name == "time_func") {
-            *type = dynamics_type::time_func;
+        if (it != std::end(table) && it->name == dynamics_name) {
+            *type = it->type;
             return true;
         }
 
@@ -205,6 +184,69 @@ private:
     bool read(none& /*dyn*/) noexcept
     {
         return true;
+    }
+
+    bool read(qss1_integrator& dyn) noexcept
+    {
+        double& x1 = *(const_cast<double*>(&dyn.default_X));
+        double& x2 = *(const_cast<double*>(&dyn.default_dQ));
+
+        return !!(is >> x1 >> x2);
+    }
+
+    bool read(qss2_integrator& dyn) noexcept
+    {
+        double& x1 = *(const_cast<double*>(&dyn.default_X));
+        double& x2 = *(const_cast<double*>(&dyn.default_dQ));
+
+        return !!(is >> x1 >> x2);
+    }
+
+    bool read(qss2_multiplier& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss2_sum_2& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss2_sum_3& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss2_sum_4& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss2_wsum_2& dyn) noexcept
+    {
+        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
+        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+
+        return !!(is >> x1 >> x2);
+    }
+
+    bool read(qss2_wsum_3& dyn) noexcept
+    {
+        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
+        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+
+        return !!(is >> x1 >> x2 >> x3);
+    }
+
+    bool read(qss2_wsum_4& dyn) noexcept
+    {
+        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
+        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+        double& x4 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+
+        return !!(is >> x1 >> x2 >> x3 >> x4);
     }
 
     bool read(integrator& dyn) noexcept
@@ -392,6 +434,58 @@ private:
     void write(const none& /*dyn*/) noexcept
     {
         os << "none\n";
+    }
+
+    void write(const qss1_integrator& dyn) noexcept
+    {
+        os << "qss1_integrator " << dyn.default_X << ' ' << dyn.default_dQ
+           << '\n';
+    }
+
+    void write(const qss2_integrator& dyn) noexcept
+    {
+        os << "qss2_integrator " << dyn.default_X << ' ' << dyn.default_dQ
+           << '\n';
+    }
+
+    void write(const qss2_multiplier& /*dyn*/) noexcept
+    {
+        os << "qss2_multiplier\n";
+    }
+
+    void write(const qss2_sum_2& /*dyn*/) noexcept
+    {
+        os << "qss2_sum_2\n";
+    }
+
+    void write(const qss2_sum_3& /*dyn*/) noexcept
+    {
+        os << "qss2_sum_3\n";
+    }
+
+    void write(const qss2_sum_4& /*dyn*/) noexcept
+    {
+        os << "qss2_sum_4\n";
+    }
+
+    void write(const qss2_wsum_2& dyn) noexcept
+    {
+        os << "qss2_wsum_2 " << dyn.default_input_coeffs[0] << ' '
+           << dyn.default_input_coeffs[1] << '\n';
+    }
+
+    void write(const qss2_wsum_3& dyn) noexcept
+    {
+        os << "qss2_wsum_3 " << dyn.default_input_coeffs[0] << ' '
+           << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
+           << '\n';
+    }
+
+    void write(const qss2_wsum_4& dyn) noexcept
+    {
+        os << "qss2_wsum_3 " << dyn.default_input_coeffs[0] << ' '
+           << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
+           << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
     void write(const integrator& dyn) noexcept
