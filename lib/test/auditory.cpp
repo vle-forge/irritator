@@ -139,6 +139,7 @@ vector<vector<double>> parse2DCsvFile(string inputFileName) {
 
 // Global data
 vector<vector<double>> sound_data  = parse2DCsvFile("output_cochlea_small.csv");
+vector<vector<double>> link_data  = parse2DCsvFile("output_link_small.csv");
 double samplerate = 44100.0;
 
 struct neuron {
@@ -306,7 +307,7 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
   //Threshold
   sum_threshold.default_input_coeffs[0] = -1.0/tau_threshold;
   sum_threshold.default_input_coeffs[1] = 1.0/tau_threshold;
-  sum_threshold.default_input_coeffs[2] = 1.0/tau_threshold;
+  sum_threshold.default_input_coeffs[2] = 0.0/tau_threshold;
   
   integrator_threshold.default_current_value = Vt_lif;
 
@@ -374,8 +375,8 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
           irt::status::success);     
   expect(sim->connect(constant.y[0],sum_threshold.x[1]) ==
           irt::status::success);   
-  expect(sim->connect(integrator_lif.y[0],sum_threshold.x[2]) ==
-          irt::status::success);   
+  //expect(sim->connect(integrator_lif.y[0],sum_threshold.x[2]) ==
+          //irt::status::success);   
 
   expect(sim->connect(integrator_threshold.y[0],cross_lif.x[3]) ==
           irt::status::success);
@@ -459,11 +460,11 @@ main()
 
         // Neuron constants
         long unsigned int N = sound_data.size() - 1;
-        long unsigned int M = N;
+        long unsigned int M = link_data[0].size();
         
 
 
-        expect(irt::is_success(sim.init(10000000lu, 1000000lu)));
+        expect(irt::is_success(sim.init(1000000lu, 100000lu)));
 
 
         
@@ -485,28 +486,33 @@ main()
         std::vector<struct synapse> synapses;
         for (long unsigned int i = 0 ; i < N; i++) {
           for (long unsigned int j = 0 ; j < M; j++) {
-
-            struct synapse synapse_model = make_synapse(&sim,i,j,
-                                            sim.cross_models.get(first_layer_neurons[i].cross).y[1],
-                                              sim.cross_models.get(second_layer_neurons[j].cross).x[0],
-                                              sim.cross_models.get(second_layer_neurons[j].cross).x[2],
-                                                sim.integrator_models.get(second_layer_neurons[j].integrator1).y[0]);
-            synapses.emplace_back(synapse_model);
+            if(link_data[i+1][j] == 1.0){
+                printf("%ld is linked to %ld\n",i,j);
+                       
+                struct synapse synapse_model = make_synapse(&sim,i,j,
+                                                sim.cross_models.get(first_layer_neurons[i].cross).y[1],
+                                                sim.cross_models.get(second_layer_neurons[j].cross).x[0],
+                                                sim.cross_models.get(second_layer_neurons[j].cross).x[2],
+                                                        sim.integrator_models.get(second_layer_neurons[j].integrator1).y[0]);
+                synapses.emplace_back(synapse_model);
+            }
           }
         }
 
-        dot_graph_save(sim, stdout);
+        //dot_graph_save(sim, stdout);
 
         irt::time t = 0.0;
         std::FILE* os = std::fopen("output_laudanski.csv", "w");
         !expect(os != nullptr);
         
         std::string s = "t,";
-        for (long unsigned int i = 0; i < 1; i++)
+        for (long unsigned int i = 0; i < 5; i++)
         {
-          s =  s + "Neuron" + std::to_string(i)
+          s =  s + "v_cd" + std::to_string(i)
                 + "," 
-                + "Neuront" + std::to_string(i)
+                + "v_cd_treshold" + std::to_string(i)
+                + ","
+                + "v_lif" + std::to_string(i)
                 + ",";
         }
         fmt::print(os, s + "\n");
@@ -519,12 +525,13 @@ main()
             expect(st == irt::status::success);
 
             std::string s = std::to_string(t)+",";
-            for (long unsigned int i = 0; i < 1; i++)
+            for (long unsigned int i = 0; i < 5; i++)
             {
-              //s =  s + std::to_string(sim.cross_models.get(first_layer_neurons[i].cross).event)
               s =  s + std::to_string(sim.integrator_models.get(second_layer_neurons[i].integrator1).last_output_value)
                      + ","
                      + std::to_string(sim.integrator_models.get(second_layer_neurons[i].integrator2).last_output_value)
+                     + ","
+                     + std::to_string(sim.integrator_models.get(first_layer_neurons[i].integrator).last_output_value)
                      + ",";
 
             }
