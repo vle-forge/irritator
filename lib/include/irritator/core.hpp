@@ -3301,7 +3301,7 @@ struct integrator
 
         if(up_threshold < val) 
         {
-            return reset_value;
+            return up_threshold;
         }
         else if (down_threshold > val)
         {
@@ -4664,6 +4664,7 @@ struct cross
     {
         bool have_message = false;
         bool have_message_value = false;
+        event = 0.0; 
 
        for (const auto& msg : input_ports.get(x[port_threshold]).messages) {
             irt_return_if_fail(msg.type == value_type::real_64,
