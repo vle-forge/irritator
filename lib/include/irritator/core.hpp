@@ -72,6 +72,7 @@ enum class status
     model_connect_output_port_unknown,
     model_connect_input_port_unknown,
     model_connect_already_exist,
+    model_connect_bad_dynamics,
 
     model_adder_empty_init_message,
     model_adder_bad_init_message,
@@ -3311,6 +3312,189 @@ struct integrator
     }
 };
 
+struct integrator_2
+{
+    static inline constexpr double pi_3 = 1.047197551;
+    model_id id;
+    input_port_id x[2];
+    output_port_id y[1];
+    const double default_X = 0.;
+    const double default_dQ = 0.;
+    double X;
+    double dQ;
+    double reset_X;
+    double u;
+    double mu;
+    double pu;
+    double q;
+    double mq;
+    double pq;
+    time sigma = time_domain<time>::zero;
+
+    enum port_name
+    {
+        port_x_dot,
+        port_reset
+    };
+
+    integrator_2() = default;
+
+    integrator_2(const integrator_2& other) noexcept
+      : default_X(other.default_X)
+      , default_dQ(other.default_dQ)
+      , X(other.X)
+      , reset_X(other.reset_X)
+      , u(other.u)
+      , mu(other.mu)
+      , pu(other.pu)
+      , q(other.q)
+      , mq(other.mq)
+      , pq(other.pq)
+      , sigma(other.sigma)
+    {}
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        X = default_X;
+        dQ = default_dQ;
+
+        reset_X = 0.;
+        u = 0.;
+        mu = 0.;
+        pu = 0.;
+        q = default_X;
+        mq = 0.;
+        pq = 0.;
+
+        sigma = time_domain<time>::zero;
+
+        return status::success;
+    }
+
+    status external(const double value_1,
+                    const double value_2,
+                    const time e) noexcept
+    {
+        X += u * e + mu / 2.0 * e * e;
+        u = value_1;
+        mu = value_2;
+
+        if (sigma != 0) {
+            q += mq * e;
+            double a = mu / 2;
+            double b = u - mq;
+            double c = X - q + dQ;
+            double s;
+            sigma = time_domain<time>::infinity;
+
+            if (a == 0) {
+                if (b != 0) {
+                    s = -c / b;
+                    if (s > 0)
+                        sigma = s;
+
+                    c = X - q - dQ;
+                    s = -c / b;
+                    if ((s > 0) && (s < sigma))
+                        sigma = s;
+                }
+            } else {
+                s = (-b + std::sqrt(b * b - 4. * a * c)) / 2. / a;
+                if (s > 0.)
+                    sigma = s;
+
+                s = (-b - std::sqrt(b * b - 4. * a * c)) / 2. / a;
+                if ((s > 0.) && (s < sigma))
+                    sigma = s;
+
+                c = X - q - dQ;
+                s = (-b + std::sqrt(b * b - 4. * a * c)) / 2. / a;
+                if ((s > 0.) && (s < sigma))
+                    sigma = s;
+
+                s = (-b - std::sqrt(b * b - 4. * a * c)) / 2. / a;
+                if ((s > 0.) && (s < sigma))
+                    sigma = s;
+            }
+
+            if (((X - q) > dQ) || ((q - X) > dQ))
+                sigma = 0;
+        }
+
+        return status::success;
+    }
+
+    status internal() noexcept
+    {
+        X += u * sigma + mu / 2. * sigma * sigma;
+        q = X;
+        u += mu * sigma;
+        mq = u;
+
+        sigma = mu == 0. ? time_domain<time>::infinity
+                         : std::sqrt(2. * dQ / std::abs(mu));
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time e,
+                      time r) noexcept
+    {
+        auto& port_1 = input_ports.get(x[port_x_dot]);
+        auto& port_2 = input_ports.get(x[port_reset]);
+        double value_1 = 0.;
+        double value_2 = 0.;
+        bool reset = false;
+
+        for (const auto& msg : port_1.messages) {
+            irt_return_if_fail(msg.type == value_type::real_64 &&
+                                 msg.size() == 2,
+                               status::model_integrator_bad_external_message);
+
+            value_1 = msg.to_real_64(0);
+            value_2 = msg.to_real_64(1);
+        }
+
+        for (const auto& msg : port_2.messages) {
+            irt_return_if_fail(msg.type == value_type::real_64 &&
+                                 msg.size() == 1,
+                               status::model_integrator_bad_external_message);
+
+            reset_X = msg.to_real_64(0);
+            reset = true;
+        }
+
+        if (port_1.messages.empty() && !reset) {
+            irt_return_if_bad(internal());
+        } else {
+            if (time_domain<time>::is_zero(r))
+                irt_return_if_bad(internal());
+
+            irt_return_if_bad(external(value_1, value_2, e));
+        }
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        auto& port = output_ports.get(y[0]);
+
+        port.messages.emplace_front(X + u * sigma + mu * sigma * sigma / 2.,
+                                    u + mu * sigma);
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(X);
+    }
+};
+
 struct quantifier
 {
     model_id id;
@@ -5103,20 +5287,79 @@ public:
                 input_ports.free(dyn.x[i]);
     }
 
+    bool is_ports_compatible(const output_port_id src_id,
+                             const output_port& src,
+                             const input_port_id dst_id,
+                             const input_port& dst) const noexcept
+    {
+        auto* mdl_src = models.try_to_get(src.model);
+        auto* mdl_dst = models.try_to_get(dst.model);
+        int o_port_index, i_port_index;
+
+        if (is_bad(get_output_port_index(*mdl_src, src_id, &o_port_index)) ||
+            is_bad(get_input_port_index(*mdl_dst, dst_id, &i_port_index)))
+            return false;
+
+        switch (mdl_src->type) {
+        case dynamics_type::none:
+            return false;
+        case dynamics_type::integrator:
+            return mdl_dst->type != dynamics_type::integrator;
+        case dynamics_type::quantifier:
+            return mdl_dst->type == dynamics_type::integrator &&
+                   i_port_index ==
+                     static_cast<int>(integrator::port_name::port_quanta);
+        case dynamics_type::adder_2:
+        case dynamics_type::adder_3:
+        case dynamics_type::adder_4:
+        case dynamics_type::mult_2:
+        case dynamics_type::mult_3:
+        case dynamics_type::mult_4:
+            if (mdl_dst->type != dynamics_type::quantifier)
+                return false;
+
+            if (mdl_dst->type == dynamics_type::integrator &&
+                i_port_index ==
+                  static_cast<int>(integrator::port_name::port_quanta))
+                return false;
+
+            return true;
+        case dynamics_type::counter:
+        case dynamics_type::generator:
+        case dynamics_type::constant:
+        case dynamics_type::cross:
+        case dynamics_type::time_func:
+        case dynamics_type::accumulator_2:
+            if (mdl_dst->type != dynamics_type::quantifier)
+                return false;
+
+            if (mdl_dst->type == dynamics_type::integrator &&
+                i_port_index ==
+                  static_cast<int>(integrator::port_name::port_quanta))
+                return false;
+
+            return true;
+        }
+
+        return false;
+    }
+
     status connect(output_port_id src, input_port_id dst) noexcept
     {
         auto* src_port = output_ports.try_to_get(src);
-        if (!src_port)
-            return status::model_connect_output_port_unknown;
+        irt_return_if_fail(!src_port,
+                           status::model_connect_output_port_unknown);
 
         auto* dst_port = input_ports.try_to_get(dst);
-        if (!dst_port)
-            return status::model_connect_input_port_unknown;
+        irt_return_if_fail(!dst_port, status::model_connect_input_port_unknown);
 
-        if (std::find(std::begin(src_port->connections),
-                      std::end(src_port->connections),
-                      dst) != std::end(src_port->connections))
-            return status::model_connect_already_exist;
+        irt_return_if_fail(std::find(std::begin(src_port->connections),
+                                     std::end(src_port->connections),
+                                     dst) != std::end(src_port->connections),
+                           status::model_connect_already_exist);
+
+        irt_return_if_fail(is_ports_compatible(src, *src_port, dst, *dst_port),
+                           status::model_connect_bad_dynamics);
 
         src_port->connections.emplace_front(dst);
         dst_port->connections.emplace_front(src);
