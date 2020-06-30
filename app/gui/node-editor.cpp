@@ -38,7 +38,8 @@ static auto automatic_layout_y_distance = 350.f;
 static auto grid_layout_x_distance = 250.f;
 static auto grid_layout_y_distance = 250.f;
 
-static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
+static ImVec4
+operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
@@ -658,49 +659,48 @@ struct copier
 
             auto ret = sim.dispatch(
               mdl->type,
-              [ this, &sim, mdl, &
-                mdl_id_dst ]<typename DynamicsM>(DynamicsM & dynamics_models)
-                ->status {
-                    using Dynamics = typename DynamicsM::value_type;
+              [this, &sim, mdl, &mdl_id_dst]<typename DynamicsM>(
+                DynamicsM& dynamics_models) -> status {
+                  using Dynamics = typename DynamicsM::value_type;
 
-                    irt_return_if_fail(dynamics_models.can_alloc(1),
-                                       status::dynamics_not_enough_memory);
+                  irt_return_if_fail(dynamics_models.can_alloc(1),
+                                     status::dynamics_not_enough_memory);
 
-                    auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
-                    irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
+                  auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
+                  irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
 
-                    auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
-                    auto new_dyn_id = dynamics_models.get_id(new_dyn);
+                  auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
+                  auto new_dyn_id = dynamics_models.get_id(new_dyn);
 
-                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                        std::fill_n(new_dyn.x,
-                                    std::size(new_dyn.x),
-                                    static_cast<input_port_id>(0));
+                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                      std::fill_n(new_dyn.x,
+                                  std::size(new_dyn.x),
+                                  static_cast<input_port_id>(0));
 
-                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                        std::fill_n(new_dyn.y,
-                                    std::size(new_dyn.y),
-                                    static_cast<output_port_id>(0));
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                      std::fill_n(new_dyn.y,
+                                  std::size(new_dyn.y),
+                                  static_cast<output_port_id>(0));
 
-                    irt_return_if_bad(
-                      sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
+                  irt_return_if_bad(
+                    sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
 
-                    *mdl_id_dst = new_dyn.id;
+                  *mdl_id_dst = new_dyn.id;
 
-                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                        for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
-                             ++j)
-                            this->c_input_ports.emplace_back(dyn_ptr->x[j],
-                                                             new_dyn.x[j]);
+                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                      for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
+                           ++j)
+                          this->c_input_ports.emplace_back(dyn_ptr->x[j],
+                                                           new_dyn.x[j]);
 
-                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                        for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
-                             ++j)
-                            this->c_output_ports.emplace_back(dyn_ptr->y[j],
-                                                              new_dyn.y[j]);
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                      for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
+                           ++j)
+                          this->c_output_ports.emplace_back(dyn_ptr->y[j],
+                                                            new_dyn.y[j]);
 
-                    return status::success;
-                });
+                  return status::success;
+              });
 
             irt_return_if_bad(ret);
         }
@@ -1923,8 +1923,10 @@ editor::show_model_dynamics(model& mdl) noexcept
 
     ImGui::PopItemWidth();
 
-    if (simulation_show_value &&
-        match(st, simulation_status::success, simulation_status::running)) {
+    if (simulation_show_value && match(st,
+                                       simulation_status::success,
+                                       simulation_status::running_once,
+                                       simulation_status::running_step)) {
 
         sim.dispatch(mdl.type, [&](const auto& d_array) {
             const auto& dyn = d_array.get(mdl.id);
@@ -2337,6 +2339,49 @@ editors_free(editor& ed)
     editors.free(ed);
 }
 
+static void
+initialize_observation(irt::editor* ed) noexcept
+{
+    ed->observation_outputs.clear();
+    observer* obs = nullptr;
+    while (ed->sim.observers.next(obs)) {
+        auto* output = ed->observation_outputs.emplace_back(obs->name.c_str());
+
+        const auto type =
+          ed->observation_types[get_index(ed->sim.observers.get_id(*obs))];
+        const auto diff = ed->simulation_end - ed->simulation_begin;
+        const auto freq = diff / obs->time_step;
+        const auto length = static_cast<size_t>(freq);
+        output->observation_type = type;
+
+        if (type == observation_output::type::plot ||
+            type == observation_output::type::both) {
+            output->data.init(length);
+        }
+
+        if (!obs->name.empty()) {
+            const std::filesystem::path obs_file_path =
+              ed->observation_directory / obs->name.c_str();
+
+            if (type == observation_output::type::file ||
+                type == observation_output::type::both) {
+                if (output->ofs.open(obs_file_path); !output->ofs.is_open())
+                    log_w.log(4,
+                              "Fail to open "
+                              "observation file: %s in "
+                              "%s\n",
+                              obs->name.c_str(),
+                              ed->observation_directory.u8string().c_str());
+            }
+        }
+
+        obs->initialize = &observation_output_initialize;
+        obs->observe = &observation_output_observe;
+        obs->free = &observation_output_free;
+        obs->user_data = static_cast<void*>(output);
+    }
+}
+
 void
 show_simulation_box(bool* show_simulation)
 {
@@ -2378,56 +2423,17 @@ show_simulation_box(bool* show_simulation)
         ImGui::InputDouble("End", &ed->simulation_end);
         ImGui::Checkbox("Show values", &ed->simulation_show_value);
 
-        if (ed->st != simulation_status::running) {
+        if (ImGui::CollapsingHeader("Simulation run one")) {
+
             if (ed->simulation_thread.joinable()) {
                 ed->simulation_thread.join();
                 ed->st = simulation_status::success;
             }
 
-            if (ImGui::Button("Start")) {
-                ed->observation_outputs.clear();
-                observer* obs = nullptr;
-                while (ed->sim.observers.next(obs)) {
-                    auto* output =
-                      ed->observation_outputs.emplace_back(obs->name.c_str());
+            if (ImGui::Button("run")) {
+                initialize_observation(ed);
 
-                    const auto type = ed->observation_types[get_index(
-                      ed->sim.observers.get_id(*obs))];
-                    const auto diff = ed->simulation_end - ed->simulation_begin;
-                    const auto freq = diff / obs->time_step;
-                    const auto length = static_cast<size_t>(freq);
-                    output->observation_type = type;
-
-                    if (type == observation_output::type::plot ||
-                        type == observation_output::type::both) {
-                        output->data.init(length);
-                    }
-
-                    if (!obs->name.empty()) {
-                        const std::filesystem::path obs_file_path =
-                          ed->observation_directory / obs->name.c_str();
-
-                        if (type == observation_output::type::file ||
-                            type == observation_output::type::both) {
-                            if (output->ofs.open(obs_file_path);
-                                !output->ofs.is_open())
-                                log_w.log(
-                                  4,
-                                  "Fail to open "
-                                  "observation file: %s in "
-                                  "%s\n",
-                                  obs->name.c_str(),
-                                  ed->observation_directory.u8string().c_str());
-                        }
-                    }
-
-                    obs->initialize = &observation_output_initialize;
-                    obs->observe = &observation_output_observe;
-                    obs->free = &observation_output_free;
-                    obs->user_data = static_cast<void*>(output);
-                }
-
-                ed->st = simulation_status::running;
+                ed->st = simulation_status::running_once;
                 ed->stop = false;
 
                 ed->simulation_thread =
@@ -2439,36 +2445,105 @@ show_simulation_box(bool* show_simulation)
                               std::ref(ed->st),
                               std::cref(ed->stop));
             }
+
+            if (ed->st == simulation_status::running_once) {
+                ImGui::SameLine();
+                if (ImGui::Button("Force stop"))
+                    ed->stop = true;
+            }
         }
 
-        if (ed->st == simulation_status::success ||
-            ed->st == simulation_status::running) {
-            ImGui::Text("Current: %g", ed->simulation_current);
+        if (match(ed->st,
+                  simulation_status::success,
+                  simulation_status::running_step,
+                  simulation_status::uninitialized,
+                  simulation_status::internal_error)) {
+            if (ImGui::CollapsingHeader("Simulation step by step")) {
 
-            if (ed->st == simulation_status::running && ImGui::Button("Stop"))
-                ed->stop = true;
+                if (ImGui::Button("init.")) {
+                    ed->sim.clean();
+                    initialize_observation(ed);
+                    ed->simulation_current = ed->simulation_begin;
+                    if (auto ret = ed->sim.initialize(ed->simulation_current);
+                        irt::is_bad(ret)) {
+                        log_w.log(3,
+                                  "Simulation initialization failure (%s)\n",
+                                  irt::status_string(ret));
+                        ed->st = simulation_status::internal_error;
+                        return;
+                    }
+                    ed->st = simulation_status::running_step;
+                }
 
-            const double duration = ed->simulation_end - ed->simulation_begin;
-            const double elapsed =
-              ed->simulation_current - ed->simulation_begin;
-            const double fraction = elapsed / duration;
-            ImGui::ProgressBar(static_cast<float>(fraction));
+                if (ed->st == simulation_status::running_step) {
+                    ImGui::SameLine();
+                    if (ImGui::Button("step")) {
+                        if (ed->simulation_current < ed->simulation_end) {
+                            if (auto ret = ed->sim.run(ed->simulation_current);
+                                irt::is_bad(ret)) {
+                                log_w.log(3,
+                                          "Simulation failure (%s)\n",
+                                          irt::status_string(ret));
 
-            for (const auto& obs : ed->observation_outputs) {
-                if (obs.observation_type == observation_output::type::plot ||
-                    obs.observation_type == observation_output::type::both)
-                    ImGui::PlotLines(obs.name,
-                                     obs.data.data(),
-                                     static_cast<int>(obs.data.size()),
-                                     0,
-                                     nullptr,
-                                     obs.min,
-                                     obs.max,
-                                     ImVec2(0.f, 50.f));
+                                ed->st = simulation_status::internal_error;
+                                return;
+                            }
+                        }
+                    }
+                }
 
-                if (obs.observation_type == observation_output::type::file ||
-                    obs.observation_type == observation_output::type::both)
-                    ImGui::Text("%s: output file", obs.name);
+                if (ed->st == simulation_status::running_step) {
+                    ImGui::SameLine();
+                    if (ImGui::Button("step x10")) {
+                        for (int i = 0; i < 10; ++i) {
+                            if (ed->simulation_current < ed->simulation_end) {
+                                if (auto ret =
+                                      ed->sim.run(ed->simulation_current);
+                                    irt::is_bad(ret)) {
+                                    log_w.log(3,
+                                              "Simulation failure (%s)\n",
+                                              irt::status_string(ret));
+
+                                    ed->st = simulation_status::internal_error;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (match(ed->st,
+                      simulation_status::success,
+                      simulation_status::running_once,
+                      simulation_status::running_step)) {
+                ImGui::Text("Current: %g", ed->simulation_current);
+
+                const double duration =
+                  ed->simulation_end - ed->simulation_begin;
+                const double elapsed =
+                  ed->simulation_current - ed->simulation_begin;
+                const double fraction = elapsed / duration;
+                ImGui::ProgressBar(static_cast<float>(fraction));
+
+                for (const auto& obs : ed->observation_outputs) {
+                    if (obs.observation_type ==
+                          observation_output::type::plot ||
+                        obs.observation_type == observation_output::type::both)
+                        ImGui::PlotLines(obs.name,
+                                         obs.data.data(),
+                                         static_cast<int>(obs.data.size()),
+                                         0,
+                                         nullptr,
+                                         obs.min,
+                                         obs.max,
+                                         ImVec2(0.f, 50.f));
+
+                    if (obs.observation_type ==
+                          observation_output::type::file ||
+                        obs.observation_type == observation_output::type::both)
+                        ImGui::Text("%s: output file", obs.name);
+                }
             }
         }
     }
