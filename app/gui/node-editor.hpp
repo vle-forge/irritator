@@ -251,8 +251,6 @@ struct editor
     imnodes::EditorContext* context = nullptr;
     bool initialized = false;
     bool show = true;
-    bool automatic_layout = false;
-    int iteration = 0;
 
     simulation sim;
     double simulation_begin = 0.0;
@@ -285,8 +283,8 @@ struct editor
     void free_children(const ImVector<int>& nodes) noexcept;
     status copy(const ImVector<int>& nodes) noexcept;
 
-    void reorder() noexcept;
-    void compute_automatic_layout_iteration() noexcept;
+    void compute_grid_layout() noexcept;
+    void compute_automatic_layout() noexcept;
 
     bool is_in_hierarchy(const cluster& group,
                          const cluster_id group_to_search) const noexcept;
