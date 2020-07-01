@@ -5505,74 +5505,11 @@ public:
             observers.free(*obs);
         }
 
-        switch (mdl->type) {
-        case dynamics_type::none:
-            do_deallocate(none_models.get(mdl->id));
-            none_models.free(mdl->id);
-            break;
-        case dynamics_type::integrator:
-            do_deallocate(integrator_models.get(mdl->id));
-            integrator_models.free(mdl->id);
-            break;
-        case dynamics_type::quantifier:
-            do_deallocate(quantifier_models.get(mdl->id));
-            quantifier_models.free(mdl->id);
-            break;
-        case dynamics_type::adder_2:
-            do_deallocate(adder_2_models.get(mdl->id));
-            adder_2_models.free(mdl->id);
-            break;
-        case dynamics_type::adder_3:
-            do_deallocate(adder_3_models.get(mdl->id));
-            adder_3_models.free(mdl->id);
-            break;
-        case dynamics_type::adder_4:
-            do_deallocate(adder_4_models.get(mdl->id));
-            adder_4_models.free(mdl->id);
-            break;
-        case dynamics_type::mult_2:
-            do_deallocate(mult_2_models.get(mdl->id));
-            mult_2_models.free(mdl->id);
-            break;
-        case dynamics_type::mult_3:
-            do_deallocate(mult_3_models.get(mdl->id));
-            mult_3_models.free(mdl->id);
-            break;
-        case dynamics_type::mult_4:
-            do_deallocate(mult_4_models.get(mdl->id));
-            mult_4_models.free(mdl->id);
-            break;
-        case dynamics_type::counter:
-            do_deallocate(counter_models.get(mdl->id));
-            counter_models.free(mdl->id);
-            break;
-        case dynamics_type::generator:
-            do_deallocate(generator_models.get(mdl->id));
-            generator_models.free(mdl->id);
-            break;
-        case dynamics_type::constant:
-            do_deallocate(constant_models.get(mdl->id));
-            constant_models.free(mdl->id);
-            break;
-        case dynamics_type::cross:
-            do_deallocate(cross_models.get(mdl->id));
-            cross_models.free(mdl->id);
-            break;
-        case dynamics_type::time_func:
-            do_deallocate(time_func_models.get(mdl->id));
-            time_func_models.free(mdl->id);
-            break;
-        case dynamics_type::accumulator_2:
-            do_deallocate(accumulator_2_models.get(mdl->id));
-            accumulator_2_models.free(mdl->id);
-            break;
-        case dynamics_type::flow:
-            do_deallocate(flow_models.get(mdl->id));
-            flow_models.free(mdl->id);
-            break;
-        default:
-            irt_bad_return(status::unknown_dynamics);
-        }
+        auto ret = dispatch(mdl->type, [&](auto& d_array) {
+            do_deallocate(d_array.get(mdl->id));
+            d_array.free(mdl->id);
+            return status::success;
+        });
 
         sched.erase(*mdl);
         models.free(*mdl);
