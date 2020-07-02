@@ -155,14 +155,12 @@ struct neuron {
 struct neuron_adaptive {
   irt::dynamics_id  sum1;
   irt::dynamics_id  sum2;
-  irt::dynamics_id  sum3;
   irt::dynamics_id  integrator1;
   irt::dynamics_id  integrator2;
   irt::dynamics_id  quantifier1;
   irt::dynamics_id  quantifier2;
   irt::dynamics_id  constant;
   irt::dynamics_id  cross1;
-  irt::dynamics_id  cross2;
   irt::dynamics_id  constant_cross;
 };
 
@@ -268,11 +266,11 @@ struct neuron_adaptive
 make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
 {
   using namespace boost::ut;
-  double tau_lif = 10*0.001;
+  double tau_lif = 10;
   double Vr_lif = 0.0;
   double Vt_lif = 10.0;
 
-  double tau_threshold = 15*0.001;
+  double tau_threshold = 15;
 
 
   auto& sum_lif = sim->adder_2_models.alloc();
@@ -281,12 +279,10 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
   auto& constant_cross_lif = sim->constant_models.alloc();
   auto& cross_lif = sim->cross_models.alloc();
 
-  auto& sum_threshold = sim->adder_2_models.alloc();
+  auto& sum_threshold = sim->adder_3_models.alloc();
   auto& integrator_threshold = sim->integrator_models.alloc();
   auto& quantifier_threshold = sim->quantifier_models.alloc();
-  auto& cross_threshold = sim->cross_models.alloc();
 
-  auto& sum_reset = sim->adder_2_models.alloc();
   auto& constant = sim->constant_models.alloc();
 
   //LIF
@@ -309,20 +305,16 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
   //Threshold
   sum_threshold.default_input_coeffs[0] = -1.0/tau_threshold;
   sum_threshold.default_input_coeffs[1] = 10.0/tau_threshold;
+  sum_threshold.default_input_coeffs[2] = 1.0/tau_threshold;
   
-  integrator_threshold.default_current_value = Vt_lif;
+  integrator_threshold.default_current_value = Vr_lif;
 
   quantifier_threshold.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quantifier_threshold.default_zero_init_offset = true;
   quantifier_threshold.default_step_size = 0.1;
   quantifier_threshold.default_past_length = 3;
-  
-  cross_threshold.default_threshold = Vt_lif;
 
-
-  sum_reset.default_input_coeffs[0] = 1.0;
-  sum_reset.default_input_coeffs[1] = 3.0;
   constant.default_value = 1.0;
 
 
@@ -332,24 +324,20 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
   sim->alloc(cross_lif, sim->cross_models.get_id(cross_lif));
   sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif));
 
-  sim->alloc(sum_threshold, sim->adder_2_models.get_id(sum_threshold));
+  sim->alloc(sum_threshold, sim->adder_3_models.get_id(sum_threshold));
   sim->alloc(integrator_threshold, sim->integrator_models.get_id(integrator_threshold));
   sim->alloc(quantifier_threshold, sim->quantifier_models.get_id(quantifier_threshold));
-  sim->alloc(cross_threshold, sim->cross_models.get_id(cross_threshold));
 
-  sim->alloc(sum_reset, sim->adder_2_models.get_id(sum_reset));
   sim->alloc(constant, sim->constant_models.get_id(constant));
 
   struct neuron_adaptive neuron_model = {sim->adder_2_models.get_id(sum_lif),
-                                sim->adder_2_models.get_id(sum_threshold),
-                                sim->adder_2_models.get_id(sum_reset),
+                                sim->adder_3_models.get_id(sum_threshold),
                                 sim->integrator_models.get_id(integrator_lif),
                                 sim->integrator_models.get_id(integrator_threshold),
                                 sim->quantifier_models.get_id(quantifier_lif),
                                 sim->quantifier_models.get_id(quantifier_threshold),                                
                                 sim->constant_models.get_id(constant),
-                                sim->cross_models.get_id(cross_lif),
-                                sim->cross_models.get_id(cross_threshold),                                                                                                                                
+                                sim->cross_models.get_id(cross_lif),                                                                                                                             
                                 sim->constant_models.get_id(constant_cross_lif),                                                                
                                 }; 
 
@@ -374,34 +362,23 @@ make_neuron_adaptive(irt::simulation* sim, long unsigned int i) noexcept
 
   expect(sim->connect(quantifier_threshold.y[0], integrator_threshold.x[0]) ==
           irt::status::success);
-  expect(sim->connect(cross_threshold.y[0], integrator_threshold.x[2]) ==
+  expect(sim->connect(integrator_threshold.y[0], quantifier_threshold.x[0]) ==
           irt::status::success);
-  expect(sim->connect(cross_threshold.y[0], quantifier_threshold.x[0]) ==
+  expect(sim->connect(integrator_threshold.y[0], sum_threshold.x[0]) ==
           irt::status::success);
-  expect(sim->connect(cross_threshold.y[0], sum_threshold.x[0]) ==
-          irt::status::success);
-  expect(sim->connect(integrator_lif.y[0],cross_threshold.x[0]) ==
-          irt::status::success);     
-  expect(sim->connect(integrator_threshold.y[0],cross_threshold.x[2]) ==
-          irt::status::success);
-  expect(sim->connect(sum_reset.y[0],cross_threshold.x[1]) ==
-          irt::status::success);  
-  expect(sim->connect(integrator_threshold.y[0],sum_reset.x[0]) ==
-          irt::status::success);  
-  expect(sim->connect(constant.y[0],sum_reset.x[1]) ==
-          irt::status::success);  
   expect(sim->connect(sum_threshold.y[0],integrator_threshold.x[1]) ==
           irt::status::success);
 
   expect(sim->connect(constant.y[0],sum_lif.x[1]) ==
           irt::status::success);     
   expect(sim->connect(constant.y[0],sum_threshold.x[1]) ==
-          irt::status::success);     
+          irt::status::success);   
+  expect(sim->connect(integrator_lif.y[0],sum_threshold.x[2]) ==
+          irt::status::success);   
 
   expect(sim->connect(integrator_threshold.y[0],cross_lif.x[3]) ==
           irt::status::success);
-  expect(sim->connect(integrator_threshold.y[0],cross_threshold.x[3]) ==
-          irt::status::success);
+
   return neuron_model;
 }
 int
@@ -415,6 +392,7 @@ main()
 
         // Neuron constants
         long unsigned int N = 1;
+        expect(irt::is_success(sim.init(2048lu, 800lu)));
         /*long unsigned int N = sound_data.size() - 1;
         
 
@@ -448,6 +426,8 @@ main()
         for (long unsigned int i = 0; i < N; i++)
         {
           s =  s + "Neuron" + std::to_string(i)
+                + ","
+                + "Neuront" + std::to_string(i)     
                 + ",";
         }
         fmt::print(os, s + "\n");
@@ -455,6 +435,8 @@ main()
         expect(irt::status::success == sim.initialize(t));
 
         do {
+                            //printf("%f\n",t);
+
 
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
@@ -464,13 +446,15 @@ main()
             {
               //s =  s + std::to_string(sim.cross_models.get(first_layer_neurons[i].cross).event)
               s =  s + std::to_string(sim.integrator_models.get(second_layer_neurons[i].integrator1).last_output_value)
-                    + ",";
+                     + ","
+                     + std::to_string(sim.integrator_models.get(second_layer_neurons[i].integrator2).last_output_value)
+                     + ",";
 
             }
             fmt::print(os, s + "\n");
 
-        } while (t < 200);
-
+        } while (t < 100);
+        //} while (t < sound_data[0].size()/samplerate);
         std::fclose(os);
       };
 
