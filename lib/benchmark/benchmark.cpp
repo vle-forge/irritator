@@ -435,7 +435,7 @@ void network(long unsigned int N, double simulation_duration, double quantum)
       }
       end = std::chrono::steady_clock::now();
       printf(" [%f] s.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(end - start).count()));
-      printf(">> synapses size %ld \n",synapses.capacity());
+      printf(">> synapses size %ld \n",static_cast<long int>(synapses.capacity()));
 
       irt::time t = 0.0;
 
