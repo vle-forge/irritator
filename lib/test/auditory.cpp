@@ -123,8 +123,7 @@ vector<vector<double>> parse2DCsvFile(string inputFileName) {
                 }
                 catch (const std::invalid_argument e) {
                     cout << "NaN found in file " << inputFileName << " line " << l
-                         << endl;
-                    e.what();
+                         << ' ' << e.what() << endl;
                 }
             }
  
