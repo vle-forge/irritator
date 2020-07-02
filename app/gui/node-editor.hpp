@@ -118,7 +118,8 @@ using child_id = std::variant<model_id, cluster_id>;
 enum class simulation_status
 {
     success,
-    running,
+    running_once,
+    running_step,
     uninitialized,
     internal_error,
 };
@@ -357,3 +358,6 @@ struct editor
 } // namespace irt
 
 #endif
+
+void
+initialize_observation(irt::editor* ed);
