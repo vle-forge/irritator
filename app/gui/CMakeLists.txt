@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(irritator-gui VERSION 0.1.0 LANGUAGES CXX)
 
 set(gui_sources
-    dialog-file.cpp gui.hpp imnodes.cpp imnodes.hpp window-logger.cpp
-    node-editor.hpp node-editor.cpp
+    dialog-file.cpp gui.hpp imnodes.cpp imnodes.hpp implot.h implot.cpp
+    window-logger.cpp node-editor.hpp node-editor.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.h
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_demo.cpp
