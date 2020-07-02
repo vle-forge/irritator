@@ -82,6 +82,9 @@ enum class status
     model_mult_bad_init_message,
     model_mult_bad_external_message,
 
+    model_integrator_dq_error,
+    model_integrator_X_error,
+
     model_integrator_internal_error,
     model_integrator_output_error,
     model_integrator_running_without_x_dot,
@@ -2887,6 +2890,18 @@ private:
 enum class dynamics_type : i8
 {
     none,
+
+    qss1_integrator,
+
+    qss2_integrator,
+    qss2_multiplier,
+    qss2_sum_2,
+    qss2_sum_3,
+    qss2_sum_4,
+    qss2_wsum_2,
+    qss2_wsum_3,
+    qss2_wsum_4,
+
     integrator,
     quantifier,
     adder_2,
@@ -3312,23 +3327,23 @@ struct integrator
     }
 };
 
-struct integrator_2
+/*****************************************************************************
+ *
+ * Qss1 part
+ *
+ ****************************************************************************/
+
+struct qss1_integrator
 {
-    static inline constexpr double pi_3 = 1.047197551;
     model_id id;
     input_port_id x[2];
     output_port_id y[1];
-    const double default_X = 0.;
-    const double default_dQ = 0.;
+    double default_X = 0.;
+    double default_dQ = 0.01;
     double X;
     double dQ;
-    double reset_X;
-    double u;
-    double mu;
-    double pu;
     double q;
-    double mq;
-    double pq;
+    double u;
     time sigma = time_domain<time>::zero;
 
     enum port_name
@@ -3337,52 +3352,197 @@ struct integrator_2
         port_reset
     };
 
-    integrator_2() = default;
+    qss1_integrator() = default;
 
-    integrator_2(const integrator_2& other) noexcept
+    qss1_integrator(const qss1_integrator& other) noexcept
       : default_X(other.default_X)
       , default_dQ(other.default_dQ)
       , X(other.X)
-      , reset_X(other.reset_X)
-      , u(other.u)
-      , mu(other.mu)
-      , pu(other.pu)
+      , dQ(other.dQ)
       , q(other.q)
-      , mq(other.mq)
-      , pq(other.pq)
+      , u(other.u)
       , sigma(other.sigma)
     {}
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
+        irt_return_if_fail(std::isfinite(default_X),
+                           status::model_integrator_X_error);
+
+        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > 0.,
+                           status::model_integrator_X_error);
+
         X = default_X;
         dQ = default_dQ;
-
-        reset_X = 0.;
+        q = std::floor(X / dQ) * dQ;
         u = 0.;
-        mu = 0.;
-        pu = 0.;
-        q = default_X;
-        mq = 0.;
-        pq = 0.;
 
         sigma = time_domain<time>::zero;
 
         return status::success;
     }
 
-    status external(const double value_1,
-                    const double value_2,
+    status external(const double value_x, const time e) noexcept
+    {
+        X += e * u;
+        u = value_x;
+
+        if (sigma != 0.) {
+            if (u == 0.)
+                sigma = time_domain<time>::infinity;
+            else if (u > 0.)
+                sigma = (q + dQ - X) / u;
+            else
+                sigma = (q - dQ - X) / u;
+        }
+
+        return status::success;
+    }
+
+    status internal() noexcept
+    {
+        if (u == 0.) {
+            sigma = time_domain<time>::infinity;
+        } else {
+            X += sigma * u;
+            sigma = dQ / std::abs(u);
+        }
+
+        q = X;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time e,
+                      time r) noexcept
+    {
+        auto& port_x = input_ports.get(x[port_x_dot]);
+        auto& port_r = input_ports.get(x[port_reset]);
+        double value_x = 0.;
+        bool reset = false;
+
+        for (const auto& msg : port_x.messages) {
+            irt_return_if_fail(msg.type == value_type::real_64 &&
+                                 msg.size() == 1,
+                               status::model_integrator_bad_external_message);
+
+            value_x = msg.to_real_64(0);
+        }
+
+        for (const auto& msg : port_r.messages) {
+            irt_return_if_fail(msg.type == value_type::real_64 &&
+                                 msg.size() == 1,
+                               status::model_integrator_bad_external_message);
+
+            X = msg.to_real_64(0);
+            reset = true;
+        }
+
+        if (port_x.messages.empty() && !reset) {
+            irt_return_if_bad(internal());
+        } else {
+            if (time_domain<time>::is_zero(r))
+                irt_return_if_bad(internal());
+
+            if (!reset)
+                irt_return_if_bad(external(value_x, e));
+        }
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        auto& port = output_ports.get(y[0]);
+
+        port.messages.emplace_front(u == 0 ? q : q + dQ * u / std::abs(u));
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(X);
+    }
+};
+
+/*****************************************************************************
+ *
+ * Qss2 part
+ *
+ ****************************************************************************/
+
+struct qss2_integrator
+{
+    model_id id;
+    input_port_id x[2];
+    output_port_id y[1];
+    double default_X = 0.;
+    double default_dQ = 0.;
+    double X;
+    double dQ;
+    double u;
+    double mu;
+    double q;
+    double mq;
+    time sigma = time_domain<time>::zero;
+
+    enum port_name
+    {
+        port_x_dot,
+        port_reset
+    };
+
+    qss2_integrator() = default;
+
+    qss2_integrator(const qss2_integrator& other) noexcept
+      : default_X(other.default_X)
+      , default_dQ(other.default_dQ)
+      , X(other.X)
+      , dQ(other.dQ)
+      , u(other.u)
+      , mu(other.mu)
+      , q(other.q)
+      , mq(other.mq)
+      , sigma(other.sigma)
+    {}
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        irt_return_if_fail(std::isfinite(default_X),
+                           status::model_integrator_X_error);
+
+        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > 0.,
+                           status::model_integrator_X_error);
+
+        X = default_X;
+        dQ = default_dQ;
+
+        u = 0.;
+        mu = 0.;
+        q = default_X;
+        mq = 0.;
+
+        sigma = time_domain<time>::zero;
+
+        return status::success;
+    }
+
+    status external(const double value_x,
+                    const double value_slope,
                     const time e) noexcept
     {
         X += u * e + mu / 2.0 * e * e;
-        u = value_1;
-        mu = value_2;
+        u = value_x;
+        mu = value_slope;
 
         if (sigma != 0) {
             q += mq * e;
-            double a = mu / 2;
-            double b = u - mq;
+            const double a = mu / 2;
+            const double b = u - mq;
             double c = X - q + dQ;
             double s;
             sigma = time_domain<time>::infinity;
@@ -3442,37 +3602,38 @@ struct integrator_2
                       time e,
                       time r) noexcept
     {
-        auto& port_1 = input_ports.get(x[port_x_dot]);
-        auto& port_2 = input_ports.get(x[port_reset]);
-        double value_1 = 0.;
-        double value_2 = 0.;
+        auto& port_x = input_ports.get(x[port_x_dot]);
+        auto& port_r = input_ports.get(x[port_reset]);
+        double value_x = 0.;
+        double value_slope = 0.;
         bool reset = false;
 
-        for (const auto& msg : port_1.messages) {
+        for (const auto& msg : port_x.messages) {
             irt_return_if_fail(msg.type == value_type::real_64 &&
                                  msg.size() == 2,
                                status::model_integrator_bad_external_message);
 
-            value_1 = msg.to_real_64(0);
-            value_2 = msg.to_real_64(1);
+            value_x = msg.to_real_64(0);
+            value_slope = msg.to_real_64(1);
         }
 
-        for (const auto& msg : port_2.messages) {
+        for (const auto& msg : port_r.messages) {
             irt_return_if_fail(msg.type == value_type::real_64 &&
                                  msg.size() == 1,
                                status::model_integrator_bad_external_message);
 
-            reset_X = msg.to_real_64(0);
+            X = msg.to_real_64(0);
             reset = true;
         }
 
-        if (port_1.messages.empty() && !reset) {
+        if (port_x.messages.empty() && !reset) {
             irt_return_if_bad(internal());
         } else {
             if (time_domain<time>::is_zero(r))
                 irt_return_if_bad(internal());
 
-            irt_return_if_bad(external(value_1, value_2, e));
+            if (!reset)
+                irt_return_if_bad(external(value_x, value_slope, e));
         }
 
         return status::success;
@@ -3492,6 +3653,240 @@ struct integrator_2
     message observation(time /*t*/) const noexcept
     {
         return message(X);
+    }
+};
+
+template<size_t PortNumber>
+struct qss2_sum
+{
+    static_assert(PortNumber > 1,
+                  "qss2_sum model need at least two input port");
+
+    model_id id;
+    input_port_id x[PortNumber];
+    output_port_id y[1];
+    time sigma;
+
+    double values[PortNumber];
+    double slopes[PortNumber];
+
+    qss2_sum() noexcept = default;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        std::fill_n(values, PortNumber, 0.);
+        std::fill_n(slopes, PortNumber, 0.);
+
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        double value = 0.;
+        double slope = 0.;
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            value += values[i];
+            slope += slopes[i];
+        }
+
+        output_ports.get(y[0]).messages.emplace_front(value, slope);
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time e,
+                      time /*r*/) noexcept
+    {
+        bool message = false;
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            auto& i_port = input_ports.get(x[i]);
+
+            if (i_port.messages.empty()) {
+                values[i] += slopes[i] * e;
+            } else {
+                for (const auto& msg : input_ports.get(x[i]).messages) {
+                    values[i] = msg.to_real_64(0);
+                    slopes[i] = msg.size() > 1 ? msg.to_real_64(1) : 0.0;
+                    message = true;
+                }
+            }
+        }
+
+        sigma = message ? time_domain<time>::zero : time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        double value = 0.;
+        double slope = 0.;
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            value += values[i];
+            slope += slopes[i];
+        }
+
+        return message{ value, slope };
+    }
+};
+
+struct qss2_multiplier
+{
+    model_id id;
+    input_port_id x[2];
+    output_port_id y[1];
+    time sigma;
+
+    double values[2];
+    double slopes[2];
+
+    qss2_multiplier() noexcept = default;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        values[0] = values[1] = slopes[0] = slopes[1] = 0.;
+
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        output_ports.get(y[0]).messages.emplace_front(
+          values[0] * values[1], slopes[0] * values[1] + slopes[1] * values[0]);
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time e,
+                      time /*r*/) noexcept
+    {
+        bool message_port_0 = false;
+        bool message_port_1 = false;
+        sigma = time_domain<time>::infinity;
+
+        for (const auto& msg : input_ports.get(x[0]).messages) {
+            values[0] = msg.to_real_64(0);
+            slopes[0] = msg.size() > 1 ? msg.to_real_64(1) : 0.0;
+            message_port_0 = true;
+            sigma = time_domain<time>::zero;
+        }
+
+        for (const auto& msg : input_ports.get(x[1]).messages) {
+            values[1] = msg.to_real_64(0);
+            slopes[1] = msg.size() > 1 ? msg.to_real_64(1) : 0.0;
+            message_port_1 = true;
+            sigma = time_domain<time>::zero;
+        }
+
+        if (!message_port_0)
+            values[0] += e * slopes[0];
+
+        if (!message_port_1)
+            values[1] += e * slopes[1];
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return { values[0] * values[1],
+                 slopes[0] * values[1] + slopes[1] * values[0] };
+    }
+};
+
+template<size_t PortNumber>
+struct qss2_wsum
+{
+    static_assert(PortNumber > 1,
+                  "qss2_wsum model need at least two input port");
+
+    model_id id;
+    input_port_id x[PortNumber];
+    output_port_id y[1];
+    time sigma;
+
+    double default_input_coeffs[PortNumber] = { 0 };
+    double values[PortNumber];
+    double slopes[PortNumber];
+
+    qss2_wsum() noexcept = default;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        std::fill_n(values, PortNumber, 0.);
+        std::fill_n(slopes, PortNumber, 0.);
+
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        double value = 0.;
+        double slope = 0.;
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            value += default_input_coeffs[i] * values[i];
+            slope += default_input_coeffs[i] * slopes[i];
+        }
+
+        output_ports.get(y[0]).messages.emplace_front(value, slope);
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time e,
+                      time /*r*/) noexcept
+    {
+        bool message = false;
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            auto& i_port = input_ports.get(x[i]);
+
+            if (i_port.messages.empty()) {
+                values[i] += slopes[i] * e;
+            } else {
+                for (const auto& msg : input_ports.get(x[i]).messages) {
+                    values[i] = msg.to_real_64(0);
+                    slopes[i] = msg.size() > 1 ? msg.to_real_64(1) : 0.0;
+                    message = true;
+                }
+            }
+        }
+
+        sigma = message ? time_domain<time>::zero : time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        double value = 0.;
+        double slope = 0.;
+
+        for (size_t i = 0; i != PortNumber; ++i) {
+            value += default_input_coeffs[i] * values[i];
+            slope += default_input_coeffs[i] * slopes[i];
+        }
+
+        return message{ value, slope };
     }
 };
 
@@ -4409,6 +4804,13 @@ using mult_2 = mult<2>;
 using mult_3 = mult<3>;
 using mult_4 = mult<4>;
 
+using qss2_sum_2 = qss2_sum<2>;
+using qss2_sum_3 = qss2_sum<3>;
+using qss2_sum_4 = qss2_sum<4>;
+using qss2_wsum_2 = qss2_wsum<2>;
+using qss2_wsum_3 = qss2_wsum<3>;
+using qss2_wsum_4 = qss2_wsum<4>;
+
 using accumulator_2 = accumulator<2>;
 
 /*****************************************************************************
@@ -4546,6 +4948,18 @@ struct simulation
     data_array<output_port, output_port_id> output_ports;
 
     data_array<none, dynamics_id> none_models;
+
+    data_array<qss1_integrator, dynamics_id> qss1_integrator_models;
+
+    data_array<qss2_integrator, dynamics_id> qss2_integrator_models;
+    data_array<qss2_multiplier, dynamics_id> qss2_multiplier_models;
+    data_array<qss2_sum_2, dynamics_id> qss2_sum_2_models;
+    data_array<qss2_sum_3, dynamics_id> qss2_sum_3_models;
+    data_array<qss2_sum_4, dynamics_id> qss2_sum_4_models;
+    data_array<qss2_wsum_2, dynamics_id> qss2_wsum_2_models;
+    data_array<qss2_wsum_3, dynamics_id> qss2_wsum_3_models;
+    data_array<qss2_wsum_4, dynamics_id> qss2_wsum_4_models;
+
     data_array_archive<integrator, dynamics_id> integrator_models;
     data_array_archive<quantifier, dynamics_id> quantifier_models;
     data_array<adder_2, dynamics_id> adder_2_models;
@@ -4575,6 +4989,27 @@ struct simulation
         switch (type) {
         case dynamics_type::none:
             return f(none_models);
+
+        case dynamics_type::qss1_integrator:
+            return f(qss1_integrator_models);
+
+        case dynamics_type::qss2_integrator:
+            return f(qss2_integrator_models);
+        case dynamics_type::qss2_multiplier:
+            return f(qss2_multiplier_models);
+        case dynamics_type::qss2_sum_2:
+            return f(qss2_sum_2_models);
+        case dynamics_type::qss2_sum_3:
+            return f(qss2_sum_3_models);
+        case dynamics_type::qss2_sum_4:
+            return f(qss2_sum_4_models);
+        case dynamics_type::qss2_wsum_2:
+            return f(qss2_wsum_2_models);
+        case dynamics_type::qss2_wsum_3:
+            return f(qss2_wsum_3_models);
+        case dynamics_type::qss2_wsum_4:
+            return f(qss2_wsum_4_models);
+
         case dynamics_type::integrator:
             return f(integrator_models);
         case dynamics_type::quantifier:
@@ -4616,6 +5051,27 @@ struct simulation
         switch (type) {
         case dynamics_type::none:
             return f(none_models);
+
+        case dynamics_type::qss1_integrator:
+            return f(qss1_integrator_models);
+
+        case dynamics_type::qss2_integrator:
+            return f(qss2_integrator_models);
+        case dynamics_type::qss2_multiplier:
+            return f(qss2_multiplier_models);
+        case dynamics_type::qss2_sum_2:
+            return f(qss2_sum_2_models);
+        case dynamics_type::qss2_sum_3:
+            return f(qss2_sum_3_models);
+        case dynamics_type::qss2_sum_4:
+            return f(qss2_sum_4_models);
+        case dynamics_type::qss2_wsum_2:
+            return f(qss2_wsum_2_models);
+        case dynamics_type::qss2_wsum_3:
+            return f(qss2_wsum_3_models);
+        case dynamics_type::qss2_wsum_4:
+            return f(qss2_wsum_4_models);
+
         case dynamics_type::integrator:
             return f(integrator_models);
         case dynamics_type::quantifier:
@@ -4802,179 +5258,7 @@ struct simulation
             });
     }
 
-    template<typename Iterator>
-    status copy_connections(Iterator first_orig,
-                            Iterator last_orig,
-                            Iterator copy,
-                            const input_port& orig_port,
-                            const input_port& copy_port) noexcept
-    {
-        for (output_port_id output_id : orig_port.connections) {
-            auto* output = output_ports.try_to_get(output_id);
-            irt_return_if_fail(output, status::dynamics_unknown_port_id);
-
-            auto it = std::find(first_orig, last_orig, output->model);
-            if (it == last_orig) {
-                irt_return_if_bad(
-                  connect(output_id, input_ports.get_id(copy_port)));
-            } else {
-                auto* orig_model = models.try_to_get(output->model);
-                irt_return_if_fail(orig_model, status::dynamics_unknown_id);
-
-                int index_port = -1;
-                irt_return_if_bad(
-                  get_output_port_index(*orig_model, output_id, &index_port));
-
-                auto index_model = std::distance(first_orig, it);
-                auto to_change_id = *(copy + index_model);
-
-                auto* to_change_mdl = models.try_to_get(to_change_id);
-                irt_return_if_fail(to_change_mdl, status::dynamics_unknown_id);
-
-                output_port_id copy_port_id;
-                irt_return_if_bad(get_output_port_id(
-                  *to_change_mdl, index_port, &copy_port_id));
-
-                connect(copy_port_id, input_ports.get_id(copy_port));
-            }
-        }
-
-        return status::success;
-    }
-
-    template<typename Iterator>
-    status copy_connections(Iterator first_orig,
-                            Iterator last_orig,
-                            Iterator copy,
-                            const output_port& orig_port,
-                            const output_port& copy_port) noexcept
-    {
-        for (input_port_id input_id : orig_port.connections) {
-            auto* input = input_ports.try_to_get(input_id);
-            irt_return_if_fail(input, status::dynamics_unknown_port_id);
-
-            auto it = std::find(first_orig, last_orig, input->model);
-
-            if (it == last_orig) {
-                irt_return_if_bad(
-                  connect(output_ports.get_id(copy_port), input_id));
-            } else {
-                auto* orig_model = models.try_to_get(input->model);
-                irt_return_if_fail(orig_model, status::dynamics_unknown_id);
-
-                int index_port = -1;
-                irt_return_if_bad(
-                  get_input_port_index(*orig_model, input_id, &index_port));
-
-                auto index_model = std::distance(first_orig, it);
-                auto to_change_id = *(copy + index_model);
-
-                auto* to_change_mdl = models.try_to_get(to_change_id);
-                irt_return_if_fail(to_change_mdl, status::dynamics_unknown_id);
-
-                input_port_id copy_port_id;
-                irt_return_if_bad(
-                  get_input_port_id(*to_change_mdl, index_port, &copy_port_id));
-
-                connect(output_ports.get_id(copy_port), copy_port_id);
-            }
-        }
-
-        return status::success;
-    }
-
 public:
-    template<typename InputIterator, typename OutputIterator>
-    status copy(InputIterator first, InputIterator last, OutputIterator out)
-    {
-        for (auto it = first, copy = out; it != last; ++it, ++copy) {
-            model_id model_id = *it;
-            const model* mdl = models.try_to_get(model_id);
-            irt_return_if_fail(mdl, status::dynamics_unknown_id);
-
-            auto ret = dispatch(
-              mdl->type,
-              [ this, &mdl,
-                copy ]<typename DynamicsM>(DynamicsM & dynamics_models)
-                ->status {
-                    using Dynamics = typename DynamicsM::value_type;
-
-                    irt_return_if_fail(dynamics_models.can_alloc(1),
-                                       status::dynamics_not_enough_memory);
-
-                    auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
-                    irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
-
-                    auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
-                    auto new_dyn_id = dynamics_models.get_id(new_dyn);
-
-                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                        std::fill_n(new_dyn.x,
-                                    std::size(new_dyn.x),
-                                    static_cast<input_port_id>(0));
-
-                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                        std::fill_n(new_dyn.y,
-                                    std::size(new_dyn.y),
-                                    static_cast<output_port_id>(0));
-
-                    irt_return_if_bad(
-                      this->alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
-
-                    *copy = new_dyn.id;
-
-                    return status::success;
-                });
-
-            irt_return_if_bad(ret);
-        }
-
-        size_t model_it = 0;
-        for (auto it = first; it != last; ++it, ++model_it) {
-            const model* mdl = models.try_to_get(*(first + model_it));
-            irt_return_if_fail(mdl, status::dynamics_unknown_id);
-
-            auto ret = dispatch(
-              mdl->type,
-              [ this, model_it, first, last,
-                out ]<typename DynamicsM>(DynamicsM & dynamics_models) {
-                  using Dynamics = typename DynamicsM::value_type;
-
-                  auto* mdl_src = this->models.try_to_get(*(first + model_it));
-                  auto* mdl_dst = this->models.try_to_get(*(out + model_it));
-                  irt_return_if_fail(mdl_src, status::dynamics_unknown_id);
-                  irt_return_if_fail(mdl_dst, status::dynamics_unknown_id);
-
-                  auto* dyn_src = dynamics_models.try_to_get(mdl_src->id);
-                  auto* dyn_dst = dynamics_models.try_to_get(mdl_dst->id);
-                  irt_return_if_fail(dyn_src, status::dynamics_unknown_id);
-                  irt_return_if_fail(dyn_dst, status::dynamics_unknown_id);
-
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      for (size_t i = 0, e = std::size(dyn_src->x); i != e; ++i)
-                          copy_connections(first,
-                                           last,
-                                           out,
-                                           input_ports.get(dyn_src->x[i]),
-                                           input_ports.get(dyn_dst->x[i]));
-
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      for (size_t i = 0, e = std::size(dyn_src->y); i != e; ++i)
-                          copy_connections(first,
-                                           last,
-                                           out,
-                                           output_ports.get(dyn_src->y[i]),
-                                           output_ports.get(dyn_dst->y[i]));
-
-                  return status::success;
-              });
-
-            irt_return_if_bad(ret);
-        }
-
-        return status::success;
-    }
-
     status init(size_t model_capacity, size_t messages_capacity)
     {
         constexpr size_t ten{ 10 };
@@ -4994,6 +5278,18 @@ public:
         irt_return_if_bad(output_ports.init(model_capacity ));
 
         irt_return_if_bad(none_models.init(model_capacity));
+
+        irt_return_if_bad(qss1_integrator_models.init(model_capacity));
+
+        irt_return_if_bad(qss2_integrator_models.init(model_capacity));
+        irt_return_if_bad(qss2_multiplier_models.init(model_capacity));
+        irt_return_if_bad(qss2_sum_2_models.init(model_capacity));
+        irt_return_if_bad(qss2_sum_3_models.init(model_capacity));
+        irt_return_if_bad(qss2_sum_4_models.init(model_capacity));
+        irt_return_if_bad(qss2_wsum_2_models.init(model_capacity));
+        irt_return_if_bad(qss2_wsum_3_models.init(model_capacity));
+        irt_return_if_bad(qss2_wsum_4_models.init(model_capacity));
+
         irt_return_if_bad(integrator_models.init(
           model_capacity, model_capacity * ten  ));
         irt_return_if_bad(quantifier_models.init(
@@ -5063,6 +5359,18 @@ public:
         output_ports.clear();
 
         none_models.clear();
+
+        qss1_integrator_models.clear();
+
+        qss2_integrator_models.clear();
+        qss2_multiplier_models.clear();
+        qss2_sum_2_models.clear();
+        qss2_sum_3_models.clear();
+        qss2_sum_4_models.clear();
+        qss2_wsum_2_models.clear();
+        qss2_wsum_3_models.clear();
+        qss2_wsum_4_models.clear();
+
         integrator_models.clear();
         quantifier_models.clear();
         adder_2_models.clear();
@@ -5104,6 +5412,27 @@ public:
 
         if constexpr (std::is_same_v<Dynamics, none>)
             mdl.type = dynamics_type::none;
+
+        else if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
+            mdl.type = dynamics_type::qss1_integrator;
+
+        else if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
+            mdl.type = dynamics_type::qss2_integrator;
+        else if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
+            mdl.type = dynamics_type::qss2_multiplier;
+        else if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
+            mdl.type = dynamics_type::qss2_sum_2;
+        else if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
+            mdl.type = dynamics_type::qss2_sum_3;
+        else if constexpr (std::is_same_v<Dynamics, qss2_sum_4>)
+            mdl.type = dynamics_type::qss2_sum_4;
+        else if constexpr (std::is_same_v<Dynamics, qss2_wsum_2>)
+            mdl.type = dynamics_type::qss2_wsum_2;
+        else if constexpr (std::is_same_v<Dynamics, qss2_wsum_3>)
+            mdl.type = dynamics_type::qss2_wsum_3;
+        else if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
+            mdl.type = dynamics_type::qss2_wsum_4;
+
         else if constexpr (std::is_same_v<Dynamics, integrator>)
             mdl.type = dynamics_type::integrator;
         else if constexpr (std::is_same_v<Dynamics, quantifier>)
@@ -5176,6 +5505,7 @@ public:
             observers.free(*obs);
         }
 
+<<<<<<< HEAD
         switch (mdl->type) {
         case dynamics_type::none:
             do_deallocate(none_models.get(mdl->id));
@@ -5244,11 +5574,83 @@ public:
         default:
             irt_bad_return(status::unknown_dynamics);
         }
+||||||| merged common ancestors
+        switch (mdl->type) {
+        case dynamics_type::none:
+            do_deallocate(none_models.get(mdl->id));
+            none_models.free(mdl->id);
+            break;
+        case dynamics_type::integrator:
+            do_deallocate(integrator_models.get(mdl->id));
+            integrator_models.free(mdl->id);
+            break;
+        case dynamics_type::quantifier:
+            do_deallocate(quantifier_models.get(mdl->id));
+            quantifier_models.free(mdl->id);
+            break;
+        case dynamics_type::adder_2:
+            do_deallocate(adder_2_models.get(mdl->id));
+            adder_2_models.free(mdl->id);
+            break;
+        case dynamics_type::adder_3:
+            do_deallocate(adder_3_models.get(mdl->id));
+            adder_3_models.free(mdl->id);
+            break;
+        case dynamics_type::adder_4:
+            do_deallocate(adder_4_models.get(mdl->id));
+            adder_4_models.free(mdl->id);
+            break;
+        case dynamics_type::mult_2:
+            do_deallocate(mult_2_models.get(mdl->id));
+            mult_2_models.free(mdl->id);
+            break;
+        case dynamics_type::mult_3:
+            do_deallocate(mult_3_models.get(mdl->id));
+            mult_3_models.free(mdl->id);
+            break;
+        case dynamics_type::mult_4:
+            do_deallocate(mult_4_models.get(mdl->id));
+            mult_4_models.free(mdl->id);
+            break;
+        case dynamics_type::counter:
+            do_deallocate(counter_models.get(mdl->id));
+            counter_models.free(mdl->id);
+            break;
+        case dynamics_type::generator:
+            do_deallocate(generator_models.get(mdl->id));
+            generator_models.free(mdl->id);
+            break;
+        case dynamics_type::constant:
+            do_deallocate(constant_models.get(mdl->id));
+            constant_models.free(mdl->id);
+            break;
+        case dynamics_type::cross:
+            do_deallocate(cross_models.get(mdl->id));
+            cross_models.free(mdl->id);
+            break;
+        case dynamics_type::time_func:
+            do_deallocate(time_func_models.get(mdl->id));
+            time_func_models.free(mdl->id);
+            break;
+        case dynamics_type::accumulator_2:
+            do_deallocate(accumulator_2_models.get(mdl->id));
+            accumulator_2_models.free(mdl->id);
+            break;
+        default:
+            irt_bad_return(status::unknown_dynamics);
+        }
+=======
+        auto ret = dispatch(mdl->type, [&](auto& d_array) {
+            do_deallocate(d_array.get(mdl->id));
+            d_array.free(mdl->id);
+            return status::success;
+        });
+>>>>>>> 56dd651065da858f24bada4c930507cdb5ae7a78
 
         sched.erase(*mdl);
         models.free(*mdl);
 
-        return status::success;
+        return ret;
     }
 
     template<typename Dynamics>
@@ -5294,6 +5696,10 @@ public:
     {
         auto* mdl_src = models.try_to_get(src.model);
         auto* mdl_dst = models.try_to_get(dst.model);
+
+        if (mdl_src == mdl_dst)
+            return false;
+
         int o_port_index, i_port_index;
 
         if (is_bad(get_output_port_index(*mdl_src, src_id, &o_port_index)) ||
@@ -5303,36 +5709,38 @@ public:
         switch (mdl_src->type) {
         case dynamics_type::none:
             return false;
-        case dynamics_type::integrator:
-            return mdl_dst->type != dynamics_type::integrator;
+
         case dynamics_type::quantifier:
-            return mdl_dst->type == dynamics_type::integrator &&
-                   i_port_index ==
-                     static_cast<int>(integrator::port_name::port_quanta);
+            if (mdl_dst->type == dynamics_type::integrator &&
+                i_port_index ==
+                  static_cast<int>(integrator::port_name::port_quanta))
+                return true;
+
+            return false;
+
+        case dynamics_type::qss1_integrator:
+        case dynamics_type::qss2_integrator:
+        case dynamics_type::qss2_multiplier:
+        case dynamics_type::qss2_sum_2:
+        case dynamics_type::qss2_sum_3:
+        case dynamics_type::qss2_sum_4:
+        case dynamics_type::qss2_wsum_2:
+        case dynamics_type::qss2_wsum_3:
+        case dynamics_type::qss2_wsum_4:
+        case dynamics_type::integrator:
         case dynamics_type::adder_2:
         case dynamics_type::adder_3:
         case dynamics_type::adder_4:
         case dynamics_type::mult_2:
         case dynamics_type::mult_3:
         case dynamics_type::mult_4:
-            if (mdl_dst->type != dynamics_type::quantifier)
-                return false;
-
-            if (mdl_dst->type == dynamics_type::integrator &&
-                i_port_index ==
-                  static_cast<int>(integrator::port_name::port_quanta))
-                return false;
-
-            return true;
         case dynamics_type::counter:
         case dynamics_type::generator:
         case dynamics_type::constant:
         case dynamics_type::cross:
         case dynamics_type::time_func:
+        case dynamics_type::flow:
         case dynamics_type::accumulator_2:
-            if (mdl_dst->type != dynamics_type::quantifier)
-                return false;
-
             if (mdl_dst->type == dynamics_type::integrator &&
                 i_port_index ==
                   static_cast<int>(integrator::port_name::port_quanta))
@@ -5341,21 +5749,21 @@ public:
             return true;
         }
 
+
         return false;
     }
 
     status connect(output_port_id src, input_port_id dst) noexcept
     {
         auto* src_port = output_ports.try_to_get(src);
-        irt_return_if_fail(!src_port,
-                           status::model_connect_output_port_unknown);
+        irt_return_if_fail(src_port, status::model_connect_output_port_unknown);
 
         auto* dst_port = input_ports.try_to_get(dst);
-        irt_return_if_fail(!dst_port, status::model_connect_input_port_unknown);
+        irt_return_if_fail(dst_port, status::model_connect_input_port_unknown);
 
         irt_return_if_fail(std::find(std::begin(src_port->connections),
                                      std::end(src_port->connections),
-                                     dst) != std::end(src_port->connections),
+                                     dst) == std::end(src_port->connections),
                            status::model_connect_already_exist);
 
         irt_return_if_fail(is_ports_compatible(src, *src_port, dst, *dst_port),

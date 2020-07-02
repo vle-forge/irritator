@@ -161,58 +161,45 @@ void lif_benchmark(double simulation_duration, double quantum)
 
     irt::simulation sim;
 
-    long unsigned int N = 1;
     
     expect(irt::is_success(sim.init(2600lu, 40000lu)));
 
 
-    // Neurons
-    std::vector<struct neuron> first_layer_neurons;
-    for (long unsigned int i = 0 ; i < N; i++) {
-
-      struct neuron neuron_model = make_neuron(&sim,i,quantum);
-      first_layer_neurons.emplace_back(neuron_model);
-    } 
 
 
-    irt::time t = 0.0;
+    struct neuron neuron_model = make_neuron(&sim,0,quantum);
+
+    
+
+
+
     std::string file_name = "output_lif_sd_"+
                             std::to_string(simulation_duration)+
                             "_q_"+std::to_string(quantum)+
                             ".csv";
-    std::FILE* os = std::fopen(file_name.c_str(), "w");
-    !expect(os != nullptr);
-    
-    std::string s = "t,";
-    for (long unsigned int i = 0; i < N; i++)
-    {
-      s =  s + "spikes" 
-            + ","+ "v" 
-            + ",";
-    }
-    fmt::print(os, s + "\n");
+
+
+    file_output fo_a(file_name.c_str());
+    expect(fo_a.os != nullptr);
+    auto& obs_a = sim.observers.alloc(0.01,
+                                      "A",
+                                      static_cast<void*>(&fo_a),
+                                      &file_output_initialize,
+                                      &file_output_observe,
+                                      nullptr);
+
+    sim.observe(sim.models.get(sim.integrator_models.get(neuron_model.integrator).id), obs_a);
+
+    irt::time t = 0.0;
 
     expect(irt::status::success == sim.initialize(t));
 
-    do {
 
+    do {
         irt::status st = sim.run(t);
         expect(st == irt::status::success);
-
-        std::string s = std::to_string(t)+",";
-        for (long unsigned int i = 0; i < N; i++)
-        {
-          s =  s + std::to_string(sim.cross_models.get(first_layer_neurons[i].cross).event)
-            + ",";
-          s =  s + std::to_string(sim.integrator_models.get(first_layer_neurons[i].integrator).last_output_value)
-            + ",";
-
-        }
-        fmt::print(os, s + "\n");
-
     } while (t < simulation_duration);
 
-    std::fclose(os);
 }
 void izhikevich_benchmark(double simulation_duration, double quantum, double a, double b, double c, double d)
 {
@@ -398,9 +385,26 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
                                           &file_output_initialize,
                                           &file_output_observe,
                                           nullptr);
+        /*file_name = "output_izhikevitch_spikes_sd_"+
+                                std::to_string(simulation_duration)+
+                                "_q_"+std::to_string(quantum)+
+                                "_a_"+std::to_string(a)+
+                                "_b_"+std::to_string(b)+
+                                "_c_"+std::to_string(c)+
+                                "_d_"+std::to_string(d)+
+                                ".csv";
+        file_output fo_spikes(file_name.c_str());
+        expect(fo_spikes.os != nullptr);
+        auto& obs_spikes = sim.observers.alloc(0.001,
+                                          "spikes",
+                                          static_cast<void*>(&fo_spikes),
+                                          &file_output_initialize,
+                                          &file_output_observe,
+                                          nullptr);*/
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
+        //sim.observe(sim.models.get(cross.id), obs_spikes);
 
         irt::time t = 0.0;
 
@@ -421,7 +425,8 @@ BENCHMARK_P(Izhikevich, Type, 1, 1,( double simulation_duration, double quantum,
   izhikevich_benchmark(simulation_duration,quantum,a,b,c,d);
 }
 
-BENCHMARK_P_INSTANCE(LIF, 1, (30,1e-2));
+//LIF
+BENCHMARK_P_INSTANCE(LIF, 1, (1000,1e-2));
 // Regular spiking (RS)
 BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-65.0,8.0));
 // Intrinsical bursting (IB)
@@ -436,8 +441,7 @@ BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.25,-65.0,0.05));
 BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.1,0.26,-65.0,2.0));
 // Low-threshold spiking (LTS)
 BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.25,-65.0,2.0));
-// Problematic (P)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.2,2,-56.0,-16.0));
+
 
 int
 main()

@@ -38,8 +38,7 @@ static auto automatic_layout_y_distance = 350.f;
 static auto grid_layout_x_distance = 250.f;
 static auto grid_layout_y_distance = 250.f;
 
-static ImVec4
-operator*(const ImVec4& lhs, const float rhs) noexcept
+static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
@@ -206,16 +205,14 @@ run_simulation(simulation& sim,
     if (auto ret = sim.initialize(current); irt::is_bad(ret)) {
         log_w.log(3,
                   "Simulation initialization failure (%s)\n",
-                  irt::status_string[static_cast<int>(ret)]);
+                  irt::status_string(ret));
         st = simulation_status::internal_error;
         return;
     }
 
     do {
         if (auto ret = sim.run(current); irt::is_bad(ret)) {
-            log_w.log(3,
-                      "Simulation failure (%s)\n",
-                      irt::status_string[static_cast<int>(ret)]);
+            log_w.log(3, "Simulation failure (%s)\n", irt::status_string(ret));
 
             st = simulation_status::internal_error;
             return;
@@ -323,8 +320,6 @@ editor::group(const ImVector<int>& nodes) noexcept
         log_w.log(5, "Fail to allocate a new group.");
         return;
     }
-
-    iteration = 0;
 
     /* First, move children models and groups from the current cluster into the
        newly allocated cluster. */
@@ -442,8 +437,6 @@ editor::ungroup(const int node) noexcept
         log_w.log(5, "group does not exist\n");
         return;
     }
-
-    iteration = 0;
 
     const auto group_id = clusters.get_id(*group);
     top.pop(index);
@@ -665,48 +658,49 @@ struct copier
 
             auto ret = sim.dispatch(
               mdl->type,
-              [this, &sim, mdl, &mdl_id_dst]<typename DynamicsM>(
-                DynamicsM& dynamics_models) -> status {
-                  using Dynamics = typename DynamicsM::value_type;
+              [ this, &sim, mdl, &
+                mdl_id_dst ]<typename DynamicsM>(DynamicsM & dynamics_models)
+                ->status {
+                    using Dynamics = typename DynamicsM::value_type;
 
-                  irt_return_if_fail(dynamics_models.can_alloc(1),
-                                     status::dynamics_not_enough_memory);
+                    irt_return_if_fail(dynamics_models.can_alloc(1),
+                                       status::dynamics_not_enough_memory);
 
-                  auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
-                  irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
+                    auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
+                    irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
 
-                  auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
-                  auto new_dyn_id = dynamics_models.get_id(new_dyn);
+                    auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
+                    auto new_dyn_id = dynamics_models.get_id(new_dyn);
 
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      std::fill_n(new_dyn.x,
-                                  std::size(new_dyn.x),
-                                  static_cast<input_port_id>(0));
+                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                        std::fill_n(new_dyn.x,
+                                    std::size(new_dyn.x),
+                                    static_cast<input_port_id>(0));
 
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      std::fill_n(new_dyn.y,
-                                  std::size(new_dyn.y),
-                                  static_cast<output_port_id>(0));
+                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                        std::fill_n(new_dyn.y,
+                                    std::size(new_dyn.y),
+                                    static_cast<output_port_id>(0));
 
-                  irt_return_if_bad(
-                    sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
+                    irt_return_if_bad(
+                      sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
 
-                  *mdl_id_dst = new_dyn.id;
+                    *mdl_id_dst = new_dyn.id;
 
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
-                           ++j)
-                          this->c_input_ports.emplace_back(dyn_ptr->x[j],
-                                                           new_dyn.x[j]);
+                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                        for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
+                             ++j)
+                            this->c_input_ports.emplace_back(dyn_ptr->x[j],
+                                                             new_dyn.x[j]);
 
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
-                           ++j)
-                          this->c_output_ports.emplace_back(dyn_ptr->y[j],
-                                                            new_dyn.y[j]);
+                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                        for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
+                             ++j)
+                            this->c_output_ports.emplace_back(dyn_ptr->y[j],
+                                                              new_dyn.y[j]);
 
-                  return status::success;
-              });
+                    return status::success;
+                });
 
             irt_return_if_bad(ret);
         }
@@ -832,7 +826,7 @@ compute_connection_distance(output_port& port, editor& ed, const float k)
 }
 
 void
-editor::reorder() noexcept
+editor::compute_grid_layout() noexcept
 {
     const auto size = length(top.children);
     const auto tmp = std::sqrt(size);
@@ -874,7 +868,7 @@ editor::reorder() noexcept
 }
 
 void
-editor::compute_automatic_layout_iteration() noexcept
+editor::compute_automatic_layout() noexcept
 {
     /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
        Fruchterman and Edward M. Reingold in Software--Pratice and
@@ -904,74 +898,77 @@ editor::compute_automatic_layout_iteration() noexcept
 
     float t = 1.f - 1.f / static_cast<float>(automatic_layout_iteration_limit);
 
-    for (int i_v = 0; i_v < size; ++i_v) {
-        const int v = i_v;
+    for (int iteration = 0; iteration < automatic_layout_iteration_limit;
+         ++iteration) {
+        for (int i_v = 0; i_v < size; ++i_v) {
+            const int v = i_v;
 
-        displacements[v].x = displacements[v].y = 0.f;
+            displacements[v].x = displacements[v].y = 0.f;
 
-        for (int i_u = 0; i_u < size; ++i_u) {
-            const int u = i_u;
+            for (int i_u = 0; i_u < size; ++i_u) {
+                const int u = i_u;
 
-            if (u != v) {
-                const ImVec2 delta{ positions[v].x - positions[u].x,
-                                    positions[v].y - positions[u].y };
+                if (u != v) {
+                    const ImVec2 delta{ positions[v].x - positions[u].x,
+                                        positions[v].y - positions[u].y };
 
-                if (delta.x && delta.y) {
-                    const float d2 = delta.x * delta.x + delta.y * delta.y;
-                    const float coeff = k_square / d2;
+                    if (delta.x && delta.y) {
+                        const float d2 = delta.x * delta.x + delta.y * delta.y;
+                        const float coeff = k_square / d2;
 
-                    displacements[v].x += coeff * delta.x;
-                    displacements[v].y += coeff * delta.y;
+                        displacements[v].x += coeff * delta.x;
+                        displacements[v].y += coeff * delta.y;
+                    }
                 }
             }
         }
-    }
 
-    for (size_t i = 0, e = top.children.size(); i != e; ++i) {
-        if (top.children[i].first.index() == 0) {
-            const auto id = std::get<model_id>(top.children[i].first);
-            if (const auto* mdl = sim.models.try_to_get(id); mdl) {
-                sim.for_all_output_port(
-                  *mdl, [this, k](output_port& port, output_port_id /*id*/) {
-                      compute_connection_distance(port, *this, k);
-                  });
-            }
-        } else {
-            const auto id = std::get<cluster_id>(top.children[i].first);
-            if (auto* gp = clusters.try_to_get(id); gp) {
-                for_each(sim.output_ports,
-                         gp->output_ports,
-                         [this, k](output_port& port, output_port_id /*id*/) {
-                             compute_connection_distance(port, *this, k);
-                         });
+        for (size_t i = 0, e = top.children.size(); i != e; ++i) {
+            if (top.children[i].first.index() == 0) {
+                const auto id = std::get<model_id>(top.children[i].first);
+                if (const auto* mdl = sim.models.try_to_get(id); mdl) {
+                    sim.for_all_output_port(
+                      *mdl,
+                      [this, k](output_port& port, output_port_id /*id*/) {
+                          compute_connection_distance(port, *this, k);
+                      });
+                }
+            } else {
+                const auto id = std::get<cluster_id>(top.children[i].first);
+                if (auto* gp = clusters.try_to_get(id); gp) {
+                    for_each(
+                      sim.output_ports,
+                      gp->output_ports,
+                      [this, k](output_port& port, output_port_id /*id*/) {
+                          compute_connection_distance(port, *this, k);
+                      });
+                }
             }
         }
-    }
 
-    auto sum = 0.f;
-    for (int i_v = 0; i_v < size; ++i_v) {
-        const int v = i_v;
+        auto sum = 0.f;
+        for (int i_v = 0; i_v < size; ++i_v) {
+            const int v = i_v;
 
-        const float d2 = displacements[v].x * displacements[v].x +
-                         displacements[v].y * displacements[v].y;
-        const float d = std::sqrt(d2);
+            const float d2 = displacements[v].x * displacements[v].x +
+                             displacements[v].y * displacements[v].y;
+            const float d = std::sqrt(d2);
 
-        if (d > t) {
-            const float coeff = t / d;
-            displacements[v].x *= coeff;
-            displacements[v].y *= coeff;
-            sum += t;
-        } else {
-            sum += d;
+            if (d > t) {
+                const float coeff = t / d;
+                displacements[v].x *= coeff;
+                displacements[v].y *= coeff;
+                sum += t;
+            } else {
+                sum += d;
+            }
+
+            positions[v].x += displacements[v].x;
+            positions[v].y += displacements[v].y;
+
+            imnodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
         }
-
-        positions[v].x += displacements[v].x;
-        positions[v].y += displacements[v].y;
-
-        imnodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
     }
-
-    ++iteration;
 }
 
 status
@@ -1137,8 +1134,6 @@ editor::add_lotka_volterra() noexcept
     parent(quantifier_a.id, undefined<cluster_id>());
     parent(quantifier_b.id, undefined<cluster_id>());
 
-    iteration = 0;
-
     return status::success;
 }
 
@@ -1303,8 +1298,6 @@ editor::add_izhikevitch() noexcept
     parent(cross.id, undefined<cluster_id>());
     parent(cross2.id, undefined<cluster_id>());
 
-    iteration = 0;
-
     return status::success;
 }
 
@@ -1398,6 +1391,507 @@ editor::show_model_cluster(cluster& mdl) noexcept
     }
 }
 
+static const char* str_empty[] = { "" };
+static const char* str_integrator[] = { "x-dot", "reset" };
+static const char* str_adaptative_integrator[] = { "quanta", "x-dot", "reset" };
+static const char* str_in_1[] = { "in" };
+static const char* str_in_2[] = { "in-1", "in-2" };
+static const char* str_in_3[] = { "in-1", "in-2", "in-3" };
+static const char* str_in_4[] = { "in-1", "in-2", "in-3", "in-4" };
+static const char* str_value_if_else[] = { "value", "if", "else" };
+static const char* str_in_2_nb_2[] = { "in-1", "in-2", "nb-1", "nb-2" };
+static const char* str_out_1[] = { "out" };
+static const char* str_out_2[] = { "out-1", "out-2" };
+
+template<typename Dynamics>
+static constexpr const char**
+get_input_port_names()
+{
+    if constexpr (std::is_same_v<Dynamics, none>)
+        return str_empty;
+    else if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
+        return str_integrator;
+    else if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
+        return str_integrator;
+    else if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
+        return str_in_2;
+    else if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
+        return str_in_2;
+    else if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
+        return str_in_3;
+    else if constexpr (std::is_same_v<Dynamics, qss2_sum_4>)
+        return str_in_4;
+    else if constexpr (std::is_same_v<Dynamics, qss2_wsum_2>)
+        return str_in_2;
+    else if constexpr (std::is_same_v<Dynamics, qss2_wsum_3>)
+        return str_in_3;
+    else if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
+        return str_in_4;
+    else if constexpr (std::is_same_v<Dynamics, integrator>)
+        return str_adaptative_integrator;
+    else if constexpr (std::is_same_v<Dynamics, quantifier>)
+        return str_in_1;
+    else if constexpr (std::is_same_v<Dynamics, adder_2>)
+        return str_in_2;
+    else if constexpr (std::is_same_v<Dynamics, adder_3>)
+        return str_in_3;
+    else if constexpr (std::is_same_v<Dynamics, adder_4>)
+        return str_in_4;
+    else if constexpr (std::is_same_v<Dynamics, mult_2>)
+        return str_in_2;
+    else if constexpr (std::is_same_v<Dynamics, mult_3>)
+        return str_in_3;
+    else if constexpr (std::is_same_v<Dynamics, mult_4>)
+        return str_in_4;
+    else if constexpr (std::is_same_v<Dynamics, counter>)
+        return str_in_1;
+    else if constexpr (std::is_same_v<Dynamics, generator>)
+        return str_empty;
+    else if constexpr (std::is_same_v<Dynamics, constant>)
+        return str_empty;
+    else if constexpr (std::is_same_v<Dynamics, cross>)
+        return str_value_if_else;
+    else if constexpr (std::is_same_v<Dynamics, accumulator_2>)
+        return str_in_2_nb_2;
+    else if constexpr (std::is_same_v<Dynamics, time_func>)
+        return str_empty;
+    else if constexpr (std::is_same_v<Dynamics, flow>)
+        return str_empty;
+}
+
+template<typename Dynamics>
+static constexpr const char**
+get_output_port_names()
+{
+    if constexpr (std::is_same_v<Dynamics, none>)
+        return str_empty;
+    else if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, qss2_sum_4>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, qss2_wsum_2>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, qss2_wsum_3>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, integrator>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, quantifier>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, adder_2>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, adder_3>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, adder_4>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, mult_2>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, mult_3>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, mult_4>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, counter>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, generator>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, constant>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, cross>)
+        return str_out_2;
+    else if constexpr (std::is_same_v<Dynamics, accumulator_2>)
+        return str_empty;
+    else if constexpr (std::is_same_v<Dynamics, time_func>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, flow>)
+        return str_out_1;
+}
+
+template<typename Dynamics>
+static void
+add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
+{
+    if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+        const auto** names = get_input_port_names<Dynamics>();
+
+        for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
+            imnodes::BeginInputAttribute(ed.get_in(dyn.x[i]));
+            ImGui::TextUnformatted(names[i]);
+            imnodes::EndAttribute();
+        }
+    }
+}
+
+template<typename Dynamics>
+static void
+add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
+{
+    if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+        const auto** names = get_output_port_names<Dynamics>();
+
+        for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+            imnodes::BeginOutputAttribute(ed.get_out(dyn.y[i]));
+            ImGui::TextUnformatted(names[i]);
+            imnodes::EndAttribute();
+        }
+    }
+}
+
+static void
+show_dynamics_values(const none& /*dyn*/)
+{}
+
+static void
+show_dynamics_values(const qss1_integrator& dyn)
+{
+    ImGui::Text("X %.3f", dyn.X);
+    ImGui::Text("dQ %.3f", dyn.dQ);
+}
+
+static void
+show_dynamics_values(const qss2_integrator& dyn)
+{
+    ImGui::Text("X %.3f", dyn.X);
+    ImGui::Text("dQ %.3f", dyn.dQ);
+}
+
+static void
+show_dynamics_values(const qss2_sum_2& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.slopes[0]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.slopes[1]);
+}
+
+static void
+show_dynamics_values(const qss2_sum_3& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.slopes[0]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.slopes[1]);
+    ImGui::Text("%.3f %.3f", dyn.values[2], dyn.slopes[2]);
+}
+
+static void
+show_dynamics_values(const qss2_sum_4& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.slopes[0]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.slopes[1]);
+    ImGui::Text("%.3f %.3f", dyn.values[2], dyn.slopes[2]);
+    ImGui::Text("%.3f %.3f", dyn.values[3], dyn.slopes[3]);
+}
+
+static void
+show_dynamics_values(const qss2_multiplier& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.slopes[0]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.slopes[1]);
+}
+
+static void
+show_dynamics_values(const qss2_wsum_2& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.slopes[0]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.slopes[1]);
+}
+
+static void
+show_dynamics_values(const qss2_wsum_3& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.slopes[0]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.slopes[1]);
+    ImGui::Text("%.3f %.3f", dyn.values[2], dyn.slopes[2]);
+}
+
+static void
+show_dynamics_values(const qss2_wsum_4& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.slopes[0]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.slopes[1]);
+    ImGui::Text("%.3f %.3f", dyn.values[2], dyn.slopes[2]);
+    ImGui::Text("%.3f %.3f", dyn.values[3], dyn.slopes[3]);
+}
+
+static void
+show_dynamics_values(const integrator& dyn)
+{
+    ImGui::Text("value %.3f", dyn.current_value);
+}
+
+static void
+show_dynamics_values(const quantifier& dyn)
+{
+    ImGui::Text("up threshold %.3f", dyn.m_upthreshold);
+    ImGui::Text("down threshold %.3f", dyn.m_downthreshold);
+}
+
+static void
+show_dynamics_values(const adder_2& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+}
+
+static void
+show_dynamics_values(const adder_3& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+    ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+}
+
+static void
+show_dynamics_values(const adder_4& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+    ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+    ImGui::Text("%.3f * %.3f", dyn.values[3], dyn.input_coeffs[3]);
+}
+
+static void
+show_dynamics_values(const mult_2& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+}
+
+static void
+show_dynamics_values(const mult_3& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+    ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+}
+
+static void
+show_dynamics_values(const mult_4& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+    ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+    ImGui::Text("%.3f * %.3f", dyn.values[3], dyn.input_coeffs[3]);
+}
+
+static void
+show_dynamics_values(const counter& dyn)
+{
+    ImGui::Text("number %ld", static_cast<long>(dyn.number));
+}
+
+static void
+show_dynamics_values(const generator& dyn)
+{
+    ImGui::Text("next %.3f", dyn.sigma);
+}
+
+static void
+show_dynamics_values(const constant& dyn)
+{
+    ImGui::Text("value %.3f", dyn.value);
+}
+
+static void
+show_dynamics_values(const cross& dyn)
+{
+    ImGui::Text("value: %.3f", dyn.value);
+    ImGui::Text("if-value: %.3f", dyn.if_value);
+    ImGui::Text("else-value: %.3f", dyn.else_value);
+}
+
+static void
+show_dynamics_values(const accumulator_2& dyn)
+{
+    ImGui::Text("number %.3f", dyn.number);
+    ImGui::Text("- 0: %.3f", dyn.numbers[0]);
+    ImGui::Text("- 1: %.3f", dyn.numbers[1]);
+}
+
+static void
+show_dynamics_values(const time_func& dyn)
+{
+    ImGui::Text("value %.3f", dyn.value);
+}
+
+static void
+show_dynamics_values(const flow& dyn)
+{
+    ImGui::Text("value %.3f", dyn.value);
+}
+
+static void
+show_dynamics_inputs(none& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss1_integrator& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_X);
+    ImGui::InputDouble("reset", &dyn.default_dQ);
+}
+
+static void
+show_dynamics_inputs(qss2_integrator& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_X);
+    ImGui::InputDouble("reset", &dyn.default_dQ);
+}
+
+static void
+show_dynamics_inputs(qss2_multiplier& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss2_sum_2& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss2_sum_3& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss2_sum_4& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss2_wsum_2& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+}
+
+static void
+show_dynamics_inputs(qss2_wsum_3& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+}
+
+static void
+show_dynamics_inputs(qss2_wsum_4& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+}
+
+static void
+show_dynamics_inputs(integrator& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_current_value);
+    ImGui::InputDouble("reset", &dyn.default_reset_value);
+}
+
+static void
+show_dynamics_inputs(quantifier& dyn)
+{
+    ImGui::InputDouble("quantum", &dyn.default_step_size);
+    ImGui::SliderInt("archive length", &dyn.default_past_length, 3, 100);
+}
+
+static void
+show_dynamics_inputs(adder_2& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+}
+
+static void
+show_dynamics_inputs(adder_3& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+}
+
+static void
+show_dynamics_inputs(adder_4& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[3]);
+}
+
+static void
+show_dynamics_inputs(mult_2& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+}
+
+static void
+show_dynamics_inputs(mult_3& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+}
+
+static void
+show_dynamics_inputs(mult_4& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+}
+
+static void
+show_dynamics_inputs(counter& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(generator& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_value);
+    ImGui::InputDouble("period", &dyn.default_period);
+    ImGui::InputDouble("offset", &dyn.default_offset);
+}
+
+static void
+show_dynamics_inputs(constant& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_value);
+}
+
+static void
+show_dynamics_inputs(cross& dyn)
+{
+    ImGui::InputDouble("threshold", &dyn.default_threshold);
+}
+
+static void
+show_dynamics_inputs(accumulator_2& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(flow& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_value);
+}
+
+static void
+show_dynamics_inputs(time_func& dyn)
+{
+    const char* items[] = { "time", "square" };
+    ImGui::PushItemWidth(120.0f);
+    int item_current = dyn.default_f == &time_function ? 0 : 1;
+    if (ImGui::Combo("function", &item_current, items, IM_ARRAYSIZE(items))) {
+        dyn.default_f =
+          item_current == 0 ? &time_function : square_time_function;
+    }
+    ImGui::PopItemWidth();
+}
+
 void
 editor::show_model_dynamics(model& mdl) noexcept
 {
@@ -1447,571 +1941,26 @@ editor::show_model_dynamics(model& mdl) noexcept
 
     if (simulation_show_value &&
         match(st, simulation_status::success, simulation_status::running)) {
-        switch (mdl.type) {
-        case dynamics_type::none: /* none does not have input port. */
-            break;
-        case dynamics_type::integrator: {
-            auto& dyn = sim.integrator_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("quanta");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x_dot");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("reset");
-            imnodes::EndAttribute();
 
+        sim.dispatch(mdl.type, [&](const auto& d_array) {
+            const auto& dyn = d_array.get(mdl.id);
+            add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
-            ImGui::Text("value %.3f", dyn.current_value);
+            show_dynamics_values(dyn);
             ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("x").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("quanta").x - text_width);
-            ImGui::TextUnformatted("x");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::quantifier: {
-            auto& dyn = sim.quantifier_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x_dot");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("up threshold %.3f", dyn.m_upthreshold);
-            ImGui::Text("down threshold %.3f", dyn.m_downthreshold);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            ImGui::TextUnformatted("quanta");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_2: {
-            auto& dyn = sim.adder_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-            ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_3: {
-            auto& dyn = sim.adder_3_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-            ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-            ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_4: {
-            auto& dyn = sim.adder_4_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("x3");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-            ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-            ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
-            ImGui::Text("%.3f * %.3f", dyn.values[3], dyn.input_coeffs[3]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_2: {
-            auto& dyn = sim.mult_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-            ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_3: {
-            auto& dyn = sim.mult_3_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-            ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-            ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_4: {
-            auto& dyn = sim.mult_4_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("x3");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-            ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-            ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
-            ImGui::Text("%.3f * %.3f", dyn.values[3], dyn.input_coeffs[3]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::counter: {
-            auto& dyn = sim.counter_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("in");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("number %ld", static_cast<long>(dyn.number));
-            ImGui::PopItemWidth();
-
-        } break;
-        case dynamics_type::generator: {
-            auto& dyn = sim.generator_models.get(mdl.id);
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("next %.3f", dyn.sigma);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::constant: {
-            auto& dyn = sim.constant_models.get(mdl.id);
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("value %.3f", dyn.value);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::cross: {
-            auto& dyn = sim.cross_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("value");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("if_value");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("else");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("value: %.3f", dyn.value);
-            ImGui::Text("if-value: %.3f", dyn.if_value);
-            ImGui::Text("else-value: %.3f", dyn.else_value);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::accumulator_2: {
-            auto& dyn = sim.accumulator_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("number-1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("number-2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("acc-1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("acc-2");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("number %.3f", dyn.number);
-            ImGui::Text("- 0: %.3f", dyn.numbers[0]);
-            ImGui::Text("- 1: %.3f", dyn.numbers[1]);
-            ImGui::PopItemWidth();
-        } break;
-        case dynamics_type::time_func: {
-            auto& dyn = sim.time_func_models.get(mdl.id);
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::Text("value %.3f", dyn.value);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
-        }
+            add_output_attribute(*this, dyn);
+            return status::success;
+        });
     } else {
-        switch (mdl.type) {
-        case dynamics_type::none: /* none does not have input port. */
-            break;
-        case dynamics_type::integrator: {
-            auto& dyn = sim.integrator_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("quanta");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x_dot");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("reset");
-            imnodes::EndAttribute();
-
+        sim.dispatch(mdl.type, [&](auto& d_array) {
+            auto& dyn = d_array.get(mdl.id);
+            add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("value", &dyn.default_current_value);
-            ImGui::InputDouble("reset", &dyn.default_reset_value);
+            show_dynamics_inputs(dyn);
             ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("x").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("quanta").x - text_width);
-            ImGui::TextUnformatted("x");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::quantifier: {
-            auto& dyn = sim.quantifier_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x_dot");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("quantum", &dyn.default_step_size);
-            ImGui::SliderInt(
-              "archive length", &dyn.default_past_length, 3, 100);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            ImGui::TextUnformatted("quanta");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_2: {
-            auto& dyn = sim.adder_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_3: {
-            auto& dyn = sim.adder_3_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::adder_4: {
-            auto& dyn = sim.adder_4_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("x3");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[3]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("sum").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("sum");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_2: {
-            auto& dyn = sim.mult_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_3: {
-            auto& dyn = sim.mult_3_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::mult_4: {
-            auto& dyn = sim.mult_4_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("x0");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("x1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("x2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("x3");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-            ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-            ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-            ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("prod").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("coeff-0").x -
-                          text_width);
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::counter: {
-            auto& dyn = sim.counter_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("in");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::generator: {
-            auto& dyn = sim.generator_models.get(mdl.id);
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("value", &dyn.default_value);
-            ImGui::InputDouble("period", &dyn.default_period);
-            ImGui::InputDouble("offset", &dyn.default_offset);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            ImGui::TextUnformatted("prod");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::constant: {
-            auto& dyn = sim.constant_models.get(mdl.id);
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("value", &dyn.default_value);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::cross: {
-            auto& dyn = sim.cross_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("value");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("if_value");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("else");
-            imnodes::EndAttribute();
-
-            ImGui::PushItemWidth(120.0f);
-            ImGui::InputDouble("threshold", &dyn.default_threshold);
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::accumulator_2: {
-            auto& dyn = sim.accumulator_2_models.get(mdl.id);
-            imnodes::BeginInputAttribute(get_in(dyn.x[0]));
-            ImGui::TextUnformatted("number-1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[1]));
-            ImGui::TextUnformatted("number-2");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[2]));
-            ImGui::TextUnformatted("acc-1");
-            imnodes::EndAttribute();
-            imnodes::BeginInputAttribute(get_in(dyn.x[3]));
-            ImGui::TextUnformatted("acc-2");
-            imnodes::EndAttribute();
-        } break;
-        case dynamics_type::time_func: {
-            auto& dyn = sim.time_func_models.get(mdl.id);
-            const char* items[] = { "time", "square" };
-            ImGui::PushItemWidth(120.0f);
-            int item_current = dyn.default_f == &time_function ? 0 : 1;
-            if (ImGui::Combo(
-                  "function", &item_current, items, IM_ARRAYSIZE(items))) {
-                dyn.default_f =
-                  item_current == 0 ? &time_function : square_time_function;
-            }
-            ImGui::PopItemWidth();
-
-            imnodes::BeginOutputAttribute(get_out(dyn.y[0]));
-            const float text_width = ImGui::CalcTextSize("out").x;
-            ImGui::Indent(120.f + ImGui::CalcTextSize("value").x - text_width);
-            ImGui::TextUnformatted("out");
-            imnodes::EndAttribute();
-        } break;
-        }
+            add_output_attribute(*this, dyn);
+            return status::success;
+        });
     }
 }
 
@@ -2089,6 +2038,34 @@ editor::show_top() noexcept
     }
 }
 
+static const char* dynamics_type_names[] = {
+    "none",        "qss1_integrator", "qss2_integrator", "qss2_multiplier",
+    "qss2_sum_2",  "qss2_sum_3",      "qss2_sum_4",      "qss2_wsum_2",
+    "qss2_wsum_3", "qss2_wsum_4",     "integrator",      "quantifier",
+    "adder_2",     "adder_3",         "adder_4",         "mult_2",
+    "mult_3",      "mult_4",          "counter",         "generator",
+    "constant",    "cross",           "time_func",       "accumulator_2", "flow"
+};
+
+status
+add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
+{
+    return ed.sim.dispatch(type, [&](auto& d_array) {
+        if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)])) {
+            if (!ed.sim.models.can_alloc(1) || !d_array.can_alloc(1))
+                return status::data_array_not_enough_memory;
+
+            auto& mdl = d_array.alloc();
+            ed.sim.alloc(mdl,
+                         d_array.get_id(mdl),
+                         dynamics_type_names[static_cast<i8>(type)]);
+            *new_model = mdl.id;
+        }
+
+        return status::success;
+    });
+}
+
 bool
 editor::show_editor() noexcept
 {
@@ -2140,9 +2117,9 @@ editor::show_editor() noexcept
             if (ImGui::MenuItem("Clear"))
                 clear();
             if (ImGui::MenuItem("Grid Reorder"))
-                reorder();
-            if (ImGui::MenuItem("Automatic Layout", nullptr, &automatic_layout))
-                iteration = 0;
+                compute_grid_layout();
+            if (ImGui::MenuItem("Automatic Layout"))
+                compute_automatic_layout();
 
             ImGui::EndMenu();
         }
@@ -2150,17 +2127,18 @@ editor::show_editor() noexcept
         if (ImGui::BeginMenu("Examples")) {
             if (ImGui::MenuItem("Insert Lotka Volterra model")) {
                 if (auto ret = add_lotka_volterra(); is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize a Lotka Volterra model (%s)\n",
-                      status_string[static_cast<int>(ret)]);
+                    log_w.log(3,
+                              "Fail to initialize a Lotka Volterra "
+                              "model (%s)\n",
+                              status_string(ret));
             }
 
             if (ImGui::MenuItem("Insert Izhikevitch model")) {
                 if (auto ret = add_izhikevitch(); is_bad(ret))
                     log_w.log(3,
-                              "Fail to initialize an Izhikevitch model (%s)\n",
-                              status_string[static_cast<int>(ret)]);
+                              "Fail to initialize an Izhikevitch "
+                              "model (%s)\n",
+                              status_string(ret));
             }
 
             ImGui::EndMenu();
@@ -2228,12 +2206,6 @@ editor::show_editor() noexcept
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
-    if (imnodes::IsAnyAttributeActive(nullptr))
-        iteration = 0;
-
-    if (automatic_layout && iteration < automatic_layout_iteration_limit)
-        compute_automatic_layout_iteration();
-
     if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1))
         ImGui::OpenPopup("Context menu");
 
@@ -2241,137 +2213,20 @@ editor::show_editor() noexcept
         model_id new_model = undefined<model_id>();
         ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
-        if (ImGui::MenuItem("none")) {
-            if (sim.none_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.none_models.alloc();
-                sim.alloc(mdl, sim.none_models.get_id(mdl), "none");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("integrator")) {
-            if (sim.integrator_models.can_alloc(1u) &&
-                sim.models.can_alloc(1u)) {
-                auto& mdl = sim.integrator_models.alloc();
-                sim.alloc(mdl, sim.integrator_models.get_id(mdl), "integrator");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("quantifier")) {
-            if (sim.quantifier_models.can_alloc(1u) &&
-                sim.models.can_alloc(1u)) {
-                auto& mdl = sim.quantifier_models.alloc();
-                sim.alloc(mdl, sim.quantifier_models.get_id(mdl), "quantifier");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("adder_2")) {
-            if (sim.adder_2_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.adder_2_models.alloc();
-                sim.alloc(mdl, sim.adder_2_models.get_id(mdl), "adder");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("adder_3")) {
-            if (sim.adder_3_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.adder_3_models.alloc();
-                sim.alloc(mdl, sim.adder_3_models.get_id(mdl), "adder");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("adder_4")) {
-            if (sim.adder_4_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.adder_4_models.alloc();
-                sim.alloc(mdl, sim.adder_4_models.get_id(mdl), "adder");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("mult_2")) {
-            if (sim.mult_2_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.mult_2_models.alloc();
-                sim.alloc(mdl, sim.mult_2_models.get_id(mdl), "mult");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("mult_3")) {
-            if (sim.mult_3_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.mult_3_models.alloc();
-                sim.alloc(mdl, sim.mult_3_models.get_id(mdl), "mult");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("mult_4")) {
-            if (sim.mult_4_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.mult_4_models.alloc();
-                sim.alloc(mdl, sim.mult_4_models.get_id(mdl), "mult");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("counter")) {
-            if (sim.counter_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.counter_models.alloc();
-                sim.alloc(mdl, sim.counter_models.get_id(mdl), "counter");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("generator")) {
-            if (sim.generator_models.can_alloc(1u) &&
-                sim.models.can_alloc(1u)) {
-                auto& mdl = sim.generator_models.alloc();
-                sim.alloc(mdl, sim.generator_models.get_id(mdl), "generator");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("constant")) {
-            if (sim.constant_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.constant_models.alloc();
-                sim.alloc(mdl, sim.constant_models.get_id(mdl), "constant");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("cross")) {
-            if (sim.cross_models.can_alloc(1u) && sim.models.can_alloc(1u)) {
-                auto& mdl = sim.cross_models.alloc();
-                sim.alloc(mdl, sim.cross_models.get_id(mdl), "cross");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("accumulator-2")) {
-            if (sim.accumulator_2_models.can_alloc(1u) &&
-                sim.models.can_alloc(1u)) {
-                auto& mdl = sim.accumulator_2_models.alloc();
-                sim.alloc(mdl, sim.accumulator_2_models.get_id(mdl), "acc-2");
-                new_model = mdl.id;
-            }
-        }
-
-        if (ImGui::MenuItem("time_func")) {
-            if (sim.time_func_models.can_alloc(1u) &&
-                sim.models.can_alloc(1u)) {
-                auto& mdl = sim.time_func_models.alloc();
-                sim.alloc(mdl, sim.time_func_models.get_id(mdl), "time-func");
-                new_model = mdl.id;
-            }
+        for (size_t i = 0, e = std::size(dynamics_type_names); i != e; ++i) {
+            auto ret = add_popup_menuitem(
+              *this, static_cast<dynamics_type>(i), &new_model);
+            if (is_bad(ret))
+                log_w.log(
+                  5, "Fail to allocate new dynamics: %s\n", status_string(ret));
         }
 
         ImGui::EndPopup();
+
         if (new_model != undefined<model_id>()) {
             parent(new_model, undefined<cluster_id>());
             imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
                                            click_pos);
-            iteration = 0;
         }
     }
 
@@ -2385,7 +2240,10 @@ editor::show_editor() noexcept
             auto* i_port = sim.input_ports.try_to_get(in);
 
             if (i_port && o_port)
-                sim.connect(out, in);
+                if (auto status = sim.connect(out, in); is_bad(status))
+                    log_w.log(6,
+                              "Fail to connect these models: %s\n",
+                              status_string(status));
         }
     }
 
@@ -2479,9 +2337,7 @@ editors_new()
 
     auto& ed = editors.alloc();
     if (auto ret = ed.initialize(get_index(editors.get_id(ed))); is_bad(ret)) {
-        log_w.log(2,
-                  "Fail to initialize irritator: %s\n",
-                  status_string[static_cast<int>(ret)]);
+        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
         editors.free(ed);
         return nullptr;
     }
@@ -2573,7 +2429,8 @@ show_simulation_box(bool* show_simulation)
                                 !output->ofs.is_open())
                                 log_w.log(
                                   4,
-                                  "Fail to open observation file: %s in "
+                                  "Fail to open "
+                                  "observation file: %s in "
                                   "%s\n",
                                   obs->name.c_str(),
                                   ed->observation_directory.u8string().c_str());
@@ -2678,9 +2535,7 @@ void
 node_editor_initialize()
 {
     if (auto ret = editors.init(50u); is_bad(ret)) {
-        log_w.log(2,
-                  "Fail to initialize irritator: %s\n",
-                  irt::status_string[static_cast<int>(ret)]);
+        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
     } else {
         compute_color();
         if (auto* ed = editors_new(); ed)
