@@ -1455,6 +1455,8 @@ get_input_port_names()
         return str_in_2_nb_2;
     else if constexpr (std::is_same_v<Dynamics, time_func>)
         return str_empty;
+    else if constexpr (std::is_same_v<Dynamics, flow>)
+        return str_empty;
 }
 
 template<typename Dynamics>
@@ -1508,6 +1510,8 @@ get_output_port_names()
     else if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return str_empty;
     else if constexpr (std::is_same_v<Dynamics, time_func>)
+        return str_out_1;
+    else if constexpr (std::is_same_v<Dynamics, flow>)
         return str_out_1;
 }
 
@@ -1720,6 +1724,12 @@ show_dynamics_inputs(none& /*dyn*/)
 {}
 
 static void
+show_dynamics_values(const flow& dyn)
+{
+    ImGui::Text("value %.3f", dyn.value);
+}
+
+static void
 show_dynamics_inputs(qss1_integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_X);
@@ -1862,6 +1872,12 @@ show_dynamics_inputs(cross& dyn)
 static void
 show_dynamics_inputs(accumulator_2& /*dyn*/)
 {}
+
+static void
+show_dynamics_inputs(flow& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_value);
+}
 
 static void
 show_dynamics_inputs(time_func& dyn)
@@ -2030,7 +2046,7 @@ static const char* dynamics_type_names[] = {
     "qss2_wsum_3", "qss2_wsum_4",     "integrator",      "quantifier",
     "adder_2",     "adder_3",         "adder_4",         "mult_2",
     "mult_3",      "mult_4",          "counter",         "generator",
-    "constant",    "cross",           "time_func",       "accumulator_2"
+    "constant",    "cross",           "time_func",       "accumulator_2",   "flow"
 };
 
 status

@@ -12,7 +12,7 @@
 
 #include <chrono>
 
-#include <hayai/hayai.hpp>
+#include <hayai.hpp>
 
 static void
 dot_graph_save(const irt::simulation& sim, std::FILE* os)
@@ -397,7 +397,7 @@ void network(long unsigned int N, double simulation_duration, double quantum)
       //long unsigned int N = 10;
 
 
-      expect(irt::is_success(sim.init(100000000lu, 10000000lu)));
+      expect(irt::is_success(sim.init(1000000lu, 1000000lu)));
 
 
       //struct neuron neuron_model0 = make_neuron(&sim,0lu);

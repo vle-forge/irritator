@@ -5603,6 +5603,7 @@ public:
         case dynamics_type::constant:
         case dynamics_type::cross:
         case dynamics_type::time_func:
+        case dynamics_type::flow:
         case dynamics_type::accumulator_2:
             if (mdl_dst->type == dynamics_type::integrator &&
                 i_port_index ==

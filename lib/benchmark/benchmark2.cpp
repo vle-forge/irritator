@@ -12,7 +12,7 @@
 
 #include <fstream>
 
-#include <hayai/hayai.hpp>
+#include <hayai.hpp>
 
 using namespace std;
 
