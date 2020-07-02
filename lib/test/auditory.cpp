@@ -101,6 +101,9 @@ vector<vector<double>> parse2DCsvFile(string inputFileName) {
  
     vector<vector<double> > data;
     ifstream inputFile(inputFileName);
+    if (!inputFile.is_open())
+        return {};
+
     int l = 0;
  
     while (inputFile) {
@@ -454,6 +457,8 @@ main()
 {
     using namespace boost::ut;
 
+    if (sound_data.empty() || link_data.empty())
+        return 0;
    
     "laudanski_1_simulation"_test = [] {
         irt::simulation sim;
@@ -461,13 +466,9 @@ main()
         // Neuron constants
         long unsigned int N = sound_data.size() - 1;
         long unsigned int M = link_data[0].size();
-        
-
 
         expect(irt::is_success(sim.init(1000000lu, 100000lu)));
 
-
-        
         // Neurons
         std::vector<struct neuron> first_layer_neurons;
         for (long unsigned int i = 0 ; i < N; i++) {
