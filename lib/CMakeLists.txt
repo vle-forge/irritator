@@ -110,6 +110,7 @@ function(irritator_add_test test_name)
 
   target_include_directories(${test_name} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    ${CMAKE_SOURCE_DIR}/external/hayai/src
     $<INSTALL_INTERFACE:include>
     PRIVATE
     src
