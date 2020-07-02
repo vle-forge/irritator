@@ -121,10 +121,44 @@ function(irritator_add_test test_name)
   add_test(${test_name} ${test_name})
 endfunction()
 
+function(irritator_add_benchmark test_name)
+  add_executable(${test_name} ${ARGN})
+
+  set_target_properties(${test_name} PROPERTIES
+    COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"
+    CXX_STANDARD 20)
+
+  target_compile_options(${test_name} BEFORE
+    PRIVATE
+    $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
+        -pipe -march=native
+        $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /EHsc /bigobj
+        $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
+
+  target_compile_definitions(${test_name}
+    PRIVATE
+    $<$<BOOL:${WITH_DEBUG}>:IRRITATOR_ENABLE_DEBUG>
+    $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
+    $<$<CXX_COMPILER_ID:MSVC>:_SCL_SECURE_NO_WARNINGS>)
+
+  target_include_directories(${test_name} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    ${CMAKE_SOURCE_DIR}/external/hayai/src
+    $<INSTALL_INTERFACE:include>
+    PRIVATE
+    src
+    ${CMAKE_CURRENT_BINARY_DIR})
+
+  target_link_libraries(${test_name} libirritator threads)
+endfunction()
+
 if (NOT BUILD_SHARED_LIBS)
   irritator_add_test(test-api test/public-api.cpp)
   irritator_add_test(simulations test/simulations.cpp)
   irritator_add_test(auditory test/auditory.cpp)
-  irritator_add_test(benchmark benchmark/benchmark.cpp)
-  irritator_add_test(benchmark2 benchmark/benchmark2.cpp)
+
+  irritator_add_benchmark(benchmark benchmark/benchmark.cpp)
+  irritator_add_benchmark(benchmark2 benchmark/benchmark2.cpp)
 endif ()
