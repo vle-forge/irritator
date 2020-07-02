@@ -132,11 +132,6 @@ vector<vector<double>> parse2DCsvFile(string inputFileName) {
         }
     }
  
-    if (!inputFile.eof()) {
-        cerr << "Could not read file " << inputFileName << "\n";
-        __throw_invalid_argument("File not found.");
-    }
- 
     return data;
 }
 
