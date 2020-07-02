@@ -12,7 +12,7 @@ target_compile_options(app
       -pipe -march=native
       $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
   $<$<CXX_COMPILER_ID:MSVC>:
-      /EHsc /bigobj
+      /EHsc /bigobj /Zc:__cplusplus /std:c++latest
       $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
 target_compile_definitions(app

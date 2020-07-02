@@ -26,8 +26,8 @@ target_compile_options(libirritator
       -pipe -march=native
       $<$<CONFIG:Debug>:-O0 -ggdb3 -Wall -Wextra>>
   $<$<CXX_COMPILER_ID:MSVC>:
-      /EHsc /bigobj
-      $<$<CONFIG:Debug>:/std:c++latest /Od /W3 /Zi>>)
+      /EHsc /bigobj /Zc:__cplusplus /std:c++latest
+      $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
 target_include_directories(libirritator PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -99,7 +99,7 @@ function(irritator_add_test test_name)
         -pipe -march=native
         $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
     $<$<CXX_COMPILER_ID:MSVC>:
-        /EHsc /bigobj
+        /EHsc /bigobj /Zc:__cplusplus /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
   target_compile_definitions(${test_name}
@@ -134,7 +134,7 @@ function(irritator_add_benchmark test_name)
         -pipe -march=native
         $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
     $<$<CXX_COMPILER_ID:MSVC>:
-        /EHsc /bigobj
+        /EHsc /bigobj /Zc:__cplusplus /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
   target_compile_definitions(${test_name}
