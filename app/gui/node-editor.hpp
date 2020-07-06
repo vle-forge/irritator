@@ -225,6 +225,7 @@ struct observation_output
     {
         none,
         plot,
+        multiplot,
         file,
         both
     };
@@ -236,7 +237,7 @@ struct observation_output
     {}
 
     std::ofstream ofs;
-    const char* name = nullptr;
+    std::string name;
     array<float> data;
     double tl = 0.0;
     float min = -1.f;

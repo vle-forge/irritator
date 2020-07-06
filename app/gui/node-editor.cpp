@@ -1899,7 +1899,7 @@ editor::show_model_dynamics(model& mdl) noexcept
     ImGui::PushItemWidth(100.0f);
 
     {
-        const char* items[] = { "none", "plot", "file", "both" };
+        const char* items[] = { "none", "plot", "multiplot", "file", "both" };
         int current_item = 0; /* Default show none */
         auto* obs = sim.observers.try_to_get(mdl.obs_id);
 
@@ -1924,12 +1924,11 @@ editor::show_model_dynamics(model& mdl) noexcept
                 }
 
                 observation_types[get_index(mdl.obs_id)] =
-                  current_item == 1
-                    ? observation_output::type::plot
-                    : current_item == 2 ? observation_output::type::file
-                                        : observation_output::type::both;
+                  static_cast<observation_output::type>(current_item);
             }
+        }
 
+        if (current_item == 1 || current_item == 2) {
             if (auto* o = sim.observers.try_to_get(mdl.obs_id); o) {
                 float v = static_cast<float>(o->time_step);
                 if (ImGui::InputFloat("freq.", &v, 0.001f, 0.1f, "%.3f", 0))
