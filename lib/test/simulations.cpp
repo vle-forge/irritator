@@ -118,15 +118,14 @@ struct synapse {
 struct neuron 
 make_neuron(irt::simulation* sim, long unsigned int i) noexcept
 {
-  using namespace boost::ut;
-  double vt = -56*0.001;
-  double Vrest = -70*0.001;
-  double reset = -60*0.001;
-  double taum = 20.0*0.001;
+    using namespace boost::ut;
+  double tau_lif =  1.0 + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(2.0-1.0)));
+  double Vr_lif = 0.0;
+  double Vt_lif = 1.0;
 
 
   auto& sum_lif = sim->adder_2_models.alloc();
-  auto& prod_lif = sim->mult_2_models.alloc();
+  auto& prod_lif = sim->adder_2_models.alloc();
   auto& integrator_lif = sim->integrator_models.alloc();
   auto& quantifier_lif = sim->quantifier_models.alloc();
   auto& constant_lif = sim->constant_models.alloc();
@@ -135,42 +134,36 @@ make_neuron(irt::simulation* sim, long unsigned int i) noexcept
 
 
   sum_lif.default_input_coeffs[0] = -1.0;
-  sum_lif.default_input_coeffs[1] = Vrest;
+  sum_lif.default_input_coeffs[1] = 2*Vt_lif;
   
-  prod_lif.default_input_coeffs[0] = 1.0;
-  prod_lif.default_input_coeffs[1] = 1.0/taum;
+  prod_lif.default_input_coeffs[0] = 1.0/tau_lif;
+  prod_lif.default_input_coeffs[1] = 0.0;
 
   constant_lif.default_value = 1.0;
-  constant_cross_lif.default_value = reset;
+  constant_cross_lif.default_value = Vr_lif;
   
   integrator_lif.default_current_value = 0.0;
 
   quantifier_lif.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quantifier_lif.default_zero_init_offset = true;
-  quantifier_lif.default_step_size = 0.001;
+  quantifier_lif.default_step_size = 0.1;
   quantifier_lif.default_past_length = 3;
 
-  cross_lif.default_threshold = vt;
+  cross_lif.default_threshold = Vt_lif;
 
-  char crosslif[7];char ctecrosslif[7];char intlif[7];
-  char quantlif[7];char sumlif[7];char prodlif[7];char ctelif[7];
-
-  snprintf(crosslif, 7,"croli%ld", i);snprintf(ctecrosslif, 7,"ctcli%ld", i);snprintf(intlif, 7,"intli%ld", i);
-  snprintf(quantlif, 7,"quali%ld", i);snprintf(sumlif, 7,"sumli%ld", i);snprintf(prodlif, 7,"prdli%ld", i);
-  snprintf(ctelif, 7,"cteli%ld", i);
   
 
-  sim->alloc(sum_lif, sim->adder_2_models.get_id(sum_lif), sumlif);
-  sim->alloc(prod_lif, sim->mult_2_models.get_id(prod_lif), prodlif);
-  sim->alloc(integrator_lif, sim->integrator_models.get_id(integrator_lif), intlif);
-  sim->alloc(quantifier_lif, sim->quantifier_models.get_id(quantifier_lif), quantlif);
-  sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif), ctelif);
-  sim->alloc(cross_lif, sim->cross_models.get_id(cross_lif), crosslif);
-  sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif), ctecrosslif);
+  sim->alloc(sum_lif, sim->adder_2_models.get_id(sum_lif));
+  sim->alloc(prod_lif, sim->adder_2_models.get_id(prod_lif));
+  sim->alloc(integrator_lif, sim->integrator_models.get_id(integrator_lif));
+  sim->alloc(quantifier_lif, sim->quantifier_models.get_id(quantifier_lif));
+  sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif));
+  sim->alloc(cross_lif, sim->cross_models.get_id(cross_lif));
+  sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif));
 
   struct neuron neuron_model = {sim->adder_2_models.get_id(sum_lif),
-                                sim->mult_2_models.get_id(prod_lif),
+                                sim->adder_2_models.get_id(prod_lif),
                                 sim->integrator_models.get_id(integrator_lif),
                                 sim->quantifier_models.get_id(quantifier_lif),
                                 sim->constant_models.get_id(constant_lif),
@@ -197,7 +190,7 @@ make_neuron(irt::simulation* sim, long unsigned int i) noexcept
   expect(sim->connect(constant_cross_lif.y[0],cross_lif.x[1]) ==
           irt::status::success);     
   expect(sim->connect(constant_lif.y[0], sum_lif.x[1]) ==
-          irt::status::success);  
+          irt::status::success); 
   expect(sim->connect(sum_lif.y[0],prod_lif.x[0]) ==
           irt::status::success);   
   expect(sim->connect(constant_lif.y[0],prod_lif.x[1]) ==
@@ -414,7 +407,7 @@ main()
 
         //double ginbar = 0.05;
 
-        expect(irt::is_success(sim.init(512lu, 8192lu)));
+        expect(irt::is_success(sim.init(10000lu, 10000lu)));
 
 
         expect(sim.generator_models.can_alloc(N));
@@ -424,11 +417,14 @@ main()
         expect(sim.constant_models.can_alloc(N));
         expect(sim.cross_models.can_alloc(2*N*N));
 
-
-        //struct neuron neuron_model0 = make_neuron(&sim,0lu);
+        std::vector<struct neuron> neurons;
+        for (long unsigned int i = 0 ; i < N; i++) {
+          struct neuron neuron_model = make_neuron(&sim,i);
+          neurons.emplace_back(neuron_model);
+        }
         
         // Neurons
-        std::vector<irt::dynamics_id> generators;
+        /*std::vector<irt::dynamics_id> generators;
         for (long unsigned int i = 0 ; i < N; i++) {
           auto& gen = sim.generator_models.alloc();
           gen.default_value = 3.0;
@@ -440,15 +436,15 @@ main()
           !expect(irt::is_success(sim.alloc(gen, sim.generator_models.get_id(gen), genstr)));
           
           generators.emplace_back(sim.generator_models.get_id(gen));
-        } 
+        } */
 
         std::vector<struct synapse> synapses;
         for (long unsigned int i = 0 ; i < N; i++) {
           for (long unsigned int j = 0 ; j < N; j++) {
 
             struct synapse synapse_model = make_synapse(&sim,i,j,
-                                            sim.generator_models.get(generators[i]).y[0],
-                                              sim.generator_models.get(generators[j]).y[0]);
+                                            sim.cross_models.get(neurons[i].cross).y[1],
+                                              sim.cross_models.get(neurons[j].cross).y[1]);
             synapses.emplace_back(synapse_model);
           }
         }
