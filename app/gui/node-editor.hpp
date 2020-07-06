@@ -119,9 +119,8 @@ enum class simulation_status
 {
     success,
     running_once,
+    running_once_need_join,
     running_step,
-    uninitialized,
-    internal_error,
 };
 
 static inline constexpr int not_found = -1;
@@ -259,7 +258,7 @@ struct editor
     double simulation_end = 10.0;
     double simulation_current = 10.0;
     std::thread simulation_thread;
-    simulation_status st = simulation_status::uninitialized;
+    simulation_status st = simulation_status::success;
     bool simulation_show_value = false;
     bool stop = false;
 
