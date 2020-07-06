@@ -129,18 +129,21 @@ observation_output_initialize(const irt::observer& obs,
         return;
 
     auto* output = reinterpret_cast<observation_output*>(obs.user_data);
-    if (output->observation_type == observation_output::type::plot ||
-        output->observation_type == observation_output::type::both) {
-        std::fill_n(output->data.data(), output->data.size(), 0.0f);
+    if (match(output->observation_type,
+              observation_output::type::plot,
+              observation_output::type::multiplot,
+              observation_output::type::both)) {
+        std::fill_n(output->xs.data(), output->xs.size(), 0.f);
+        std::fill_n(output->ys.data(), output->ys.size(), 0.f);
         output->tl = t;
         output->min = -1.f;
         output->max = +1.f;
         output->id = 0;
     }
 
-    if (output->observation_type == observation_output::type::file ||
-        output->observation_type == observation_output::type::both) {
-
+    if (match(output->observation_type,
+              observation_output::type::file,
+              observation_output::type::both)) {
         if (!output->ofs.is_open()) {
             if (output->observation_type == observation_output::type::both)
                 output->observation_type = observation_output::type::plot;
@@ -162,18 +165,26 @@ observation_output_observe(const irt::observer& obs,
     auto* output = reinterpret_cast<observation_output*>(obs.user_data);
     const auto value = static_cast<float>(msg.cast_to_real_64(0));
 
-    if (output->observation_type == observation_output::type::plot ||
-        output->observation_type == observation_output::type::both) {
+    if (match(output->observation_type,
+              observation_output::type::plot,
+              observation_output::type::multiplot,
+              observation_output::type::both)) {
         output->min = std::min(output->min, value);
         output->max = std::max(output->max, value);
 
-        for (double to_fill = output->tl; to_fill < t; to_fill += obs.time_step)
-            if (static_cast<size_t>(output->id) < output->data.size())
-                output->data[output->id++] = value;
+        for (double to_fill = output->tl; to_fill < t;
+             to_fill += obs.time_step) {
+            if (static_cast<size_t>(output->id) < output->xs.size()) {
+                output->ys[output->id] = value;
+                output->xs[output->id] = static_cast<float>(t);
+                ++output->id;
+            }
+        }
     }
 
-    if (output->observation_type == observation_output::type::file ||
-        output->observation_type == observation_output::type::both) {
+    if (match(output->observation_type,
+              observation_output::type::file,
+              observation_output::type::both)) {
         output->ofs << t << ',' << value << '\n';
     }
 
@@ -189,8 +200,9 @@ observation_output_free(const irt::observer& obs,
 
     auto* output = reinterpret_cast<observation_output*>(obs.user_data);
 
-    if (output->observation_type == observation_output::type::file ||
-        output->observation_type == observation_output::type::both) {
+    if (match(output->observation_type,
+              observation_output::type::file,
+              observation_output::type::both)) {
         output->ofs.close();
     }
 }
@@ -2372,9 +2384,12 @@ initialize_observation(irt::editor* ed) noexcept
         const auto length = static_cast<size_t>(freq);
         output->observation_type = type;
 
-        if (type == observation_output::type::plot ||
-            type == observation_output::type::both) {
-            output->data.init(length);
+        if (match(type,
+                  observation_output::type::plot,
+                  observation_output::type::multiplot,
+                  observation_output::type::both)) {
+            output->xs.init(length);
+            output->ys.init(length);
         }
 
         if (!obs->name.empty()) {
@@ -2405,7 +2420,7 @@ show_simulation_box(bool* show_simulation)
 {
     static editor_id current_editor_id = static_cast<editor_id>(0);
 
-    ImGui::SetNextWindowSize(ImVec2(250, 400), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(250, 400), ImGuiCond_Once);
     if (!ImGui::Begin("Simulation", show_simulation)) {
         ImGui::End();
         return;
@@ -2545,8 +2560,8 @@ show_simulation_box(bool* show_simulation)
                 if (obs.observation_type == observation_output::type::plot ||
                     obs.observation_type == observation_output::type::both)
                     ImGui::PlotLines(obs.name.c_str(),
-                                     obs.data.data(),
-                                     static_cast<int>(obs.data.size()),
+                                     obs.ys.data(),
+                                     static_cast<int>(obs.ys.size()),
                                      0,
                                      nullptr,
                                      obs.min,
@@ -2566,7 +2581,7 @@ show_simulation_box(bool* show_simulation)
 static void
 show_settings_window(bool* is_open)
 {
-    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
     if (!ImGui::Begin("Settings", is_open)) {
         ImGui::End();
         return;
@@ -2617,36 +2632,40 @@ node_editor_initialize()
 void
 show_plot_box(bool* show_plot)
 {
-    // static editor_id current_editor_id = static_cast<editor_id>(0);
-
-    ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(600, 400), ImGuiCond_Once);
     if (!ImGui::Begin("Plot", show_plot)) {
         ImGui::End();
         return;
     }
 
-    if (ImGui::CollapsingHeader("Line Plots")) {
-        static float xs1[1001], ys1[1001];
-        for (int i = 0; i < 1001; ++i) {
-            xs1[i] = (float)i * 0.001f;
-            ys1[i] = 0.5f + 0.5f * std::sin(50 * xs1[i]);
-        }
-        static float xs2[11], ys2[11];
-        for (int i = 0; i < 11; ++i) {
-            xs2[i] = (float)i * 0.1f;
-            ys2[i] = xs2[i] * xs2[i];
-        }
-        static float weight = ImPlot::GetStyle().LineWeight;
-        ImGui::BulletText("Anti-aliasing can be enabled from the plot's "
-                          "context menu (see Help).");
-        ImGui::DragFloat("Line Weight", &weight, 0.05f, 1.0f, 5.0f, "%.2f px");
-        if (ImPlot::BeginPlot("Line Plot", "x", "f(x)")) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, weight);
-            ImPlot::PlotLine("0.5 + 0.5*sin(50*x)", xs1, ys1, 1001);
-            ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Circle);
-            ImPlot::PlotLine("x^2", xs2, ys2, 11);
-            ImPlot::PopStyleVar(2);
-            ImPlot::EndPlot();
+    static editor_id current_editor_id = static_cast<editor_id>(0);
+    if (auto* ed = editors.try_to_get(current_editor_id); !ed) {
+        ed = nullptr;
+        if (editors.next(ed))
+            current_editor_id = editors.get_id(ed);
+    }
+
+    if (auto* ed = editors.try_to_get(current_editor_id); ed) {
+        if (match(ed->st,
+                  simulation_status::success,
+                  simulation_status::running_once,
+                  simulation_status::running_once_need_join,
+                  simulation_status::running_step)) {
+            if (ImPlot::BeginPlot("simulation", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                for (const auto& obs : ed->observation_outputs) {
+                    if (obs.observation_type ==
+                          observation_output::type::multiplot &&
+                        obs.xs.data()) {
+                        ImPlot::PlotLine(obs.name.c_str(),
+                                         obs.xs.data(),
+                                         obs.ys.data(),
+                                         obs.xs.size());
+                    }
+                }
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
         }
     }
 

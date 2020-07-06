@@ -237,7 +237,8 @@ struct observation_output
 
     std::ofstream ofs;
     std::string name;
-    array<float> data;
+    array<float> xs;
+    array<float> ys;
     double tl = 0.0;
     float min = -1.f;
     float max = +1.f;
