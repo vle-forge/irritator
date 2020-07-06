@@ -215,7 +215,7 @@ void lif_benchmark(double simulation_duration, double quantum)
 
     std::fclose(os);
 }
-void izhikevich_benchmark(double simulation_duration, double quantum, double a, double b, double c, double d)
+void izhikevich_benchmark(double simulation_duration, double quantum, double a, double b, double c, double d, double I, double vini)
 {
     using namespace boost::ut;   
   irt::simulation sim;
@@ -244,8 +244,6 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
         auto& cross = sim.cross_models.alloc();
         auto& cross2 = sim.cross_models.alloc();
 
-
-        double I = 10.0;
         double vt = 30.0;
 
         constant.default_value = 1.0;
@@ -255,7 +253,7 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
         cross.default_threshold = vt;
         cross2.default_threshold = vt;
 
-        integrator_a.default_current_value = 0.0;
+        integrator_a.default_current_value = vini;
 
         quantifier_a.default_adapt_state =
           irt::quantifier::adapt_state::possible;
@@ -417,28 +415,28 @@ BENCHMARK_P(LIF, 1, 10, 1,( double simulation_duration, double quantum))
 {
   lif_benchmark(simulation_duration,quantum);
 }
-BENCHMARK_P(Izhikevich, Type, 1, 1,( double simulation_duration, double quantum, double a, double b, double c, double d))
+BENCHMARK_P(Izhikevich, Type, 1, 1,( double simulation_duration, double quantum, double a, double b, double c, double d, double I, double vini))
 {
-  izhikevich_benchmark(simulation_duration,quantum,a,b,c,d);
+  izhikevich_benchmark(simulation_duration,quantum,a,b,c,d,I,vini);
 }
 
 BENCHMARK_P_INSTANCE(LIF, 1, (30,1e-2));
 // Regular spiking (RS)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-65.0,8.0));
+BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-65.0,8.0,10.0,0.0));
 // Intrinsical bursting (IB)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-55.0,4.0));
+BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-55.0,4.0,10.0,0.0));
 // Chattering spiking (CH)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-50.0,2.0));
+BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-50.0,2.0,10.0,0.0));
 // Fast spiking (FS)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.1,0.2,-65.0,2.0));
+BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.1,0.2,-65.0,2.0,10.0,0.0));
 // Thalamo-Cortical (TC)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.25,-65.0,0.05));
+BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.25,-65.0,0.05,10.0,-87.0));
 // Rezonator (RZ)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.1,0.26,-65.0,2.0));
+BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.1,0.26,-65.0,2.0,10.0,-63.0));
 // Low-threshold spiking (LTS)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.25,-65.0,2.0));
+BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.25,-65.0,2.0,10.0,-63.0));
 // Problematic (P)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.2,2,-56.0,-16.0));
+BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.2,2,-56.0,-16.0,-99.0,0.0));
 
 int
 main()
