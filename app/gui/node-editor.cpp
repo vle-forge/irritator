@@ -2090,6 +2090,7 @@ editor::show_editor() noexcept
     ImGuiWindowFlags windows_flags = 0;
     windows_flags |= ImGuiWindowFlags_MenuBar;
 
+    ImGui::SetNextWindowPos(ImVec2(500, 50), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_Once);
     if (!ImGui::Begin(name.c_str(), &show, windows_flags)) {
         ImGui::End();
@@ -2417,7 +2418,8 @@ show_simulation_box(bool* show_simulation)
 {
     static editor_id current_editor_id = static_cast<editor_id>(0);
 
-    ImGui::SetNextWindowSize(ImVec2(250, 400), ImGuiCond_Once);
+    ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(250, 350), ImGuiCond_Once);
     if (!ImGui::Begin("Simulation", show_simulation)) {
         ImGui::End();
         return;
@@ -2578,6 +2580,7 @@ show_simulation_box(bool* show_simulation)
 static void
 show_settings_window(bool* is_open)
 {
+    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
     if (!ImGui::Begin("Settings", is_open)) {
         ImGui::End();
@@ -2629,7 +2632,8 @@ node_editor_initialize()
 void
 show_plot_box(bool* show_plot)
 {
-    ImGui::SetNextWindowSize(ImVec2(600, 400), ImGuiCond_Once);
+    ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
     if (!ImGui::Begin("Plot", show_plot)) {
         ImGui::End();
         return;
@@ -2675,7 +2679,7 @@ node_editor_show()
     static bool show_log = true;
     static bool show_simulation = true;
     static bool show_demo = false;
-    static bool show_plot = false;
+    static bool show_plot = true;
     static bool show_settings = false;
     bool ret = true;
 

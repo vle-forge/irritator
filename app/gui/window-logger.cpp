@@ -56,7 +56,8 @@ window_logger::log(const int level, const char* fmt, va_list args)
 void
 window_logger::show(bool* is_show)
 {
-    ImGui::SetNextWindowSize(ImVec2(500, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(70, 450), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
 
     if (!ImGui::Begin("Log", is_show)) {
         ImGui::End();
