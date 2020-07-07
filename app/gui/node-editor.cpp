@@ -2413,35 +2413,26 @@ initialize_observation(irt::editor* ed) noexcept
     }
 }
 
-void
-show_simulation_box(bool* show_simulation)
+static editor*
+make_combo_editor_name(editor_id& current) noexcept
 {
-    static editor_id current_editor_id = static_cast<editor_id>(0);
-
-    ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(250, 350), ImGuiCond_Once);
-    if (!ImGui::Begin("Simulation", show_simulation)) {
-        ImGui::End();
-        return;
-    }
-
-    const char* combo_name = "";
-    if (auto* ed = editors.try_to_get(current_editor_id); !ed) {
-        ed = nullptr;
-        if (editors.next(ed)) {
-            current_editor_id = editors.get_id(ed);
-            combo_name = ed->name.c_str();
+    editor* first = editors.try_to_get(current);
+    if (first == nullptr) {
+        if (!editors.next(first)) {
+            current = undefined<editor_id>();
+            return nullptr;
         }
-    } else {
-        combo_name = ed->name.c_str();
     }
 
-    if (ImGui::BeginCombo("Name", combo_name)) {
+    current = editors.get_id(first);
+
+    if (ImGui::BeginCombo("Name", first->name.c_str())) {
         editor* ed = nullptr;
         while (editors.next(ed)) {
-            bool is_selected = current_editor_id == editors.get_id(ed);
+            const bool is_selected = current == editors.get_id(ed);
+
             if (ImGui::Selectable(ed->name.c_str(), is_selected))
-                current_editor_id = editors.get_id(ed);
+                current = editors.get_id(ed);
 
             if (is_selected)
                 ImGui::SetItemDefaultFocus();
@@ -2450,7 +2441,21 @@ show_simulation_box(bool* show_simulation)
         ImGui::EndCombo();
     }
 
-    if (auto* ed = editors.try_to_get(current_editor_id); ed) {
+    return editors.try_to_get(current);
+}
+
+void
+show_simulation_box(bool* show_simulation)
+{
+    ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(250, 350), ImGuiCond_Once);
+    if (!ImGui::Begin("Simulation", show_simulation)) {
+        ImGui::End();
+        return;
+    }
+
+    static editor_id current = undefined<editor_id>();
+    if (auto* ed = make_combo_editor_name(current); ed) {
         ImGui::InputDouble("Begin", &ed->simulation_begin);
         ImGui::InputDouble("End", &ed->simulation_end);
         ImGui::Checkbox("Show values", &ed->simulation_show_value);
@@ -2613,27 +2618,6 @@ show_simulation_box(bool* show_simulation)
               ed->simulation_current - ed->simulation_begin;
             const double fraction = elapsed / duration;
             ImGui::ProgressBar(static_cast<float>(fraction));
-
-            // for (const auto& obs : ed->observation_outputs) {
-            //    if (obs.observation_type ==
-            //    observation_output::type::plot ||
-            //        obs.observation_type ==
-            //        observation_output::type::both)
-            //        ImGui::PlotLines(obs.name.c_str(),
-            //                         obs.ys.data(),
-            //                         static_cast<int>(obs.ys.size()),
-            //                         0,
-            //                         nullptr,
-            //                         obs.min,
-            //                         obs.max,
-            //                         ImVec2(0.f, 50.f));
-
-            //    if (obs.observation_type ==
-            //    observation_output::type::file ||
-            //        obs.observation_type ==
-            //        observation_output::type::both) ImGui::Text("%s:
-            //        output file", obs.name);
-            //}
         }
     }
 
@@ -2702,14 +2686,8 @@ show_plot_box(bool* show_plot)
         return;
     }
 
-    static editor_id current_editor_id = static_cast<editor_id>(0);
-    if (auto* ed = editors.try_to_get(current_editor_id); !ed) {
-        ed = nullptr;
-        if (editors.next(ed))
-            current_editor_id = editors.get_id(ed);
-    }
-
-    if (auto* ed = editors.try_to_get(current_editor_id); ed) {
+    static editor_id current = undefined<editor_id>();
+    if (auto* ed = make_combo_editor_name(current); ed) {
         if (match(ed->st,
                   simulation_status::success,
                   simulation_status::running_once,
