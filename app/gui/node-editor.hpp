@@ -223,7 +223,6 @@ struct observation_output
     enum class type
     {
         none,
-        plot,
         multiplot,
         file,
         both

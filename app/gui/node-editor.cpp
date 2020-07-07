@@ -130,7 +130,6 @@ observation_output_initialize(const irt::observer& obs,
 
     auto* output = reinterpret_cast<observation_output*>(obs.user_data);
     if (match(output->observation_type,
-              observation_output::type::plot,
               observation_output::type::multiplot,
               observation_output::type::both)) {
         std::fill_n(output->xs.data(), output->xs.size(), 0.f);
@@ -146,7 +145,7 @@ observation_output_initialize(const irt::observer& obs,
               observation_output::type::both)) {
         if (!output->ofs.is_open()) {
             if (output->observation_type == observation_output::type::both)
-                output->observation_type = observation_output::type::plot;
+                output->observation_type = observation_output::type::multiplot;
             else
                 output->observation_type = observation_output::type::none;
         } else
@@ -166,7 +165,6 @@ observation_output_observe(const irt::observer& obs,
     const auto value = static_cast<float>(msg.cast_to_real_64(0));
 
     if (match(output->observation_type,
-              observation_output::type::plot,
               observation_output::type::multiplot,
               observation_output::type::both)) {
         output->min = std::min(output->min, value);
@@ -1910,7 +1908,7 @@ editor::show_model_dynamics(model& mdl) noexcept
     ImGui::PushItemWidth(100.0f);
 
     {
-        const char* items[] = { "none", "plot", "multiplot", "file", "both" };
+        const char* items[] = { "none", "multiplot", "file", "both" };
         int current_item = 0; /* Default show none */
         auto* obs = sim.observers.try_to_get(mdl.obs_id);
 
@@ -1939,7 +1937,7 @@ editor::show_model_dynamics(model& mdl) noexcept
             }
         }
 
-        if (current_item == 1 || current_item == 2) {
+        if (current_item == 1) {
             if (auto* o = sim.observers.try_to_get(mdl.obs_id); o) {
                 float v = static_cast<float>(o->time_step);
                 if (ImGui::InputFloat("freq.", &v, 0.001f, 0.1f, "%.3f", 0))
@@ -2385,7 +2383,6 @@ initialize_observation(irt::editor* ed) noexcept
         output->observation_type = type;
 
         if (match(type,
-                  observation_output::type::plot,
                   observation_output::type::multiplot,
                   observation_output::type::both)) {
             output->xs.init(length);
@@ -2556,22 +2553,22 @@ show_simulation_box(bool* show_simulation)
             const double fraction = elapsed / duration;
             ImGui::ProgressBar(static_cast<float>(fraction));
 
-            for (const auto& obs : ed->observation_outputs) {
-                if (obs.observation_type == observation_output::type::plot ||
-                    obs.observation_type == observation_output::type::both)
-                    ImGui::PlotLines(obs.name.c_str(),
-                                     obs.ys.data(),
-                                     static_cast<int>(obs.ys.size()),
-                                     0,
-                                     nullptr,
-                                     obs.min,
-                                     obs.max,
-                                     ImVec2(0.f, 50.f));
+            // for (const auto& obs : ed->observation_outputs) {
+            //    if (obs.observation_type == observation_output::type::plot ||
+            //        obs.observation_type == observation_output::type::both)
+            //        ImGui::PlotLines(obs.name.c_str(),
+            //                         obs.ys.data(),
+            //                         static_cast<int>(obs.ys.size()),
+            //                         0,
+            //                         nullptr,
+            //                         obs.min,
+            //                         obs.max,
+            //                         ImVec2(0.f, 50.f));
 
-                if (obs.observation_type == observation_output::type::file ||
-                    obs.observation_type == observation_output::type::both)
-                    ImGui::Text("%s: output file", obs.name);
-            }
+            //    if (obs.observation_type == observation_output::type::file ||
+            //        obs.observation_type == observation_output::type::both)
+            //        ImGui::Text("%s: output file", obs.name);
+            //}
         }
     }
 
