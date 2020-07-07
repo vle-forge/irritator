@@ -2539,6 +2539,65 @@ show_simulation_box(bool* show_simulation)
                         }
                     }
                 }
+
+                if (ed->st == simulation_status::running_step) {
+                    ImGui::SameLine();
+                    if (ImGui::Button("step x100")) {
+                        for (int i = 0; i < 100; ++i) {
+                            if (ed->simulation_current < ed->simulation_end) {
+                                if (auto ret =
+                                      ed->sim.run(ed->simulation_current);
+                                    irt::is_bad(ret)) {
+                                    log_w.log(3,
+                                              "Simulation failure (%s)\n",
+                                              irt::status_string(ret));
+
+                                    ed->st = simulation_status::success;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (ImGui::CollapsingHeader("Simulation until")) {
+                if (ImGui::Button("init")) {
+                    ed->sim.clean();
+                    initialize_observation(ed);
+                    ed->simulation_current = ed->simulation_begin;
+                    ed->simulation_until = static_cast<float>(ed->simulation_begin);
+                    if (auto ret = ed->sim.initialize(ed->simulation_current);
+                        irt::is_bad(ret)) {
+                        log_w.log(3,
+                                  "Simulation initialization failure (%s)\n",
+                                  irt::status_string(ret));
+                        ed->st = simulation_status::success;
+                    } else {
+                        ed->st = simulation_status::running_step;
+                    }
+                }
+
+                if (ed->st == simulation_status::running_step) {
+                    ImGui::SliderFloat(
+                      "date",
+                      &ed->simulation_until,
+                      static_cast<float>(ed->simulation_current),
+                      static_cast<float>(ed->simulation_end));
+
+                    if (ImGui::Button("run until")) {
+                        while (ed->simulation_current <
+                               static_cast<double>(ed->simulation_until)) {
+                            if (auto ret = ed->sim.run(ed->simulation_current);
+                                irt::is_bad(ret)) {
+                                log_w.log(3,
+                                          "Simulation failure (%s)\n",
+                                          irt::status_string(ret));
+
+                                ed->st = simulation_status::success;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -2556,8 +2615,10 @@ show_simulation_box(bool* show_simulation)
             ImGui::ProgressBar(static_cast<float>(fraction));
 
             // for (const auto& obs : ed->observation_outputs) {
-            //    if (obs.observation_type == observation_output::type::plot ||
-            //        obs.observation_type == observation_output::type::both)
+            //    if (obs.observation_type ==
+            //    observation_output::type::plot ||
+            //        obs.observation_type ==
+            //        observation_output::type::both)
             //        ImGui::PlotLines(obs.name.c_str(),
             //                         obs.ys.data(),
             //                         static_cast<int>(obs.ys.size()),
@@ -2567,9 +2628,11 @@ show_simulation_box(bool* show_simulation)
             //                         obs.max,
             //                         ImVec2(0.f, 50.f));
 
-            //    if (obs.observation_type == observation_output::type::file ||
-            //        obs.observation_type == observation_output::type::both)
-            //        ImGui::Text("%s: output file", obs.name);
+            //    if (obs.observation_type ==
+            //    observation_output::type::file ||
+            //        obs.observation_type ==
+            //        observation_output::type::both) ImGui::Text("%s:
+            //        output file", obs.name);
             //}
         }
     }
