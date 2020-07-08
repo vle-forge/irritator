@@ -91,7 +91,7 @@ dot_graph_save(const irt::simulation& sim, std::FILE* os)
         }
     }
 }
-
+enum neuron_type { gener,leaky_int_fire,izhikevich };
 struct neuron_lif {
   irt::dynamics_id  sum;
   irt::dynamics_id  prod;
@@ -142,7 +142,7 @@ struct synapse {
   irt::dynamics_id  accumulator_syn;
 };
 struct neuron_izhikevich 
-make_neuron_izhikevich(irt::simulation* sim, long unsigned int i, double a, double b, double c, double d, double I, double vini ) noexcept
+make_neuron_izhikevich(irt::simulation* sim, long unsigned int i, double quantum, double a, double b, double c, double d, double I, double vini ) noexcept
 {
   using namespace boost::ut;   
 
@@ -175,7 +175,7 @@ make_neuron_izhikevich(irt::simulation* sim, long unsigned int i, double a, doub
   quantifier_a.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quantifier_a.default_zero_init_offset = true;
-  quantifier_a.default_step_size = 0.1;
+  quantifier_a.default_step_size = quantum;
   quantifier_a.default_past_length = 3;
 
   integrator_b.default_current_value = 0.0;
@@ -183,7 +183,7 @@ make_neuron_izhikevich(irt::simulation* sim, long unsigned int i, double a, doub
   quantifier_b.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quantifier_b.default_zero_init_offset = true;
-  quantifier_b.default_step_size = 0.01;
+  quantifier_b.default_step_size = quantum;
   quantifier_b.default_past_length = 3;
 
   product.default_input_coeffs[0] = 1.0;
@@ -303,10 +303,10 @@ make_neuron_gen(irt::simulation* sim, long unsigned int i, double offset, double
   return neuron_model;
 }
 struct neuron_lif 
-make_neuron_lif(irt::simulation* sim, long unsigned int i) noexcept
+make_neuron_lif(irt::simulation* sim, long unsigned int i, double quantum, double tau) noexcept
 {
   using namespace boost::ut;
-  double tau_lif =  5.0 + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(10.0-5.0)));
+  double tau_lif =  tau;
   double Vr_lif = 0.0;
   double Vt_lif = 1.0;
 
@@ -334,7 +334,7 @@ make_neuron_lif(irt::simulation* sim, long unsigned int i) noexcept
   quantifier_lif.default_adapt_state =
     irt::quantifier::adapt_state::possible;
   quantifier_lif.default_zero_init_offset = true;
-  quantifier_lif.default_step_size = 0.1;
+  quantifier_lif.default_step_size = quantum;
   quantifier_lif.default_past_length = 3;
 
   cross_lif.default_threshold = Vt_lif;
@@ -562,18 +562,18 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   return synapse_model;
 } 
 
-void network(long unsigned int N, double simulation_duration, double quantum)
+void network(neuron_type T, long unsigned int N, double simulation_duration, double quantum_synapse, double quantum_neuron, double spike_rate)
 {
  using namespace boost::ut;
 
       irt::simulation sim;
 
-      constexpr size_t base{ 10000000 };
+      constexpr size_t base{ 100000000 };
       constexpr size_t ten{ 10 };
       constexpr size_t two{ 2 };
 
       expect(irt::is_success(sim.model_list_allocator.init(base + (two * N * N + N) * ten)));
-      expect(irt::is_success(sim.message_list_allocator.init(base + (two * N * N + N) * ten)));
+      expect(irt::is_success(sim.message_list_allocator.init(base*two + (two * N * N + N) * ten)));
       expect(irt::is_success(sim.input_port_list_allocator.init(base + (two * N * N + N) * ten * ten )));
       expect(irt::is_success(sim.output_port_list_allocator.init(base + (two * N * N + N) * ten * ten)));
       expect(irt::is_success(sim.emitting_output_port_allocator.init(base + (two * N * N + N) * ten)));
@@ -581,7 +581,7 @@ void network(long unsigned int N, double simulation_duration, double quantum)
       expect(irt::is_success(sim.sched.init(base + (two * N * N + N))) * ten);
 
       expect(irt::is_success(sim.models.init(base + (two * N * N + N))));
-      expect(irt::is_success(sim.init_messages.init(base + (two * N * N + N))));
+      expect(irt::is_success(sim.init_messages.init(base*two + (two * N * N + N))));
       expect(irt::is_success(sim.messages.init(base + (two * N * N + N))));
       expect(irt::is_success(sim.input_ports.init(base + (two * N * N + N) * 16)));
       expect(irt::is_success(sim.output_ports.init(base + (two * N * N + N) * 7)));
@@ -605,39 +605,79 @@ void network(long unsigned int N, double simulation_duration, double quantum)
       printf(">> Allocating neurones ... ");
       auto start = std::chrono::steady_clock::now();
 
-      /*std::vector<struct neuron_gen> neurons;
-      for (long unsigned int i = 0 ; i < N; i++) {
-        struct neuron_gen neuron_model = make_neuron_gen(&sim,i,i+1.0,N+1.0);
-        neurons.emplace_back(neuron_model);
-      }*/
-      std::vector<struct neuron_lif> neurons;
-      for (long unsigned int i = 0 ; i < N; i++) {
-        struct neuron_lif neuron_model = make_neuron_lif(&sim,i);
-        neurons.emplace_back(neuron_model);
+      std::vector<struct neuron_gen> neurons_gen;
+      std::vector<struct neuron_izhikevich> neurons_izhikevich;
+      std::vector<struct neuron_lif> neurons_lif;
+      switch (T)
+      {
+        case gener:
+          for (long unsigned int i = 0 ; i < N; i++) {
+            struct neuron_gen neuron_model = make_neuron_gen(&sim,i,0.0 + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(1.0-0.0))),spike_rate);
+            neurons_gen.emplace_back(neuron_model);
+          }
+          break;
+        case izhikevich:
+          for (long unsigned int i = 0 ; i < N; i++) {
+          struct neuron_izhikevich neuron_model = make_neuron_izhikevich(&sim,i,quantum_neuron,(spike_rate/2.0) + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(spike_rate/2.0))),0.2,-65.0,8.0,10.0,0.0);
+          neurons_izhikevich.emplace_back(neuron_model);
+          }
+          break;
+        case leaky_int_fire:
+          for (long unsigned int i = 0 ; i < N; i++) {
+          struct neuron_lif neuron_model = make_neuron_lif(&sim,i,quantum_neuron,spike_rate + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(spike_rate))));
+          neurons_lif.emplace_back(neuron_model);
+          }
+          break;
       }
-      /*std::vector<struct neuron_izhikevich> neurons;
-      for (long unsigned int i = 0 ; i < N; i++) {
-        struct neuron_izhikevich neuron_model = make_neuron_izhikevich(&sim,i,0.02,0.2,-65.0,8.0,10.0,0.0);
-        neurons.emplace_back(neuron_model);
-      }*/
+
+      
+
       auto end = std::chrono::steady_clock::now();
       printf(" [%f] ms.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()));
 
-      printf(">> Allocating synapses ... ");
+      printf(">> Allocating synapses ... \n ");
       start = std::chrono::steady_clock::now();
-      std::vector<struct synapse> synapses;
-      synapses.reserve(256*N);
-      for (long unsigned int i = 0 ; i < N; i++) {
-        for (long unsigned int j = 0 ; j < N; j++) {
 
-            struct synapse synapse_model = make_synapse(&sim,i,j,
-                                                          neurons[i].out_port,
-                                                            neurons[i].out_port,quantum);
-          synapses.emplace_back(synapse_model);
-        }
+      std::vector<struct synapse> synapses;
+      switch(T)
+      {
+        case gener:
+          printf("   -Neurons type gen. \n");
+          for (long unsigned int i = 0 ; i < N; i++) {
+            for (long unsigned int j = 0 ; j < N; j++) {
+              struct synapse synapse_model = make_synapse(&sim,i,j,
+                                                            neurons_gen[i].out_port,
+                                                              neurons_gen[i].out_port,quantum_synapse);
+              synapses.emplace_back(synapse_model);
+            }
+          }
+          break;
+        case izhikevich:
+          printf("    -Neurons type Izhikevich. \n");        
+          for (long unsigned int i = 0 ; i < N; i++) {
+            for (long unsigned int j = 0 ; j < N; j++) {
+              struct synapse synapse_model = make_synapse(&sim,i,j,
+                                                            neurons_izhikevich[i].out_port,
+                                                              neurons_izhikevich[i].out_port,quantum_synapse);
+              synapses.emplace_back(synapse_model);
+            }
+          }
+          break;
+        case leaky_int_fire:
+          printf("    -Neurons type LIF. \n");        
+          for (long unsigned int i = 0 ; i < N; i++) {
+            for (long unsigned int j = 0 ; j < N; j++) {
+              struct synapse synapse_model = make_synapse(&sim,i,j,
+                                                            neurons_lif[i].out_port,
+                                                              neurons_lif[i].out_port,quantum_synapse);
+              synapses.emplace_back(synapse_model);
+            }
+          }
+          break;
       }
+
       end = std::chrono::steady_clock::now();
-      printf(" [%f] s.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(end - start).count()));
+      printf(">> Synapses allocated in [%f] s.\n" ,static_cast<double>(std::chrono::duration_cast<std::chrono::seconds>(end - start).count()));
       printf(">> synapses size %ld \n",static_cast<long int>(synapses.capacity()));
 
       irt::time t = 0.0;
@@ -663,13 +703,36 @@ void network(long unsigned int N, double simulation_duration, double quantum)
             
 }
 
-BENCHMARK_P(Network, N, 1, 1,(long unsigned int N, double simulation_duration, double quantum))
+BENCHMARK_P(Network, N, 1, 1,(neuron_type T,long unsigned int N, double simulation_duration, double quantum_synapse, double quantum_neuron, double spike_rate))
 {
-  network(N,simulation_duration,quantum);
+  network(T,N,simulation_duration,quantum_synapse,quantum_neuron,spike_rate);
 }
-BENCHMARK_P_INSTANCE(Network, N, (10,70,1e-5));
-BENCHMARK_P_INSTANCE(Network, N, (100,30,1e-5));
-//BENCHMARK_P_INSTANCE(Network, N, (500,30,1e-5));
+BENCHMARK_P_INSTANCE(Network, N, (gener,10,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,50,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,100,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,250,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,500,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,750,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,1000,500,1e-5,0.1,250));
+
+
+BENCHMARK_P_INSTANCE(Network, N, (leaky_int_fire,10,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (leaky_int_fire,50,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (leaky_int_fire,100,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (leaky_int_fire,250,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (leaky_int_fire,500,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (leaky_int_fire,750,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (leaky_int_fire,1000,500,1e-5,0.1,250));
+
+
+BENCHMARK_P_INSTANCE(Network, N, (izhikevich,10,500,1e-5,0.1,0.002));
+BENCHMARK_P_INSTANCE(Network, N, (izhikevich,50,500,1e-5,0.1,0.002));
+BENCHMARK_P_INSTANCE(Network, N, (izhikevich,100,500,1e-5,0.1,0.002));
+BENCHMARK_P_INSTANCE(Network, N, (izhikevich,250,500,1e-5,0.1,0.002));
+BENCHMARK_P_INSTANCE(Network, N, (izhikevich,500,500,1e-5,0.1,0.002));
+BENCHMARK_P_INSTANCE(Network, N, (izhikevich,750,500,1e-5,0.1,0.002));
+BENCHMARK_P_INSTANCE(Network, N, (izhikevich,1000,500,1e-5,0.1,0.002));
+
 int
 main()
 {
