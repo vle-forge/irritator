@@ -162,7 +162,7 @@ observation_output_observe(const irt::observer& obs,
         return;
 
     auto* output = reinterpret_cast<observation_output*>(obs.user_data);
-    const auto value = static_cast<float>(msg.cast_to_real_64(0));
+    const auto value = static_cast<float>(msg[0]);
 
     if (match(output->observation_type,
               observation_output::type::multiplot,

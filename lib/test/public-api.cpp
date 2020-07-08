@@ -45,7 +45,7 @@ file_output_observe(const irt::observer& obs,
         return;
 
     auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    fmt::print(output->os, "{},{}\n", t, msg.to_real_64(0));
+    fmt::print(output->os, "{},{}\n", t, msg.real[0]);
 }
 
 int
@@ -524,45 +524,32 @@ main()
 
     "message"_test = [] {
         {
-            irt::message v8(irt::i8(0), irt::i8(1), irt::i8(2), irt::i8(3));
-            expect(v8.to_integer_8(0) == 0);
-            expect(v8.to_integer_8(1) == 1);
-            expect(v8.to_integer_8(2) == 2);
-            expect(v8.to_integer_8(3) == 3);
-            expect(v8.size() == 4_ul);
+            irt::message vdouble;
+            expect(vdouble.real[0] == 0.0);
+            expect(vdouble.real[1] == 0.0);
+            expect(vdouble.real[2] == 0.0);
+            expect(vdouble.size() == 0_ul);
         }
+
         {
-            irt::message v32(0, 1, 2, 3);
-            expect(v32.to_integer_32(0) == 0);
-            expect(v32.to_integer_32(1) == 1);
-            expect(v32.to_integer_32(2) == 2);
-            expect(v32.to_integer_32(3) == 3);
-            expect(v32.size() == 4_ul);
+            irt::message vdouble(1.0);
+            expect(vdouble[0] == 1.0);
+            expect(vdouble.size() == 1_ul);
         }
+
         {
-            irt::message v64(
-              irt::i64(0), irt::i64(1), irt::i64(2), irt::i64(3));
-            expect(v64.to_integer_64(0) == 0);
-            expect(v64.to_integer_64(1) == 1);
-            expect(v64.to_integer_64(2) == 2);
-            expect(v64.to_integer_64(3) == 3);
-            expect(v64.size() == 4_ul);
+            irt::message vdouble(0.0, 1.0);
+            expect(vdouble[0] == 0.0);
+            expect(vdouble[1] == 1.0);
+            expect(vdouble.size() == 2_ul);
         }
+
         {
-            irt::message vfloat(0.0f, 1.0f, 2.0f, 3.0f);
-            expect(vfloat.to_real_32(0) == 0.0_f);
-            expect(vfloat.to_real_32(1) == 1.0_f);
-            expect(vfloat.to_real_32(2) == 2.0_f);
-            expect(vfloat.to_real_32(3) == 3.0_f);
-            expect(vfloat.size() == 4_ul);
-        }
-        {
-            irt::message vdouble(0.0, 1.0, 2.0, 3.0);
-            expect(vdouble.to_real_64(0) == 0.0);
-            expect(vdouble.to_real_64(1) == 1.0);
-            expect(vdouble.to_real_64(2) == 2.0);
-            expect(vdouble.to_real_64(3) == 3.0);
-            expect(vdouble.size() == 4_ul);
+            irt::message vdouble(1.0, 2.0, 3.0);
+            expect(vdouble[0] == 1.0);
+            expect(vdouble[1] == 2.0);
+            expect(vdouble[2] == 3.0);
+            expect(vdouble.size() == 3_ul);
         }
     };
 

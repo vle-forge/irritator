@@ -9,12 +9,17 @@
 #include <limits>
 #include <string_view>
 
-#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 
 #include <vector>
+
+// You can override the default assert handler by editing imconfig.h
+#ifndef irt_assert
+#include <cassert>
+#define irt_assert(_expr) assert(_expr)
+#endif
 
 namespace irt {
 
@@ -76,11 +81,9 @@ enum class status
 
     model_adder_empty_init_message,
     model_adder_bad_init_message,
-    model_adder_bad_external_message,
 
     model_mult_empty_init_message,
     model_mult_bad_init_message,
-    model_mult_bad_external_message,
 
     model_integrator_dq_error,
     model_integrator_X_error,
@@ -89,19 +92,13 @@ enum class status
     model_integrator_output_error,
     model_integrator_running_without_x_dot,
     model_integrator_ta_with_bad_x_dot,
-    model_integrator_bad_external_message,
 
     model_quantifier_bad_quantum_parameter,
     model_quantifier_bad_archive_length_parameter,
     model_quantifier_shifting_value_neg,
     model_quantifier_shifting_value_less_1,
-    model_quantifier_bad_external_message,
-
-    model_cross_bad_external_message,
 
     model_time_func_bad_init_message,
-
-    model_accumulator_bad_external_message,
 
     gui_not_enough_memory,
 
@@ -454,78 +451,6 @@ public:
  *
  ****************************************************************************/
 
-enum class value_type : i8
-{
-    none,
-    integer_8,
-    integer_32,
-    integer_64,
-    real_32,
-    real_64
-};
-
-template<typename T, size_t length>
-struct span
-{
-public:
-    using value_type = T;
-    using difference_type = std::ptrdiff_t;
-    using pointer = T*;
-    using reference = T&;
-    using const_reference = T&;
-    using iterator = T*;
-    using const_iterator = const T*;
-
-private:
-    const T* data_;
-
-public:
-    constexpr span(const T* ptr)
-      : data_(ptr)
-    {}
-
-    constexpr T* data() noexcept
-    {
-        return data_;
-    }
-
-    constexpr const T* data() const noexcept
-    {
-        return data_;
-    }
-
-    constexpr size_t size() const noexcept
-    {
-        return length;
-    }
-
-    constexpr T operator[](size_t i) const noexcept
-    {
-        assert(i < length);
-        return data_[i];
-    }
-
-    constexpr iterator begin() noexcept
-    {
-        return iterator{ data_ };
-    }
-
-    constexpr iterator end() noexcept
-    {
-        return iterator{ data_ + length };
-    }
-
-    constexpr const_iterator begin() const noexcept
-    {
-        return iterator{ data_ };
-    }
-
-    constexpr const_iterator end() const noexcept
-    {
-        return iterator{ data_ + length };
-    }
-};
-
 template<class T, class... Rest>
 constexpr bool
 are_all_same() noexcept
@@ -538,188 +463,41 @@ struct message
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
-    union
-    {
-        i8 integer_8[32];  // 32 bytes
-        i32 integer_32[8]; // 8 * 4 bytes
-        i64 integer_64[4]; // 4 * 8 bytes
-        float real_32[8];  // 8 * 4 bytes
-        double real_64[4]; // 4 * 8 bytes
-    };
-
-    u8 length;
-    value_type type;
+    double real[3];
+    i8 length;
 
     constexpr std::size_t size() const noexcept
     {
-        return length;
+        assert(length >= 0);
+        return static_cast<std::size_t>(length);
     }
 
     constexpr message() noexcept
-      : integer_8{ 0 }
+      : real{ 0.0, 0.0, 0.0 }
       , length{ 0 }
-      , type{ value_type::none }
     {}
 
     template<typename... T>
     constexpr message(T... args) noexcept
     {
-        if constexpr (are_all_same<i8, T...>()) {
-            static_assert(sizeof...(args) <= 32, "i8 message limited to 32");
-            using unused = i8[];
-            length = 0;
-            (void)unused{ i8(0), (integer_8[length++] = args, i8(0))... };
-            type = value_type::integer_8;
-        } else if constexpr (are_all_same<i32, T...>()) {
-            static_assert(sizeof...(args) <= 8, "i32 message limited to 32");
-            using unused = i32[];
-            length = 0;
-            (void)unused{ i32(0), (integer_32[length++] = args, i32(0))... };
-            type = value_type::integer_32;
-        } else if constexpr (are_all_same<i64, T...>()) {
-            static_assert(sizeof...(args) <= 4, "i64 message limited to 32");
-            using unused = i64[];
-            length = 0;
-            (void)unused{ i64(0), (integer_64[length++] = args, i64(0))... };
-            type = value_type::integer_64;
-        } else if constexpr (are_all_same<float, T...>()) {
-            static_assert(sizeof...(args) <= 8, "float message limited to 8");
-            using unused = float[];
-            length = 0;
-            (void)unused{ 0.0f, (real_32[length++] = args, 0.0f)... };
-            type = value_type::real_32;
-            return;
-        } else if constexpr (are_all_same<double, T...>()) {
-            static_assert(sizeof...(args) <= 4, "double message limited to 4");
+        if constexpr (are_all_same<double, T...>()) {
+            static_assert(sizeof...(args) <= 3, "double message limited to 3");
             using unused = double[];
             length = 0;
-            (void)unused{ 0.0, (real_64[length++] = args, 0.0)... };
-            type = value_type::real_64;
+            (void)unused{ 0.0, (real[length++] = args, 0.0)... };
         }
     }
 
-    constexpr span<i8, 32> to_integer_8() const
+    double operator[](const difference_type i) const noexcept
     {
-        assert(type == value_type::integer_8);
-        return span<i8, 32>(integer_8);
+        irt_assert(i < static_cast<std::ptrdiff_t>(length));
+        return real[i];
     }
 
-    constexpr span<i32, 8> to_integer_32() const
+    double& operator[](const difference_type i) noexcept
     {
-        assert(type == value_type::integer_32);
-        return span<i32, 8>(integer_32);
-    }
-
-    constexpr span<i64, 4> to_integer_64() const
-    {
-        assert(type == value_type::integer_64);
-        return span<i64, 4>(integer_64);
-    }
-
-    constexpr span<float, 8> to_real_32() const
-    {
-        assert(type == value_type::real_32);
-        return span<float, 8>(real_32);
-    }
-
-    constexpr span<double, 4> to_real_64() const
-    {
-        assert(type == value_type::real_64);
-        return span<double, 4>(real_64);
-    }
-
-    template<typename T>
-    constexpr i8 to_integer_8(T i) const
-    {
-        static_assert(std::is_integral_v<T>, "need [unsigned] integer");
-
-        if constexpr (std::is_signed_v<T>)
-            assert(i >= 0);
-
-        assert(type == value_type::integer_8);
-        assert(i < static_cast<T>(length));
-
-        return integer_8[i];
-    }
-
-    template<typename T>
-    constexpr i32 to_integer_32(T i) const
-    {
-        static_assert(std::is_integral_v<T>, "need [unsigned] integer");
-
-        if constexpr (std::is_signed_v<T>)
-            assert(i >= 0);
-
-        assert(type == value_type::integer_32);
-        assert(i < static_cast<T>(length));
-
-        return integer_32[i];
-    }
-
-    template<typename T>
-    constexpr i64 to_integer_64(T i) const
-    {
-        static_assert(std::is_integral_v<T>, "need [unsigned] integer");
-
-        if constexpr (std::is_signed_v<T>)
-            assert(i >= 0);
-
-        assert(type == value_type::integer_64);
-        assert(i < static_cast<T>(length));
-
-        return integer_64[i];
-    }
-
-    template<typename T>
-    constexpr float to_real_32(T i) const
-    {
-        static_assert(std::is_integral_v<T>, "need [unsigned] integer");
-
-        if constexpr (std::is_signed_v<T>)
-            assert(i >= 0);
-
-        assert(type == value_type::real_32);
-        assert(i < static_cast<T>(length));
-
-        return real_32[i];
-    }
-
-    template<typename T>
-    constexpr double to_real_64(T i) const
-    {
-        static_assert(std::is_integral_v<T>, "need [unsigned] integer");
-
-        if constexpr (std::is_signed_v<T>)
-            assert(i >= 0);
-
-        assert(type == value_type::real_64);
-        assert(i < static_cast<T>(length));
-
-        return real_64[i];
-    }
-
-    template<typename T>
-    constexpr double cast_to_real_64(T i) const
-    {
-        if constexpr (std::is_signed_v<T>)
-            assert(i >= 0);
-
-        switch (type) {
-        case value_type::integer_8:
-            return static_cast<double>(to_integer_8(i));
-        case value_type::integer_32:
-            return static_cast<double>(to_integer_32(i));
-        case value_type::integer_64:
-            return static_cast<double>(to_integer_64(i));
-        case value_type::real_32:
-            return static_cast<double>(to_real_32(i));
-        case value_type::real_64:
-            return static_cast<double>(to_real_64(i));
-        default:
-            return 0.0;
-        }
-
-        return 0.0;
+        irt_assert(i < static_cast<std::ptrdiff_t>(length));
+        return real[i];
     }
 };
 
@@ -3137,12 +2915,10 @@ struct integrator
                     time t) noexcept
     {
         for (const auto& msg : port_quanta.messages) {
-            irt_return_if_fail(msg.type == value_type::real_64 &&
-                                 msg.size() == 2,
-                               status::model_integrator_bad_external_message);
+            irt_assert(msg.size() == 2);
 
-            up_threshold = msg.to_real_64(0);
-            down_threshold = msg.to_real_64(1);
+            up_threshold = msg.real[0];
+            down_threshold = msg.real[1];
 
             if (st == state::wait_for_quanta)
                 st = state::running;
@@ -3152,11 +2928,9 @@ struct integrator
         }
 
         for (const auto& msg : port_x_dot.messages) {
-            irt_return_if_fail(msg.type == value_type::real_64 &&
-                                 msg.size() == 1,
-                               status::model_integrator_bad_external_message);
+            irt_assert(msg.size() == 1);
 
-            archive.emplace_back(msg.to_real_64(0), t);
+            archive.emplace_back(msg.real[0], t);
 
             if (st == state::wait_for_x_dot)
                 st = state::running;
@@ -3166,11 +2940,9 @@ struct integrator
         }
 
         for (const auto& msg : port_reset.messages) {
-            irt_return_if_fail(msg.type == value_type::real_64 &&
-                                 msg.size() == 1,
-                               status::model_integrator_bad_external_message);
+            irt_assert(msg.size() == 1);
 
-            reset_value = msg.to_real_64(0);
+            reset_value = msg.real[0];
             reset = true;
         }
 
@@ -3299,16 +3071,11 @@ struct integrator
 
         val += (t - archive.back().date) * archive.back().x_dot;
 
-        if(up_threshold < val) 
-        {
+        if (up_threshold < val) {
             return up_threshold;
-        }
-        else if (down_threshold > val)
-        {
+        } else if (down_threshold > val) {
             return down_threshold;
-        }
-        else 
-        {
+        } else {
             return val;
         }
     }
@@ -3424,19 +3191,15 @@ struct qss1_integrator
         bool reset = false;
 
         for (const auto& msg : port_x.messages) {
-            irt_return_if_fail(msg.type == value_type::real_64 &&
-                                 msg.size() == 1,
-                               status::model_integrator_bad_external_message);
+            irt_assert(msg.size() == 1);
 
-            value_x = msg.to_real_64(0);
+            value_x = msg.real[0];
         }
 
         for (const auto& msg : port_r.messages) {
-            irt_return_if_fail(msg.type == value_type::real_64 &&
-                                 msg.size() == 1,
-                               status::model_integrator_bad_external_message);
+            irt_assert(msg.size() == 1);
 
-            X = msg.to_real_64(0);
+            X = msg.real[0];
             reset = true;
         }
 
@@ -3609,20 +3372,16 @@ struct qss2_integrator
         bool reset = false;
 
         for (const auto& msg : port_x.messages) {
-            irt_return_if_fail(msg.type == value_type::real_64 &&
-                                 msg.size() == 2,
-                               status::model_integrator_bad_external_message);
+            irt_assert(msg.size() == 2);
 
-            value_x = msg.to_real_64(0);
-            value_slope = msg.to_real_64(1);
+            value_x = msg.real[0];
+            value_slope = msg.real[1];
         }
 
         for (const auto& msg : port_r.messages) {
-            irt_return_if_fail(msg.type == value_type::real_64 &&
-                                 msg.size() == 1,
-                               status::model_integrator_bad_external_message);
+            irt_assert(msg.size() == 1);
 
-            X = msg.to_real_64(0);
+            X = msg.real[0];
             reset = true;
         }
 
@@ -3712,8 +3471,8 @@ struct qss2_sum
                 values[i] += slopes[i] * e;
             } else {
                 for (const auto& msg : input_ports.get(x[i]).messages) {
-                    values[i] = msg.to_real_64(0);
-                    slopes[i] = msg.size() > 1 ? msg.to_real_64(1) : 0.0;
+                    values[i] = msg[0];
+                    slopes[i] = msg.size() > 1 ? msg[1] : 0.0;
                     message = true;
                 }
             }
@@ -3778,15 +3537,15 @@ struct qss2_multiplier
         sigma = time_domain<time>::infinity;
 
         for (const auto& msg : input_ports.get(x[0]).messages) {
-            values[0] = msg.to_real_64(0);
-            slopes[0] = msg.size() > 1 ? msg.to_real_64(1) : 0.0;
+            values[0] = msg.real[0];
+            slopes[0] = msg.size() > 1 ? msg.real[1] : 0.0;
             message_port_0 = true;
             sigma = time_domain<time>::zero;
         }
 
         for (const auto& msg : input_ports.get(x[1]).messages) {
-            values[1] = msg.to_real_64(0);
-            slopes[1] = msg.size() > 1 ? msg.to_real_64(1) : 0.0;
+            values[1] = msg.real[0];
+            slopes[1] = msg.size() > 1 ? msg.real[1] : 0.0;
             message_port_1 = true;
             sigma = time_domain<time>::zero;
         }
@@ -3864,8 +3623,8 @@ struct qss2_wsum
                 values[i] += slopes[i] * e;
             } else {
                 for (const auto& msg : input_ports.get(x[i]).messages) {
-                    values[i] = msg.to_real_64(0);
-                    slopes[i] = msg.size() > 1 ? msg.to_real_64(1) : 0.0;
+                    values[i] = msg[0];
+                    slopes[i] = msg.size() > 1 ? msg[1] : 0.0;
                     message = true;
                 }
             }
@@ -3985,10 +3744,8 @@ struct quantifier
             double sum = 0.0;
             double nb = 0.0;
             for (const auto& msg : port.messages) {
-                irt_return_if_fail(
-                  msg.type == value_type::real_64 && msg.size() == 1,
-                  status::model_quantifier_bad_external_message);
-                sum += msg.to_real_64(0);
+                irt_assert(msg.size() == 1);
+                sum += msg.real[0];
                 ++nb;
             }
 
@@ -4273,12 +4030,9 @@ struct adder
 
         for (size_t i = 0; i != PortNumber; ++i) {
             for (const auto& msg : input_ports.get(x[i]).messages) {
-                irt_return_if_fail(msg.type == value_type::real_64,
-                                   status::model_adder_bad_external_message);
-                irt_return_if_fail(msg.size() == 1,
-                                   status::model_adder_bad_external_message);
+                irt_assert(msg.size() == 1);
 
-                values[i] = msg.to_real_64(0);
+                values[i] = msg.real[0];
 
                 have_message = true;
             }
@@ -4357,12 +4111,9 @@ struct mult
         bool have_message = false;
         for (size_t i = 0; i != PortNumber; ++i) {
             for (const auto& msg : input_ports.get(x[i]).messages) {
-                irt_return_if_fail(msg.type == value_type::real_64,
-                                   status::model_mult_bad_external_message);
-                irt_return_if_fail(msg.size() == 1,
-                                   status::model_mult_bad_external_message);
+                irt_assert(msg.size() == 1);
 
-                values[i] = msg.to_real_64(0);
+                values[i] = msg[0];
                 have_message = true;
             }
         }
@@ -4527,7 +4278,7 @@ struct flow
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
 
-        sigma = 1.0/samplerate;
+        sigma = 1.0 / samplerate;
 
         value = default_value;
         data = default_data;
@@ -4541,14 +4292,14 @@ struct flow
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        value = data[static_cast<int>(t*samplerate)];
+        value = data[static_cast<int>(t * samplerate)];
 
         return status::success;
     }
 
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
-    {     
+    {
         output_ports.get(y[0]).messages.emplace_front(value);
 
         return status::success;
@@ -4589,28 +4340,18 @@ struct accumulator
         for (size_t i = 0; i != PortNumber; ++i) {
             auto& port = input_ports.get(x[i + PortNumber]);
             for (const auto& msg : port.messages) {
-                irt_return_if_fail(
-                  msg.type == value_type::real_64,
-                  status::model_accumulator_bad_external_message);
-                irt_return_if_fail(
-                  msg.size() == 1,
-                  status::model_accumulator_bad_external_message);
+                irt_assert(msg.size() == 1);
 
-                numbers[i] = msg.to_real_64(0);
+                numbers[i] = msg[0];
             }
         }
 
         for (size_t i = 0; i != PortNumber; ++i) {
             auto& port = input_ports.get(x[i]);
             for (const auto& msg : port.messages) {
-                irt_return_if_fail(
-                  msg.type == value_type::real_64,
-                  status::model_accumulator_bad_external_message);
-                irt_return_if_fail(
-                  msg.size() == 1,
-                  status::model_accumulator_bad_external_message);
+                irt_assert(msg.size() == 1);
 
-                if (msg.to_real_64(0) != 0.0)
+                if (msg[0] != 0.0)
                     number += numbers[i];
             }
         }
@@ -4664,47 +4405,34 @@ struct cross
     {
         bool have_message = false;
         bool have_message_value = false;
-        event = 0.0; 
+        event = 0.0;
 
-       for (const auto& msg : input_ports.get(x[port_threshold]).messages) {
-            irt_return_if_fail(msg.type == value_type::real_64,
-                               status::model_cross_bad_external_message);
-            irt_return_if_fail(msg.size() == 1,
-                               status::model_cross_bad_external_message);
+        for (const auto& msg : input_ports.get(x[port_threshold]).messages) {
+            irt_assert(msg.size() == 1);
 
-            
-            threshold = msg.to_real_64(0);
+            threshold = msg.real[0];
             have_message = true;
         }
 
         for (const auto& msg : input_ports.get(x[port_value]).messages) {
-            irt_return_if_fail(msg.type == value_type::real_64,
-                               status::model_cross_bad_external_message);
-            irt_return_if_fail(msg.size() == 1,
-                               status::model_cross_bad_external_message);
+            irt_assert(msg.size() == 1);
 
-            value = msg.to_real_64(0);
+            value = msg.real[0];
             have_message_value = true;
             have_message = true;
         }
 
         for (const auto& msg : input_ports.get(x[port_if_value]).messages) {
-            irt_return_if_fail(msg.type == value_type::real_64,
-                               status::model_cross_bad_external_message);
-            irt_return_if_fail(msg.size() == 1,
-                               status::model_cross_bad_external_message);
+            irt_assert(msg.size() == 1);
 
-            if_value = msg.to_real_64(0);
+            if_value = msg.real[0];
             have_message = true;
         }
 
         for (const auto& msg : input_ports.get(x[port_else_value]).messages) {
-            irt_return_if_fail(msg.type == value_type::real_64,
-                               status::model_cross_bad_external_message);
-            irt_return_if_fail(msg.size() == 1,
-                               status::model_cross_bad_external_message);
+            irt_assert(msg.size() == 1);
 
-            else_value = msg.to_real_64(0);
+            else_value = msg.real[0];
             have_message = true;
         }
 
@@ -4713,7 +4441,7 @@ struct cross
             if (value >= threshold) {
                 else_value = if_value;
                 event = 1.0;
-            } 
+            }
         }
 
         result = else_value;
@@ -5113,25 +4841,24 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [ dyn_id = mdl.id, port,
-            index ]<typename DynamicsM>(DynamicsM & dyn_models)
-            ->status {
-                using Dynamics = typename DynamicsM::value_type;
+          [dyn_id = mdl.id, port, index]<typename DynamicsM>(
+            DynamicsM& dyn_models) -> status {
+              using Dynamics = typename DynamicsM::value_type;
 
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    auto* dyn = dyn_models.try_to_get(dyn_id);
-                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                  auto* dyn = dyn_models.try_to_get(dyn_id);
+                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                    for (size_t i = 0, e = std::size(dyn->y); i != e; ++i) {
-                        if (dyn->y[i] == port) {
-                            *index = static_cast<int>(i);
-                            return status::success;
-                        }
-                    }
-                }
+                  for (size_t i = 0, e = std::size(dyn->y); i != e; ++i) {
+                      if (dyn->y[i] == port) {
+                          *index = static_cast<int>(i);
+                          return status::success;
+                      }
+                  }
+              }
 
-                return status::dynamics_unknown_port_id;
-            });
+              return status::dynamics_unknown_port_id;
+          });
     }
 
     template<typename Function>
@@ -5139,8 +4866,8 @@ struct simulation
     {
         dispatch(
           mdl.type,
-          [ this, &f, dyn_id = mdl.id ]<typename DynamicsM>(DynamicsM &
-                                                            dyn_models) {
+          [this, &f, dyn_id = mdl.id]<typename DynamicsM>(
+            DynamicsM& dyn_models) {
               using Dynamics = typename DynamicsM::value_type;
 
               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
@@ -5159,8 +4886,8 @@ struct simulation
     {
         dispatch(
           mdl.type,
-          [ this, &f, dyn_id = mdl.id ]<typename DynamicsM>(DynamicsM &
-                                                            dyn_models) {
+          [this, &f, dyn_id = mdl.id]<typename DynamicsM>(
+            DynamicsM& dyn_models) {
               using Dynamics = typename DynamicsM::value_type;
 
               if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
@@ -5181,25 +4908,24 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [ dyn_id = mdl.id, port,
-            index ]<typename DynamicsM>(DynamicsM & dyn_models)
-            ->status {
-                using Dynamics = typename DynamicsM::value_type;
+          [dyn_id = mdl.id, port, index]<typename DynamicsM>(
+            DynamicsM& dyn_models) -> status {
+              using Dynamics = typename DynamicsM::value_type;
 
-                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                    auto* dyn = dyn_models.try_to_get(dyn_id);
-                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                  auto* dyn = dyn_models.try_to_get(dyn_id);
+                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                    for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
-                        if (dyn->x[i] == port) {
-                            *index = static_cast<int>(i);
-                            return status::success;
-                        }
-                    }
-                }
+                  for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
+                      if (dyn->x[i] == port) {
+                          *index = static_cast<int>(i);
+                          return status::success;
+                      }
+                  }
+              }
 
-                return status::dynamics_unknown_port_id;
-            });
+              return status::dynamics_unknown_port_id;
+          });
     }
 
     status get_output_port_id(const model& mdl,
@@ -5208,26 +4934,24 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [ dyn_id = mdl.id, index,
-            port ]<typename DynamicsM>(DynamicsM & dyn_models)
-            ->status {
-                using Dynamics = typename DynamicsM::value_type;
+          [dyn_id = mdl.id, index, port]<typename DynamicsM>(
+            DynamicsM& dyn_models) -> status {
+              using Dynamics = typename DynamicsM::value_type;
 
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    auto* dyn = dyn_models.try_to_get(dyn_id);
-                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                  auto* dyn = dyn_models.try_to_get(dyn_id);
+                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                    irt_return_if_fail(0 <= index &&
-                                         static_cast<size_t>(index) <
-                                           std::size(dyn->y),
-                                       status::dynamics_unknown_port_id);
+                  irt_return_if_fail(0 <= index && static_cast<size_t>(index) <
+                                                     std::size(dyn->y),
+                                     status::dynamics_unknown_port_id);
 
-                    *port = dyn->y[index];
-                    return status::success;
-                }
+                  *port = dyn->y[index];
+                  return status::success;
+              }
 
-                return status::dynamics_unknown_port_id;
-            });
+              return status::dynamics_unknown_port_id;
+          });
     }
 
     status get_input_port_id(const model& mdl,
@@ -5236,26 +4960,24 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [ dyn_id = mdl.id, index,
-            port ]<typename DynamicsM>(DynamicsM & dyn_models)
-            ->status {
-                using Dynamics = typename DynamicsM::value_type;
+          [dyn_id = mdl.id, index, port]<typename DynamicsM>(
+            DynamicsM& dyn_models) -> status {
+              using Dynamics = typename DynamicsM::value_type;
 
-                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                    auto* dyn = dyn_models.try_to_get(dyn_id);
-                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                  auto* dyn = dyn_models.try_to_get(dyn_id);
+                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                    irt_return_if_fail(0 <= index &&
-                                         static_cast<size_t>(index) <
-                                           std::size(dyn->x),
-                                       status::dynamics_unknown_port_id);
+                  irt_return_if_fail(0 <= index && static_cast<size_t>(index) <
+                                                     std::size(dyn->x),
+                                     status::dynamics_unknown_port_id);
 
-                    *port = dyn->x[index];
-                    return status::success;
-                }
+                  *port = dyn->x[index];
+                  return status::success;
+              }
 
-                return status::dynamics_unknown_port_id;
-            });
+              return status::dynamics_unknown_port_id;
+          });
     }
 
 public:
@@ -5266,16 +4988,17 @@ public:
         irt_return_if_bad(model_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(message_list_allocator.init(messages_capacity * ten));
         irt_return_if_bad(input_port_list_allocator.init(model_capacity * ten));
-        irt_return_if_bad(output_port_list_allocator.init(model_capacity * ten));
+        irt_return_if_bad(
+          output_port_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
 
         irt_return_if_bad(sched.init(model_capacity));
 
         irt_return_if_bad(models.init(model_capacity));
-        irt_return_if_bad(init_messages.init(model_capacity ));
+        irt_return_if_bad(init_messages.init(model_capacity));
         irt_return_if_bad(messages.init(messages_capacity));
-        irt_return_if_bad(input_ports.init(model_capacity ));
-        irt_return_if_bad(output_ports.init(model_capacity ));
+        irt_return_if_bad(input_ports.init(model_capacity));
+        irt_return_if_bad(output_ports.init(model_capacity));
 
         irt_return_if_bad(none_models.init(model_capacity));
 
@@ -5290,10 +5013,10 @@ public:
         irt_return_if_bad(qss2_wsum_3_models.init(model_capacity));
         irt_return_if_bad(qss2_wsum_4_models.init(model_capacity));
 
-        irt_return_if_bad(integrator_models.init(
-          model_capacity, model_capacity * ten  ));
-        irt_return_if_bad(quantifier_models.init(
-          model_capacity, model_capacity * ten  ));
+        irt_return_if_bad(
+          integrator_models.init(model_capacity, model_capacity * ten));
+        irt_return_if_bad(
+          quantifier_models.init(model_capacity, model_capacity * ten));
         irt_return_if_bad(adder_2_models.init(model_capacity));
         irt_return_if_bad(adder_3_models.init(model_capacity));
         irt_return_if_bad(adder_4_models.init(model_capacity));
@@ -5766,8 +5489,7 @@ public:
     {
         return dispatch(
           mdl.type,
-          [ this, &mdl,
-            t ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
+          [this, &mdl, t]<typename DynamicsModels>(DynamicsModels& dyn_models) {
               return this->make_initialize(mdl, dyn_models.get(mdl.id), t);
           });
     }
@@ -5833,12 +5555,12 @@ public:
                            time t,
                            flat_list<output_port_id>& o) noexcept
     {
-        return dispatch(
-          mdl.type,
-          [ this, &mdl, t, &
-            o ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
-              return this->make_transition(mdl, dyn_models.get(mdl.id), t, o);
-          });
+        return dispatch(mdl.type,
+                        [this, &mdl, t, &o]<typename DynamicsModels>(
+                          DynamicsModels& dyn_models) {
+                            return this->make_transition(
+                              mdl, dyn_models.get(mdl.id), t, o);
+                        });
     }
 };
 

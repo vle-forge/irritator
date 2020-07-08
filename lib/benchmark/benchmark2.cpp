@@ -51,7 +51,7 @@ file_output_observe(const irt::observer& obs,
         return;
 
     auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    fmt::print(output->os, "{},{}\n", t, msg.to_real_64(0));
+    fmt::print(output->os, "{},{}\n", t, msg.real[0]);
 }
 
 
