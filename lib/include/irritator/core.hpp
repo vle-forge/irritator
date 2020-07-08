@@ -15,11 +15,79 @@
 
 #include <vector>
 
-// You can override the default assert handler by editing imconfig.h
+/*****************************************************************************
+ *
+ * Helper macros
+ *
+ ****************************************************************************/
+
 #ifndef irt_assert
 #include <cassert>
 #define irt_assert(_expr) assert(_expr)
 #endif
+
+#ifndef NDEBUG
+#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
+  __GNUC__ >= 2
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __asm__ __volatile__("int $03");                                       \
+    } while (0)
+#elif (defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86)
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __asm int 3h                                                           \
+    } while (0)
+#elif defined(_MSC_VER)
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __debugbreak();                                                        \
+    } while (0)
+#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&          \
+  __GNUC__ >= 2
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __asm__ __volatile__("bpt");                                           \
+    } while (0)
+#elif defined(__APPLE__)
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        __builtin_trap();                                                      \
+    } while (0)
+#else /* !__i386__ && !__alpha__ */
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+        raise(SIGTRAP);                                                        \
+    } while (0)
+#endif /* __i386__ */
+#else
+#define irt_breakpoint()                                                       \
+    do {                                                                       \
+    } while (0)
+#endif
+
+#define irt_bad_return(status__)                                               \
+    do {                                                                       \
+        irt_breakpoint();                                                      \
+        return status__;                                                       \
+    } while (0)
+
+#define irt_return_if_bad(expr__)                                              \
+    do {                                                                       \
+        auto status__ = (expr__);                                              \
+        if (status__ != status::success) {                                     \
+            irt_breakpoint();                                                  \
+            return status__;                                                   \
+        }                                                                      \
+    } while (0)
+
+#define irt_return_if_fail(expr__, status__)                                   \
+    do {                                                                       \
+        if (!(expr__)) {                                                       \
+            irt_breakpoint();                                                  \
+            return status__;                                                   \
+        }                                                                      \
+    } while (0)
 
 namespace irt {
 
@@ -130,76 +198,6 @@ is_status_equal(status s, Args... args) noexcept
     return ((s == args) || ... || false);
 }
 
-template<typename T, typename... Args>
-constexpr bool
-match(const T& s, Args... args) noexcept
-{
-    return ((s == args) || ... || false);
-}
-
-#ifndef NDEBUG
-#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
-  __GNUC__ >= 2
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        __asm__ __volatile__("int $03");                                       \
-    } while (0)
-#elif (defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        __asm int 3h                                                           \
-    } while (0)
-#elif defined(_MSC_VER)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        __debugbreak();                                                        \
-    } while (0)
-#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&          \
-  __GNUC__ >= 2
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        __asm__ __volatile__("bpt");                                           \
-    } while (0)
-#elif defined(__APPLE__)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        __builtin_trap();                                                      \
-    } while (0)
-#else /* !__i386__ && !__alpha__ */
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        raise(SIGTRAP);                                                        \
-    } while (0)
-#endif /* __i386__ */
-#else
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-    } while (0)
-#endif
-
-#define irt_bad_return(status__)                                               \
-    do {                                                                       \
-        irt_breakpoint();                                                      \
-        return status__;                                                       \
-    } while (0)
-
-#define irt_return_if_bad(expr__)                                              \
-    do {                                                                       \
-        auto status__ = (expr__);                                              \
-        if (status__ != status::success) {                                     \
-            irt_breakpoint();                                                  \
-            return status__;                                                   \
-        }                                                                      \
-    } while (0)
-
-#define irt_return_if_fail(expr__, status__)                                   \
-    do {                                                                       \
-        if (!(expr__)) {                                                       \
-            irt_breakpoint();                                                  \
-            return status__;                                                   \
-        }                                                                      \
-    } while (0)
-
 inline status
 check_return(status s) noexcept
 {
@@ -207,6 +205,20 @@ check_return(status s) noexcept
         irt_breakpoint();
 
     return s;
+}
+
+template<typename T, typename... Args>
+constexpr bool
+match(const T& s, Args... args) noexcept
+{
+    return ((s == args) || ... || false);
+}
+
+template<class T, class... Rest>
+constexpr bool
+are_all_same() noexcept
+{
+    return (std::is_same_v<T, Rest> && ...);
 }
 
 /*****************************************************************************
@@ -450,13 +462,6 @@ public:
  * value
  *
  ****************************************************************************/
-
-template<class T, class... Rest>
-constexpr bool
-are_all_same() noexcept
-{
-    return (std::is_same_v<T, Rest> && ...);
-}
 
 struct message
 {
