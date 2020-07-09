@@ -120,8 +120,17 @@ private:
             { "none", dynamics_type::none },
             { "quantifier", dynamics_type::quantifier },
             { "qss1_integrator", dynamics_type::qss1_integrator },
+            { "qss1_multiplier", dynamics_type::qss1_multiplier },
+            { "qss1_cross", dynamics_type::qss1_cross },
+            { "qss1_sum_2", dynamics_type::qss1_sum_2 },
+            { "qss1_sum_3", dynamics_type::qss1_sum_3 },
+            { "qss1_sum_4", dynamics_type::qss1_sum_4 },
+            { "qss1_wsum_2", dynamics_type::qss1_wsum_2 },
+            { "qss1_wsum_3", dynamics_type::qss1_wsum_3 },
+            { "qss1_wsum_4", dynamics_type::qss1_wsum_4 },
             { "qss2_integrator", dynamics_type::qss2_integrator },
             { "qss2_multiplier", dynamics_type::qss2_multiplier },
+            { "qss2_cross", dynamics_type::qss2_cross },
             { "qss2_sum_2", dynamics_type::qss2_sum_2 },
             { "qss2_sum_3", dynamics_type::qss2_sum_3 },
             { "qss2_sum_4", dynamics_type::qss2_sum_4 },
@@ -207,6 +216,52 @@ private:
         return !!(is >> x1 >> x2);
     }
 
+    bool read(qss1_multiplier& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss1_sum_2& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss1_sum_3& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss1_sum_4& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss1_wsum_2& dyn) noexcept
+    {
+        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
+        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+
+        return !!(is >> x1 >> x2);
+    }
+
+    bool read(qss1_wsum_3& dyn) noexcept
+    {
+        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
+        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+
+        return !!(is >> x1 >> x2 >> x3);
+    }
+
+    bool read(qss1_wsum_4& dyn) noexcept
+    {
+        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
+        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+        double& x4 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+
+        return !!(is >> x1 >> x2 >> x3 >> x4);
+    }
     bool read(qss2_multiplier& /*dyn*/) noexcept
     {
         return true;
@@ -342,6 +397,16 @@ private:
         return !!(is >> dyn.default_value);
     }
 
+    bool read(qss1_cross& dyn) noexcept
+    {
+        return !!(is >> dyn.default_threshold);
+    }
+
+    bool read(qss2_cross& dyn) noexcept
+    {
+        return !!(is >> dyn.default_threshold);
+    }
+
     bool read(cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
@@ -458,6 +523,45 @@ private:
            << '\n';
     }
 
+    void write(const qss1_multiplier& /*dyn*/) noexcept
+    {
+        os << "qss1_multiplier\n";
+    }
+
+    void write(const qss1_sum_2& /*dyn*/) noexcept
+    {
+        os << "qss1_sum_2\n";
+    }
+
+    void write(const qss1_sum_3& /*dyn*/) noexcept
+    {
+        os << "qss1_sum_3\n";
+    }
+
+    void write(const qss1_sum_4& /*dyn*/) noexcept
+    {
+        os << "qss1_sum_4\n";
+    }
+
+    void write(const qss1_wsum_2& dyn) noexcept
+    {
+        os << "qss1_wsum_2 " << dyn.default_input_coeffs[0] << ' '
+           << dyn.default_input_coeffs[1] << '\n';
+    }
+
+    void write(const qss1_wsum_3& dyn) noexcept
+    {
+        os << "qss1_wsum_3 " << dyn.default_input_coeffs[0] << ' '
+           << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
+           << '\n';
+    }
+
+    void write(const qss1_wsum_4& dyn) noexcept
+    {
+        os << "qss1_wsum_3 " << dyn.default_input_coeffs[0] << ' '
+           << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
+           << ' ' << dyn.default_input_coeffs[3] << '\n';
+    }
     void write(const qss2_multiplier& /*dyn*/) noexcept
     {
         os << "qss2_multiplier\n";
@@ -580,6 +684,16 @@ private:
     void write(const constant& dyn) noexcept
     {
         os << "constant " << dyn.default_value << '\n';
+    }
+
+    void write(const qss1_cross& dyn) noexcept
+    {
+        os << "qss1_cross " << dyn.default_threshold << '\n';
+    }
+
+    void write(const qss2_cross& dyn) noexcept
+    {
+        os << "qss2_cross " << dyn.default_threshold << '\n';
     }
 
     void write(const cross& dyn) noexcept

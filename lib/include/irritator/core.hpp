@@ -2675,9 +2675,18 @@ enum class dynamics_type : i8
     none,
 
     qss1_integrator,
+    qss1_multiplier,
+    qss1_cross,
+    qss1_sum_2,
+    qss1_sum_3,
+    qss1_sum_4,
+    qss1_wsum_2,
+    qss1_wsum_3,
+    qss1_wsum_4,
 
     qss2_integrator,
     qss2_multiplier,
+    qss2_cross,
     qss2_sum_2,
     qss2_sum_3,
     qss2_sum_4,
@@ -2693,6 +2702,7 @@ enum class dynamics_type : i8
     mult_2,
     mult_3,
     mult_4,
+
     counter,
     generator,
     constant,
@@ -3113,7 +3123,6 @@ struct qss1_integrator
     double default_X = 0.;
     double default_dQ = 0.01;
     double X;
-    double dQ;
     double q;
     double u;
     time sigma = time_domain<time>::zero;
@@ -3130,7 +3139,6 @@ struct qss1_integrator
       : default_X(other.default_X)
       , default_dQ(other.default_dQ)
       , X(other.X)
-      , dQ(other.dQ)
       , q(other.q)
       , u(other.u)
       , sigma(other.sigma)
@@ -3145,8 +3153,7 @@ struct qss1_integrator
                            status::model_integrator_X_error);
 
         X = default_X;
-        dQ = default_dQ;
-        q = std::floor(X / dQ) * dQ;
+        q = std::floor(X / default_dQ) * default_dQ;
         u = 0.;
 
         sigma = time_domain<time>::zero;
@@ -3163,59 +3170,49 @@ struct qss1_integrator
             if (u == 0.)
                 sigma = time_domain<time>::infinity;
             else if (u > 0.)
-                sigma = (q + dQ - X) / u;
+                sigma = (q + default_dQ - X) / u;
             else
-                sigma = (q - dQ - X) / u;
+                sigma = (q - default_dQ - X) / u;
         }
 
+        return status::success;
+    }
+
+    status reset(const double value_reset) noexcept
+    {
+        X = value_reset;
+        q = X;
+        sigma = time_domain<time>::zero;
         return status::success;
     }
 
     status internal() noexcept
     {
-        if (u == 0.) {
-            sigma = time_domain<time>::infinity;
-        } else {
-            X += sigma * u;
-            sigma = dQ / std::abs(u);
-        }
-
+        X += sigma * u;
         q = X;
+
+        sigma =
+          u == 0. ? time_domain<time>::infinity : default_dQ / std::abs(u);
 
         return status::success;
     }
 
     status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
+                      time t,
                       time e,
                       time r) noexcept
     {
         auto& port_x = input_ports.get(x[port_x_dot]);
         auto& port_r = input_ports.get(x[port_reset]);
-        double value_x = 0.;
-        bool reset = false;
 
-        for (const auto& msg : port_x.messages) {
-            irt_assert(msg.size() == 1);
-
-            value_x = msg.real[0];
-        }
-
-        for (const auto& msg : port_r.messages) {
-            irt_assert(msg.size() == 1);
-
-            X = msg.real[0];
-            reset = true;
-        }
-
-        if (port_x.messages.empty() && !reset) {
+        if (port_x.messages.empty() && port_r.messages.empty() && r == 0.0) {
             irt_return_if_bad(internal());
         } else {
-            if (time_domain<time>::is_zero(r))
-                irt_return_if_bad(internal());
-
-            if (!reset)
-                irt_return_if_bad(external(value_x, e));
+            if (!port_r.messages.empty()) {
+                irt_return_if_bad(reset(port_r.messages.front()[0]));
+            } else {
+                irt_return_if_bad(external(port_x.messages.front()[0], e));
+            }
         }
 
         return status::success;
@@ -3226,7 +3223,7 @@ struct qss1_integrator
     {
         auto& port = output_ports.get(y[0]);
 
-        port.messages.emplace_front(u == 0 ? q : q + dQ * u / std::abs(u));
+        port.messages.emplace_front(X + u * sigma);
 
         return status::success;
     }
@@ -3249,9 +3246,8 @@ struct qss2_integrator
     input_port_id x[2];
     output_port_id y[1];
     double default_X = 0.;
-    double default_dQ = 0.;
+    double default_dQ = 0.01;
     double X;
-    double dQ;
     double u;
     double mu;
     double q;
@@ -3270,7 +3266,6 @@ struct qss2_integrator
       : default_X(other.default_X)
       , default_dQ(other.default_dQ)
       , X(other.X)
-      , dQ(other.dQ)
       , u(other.u)
       , mu(other.mu)
       , q(other.q)
@@ -3287,11 +3282,10 @@ struct qss2_integrator
                            status::model_integrator_X_error);
 
         X = default_X;
-        dQ = default_dQ;
 
         u = 0.;
         mu = 0.;
-        q = default_X;
+        q = X;
         mq = 0.;
 
         sigma = time_domain<time>::zero;
@@ -3303,7 +3297,7 @@ struct qss2_integrator
                     const double value_slope,
                     const time e) noexcept
     {
-        X += u * e + mu / 2.0 * e * e;
+        X += (u * e) + (mu / 2.0) * (e * e);
         u = value_x;
         mu = value_slope;
 
@@ -3311,7 +3305,7 @@ struct qss2_integrator
             q += mq * e;
             const double a = mu / 2;
             const double b = u - mq;
-            double c = X - q + dQ;
+            double c = X - q + default_dQ;
             double s;
             sigma = time_domain<time>::infinity;
 
@@ -3321,7 +3315,7 @@ struct qss2_integrator
                     if (s > 0)
                         sigma = s;
 
-                    c = X - q - dQ;
+                    c = X - q - default_dQ;
                     s = -c / b;
                     if ((s > 0) && (s < sigma))
                         sigma = s;
@@ -3335,7 +3329,7 @@ struct qss2_integrator
                 if ((s > 0.) && (s < sigma))
                     sigma = s;
 
-                c = X - q - dQ;
+                c = X - q - default_dQ;
                 s = (-b + std::sqrt(b * b - 4. * a * c)) / 2. / a;
                 if ((s > 0.) && (s < sigma))
                     sigma = s;
@@ -3345,8 +3339,8 @@ struct qss2_integrator
                     sigma = s;
             }
 
-            if (((X - q) > dQ) || ((q - X) > dQ))
-                sigma = 0;
+            if (((X - q) > default_dQ) || ((q - X) > default_dQ))
+                sigma = time_domain<time>::zero;
         }
 
         return status::success;
@@ -3360,8 +3354,16 @@ struct qss2_integrator
         mq = u;
 
         sigma = mu == 0. ? time_domain<time>::infinity
-                         : std::sqrt(2. * dQ / std::abs(mu));
+                         : std::sqrt(2. * default_dQ / std::abs(mu));
 
+        return status::success;
+    }
+
+    status reset(const double value_reset) noexcept
+    {
+        X = value_reset;
+        q = X;
+        sigma = time_domain<time>::zero;
         return status::success;
     }
 
@@ -3372,32 +3374,15 @@ struct qss2_integrator
     {
         auto& port_x = input_ports.get(x[port_x_dot]);
         auto& port_r = input_ports.get(x[port_reset]);
-        double value_x = 0.;
-        double value_slope = 0.;
-        bool reset = false;
 
-        for (const auto& msg : port_x.messages) {
-            irt_assert(msg.size() == 2);
-
-            value_x = msg.real[0];
-            value_slope = msg.real[1];
-        }
-
-        for (const auto& msg : port_r.messages) {
-            irt_assert(msg.size() == 1);
-
-            X = msg.real[0];
-            reset = true;
-        }
-
-        if (port_x.messages.empty() && !reset) {
+        if (port_x.messages.empty() && port_r.messages.empty() && r == 0.0)
             irt_return_if_bad(internal());
-        } else {
-            if (time_domain<time>::is_zero(r))
-                irt_return_if_bad(internal());
-
-            if (!reset)
-                irt_return_if_bad(external(value_x, value_slope, e));
+        else {
+            if (!port_r.messages.empty())
+                irt_return_if_bad(reset(port_r.messages.front()[0]));
+            else
+                irt_return_if_bad(external(
+                  port_x.messages.front()[0], port_x.messages.front()[1], e));
         }
 
         return status::success;
@@ -3420,27 +3405,24 @@ struct qss2_integrator
     }
 };
 
-template<size_t PortNumber>
-struct qss2_sum
+template<int QssLevel, int PortNumber>
+struct abstract_sum
 {
-    static_assert(PortNumber > 1,
-                  "qss2_sum model need at least two input port");
+    static_assert(1 <= QssLevel && QssLevel <= 2, "Only for Qss1 or Qss2");
+    static_assert(PortNumber > 1, "sum model need at least two input port");
 
     model_id id;
     input_port_id x[PortNumber];
     output_port_id y[1];
     time sigma;
 
-    double values[PortNumber];
-    double slopes[PortNumber];
+    double values[QssLevel * PortNumber];
 
-    qss2_sum() noexcept = default;
+    abstract_sum() noexcept = default;
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        std::fill_n(values, PortNumber, 0.);
-        std::fill_n(slopes, PortNumber, 0.);
-
+        std::fill_n(values, QssLevel * PortNumber, 0.0);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -3449,15 +3431,25 @@ struct qss2_sum
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        double value = 0.;
-        double slope = 0.;
+        if constexpr (QssLevel == 1) {
+            double value = 0.;
+            for (int i = 0; i != PortNumber; ++i)
+                value += values[i];
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            value += values[i];
-            slope += slopes[i];
+            output_ports.get(y[0]).messages.emplace_front(value);
         }
 
-        output_ports.get(y[0]).messages.emplace_front(value, slope);
+        if constexpr (QssLevel == 2) {
+            double value = 0.;
+            double slope = 0.;
+
+            for (int i = 0; i != PortNumber; ++i) {
+                value += values[i];
+                slope += values[i + PortNumber];
+            }
+
+            output_ports.get(y[0]).messages.emplace_front(value, slope);
+        }
 
         return status::success;
     }
@@ -3469,16 +3461,30 @@ struct qss2_sum
     {
         bool message = false;
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            auto& i_port = input_ports.get(x[i]);
+        if constexpr (QssLevel == 1) {
+            for (size_t i = 0; i != PortNumber; ++i) {
+                auto& i_port = input_ports.get(x[i]);
 
-            if (i_port.messages.empty()) {
-                values[i] += slopes[i] * e;
-            } else {
                 for (const auto& msg : input_ports.get(x[i]).messages) {
                     values[i] = msg[0];
-                    slopes[i] = msg.size() > 1 ? msg[1] : 0.0;
                     message = true;
+                }
+            }
+        }
+
+        if constexpr (QssLevel == 2) {
+            for (size_t i = 0; i != PortNumber; ++i) {
+                auto& i_port = input_ports.get(x[i]);
+
+                if (i_port.messages.empty()) {
+                    /* Compute the current value with latest value and slope */
+                    values[i] += values[i + PortNumber] * e;
+                } else {
+                    for (const auto& msg : input_ports.get(x[i]).messages) {
+                        values[i] = msg[0];
+                        values[i + PortNumber] = msg[1];
+                        message = true;
+                    }
                 }
             }
         }
@@ -3490,34 +3496,55 @@ struct qss2_sum
 
     message observation(time /*t*/) const noexcept
     {
-        double value = 0.;
-        double slope = 0.;
+        if constexpr (QssLevel == 1) {
+            double value = 0.;
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            value += values[i];
-            slope += slopes[i];
+            for (size_t i = 0; i != PortNumber; ++i)
+                value += values[i];
+
+            return message{ value };
         }
 
-        return message{ value, slope };
+        if constexpr (QssLevel == 2) {
+            double value = 0.;
+            double slope = 0.;
+
+            for (size_t i = 0; i != PortNumber; ++i) {
+                value += values[i];
+                slope += values[i + PortNumber];
+            }
+
+            return message{ value, slope };
+        }
     }
 };
 
-struct qss2_multiplier
+using qss1_sum_2 = abstract_sum<1, 2>;
+using qss1_sum_3 = abstract_sum<1, 3>;
+using qss1_sum_4 = abstract_sum<1, 4>;
+using qss2_sum_2 = abstract_sum<2, 2>;
+using qss2_sum_3 = abstract_sum<2, 3>;
+using qss2_sum_4 = abstract_sum<2, 4>;
+
+template<int QssLevel, int PortNumber>
+struct abstract_wsum
 {
+    static_assert(1 <= QssLevel && QssLevel <= 2, "Only for Qss1 or Qss2");
+    static_assert(PortNumber > 1, "sum model need at least two input port");
+
     model_id id;
-    input_port_id x[2];
+    input_port_id x[PortNumber];
     output_port_id y[1];
     time sigma;
 
-    double values[2];
-    double slopes[2];
+    double default_input_coeffs[PortNumber] = { 0 };
+    double values[QssLevel * PortNumber];
 
-    qss2_multiplier() noexcept = default;
+    abstract_wsum() noexcept = default;
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        values[0] = values[1] = slopes[0] = slopes[1] = 0.;
-
+        std::fill_n(values, QssLevel * PortNumber, 0.);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -3526,8 +3553,137 @@ struct qss2_multiplier
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(
-          values[0] * values[1], slopes[0] * values[1] + slopes[1] * values[0]);
+        if constexpr (QssLevel == 1) {
+            double value = 0.0;
+
+            for (int i = 0; i != PortNumber; ++i)
+                value += default_input_coeffs[i] * values[i];
+
+            output_ports.get(y[0]).messages.emplace_front(value);
+        }
+
+        if constexpr (QssLevel == 2) {
+            double value = 0.;
+            double slope = 0.;
+
+            for (int i = 0; i != PortNumber; ++i) {
+                value += default_input_coeffs[i] * values[i];
+                slope += default_input_coeffs[i] * values[i + PortNumber];
+            }
+
+            output_ports.get(y[0]).messages.emplace_front(value, slope);
+        }
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time e,
+                      time /*r*/) noexcept
+    {
+        bool message = false;
+
+        if constexpr (QssLevel == 1) {
+            for (size_t i = 0; i != PortNumber; ++i) {
+                auto& i_port = input_ports.get(x[i]);
+
+                for (const auto& msg : input_ports.get(x[i]).messages) {
+                    values[i] = msg[0];
+                    message = true;
+                }
+            }
+        }
+
+        if constexpr (QssLevel == 2) {
+            for (size_t i = 0; i != PortNumber; ++i) {
+                auto& i_port = input_ports.get(x[i]);
+
+                if (i_port.messages.empty()) {
+                    /* Compute the current value with latest value and slope */
+                    values[i] += values[i + PortNumber] * e;
+                } else {
+                    for (const auto& msg : input_ports.get(x[i]).messages) {
+                        values[i] = msg[0];
+                        values[i + PortNumber] = msg.size() > 1 ? msg[1] : 0.0;
+                        message = true;
+                    }
+                }
+            }
+        }
+
+        sigma = message ? time_domain<time>::zero : time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            double value = 0.;
+
+            for (int i = 0; i != PortNumber; ++i)
+                value += default_input_coeffs[i] * values[i];
+
+            return message{ value };
+        }
+
+        if constexpr (QssLevel == 2) {
+            double value = 0.;
+            double slope = 0.;
+
+            for (int i = 0; i != PortNumber; ++i) {
+                value += default_input_coeffs[i] * values[i];
+                slope += default_input_coeffs[i] * values[i + PortNumber];
+            }
+
+            return message{ value, slope };
+        }
+    }
+};
+
+using qss1_wsum_2 = abstract_wsum<1, 2>;
+using qss1_wsum_3 = abstract_wsum<1, 3>;
+using qss1_wsum_4 = abstract_wsum<1, 4>;
+using qss2_wsum_2 = abstract_wsum<2, 2>;
+using qss2_wsum_3 = abstract_wsum<2, 3>;
+using qss2_wsum_4 = abstract_wsum<2, 4>;
+
+template<int QssLevel>
+struct abstract_multiplier
+{
+    static_assert(1 <= QssLevel && QssLevel <= 2, "Only for Qss1 or Qss2");
+
+    model_id id;
+    input_port_id x[2];
+    output_port_id y[1];
+    time sigma;
+
+    double values[QssLevel * 2];
+
+    abstract_multiplier() noexcept = default;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        std::fill_n(values, QssLevel * 2, 0.0);
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            output_ports.get(y[0]).messages.emplace_front(values[0] *
+                                                          values[1]);
+        }
+
+        if constexpr (QssLevel == 2) {
+            output_ports.get(y[0]).messages.emplace_front(
+              values[0] * values[1],
+              values[2 + 0] * values[1] + values[2 + 1] * values[0]);
+        }
 
         return status::success;
     }
@@ -3542,57 +3698,66 @@ struct qss2_multiplier
         sigma = time_domain<time>::infinity;
 
         for (const auto& msg : input_ports.get(x[0]).messages) {
-            values[0] = msg.real[0];
-            slopes[0] = msg.size() > 1 ? msg.real[1] : 0.0;
-            message_port_0 = true;
             sigma = time_domain<time>::zero;
+            message_port_0 = true;
+            values[0] = msg[0];
+
+            if constexpr (QssLevel == 2)
+                values[2 + 0] = msg.size() > 1 ? msg[1] : 0.0;
         }
 
         for (const auto& msg : input_ports.get(x[1]).messages) {
-            values[1] = msg.real[0];
-            slopes[1] = msg.size() > 1 ? msg.real[1] : 0.0;
             message_port_1 = true;
             sigma = time_domain<time>::zero;
+            values[1] = msg[0];
+
+            if constexpr (QssLevel == 2)
+                values[2 + 1] = msg.size() > 1 ? msg[1] : 0.0;
         }
 
-        if (!message_port_0)
-            values[0] += e * slopes[0];
+        if constexpr (QssLevel == 2) {
+            if (!message_port_0)
+                values[0] += e * values[2 + 0];
 
-        if (!message_port_1)
-            values[1] += e * slopes[1];
+            if (!message_port_1)
+                values[1] += e * values[2 + 1];
+        }
 
         return status::success;
     }
 
     message observation(time /*t*/) const noexcept
     {
-        return { values[0] * values[1],
-                 slopes[0] * values[1] + slopes[1] * values[0] };
+        if constexpr (QssLevel == 1)
+            return { values[0] * values[1] };
+
+        if constexpr (QssLevel == 2)
+            return { values[0] * values[1],
+                     values[2 + 0] * values[1] + values[2 + 1] * values[0] };
     }
 };
 
-template<size_t PortNumber>
-struct qss2_wsum
+using qss1_multiplier = abstract_multiplier<1>;
+using qss2_multiplier = abstract_multiplier<2>;
+
+template<int QssLevel>
+struct abstract_wmultiplier
 {
-    static_assert(PortNumber > 1,
-                  "qss2_wsum model need at least two input port");
+    static_assert(1 <= QssLevel && QssLevel <= 2, "Only for Qss1 or Qss2");
 
     model_id id;
-    input_port_id x[PortNumber];
+    input_port_id x[2];
     output_port_id y[1];
     time sigma;
 
-    double default_input_coeffs[PortNumber] = { 0 };
-    double values[PortNumber];
-    double slopes[PortNumber];
+    double default_input_coeffs[2] = { 0 };
+    double values[QssLevel * 2];
 
-    qss2_wsum() noexcept = default;
+    abstract_wmultiplier() noexcept = default;
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        std::fill_n(values, PortNumber, 0.);
-        std::fill_n(slopes, PortNumber, 0.);
-
+        std::fill_n(values, QssLevel * 2, 0.0);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -3601,15 +3766,18 @@ struct qss2_wsum
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        double value = 0.;
-        double slope = 0.;
-
-        for (size_t i = 0; i != PortNumber; ++i) {
-            value += default_input_coeffs[i] * values[i];
-            slope += default_input_coeffs[i] * slopes[i];
+        if constexpr (QssLevel == 1) {
+            output_ports.get(y[0]).messages.emplace_front(
+              default_input_coeffs[0] * values[0] * default_input_coeffs[1] *
+              values[1]);
         }
 
-        output_ports.get(y[0]).messages.emplace_front(value, slope);
+        if constexpr (QssLevel == 2) {
+            output_ports.get(y[0]).messages.emplace_front(
+              default_input_coeffs[0] * values[0] * default_input_coeffs[1] *
+                values[1],
+              values[2 + 0] * values[1] + values[2 + 1] * values[0]);
+        }
 
         return status::success;
     }
@@ -3619,38 +3787,48 @@ struct qss2_wsum
                       time e,
                       time /*r*/) noexcept
     {
-        bool message = false;
+        bool message_port_0 = false;
+        bool message_port_1 = false;
+        sigma = time_domain<time>::infinity;
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            auto& i_port = input_ports.get(x[i]);
+        for (const auto& msg : input_ports.get(x[0]).messages) {
+            sigma = time_domain<time>::zero;
+            message_port_0 = true;
+            values[0] = msg[0];
 
-            if (i_port.messages.empty()) {
-                values[i] += slopes[i] * e;
-            } else {
-                for (const auto& msg : input_ports.get(x[i]).messages) {
-                    values[i] = msg[0];
-                    slopes[i] = msg.size() > 1 ? msg[1] : 0.0;
-                    message = true;
-                }
-            }
+            if constexpr (QssLevel == 2)
+                values[2 + 0] = msg.size() > 1 ? msg[1] : 0.0;
         }
 
-        sigma = message ? time_domain<time>::zero : time_domain<time>::infinity;
+        for (const auto& msg : input_ports.get(x[1]).messages) {
+            message_port_1 = true;
+            sigma = time_domain<time>::zero;
+            values[1] = msg[0];
+
+            if constexpr (QssLevel == 2)
+                values[2 + 1] = msg.size() > 1 ? msg[1] : 0.0;
+        }
+
+        if constexpr (QssLevel == 2) {
+            if (!message_port_0)
+                values[0] += e * values[2 + 0];
+
+            if (!message_port_1)
+                values[1] += e * values[2 + 1];
+        }
 
         return status::success;
     }
 
     message observation(time /*t*/) const noexcept
     {
-        double value = 0.;
-        double slope = 0.;
+        if constexpr (QssLevel == 1)
+            return { values[0] * values[1] };
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            value += default_input_coeffs[i] * values[i];
-            slope += default_input_coeffs[i] * slopes[i];
-        }
-
-        return message{ value, slope };
+        if constexpr (QssLevel == 2)
+            return { default_input_coeffs[0] * values[0] *
+                       default_input_coeffs[1] * values[1],
+                     values[2 + 0] * values[1] + values[2 + 1] * values[0] };
     }
 };
 
@@ -4472,6 +4650,211 @@ struct cross
     }
 };
 
+template<size_t QssLevel>
+struct abstract_cross
+{
+    static_assert(1 <= QssLevel && QssLevel <= 2, "Only Qss1 or Qss2");
+
+    model_id id;
+    input_port_id x[4];
+    output_port_id y[2];
+    time sigma;
+
+    double default_threshold = 0.0;
+
+    double threshold;
+    double if_value[QssLevel];
+    double else_value[QssLevel];
+    double value[QssLevel];
+    double result[QssLevel];
+    double event;
+
+    enum port_name
+    {
+        port_value,
+        port_if_value,
+        port_else_value,
+        port_threshold
+    };
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        threshold = default_threshold;
+
+        value[0] = threshold - 1.0;
+        if_value[0] = 0.0;
+        else_value[0] = 0.0;
+        result[0] = 0.0;
+        event = 0.0;
+
+        if constexpr (QssLevel == 2) {
+            value[1] = 0.0;
+            if_value[1] = 0.0;
+            else_value[1] = 0.0;
+            result[1] = 0.0;
+        }
+
+        sigma = time_domain<time>::zero;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time e,
+                      time /*r*/) noexcept
+    {
+        auto& p_threshold = input_ports.get(x[port_threshold]);
+        auto& p_if_value = input_ports.get(x[port_if_value]);
+        auto& p_else_value = input_ports.get(x[port_else_value]);
+        auto& p_value = input_ports.get(x[port_value]);
+
+        bool something_change = false;
+        bool need_lambda = false;
+        event = 0.0;
+
+        for (const auto& msg : p_threshold.messages) {
+            if (threshold != msg[0]) {
+                threshold = msg.real[0];
+                something_change = true;
+            }
+        }
+
+        if (!p_if_value.messages.empty()) {
+            for (const auto& msg : p_if_value.messages) {
+                if (if_value[0] != msg[0]) {
+                    need_lambda = true;
+                    something_change = true;
+                    if_value[0] = msg[0];
+                    if constexpr (QssLevel == 2)
+                        if_value[1] = msg.size() > 1 ? msg[1] : 0.0;
+                }
+            }
+        } else {
+            if constexpr (QssLevel == 2) {
+                const double old = if_value[0];
+                if_value[0] += if_value[1] * e;
+                if (if_value[0] != old) {
+                    need_lambda = true;
+                    something_change = true;
+                }
+            }
+        }
+
+        if (!p_else_value.messages.empty()) {
+            for (const auto& msg : p_else_value.messages) {
+                if (else_value[0] != msg[0]) {
+                    something_change = true;
+                    need_lambda = true;
+                    else_value[0] = msg[0];
+                    if constexpr (QssLevel == 2)
+                        else_value[1] = msg.size() > 1 ? msg[1] : 0.0;
+                }
+            }
+        } else {
+            if constexpr (QssLevel == 2) {
+                const auto old = else_value[0];
+                else_value[0] += else_value[1] * e;
+                if (else_value[0] != old) {
+                    something_change = true;
+                    need_lambda = true;
+                }
+            }
+        }
+
+        if (!p_value.messages.empty()) {
+            for (const auto& msg : p_value.messages) {
+                if constexpr (QssLevel == 1)
+                    if (value[0] != msg[0]) {
+                        value[0] = msg.real[0];
+                        something_change = true;
+                    }
+
+                if constexpr (QssLevel == 2) {
+                    if (value[0] != msg[0]) {
+                        value[0] = msg.real[0];
+                        value[1] = msg.real[1];
+                        something_change = true;
+                    }
+                }
+            }
+        } else {
+            if constexpr (QssLevel == 2) {
+                const auto old = value[0];
+                value[0] += value[1] * e;
+                if (old != value[0])
+                    something_change = true;
+            }
+        }
+
+        if (something_change) {
+            event = 0.0;
+            if (value[0] >= threshold) {
+                need_lambda = true;
+                else_value[0] = if_value[0];
+
+                if constexpr (QssLevel == 2)
+                    else_value[1] = if_value[1];
+
+                event = 1.0;
+            }
+        }
+
+        // if (result[0] != else_value[0] || event > 0.0) {
+        result[0] = else_value[0];
+        if constexpr (QssLevel == 2)
+            result[1] = else_value[1];
+
+        // sigma = time_domain<time>::zero;
+        // return status::success;
+        //}
+
+        if constexpr (QssLevel == 1) {
+            sigma = need_lambda ? time_domain<time>::zero
+                                : time_domain<time>::infinity;
+        }
+
+        if constexpr (QssLevel == 2) {
+            if (need_lambda) {
+                sigma = time_domain<time>::zero;
+            //} else if (value[1]) {
+            //    const auto next = (threshold - value[0]) / value[1];
+            //    if (next >= 0.0)
+            //        sigma = next;
+            //    else
+            //        sigma = time_domain<time>::infinity;
+            } else
+                sigma = time_domain<time>::infinity;
+        }
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            output_ports.get(y[0]).messages.emplace_front(result[0]);
+            output_ports.get(y[1]).messages.emplace_front(event);
+        }
+
+        if constexpr (QssLevel == 2) {
+            output_ports.get(y[0]).messages.emplace_front(result[0], result[1]);
+            output_ports.get(y[1]).messages.emplace_front(event);
+        }
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(value[0], if_value, else_value);
+    }
+};
+
+using qss1_cross = abstract_cross<1>;
+using qss2_cross = abstract_cross<2>;
+
 inline double
 square_time_function(double t) noexcept
 {
@@ -4536,13 +4919,6 @@ using adder_4 = adder<4>;
 using mult_2 = mult<2>;
 using mult_3 = mult<3>;
 using mult_4 = mult<4>;
-
-using qss2_sum_2 = qss2_sum<2>;
-using qss2_sum_3 = qss2_sum<3>;
-using qss2_sum_4 = qss2_sum<4>;
-using qss2_wsum_2 = qss2_wsum<2>;
-using qss2_wsum_3 = qss2_wsum<3>;
-using qss2_wsum_4 = qss2_wsum<4>;
 
 using accumulator_2 = accumulator<2>;
 
@@ -4683,9 +5059,18 @@ struct simulation
     data_array<none, dynamics_id> none_models;
 
     data_array<qss1_integrator, dynamics_id> qss1_integrator_models;
+    data_array<qss1_multiplier, dynamics_id> qss1_multiplier_models;
+    data_array<qss1_cross, dynamics_id> qss1_cross_models;
+    data_array<qss1_sum_2, dynamics_id> qss1_sum_2_models;
+    data_array<qss1_sum_3, dynamics_id> qss1_sum_3_models;
+    data_array<qss1_sum_4, dynamics_id> qss1_sum_4_models;
+    data_array<qss1_wsum_2, dynamics_id> qss1_wsum_2_models;
+    data_array<qss1_wsum_3, dynamics_id> qss1_wsum_3_models;
+    data_array<qss1_wsum_4, dynamics_id> qss1_wsum_4_models;
 
     data_array<qss2_integrator, dynamics_id> qss2_integrator_models;
     data_array<qss2_multiplier, dynamics_id> qss2_multiplier_models;
+    data_array<qss2_cross, dynamics_id> qss2_cross_models;
     data_array<qss2_sum_2, dynamics_id> qss2_sum_2_models;
     data_array<qss2_sum_3, dynamics_id> qss2_sum_3_models;
     data_array<qss2_sum_4, dynamics_id> qss2_sum_4_models;
@@ -4725,11 +5110,29 @@ struct simulation
 
         case dynamics_type::qss1_integrator:
             return f(qss1_integrator_models);
+        case dynamics_type::qss1_multiplier:
+            return f(qss1_multiplier_models);
+        case dynamics_type::qss1_cross:
+            return f(qss1_cross_models);
+        case dynamics_type::qss1_sum_2:
+            return f(qss1_sum_2_models);
+        case dynamics_type::qss1_sum_3:
+            return f(qss1_sum_3_models);
+        case dynamics_type::qss1_sum_4:
+            return f(qss1_sum_4_models);
+        case dynamics_type::qss1_wsum_2:
+            return f(qss1_wsum_2_models);
+        case dynamics_type::qss1_wsum_3:
+            return f(qss1_wsum_3_models);
+        case dynamics_type::qss1_wsum_4:
+            return f(qss1_wsum_4_models);
 
         case dynamics_type::qss2_integrator:
             return f(qss2_integrator_models);
         case dynamics_type::qss2_multiplier:
             return f(qss2_multiplier_models);
+        case dynamics_type::qss2_cross:
+            return f(qss2_cross_models);
         case dynamics_type::qss2_sum_2:
             return f(qss2_sum_2_models);
         case dynamics_type::qss2_sum_3:
@@ -4787,11 +5190,29 @@ struct simulation
 
         case dynamics_type::qss1_integrator:
             return f(qss1_integrator_models);
+        case dynamics_type::qss1_multiplier:
+            return f(qss1_multiplier_models);
+        case dynamics_type::qss1_cross:
+            return f(qss1_cross_models);
+        case dynamics_type::qss1_sum_2:
+            return f(qss1_sum_2_models);
+        case dynamics_type::qss1_sum_3:
+            return f(qss1_sum_3_models);
+        case dynamics_type::qss1_sum_4:
+            return f(qss1_sum_4_models);
+        case dynamics_type::qss1_wsum_2:
+            return f(qss1_wsum_2_models);
+        case dynamics_type::qss1_wsum_3:
+            return f(qss1_wsum_3_models);
+        case dynamics_type::qss1_wsum_4:
+            return f(qss1_wsum_4_models);
 
         case dynamics_type::qss2_integrator:
             return f(qss2_integrator_models);
         case dynamics_type::qss2_multiplier:
             return f(qss2_multiplier_models);
+        case dynamics_type::qss2_cross:
+            return f(qss2_cross_models);
         case dynamics_type::qss2_sum_2:
             return f(qss2_sum_2_models);
         case dynamics_type::qss2_sum_3:
@@ -5008,9 +5429,18 @@ public:
         irt_return_if_bad(none_models.init(model_capacity));
 
         irt_return_if_bad(qss1_integrator_models.init(model_capacity));
+        irt_return_if_bad(qss1_multiplier_models.init(model_capacity));
+        irt_return_if_bad(qss1_cross_models.init(model_capacity));
+        irt_return_if_bad(qss1_sum_2_models.init(model_capacity));
+        irt_return_if_bad(qss1_sum_3_models.init(model_capacity));
+        irt_return_if_bad(qss1_sum_4_models.init(model_capacity));
+        irt_return_if_bad(qss1_wsum_2_models.init(model_capacity));
+        irt_return_if_bad(qss1_wsum_3_models.init(model_capacity));
+        irt_return_if_bad(qss1_wsum_4_models.init(model_capacity));
 
         irt_return_if_bad(qss2_integrator_models.init(model_capacity));
         irt_return_if_bad(qss2_multiplier_models.init(model_capacity));
+        irt_return_if_bad(qss2_cross_models.init(model_capacity));
         irt_return_if_bad(qss2_sum_2_models.init(model_capacity));
         irt_return_if_bad(qss2_sum_3_models.init(model_capacity));
         irt_return_if_bad(qss2_sum_4_models.init(model_capacity));
@@ -5089,9 +5519,18 @@ public:
         none_models.clear();
 
         qss1_integrator_models.clear();
+        qss1_multiplier_models.clear();
+        qss1_cross_models.clear();
+        qss1_sum_2_models.clear();
+        qss1_sum_3_models.clear();
+        qss1_sum_4_models.clear();
+        qss1_wsum_2_models.clear();
+        qss1_wsum_3_models.clear();
+        qss1_wsum_4_models.clear();
 
         qss2_integrator_models.clear();
         qss2_multiplier_models.clear();
+        qss2_cross_models.clear();
         qss2_sum_2_models.clear();
         qss2_sum_3_models.clear();
         qss2_sum_4_models.clear();
@@ -5143,11 +5582,29 @@ public:
 
         else if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
             mdl.type = dynamics_type::qss1_integrator;
+        else if constexpr (std::is_same_v<Dynamics, qss1_multiplier>)
+            mdl.type = dynamics_type::qss1_multiplier;
+        else if constexpr (std::is_same_v<Dynamics, qss1_cross>)
+            mdl.type = dynamics_type::qss1_cross;
+        else if constexpr (std::is_same_v<Dynamics, qss1_sum_2>)
+            mdl.type = dynamics_type::qss1_sum_2;
+        else if constexpr (std::is_same_v<Dynamics, qss1_sum_3>)
+            mdl.type = dynamics_type::qss1_sum_3;
+        else if constexpr (std::is_same_v<Dynamics, qss1_sum_4>)
+            mdl.type = dynamics_type::qss1_sum_4;
+        else if constexpr (std::is_same_v<Dynamics, qss1_wsum_2>)
+            mdl.type = dynamics_type::qss1_wsum_2;
+        else if constexpr (std::is_same_v<Dynamics, qss1_wsum_3>)
+            mdl.type = dynamics_type::qss1_wsum_3;
+        else if constexpr (std::is_same_v<Dynamics, qss1_wsum_4>)
+            mdl.type = dynamics_type::qss1_wsum_4;
 
         else if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
             mdl.type = dynamics_type::qss2_integrator;
         else if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
             mdl.type = dynamics_type::qss2_multiplier;
+        else if constexpr (std::is_same_v<Dynamics, qss2_cross>)
+            mdl.type = dynamics_type::qss2_cross;
         else if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
             mdl.type = dynamics_type::qss2_sum_2;
         else if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
@@ -5311,8 +5768,17 @@ public:
             return false;
 
         case dynamics_type::qss1_integrator:
+        case dynamics_type::qss1_multiplier:
+        case dynamics_type::qss1_cross:
+        case dynamics_type::qss1_sum_2:
+        case dynamics_type::qss1_sum_3:
+        case dynamics_type::qss1_sum_4:
+        case dynamics_type::qss1_wsum_2:
+        case dynamics_type::qss1_wsum_3:
+        case dynamics_type::qss1_wsum_4:
         case dynamics_type::qss2_integrator:
         case dynamics_type::qss2_multiplier:
+        case dynamics_type::qss2_cross:
         case dynamics_type::qss2_sum_2:
         case dynamics_type::qss2_sum_3:
         case dynamics_type::qss2_sum_4:
