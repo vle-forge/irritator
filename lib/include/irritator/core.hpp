@@ -2712,6 +2712,12 @@ enum class dynamics_type : i8
     flow
 };
 
+constexpr i8
+dynamics_type_size() noexcept
+{
+    return static_cast<i8>(dynamics_type::flow) + 1;
+}
+
 struct model
 {
     double tl{ 0 };
@@ -5102,87 +5108,21 @@ struct simulation
     time end = time_domain<time>::infinity;
 
     template<typename Function>
-    status dispatch(const dynamics_type type, Function f) noexcept
+    constexpr status for_all(Function f) noexcept
     {
-        switch (type) {
-        case dynamics_type::none:
-            return f(none_models);
+        int i = 0;
+        constexpr int e = dynamics_type_size();
 
-        case dynamics_type::qss1_integrator:
-            return f(qss1_integrator_models);
-        case dynamics_type::qss1_multiplier:
-            return f(qss1_multiplier_models);
-        case dynamics_type::qss1_cross:
-            return f(qss1_cross_models);
-        case dynamics_type::qss1_sum_2:
-            return f(qss1_sum_2_models);
-        case dynamics_type::qss1_sum_3:
-            return f(qss1_sum_3_models);
-        case dynamics_type::qss1_sum_4:
-            return f(qss1_sum_4_models);
-        case dynamics_type::qss1_wsum_2:
-            return f(qss1_wsum_2_models);
-        case dynamics_type::qss1_wsum_3:
-            return f(qss1_wsum_3_models);
-        case dynamics_type::qss1_wsum_4:
-            return f(qss1_wsum_4_models);
+        for (; i != e; ++i)
+            if (auto ret = dispatch(static_cast<dynamics_type>(i), f);
+                is_bad(ret))
+                return ret;
 
-        case dynamics_type::qss2_integrator:
-            return f(qss2_integrator_models);
-        case dynamics_type::qss2_multiplier:
-            return f(qss2_multiplier_models);
-        case dynamics_type::qss2_cross:
-            return f(qss2_cross_models);
-        case dynamics_type::qss2_sum_2:
-            return f(qss2_sum_2_models);
-        case dynamics_type::qss2_sum_3:
-            return f(qss2_sum_3_models);
-        case dynamics_type::qss2_sum_4:
-            return f(qss2_sum_4_models);
-        case dynamics_type::qss2_wsum_2:
-            return f(qss2_wsum_2_models);
-        case dynamics_type::qss2_wsum_3:
-            return f(qss2_wsum_3_models);
-        case dynamics_type::qss2_wsum_4:
-            return f(qss2_wsum_4_models);
-
-        case dynamics_type::integrator:
-            return f(integrator_models);
-        case dynamics_type::quantifier:
-            return f(quantifier_models);
-        case dynamics_type::adder_2:
-            return f(adder_2_models);
-        case dynamics_type::adder_3:
-            return f(adder_3_models);
-        case dynamics_type::adder_4:
-            return f(adder_4_models);
-        case dynamics_type::mult_2:
-            return f(mult_2_models);
-        case dynamics_type::mult_3:
-            return f(mult_3_models);
-        case dynamics_type::mult_4:
-            return f(mult_4_models);
-        case dynamics_type::counter:
-            return f(counter_models);
-        case dynamics_type::generator:
-            return f(generator_models);
-        case dynamics_type::constant:
-            return f(constant_models);
-        case dynamics_type::cross:
-            return f(cross_models);
-        case dynamics_type::accumulator_2:
-            return f(accumulator_2_models);
-        case dynamics_type::time_func:
-            return f(time_func_models);
-        case dynamics_type::flow:
-            return f(flow_models);
-        }
-
-        irt_bad_return(status::unknown_dynamics);
+        return status::success;
     }
 
     template<typename Function>
-    status dispatch(const dynamics_type type, Function f) const noexcept
+    constexpr status dispatch(const dynamics_type type, Function f) noexcept
     {
         switch (type) {
         case dynamics_type::none:
@@ -5258,7 +5198,88 @@ struct simulation
             return f(flow_models);
         }
 
-        irt_bad_return(status::unknown_dynamics);
+        return status::unknown_dynamics;
+    }
+
+    template<typename Function>
+    constexpr status dispatch(const dynamics_type type,
+                              Function f) const noexcept
+    {
+        switch (type) {
+        case dynamics_type::none:
+            return f(none_models);
+
+        case dynamics_type::qss1_integrator:
+            return f(qss1_integrator_models);
+        case dynamics_type::qss1_multiplier:
+            return f(qss1_multiplier_models);
+        case dynamics_type::qss1_cross:
+            return f(qss1_cross_models);
+        case dynamics_type::qss1_sum_2:
+            return f(qss1_sum_2_models);
+        case dynamics_type::qss1_sum_3:
+            return f(qss1_sum_3_models);
+        case dynamics_type::qss1_sum_4:
+            return f(qss1_sum_4_models);
+        case dynamics_type::qss1_wsum_2:
+            return f(qss1_wsum_2_models);
+        case dynamics_type::qss1_wsum_3:
+            return f(qss1_wsum_3_models);
+        case dynamics_type::qss1_wsum_4:
+            return f(qss1_wsum_4_models);
+
+        case dynamics_type::qss2_integrator:
+            return f(qss2_integrator_models);
+        case dynamics_type::qss2_multiplier:
+            return f(qss2_multiplier_models);
+        case dynamics_type::qss2_cross:
+            return f(qss2_cross_models);
+        case dynamics_type::qss2_sum_2:
+            return f(qss2_sum_2_models);
+        case dynamics_type::qss2_sum_3:
+            return f(qss2_sum_3_models);
+        case dynamics_type::qss2_sum_4:
+            return f(qss2_sum_4_models);
+        case dynamics_type::qss2_wsum_2:
+            return f(qss2_wsum_2_models);
+        case dynamics_type::qss2_wsum_3:
+            return f(qss2_wsum_3_models);
+        case dynamics_type::qss2_wsum_4:
+            return f(qss2_wsum_4_models);
+
+        case dynamics_type::integrator:
+            return f(integrator_models);
+        case dynamics_type::quantifier:
+            return f(quantifier_models);
+        case dynamics_type::adder_2:
+            return f(adder_2_models);
+        case dynamics_type::adder_3:
+            return f(adder_3_models);
+        case dynamics_type::adder_4:
+            return f(adder_4_models);
+        case dynamics_type::mult_2:
+            return f(mult_2_models);
+        case dynamics_type::mult_3:
+            return f(mult_3_models);
+        case dynamics_type::mult_4:
+            return f(mult_4_models);
+        case dynamics_type::counter:
+            return f(counter_models);
+        case dynamics_type::generator:
+            return f(generator_models);
+        case dynamics_type::constant:
+            return f(constant_models);
+        case dynamics_type::cross:
+            return f(cross_models);
+        case dynamics_type::accumulator_2:
+            return f(accumulator_2_models);
+        case dynamics_type::time_func:
+            return f(time_func_models);
+        case dynamics_type::flow:
+            return f(flow_models);
+        }
+
+        return status::unknown_dynamics;
     }
 
     status get_output_port_index(const model& mdl,
@@ -5516,43 +5537,10 @@ public:
         input_ports.clear();
         output_ports.clear();
 
-        none_models.clear();
-
-        qss1_integrator_models.clear();
-        qss1_multiplier_models.clear();
-        qss1_cross_models.clear();
-        qss1_sum_2_models.clear();
-        qss1_sum_3_models.clear();
-        qss1_sum_4_models.clear();
-        qss1_wsum_2_models.clear();
-        qss1_wsum_3_models.clear();
-        qss1_wsum_4_models.clear();
-
-        qss2_integrator_models.clear();
-        qss2_multiplier_models.clear();
-        qss2_cross_models.clear();
-        qss2_sum_2_models.clear();
-        qss2_sum_3_models.clear();
-        qss2_sum_4_models.clear();
-        qss2_wsum_2_models.clear();
-        qss2_wsum_3_models.clear();
-        qss2_wsum_4_models.clear();
-
-        integrator_models.clear();
-        quantifier_models.clear();
-        adder_2_models.clear();
-        adder_3_models.clear();
-        adder_4_models.clear();
-        mult_2_models.clear();
-        mult_3_models.clear();
-        mult_4_models.clear();
-        counter_models.clear();
-        generator_models.clear();
-        constant_models.clear();
-        cross_models.clear();
-        time_func_models.clear();
-        accumulator_2_models.clear();
-        flow_models.clear();
+        for_all([]<typename DynamicsM>(DynamicsM& dyn_models) -> status {
+            dyn_models.clear();
+            return status::success;
+        });
 
         observers.clear();
 
