@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <numbers>
 #include <string_view>
 
 #include <cmath>
@@ -2694,6 +2695,16 @@ enum class dynamics_type : i8
     qss2_wsum_3,
     qss2_wsum_4,
 
+    qss3_integrator,
+    qss3_multiplier,
+    qss3_cross,
+    qss3_sum_2,
+    qss3_sum_3,
+    qss3_sum_4,
+    qss3_wsum_2,
+    qss3_wsum_3,
+    qss3_wsum_4,
+
     integrator,
     quantifier,
     adder_2,
@@ -3381,14 +3392,15 @@ struct qss2_integrator
         auto& port_x = input_ports.get(x[port_x_dot]);
         auto& port_r = input_ports.get(x[port_reset]);
 
-        if (port_x.messages.empty() && port_r.messages.empty() && r == 0.0)
+        if (port_x.messages.empty() && port_r.messages.empty())
             irt_return_if_bad(internal());
         else {
-            if (!port_r.messages.empty())
+            if (!port_r.messages.empty()) {
                 irt_return_if_bad(reset(port_r.messages.front()[0]));
-            else
+            } else {
                 irt_return_if_bad(external(
                   port_x.messages.front()[0], port_x.messages.front()[1], e));
+            }
         }
 
         return status::success;
@@ -3411,10 +3423,342 @@ struct qss2_integrator
     }
 };
 
+struct qss3_integrator
+{
+    model_id id;
+    input_port_id x[2];
+    output_port_id y[1];
+    double default_X = 0.;
+    double default_dQ = 0.01;
+    double X;
+    double u;
+    double mu;
+    double pu;
+    double q;
+    double mq;
+    double pq;
+    time sigma = time_domain<time>::zero;
+
+    enum port_name
+    {
+        port_x_dot,
+        port_reset
+    };
+
+    qss3_integrator() = default;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        irt_return_if_fail(std::isfinite(default_X),
+                           status::model_integrator_X_error);
+
+        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > 0.,
+                           status::model_integrator_X_error);
+
+        X = default_X;
+        u = 0;
+        mu = 0;
+        pu = 0;
+        q = default_X;
+        mq = 0;
+        pq = 0;
+        sigma = time_domain<time>::zero;
+
+        return status::success;
+    }
+
+    status external(const double value_x,
+                    const double value_slope,
+                    const double value_derivative,
+                    const time e) noexcept
+    {
+        constexpr double pi_div_3 = std::numbers::pi_v<double> / 3.;
+
+        X = X + u * e + (mu * e * e) / 2 + (pu * e * e * e) / 3;
+        u = value_x;
+        mu = value_slope;
+        pu = value_derivative;
+
+        if (sigma != 0.) {
+            q = q + mq * e + pq * e * e;
+            mq = mq + 2. * pq * e;
+            auto a = mu / 2. - pq;
+            auto b = u - mq;
+            auto c = X - q - default_dQ;
+            auto s = 0.;
+
+            if (pu != 0) {
+                a = 3. * a / pu;
+                b = 3. * b / pu;
+                c = 3. * c / pu;
+                auto v = b - a * a / 3.;
+                auto w = c - b * a / 3. + 2. * a * a * a / 27.;
+                auto i1 = -w / 2.;
+                auto i2 = i1 * i1 + v * v * v / 27.;
+                auto s = 0.;
+
+                if (i2 > 0) {
+                    i2 = std::sqrt(i2);
+                    auto A = i1 + i2;
+                    auto B = i1 - i2;
+
+                    if (A > 0.)
+                        A = std::pow(A, 1. / 3.);
+                    else
+                        A = -std::pow(std::abs(A), 1. / 3.);
+                    if (B > 0.)
+                        B = std::pow(B, 1. / 3.);
+                    else
+                        B = -std::pow(std::abs(B), 1. / 3.);
+
+                    auto s = A + B - a / 3.;
+                    if (s < 0.)
+                        s = time_domain<time>::infinity;
+                } else if (i2 == 0.) {
+                    auto A = i1;
+                    if (A > 0.)
+                        A = std::pow(A, 1. / 3.);
+                    else
+                        A = -std::pow(std::abs(A), 1. / 3.);
+                    auto x1 = 2. * A - a / 3.;
+                    auto x2 = -(A + a / 3.);
+                    if (x1 < 0.) {
+                        if (x2 < 0.) {
+                            s = time_domain<time>::infinity;
+                        } else {
+                            s = x2;
+                        }
+                    } else if (x2 < 0.) {
+                        s = x1;
+                    } else if (x1 < x2) {
+                        s = x1;
+                    } else {
+                        s = x2;
+                    }
+                } else {
+                    auto arg = w * std::sqrt(27. / (-v)) / (2. * v);
+                    arg = std::acos(arg) / 3.;
+                    auto y1 = 2 * std::sqrt(-v / 3.);
+                    auto y2 = -y1 * std::cos(pi_div_3 - arg) - a / 3.;
+                    auto y3 = -y1 * std::cos(pi_div_3 + arg) - a / 3.;
+                    y1 = y1 * std::cos(arg) - a / 3.;
+                    if (y1 < 0.) {
+                        s = time_domain<time>::infinity;
+                    } else if (y3 < 0.) {
+                        s = y1;
+                    } else if (y2 < 0.) {
+                        s = y3;
+                    } else {
+                        s = y2;
+                    }
+                }
+                c = c + 6. * default_dQ / pu;
+                w = c - b * a / 3. + 2. * a * a * a / 27.;
+                i1 = -w / 2;
+                i2 = i1 * i1 + v * v * v / 27.;
+                if (i2 > 0.) {
+                    i2 = std::sqrt(i2);
+                    auto A = i1 + i2;
+                    auto B = i1 - i2;
+                    if (A > 0)
+                        A = std::pow(A, 1. / 3.);
+                    else
+                        A = -std::pow(std::abs(A), 1. / 3.);
+                    if (B > 0.)
+                        B = std::pow(B, 1. / 3.);
+                    else
+                        B = -std::pow(std::abs(B), 1. / 3.);
+                    sigma = A + B - a / 3.;
+
+                    if (s < sigma || sigma < 0.) {
+                        sigma = s;
+                    }
+                } else if (i2 == 0.) {
+                    auto A = i1;
+                    if (A > 0.)
+                        A = std::pow(A, 1. / 3.);
+                    else
+                        A = -std::pow(std::abs(A), 1. / 3.);
+                    auto x1 = 2. * A - a / 3.;
+                    auto x2 = -(A + a / 3.);
+                    if (x1 < 0.) {
+                        if (x2 < 0.) {
+                            sigma = time_domain<time>::infinity;
+                        } else {
+                            sigma = x2;
+                        }
+                    } else if (x2 < 0.) {
+                        sigma = x1;
+                    } else if (x1 < x2) {
+                        sigma = x1;
+                    } else {
+                        sigma = x2;
+                    }
+                    if (s < sigma) {
+                        sigma = s;
+                    }
+                } else {
+                    auto arg = w * std::sqrt(27. / (-v)) / (2. * v);
+                    arg = std::acos(arg) / 3.;
+                    auto y1 = 2. * std::sqrt(-v / 3.);
+                    auto y2 = -y1 * std::cos(pi_div_3 - arg) - a / 3.;
+                    auto y3 = -y1 * std::cos(pi_div_3 + arg) - a / 3.;
+                    y1 = y1 * std::cos(arg) - a / 3.;
+                    if (y1 < 0.) {
+                        sigma = time_domain<time>::infinity;
+                    } else if (y3 < 0.) {
+                        sigma = y1;
+                    } else if (y2 < 0.) {
+                        sigma = y3;
+                    } else {
+                        sigma = y2;
+                    }
+                    if (s < sigma) {
+                        sigma = s;
+                    }
+                }
+            } else {
+                if (a != 0.) {
+                    auto x1 = b * b - 4 * a * c;
+                    if (x1 < 0.) {
+                        s = time_domain<time>::infinity;
+                    } else {
+                        x1 = std::sqrt(x1);
+                        auto x2 = (-b - x1) / 2. / a;
+                        x1 = (-b + x1) / 2. / a;
+                        if (x1 < 0.) {
+                            if (x2 < 0.) {
+                                s = time_domain<time>::infinity;
+                            } else {
+                                s = x2;
+                            }
+                        } else if (x2 < 0.) {
+                            s = x1;
+                        } else if (x1 < x2) {
+                            s = x1;
+                        } else {
+                            s = x2;
+                        }
+                    }
+                    c = c + 2. * default_dQ;
+                    x1 = b * b - 4. * a * c;
+                    if (x1 < 0.) {
+                        sigma = time_domain<time>::infinity;
+                    } else {
+                        x1 = std::sqrt(x1);
+                        auto x2 = (-b - x1) / 2. / a;
+                        x1 = (-b + x1) / 2. / a;
+                        if (x1 < 0.) {
+                            if (x2 < 0.) {
+                                sigma = time_domain<time>::infinity;
+                            } else {
+                                sigma = x2;
+                            }
+                        } else if (x2 < 0.) {
+                            sigma = x1;
+                        } else if (x1 < x2) {
+                            sigma = x1;
+                        } else {
+                            sigma = x2;
+                        }
+                    }
+                    if (s < sigma)
+                        sigma = s;
+                } else {
+                    if (b != 0.) {
+                        auto x1 = -c / b;
+                        auto x2 = x1 - 2 * default_dQ / b;
+                        if (x1 < 0.)
+                            x1 = time_domain<time>::infinity;
+                        if (x2 < 0.)
+                            x2 = time_domain<time>::infinity;
+                        if (x1 < x2) {
+                            sigma = x1;
+                        } else {
+                            sigma = x2;
+                        }
+                    }
+                }
+            }
+
+            if ((std::abs(X - q)) > default_dQ)
+                sigma = time_domain<time>::zero;
+        }
+
+        return status::success;
+    }
+
+    status internal() noexcept
+    {
+        X = X + u * sigma + (mu * sigma * sigma) / 2. +
+            (pu * sigma * sigma * sigma) / 3.;
+        q = X;
+        u = u + mu * sigma + pu * pow(sigma, 2);
+        mq = u;
+        mu = mu + 2 * pu * sigma;
+        pq = mu / 2;
+
+        sigma = pu == 0. ? time_domain<time>::infinity
+                         : std::pow(std::abs(3. * default_dQ / pu), 1. / 3.);
+
+        return status::success;
+    }
+
+    status reset(const double value_reset) noexcept
+    {
+        X = value_reset;
+        q = X;
+        sigma = time_domain<time>::zero;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time e,
+                      time r) noexcept
+    {
+        auto& port_x = input_ports.get(x[port_x_dot]);
+        auto& port_r = input_ports.get(x[port_reset]);
+
+        if (port_x.messages.empty() && port_r.messages.empty() && r == 0.0)
+            irt_return_if_bad(internal());
+        else {
+            if (!port_r.messages.empty())
+                irt_return_if_bad(reset(port_r.messages.front()[0]));
+            else
+                irt_return_if_bad(external(port_x.messages.front()[0],
+                                           port_x.messages.front()[1],
+                                           port_x.messages.front()[2],
+                                           e));
+        }
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        auto& port = output_ports.get(y[0]);
+
+        port.messages.emplace_front(X + u * sigma + (mu * sigma * sigma) / 2. +
+                                      (pu * sigma * sigma * sigma) / 3.,
+                                    u + mu * sigma + pu * sigma * sigma,
+                                    mu / 2. + pu * sigma);
+
+        return status::success;
+    }
+
+    message observation(time /*t*/) const noexcept
+    {
+        return message(X);
+    }
+};
+
 template<int QssLevel, int PortNumber>
 struct abstract_sum
 {
-    static_assert(1 <= QssLevel && QssLevel <= 2, "Only for Qss1 or Qss2");
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
     model_id id;
@@ -3457,6 +3801,20 @@ struct abstract_sum
             output_ports.get(y[0]).messages.emplace_front(value, slope);
         }
 
+        if constexpr (QssLevel == 3) {
+            double value = 0.;
+            double slope = 0.;
+            double derivative = 0.;
+
+            for (size_t i = 0; i != PortNumber; ++i) {
+                value += values[i];
+                slope += values[i + PortNumber];
+                derivative = values[i + PortNumber + PortNumber];
+            }
+
+            output_ports.get(y[0]).messages.emplace_front(
+              value, slope, derivative);
+        }
         return status::success;
     }
 
@@ -3483,12 +3841,29 @@ struct abstract_sum
                 auto& i_port = input_ports.get(x[i]);
 
                 if (i_port.messages.empty()) {
-                    /* Compute the current value with latest value and slope */
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    for (const auto& msg : input_ports.get(x[i]).messages) {
+                    for (const auto& msg : i_port.messages) {
                         values[i] = msg[0];
                         values[i + PortNumber] = msg[1];
+                        message = true;
+                    }
+                }
+            }
+        }
+
+        if constexpr (QssLevel == 3) {
+            for (size_t i = 0; i != PortNumber; ++i) {
+                auto& i_port = input_ports.get(x[i]);
+
+                if (i_port.messages.empty()) {
+                    values[i] += values[i + PortNumber] * e +
+                                 values[i + PortNumber + PortNumber] * e * e;
+                } else {
+                    for (const auto& msg : i_port.messages) {
+                        values[i] = msg[0];
+                        values[i + PortNumber] = msg[1];
+                        values[i + PortNumber + PortNumber] = msg[2];
                         message = true;
                     }
                 }
@@ -3522,6 +3897,20 @@ struct abstract_sum
 
             return message{ value, slope };
         }
+
+        if constexpr (QssLevel == 3) {
+            double value = 0.;
+            double slope = 0.;
+            double derivative = 0.;
+
+            for (size_t i = 0; i != PortNumber; ++i) {
+                value += values[i];
+                slope += values[i + PortNumber];
+                derivative = values[i + PortNumber + PortNumber];
+            }
+
+            return message{ value, slope, derivative };
+        }
     }
 };
 
@@ -3531,11 +3920,14 @@ using qss1_sum_4 = abstract_sum<1, 4>;
 using qss2_sum_2 = abstract_sum<2, 2>;
 using qss2_sum_3 = abstract_sum<2, 3>;
 using qss2_sum_4 = abstract_sum<2, 4>;
+using qss3_sum_2 = abstract_sum<3, 2>;
+using qss3_sum_3 = abstract_sum<3, 3>;
+using qss3_sum_4 = abstract_sum<3, 4>;
 
 template<int QssLevel, int PortNumber>
 struct abstract_wsum
 {
-    static_assert(1 <= QssLevel && QssLevel <= 2, "Only for Qss1 or Qss2");
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
     model_id id;
@@ -3580,6 +3972,22 @@ struct abstract_wsum
             output_ports.get(y[0]).messages.emplace_front(value, slope);
         }
 
+        if constexpr (QssLevel == 3) {
+            double value = 0.;
+            double slope = 0.;
+            double derivative = 0.;
+
+            for (int i = 0; i != PortNumber; ++i) {
+                value += default_input_coeffs[i] * values[i];
+                slope += default_input_coeffs[i] * values[i + PortNumber];
+                derivative +=
+                  default_input_coeffs[i] * values[i + PortNumber + PortNumber];
+            }
+
+            output_ports.get(y[0]).messages.emplace_front(
+              value, slope, derivative);
+        }
+
         return status::success;
     }
 
@@ -3606,12 +4014,31 @@ struct abstract_wsum
                 auto& i_port = input_ports.get(x[i]);
 
                 if (i_port.messages.empty()) {
-                    /* Compute the current value with latest value and slope */
+                    /* Compute the current value with latest value and slope
+                     */
                     values[i] += values[i + PortNumber] * e;
                 } else {
                     for (const auto& msg : input_ports.get(x[i]).messages) {
                         values[i] = msg[0];
                         values[i + PortNumber] = msg.size() > 1 ? msg[1] : 0.0;
+                        message = true;
+                    }
+                }
+            }
+        }
+
+        if constexpr (QssLevel == 3) {
+            for (size_t i = 0; i != PortNumber; ++i) {
+                auto& i_port = input_ports.get(x[i]);
+
+                if (i_port.messages.empty()) {
+                    values[i] += values[i + PortNumber] * e +
+                                 values[i + PortNumber + PortNumber] * e * e;
+                } else {
+                    for (const auto& msg : i_port.messages) {
+                        values[i] = msg[0];
+                        values[i + PortNumber] = msg[1];
+                        values[i + PortNumber + PortNumber] = msg[2];
                         message = true;
                     }
                 }
@@ -3645,6 +4072,21 @@ struct abstract_wsum
 
             return message{ value, slope };
         }
+
+        if constexpr (QssLevel == 3) {
+            double value = 0.;
+            double slope = 0.;
+            double derivative = 0.;
+
+            for (size_t i = 0; i != PortNumber; ++i) {
+                value += default_input_coeffs[i] * values[i];
+                slope += default_input_coeffs[i] * values[i + PortNumber];
+                derivative =
+                  default_input_coeffs[i] * values[i + PortNumber + PortNumber];
+            }
+
+            return message{ value, slope, derivative };
+        }
     }
 };
 
@@ -3654,11 +4096,14 @@ using qss1_wsum_4 = abstract_wsum<1, 4>;
 using qss2_wsum_2 = abstract_wsum<2, 2>;
 using qss2_wsum_3 = abstract_wsum<2, 3>;
 using qss2_wsum_4 = abstract_wsum<2, 4>;
+using qss3_wsum_2 = abstract_wsum<3, 2>;
+using qss3_wsum_3 = abstract_wsum<3, 3>;
+using qss3_wsum_4 = abstract_wsum<3, 4>;
 
 template<int QssLevel>
 struct abstract_multiplier
 {
-    static_assert(1 <= QssLevel && QssLevel <= 2, "Only for Qss1 or Qss2");
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     model_id id;
     input_port_id x[2];
@@ -3671,7 +4116,7 @@ struct abstract_multiplier
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        std::fill_n(values, QssLevel * 2, 0.0);
+        std::fill_n(values, QssLevel * 2, 0.);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -3691,6 +4136,14 @@ struct abstract_multiplier
               values[2 + 0] * values[1] + values[2 + 1] * values[0]);
         }
 
+        if constexpr (QssLevel == 3) {
+            output_ports.get(y[0]).messages.emplace_front(
+              values[0] * values[1],
+              values[2 + 0] * values[1] + values[2 + 1] * values[0],
+              values[0] * values[2 + 2 + 1] + values[2 + 0] * values[2 + 1] +
+                values[2 + 2 + 0] * values[1]);
+        }
+
         return status::success;
     }
 
@@ -3708,8 +4161,11 @@ struct abstract_multiplier
             message_port_0 = true;
             values[0] = msg[0];
 
-            if constexpr (QssLevel == 2)
+            if constexpr (QssLevel >= 2)
                 values[2 + 0] = msg.size() > 1 ? msg[1] : 0.0;
+
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 0] = msg.size() > 2 ? msg[2] : 0.0;
         }
 
         for (const auto& msg : input_ports.get(x[1]).messages) {
@@ -3717,8 +4173,11 @@ struct abstract_multiplier
             sigma = time_domain<time>::zero;
             values[1] = msg[0];
 
-            if constexpr (QssLevel == 2)
+            if constexpr (QssLevel >= 2)
                 values[2 + 1] = msg.size() > 1 ? msg[1] : 0.0;
+
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 1] = msg.size() > 2 ? msg[2] : 0.0;
         }
 
         if constexpr (QssLevel == 2) {
@@ -3727,6 +4186,14 @@ struct abstract_multiplier
 
             if (!message_port_1)
                 values[1] += e * values[2 + 1];
+        }
+
+        if constexpr (QssLevel == 3) {
+            if (!message_port_0)
+                values[0] += e * values[2 + 0] + values[2 + 2 + 0] * e * e;
+
+            if (!message_port_1)
+                values[1] += e * values[2 + 1] + values[2 + 2 + 1] * e * e;
         }
 
         return status::success;
@@ -3740,103 +4207,19 @@ struct abstract_multiplier
         if constexpr (QssLevel == 2)
             return { values[0] * values[1],
                      values[2 + 0] * values[1] + values[2 + 1] * values[0] };
+
+        if constexpr (QssLevel == 3)
+            return { values[0] * values[1],
+                     values[2 + 0] * values[1] + values[2 + 1] * values[0],
+                     values[0] * values[2 + 2 + 1] +
+                       values[2 + 0] * values[2 + 1] +
+                       values[2 + 2 + 0] * values[1] };
     }
 };
 
 using qss1_multiplier = abstract_multiplier<1>;
 using qss2_multiplier = abstract_multiplier<2>;
-
-template<int QssLevel>
-struct abstract_wmultiplier
-{
-    static_assert(1 <= QssLevel && QssLevel <= 2, "Only for Qss1 or Qss2");
-
-    model_id id;
-    input_port_id x[2];
-    output_port_id y[1];
-    time sigma;
-
-    double default_input_coeffs[2] = { 0 };
-    double values[QssLevel * 2];
-
-    abstract_wmultiplier() noexcept = default;
-
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
-    {
-        std::fill_n(values, QssLevel * 2, 0.0);
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
-    {
-        if constexpr (QssLevel == 1) {
-            output_ports.get(y[0]).messages.emplace_front(
-              default_input_coeffs[0] * values[0] * default_input_coeffs[1] *
-              values[1]);
-        }
-
-        if constexpr (QssLevel == 2) {
-            output_ports.get(y[0]).messages.emplace_front(
-              default_input_coeffs[0] * values[0] * default_input_coeffs[1] *
-                values[1],
-              values[2 + 0] * values[1] + values[2 + 1] * values[0]);
-        }
-
-        return status::success;
-    }
-
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time e,
-                      time /*r*/) noexcept
-    {
-        bool message_port_0 = false;
-        bool message_port_1 = false;
-        sigma = time_domain<time>::infinity;
-
-        for (const auto& msg : input_ports.get(x[0]).messages) {
-            sigma = time_domain<time>::zero;
-            message_port_0 = true;
-            values[0] = msg[0];
-
-            if constexpr (QssLevel == 2)
-                values[2 + 0] = msg.size() > 1 ? msg[1] : 0.0;
-        }
-
-        for (const auto& msg : input_ports.get(x[1]).messages) {
-            message_port_1 = true;
-            sigma = time_domain<time>::zero;
-            values[1] = msg[0];
-
-            if constexpr (QssLevel == 2)
-                values[2 + 1] = msg.size() > 1 ? msg[1] : 0.0;
-        }
-
-        if constexpr (QssLevel == 2) {
-            if (!message_port_0)
-                values[0] += e * values[2 + 0];
-
-            if (!message_port_1)
-                values[1] += e * values[2 + 1];
-        }
-
-        return status::success;
-    }
-
-    message observation(time /*t*/) const noexcept
-    {
-        if constexpr (QssLevel == 1)
-            return { values[0] * values[1] };
-
-        if constexpr (QssLevel == 2)
-            return { default_input_coeffs[0] * values[0] *
-                       default_input_coeffs[1] * values[1],
-                     values[2 + 0] * values[1] + values[2 + 1] * values[0] };
-    }
-};
+using qss3_multiplier = abstract_multiplier<3>;
 
 struct quantifier
 {
@@ -4659,7 +5042,7 @@ struct cross
 template<size_t QssLevel>
 struct abstract_cross
 {
-    static_assert(1 <= QssLevel && QssLevel <= 2, "Only Qss1 or Qss2");
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     model_id id;
     input_port_id x[4];
@@ -4686,19 +5069,11 @@ struct abstract_cross
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         threshold = default_threshold;
-
         value[0] = threshold - 1.0;
-        if_value[0] = 0.0;
-        else_value[0] = 0.0;
-        result[0] = 0.0;
-        event = 0.0;
 
-        if constexpr (QssLevel == 2) {
-            value[1] = 0.0;
-            if_value[1] = 0.0;
-            else_value[1] = 0.0;
-            result[1] = 0.0;
-        }
+        std::fill_n(if_value, QssLevel, 0.);
+        std::fill_n(else_value, QssLevel, 0.);
+        std::fill_n(value, QssLevel, 0.);
 
         sigma = time_domain<time>::zero;
 
@@ -4823,12 +5198,12 @@ struct abstract_cross
         if constexpr (QssLevel == 2) {
             if (need_lambda) {
                 sigma = time_domain<time>::zero;
-            //} else if (value[1]) {
-            //    const auto next = (threshold - value[0]) / value[1];
-            //    if (next >= 0.0)
-            //        sigma = next;
-            //    else
-            //        sigma = time_domain<time>::infinity;
+                //} else if (value[1]) {
+                //    const auto next = (threshold - value[0]) / value[1];
+                //    if (next >= 0.0)
+                //        sigma = next;
+                //    else
+                //        sigma = time_domain<time>::infinity;
             } else
                 sigma = time_domain<time>::infinity;
         }
@@ -4860,6 +5235,7 @@ struct abstract_cross
 
 using qss1_cross = abstract_cross<1>;
 using qss2_cross = abstract_cross<2>;
+using qss3_cross = abstract_cross<3>;
 
 inline double
 square_time_function(double t) noexcept
@@ -4974,7 +5350,8 @@ public:
     }
 
     /**
-     * @brief Reintegrate or reinsert an old popped model into the scheduller.
+     * @brief Reintegrate or reinsert an old popped model into the
+     * scheduller.
      */
     void reintegrate(model& mdl, time tn) noexcept
     {
@@ -5084,6 +5461,16 @@ struct simulation
     data_array<qss2_wsum_3, dynamics_id> qss2_wsum_3_models;
     data_array<qss2_wsum_4, dynamics_id> qss2_wsum_4_models;
 
+    data_array<qss3_integrator, dynamics_id> qss3_integrator_models;
+    data_array<qss3_multiplier, dynamics_id> qss3_multiplier_models;
+    data_array<qss3_cross, dynamics_id> qss3_cross_models;
+    data_array<qss3_sum_2, dynamics_id> qss3_sum_2_models;
+    data_array<qss3_sum_3, dynamics_id> qss3_sum_3_models;
+    data_array<qss3_sum_4, dynamics_id> qss3_sum_4_models;
+    data_array<qss3_wsum_2, dynamics_id> qss3_wsum_2_models;
+    data_array<qss3_wsum_3, dynamics_id> qss3_wsum_3_models;
+    data_array<qss3_wsum_4, dynamics_id> qss3_wsum_4_models;
+
     data_array_archive<integrator, dynamics_id> integrator_models;
     data_array_archive<quantifier, dynamics_id> quantifier_models;
     data_array<adder_2, dynamics_id> adder_2_models;
@@ -5166,6 +5553,25 @@ struct simulation
         case dynamics_type::qss2_wsum_4:
             return f(qss2_wsum_4_models);
 
+        case dynamics_type::qss3_integrator:
+            return f(qss3_integrator_models);
+        case dynamics_type::qss3_multiplier:
+            return f(qss3_multiplier_models);
+        case dynamics_type::qss3_cross:
+            return f(qss3_cross_models);
+        case dynamics_type::qss3_sum_2:
+            return f(qss3_sum_2_models);
+        case dynamics_type::qss3_sum_3:
+            return f(qss3_sum_3_models);
+        case dynamics_type::qss3_sum_4:
+            return f(qss3_sum_4_models);
+        case dynamics_type::qss3_wsum_2:
+            return f(qss3_wsum_2_models);
+        case dynamics_type::qss3_wsum_3:
+            return f(qss3_wsum_3_models);
+        case dynamics_type::qss3_wsum_4:
+            return f(qss3_wsum_4_models);
+
         case dynamics_type::integrator:
             return f(integrator_models);
         case dynamics_type::quantifier:
@@ -5246,6 +5652,25 @@ struct simulation
             return f(qss2_wsum_3_models);
         case dynamics_type::qss2_wsum_4:
             return f(qss2_wsum_4_models);
+
+        case dynamics_type::qss3_integrator:
+            return f(qss3_integrator_models);
+        case dynamics_type::qss3_multiplier:
+            return f(qss3_multiplier_models);
+        case dynamics_type::qss3_cross:
+            return f(qss3_cross_models);
+        case dynamics_type::qss3_sum_2:
+            return f(qss3_sum_2_models);
+        case dynamics_type::qss3_sum_3:
+            return f(qss3_sum_3_models);
+        case dynamics_type::qss3_sum_4:
+            return f(qss3_sum_4_models);
+        case dynamics_type::qss3_wsum_2:
+            return f(qss3_wsum_2_models);
+        case dynamics_type::qss3_wsum_3:
+            return f(qss3_wsum_3_models);
+        case dynamics_type::qss3_wsum_4:
+            return f(qss3_wsum_4_models);
 
         case dynamics_type::integrator:
             return f(integrator_models);
@@ -5469,6 +5894,16 @@ public:
         irt_return_if_bad(qss2_wsum_3_models.init(model_capacity));
         irt_return_if_bad(qss2_wsum_4_models.init(model_capacity));
 
+        irt_return_if_bad(qss3_integrator_models.init(model_capacity));
+        irt_return_if_bad(qss3_multiplier_models.init(model_capacity));
+        irt_return_if_bad(qss3_cross_models.init(model_capacity));
+        irt_return_if_bad(qss3_sum_2_models.init(model_capacity));
+        irt_return_if_bad(qss3_sum_3_models.init(model_capacity));
+        irt_return_if_bad(qss3_sum_4_models.init(model_capacity));
+        irt_return_if_bad(qss3_wsum_2_models.init(model_capacity));
+        irt_return_if_bad(qss3_wsum_3_models.init(model_capacity));
+        irt_return_if_bad(qss3_wsum_4_models.init(model_capacity));
+
         irt_return_if_bad(
           integrator_models.init(model_capacity, model_capacity * ten));
         irt_return_if_bad(
@@ -5605,6 +6040,25 @@ public:
             mdl.type = dynamics_type::qss2_wsum_3;
         else if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
             mdl.type = dynamics_type::qss2_wsum_4;
+
+        else if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
+            mdl.type = dynamics_type::qss3_integrator;
+        else if constexpr (std::is_same_v<Dynamics, qss3_multiplier>)
+            mdl.type = dynamics_type::qss3_multiplier;
+        else if constexpr (std::is_same_v<Dynamics, qss3_cross>)
+            mdl.type = dynamics_type::qss3_cross;
+        else if constexpr (std::is_same_v<Dynamics, qss3_sum_2>)
+            mdl.type = dynamics_type::qss3_sum_2;
+        else if constexpr (std::is_same_v<Dynamics, qss3_sum_3>)
+            mdl.type = dynamics_type::qss3_sum_3;
+        else if constexpr (std::is_same_v<Dynamics, qss3_sum_4>)
+            mdl.type = dynamics_type::qss3_sum_4;
+        else if constexpr (std::is_same_v<Dynamics, qss3_wsum_2>)
+            mdl.type = dynamics_type::qss3_wsum_2;
+        else if constexpr (std::is_same_v<Dynamics, qss3_wsum_3>)
+            mdl.type = dynamics_type::qss3_wsum_3;
+        else if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
+            mdl.type = dynamics_type::qss3_wsum_4;
 
         else if constexpr (std::is_same_v<Dynamics, integrator>)
             mdl.type = dynamics_type::integrator;
@@ -5773,6 +6227,15 @@ public:
         case dynamics_type::qss2_wsum_2:
         case dynamics_type::qss2_wsum_3:
         case dynamics_type::qss2_wsum_4:
+        case dynamics_type::qss3_integrator:
+        case dynamics_type::qss3_multiplier:
+        case dynamics_type::qss3_cross:
+        case dynamics_type::qss3_sum_2:
+        case dynamics_type::qss3_sum_3:
+        case dynamics_type::qss3_sum_4:
+        case dynamics_type::qss3_wsum_2:
+        case dynamics_type::qss3_wsum_3:
+        case dynamics_type::qss3_wsum_4:
         case dynamics_type::integrator:
         case dynamics_type::adder_2:
         case dynamics_type::adder_3:

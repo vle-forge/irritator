@@ -1574,6 +1574,13 @@ show_dynamics_values(const qss2_integrator& dyn)
 }
 
 static void
+show_dynamics_values(const qss3_integrator& dyn)
+{
+    ImGui::Text("X %.3f", dyn.X);
+    ImGui::Text("dQ %.3f", dyn.default_dQ);
+}
+
+static void
 show_dynamics_values(const qss1_sum_2& dyn)
 {
     ImGui::Text("%.3f", dyn.values[0]);
@@ -1684,6 +1691,61 @@ show_dynamics_values(const qss2_wsum_4& dyn)
 }
 
 static void
+show_dynamics_values(const qss3_sum_2& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
+}
+
+static void
+show_dynamics_values(const qss3_sum_3& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[3]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[4]);
+    ImGui::Text("%.3f %.3f", dyn.values[2], dyn.values[5]);
+}
+
+static void
+show_dynamics_values(const qss3_sum_4& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[4]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[5]);
+    ImGui::Text("%.3f %.3f", dyn.values[2], dyn.values[6]);
+    ImGui::Text("%.3f %.3f", dyn.values[3], dyn.values[7]);
+}
+
+static void
+show_dynamics_values(const qss3_multiplier& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
+}
+
+static void
+show_dynamics_values(const qss3_wsum_2& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
+}
+
+static void
+show_dynamics_values(const qss3_wsum_3& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[3]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[4]);
+    ImGui::Text("%.3f %.3f", dyn.values[2], dyn.values[5]);
+}
+
+static void
+show_dynamics_values(const qss3_wsum_4& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[4]);
+    ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[5]);
+    ImGui::Text("%.3f %.3f", dyn.values[2], dyn.values[6]);
+    ImGui::Text("%.3f %.3f", dyn.values[3], dyn.values[7]);
+}
+
+static void
 show_dynamics_values(const integrator& dyn)
 {
     ImGui::Text("value %.3f", dyn.current_value);
@@ -1779,6 +1841,14 @@ show_dynamics_values(const qss2_cross& dyn)
 }
 
 static void
+show_dynamics_values(const qss3_cross& dyn)
+{
+    ImGui::Text("value: %.3f", dyn.value[0]);
+    ImGui::Text("if-value: %.3f", dyn.if_value);
+    ImGui::Text("else-value: %.3f", dyn.else_value);
+}
+
+static void
 show_dynamics_values(const cross& dyn)
 {
     ImGui::Text("value: %.3f", dyn.value);
@@ -1819,6 +1889,13 @@ show_dynamics_inputs(qss1_integrator& dyn)
 
 static void
 show_dynamics_inputs(qss2_integrator& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_X);
+    ImGui::InputDouble("reset", &dyn.default_dQ);
+}
+
+static void
+show_dynamics_inputs(qss3_integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_X);
     ImGui::InputDouble("reset", &dyn.default_dQ);
@@ -1897,6 +1974,46 @@ show_dynamics_inputs(qss2_wsum_3& dyn)
 
 static void
 show_dynamics_inputs(qss2_wsum_4& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+}
+
+static void
+show_dynamics_inputs(qss3_multiplier& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss3_sum_2& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss3_sum_3& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss3_sum_4& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss3_wsum_2& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+}
+
+static void
+show_dynamics_inputs(qss3_wsum_3& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+}
+
+static void
+show_dynamics_inputs(qss3_wsum_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1992,6 +2109,12 @@ show_dynamics_inputs(qss1_cross& dyn)
 
 static void
 show_dynamics_inputs(qss2_cross& dyn)
+{
+    ImGui::InputDouble("threshold", &dyn.default_threshold);
+}
+
+static void
+show_dynamics_inputs(qss3_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
 }
