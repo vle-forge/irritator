@@ -57,7 +57,6 @@ file_output_observe(const irt::observer& obs,
 
 struct neuron {
   irt::dynamics_id  sum;
-  irt::dynamics_id  prod;
   irt::dynamics_id  integrator;
   irt::dynamics_id  quantifier;
   irt::dynamics_id  constant;
@@ -74,14 +73,10 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
   double tau_lif = 10;
   double Vr_lif = 0.0;
   double Vt_lif = 10.0;
-  /*double ref_lif = 0.5*1e-3;
-  double sigma_lif = 0.02;*/
-
 
 
 
   auto& sum_lif = sim->adder_2_models.alloc();
-  auto& prod_lif = sim->adder_2_models.alloc();
   auto& integrator_lif = sim->integrator_models.alloc();
   auto& quantifier_lif = sim->quantifier_models.alloc();
   auto& constant_lif = sim->constant_models.alloc();
@@ -89,11 +84,9 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
   auto& cross_lif = sim->cross_models.alloc();
 
 
-  sum_lif.default_input_coeffs[0] = -1.0;
-  sum_lif.default_input_coeffs[1] = 20.0;
+  sum_lif.default_input_coeffs[0] = -1.0/tau_lif;
+  sum_lif.default_input_coeffs[1] = 20.0/tau_lif;
   
-  prod_lif.default_input_coeffs[0] = 1.0/tau_lif;
-  prod_lif.default_input_coeffs[1] = 0.0;
 
   constant_lif.default_value = 1.0;
   constant_cross_lif.default_value = Vr_lif;
@@ -112,7 +105,6 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
   
 
   sim->alloc(sum_lif, sim->adder_2_models.get_id(sum_lif));
-  sim->alloc(prod_lif, sim->adder_2_models.get_id(prod_lif));
   sim->alloc(integrator_lif, sim->integrator_models.get_id(integrator_lif));
   sim->alloc(quantifier_lif, sim->quantifier_models.get_id(quantifier_lif));
   sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif));
@@ -120,7 +112,6 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
   sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif));
 
   struct neuron neuron_model = {sim->adder_2_models.get_id(sum_lif),
-                                sim->adder_2_models.get_id(prod_lif),
                                 sim->integrator_models.get_id(integrator_lif),
                                 sim->quantifier_models.get_id(quantifier_lif),
                                 sim->constant_models.get_id(constant_lif),
@@ -132,7 +123,7 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
   // Connections
   expect(sim->connect(quantifier_lif.y[0], integrator_lif.x[0]) ==
           irt::status::success);
-  expect(sim->connect(prod_lif.y[0], integrator_lif.x[1]) ==
+  expect(sim->connect(sum_lif.y[0], integrator_lif.x[1]) ==
           irt::status::success);
   expect(sim->connect(cross_lif.y[0], integrator_lif.x[2]) ==
           irt::status::success);
@@ -148,10 +139,6 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
           irt::status::success);     
   expect(sim->connect(constant_lif.y[0], sum_lif.x[1]) ==
           irt::status::success);  
-  expect(sim->connect(sum_lif.y[0],prod_lif.x[0]) ==
-          irt::status::success);   
-  expect(sim->connect(constant_lif.y[0],prod_lif.x[1]) ==
-          irt::status::success);
   return neuron_model;
 }
 
@@ -161,37 +148,27 @@ void lif_benchmark(double simulation_duration, double quantum)
     using namespace boost::ut;   
 
     irt::simulation sim;
-
-    long unsigned int N = 1;
-    
     expect(irt::is_success(sim.init(2600lu, 40000lu)));
 
 
-    // Neurons
-    std::vector<struct neuron> first_layer_neurons;
-    for (long unsigned int i = 0 ; i < N; i++) {
-
-      struct neuron neuron_model = make_neuron(&sim,i,quantum);
-      first_layer_neurons.emplace_back(neuron_model);
-    } 
+    struct neuron neuron_model = make_neuron(&sim,0,quantum);
 
 
     irt::time t = 0.0;
-    std::string file_name = "output_lif_sd_"+
+    std::string file_name = "output_lif_aqss_sd_"+
                             std::to_string(simulation_duration)+
                             "_q_"+std::to_string(quantum)+
                             ".csv";
-    std::FILE* os = std::fopen(file_name.c_str(), "w");
-    !expect(os != nullptr);
-    
-    std::string s = "t,";
-    for (long unsigned int i = 0; i < N; i++)
-    {
-      s =  s + "spikes" 
-            + ","+ "v" 
-            + ",";
-    }
-    fmt::print(os, s + "\n");
+    file_output fo_a(file_name.c_str());
+    expect(fo_a.os != nullptr);
+
+    auto& obs_a = sim.observers.alloc(0.01,
+                                        "A",
+                                        static_cast<void*>(&fo_a),
+                                        &file_output_initialize,
+                                        &file_output_observe,
+                                        nullptr);
+    sim.observe(sim.models.get(sim.qss2_integrator_models.get(neuron_model.integrator).id), obs_a);
 
     expect(irt::status::success == sim.initialize(t));
 
@@ -200,25 +177,12 @@ void lif_benchmark(double simulation_duration, double quantum)
         irt::status st = sim.run(t);
         expect(st == irt::status::success);
 
-        std::string s = std::to_string(t)+",";
-        for (long unsigned int i = 0; i < N; i++)
-        {
-          s =  s + std::to_string(sim.cross_models.get(first_layer_neurons[i].cross).event)
-            + ",";
-          s =  s + std::to_string(sim.integrator_models.get(first_layer_neurons[i].integrator).last_output_value)
-            + ",";
-
-        }
-        fmt::print(os, s + "\n");
-
     } while (t < simulation_duration);
-
-    std::fclose(os);
 }
 void izhikevich_benchmark(double simulation_duration, double quantum, double a, double b, double c, double d, double I, double vini)
 {
-    using namespace boost::ut;   
-  irt::simulation sim;
+        using namespace boost::ut;   
+        irt::simulation sim;
 
         expect(irt::is_success(sim.init(1000lu, 1000lu)));
         expect(sim.constant_models.can_alloc(3));
@@ -364,7 +328,7 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
                irt::status::success);
         expect(sim.connect(constant.y[0], sum_d.x[1]) == irt::status::success);
 
-        std::string file_name = "output_izhikevitch_a_sd_"+
+        std::string file_name = "output_izhikevitch_aqss_a_sd_"+
                                 std::to_string(simulation_duration)+
                                 "_q_"+std::to_string(quantum)+
                                 "_a_"+std::to_string(a)+
@@ -381,7 +345,7 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
                                           &file_output_initialize,
                                           &file_output_observe,
                                           nullptr);
-        file_name = "output_izhikevitch_b_sd_"+
+        file_name = "output_izhikevitch_aqss_b_sd_"+
                                 std::to_string(simulation_duration)+
                                 "_q_"+std::to_string(quantum)+
                                 "_a_"+std::to_string(a)+
@@ -411,32 +375,32 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
             expect(st == irt::status::success);
         } while (t < simulation_duration);
 };
-BENCHMARK_P(LIF, 1, 10, 1,( double simulation_duration, double quantum))
+BENCHMARK_P(LIF, AQSS, 10, 1,( double simulation_duration, double quantum))
 {
   lif_benchmark(simulation_duration,quantum);
 }
-BENCHMARK_P(Izhikevich, Type, 1, 1,( double simulation_duration, double quantum, double a, double b, double c, double d, double I, double vini))
+BENCHMARK_P(Izhikevich, AQSS, 1, 1,( double simulation_duration, double quantum, double a, double b, double c, double d, double I, double vini))
 {
   izhikevich_benchmark(simulation_duration,quantum,a,b,c,d,I,vini);
 }
 
-BENCHMARK_P_INSTANCE(LIF, 1, (30,1e-2));
+BENCHMARK_P_INSTANCE(LIF, AQSS, (1000,1e-2));
 // Regular spiking (RS)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-65.0,8.0,10.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, AQSS, (1000,1e-2,0.02,0.2,-65.0,8.0,10.0,0.0));
 // Intrinsical bursting (IB)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-55.0,4.0,10.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, AQSS, (1000,1e-2,0.02,0.2,-55.0,4.0,10.0,0.0));
 // Chattering spiking (CH)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.2,-50.0,2.0,10.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, AQSS, (1000,1e-2,0.02,0.2,-50.0,2.0,10.0,0.0));
 // Fast spiking (FS)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.1,0.2,-65.0,2.0,10.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, AQSS, (1000,1e-2,0.1,0.2,-65.0,2.0,10.0,0.0));
 // Thalamo-Cortical (TC)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.25,-65.0,0.05,10.0,-87.0));
+BENCHMARK_P_INSTANCE(Izhikevich, AQSS, (1000,1e-2,0.02,0.25,-65.0,0.05,10.0,-87.0));
 // Rezonator (RZ)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.1,0.26,-65.0,2.0,10.0,-63.0));
+BENCHMARK_P_INSTANCE(Izhikevich, AQSS, (1000,1e-2,0.1,0.26,-65.0,2.0,10.0,-63.0));
 // Low-threshold spiking (LTS)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.02,0.25,-65.0,2.0,10.0,-63.0));
+BENCHMARK_P_INSTANCE(Izhikevich, AQSS, (1000,1e-2,0.02,0.25,-65.0,2.0,10.0,-63.0));
 // Problematic (P)
-BENCHMARK_P_INSTANCE(Izhikevich, Type, (1000,1e-2,0.2,2,-56.0,-16.0,-99.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, AQSS, (1000,1e-2,0.2,2,-56.0,-16.0,-99.0,0.0));
 
 int
 main()
