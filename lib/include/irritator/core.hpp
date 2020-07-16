@@ -5090,123 +5090,79 @@ struct abstract_cross
         auto& p_else_value = input_ports.get(x[port_else_value]);
         auto& p_value = input_ports.get(x[port_value]);
 
-        bool something_change = false;
-        bool need_lambda = false;
-        event = 0.0;
+        if (p_threshold.messages.empty() && p_if_value.messages.empty() &&
+            p_else_value.messages.empty() && p_value.messages.empty()) {
+            sigma = time_domain<time>::infinity;
+        } else {
+            for (const auto& msg : p_threshold.messages)
+                threshold = msg[0];
 
-        for (const auto& msg : p_threshold.messages) {
-            if (threshold != msg[0]) {
-                threshold = msg.real[0];
-                something_change = true;
-            }
-        }
-
-        if (!p_if_value.messages.empty()) {
-            for (const auto& msg : p_if_value.messages) {
-                if (if_value[0] != msg[0]) {
-                    need_lambda = true;
-                    something_change = true;
+            if (p_if_value.messages.empty()) {
+                if constexpr (QssLevel == 2)
+                    if_value[0] += if_value[1] * e;
+                if constexpr (QssLevel == 3)
+                    if_value[0] += if_value[1] * e + if_value[2] * e * e;
+            } else {
+                for (const auto& msg : p_if_value.messages) {
                     if_value[0] = msg[0];
-                    if constexpr (QssLevel == 2)
-                        if_value[1] = msg.size() > 1 ? msg[1] : 0.0;
+                    if constexpr (QssLevel >= 2)
+                        if_value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    if constexpr (QssLevel == 3)
+                        if_value[2] = msg.size() > 2 ? msg[2] : 0.;
                 }
             }
-        } else {
-            if constexpr (QssLevel == 2) {
-                const double old = if_value[0];
-                if_value[0] += if_value[1] * e;
-                if (if_value[0] != old) {
-                    need_lambda = true;
-                    something_change = true;
-                }
-            }
-        }
 
-        if (!p_else_value.messages.empty()) {
-            for (const auto& msg : p_else_value.messages) {
-                if (else_value[0] != msg[0]) {
-                    something_change = true;
-                    need_lambda = true;
+            if (p_if_value.messages.empty()) {
+                if constexpr (QssLevel == 2)
+                    else_value[0] += else_value[1] * e;
+                if constexpr (QssLevel == 3)
+                    else_value[0] += else_value[1] * e + else_value[2] * e * e;
+            } else {
+                for (const auto& msg : p_if_value.messages) {
                     else_value[0] = msg[0];
-                    if constexpr (QssLevel == 2)
-                        else_value[1] = msg.size() > 1 ? msg[1] : 0.0;
+                    if constexpr (QssLevel >= 2)
+                        else_value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    if constexpr (QssLevel == 3)
+                        else_value[2] = msg.size() > 2 ? msg[2] : 0.;
                 }
             }
-        } else {
-            if constexpr (QssLevel == 2) {
-                const auto old = else_value[0];
-                else_value[0] += else_value[1] * e;
-                if (else_value[0] != old) {
-                    something_change = true;
-                    need_lambda = true;
+
+            if (p_value.messages.empty()) {
+                if constexpr (QssLevel == 2)
+                    value[0] += value[1] * e;
+                if constexpr (QssLevel == 3)
+                    value[0] += value[1] * e + value[2] * e * e;
+            } else {
+                for (const auto& msg : p_value.messages) {
+                    value[0] = msg[0];
+                    if constexpr (QssLevel >= 2)
+                        value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    if constexpr (QssLevel == 3)
+                        value[2] = msg.size() > 2 ? msg[2] : 0.;
                 }
             }
-        }
 
-        if (!p_value.messages.empty()) {
-            for (const auto& msg : p_value.messages) {
-                if constexpr (QssLevel == 1)
-                    if (value[0] != msg[0]) {
-                        value[0] = msg.real[0];
-                        something_change = true;
-                    }
 
-                if constexpr (QssLevel == 2) {
-                    if (value[0] != msg[0]) {
-                        value[0] = msg.real[0];
-                        value[1] = msg.real[1];
-                        something_change = true;
-                    }
-                }
-            }
-        } else {
-            if constexpr (QssLevel == 2) {
-                const auto old = value[0];
-                value[0] += value[1] * e;
-                if (old != value[0])
-                    something_change = true;
-            }
-        }
-
-        if (something_change) {
             event = 0.0;
             if (value[0] >= threshold) {
-                need_lambda = true;
                 else_value[0] = if_value[0];
 
-                if constexpr (QssLevel == 2)
+                if constexpr (QssLevel >= 2)
                     else_value[1] = if_value[1];
+                if constexpr (QssLevel == 3)
+                    else_value[1] = if_value[2];
 
                 event = 1.0;
             }
         }
 
-        // if (result[0] != else_value[0] || event > 0.0) {
         result[0] = else_value[0];
-        if constexpr (QssLevel == 2)
+        if constexpr (QssLevel >= 2)
             result[1] = else_value[1];
+        if constexpr (QssLevel == 3)
+            result[2] = else_value[2];
 
-        // sigma = time_domain<time>::zero;
-        // return status::success;
-        //}
-
-        if constexpr (QssLevel == 1) {
-            sigma = need_lambda ? time_domain<time>::zero
-                                : time_domain<time>::infinity;
-        }
-
-        if constexpr (QssLevel == 2) {
-            if (need_lambda) {
-                sigma = time_domain<time>::zero;
-                //} else if (value[1]) {
-                //    const auto next = (threshold - value[0]) / value[1];
-                //    if (next >= 0.0)
-                //        sigma = next;
-                //    else
-                //        sigma = time_domain<time>::infinity;
-            } else
-                sigma = time_domain<time>::infinity;
-        }
+        sigma = 0;
 
         return status::success;
     }
