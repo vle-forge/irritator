@@ -94,7 +94,6 @@ dot_graph_save(const irt::simulation& sim, std::FILE* os)
 enum neuron_type { gener,leaky_int_fire,izhikevich };
 struct neuron_lif {
   irt::dynamics_id  sum;
-  irt::dynamics_id  prod;
   irt::dynamics_id  integrator;
   irt::dynamics_id  quantifier;
   irt::dynamics_id  constant;
@@ -312,7 +311,6 @@ make_neuron_lif(irt::simulation* sim, long unsigned int i, double quantum, doubl
 
 
   auto& sum_lif = sim->adder_2_models.alloc();
-  auto& prod_lif = sim->adder_2_models.alloc();
   auto& integrator_lif = sim->integrator_models.alloc();
   auto& quantifier_lif = sim->quantifier_models.alloc();
   auto& constant_lif = sim->constant_models.alloc();
@@ -320,11 +318,9 @@ make_neuron_lif(irt::simulation* sim, long unsigned int i, double quantum, doubl
   auto& cross_lif = sim->cross_models.alloc();
 
 
-  sum_lif.default_input_coeffs[0] = -1.0;
-  sum_lif.default_input_coeffs[1] = 2*Vt_lif;
+  sum_lif.default_input_coeffs[0] = -1.0/tau_lif;
+  sum_lif.default_input_coeffs[1] = 2*Vt_lif/tau_lif;
   
-  prod_lif.default_input_coeffs[0] = 1.0/tau_lif;
-  prod_lif.default_input_coeffs[1] = 0.0;
 
   constant_lif.default_value = 1.0;
   constant_cross_lif.default_value = Vr_lif;
@@ -342,7 +338,6 @@ make_neuron_lif(irt::simulation* sim, long unsigned int i, double quantum, doubl
   
 
   sim->alloc(sum_lif, sim->adder_2_models.get_id(sum_lif));
-  sim->alloc(prod_lif, sim->adder_2_models.get_id(prod_lif));
   sim->alloc(integrator_lif, sim->integrator_models.get_id(integrator_lif));
   sim->alloc(quantifier_lif, sim->quantifier_models.get_id(quantifier_lif));
   sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif));
@@ -350,7 +345,6 @@ make_neuron_lif(irt::simulation* sim, long unsigned int i, double quantum, doubl
   sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif));
 
   struct neuron_lif neuron_model = {sim->adder_2_models.get_id(sum_lif),
-                                sim->adder_2_models.get_id(prod_lif),
                                 sim->integrator_models.get_id(integrator_lif),
                                 sim->quantifier_models.get_id(quantifier_lif),
                                 sim->constant_models.get_id(constant_lif),
@@ -363,7 +357,7 @@ make_neuron_lif(irt::simulation* sim, long unsigned int i, double quantum, doubl
   // Connections
   expect(sim->connect(quantifier_lif.y[0], integrator_lif.x[0]) ==
           irt::status::success);
-  expect(sim->connect(prod_lif.y[0], integrator_lif.x[1]) ==
+  expect(sim->connect(sum_lif.y[0], integrator_lif.x[1]) ==
           irt::status::success);
   expect(sim->connect(cross_lif.y[0], integrator_lif.x[2]) ==
           irt::status::success);
@@ -379,10 +373,6 @@ make_neuron_lif(irt::simulation* sim, long unsigned int i, double quantum, doubl
           irt::status::success);     
   expect(sim->connect(constant_lif.y[0], sum_lif.x[1]) ==
           irt::status::success); 
-  expect(sim->connect(sum_lif.y[0],prod_lif.x[0]) ==
-          irt::status::success);   
-  expect(sim->connect(constant_lif.y[0],prod_lif.x[1]) ==
-          irt::status::success);
   return neuron_model;
 }
 struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long unsigned int target,
@@ -438,9 +428,6 @@ struct synapse make_synapse(irt::simulation* sim, long unsigned int source, long
   mult_post.default_input_coeffs[1] = 0.0;
 
   const_syn.default_value = 1.0;
-
-
-
 
 
   !expect(irt::is_success(sim->alloc(int_pre, sim->integrator_models.get_id(int_pre))));

@@ -68,9 +68,10 @@ struct neuron
 make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
 {
   using namespace boost::ut;
-  double tau_lif = 10;
+  double tau_lif = 10.0;
   double Vr_lif = 0.0;
   double Vt_lif = 10.0;
+  double V0 = 20.0;
 
 
   auto& sum_lif = sim->qss1_wsum_2_models.alloc();
@@ -81,7 +82,7 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
 
 
   sum_lif.default_input_coeffs[0] = -1.0/tau_lif;
-  sum_lif.default_input_coeffs[1] = 20.0/tau_lif;
+  sum_lif.default_input_coeffs[1] = V0/tau_lif;
   
 
 
@@ -147,13 +148,13 @@ void lif_benchmark(double simulation_duration, double quantum)
     file_output fo_a(file_name.c_str());
     expect(fo_a.os != nullptr);
 
-    auto& obs_a = sim.observers.alloc(0.01,
+    auto& obs_a = sim.observers.alloc(0.1,
                                         "A",
                                         static_cast<void*>(&fo_a),
                                         &file_output_initialize,
                                         &file_output_observe,
                                         nullptr);
-    sim.observe(sim.models.get(sim.qss2_integrator_models.get(neuron_model.integrator).id), obs_a);
+    sim.observe(sim.models.get(sim.qss1_integrator_models.get(neuron_model.integrator).id), obs_a);
 
     expect(irt::status::success == sim.initialize(t));
 

@@ -622,6 +622,7 @@ void network(neuron_type T, long unsigned int N, double simulation_duration, dou
       do {
 
             irt::status st = sim.run(t);
+            printf("t:%f\nX:%f\n",t,sim.qss1_integrator_models.get(synapses[0].integrator_pre).X);
             expect(st == irt::status::success);
 
       } while (t < simulation_duration);
@@ -658,7 +659,7 @@ BENCHMARK_P_INSTANCE(Network, N, (izhikevich,100,500,1e-5,0.1,0.002));
 BENCHMARK_P_INSTANCE(Network, N, (izhikevich,250,500,1e-5,0.1,0.002));
 BENCHMARK_P_INSTANCE(Network, N, (izhikevich,500,500,1e-5,0.1,0.002));
 BENCHMARK_P_INSTANCE(Network, N, (izhikevich,750,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, N, (izhikevich,1000,500,1e-5,0.1,0.2));
+BENCHMARK_P_INSTANCE(Network, N, (izhikevich,1000,500,1e-5,0.1,0.002));
 
 int
 main()

@@ -539,7 +539,7 @@ void network(neuron_type T, long unsigned int N, double simulation_duration, dou
       {
         case gener:
           for (long unsigned int i = 0 ; i < N; i++) {
-            struct neuron_gen neuron_model = make_neuron_gen(&sim,i,0.0 + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(1.0-0.0))),spike_rate);
+            struct neuron_gen neuron_model = make_neuron_gen(&sim,i,i,spike_rate);
             neurons_gen.emplace_back(neuron_model);
           }
           break;
@@ -634,13 +634,13 @@ BENCHMARK_P(Network, N, 1, 1,(neuron_type T,long unsigned int N, double simulati
 {
   network(T,N,simulation_duration,quantum_synapse,quantum_neuron,spike_rate);
 }
-BENCHMARK_P_INSTANCE(Network, N, (gener,10,500,1e-4,0.1,250));
-BENCHMARK_P_INSTANCE(Network, N, (gener,50,500,1e-4,0.1,250));
-BENCHMARK_P_INSTANCE(Network, N, (gener,100,500,1e-4,0.1,250));
-BENCHMARK_P_INSTANCE(Network, N, (gener,250,500,1e-4,0.1,250));
-BENCHMARK_P_INSTANCE(Network, N, (gener,500,500,1e-4,0.1,250));
-BENCHMARK_P_INSTANCE(Network, N, (gener,750,500,1e-4,0.1,250));
-BENCHMARK_P_INSTANCE(Network, N, (gener,1000,500,1e-4,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,10,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,50,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,100,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,250,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,500,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,750,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, N, (gener,1000,500,1e-5,0.1,250));
 
 
 BENCHMARK_P_INSTANCE(Network, N, (leaky_int_fire,10,500,1e-5,0.1,250));
