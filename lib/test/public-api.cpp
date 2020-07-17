@@ -804,694 +804,714 @@ main()
         } while (t < 30);
     };
 
-    "lotka_volterra_simulation"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(32lu, 512lu)));
-        expect(sim.adder_2_models.can_alloc(2));
-        expect(sim.mult_2_models.can_alloc(2));
-        expect(sim.integrator_models.can_alloc(2));
-        expect(sim.quantifier_models.can_alloc(2));
-
-        auto& sum_a = sim.adder_2_models.alloc();
-        auto& sum_b = sim.adder_2_models.alloc();
-        auto& product = sim.mult_2_models.alloc();
-        auto& integrator_a = sim.integrator_models.alloc();
-        auto& integrator_b = sim.integrator_models.alloc();
-        auto& quantifier_a = sim.quantifier_models.alloc();
-        auto& quantifier_b = sim.quantifier_models.alloc();
-
-        integrator_a.default_current_value = 18.0;
-
-        quantifier_a.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size = 0.01;
-        quantifier_a.default_past_length = 3;
-
-        integrator_b.default_current_value = 7.0;
-
-        quantifier_b.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size = 0.01;
-        quantifier_b.default_past_length = 3;
-
-        product.default_input_coeffs[0] = 1.0;
-        product.default_input_coeffs[1] = 1.0;
-        sum_a.default_input_coeffs[0] = 2.0;
-        sum_a.default_input_coeffs[1] = -0.4;
-        sum_b.default_input_coeffs[0] = -1.0;
-        sum_b.default_input_coeffs[1] = 0.1;
-
-        expect(sim.models.can_alloc(10));
-        !expect(irt::is_success(
-          sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a")));
-        !expect(irt::is_success(
-          sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b")));
-        !expect(irt::is_success(
-          sim.alloc(product, sim.mult_2_models.get_id(product), "prod")));
-        !expect(irt::is_success(sim.alloc(
-          integrator_a, sim.integrator_models.get_id(integrator_a), "int_a")));
-        !expect(irt::is_success(sim.alloc(
-          integrator_b, sim.integrator_models.get_id(integrator_b), "int_b")));
-        !expect(irt::is_success(sim.alloc(
-          quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a")));
-        !expect(irt::is_success(sim.alloc(
-          quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b")));
-
-        !expect(sim.models.size() == 7_ul);
-
-        expect(sim.connect(sum_a.y[0], integrator_a.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(sum_b.y[0], integrator_b.x[1]) ==
-               irt::status::success);
-
-        expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(integrator_a.y[0], product.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], product.x[1]) ==
-               irt::status::success);
-
-        expect(sim.connect(product.y[0], sum_a.x[1]) == irt::status::success);
-        expect(sim.connect(product.y[0], sum_b.x[1]) == irt::status::success);
-
-        expect(sim.connect(quantifier_a.y[0], integrator_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(quantifier_b.y[0], integrator_b.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_a.y[0], quantifier_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], quantifier_b.x[0]) ==
-               irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("lotka-volterra_a.csv");
-        file_output fo_b("lotka-volterra_b.csv");
-        expect(fo_a.os != nullptr);
-        expect(fo_b.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-        auto& obs_b = sim.observers.alloc(0.01,
-                                          "B",
-                                          static_cast<void*>(&fo_b),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator_a.id), obs_a);
-        sim.observe(sim.models.get(integrator_b.id), obs_b);
-
-        irt::time t = 0.0;
-
-        expect(sim.initialize(t) == irt::status::success);
-        !expect(sim.sched.size() == 7_ul);
-
-        do {
-            auto st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 15.0);
-    };
-
-    "izhikevitch_simulation"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(64lu, 256lu)));
-        expect(sim.constant_models.can_alloc(3));
-        expect(sim.adder_2_models.can_alloc(3));
-        expect(sim.adder_4_models.can_alloc(1));
-        expect(sim.mult_2_models.can_alloc(1));
-        expect(sim.integrator_models.can_alloc(2));
-        expect(sim.quantifier_models.can_alloc(2));
-        expect(sim.cross_models.can_alloc(2));
-
-        auto& constant = sim.constant_models.alloc();
-        auto& constant2 = sim.constant_models.alloc();
-        auto& constant3 = sim.constant_models.alloc();
-        auto& sum_a = sim.adder_2_models.alloc();
-        auto& sum_b = sim.adder_2_models.alloc();
-        auto& sum_c = sim.adder_4_models.alloc();
-        auto& sum_d = sim.adder_2_models.alloc();
-        auto& product = sim.mult_2_models.alloc();
-        auto& integrator_a = sim.integrator_models.alloc();
-        auto& integrator_b = sim.integrator_models.alloc();
-        auto& quantifier_a = sim.quantifier_models.alloc();
-        auto& quantifier_b = sim.quantifier_models.alloc();
-        auto& cross = sim.cross_models.alloc();
-        auto& cross2 = sim.cross_models.alloc();
-
-        double a = 0.2;
-        double b = 2.0;
-        double c = -56.0;
-        double d = -16.0;
-        double I = -99.0;
-        double vt = 30.0;
-
-        constant.default_value = 1.0;
-        constant2.default_value = c;
-        constant3.default_value = I;
-
-        cross.default_threshold = vt;
-        cross2.default_threshold = vt;
-
-        integrator_a.default_current_value = 0.0;
-
-        quantifier_a.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size = 0.01;
-        quantifier_a.default_past_length = 3;
-
-        integrator_b.default_current_value = 0.0;
-
-        quantifier_b.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size = 0.01;
-        quantifier_b.default_past_length = 3;
-
-        product.default_input_coeffs[0] = 1.0;
-        product.default_input_coeffs[1] = 1.0;
-
-        sum_a.default_input_coeffs[0] = 1.0;
-        sum_a.default_input_coeffs[1] = -1.0;
-        sum_b.default_input_coeffs[0] = -a;
-        sum_b.default_input_coeffs[1] = a * b;
-        sum_c.default_input_coeffs[0] = 0.04;
-        sum_c.default_input_coeffs[1] = 5.0;
-        sum_c.default_input_coeffs[2] = 140.0;
-        sum_c.default_input_coeffs[3] = 1.0;
-        sum_d.default_input_coeffs[0] = 1.0;
-        sum_d.default_input_coeffs[1] = d;
-
-        expect(sim.models.can_alloc(14));
-        !expect(irt::is_success(
-          sim.alloc(constant3, sim.constant_models.get_id(constant3), "tfun")));
-        !expect(irt::is_success(
-          sim.alloc(constant, sim.constant_models.get_id(constant), "1.0")));
-        !expect(irt::is_success(sim.alloc(
-          constant2, sim.constant_models.get_id(constant2), "-56.0")));
-
-        !expect(irt::is_success(
-          sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a")));
-        !expect(irt::is_success(
-          sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b")));
-        !expect(irt::is_success(
-          sim.alloc(sum_c, sim.adder_4_models.get_id(sum_c), "sum_c")));
-        !expect(irt::is_success(
-          sim.alloc(sum_d, sim.adder_2_models.get_id(sum_d), "sum_d")));
-
-        !expect(irt::is_success(
-          sim.alloc(product, sim.mult_2_models.get_id(product), "prod")));
-        !expect(irt::is_success(sim.alloc(
-          integrator_a, sim.integrator_models.get_id(integrator_a), "int_a")));
-        !expect(irt::is_success(sim.alloc(
-          integrator_b, sim.integrator_models.get_id(integrator_b), "int_b")));
-        !expect(irt::is_success(sim.alloc(
-          quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a")));
-        !expect(irt::is_success(sim.alloc(
-          quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b")));
-        !expect(irt::is_success(
-          sim.alloc(cross, sim.cross_models.get_id(cross), "cross")));
-        !expect(irt::is_success(
-          sim.alloc(cross2, sim.cross_models.get_id(cross2), "cross2")));
-
-        !expect(sim.models.size() == 14_ul);
-
-        expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(constant2.y[0], cross.x[1]) == irt::status::success);
-        expect(sim.connect(integrator_a.y[0], cross.x[2]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross.y[0], quantifier_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(cross.y[0], product.x[0]) == irt::status::success);
-        expect(sim.connect(cross.y[0], product.x[1]) == irt::status::success);
-        expect(sim.connect(product.y[0], sum_c.x[0]) == irt::status::success);
-        expect(sim.connect(cross.y[0], sum_c.x[1]) == irt::status::success);
-        expect(sim.connect(cross.y[0], sum_b.x[1]) == irt::status::success);
-
-        expect(sim.connect(constant.y[0], sum_c.x[2]) == irt::status::success);
-        expect(sim.connect(constant3.y[0], sum_c.x[3]) == irt::status::success);
-
-        expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(cross2.y[0], sum_a.x[1]) == irt::status::success);
-        expect(sim.connect(sum_a.y[0], integrator_a.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(cross.y[0], integrator_a.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(quantifier_a.y[0], integrator_a.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross2.y[0], quantifier_b.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(cross2.y[0], sum_b.x[0]) == irt::status::success);
-        expect(sim.connect(quantifier_b.y[0], integrator_b.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(sum_b.y[0], integrator_b.x[1]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross2.y[0], integrator_b.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_a.y[0], cross2.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], cross2.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(sum_d.y[0], cross2.x[1]) == irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_d.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(constant.y[0], sum_d.x[1]) == irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("izhikevitch_a.csv");
-        expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          &file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        file_output fo_b("izhikevitch_b.csv");
-        expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc(0.01,
-                                          "B",
-                                          static_cast<void*>(&fo_b),
-                                          &file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator_a.id), obs_a);
-        sim.observe(sim.models.get(integrator_b.id), obs_b);
-
-        irt::time t = 0.0;
-
-        expect(irt::status::success == sim.initialize(t));
-        !expect(sim.sched.size() == 14_ul);
-
-        do {
-            irt::status st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 120);
-    };
-
-    "lotka_volterra_simulation_qss1"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(32lu, 512lu)));
-        expect(sim.qss1_wsum_2_models.can_alloc(2));
-        expect(sim.qss1_multiplier_models.can_alloc(2));
-        expect(sim.qss1_integrator_models.can_alloc(2));
-
-        auto& sum_a = sim.qss1_wsum_2_models.alloc();
-        auto& sum_b = sim.qss1_wsum_2_models.alloc();
-        auto& product = sim.qss1_multiplier_models.alloc();
-        auto& integrator_a = sim.qss1_integrator_models.alloc();
-        auto& integrator_b = sim.qss1_integrator_models.alloc();
-
-        integrator_a.default_X = 18.0;
-        integrator_a.default_dQ = 0.1;
-
-        integrator_b.default_X = 7.0;
-        integrator_b.default_dQ = 0.1;
-
-        // product.default_input_coeffs[0] = 1.0;
-        // product.default_input_coeffs[1] = 1.0;
-        sum_a.default_input_coeffs[0] = 2.0;
-        sum_a.default_input_coeffs[1] = -0.4;
-        sum_b.default_input_coeffs[0] = -1.0;
-        sum_b.default_input_coeffs[1] = 0.1;
-
-        expect(sim.models.can_alloc(10));
-        !expect(irt::is_success(
-          sim.alloc(sum_a, sim.qss1_wsum_2_models.get_id(sum_a), "sum_a")));
-        !expect(irt::is_success(
-          sim.alloc(sum_b, sim.qss1_wsum_2_models.get_id(sum_b), "sum_b")));
-        !expect(irt::is_success(sim.alloc(
-          product, sim.qss1_multiplier_models.get_id(product), "prod")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_a,
-                    sim.qss1_integrator_models.get_id(integrator_a),
-                    "int_a")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_b,
-                    sim.qss1_integrator_models.get_id(integrator_b),
-                    "int_b")));
-
-        !expect(sim.models.size() == 5_ul);
-
-        expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(integrator_a.y[0], product.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], product.x[1]) ==
-               irt::status::success);
-
-        expect(sim.connect(product.y[0], sum_a.x[1]) == irt::status::success);
-        expect(sim.connect(product.y[0], sum_b.x[1]) == irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("lotka-volterra-qss1_a.csv");
-        file_output fo_b("lotka-volterra-qss1_b.csv");
-        expect(fo_a.os != nullptr);
-        expect(fo_b.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-        auto& obs_b = sim.observers.alloc(0.01,
-                                          "B",
-                                          static_cast<void*>(&fo_b),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator_a.id), obs_a);
-        sim.observe(sim.models.get(integrator_b.id), obs_b);
-
-        irt::time t = 0.0;
-
-        expect(sim.initialize(t) == irt::status::success);
-        !expect(sim.sched.size() == 5_ul);
-
-        do {
-            auto st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 15.0);
-    };
-
-    "lotka_volterra_simulation_qss2"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(32lu, 512lu)));
-        expect(sim.qss2_wsum_2_models.can_alloc(2));
-        expect(sim.qss2_multiplier_models.can_alloc(2));
-        expect(sim.qss2_integrator_models.can_alloc(2));
-
-        auto& sum_a = sim.qss2_wsum_2_models.alloc();
-        auto& sum_b = sim.qss2_wsum_2_models.alloc();
-        auto& product = sim.qss2_multiplier_models.alloc();
-        auto& integrator_a = sim.qss2_integrator_models.alloc();
-        auto& integrator_b = sim.qss2_integrator_models.alloc();
-
-        integrator_a.default_X = 18.0;
-        integrator_a.default_dQ = 0.1;
-
-        integrator_b.default_X = 7.0;
-        integrator_b.default_dQ = 0.1;
-
-        // product.default_input_coeffs[0] = 1.0;
-        // product.default_input_coeffs[1] = 1.0;
-        sum_a.default_input_coeffs[0] = 2.0;
-        sum_a.default_input_coeffs[1] = -0.4;
-        sum_b.default_input_coeffs[0] = -1.0;
-        sum_b.default_input_coeffs[1] = 0.1;
-
-        expect(sim.models.can_alloc(10));
-        !expect(irt::is_success(
-          sim.alloc(sum_a, sim.qss2_wsum_2_models.get_id(sum_a), "sum_a")));
-        !expect(irt::is_success(
-          sim.alloc(sum_b, sim.qss2_wsum_2_models.get_id(sum_b), "sum_b")));
-        !expect(irt::is_success(sim.alloc(
-          product, sim.qss2_multiplier_models.get_id(product), "prod")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_a,
-                    sim.qss2_integrator_models.get_id(integrator_a),
-                    "int_a")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_b,
-                    sim.qss2_integrator_models.get_id(integrator_b),
-                    "int_b")));
-
-        !expect(sim.models.size() == 5_ul);
-
-        expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(integrator_a.y[0], product.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], product.x[1]) ==
-               irt::status::success);
-
-        expect(sim.connect(product.y[0], sum_a.x[1]) == irt::status::success);
-        expect(sim.connect(product.y[0], sum_b.x[1]) == irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("lotka-volterra-qss2_a.csv");
-        file_output fo_b("lotka-volterra-qss2_b.csv");
-        expect(fo_a.os != nullptr);
-        expect(fo_b.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-        auto& obs_b = sim.observers.alloc(0.01,
-                                          "B",
-                                          static_cast<void*>(&fo_b),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator_a.id), obs_a);
-        sim.observe(sim.models.get(integrator_b.id), obs_b);
-
-        irt::time t = 0.0;
-
-        expect(sim.initialize(t) == irt::status::success);
-        !expect(sim.sched.size() == 5_ul);
-
-        do {
-            auto st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 15.0);
-    };
-
-    "lif_simulation_qss"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(32lu, 512lu)));
-        expect(sim.adder_2_models.can_alloc(1));
-        expect(sim.integrator_models.can_alloc(1));
-        expect(sim.constant_models.can_alloc(2));
-        expect(sim.cross_models.can_alloc(1));
-
-        auto& sum = sim.adder_2_models.alloc();
-        auto& quantifier = sim.quantifier_models.alloc();
-        auto& integrator = sim.integrator_models.alloc();
-        auto& constant = sim.constant_models.alloc();
-        auto& constant_cross = sim.constant_models.alloc();
-        auto& cross = sim.cross_models.alloc();
-
-        double tau = 10.0;
-        double Vr = 0.0;
-        double Vt = 1.0;
-        double V0 = 2.0;
-
-        sum.default_input_coeffs[0] = -1.0 / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant.default_value = 1.0;
-        constant_cross.default_value = Vr;
-
-        integrator.default_current_value = 0.0;
-
-        quantifier.default_adapt_state = irt::quantifier::adapt_state::possible;
-        quantifier.default_zero_init_offset = true;
-        quantifier.default_step_size = 0.01;
-        quantifier.default_past_length = 3;
-
-        cross.default_threshold = Vt;
-
-        expect(sim.models.can_alloc(10));
-        !expect(irt::is_success(
-          sim.alloc(sum, sim.adder_2_models.get_id(sum), "sum")));
-        !expect(irt::is_success(sim.alloc(
-          quantifier, sim.quantifier_models.get_id(quantifier), "qua")));
-        !expect(irt::is_success(sim.alloc(
-          integrator, sim.integrator_models.get_id(integrator), "int")));
-        !expect(irt::is_success(
-          sim.alloc(constant, sim.constant_models.get_id(constant), "cte")));
-        !expect(
-          irt::is_success(sim.alloc(constant_cross,
-                                    sim.constant_models.get_id(constant_cross),
-                                    "ctecro")));
-        !expect(irt::is_success(
-          sim.alloc(cross, sim.cross_models.get_id(cross), "cro")));
-
-        !expect(sim.models.size() == 6_ul);
-
-        // Connections
-
-        expect(sim.connect(quantifier.y[0], integrator.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(sum.y[0], integrator.x[1]) == irt::status::success);
-        expect(sim.connect(cross.y[0], integrator.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(cross.y[0], quantifier.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(cross.y[0], sum.x[0]) == irt::status::success);
-        expect(sim.connect(integrator.y[0], cross.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator.y[0], cross.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(constant_cross.y[0], cross.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(constant.y[0], sum.x[1]) == irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("lif-qss.csv");
-        expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator.id), obs_a);
-
-        irt::time t = 0.0;
-
-        expect(sim.initialize(t) == irt::status::success);
-        !expect(sim.sched.size() == 6_ul);
-
-        do {
-            auto st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 100.0);
-    };
-
-    "lif_simulation_qss1"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(32lu, 512lu)));
-        expect(sim.qss1_wsum_2_models.can_alloc(1));
-        expect(sim.qss1_integrator_models.can_alloc(1));
-        expect(sim.constant_models.can_alloc(2));
-        expect(sim.qss1_cross_models.can_alloc(1));
-
-        auto& sum = sim.qss1_wsum_2_models.alloc();
-        auto& integrator = sim.qss1_integrator_models.alloc();
-        auto& constant = sim.constant_models.alloc();
-        auto& constant_cross = sim.constant_models.alloc();
-        auto& cross = sim.qss1_cross_models.alloc();
-
-        double tau = 10.0;
-        double Vr = 0.0;
-        double Vt = 1.0;
-        double V0 = 2.0;
-
-        sum.default_input_coeffs[0] = -1.0 / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant.default_value = 1.0;
-        constant_cross.default_value = Vr;
-
-        integrator.default_X = 0.0;
-        integrator.default_dQ = 0.001;
-
-        cross.default_threshold = Vt;
-
-        expect(sim.models.can_alloc(10));
-        !expect(irt::is_success(
-          sim.alloc(sum, sim.qss1_wsum_2_models.get_id(sum), "sum")));
-        !expect(irt::is_success(sim.alloc(
-          integrator, sim.qss1_integrator_models.get_id(integrator), "int")));
-        !expect(irt::is_success(
-          sim.alloc(constant, sim.constant_models.get_id(constant), "cte")));
-        !expect(
-          irt::is_success(sim.alloc(constant_cross,
-                                    sim.constant_models.get_id(constant_cross),
-                                    "ctecro")));
-        !expect(irt::is_success(
-          sim.alloc(cross, sim.qss1_cross_models.get_id(cross), "cro")));
-
-        !expect(sim.models.size() == 5_ul);
-
-        // Connections
-
-        expect(sim.connect(cross.y[0], integrator.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(cross.y[0], sum.x[0]) == irt::status::success);
-        expect(sim.connect(integrator.y[0], cross.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator.y[0], cross.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(constant_cross.y[0], cross.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(constant.y[0], sum.x[1]) == irt::status::success);
-        expect(sim.connect(sum.y[0], integrator.x[0]) == irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("lif-qss1.csv");
-        expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator.id), obs_a);
-
-        irt::time t = 0.0;
-
-        expect(sim.initialize(t) == irt::status::success);
-        !expect(sim.sched.size() == 5_ul);
-
-        do {
-            auto st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 100.0);
-    };
+    // "lotka_volterra_simulation"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(32lu, 512lu)));
+    //     expect(sim.adder_2_models.can_alloc(2));
+    //     expect(sim.mult_2_models.can_alloc(2));
+    //     expect(sim.integrator_models.can_alloc(2));
+    //     expect(sim.quantifier_models.can_alloc(2));
+
+    //     auto& sum_a = sim.adder_2_models.alloc();
+    //     auto& sum_b = sim.adder_2_models.alloc();
+    //     auto& product = sim.mult_2_models.alloc();
+    //     auto& integrator_a = sim.integrator_models.alloc();
+    //     auto& integrator_b = sim.integrator_models.alloc();
+    //     auto& quantifier_a = sim.quantifier_models.alloc();
+    //     auto& quantifier_b = sim.quantifier_models.alloc();
+
+    //     integrator_a.default_current_value = 18.0;
+
+    //     quantifier_a.default_adapt_state =
+    //       irt::quantifier::adapt_state::possible;
+    //     quantifier_a.default_zero_init_offset = true;
+    //     quantifier_a.default_step_size = 0.01;
+    //     quantifier_a.default_past_length = 3;
+
+    //     integrator_b.default_current_value = 7.0;
+
+    //     quantifier_b.default_adapt_state =
+    //       irt::quantifier::adapt_state::possible;
+    //     quantifier_b.default_zero_init_offset = true;
+    //     quantifier_b.default_step_size = 0.01;
+    //     quantifier_b.default_past_length = 3;
+
+    //     product.default_input_coeffs[0] = 1.0;
+    //     product.default_input_coeffs[1] = 1.0;
+    //     sum_a.default_input_coeffs[0] = 2.0;
+    //     sum_a.default_input_coeffs[1] = -0.4;
+    //     sum_b.default_input_coeffs[0] = -1.0;
+    //     sum_b.default_input_coeffs[1] = 0.1;
+
+    //     expect(sim.models.can_alloc(10));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(product, sim.mult_2_models.get_id(product), "prod")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       integrator_a, sim.integrator_models.get_id(integrator_a),
+    //       "int_a")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       integrator_b, sim.integrator_models.get_id(integrator_b),
+    //       "int_b")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       quantifier_a, sim.quantifier_models.get_id(quantifier_a),
+    //       "qua_a")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       quantifier_b, sim.quantifier_models.get_id(quantifier_b),
+    //       "qua_b")));
+
+    //     !expect(sim.models.size() == 7_ul);
+
+    //     expect(sim.connect(sum_a.y[0], integrator_a.x[1]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum_b.y[0], integrator_b.x[1]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(integrator_a.y[0], product.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], product.x[1]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(product.y[0], sum_a.x[1]) ==
+    //     irt::status::success); expect(sim.connect(product.y[0], sum_b.x[1])
+    //     == irt::status::success);
+
+    //     expect(sim.connect(quantifier_a.y[0], integrator_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(quantifier_b.y[0], integrator_b.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_a.y[0], quantifier_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], quantifier_b.x[0]) ==
+    //            irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("lotka-volterra_a.csv");
+    //     file_output fo_b("lotka-volterra_b.csv");
+    //     expect(fo_a.os != nullptr);
+    //     expect(fo_b.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+    //     auto& obs_b = sim.observers.alloc(0.01,
+    //                                       "B",
+    //                                       static_cast<void*>(&fo_b),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator_a.id), obs_a);
+    //     sim.observe(sim.models.get(integrator_b.id), obs_b);
+
+    //     irt::time t = 0.0;
+
+    //     expect(sim.initialize(t) == irt::status::success);
+    //     !expect(sim.sched.size() == 7_ul);
+
+    //     do {
+    //         auto st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 15.0);
+    // };
+
+    // "izhikevitch_simulation"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(64lu, 256lu)));
+    //     expect(sim.constant_models.can_alloc(3));
+    //     expect(sim.adder_2_models.can_alloc(3));
+    //     expect(sim.adder_4_models.can_alloc(1));
+    //     expect(sim.mult_2_models.can_alloc(1));
+    //     expect(sim.integrator_models.can_alloc(2));
+    //     expect(sim.quantifier_models.can_alloc(2));
+    //     expect(sim.cross_models.can_alloc(2));
+
+    //     auto& constant = sim.constant_models.alloc();
+    //     auto& constant2 = sim.constant_models.alloc();
+    //     auto& constant3 = sim.constant_models.alloc();
+    //     auto& sum_a = sim.adder_2_models.alloc();
+    //     auto& sum_b = sim.adder_2_models.alloc();
+    //     auto& sum_c = sim.adder_4_models.alloc();
+    //     auto& sum_d = sim.adder_2_models.alloc();
+    //     auto& product = sim.mult_2_models.alloc();
+    //     auto& integrator_a = sim.integrator_models.alloc();
+    //     auto& integrator_b = sim.integrator_models.alloc();
+    //     auto& quantifier_a = sim.quantifier_models.alloc();
+    //     auto& quantifier_b = sim.quantifier_models.alloc();
+    //     auto& cross = sim.cross_models.alloc();
+    //     auto& cross2 = sim.cross_models.alloc();
+
+    //     double a = 0.2;
+    //     double b = 2.0;
+    //     double c = -56.0;
+    //     double d = -16.0;
+    //     double I = -99.0;
+    //     double vt = 30.0;
+
+    //     constant.default_value = 1.0;
+    //     constant2.default_value = c;
+    //     constant3.default_value = I;
+
+    //     cross.default_threshold = vt;
+    //     cross2.default_threshold = vt;
+
+    //     integrator_a.default_current_value = 0.0;
+
+    //     quantifier_a.default_adapt_state =
+    //       irt::quantifier::adapt_state::possible;
+    //     quantifier_a.default_zero_init_offset = true;
+    //     quantifier_a.default_step_size = 0.01;
+    //     quantifier_a.default_past_length = 3;
+
+    //     integrator_b.default_current_value = 0.0;
+
+    //     quantifier_b.default_adapt_state =
+    //       irt::quantifier::adapt_state::possible;
+    //     quantifier_b.default_zero_init_offset = true;
+    //     quantifier_b.default_step_size = 0.01;
+    //     quantifier_b.default_past_length = 3;
+
+    //     product.default_input_coeffs[0] = 1.0;
+    //     product.default_input_coeffs[1] = 1.0;
+
+    //     sum_a.default_input_coeffs[0] = 1.0;
+    //     sum_a.default_input_coeffs[1] = -1.0;
+    //     sum_b.default_input_coeffs[0] = -a;
+    //     sum_b.default_input_coeffs[1] = a * b;
+    //     sum_c.default_input_coeffs[0] = 0.04;
+    //     sum_c.default_input_coeffs[1] = 5.0;
+    //     sum_c.default_input_coeffs[2] = 140.0;
+    //     sum_c.default_input_coeffs[3] = 1.0;
+    //     sum_d.default_input_coeffs[0] = 1.0;
+    //     sum_d.default_input_coeffs[1] = d;
+
+    //     expect(sim.models.can_alloc(14));
+    //     !expect(irt::is_success(
+    //       sim.alloc(constant3, sim.constant_models.get_id(constant3),
+    //       "tfun")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(constant, sim.constant_models.get_id(constant), "1.0")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       constant2, sim.constant_models.get_id(constant2), "-56.0")));
+
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_c, sim.adder_4_models.get_id(sum_c), "sum_c")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_d, sim.adder_2_models.get_id(sum_d), "sum_d")));
+
+    //     !expect(irt::is_success(
+    //       sim.alloc(product, sim.mult_2_models.get_id(product), "prod")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       integrator_a, sim.integrator_models.get_id(integrator_a),
+    //       "int_a")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       integrator_b, sim.integrator_models.get_id(integrator_b),
+    //       "int_b")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       quantifier_a, sim.quantifier_models.get_id(quantifier_a),
+    //       "qua_a")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       quantifier_b, sim.quantifier_models.get_id(quantifier_b),
+    //       "qua_b")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(cross, sim.cross_models.get_id(cross), "cross")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(cross2, sim.cross_models.get_id(cross2), "cross2")));
+
+    //     !expect(sim.models.size() == 14_ul);
+
+    //     expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant2.y[0], cross.x[1]) ==
+    //     irt::status::success); expect(sim.connect(integrator_a.y[0],
+    //     cross.x[2]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross.y[0], quantifier_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross.y[0], product.x[0]) ==
+    //     irt::status::success); expect(sim.connect(cross.y[0], product.x[1])
+    //     == irt::status::success); expect(sim.connect(product.y[0],
+    //     sum_c.x[0]) == irt::status::success); expect(sim.connect(cross.y[0],
+    //     sum_c.x[1]) == irt::status::success); expect(sim.connect(cross.y[0],
+    //     sum_b.x[1]) == irt::status::success);
+
+    //     expect(sim.connect(constant.y[0], sum_c.x[2]) ==
+    //     irt::status::success); expect(sim.connect(constant3.y[0], sum_c.x[3])
+    //     == irt::status::success);
+
+    //     expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross2.y[0], sum_a.x[1]) == irt::status::success);
+    //     expect(sim.connect(sum_a.y[0], integrator_a.x[1]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross.y[0], integrator_a.x[2]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(quantifier_a.y[0], integrator_a.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross2.y[0], quantifier_b.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross2.y[0], sum_b.x[0]) == irt::status::success);
+    //     expect(sim.connect(quantifier_b.y[0], integrator_b.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum_b.y[0], integrator_b.x[1]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross2.y[0], integrator_b.x[2]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_a.y[0], cross2.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], cross2.x[2]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum_d.y[0], cross2.x[1]) == irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], sum_d.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant.y[0], sum_d.x[1]) ==
+    //     irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("izhikevitch_a.csv");
+    //     expect(fo_a.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       &file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     file_output fo_b("izhikevitch_b.csv");
+    //     expect(fo_b.os != nullptr);
+    //     auto& obs_b = sim.observers.alloc(0.01,
+    //                                       "B",
+    //                                       static_cast<void*>(&fo_b),
+    //                                       &file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator_a.id), obs_a);
+    //     sim.observe(sim.models.get(integrator_b.id), obs_b);
+
+    //     irt::time t = 0.0;
+
+    //     expect(irt::status::success == sim.initialize(t));
+    //     !expect(sim.sched.size() == 14_ul);
+
+    //     do {
+    //         irt::status st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 120);
+    // };
+
+    // "lotka_volterra_simulation_qss1"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(32lu, 512lu)));
+    //     expect(sim.qss1_wsum_2_models.can_alloc(2));
+    //     expect(sim.qss1_multiplier_models.can_alloc(2));
+    //     expect(sim.qss1_integrator_models.can_alloc(2));
+
+    //     auto& sum_a = sim.qss1_wsum_2_models.alloc();
+    //     auto& sum_b = sim.qss1_wsum_2_models.alloc();
+    //     auto& product = sim.qss1_multiplier_models.alloc();
+    //     auto& integrator_a = sim.qss1_integrator_models.alloc();
+    //     auto& integrator_b = sim.qss1_integrator_models.alloc();
+
+    //     integrator_a.default_X = 18.0;
+    //     integrator_a.default_dQ = 0.1;
+
+    //     integrator_b.default_X = 7.0;
+    //     integrator_b.default_dQ = 0.1;
+
+    //     // product.default_input_coeffs[0] = 1.0;
+    //     // product.default_input_coeffs[1] = 1.0;
+    //     sum_a.default_input_coeffs[0] = 2.0;
+    //     sum_a.default_input_coeffs[1] = -0.4;
+    //     sum_b.default_input_coeffs[0] = -1.0;
+    //     sum_b.default_input_coeffs[1] = 0.1;
+
+    //     expect(sim.models.can_alloc(10));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_a, sim.qss1_wsum_2_models.get_id(sum_a), "sum_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_b, sim.qss1_wsum_2_models.get_id(sum_b), "sum_b")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       product, sim.qss1_multiplier_models.get_id(product), "prod")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_a,
+    //                 sim.qss1_integrator_models.get_id(integrator_a),
+    //                 "int_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_b,
+    //                 sim.qss1_integrator_models.get_id(integrator_b),
+    //                 "int_b")));
+
+    //     !expect(sim.models.size() == 5_ul);
+
+    //     expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(integrator_a.y[0], product.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], product.x[1]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(product.y[0], sum_a.x[1]) ==
+    //     irt::status::success); expect(sim.connect(product.y[0], sum_b.x[1])
+    //     == irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("lotka-volterra-qss1_a.csv");
+    //     file_output fo_b("lotka-volterra-qss1_b.csv");
+    //     expect(fo_a.os != nullptr);
+    //     expect(fo_b.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+    //     auto& obs_b = sim.observers.alloc(0.01,
+    //                                       "B",
+    //                                       static_cast<void*>(&fo_b),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator_a.id), obs_a);
+    //     sim.observe(sim.models.get(integrator_b.id), obs_b);
+
+    //     irt::time t = 0.0;
+
+    //     expect(sim.initialize(t) == irt::status::success);
+    //     !expect(sim.sched.size() == 5_ul);
+
+    //     do {
+    //         auto st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 15.0);
+    // };
+
+    // "lotka_volterra_simulation_qss2"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(32lu, 512lu)));
+    //     expect(sim.qss2_wsum_2_models.can_alloc(2));
+    //     expect(sim.qss2_multiplier_models.can_alloc(2));
+    //     expect(sim.qss2_integrator_models.can_alloc(2));
+
+    //     auto& sum_a = sim.qss2_wsum_2_models.alloc();
+    //     auto& sum_b = sim.qss2_wsum_2_models.alloc();
+    //     auto& product = sim.qss2_multiplier_models.alloc();
+    //     auto& integrator_a = sim.qss2_integrator_models.alloc();
+    //     auto& integrator_b = sim.qss2_integrator_models.alloc();
+
+    //     integrator_a.default_X = 18.0;
+    //     integrator_a.default_dQ = 0.1;
+
+    //     integrator_b.default_X = 7.0;
+    //     integrator_b.default_dQ = 0.1;
+
+    //     // product.default_input_coeffs[0] = 1.0;
+    //     // product.default_input_coeffs[1] = 1.0;
+    //     sum_a.default_input_coeffs[0] = 2.0;
+    //     sum_a.default_input_coeffs[1] = -0.4;
+    //     sum_b.default_input_coeffs[0] = -1.0;
+    //     sum_b.default_input_coeffs[1] = 0.1;
+
+    //     expect(sim.models.can_alloc(10));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_a, sim.qss2_wsum_2_models.get_id(sum_a), "sum_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_b, sim.qss2_wsum_2_models.get_id(sum_b), "sum_b")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       product, sim.qss2_multiplier_models.get_id(product), "prod")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_a,
+    //                 sim.qss2_integrator_models.get_id(integrator_a),
+    //                 "int_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_b,
+    //                 sim.qss2_integrator_models.get_id(integrator_b),
+    //                 "int_b")));
+
+    //     !expect(sim.models.size() == 5_ul);
+
+    //     expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(integrator_a.y[0], product.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], product.x[1]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(product.y[0], sum_a.x[1]) ==
+    //     irt::status::success); expect(sim.connect(product.y[0], sum_b.x[1])
+    //     == irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("lotka-volterra-qss2_a.csv");
+    //     file_output fo_b("lotka-volterra-qss2_b.csv");
+    //     expect(fo_a.os != nullptr);
+    //     expect(fo_b.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+    //     auto& obs_b = sim.observers.alloc(0.01,
+    //                                       "B",
+    //                                       static_cast<void*>(&fo_b),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator_a.id), obs_a);
+    //     sim.observe(sim.models.get(integrator_b.id), obs_b);
+
+    //     irt::time t = 0.0;
+
+    //     expect(sim.initialize(t) == irt::status::success);
+    //     !expect(sim.sched.size() == 5_ul);
+
+    //     do {
+    //         auto st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 15.0);
+    // };
+
+    // "lif_simulation_qss"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(32lu, 512lu)));
+    //     expect(sim.adder_2_models.can_alloc(1));
+    //     expect(sim.integrator_models.can_alloc(1));
+    //     expect(sim.constant_models.can_alloc(2));
+    //     expect(sim.cross_models.can_alloc(1));
+
+    //     auto& sum = sim.adder_2_models.alloc();
+    //     auto& quantifier = sim.quantifier_models.alloc();
+    //     auto& integrator = sim.integrator_models.alloc();
+    //     auto& constant = sim.constant_models.alloc();
+    //     auto& constant_cross = sim.constant_models.alloc();
+    //     auto& cross = sim.cross_models.alloc();
+
+    //     double tau = 10.0;
+    //     double Vr = 0.0;
+    //     double Vt = 1.0;
+    //     double V0 = 2.0;
+
+    //     sum.default_input_coeffs[0] = -1.0 / tau;
+    //     sum.default_input_coeffs[1] = V0 / tau;
+
+    //     constant.default_value = 1.0;
+    //     constant_cross.default_value = Vr;
+
+    //     integrator.default_current_value = 0.0;
+
+    //     quantifier.default_adapt_state =
+    //     irt::quantifier::adapt_state::possible;
+    //     quantifier.default_zero_init_offset = true;
+    //     quantifier.default_step_size = 0.01;
+    //     quantifier.default_past_length = 3;
+
+    //     cross.default_threshold = Vt;
+
+    //     expect(sim.models.can_alloc(10));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum, sim.adder_2_models.get_id(sum), "sum")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       quantifier, sim.quantifier_models.get_id(quantifier), "qua")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       integrator, sim.integrator_models.get_id(integrator), "int")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(constant, sim.constant_models.get_id(constant), "cte")));
+    //     !expect(
+    //       irt::is_success(sim.alloc(constant_cross,
+    //                                 sim.constant_models.get_id(constant_cross),
+    //                                 "ctecro")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(cross, sim.cross_models.get_id(cross), "cro")));
+
+    //     !expect(sim.models.size() == 6_ul);
+
+    //     // Connections
+
+    //     expect(sim.connect(quantifier.y[0], integrator.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum.y[0], integrator.x[1]) ==
+    //     irt::status::success); expect(sim.connect(cross.y[0],
+    //     integrator.x[2]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross.y[0], quantifier.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross.y[0], sum.x[0]) == irt::status::success);
+    //     expect(sim.connect(integrator.y[0], cross.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator.y[0], cross.x[2]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant_cross.y[0], cross.x[1]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant.y[0], sum.x[1]) == irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("lif-qss.csv");
+    //     expect(fo_a.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator.id), obs_a);
+
+    //     irt::time t = 0.0;
+
+    //     expect(sim.initialize(t) == irt::status::success);
+    //     !expect(sim.sched.size() == 6_ul);
+
+    //     do {
+    //         auto st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 100.0);
+    // };
+
+    // "lif_simulation_qss1"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(32lu, 512lu)));
+    //     expect(sim.qss1_wsum_2_models.can_alloc(1));
+    //     expect(sim.qss1_integrator_models.can_alloc(1));
+    //     expect(sim.constant_models.can_alloc(2));
+    //     expect(sim.qss1_cross_models.can_alloc(1));
+
+    //     auto& sum = sim.qss1_wsum_2_models.alloc();
+    //     auto& integrator = sim.qss1_integrator_models.alloc();
+    //     auto& constant = sim.constant_models.alloc();
+    //     auto& constant_cross = sim.constant_models.alloc();
+    //     auto& cross = sim.qss1_cross_models.alloc();
+
+    //     double tau = 10.0;
+    //     double Vr = 0.0;
+    //     double Vt = 1.0;
+    //     double V0 = 2.0;
+
+    //     sum.default_input_coeffs[0] = -1.0 / tau;
+    //     sum.default_input_coeffs[1] = V0 / tau;
+
+    //     constant.default_value = 1.0;
+    //     constant_cross.default_value = Vr;
+
+    //     integrator.default_X = 0.0;
+    //     integrator.default_dQ = 0.001;
+
+    //     cross.default_threshold = Vt;
+
+    //     expect(sim.models.can_alloc(10));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum, sim.qss1_wsum_2_models.get_id(sum), "sum")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       integrator, sim.qss1_integrator_models.get_id(integrator),
+    //       "int")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(constant, sim.constant_models.get_id(constant), "cte")));
+    //     !expect(
+    //       irt::is_success(sim.alloc(constant_cross,
+    //                                 sim.constant_models.get_id(constant_cross),
+    //                                 "ctecro")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(cross, sim.qss1_cross_models.get_id(cross), "cro")));
+
+    //     !expect(sim.models.size() == 5_ul);
+
+    //     // Connections
+
+    //     expect(sim.connect(cross.y[0], integrator.x[1]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross.y[0], sum.x[0]) == irt::status::success);
+    //     expect(sim.connect(integrator.y[0], cross.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator.y[0], cross.x[2]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant_cross.y[0], cross.x[1]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant.y[0], sum.x[1]) == irt::status::success);
+    //     expect(sim.connect(sum.y[0], integrator.x[0]) ==
+    //     irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("lif-qss1.csv");
+    //     expect(fo_a.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator.id), obs_a);
+
+    //     irt::time t = 0.0;
+
+    //     expect(sim.initialize(t) == irt::status::success);
+    //     !expect(sim.sched.size() == 5_ul);
+
+    //     do {
+    //         auto st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 100.0);
+    // };
 
     "lif_simulation_qss2"_test = [] {
         irt::simulation sim;
@@ -1560,7 +1580,7 @@ main()
         file_output fo_a("lif-qss2.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01,
+        auto& obs_a = sim.observers.alloc(0.001,
                                           "A",
                                           static_cast<void*>(&fo_a),
                                           file_output_initialize,
@@ -1575,434 +1595,448 @@ main()
         !expect(sim.sched.size() == 5_ul);
 
         do {
+            printf("--------------------------------------------\n");
             auto st = sim.run(t);
             expect(st == irt::status::success);
         } while (t < 100.0);
     };
 
-    "izhikevich_simulation_qss1"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(128lu, 256)));
-        expect(sim.constant_models.can_alloc(3));
-        expect(sim.qss1_wsum_2_models.can_alloc(3));
-        expect(sim.qss1_wsum_4_models.can_alloc(1));
-        expect(sim.qss1_multiplier_models.can_alloc(1));
-        expect(sim.qss1_integrator_models.can_alloc(2));
-
-        expect(sim.qss1_cross_models.can_alloc(2));
-
-        auto& constant = sim.constant_models.alloc();
-        auto& constant2 = sim.constant_models.alloc();
-        auto& constant3 = sim.constant_models.alloc();
-        auto& sum_a = sim.qss1_wsum_2_models.alloc();
-        auto& sum_b = sim.qss1_wsum_2_models.alloc();
-        auto& sum_c = sim.qss1_wsum_4_models.alloc();
-        auto& sum_d = sim.qss1_wsum_2_models.alloc();
-        auto& product = sim.qss1_multiplier_models.alloc();
-        auto& integrator_a = sim.qss1_integrator_models.alloc();
-        auto& integrator_b = sim.qss1_integrator_models.alloc();
-        auto& cross = sim.qss1_cross_models.alloc();
-        auto& cross2 = sim.qss1_cross_models.alloc();
-
-        double a = 0.2;
-        double b = 2.0;
-        double c = -56.0;
-        double d = -16.0;
-        double I = -99.0;
-        double vt = 30.0;
-
-        constant.default_value = 1.0;
-        constant2.default_value = c;
-        constant3.default_value = I;
-
-        cross.default_threshold = vt;
-        cross2.default_threshold = vt;
-
-        integrator_a.default_X = 0.0;
-        integrator_a.default_dQ = 0.01;
-
-        integrator_b.default_X = 0.0;
-        integrator_b.default_dQ = 0.01;
-
-        sum_a.default_input_coeffs[0] = 1.0;
-        sum_a.default_input_coeffs[1] = -1.0;
-        sum_b.default_input_coeffs[0] = -a;
-        sum_b.default_input_coeffs[1] = a * b;
-        sum_c.default_input_coeffs[0] = 0.04;
-        sum_c.default_input_coeffs[1] = 5.0;
-        sum_c.default_input_coeffs[2] = 140.0;
-        sum_c.default_input_coeffs[3] = 1.0;
-        sum_d.default_input_coeffs[0] = 1.0;
-        sum_d.default_input_coeffs[1] = d;
-
-        expect(sim.models.can_alloc(12));
-        !expect(irt::is_success(
-          sim.alloc(constant3, sim.constant_models.get_id(constant3), "tfun")));
-        !expect(irt::is_success(
-          sim.alloc(constant, sim.constant_models.get_id(constant), "1.0")));
-        !expect(irt::is_success(sim.alloc(
-          constant2, sim.constant_models.get_id(constant2), "-56.0")));
-
-        !expect(irt::is_success(
-          sim.alloc(sum_a, sim.qss1_wsum_2_models.get_id(sum_a), "sum_a")));
-        !expect(irt::is_success(
-          sim.alloc(sum_b, sim.qss1_wsum_2_models.get_id(sum_b), "sum_b")));
-        !expect(irt::is_success(
-          sim.alloc(sum_c, sim.qss1_wsum_4_models.get_id(sum_c), "sum_c")));
-        !expect(irt::is_success(
-          sim.alloc(sum_d, sim.qss1_wsum_2_models.get_id(sum_d), "sum_d")));
-
-        !expect(irt::is_success(sim.alloc(
-          product, sim.qss1_multiplier_models.get_id(product), "prod")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_a,
-                    sim.qss1_integrator_models.get_id(integrator_a),
-                    "int_a")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_b,
-                    sim.qss1_integrator_models.get_id(integrator_b),
-                    "int_b")));
-        !expect(irt::is_success(
-          sim.alloc(cross, sim.qss1_cross_models.get_id(cross), "cross")));
-        !expect(irt::is_success(
-          sim.alloc(cross2, sim.qss1_cross_models.get_id(cross2), "cross2")));
-
-        !expect(sim.models.size() == 12_ul);
-
-        expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(constant2.y[0], cross.x[1]) == irt::status::success);
-        expect(sim.connect(integrator_a.y[0], cross.x[2]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross.y[0], product.x[0]) == irt::status::success);
-        expect(sim.connect(cross.y[0], product.x[1]) == irt::status::success);
-        expect(sim.connect(product.y[0], sum_c.x[0]) == irt::status::success);
-        expect(sim.connect(cross.y[0], sum_c.x[1]) == irt::status::success);
-        expect(sim.connect(cross.y[0], sum_b.x[1]) == irt::status::success);
-
-        expect(sim.connect(constant.y[0], sum_c.x[2]) == irt::status::success);
-        expect(sim.connect(constant3.y[0], sum_c.x[3]) == irt::status::success);
-
-        expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
-        // expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
-        //     irt::status::success);
-        expect(sim.connect(cross2.y[0], sum_a.x[1]) == irt::status::success);
-        expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(cross.y[0], integrator_a.x[1]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross2.y[0], sum_b.x[0]) == irt::status::success);
-        expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross2.y[0], integrator_b.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_a.y[0], cross2.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], cross2.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(sum_d.y[0], cross2.x[1]) == irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_d.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(constant.y[0], sum_d.x[1]) == irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("izhikevitch-qss1_a.csv");
-        expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          &file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        file_output fo_b("izhikevitch-qss1_b.csv");
-        expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc(0.01,
-                                          "B",
-                                          static_cast<void*>(&fo_b),
-                                          &file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator_a.id), obs_a);
-        sim.observe(sim.models.get(integrator_b.id), obs_b);
-
-        irt::time t = 0.0;
-
-        expect(irt::status::success == sim.initialize(t));
-        !expect(sim.sched.size() == 12_ul);
-
-        do {
-            irt::status st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 100);
-    };
-
-    "izhikevich_simulation_qss2"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(64lu, 256lu)));
-        expect(sim.constant_models.can_alloc(3));
-        expect(sim.qss2_wsum_2_models.can_alloc(3));
-        expect(sim.qss2_wsum_4_models.can_alloc(1));
-        expect(sim.qss2_multiplier_models.can_alloc(1));
-        expect(sim.qss2_integrator_models.can_alloc(2));
-
-        auto& constant = sim.constant_models.alloc();
-        auto& constant2 = sim.constant_models.alloc();
-        auto& constant3 = sim.constant_models.alloc();
-        auto& sum_a = sim.qss2_wsum_2_models.alloc();
-        auto& sum_b = sim.qss2_wsum_2_models.alloc();
-        auto& sum_c = sim.qss2_wsum_4_models.alloc();
-        auto& sum_d = sim.qss2_wsum_2_models.alloc();
-        auto& product = sim.qss2_multiplier_models.alloc();
-        auto& integrator_a = sim.qss2_integrator_models.alloc();
-        auto& integrator_b = sim.qss2_integrator_models.alloc();
-        auto& cross = sim.qss2_cross_models.alloc();
-        auto& cross2 = sim.qss2_cross_models.alloc();
-
-        double a = 0.2;
-        double b = 2.0;
-        double c = -56.0;
-        double d = -16.0;
-        double I = -99.0;
-        double vt = 30.0;
-
-        constant.default_value = 1.0;
-        constant2.default_value = c;
-        constant3.default_value = I;
-
-        cross.default_threshold = vt;
-        cross2.default_threshold = vt;
-
-        integrator_a.default_X = 0.0;
-        integrator_a.default_dQ = 0.01;
-
-        integrator_b.default_X = 0.0;
-        integrator_b.default_dQ = 0.01;
-
-        sum_a.default_input_coeffs[0] = 1.0;
-        sum_a.default_input_coeffs[1] = -1.0;
-        sum_b.default_input_coeffs[0] = -a;
-        sum_b.default_input_coeffs[1] = a * b;
-        sum_c.default_input_coeffs[0] = 0.04;
-        sum_c.default_input_coeffs[1] = 5.0;
-        sum_c.default_input_coeffs[2] = 140.0;
-        sum_c.default_input_coeffs[3] = 1.0;
-        sum_d.default_input_coeffs[0] = 1.0;
-        sum_d.default_input_coeffs[1] = d;
-
-        expect(sim.models.can_alloc(12));
-        !expect(irt::is_success(
-          sim.alloc(constant3, sim.constant_models.get_id(constant3), "tfun")));
-        !expect(irt::is_success(
-          sim.alloc(constant, sim.constant_models.get_id(constant), "1.0")));
-        !expect(irt::is_success(sim.alloc(
-          constant2, sim.constant_models.get_id(constant2), "-56.0")));
-
-        !expect(irt::is_success(
-          sim.alloc(sum_a, sim.qss2_wsum_2_models.get_id(sum_a), "sum_a")));
-        !expect(irt::is_success(
-          sim.alloc(sum_b, sim.qss2_wsum_2_models.get_id(sum_b), "sum_b")));
-        !expect(irt::is_success(
-          sim.alloc(sum_c, sim.qss2_wsum_4_models.get_id(sum_c), "sum_c")));
-        !expect(irt::is_success(
-          sim.alloc(sum_d, sim.qss2_wsum_2_models.get_id(sum_d), "sum_d")));
-
-        !expect(irt::is_success(sim.alloc(
-          product, sim.qss2_multiplier_models.get_id(product), "prod")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_a,
-                    sim.qss2_integrator_models.get_id(integrator_a),
-                    "int_a")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_b,
-                    sim.qss2_integrator_models.get_id(integrator_b),
-                    "int_b")));
-        !expect(irt::is_success(
-          sim.alloc(cross, sim.qss2_cross_models.get_id(cross), "cross")));
-        !expect(irt::is_success(
-          sim.alloc(cross2, sim.qss2_cross_models.get_id(cross2), "cross2")));
-
-        !expect(sim.models.size() == 12_ul);
-
-        expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(constant2.y[0], cross.x[1]) == irt::status::success);
-        expect(sim.connect(integrator_a.y[0], cross.x[2]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross.y[0], product.x[0]) == irt::status::success);
-        expect(sim.connect(cross.y[0], product.x[1]) == irt::status::success);
-        expect(sim.connect(product.y[0], sum_c.x[0]) == irt::status::success);
-        expect(sim.connect(cross.y[0], sum_c.x[1]) == irt::status::success);
-        expect(sim.connect(cross.y[0], sum_b.x[1]) == irt::status::success);
-
-        expect(sim.connect(constant.y[0], sum_c.x[2]) == irt::status::success);
-        expect(sim.connect(constant3.y[0], sum_c.x[3]) == irt::status::success);
-
-        expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
-        // expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
-        // irt::status::success);
-        expect(sim.connect(cross2.y[0], sum_a.x[1]) == irt::status::success);
-        expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(cross.y[0], integrator_a.x[1]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross2.y[0], sum_b.x[0]) == irt::status::success);
-        expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(cross2.y[0], integrator_b.x[1]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_a.y[0], cross2.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], cross2.x[2]) ==
-               irt::status::success);
-        expect(sim.connect(sum_d.y[0], cross2.x[1]) == irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_d.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(constant.y[0], sum_d.x[1]) == irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("izhikevitch-qss2_a.csv");
-        expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          &file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        file_output fo_b("izhikevitch-qss2_b.csv");
-        expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc(0.01,
-                                          "B",
-                                          static_cast<void*>(&fo_b),
-                                          &file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator_a.id), obs_a);
-        sim.observe(sim.models.get(integrator_b.id), obs_b);
-
-        irt::time t = 0.0;
-
-        expect(irt::status::success == sim.initialize(t));
-        !expect(sim.sched.size() == 12_ul);
-
-        do {
-            irt::status st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 100);
-    };
-
-    "lotka_volterra_simulation_qss3"_test = [] {
-        irt::simulation sim;
-
-        expect(irt::is_success(sim.init(32lu, 512lu)));
-        expect(sim.qss3_wsum_2_models.can_alloc(2));
-        expect(sim.qss3_multiplier_models.can_alloc(2));
-        expect(sim.qss3_integrator_models.can_alloc(2));
-
-        auto& sum_a = sim.qss3_wsum_2_models.alloc();
-        auto& sum_b = sim.qss3_wsum_2_models.alloc();
-        auto& product = sim.qss3_multiplier_models.alloc();
-        auto& integrator_a = sim.qss3_integrator_models.alloc();
-        auto& integrator_b = sim.qss3_integrator_models.alloc();
-
-        integrator_a.default_X = 18.0;
-        integrator_a.default_dQ = 0.1;
-
-        integrator_b.default_X = 7.0;
-        integrator_b.default_dQ = 0.1;
-
-        // product.default_input_coeffs[0] = 1.0;
-        // product.default_input_coeffs[1] = 1.0;
-        sum_a.default_input_coeffs[0] = 2.0;
-        sum_a.default_input_coeffs[1] = -0.4;
-        sum_b.default_input_coeffs[0] = -1.0;
-        sum_b.default_input_coeffs[1] = 0.1;
-
-        expect(sim.models.can_alloc(10));
-        !expect(irt::is_success(
-          sim.alloc(sum_a, sim.qss3_wsum_2_models.get_id(sum_a), "sum_a")));
-        !expect(irt::is_success(
-          sim.alloc(sum_b, sim.qss3_wsum_2_models.get_id(sum_b), "sum_b")));
-        !expect(irt::is_success(sim.alloc(
-          product, sim.qss3_multiplier_models.get_id(product), "prod")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_a,
-                    sim.qss3_integrator_models.get_id(integrator_a),
-                    "int_a")));
-        !expect(irt::is_success(
-          sim.alloc(integrator_b,
-                    sim.qss3_integrator_models.get_id(integrator_b),
-                    "int_b")));
-
-        !expect(sim.models.size() == 5_ul);
-
-        expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
-               irt::status::success);
-
-        expect(sim.connect(integrator_a.y[0], product.x[0]) ==
-               irt::status::success);
-        expect(sim.connect(integrator_b.y[0], product.x[1]) ==
-               irt::status::success);
-
-        expect(sim.connect(product.y[0], sum_a.x[1]) == irt::status::success);
-        expect(sim.connect(product.y[0], sum_b.x[1]) == irt::status::success);
-
-        // irt::dot_writer dw(std::cout);
-        // dw(sim);
-
-        file_output fo_a("lotka-volterra-qss3_a.csv");
-        file_output fo_b("lotka-volterra-qss3_b.csv");
-        expect(fo_a.os != nullptr);
-        expect(fo_b.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc(0.01,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-        auto& obs_b = sim.observers.alloc(0.01,
-                                          "B",
-                                          static_cast<void*>(&fo_b),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
-
-        sim.observe(sim.models.get(integrator_a.id), obs_a);
-        sim.observe(sim.models.get(integrator_b.id), obs_b);
-
-        irt::time t = 0.0;
-
-        expect(sim.initialize(t) == irt::status::success);
-        !expect(sim.sched.size() == 5_ul);
-
-        do {
-            auto st = sim.run(t);
-            expect(st == irt::status::success);
-        } while (t < 15.0);
-    };
+    // "izhikevich_simulation_qss1"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(128lu, 256)));
+    //     expect(sim.constant_models.can_alloc(3));
+    //     expect(sim.qss1_wsum_2_models.can_alloc(3));
+    //     expect(sim.qss1_wsum_4_models.can_alloc(1));
+    //     expect(sim.qss1_multiplier_models.can_alloc(1));
+    //     expect(sim.qss1_integrator_models.can_alloc(2));
+
+    //     expect(sim.qss1_cross_models.can_alloc(2));
+
+    //     auto& constant = sim.constant_models.alloc();
+    //     auto& constant2 = sim.constant_models.alloc();
+    //     auto& constant3 = sim.constant_models.alloc();
+    //     auto& sum_a = sim.qss1_wsum_2_models.alloc();
+    //     auto& sum_b = sim.qss1_wsum_2_models.alloc();
+    //     auto& sum_c = sim.qss1_wsum_4_models.alloc();
+    //     auto& sum_d = sim.qss1_wsum_2_models.alloc();
+    //     auto& product = sim.qss1_multiplier_models.alloc();
+    //     auto& integrator_a = sim.qss1_integrator_models.alloc();
+    //     auto& integrator_b = sim.qss1_integrator_models.alloc();
+    //     auto& cross = sim.qss1_cross_models.alloc();
+    //     auto& cross2 = sim.qss1_cross_models.alloc();
+
+    //     double a = 0.2;
+    //     double b = 2.0;
+    //     double c = -56.0;
+    //     double d = -16.0;
+    //     double I = -99.0;
+    //     double vt = 30.0;
+
+    //     constant.default_value = 1.0;
+    //     constant2.default_value = c;
+    //     constant3.default_value = I;
+
+    //     cross.default_threshold = vt;
+    //     cross2.default_threshold = vt;
+
+    //     integrator_a.default_X = 0.0;
+    //     integrator_a.default_dQ = 0.01;
+
+    //     integrator_b.default_X = 0.0;
+    //     integrator_b.default_dQ = 0.01;
+
+    //     sum_a.default_input_coeffs[0] = 1.0;
+    //     sum_a.default_input_coeffs[1] = -1.0;
+    //     sum_b.default_input_coeffs[0] = -a;
+    //     sum_b.default_input_coeffs[1] = a * b;
+    //     sum_c.default_input_coeffs[0] = 0.04;
+    //     sum_c.default_input_coeffs[1] = 5.0;
+    //     sum_c.default_input_coeffs[2] = 140.0;
+    //     sum_c.default_input_coeffs[3] = 1.0;
+    //     sum_d.default_input_coeffs[0] = 1.0;
+    //     sum_d.default_input_coeffs[1] = d;
+
+    //     expect(sim.models.can_alloc(12));
+    //     !expect(irt::is_success(
+    //       sim.alloc(constant3, sim.constant_models.get_id(constant3),
+    //       "tfun")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(constant, sim.constant_models.get_id(constant), "1.0")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       constant2, sim.constant_models.get_id(constant2), "-56.0")));
+
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_a, sim.qss1_wsum_2_models.get_id(sum_a), "sum_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_b, sim.qss1_wsum_2_models.get_id(sum_b), "sum_b")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_c, sim.qss1_wsum_4_models.get_id(sum_c), "sum_c")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_d, sim.qss1_wsum_2_models.get_id(sum_d), "sum_d")));
+
+    //     !expect(irt::is_success(sim.alloc(
+    //       product, sim.qss1_multiplier_models.get_id(product), "prod")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_a,
+    //                 sim.qss1_integrator_models.get_id(integrator_a),
+    //                 "int_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_b,
+    //                 sim.qss1_integrator_models.get_id(integrator_b),
+    //                 "int_b")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(cross, sim.qss1_cross_models.get_id(cross), "cross")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(cross2, sim.qss1_cross_models.get_id(cross2),
+    //       "cross2")));
+
+    //     !expect(sim.models.size() == 12_ul);
+
+    //     expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant2.y[0], cross.x[1]) ==
+    //     irt::status::success); expect(sim.connect(integrator_a.y[0],
+    //     cross.x[2]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross.y[0], product.x[0]) ==
+    //     irt::status::success); expect(sim.connect(cross.y[0], product.x[1])
+    //     == irt::status::success); expect(sim.connect(product.y[0],
+    //     sum_c.x[0]) == irt::status::success); expect(sim.connect(cross.y[0],
+    //     sum_c.x[1]) == irt::status::success); expect(sim.connect(cross.y[0],
+    //     sum_b.x[1]) == irt::status::success);
+
+    //     expect(sim.connect(constant.y[0], sum_c.x[2]) ==
+    //     irt::status::success); expect(sim.connect(constant3.y[0], sum_c.x[3])
+    //     == irt::status::success);
+
+    //     expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
+    //     // expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
+    //     //     irt::status::success);
+    //     expect(sim.connect(cross2.y[0], sum_a.x[1]) == irt::status::success);
+    //     expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross.y[0], integrator_a.x[1]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross2.y[0], sum_b.x[0]) == irt::status::success);
+    //     expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross2.y[0], integrator_b.x[1]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_a.y[0], cross2.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], cross2.x[2]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum_d.y[0], cross2.x[1]) == irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], sum_d.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant.y[0], sum_d.x[1]) ==
+    //     irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("izhikevitch-qss1_a.csv");
+    //     expect(fo_a.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       &file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     file_output fo_b("izhikevitch-qss1_b.csv");
+    //     expect(fo_b.os != nullptr);
+    //     auto& obs_b = sim.observers.alloc(0.01,
+    //                                       "B",
+    //                                       static_cast<void*>(&fo_b),
+    //                                       &file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator_a.id), obs_a);
+    //     sim.observe(sim.models.get(integrator_b.id), obs_b);
+
+    //     irt::time t = 0.0;
+
+    //     expect(irt::status::success == sim.initialize(t));
+    //     !expect(sim.sched.size() == 12_ul);
+
+    //     do {
+    //         irt::status st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 100);
+    // };
+
+    // "izhikevich_simulation_qss2"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(64lu, 256lu)));
+    //     expect(sim.constant_models.can_alloc(3));
+    //     expect(sim.qss2_wsum_2_models.can_alloc(3));
+    //     expect(sim.qss2_wsum_4_models.can_alloc(1));
+    //     expect(sim.qss2_multiplier_models.can_alloc(1));
+    //     expect(sim.qss2_integrator_models.can_alloc(2));
+
+    //     auto& constant = sim.constant_models.alloc();
+    //     auto& constant2 = sim.constant_models.alloc();
+    //     auto& constant3 = sim.constant_models.alloc();
+    //     auto& sum_a = sim.qss2_wsum_2_models.alloc();
+    //     auto& sum_b = sim.qss2_wsum_2_models.alloc();
+    //     auto& sum_c = sim.qss2_wsum_4_models.alloc();
+    //     auto& sum_d = sim.qss2_wsum_2_models.alloc();
+    //     auto& product = sim.qss2_multiplier_models.alloc();
+    //     auto& integrator_a = sim.qss2_integrator_models.alloc();
+    //     auto& integrator_b = sim.qss2_integrator_models.alloc();
+    //     auto& cross = sim.qss2_cross_models.alloc();
+    //     auto& cross2 = sim.qss2_cross_models.alloc();
+
+    //     double a = 0.2;
+    //     double b = 2.0;
+    //     double c = -56.0;
+    //     double d = -16.0;
+    //     double I = -99.0;
+    //     double vt = 30.0;
+
+    //     constant.default_value = 1.0;
+    //     constant2.default_value = c;
+    //     constant3.default_value = I;
+
+    //     cross.default_threshold = vt;
+    //     cross2.default_threshold = vt;
+
+    //     integrator_a.default_X = 0.0;
+    //     integrator_a.default_dQ = 0.01;
+
+    //     integrator_b.default_X = 0.0;
+    //     integrator_b.default_dQ = 0.01;
+
+    //     sum_a.default_input_coeffs[0] = 1.0;
+    //     sum_a.default_input_coeffs[1] = -1.0;
+    //     sum_b.default_input_coeffs[0] = -a;
+    //     sum_b.default_input_coeffs[1] = a * b;
+    //     sum_c.default_input_coeffs[0] = 0.04;
+    //     sum_c.default_input_coeffs[1] = 5.0;
+    //     sum_c.default_input_coeffs[2] = 140.0;
+    //     sum_c.default_input_coeffs[3] = 1.0;
+    //     sum_d.default_input_coeffs[0] = 1.0;
+    //     sum_d.default_input_coeffs[1] = d;
+
+    //     expect(sim.models.can_alloc(12));
+    //     !expect(irt::is_success(
+    //       sim.alloc(constant3, sim.constant_models.get_id(constant3),
+    //       "tfun")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(constant, sim.constant_models.get_id(constant), "1.0")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       constant2, sim.constant_models.get_id(constant2), "-56.0")));
+
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_a, sim.qss2_wsum_2_models.get_id(sum_a), "sum_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_b, sim.qss2_wsum_2_models.get_id(sum_b), "sum_b")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_c, sim.qss2_wsum_4_models.get_id(sum_c), "sum_c")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_d, sim.qss2_wsum_2_models.get_id(sum_d), "sum_d")));
+
+    //     !expect(irt::is_success(sim.alloc(
+    //       product, sim.qss2_multiplier_models.get_id(product), "prod")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_a,
+    //                 sim.qss2_integrator_models.get_id(integrator_a),
+    //                 "int_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_b,
+    //                 sim.qss2_integrator_models.get_id(integrator_b),
+    //                 "int_b")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(cross, sim.qss2_cross_models.get_id(cross), "cross")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(cross2, sim.qss2_cross_models.get_id(cross2),
+    //       "cross2")));
+
+    //     !expect(sim.models.size() == 12_ul);
+
+    //     expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant2.y[0], cross.x[1]) ==
+    //     irt::status::success); expect(sim.connect(integrator_a.y[0],
+    //     cross.x[2]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross.y[0], product.x[0]) ==
+    //     irt::status::success); expect(sim.connect(cross.y[0], product.x[1])
+    //     == irt::status::success); expect(sim.connect(product.y[0],
+    //     sum_c.x[0]) == irt::status::success); expect(sim.connect(cross.y[0],
+    //     sum_c.x[1]) == irt::status::success); expect(sim.connect(cross.y[0],
+    //     sum_b.x[1]) == irt::status::success);
+
+    //     expect(sim.connect(constant.y[0], sum_c.x[2]) ==
+    //     irt::status::success); expect(sim.connect(constant3.y[0], sum_c.x[3])
+    //     == irt::status::success);
+
+    //     expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
+    //     // expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
+    //     // irt::status::success);
+    //     expect(sim.connect(cross2.y[0], sum_a.x[1]) == irt::status::success);
+    //     expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(cross.y[0], integrator_a.x[1]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross2.y[0], sum_b.x[0]) == irt::status::success);
+    //     expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(cross2.y[0], integrator_b.x[1]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_a.y[0], cross2.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], cross2.x[2]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum_d.y[0], cross2.x[1]) == irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], sum_d.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(constant.y[0], sum_d.x[1]) ==
+    //     irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("izhikevitch-qss2_a.csv");
+    //     expect(fo_a.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       &file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     file_output fo_b("izhikevitch-qss2_b.csv");
+    //     expect(fo_b.os != nullptr);
+    //     auto& obs_b = sim.observers.alloc(0.01,
+    //                                       "B",
+    //                                       static_cast<void*>(&fo_b),
+    //                                       &file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator_a.id), obs_a);
+    //     sim.observe(sim.models.get(integrator_b.id), obs_b);
+
+    //     irt::time t = 0.0;
+
+    //     expect(irt::status::success == sim.initialize(t));
+    //     !expect(sim.sched.size() == 12_ul);
+
+    //     do {
+    //         irt::status st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 100);
+    // };
+
+    // "lotka_volterra_simulation_qss3"_test = [] {
+    //     irt::simulation sim;
+
+    //     expect(irt::is_success(sim.init(32lu, 512lu)));
+    //     expect(sim.qss3_wsum_2_models.can_alloc(2));
+    //     expect(sim.qss3_multiplier_models.can_alloc(2));
+    //     expect(sim.qss3_integrator_models.can_alloc(2));
+
+    //     auto& sum_a = sim.qss3_wsum_2_models.alloc();
+    //     auto& sum_b = sim.qss3_wsum_2_models.alloc();
+    //     auto& product = sim.qss3_multiplier_models.alloc();
+    //     auto& integrator_a = sim.qss3_integrator_models.alloc();
+    //     auto& integrator_b = sim.qss3_integrator_models.alloc();
+
+    //     integrator_a.default_X = 18.0;
+    //     integrator_a.default_dQ = 0.1;
+
+    //     integrator_b.default_X = 7.0;
+    //     integrator_b.default_dQ = 0.1;
+
+    //     // product.default_input_coeffs[0] = 1.0;
+    //     // product.default_input_coeffs[1] = 1.0;
+    //     sum_a.default_input_coeffs[0] = 2.0;
+    //     sum_a.default_input_coeffs[1] = -0.4;
+    //     sum_b.default_input_coeffs[0] = -1.0;
+    //     sum_b.default_input_coeffs[1] = 0.1;
+
+    //     expect(sim.models.can_alloc(10));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_a, sim.qss3_wsum_2_models.get_id(sum_a), "sum_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(sum_b, sim.qss3_wsum_2_models.get_id(sum_b), "sum_b")));
+    //     !expect(irt::is_success(sim.alloc(
+    //       product, sim.qss3_multiplier_models.get_id(product), "prod")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_a,
+    //                 sim.qss3_integrator_models.get_id(integrator_a),
+    //                 "int_a")));
+    //     !expect(irt::is_success(
+    //       sim.alloc(integrator_b,
+    //                 sim.qss3_integrator_models.get_id(integrator_b),
+    //                 "int_b")));
+
+    //     !expect(sim.models.size() == 5_ul);
+
+    //     expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(integrator_a.y[0], sum_a.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], sum_b.x[0]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(integrator_a.y[0], product.x[0]) ==
+    //            irt::status::success);
+    //     expect(sim.connect(integrator_b.y[0], product.x[1]) ==
+    //            irt::status::success);
+
+    //     expect(sim.connect(product.y[0], sum_a.x[1]) ==
+    //     irt::status::success); expect(sim.connect(product.y[0], sum_b.x[1])
+    //     == irt::status::success);
+
+    //     // irt::dot_writer dw(std::cout);
+    //     // dw(sim);
+
+    //     file_output fo_a("lotka-volterra-qss3_a.csv");
+    //     file_output fo_b("lotka-volterra-qss3_b.csv");
+    //     expect(fo_a.os != nullptr);
+    //     expect(fo_b.os != nullptr);
+
+    //     auto& obs_a = sim.observers.alloc(0.01,
+    //                                       "A",
+    //                                       static_cast<void*>(&fo_a),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+    //     auto& obs_b = sim.observers.alloc(0.01,
+    //                                       "B",
+    //                                       static_cast<void*>(&fo_b),
+    //                                       file_output_initialize,
+    //                                       &file_output_observe,
+    //                                       nullptr);
+
+    //     sim.observe(sim.models.get(integrator_a.id), obs_a);
+    //     sim.observe(sim.models.get(integrator_b.id), obs_b);
+
+    //     irt::time t = 0.0;
+
+    //     expect(sim.initialize(t) == irt::status::success);
+    //     !expect(sim.sched.size() == 5_ul);
+
+    //     do {
+    //         auto st = sim.run(t);
+    //         expect(st == irt::status::success);
+    //     } while (t < 15.0);
+    // };
 }

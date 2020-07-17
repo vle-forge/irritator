@@ -3256,7 +3256,7 @@ struct qss1_integrator
 
     message observation(time /*t*/) const noexcept
     {
-        return message(X);
+        return message(X + u * sigma);
     }
 };
 
@@ -3387,6 +3387,8 @@ struct qss2_integrator
 
     status reset(const double value_reset) noexcept
     {
+        printf("qss2_integrator reset %g\n", value_reset);
+
         X = value_reset;
         q = X;
         sigma = time_domain<time>::zero;
@@ -3423,12 +3425,16 @@ struct qss2_integrator
         port.messages.emplace_front(X + u * sigma + mu * sigma * sigma / 2.,
                                     u + mu * sigma);
 
+        printf("qss2_integrator %g %g\n",
+               port.messages.front()[0],
+               port.messages.front()[1]);
+
         return status::success;
     }
 
     message observation(time /*t*/) const noexcept
     {
-        return message(X);
+        return message(X + u * sigma + mu * sigma * sigma / 2.);
     }
 };
 
@@ -5064,6 +5070,8 @@ struct abstract_cross
     double value[QssLevel];
     double result[QssLevel];
     double event;
+    double last_reset;
+    bool block_lambda;
 
     enum port_name
     {
@@ -5083,6 +5091,8 @@ struct abstract_cross
         std::fill_n(value, QssLevel, 0.);
 
         sigma = time_domain<time>::zero;
+        last_reset = time_domain<time>::infinity;
+        block_lambda = false;
 
         return status::success;
     }
@@ -5094,12 +5104,20 @@ struct abstract_cross
         }
 
         if constexpr (QssLevel == 2) {
+            printf("compute_wake_up value[0] %g value[1] %g threshold %g\n",
+                   value[0],
+                   value[1],
+                   threshold);
+
             sigma = time_domain<time>::infinity;
             if (value[1]) {
                 const auto wakeup = (threshold - value[0]) / value[1];
                 if (wakeup >= 0.)
                     sigma = wakeup;
             }
+
+            if constexpr (QssLevel == 2)
+                printf("wakeup in %g\n", sigma);
         }
 
         if constexpr (QssLevel == 3) {
@@ -5142,8 +5160,12 @@ struct abstract_cross
         auto& p_else_value = input_ports.get(x[port_else_value]);
         auto& p_value = input_ports.get(x[port_value]);
 
+        // if (t != last_reset)
+        block_lambda = false;
+
         if (p_threshold.messages.empty() && p_if_value.messages.empty() &&
             p_else_value.messages.empty() && p_value.messages.empty()) {
+            printf("delta_int t=%g e=%g sigma=%g\n", t, e, sigma);
 
             event = 0.0;
 
@@ -5153,6 +5175,7 @@ struct abstract_cross
                     else_value[0] += else_value[1] * sigma;
                     value[0] += value[1] * sigma;
                 }
+
                 if constexpr (QssLevel == 3) {
                     if_value[0] +=
                       if_value[1] * sigma + if_value[2] * sigma * sigma;
@@ -5162,21 +5185,43 @@ struct abstract_cross
                 }
 
                 if (value[0] >= threshold) {
-                    else_value[0] = if_value[0];
+                    if (result[0] != if_value[0]) {
+                        result[0] = if_value[0];
+                        last_reset = t;
 
-                    if constexpr (QssLevel >= 2)
-                        else_value[1] = if_value[1];
-                    if constexpr (QssLevel == 3)
-                        else_value[1] = if_value[2];
+                        if constexpr (QssLevel >= 2)
+                            result[1] = if_value[1];
+                        if constexpr (QssLevel == 3)
+                            result[1] = if_value[2];
 
-                    event = 1.0;
-                    sigma = time_domain<time>::zero;
+                        event = 1.0;
+                        sigma = time_domain<time>::zero;
+                        printf("need to send %g\n", result[0]);
+                    } else
+                        compute_wake_up();
+                } else {
+                    if (result[0] != else_value[0]) {
+                        result[0] = else_value[0];
+                        if (last_reset == t)
+                            block_lambda = true;
+
+                        if constexpr (QssLevel >= 2)
+                            result[1] = else_value[1];
+                        if constexpr (QssLevel == 3)
+                            result[1] = else_value[2];
+
+                        event = 0.0;
+                        sigma = time_domain<time>::zero;
+                        printf("need to send %g\n", result[0]);
+                    } else
+                        compute_wake_up();
                 }
-
             } else
                 compute_wake_up();
 
         } else {
+
+            printf("delta_ext t=%g e=%g\n", t, e);
             for (const auto& msg : p_threshold.messages)
                 threshold = msg[0];
 
@@ -5188,6 +5233,7 @@ struct abstract_cross
             } else {
                 for (const auto& msg : p_if_value.messages) {
                     if_value[0] = msg[0];
+                    printf("    if_value %g %g\n", if_value[0], if_value[1]);
                     if constexpr (QssLevel >= 2)
                         if_value[1] = msg.size() > 1 ? msg[1] : 0.;
                     if constexpr (QssLevel == 3)
@@ -5203,6 +5249,8 @@ struct abstract_cross
             } else {
                 for (const auto& msg : p_else_value.messages) {
                     else_value[0] = msg[0];
+                    printf(
+                      "    else_value %g %g\n", else_value[0], else_value[1]);
                     if constexpr (QssLevel >= 2)
                         else_value[1] = msg.size() > 1 ? msg[1] : 0.;
                     if constexpr (QssLevel == 3)
@@ -5218,6 +5266,7 @@ struct abstract_cross
             } else {
                 for (const auto& msg : p_value.messages) {
                     value[0] = msg[0];
+                    printf("    value %g %g\n", msg[0], msg[1]);
                     if constexpr (QssLevel >= 2)
                         value[1] = msg.size() > 1 ? msg[1] : 0.;
                     if constexpr (QssLevel == 3)
@@ -5226,19 +5275,25 @@ struct abstract_cross
             }
 
             if (value[0] >= threshold) {
-                result[0] = if_value[0];
+                if (result[0] != if_value[0]) {
+                    result[0] = if_value[0];
+                    last_reset = t;
 
-                if constexpr (QssLevel >= 2)
-                    result[1] = if_value[1];
-                if constexpr (QssLevel == 3)
-                    result[1] = if_value[2];
+                    if constexpr (QssLevel >= 2)
+                        result[1] = if_value[1];
+                    if constexpr (QssLevel == 3)
+                        result[1] = if_value[2];
 
-                event = 1.0;
-                sigma = time_domain<time>::zero;
-
+                    event = 1.0;
+                    sigma = time_domain<time>::zero;
+                    printf("need to send %g\n", result[0]);
+                } else
+                    compute_wake_up();
             } else {
                 if (result[0] != else_value[0]) {
                     result[0] = else_value[0];
+                    if (last_reset == t)
+                        block_lambda = true;
 
                     if constexpr (QssLevel >= 2)
                         result[1] = else_value[1];
@@ -5247,21 +5302,10 @@ struct abstract_cross
 
                     event = 0.0;
                     sigma = time_domain<time>::zero;
-
+                    printf("need to send %g\n", result[0]);
                 } else
                     compute_wake_up();
             }
-
-            // if (result[0] != else_value[0]) {
-            //     result[0] = else_value[0];
-            //     if constexpr (QssLevel >= 2)
-            //         result[1] = else_value[1];
-            //     if constexpr (QssLevel == 3)
-            //         result[2] = else_value[2];
-
-            // } else {
-            //     compute_wake_up();
-            // }
         }
 
         printf("at %g abstract_cross sigma: %g\n", t, sigma);
@@ -5272,20 +5316,24 @@ struct abstract_cross
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        if constexpr (QssLevel == 1) {
-            output_ports.get(y[0]).messages.emplace_front(result[0]);
-            output_ports.get(y[1]).messages.emplace_front(event);
-        }
+        if (!block_lambda) {
+            if constexpr (QssLevel == 1) {
+                output_ports.get(y[0]).messages.emplace_front(result[0]);
+                output_ports.get(y[1]).messages.emplace_front(event);
+            }
 
-        if constexpr (QssLevel == 2) {
-            output_ports.get(y[0]).messages.emplace_front(result[0], result[1]);
-            output_ports.get(y[1]).messages.emplace_front(event);
-        }
+            if constexpr (QssLevel == 2) {
+                printf("lambda %g\n", result[0]);
+                output_ports.get(y[0]).messages.emplace_front(result[0],
+                                                              result[1]);
+                output_ports.get(y[1]).messages.emplace_front(event);
+            }
 
-        if constexpr (QssLevel == 3) {
-            output_ports.get(y[0]).messages.emplace_front(
-              result[0], result[1], result[2]);
-            output_ports.get(y[1]).messages.emplace_front(event);
+            if constexpr (QssLevel == 3) {
+                output_ports.get(y[0]).messages.emplace_front(
+                  result[0], result[1], result[2]);
+                output_ports.get(y[1]).messages.emplace_front(event);
+            }
         }
 
         return status::success;
