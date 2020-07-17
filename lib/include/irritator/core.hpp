@@ -3224,7 +3224,7 @@ struct qss1_integrator
     }
 
     status transition(data_array<input_port, input_port_id>& input_ports,
-                      time t,
+                      time /*t*/,
                       time e,
                       time r) noexcept
     {
@@ -3396,7 +3396,7 @@ struct qss2_integrator
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
                       time e,
-                      time r) noexcept
+                      time /*r*/) noexcept
     {
         auto& port_x = input_ports.get(x[port_x_dot]);
         auto& port_r = input_ports.get(x[port_reset]);
@@ -3833,15 +3833,13 @@ struct abstract_sum
 
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
-                      time e,
+                      [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
         bool message = false;
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto& i_port = input_ports.get(x[i]);
-
                 for (const auto& msg : input_ports.get(x[i]).messages) {
                     values[i] = msg[0];
                     message = true;
@@ -4006,15 +4004,13 @@ struct abstract_wsum
 
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
-                      time e,
+                      [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
         bool message = false;
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto& i_port = input_ports.get(x[i]);
-
                 for (const auto& msg : input_ports.get(x[i]).messages) {
                     values[i] = msg[0];
                     message = true;
@@ -4027,8 +4023,6 @@ struct abstract_wsum
                 auto& i_port = input_ports.get(x[i]);
 
                 if (i_port.messages.empty()) {
-                    /* Compute the current value with latest value and slope
-                     */
                     values[i] += values[i + PortNumber] * e;
                 } else {
                     for (const auto& msg : input_ports.get(x[i]).messages) {
@@ -4162,7 +4156,7 @@ struct abstract_multiplier
 
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
-                      time e,
+                      [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
         bool message_port_0 = false;
@@ -5093,9 +5087,54 @@ struct abstract_cross
         return status::success;
     }
 
+    void compute_wake_up() noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            sigma = time_domain<time>::infinity;
+        }
+
+        if constexpr (QssLevel == 2) {
+            sigma = time_domain<time>::infinity;
+            if (value[1]) {
+                const auto wakeup = (threshold - value[0]) / value[1];
+                if (wakeup >= 0.)
+                    sigma = wakeup;
+            }
+        }
+
+        if constexpr (QssLevel == 3) {
+            sigma = time_domain<time>::infinity;
+            if (value[1]) {
+                if (value[2]) {
+#if 0
+                    const auto d = value[2] * value[2] - 4 * value[1] -
+                                   (threshold - value[0]);
+                    if (d == 0.) {
+                        const auto wakeup = -value[1] / (2 * value[2]);
+                        if (wakeup >= 0.)
+                            sigma = wakeup;
+                    } else if (d > 0) {
+                        const auto wakeup =
+                          -value[1] +
+                          std::sqrt(value[1] * value[1] -
+                                    4 * value[2] * (threshold - value[0])) /
+                            (2. * value[2]);
+                        if (wakeup >= 0)
+                            sigma = wakeup;
+                    }
+#endif
+                }
+            } else {
+                const auto wakeup = (threshold - value[0]) / value[1];
+                if (wakeup >= 0.)
+                    sigma = wakeup;
+            }
+        }
+    }
+
     status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time e,
+                      time t,
+                      [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
         auto& p_threshold = input_ports.get(x[port_threshold]);
@@ -5105,7 +5144,38 @@ struct abstract_cross
 
         if (p_threshold.messages.empty() && p_if_value.messages.empty() &&
             p_else_value.messages.empty() && p_value.messages.empty()) {
-            sigma = time_domain<time>::infinity;
+
+            event = 0.0;
+
+            if (sigma > 0.) {
+                if constexpr (QssLevel == 2) {
+                    if_value[0] += if_value[1] * sigma;
+                    else_value[0] += else_value[1] * sigma;
+                    value[0] += value[1] * sigma;
+                }
+                if constexpr (QssLevel == 3) {
+                    if_value[0] +=
+                      if_value[1] * sigma + if_value[2] * sigma * sigma;
+                    else_value[0] +=
+                      else_value[1] * sigma + else_value[2] * sigma * sigma;
+                    value[0] += value[1] * sigma + value[2] * sigma * sigma;
+                }
+
+                if (value[0] >= threshold) {
+                    else_value[0] = if_value[0];
+
+                    if constexpr (QssLevel >= 2)
+                        else_value[1] = if_value[1];
+                    if constexpr (QssLevel == 3)
+                        else_value[1] = if_value[2];
+
+                    event = 1.0;
+                    sigma = time_domain<time>::zero;
+                }
+
+            } else
+                compute_wake_up();
+
         } else {
             for (const auto& msg : p_threshold.messages)
                 threshold = msg[0];
@@ -5125,13 +5195,13 @@ struct abstract_cross
                 }
             }
 
-            if (p_if_value.messages.empty()) {
+            if (p_else_value.messages.empty()) {
                 if constexpr (QssLevel == 2)
                     else_value[0] += else_value[1] * e;
                 if constexpr (QssLevel == 3)
                     else_value[0] += else_value[1] * e + else_value[2] * e * e;
             } else {
-                for (const auto& msg : p_if_value.messages) {
+                for (const auto& msg : p_else_value.messages) {
                     else_value[0] = msg[0];
                     if constexpr (QssLevel >= 2)
                         else_value[1] = msg.size() > 1 ? msg[1] : 0.;
@@ -5155,26 +5225,46 @@ struct abstract_cross
                 }
             }
 
-            event = 0.0;
             if (value[0] >= threshold) {
-                else_value[0] = if_value[0];
+                result[0] = if_value[0];
 
                 if constexpr (QssLevel >= 2)
-                    else_value[1] = if_value[1];
+                    result[1] = if_value[1];
                 if constexpr (QssLevel == 3)
-                    else_value[1] = if_value[2];
+                    result[1] = if_value[2];
 
                 event = 1.0;
+                sigma = time_domain<time>::zero;
+
+            } else {
+                if (result[0] != else_value[0]) {
+                    result[0] = else_value[0];
+
+                    if constexpr (QssLevel >= 2)
+                        result[1] = else_value[1];
+                    if constexpr (QssLevel == 3)
+                        result[1] = else_value[2];
+
+                    event = 0.0;
+                    sigma = time_domain<time>::zero;
+
+                } else
+                    compute_wake_up();
             }
+
+            // if (result[0] != else_value[0]) {
+            //     result[0] = else_value[0];
+            //     if constexpr (QssLevel >= 2)
+            //         result[1] = else_value[1];
+            //     if constexpr (QssLevel == 3)
+            //         result[2] = else_value[2];
+
+            // } else {
+            //     compute_wake_up();
+            // }
         }
 
-        result[0] = else_value[0];
-        if constexpr (QssLevel >= 2)
-            result[1] = else_value[1];
-        if constexpr (QssLevel == 3)
-            result[2] = else_value[2];
-
-        sigma = 0;
+        printf("at %g abstract_cross sigma: %g\n", t, sigma);
 
         return status::success;
     }
@@ -5189,6 +5279,12 @@ struct abstract_cross
 
         if constexpr (QssLevel == 2) {
             output_ports.get(y[0]).messages.emplace_front(result[0], result[1]);
+            output_ports.get(y[1]).messages.emplace_front(event);
+        }
+
+        if constexpr (QssLevel == 3) {
+            output_ports.get(y[0]).messages.emplace_front(
+              result[0], result[1], result[2]);
             output_ports.get(y[1]).messages.emplace_front(event);
         }
 
