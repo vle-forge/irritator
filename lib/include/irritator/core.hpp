@@ -7,7 +7,16 @@
 
 #include <algorithm>
 #include <limits>
+
+#ifdef __has_include
+#if __has_include(<numbers>)
 #include <numbers>
+#define irt_have_numbers 1
+#else
+#define irt_have_numbers 0
+#endif
+#endif
+
 #include <string_view>
 
 #include <cmath>
@@ -3472,7 +3481,11 @@ struct qss3_integrator
                     const double value_derivative,
                     const time e) noexcept
     {
+#if irt_have_numbers == 1
         constexpr double pi_div_3 = std::numbers::pi_v<double> / 3.;
+#else
+        constexpr double pi_div_3 = 1.0471975511965976;
+#endif
 
         X = X + u * e + (mu * e * e) / 2 + (pu * e * e * e) / 3;
         u = value_x;
@@ -5142,7 +5155,6 @@ struct abstract_cross
                 }
             }
 
-
             event = 0.0;
             if (value[0] >= threshold) {
                 else_value[0] = if_value[0];
@@ -5564,8 +5576,8 @@ struct simulation
     }
 
     template<typename Function>
-    constexpr status dispatch(const dynamics_type type,
-                              Function f) const noexcept
+    constexpr status dispatch(const dynamics_type type, Function f) const
+      noexcept
     {
         switch (type) {
         case dynamics_type::none:
@@ -5669,24 +5681,25 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [dyn_id = mdl.id, port, index]<typename DynamicsM>(
-            DynamicsM& dyn_models) -> status {
-              using Dynamics = typename DynamicsM::value_type;
+          [ dyn_id = mdl.id, port,
+            index ]<typename DynamicsM>(DynamicsM & dyn_models)
+            ->status {
+                using Dynamics = typename DynamicsM::value_type;
 
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  auto* dyn = dyn_models.try_to_get(dyn_id);
-                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    auto* dyn = dyn_models.try_to_get(dyn_id);
+                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                  for (size_t i = 0, e = std::size(dyn->y); i != e; ++i) {
-                      if (dyn->y[i] == port) {
-                          *index = static_cast<int>(i);
-                          return status::success;
-                      }
-                  }
-              }
+                    for (size_t i = 0, e = std::size(dyn->y); i != e; ++i) {
+                        if (dyn->y[i] == port) {
+                            *index = static_cast<int>(i);
+                            return status::success;
+                        }
+                    }
+                }
 
-              return status::dynamics_unknown_port_id;
-          });
+                return status::dynamics_unknown_port_id;
+            });
     }
 
     template<typename Function>
@@ -5694,8 +5707,8 @@ struct simulation
     {
         dispatch(
           mdl.type,
-          [this, &f, dyn_id = mdl.id]<typename DynamicsM>(
-            DynamicsM& dyn_models) {
+          [ this, &f, dyn_id = mdl.id ]<typename DynamicsM>(DynamicsM &
+                                                            dyn_models) {
               using Dynamics = typename DynamicsM::value_type;
 
               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
@@ -5714,8 +5727,8 @@ struct simulation
     {
         dispatch(
           mdl.type,
-          [this, &f, dyn_id = mdl.id]<typename DynamicsM>(
-            DynamicsM& dyn_models) {
+          [ this, &f, dyn_id = mdl.id ]<typename DynamicsM>(DynamicsM &
+                                                            dyn_models) {
               using Dynamics = typename DynamicsM::value_type;
 
               if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
@@ -5736,24 +5749,25 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [dyn_id = mdl.id, port, index]<typename DynamicsM>(
-            DynamicsM& dyn_models) -> status {
-              using Dynamics = typename DynamicsM::value_type;
+          [ dyn_id = mdl.id, port,
+            index ]<typename DynamicsM>(DynamicsM & dyn_models)
+            ->status {
+                using Dynamics = typename DynamicsM::value_type;
 
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  auto* dyn = dyn_models.try_to_get(dyn_id);
-                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
+                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                    auto* dyn = dyn_models.try_to_get(dyn_id);
+                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                  for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
-                      if (dyn->x[i] == port) {
-                          *index = static_cast<int>(i);
-                          return status::success;
-                      }
-                  }
-              }
+                    for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
+                        if (dyn->x[i] == port) {
+                            *index = static_cast<int>(i);
+                            return status::success;
+                        }
+                    }
+                }
 
-              return status::dynamics_unknown_port_id;
-          });
+                return status::dynamics_unknown_port_id;
+            });
     }
 
     status get_output_port_id(const model& mdl,
@@ -5762,24 +5776,26 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [dyn_id = mdl.id, index, port]<typename DynamicsM>(
-            DynamicsM& dyn_models) -> status {
-              using Dynamics = typename DynamicsM::value_type;
+          [ dyn_id = mdl.id, index,
+            port ]<typename DynamicsM>(DynamicsM & dyn_models)
+            ->status {
+                using Dynamics = typename DynamicsM::value_type;
 
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  auto* dyn = dyn_models.try_to_get(dyn_id);
-                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    auto* dyn = dyn_models.try_to_get(dyn_id);
+                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                  irt_return_if_fail(0 <= index && static_cast<size_t>(index) <
-                                                     std::size(dyn->y),
-                                     status::dynamics_unknown_port_id);
+                    irt_return_if_fail(0 <= index &&
+                                         static_cast<size_t>(index) <
+                                           std::size(dyn->y),
+                                       status::dynamics_unknown_port_id);
 
-                  *port = dyn->y[index];
-                  return status::success;
-              }
+                    *port = dyn->y[index];
+                    return status::success;
+                }
 
-              return status::dynamics_unknown_port_id;
-          });
+                return status::dynamics_unknown_port_id;
+            });
     }
 
     status get_input_port_id(const model& mdl,
@@ -5788,24 +5804,26 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [dyn_id = mdl.id, index, port]<typename DynamicsM>(
-            DynamicsM& dyn_models) -> status {
-              using Dynamics = typename DynamicsM::value_type;
+          [ dyn_id = mdl.id, index,
+            port ]<typename DynamicsM>(DynamicsM & dyn_models)
+            ->status {
+                using Dynamics = typename DynamicsM::value_type;
 
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  auto* dyn = dyn_models.try_to_get(dyn_id);
-                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
+                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                    auto* dyn = dyn_models.try_to_get(dyn_id);
+                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                  irt_return_if_fail(0 <= index && static_cast<size_t>(index) <
-                                                     std::size(dyn->x),
-                                     status::dynamics_unknown_port_id);
+                    irt_return_if_fail(0 <= index &&
+                                         static_cast<size_t>(index) <
+                                           std::size(dyn->x),
+                                       status::dynamics_unknown_port_id);
 
-                  *port = dyn->x[index];
-                  return status::success;
-              }
+                    *port = dyn->x[index];
+                    return status::success;
+                }
 
-              return status::dynamics_unknown_port_id;
-          });
+                return status::dynamics_unknown_port_id;
+            });
     }
 
 public:
@@ -5928,7 +5946,7 @@ public:
         input_ports.clear();
         output_ports.clear();
 
-        for_all([]<typename DynamicsM>(DynamicsM& dyn_models) -> status {
+        for_all([]<typename DynamicsM>(DynamicsM & dyn_models)->status {
             dyn_models.clear();
             return status::success;
         });
@@ -6367,7 +6385,8 @@ public:
     {
         return dispatch(
           mdl.type,
-          [this, &mdl, t]<typename DynamicsModels>(DynamicsModels& dyn_models) {
+          [ this, &mdl,
+            t ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
               return this->make_initialize(mdl, dyn_models.get(mdl.id), t);
           });
     }
@@ -6433,12 +6452,12 @@ public:
                            time t,
                            flat_list<output_port_id>& o) noexcept
     {
-        return dispatch(mdl.type,
-                        [this, &mdl, t, &o]<typename DynamicsModels>(
-                          DynamicsModels& dyn_models) {
-                            return this->make_transition(
-                              mdl, dyn_models.get(mdl.id), t, o);
-                        });
+        return dispatch(
+          mdl.type,
+          [ this, &mdl, t, &
+            o ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
+              return this->make_transition(mdl, dyn_models.get(mdl.id), t, o);
+          });
     }
 };
 
