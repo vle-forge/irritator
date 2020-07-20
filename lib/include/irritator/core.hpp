@@ -231,6 +231,15 @@ are_all_same() noexcept
     return (std::is_same_v<T, Rest> && ...);
 }
 
+template<class T>
+typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
+almost_equal(T x, T y, int ulp)
+{
+    return std::fabs(x - y) <=
+             std::numeric_limits<T>::epsilon() * std::fabs(x + y) * ulp ||
+           std::fabs(x - y) < std::numeric_limits<T>::min();
+}
+
 /*****************************************************************************
  *
  * Definition of Time
@@ -3323,6 +3332,8 @@ struct qss2_integrator
                     const double value_slope,
                     const time e) noexcept
     {
+        //printf("qss2_integrator external %.10g %.10g e:%.10g\n", value_x, value_slope, e);
+
         X += (u * e) + (mu / 2.0) * (e * e);
         u = value_x;
         mu = value_slope;
@@ -3374,6 +3385,8 @@ struct qss2_integrator
 
     status internal() noexcept
     {
+        //printf("qss2_integrator internal\n");
+
         X += u * sigma + mu / 2. * sigma * sigma;
         q = X;
         u += mu * sigma;
@@ -3387,7 +3400,7 @@ struct qss2_integrator
 
     status reset(const double value_reset) noexcept
     {
-        printf("qss2_integrator reset %g\n", value_reset);
+        //printf("qss2_integrator reset %g\n", value_reset);
 
         X = value_reset;
         q = X;
@@ -3425,9 +3438,9 @@ struct qss2_integrator
         port.messages.emplace_front(X + u * sigma + mu * sigma * sigma / 2.,
                                     u + mu * sigma);
 
-        printf("qss2_integrator %g %g\n",
-               port.messages.front()[0],
-               port.messages.front()[1]);
+        //printf("qss2_integrator lambda %g %g\n",
+        //       port.messages.front()[0],
+        //       port.messages.front()[1]);
 
         return status::success;
     }
@@ -5059,7 +5072,7 @@ struct abstract_cross
 
     model_id id;
     input_port_id x[4];
-    output_port_id y[2];
+    output_port_id y[3];
     time sigma;
 
     double default_threshold = 0.0;
@@ -5068,9 +5081,8 @@ struct abstract_cross
     double if_value[QssLevel];
     double else_value[QssLevel];
     double value[QssLevel];
-    double result[QssLevel];
-    double event;
     double last_reset;
+    bool reach_threshold;
     bool block_lambda;
 
     enum port_name
@@ -5079,6 +5091,13 @@ struct abstract_cross
         port_if_value,
         port_else_value,
         port_threshold
+    };
+
+    enum out_name
+    {
+        o_if_value,
+        o_else_value,
+        o_event
     };
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
@@ -5093,6 +5112,7 @@ struct abstract_cross
         sigma = time_domain<time>::zero;
         last_reset = time_domain<time>::infinity;
         block_lambda = false;
+        reach_threshold = false;
 
         return status::success;
     }
@@ -5104,10 +5124,10 @@ struct abstract_cross
         }
 
         if constexpr (QssLevel == 2) {
-            printf("compute_wake_up value[0] %g value[1] %g threshold %g\n",
-                   value[0],
-                   value[1],
-                   threshold);
+            //printf("compute_wake_up value[0] %g value[1] %g threshold %g\n",
+            //       value[0],
+            //       value[1],
+            //       threshold);
 
             sigma = time_domain<time>::infinity;
             if (value[1]) {
@@ -5116,8 +5136,8 @@ struct abstract_cross
                     sigma = wakeup;
             }
 
-            if constexpr (QssLevel == 2)
-                printf("wakeup in %g\n", sigma);
+            //if constexpr (QssLevel == 2)
+            //    printf("wakeup in %g\n", sigma);
         }
 
         if constexpr (QssLevel == 3) {
@@ -5160,155 +5180,87 @@ struct abstract_cross
         auto& p_else_value = input_ports.get(x[port_else_value]);
         auto& p_value = input_ports.get(x[port_value]);
 
+        const auto old_else_value = else_value[0];
+
         // if (t != last_reset)
-        block_lambda = false;
+        // block_lambda = false;
 
         if (p_threshold.messages.empty() && p_if_value.messages.empty() &&
             p_else_value.messages.empty() && p_value.messages.empty()) {
-            printf("delta_int t=%g e=%g sigma=%g\n", t, e, sigma);
+            //printf("delta_int t=%g e=%g sigma=%g\n", t, e, sigma);
+            // irt_assert(e == sigma);
+        }
 
-            event = 0.0;
-
-            if (sigma > 0.) {
-                if constexpr (QssLevel == 2) {
-                    if_value[0] += if_value[1] * sigma;
-                    else_value[0] += else_value[1] * sigma;
-                    value[0] += value[1] * sigma;
-                }
-
-                if constexpr (QssLevel == 3) {
-                    if_value[0] +=
-                      if_value[1] * sigma + if_value[2] * sigma * sigma;
-                    else_value[0] +=
-                      else_value[1] * sigma + else_value[2] * sigma * sigma;
-                    value[0] += value[1] * sigma + value[2] * sigma * sigma;
-                }
-
-                if (value[0] >= threshold) {
-                    if (result[0] != if_value[0]) {
-                        result[0] = if_value[0];
-                        last_reset = t;
-
-                        if constexpr (QssLevel >= 2)
-                            result[1] = if_value[1];
-                        if constexpr (QssLevel == 3)
-                            result[1] = if_value[2];
-
-                        event = 1.0;
-                        sigma = time_domain<time>::zero;
-                        printf("need to send %g\n", result[0]);
-                    } else
-                        compute_wake_up();
-                } else {
-                    if (result[0] != else_value[0]) {
-                        result[0] = else_value[0];
-                        if (last_reset == t)
-                            block_lambda = true;
-
-                        if constexpr (QssLevel >= 2)
-                            result[1] = else_value[1];
-                        if constexpr (QssLevel == 3)
-                            result[1] = else_value[2];
-
-                        event = 0.0;
-                        sigma = time_domain<time>::zero;
-                        printf("need to send %g\n", result[0]);
-                    } else
-                        compute_wake_up();
-                }
-            } else
-                compute_wake_up();
-
+        if (p_if_value.messages.empty()) {
+            if constexpr (QssLevel == 2)
+                if_value[0] += if_value[1] * e;
+            if constexpr (QssLevel == 3)
+                if_value[0] += if_value[1] * e + if_value[2] * e * e;
         } else {
-
-            printf("delta_ext t=%g e=%g\n", t, e);
-            for (const auto& msg : p_threshold.messages)
-                threshold = msg[0];
-
-            if (p_if_value.messages.empty()) {
-                if constexpr (QssLevel == 2)
-                    if_value[0] += if_value[1] * e;
+            for (const auto& msg : p_if_value.messages) {
+                if_value[0] = msg[0];
+                //printf("    if_value %g %g\n", if_value[0], if_value[1]);
+                if constexpr (QssLevel >= 2)
+                    if_value[1] = msg.size() > 1 ? msg[1] : 0.;
                 if constexpr (QssLevel == 3)
-                    if_value[0] += if_value[1] * e + if_value[2] * e * e;
-            } else {
-                for (const auto& msg : p_if_value.messages) {
-                    if_value[0] = msg[0];
-                    printf("    if_value %g %g\n", if_value[0], if_value[1]);
-                    if constexpr (QssLevel >= 2)
-                        if_value[1] = msg.size() > 1 ? msg[1] : 0.;
-                    if constexpr (QssLevel == 3)
-                        if_value[2] = msg.size() > 2 ? msg[2] : 0.;
-                }
-            }
-
-            if (p_else_value.messages.empty()) {
-                if constexpr (QssLevel == 2)
-                    else_value[0] += else_value[1] * e;
-                if constexpr (QssLevel == 3)
-                    else_value[0] += else_value[1] * e + else_value[2] * e * e;
-            } else {
-                for (const auto& msg : p_else_value.messages) {
-                    else_value[0] = msg[0];
-                    printf(
-                      "    else_value %g %g\n", else_value[0], else_value[1]);
-                    if constexpr (QssLevel >= 2)
-                        else_value[1] = msg.size() > 1 ? msg[1] : 0.;
-                    if constexpr (QssLevel == 3)
-                        else_value[2] = msg.size() > 2 ? msg[2] : 0.;
-                }
-            }
-
-            if (p_value.messages.empty()) {
-                if constexpr (QssLevel == 2)
-                    value[0] += value[1] * e;
-                if constexpr (QssLevel == 3)
-                    value[0] += value[1] * e + value[2] * e * e;
-            } else {
-                for (const auto& msg : p_value.messages) {
-                    value[0] = msg[0];
-                    printf("    value %g %g\n", msg[0], msg[1]);
-                    if constexpr (QssLevel >= 2)
-                        value[1] = msg.size() > 1 ? msg[1] : 0.;
-                    if constexpr (QssLevel == 3)
-                        value[2] = msg.size() > 2 ? msg[2] : 0.;
-                }
-            }
-
-            if (value[0] >= threshold) {
-                if (result[0] != if_value[0]) {
-                    result[0] = if_value[0];
-                    last_reset = t;
-
-                    if constexpr (QssLevel >= 2)
-                        result[1] = if_value[1];
-                    if constexpr (QssLevel == 3)
-                        result[1] = if_value[2];
-
-                    event = 1.0;
-                    sigma = time_domain<time>::zero;
-                    printf("need to send %g\n", result[0]);
-                } else
-                    compute_wake_up();
-            } else {
-                if (result[0] != else_value[0]) {
-                    result[0] = else_value[0];
-                    if (last_reset == t)
-                        block_lambda = true;
-
-                    if constexpr (QssLevel >= 2)
-                        result[1] = else_value[1];
-                    if constexpr (QssLevel == 3)
-                        result[1] = else_value[2];
-
-                    event = 0.0;
-                    sigma = time_domain<time>::zero;
-                    printf("need to send %g\n", result[0]);
-                } else
-                    compute_wake_up();
+                    if_value[2] = msg.size() > 2 ? msg[2] : 0.;
             }
         }
 
-        printf("at %g abstract_cross sigma: %g\n", t, sigma);
+        if (p_else_value.messages.empty()) {
+            if constexpr (QssLevel == 2)
+                else_value[0] += else_value[1] * e;
+            if constexpr (QssLevel == 3)
+                else_value[0] += else_value[1] * e + else_value[2] * e * e;
+        } else {
+            for (const auto& msg : p_else_value.messages) {
+                else_value[0] = msg[0];
+                //printf("    else_value %g %g\n", else_value[0], else_value[1]);
+                if constexpr (QssLevel >= 2)
+                    else_value[1] = msg.size() > 1 ? msg[1] : 0.;
+                if constexpr (QssLevel == 3)
+                    else_value[2] = msg.size() > 2 ? msg[2] : 0.;
+            }
+        }
+
+        if (p_value.messages.empty()) {
+            if constexpr (QssLevel == 2)
+                value[0] += value[1] * e;
+            if constexpr (QssLevel == 3)
+                value[0] += value[1] * e + value[2] * e * e;
+        } else {
+            for (const auto& msg : p_value.messages) {
+                value[0] = msg[0];
+                //printf("    value %g\n", msg[0]);
+                if constexpr (QssLevel >= 2)
+                    value[1] = msg.size() > 1 ? msg[1] : 0.;
+                if constexpr (QssLevel == 3)
+                    value[2] = msg.size() > 2 ? msg[2] : 0.;
+            }
+        }
+
+        reach_threshold = false;
+
+        if (value[0] >= threshold) {
+            last_reset = t;
+            reach_threshold = true;
+            sigma = time_domain<time>::zero;
+            //printf("    need to send if_value %g\n", if_value[0]);
+        } else if (old_else_value != else_value[0]) {
+            sigma = time_domain<time>::zero;
+            //printf("    need to send else_value %g\n", else_value[0]);
+        } else
+            compute_wake_up();
+
+        //printf("    end transition. Sigma equals %.10g (next: %.10g - %.10g\n",
+        //       sigma,
+        //       t + sigma,
+        //       t + std::numeric_limits<double>::epsilon());
+
+        if (sigma > 0. && sigma + t == t) {
+            //printf("sigma + t == t with sigma > 0.!\n");
+            sigma = sigma * 10;
+        }
 
         return status::success;
     }
@@ -5318,21 +5270,37 @@ struct abstract_cross
     {
         if (!block_lambda) {
             if constexpr (QssLevel == 1) {
-                output_ports.get(y[0]).messages.emplace_front(result[0]);
-                output_ports.get(y[1]).messages.emplace_front(event);
+                output_ports.get(y[o_else_value])
+                  .messages.emplace_front(else_value[0]);
+                if (reach_threshold) {
+                    output_ports.get(y[o_if_value])
+                      .messages.emplace_front(if_value[0]);
+                    output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                }
             }
 
             if constexpr (QssLevel == 2) {
-                printf("lambda %g\n", result[0]);
-                output_ports.get(y[0]).messages.emplace_front(result[0],
-                                                              result[1]);
-                output_ports.get(y[1]).messages.emplace_front(event);
+                output_ports.get(y[o_else_value])
+                  .messages.emplace_front(else_value[0], else_value[1]);
+                //printf("lambda: %.10g\n", else_value[0]);
+                if (reach_threshold) {
+                    //printf("lambda reach threshold: %.10g\n", if_value[0]);
+                    output_ports.get(y[o_if_value])
+                      .messages.emplace_front(if_value[0], if_value[1]);
+                    output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                }
             }
 
             if constexpr (QssLevel == 3) {
-                output_ports.get(y[0]).messages.emplace_front(
-                  result[0], result[1], result[2]);
-                output_ports.get(y[1]).messages.emplace_front(event);
+                output_ports.get(y[o_else_value])
+                  .messages.emplace_front(
+                    else_value[0], else_value[1], else_value[2]);
+                if (reach_threshold) {
+                    output_ports.get(y[o_if_value])
+                      .messages.emplace_front(
+                        if_value[0], if_value[1], if_value[2]);
+                    output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                }
             }
         }
 
@@ -5341,7 +5309,7 @@ struct abstract_cross
 
     message observation(time /*t*/) const noexcept
     {
-        return message(value[0], if_value, else_value);
+        return message(value[0], if_value[0], else_value[0]);
     }
 };
 
@@ -5720,8 +5688,8 @@ struct simulation
     }
 
     template<typename Function>
-    constexpr status dispatch(const dynamics_type type, Function f) const
-      noexcept
+    constexpr status dispatch(const dynamics_type type,
+                              Function f) const noexcept
     {
         switch (type) {
         case dynamics_type::none:
@@ -5825,25 +5793,24 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [ dyn_id = mdl.id, port,
-            index ]<typename DynamicsM>(DynamicsM & dyn_models)
-            ->status {
-                using Dynamics = typename DynamicsM::value_type;
+          [dyn_id = mdl.id, port, index]<typename DynamicsM>(
+            DynamicsM& dyn_models) -> status {
+              using Dynamics = typename DynamicsM::value_type;
 
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    auto* dyn = dyn_models.try_to_get(dyn_id);
-                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                  auto* dyn = dyn_models.try_to_get(dyn_id);
+                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                    for (size_t i = 0, e = std::size(dyn->y); i != e; ++i) {
-                        if (dyn->y[i] == port) {
-                            *index = static_cast<int>(i);
-                            return status::success;
-                        }
-                    }
-                }
+                  for (size_t i = 0, e = std::size(dyn->y); i != e; ++i) {
+                      if (dyn->y[i] == port) {
+                          *index = static_cast<int>(i);
+                          return status::success;
+                      }
+                  }
+              }
 
-                return status::dynamics_unknown_port_id;
-            });
+              return status::dynamics_unknown_port_id;
+          });
     }
 
     template<typename Function>
@@ -5851,8 +5818,8 @@ struct simulation
     {
         dispatch(
           mdl.type,
-          [ this, &f, dyn_id = mdl.id ]<typename DynamicsM>(DynamicsM &
-                                                            dyn_models) {
+          [this, &f, dyn_id = mdl.id]<typename DynamicsM>(
+            DynamicsM& dyn_models) {
               using Dynamics = typename DynamicsM::value_type;
 
               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
@@ -5871,8 +5838,8 @@ struct simulation
     {
         dispatch(
           mdl.type,
-          [ this, &f, dyn_id = mdl.id ]<typename DynamicsM>(DynamicsM &
-                                                            dyn_models) {
+          [this, &f, dyn_id = mdl.id]<typename DynamicsM>(
+            DynamicsM& dyn_models) {
               using Dynamics = typename DynamicsM::value_type;
 
               if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
@@ -5893,25 +5860,24 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [ dyn_id = mdl.id, port,
-            index ]<typename DynamicsM>(DynamicsM & dyn_models)
-            ->status {
-                using Dynamics = typename DynamicsM::value_type;
+          [dyn_id = mdl.id, port, index]<typename DynamicsM>(
+            DynamicsM& dyn_models) -> status {
+              using Dynamics = typename DynamicsM::value_type;
 
-                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                    auto* dyn = dyn_models.try_to_get(dyn_id);
-                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                  auto* dyn = dyn_models.try_to_get(dyn_id);
+                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                    for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
-                        if (dyn->x[i] == port) {
-                            *index = static_cast<int>(i);
-                            return status::success;
-                        }
-                    }
-                }
+                  for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
+                      if (dyn->x[i] == port) {
+                          *index = static_cast<int>(i);
+                          return status::success;
+                      }
+                  }
+              }
 
-                return status::dynamics_unknown_port_id;
-            });
+              return status::dynamics_unknown_port_id;
+          });
     }
 
     status get_output_port_id(const model& mdl,
@@ -5920,26 +5886,24 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [ dyn_id = mdl.id, index,
-            port ]<typename DynamicsM>(DynamicsM & dyn_models)
-            ->status {
-                using Dynamics = typename DynamicsM::value_type;
+          [dyn_id = mdl.id, index, port]<typename DynamicsM>(
+            DynamicsM& dyn_models) -> status {
+              using Dynamics = typename DynamicsM::value_type;
 
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    auto* dyn = dyn_models.try_to_get(dyn_id);
-                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                  auto* dyn = dyn_models.try_to_get(dyn_id);
+                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                    irt_return_if_fail(0 <= index &&
-                                         static_cast<size_t>(index) <
-                                           std::size(dyn->y),
-                                       status::dynamics_unknown_port_id);
+                  irt_return_if_fail(0 <= index && static_cast<size_t>(index) <
+                                                     std::size(dyn->y),
+                                     status::dynamics_unknown_port_id);
 
-                    *port = dyn->y[index];
-                    return status::success;
-                }
+                  *port = dyn->y[index];
+                  return status::success;
+              }
 
-                return status::dynamics_unknown_port_id;
-            });
+              return status::dynamics_unknown_port_id;
+          });
     }
 
     status get_input_port_id(const model& mdl,
@@ -5948,26 +5912,24 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [ dyn_id = mdl.id, index,
-            port ]<typename DynamicsM>(DynamicsM & dyn_models)
-            ->status {
-                using Dynamics = typename DynamicsM::value_type;
+          [dyn_id = mdl.id, index, port]<typename DynamicsM>(
+            DynamicsM& dyn_models) -> status {
+              using Dynamics = typename DynamicsM::value_type;
 
-                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                    auto* dyn = dyn_models.try_to_get(dyn_id);
-                    irt_return_if_fail(dyn, status::dynamics_unknown_id);
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                  auto* dyn = dyn_models.try_to_get(dyn_id);
+                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-                    irt_return_if_fail(0 <= index &&
-                                         static_cast<size_t>(index) <
-                                           std::size(dyn->x),
-                                       status::dynamics_unknown_port_id);
+                  irt_return_if_fail(0 <= index && static_cast<size_t>(index) <
+                                                     std::size(dyn->x),
+                                     status::dynamics_unknown_port_id);
 
-                    *port = dyn->x[index];
-                    return status::success;
-                }
+                  *port = dyn->x[index];
+                  return status::success;
+              }
 
-                return status::dynamics_unknown_port_id;
-            });
+              return status::dynamics_unknown_port_id;
+          });
     }
 
 public:
@@ -6090,7 +6052,7 @@ public:
         input_ports.clear();
         output_ports.clear();
 
-        for_all([]<typename DynamicsM>(DynamicsM & dyn_models)->status {
+        for_all([]<typename DynamicsM>(DynamicsM& dyn_models) -> status {
             dyn_models.clear();
             return status::success;
         });
@@ -6529,8 +6491,7 @@ public:
     {
         return dispatch(
           mdl.type,
-          [ this, &mdl,
-            t ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
+          [this, &mdl, t]<typename DynamicsModels>(DynamicsModels& dyn_models) {
               return this->make_initialize(mdl, dyn_models.get(mdl.id), t);
           });
     }
@@ -6596,12 +6557,12 @@ public:
                            time t,
                            flat_list<output_port_id>& o) noexcept
     {
-        return dispatch(
-          mdl.type,
-          [ this, &mdl, t, &
-            o ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
-              return this->make_transition(mdl, dyn_models.get(mdl.id), t, o);
-          });
+        return dispatch(mdl.type,
+                        [this, &mdl, t, &o]<typename DynamicsModels>(
+                          DynamicsModels& dyn_models) {
+                            return this->make_transition(
+                              mdl, dyn_models.get(mdl.id), t, o);
+                        });
     }
 };
 
