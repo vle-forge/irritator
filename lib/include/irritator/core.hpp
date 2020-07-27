@@ -3384,8 +3384,8 @@ struct qss2_integrator
     }
 
     status internal() noexcept
-    {
-        //printf("qss2_integrator internal\n");
+    {      
+          //printf("qss2_integrator internal\n");
 
         X += u * sigma + mu / 2. * sigma * sigma;
         q = X;
@@ -3400,7 +3400,7 @@ struct qss2_integrator
 
     status reset(const double value_reset) noexcept
     {
-        //printf("qss2_integrator reset %g\n", value_reset);
+                //printf("qss2_integrator reset %g\n", value_reset);
 
         X = value_reset;
         q = X;
@@ -3447,7 +3447,7 @@ struct qss2_integrator
 
     message observation(time /*t*/) const noexcept
     {
-        return message(X + u * sigma + mu * sigma * sigma / 2.);
+        return message(X);
     }
 };
 
@@ -4938,7 +4938,7 @@ struct accumulator
         for (size_t i = 0; i != PortNumber; ++i) {
             auto& port = input_ports.get(x[i + PortNumber]);
             for (const auto& msg : port.messages) {
-                irt_assert(msg.size() == 1);
+                irt_assert(msg.size() >= 1);
 
                 numbers[i] = msg[0];
             }
@@ -4947,7 +4947,7 @@ struct accumulator
         for (size_t i = 0; i != PortNumber; ++i) {
             auto& port = input_ports.get(x[i]);
             for (const auto& msg : port.messages) {
-                irt_assert(msg.size() == 1);
+                irt_assert(msg.size() >= 1);
 
                 if (msg[0] != 0.0)
                     number += numbers[i];
@@ -5131,7 +5131,7 @@ struct abstract_cross
 
             sigma = time_domain<time>::infinity;
             if (value[1]) {
-                const auto wakeup = (threshold - value[0]) / value[1];
+                const auto wakeup = (threshold - value[0]) / value[1] ;
                 if (wakeup >= 0.)
                     sigma = wakeup;
             }
@@ -5190,132 +5190,140 @@ struct abstract_cross
             //printf("delta_int t=%g e=%g sigma=%g\n", t, e, sigma);
             // irt_assert(e == sigma);
         }
-
-        if (p_if_value.messages.empty()) {
-            if constexpr (QssLevel == 2)
-                if_value[0] += if_value[1] * e;
-            if constexpr (QssLevel == 3)
-                if_value[0] += if_value[1] * e + if_value[2] * e * e;
-        } else {
-            for (const auto& msg : p_if_value.messages) {
-                if_value[0] = msg[0];
-                //printf("    if_value %g %g\n", if_value[0], if_value[1]);
-                if constexpr (QssLevel >= 2)
-                    if_value[1] = msg.size() > 1 ? msg[1] : 0.;
+                
+            if (p_if_value.messages.empty()) {
+                if constexpr (QssLevel == 2)
+                    if_value[0] += if_value[1] * e;
                 if constexpr (QssLevel == 3)
-                    if_value[2] = msg.size() > 2 ? msg[2] : 0.;
-            }
-        }
-
-        if (p_else_value.messages.empty()) {
-            if constexpr (QssLevel == 2)
-                else_value[0] += else_value[1] * e;
-            if constexpr (QssLevel == 3)
-                else_value[0] += else_value[1] * e + else_value[2] * e * e;
-        } else {
-            for (const auto& msg : p_else_value.messages) {
-                else_value[0] = msg[0];
-                //printf("    else_value %g %g\n", else_value[0], else_value[1]);
-                if constexpr (QssLevel >= 2)
-                    else_value[1] = msg.size() > 1 ? msg[1] : 0.;
-                if constexpr (QssLevel == 3)
-                    else_value[2] = msg.size() > 2 ? msg[2] : 0.;
-            }
-        }
-
-        if (p_value.messages.empty()) {
-            if constexpr (QssLevel == 2)
-                value[0] += value[1] * e;
-            if constexpr (QssLevel == 3)
-                value[0] += value[1] * e + value[2] * e * e;
-        } else {
-            for (const auto& msg : p_value.messages) {
-                value[0] = msg[0];
-                //printf("    value %g\n", msg[0]);
-                if constexpr (QssLevel >= 2)
-                    value[1] = msg.size() > 1 ? msg[1] : 0.;
-                if constexpr (QssLevel == 3)
-                    value[2] = msg.size() > 2 ? msg[2] : 0.;
-            }
-        }
-
-        reach_threshold = false;
-
-        if (value[0] >= threshold) {
-            last_reset = t;
-            reach_threshold = true;
-            sigma = time_domain<time>::zero;
-            //printf("    need to send if_value %g\n", if_value[0]);
-        } else if (old_else_value != else_value[0]) {
-            sigma = time_domain<time>::zero;
-            //printf("    need to send else_value %g\n", else_value[0]);
-        } else
-            compute_wake_up();
-
-        //printf("    end transition. Sigma equals %.10g (next: %.10g - %.10g\n",
-        //       sigma,
-        //       t + sigma,
-        //       t + std::numeric_limits<double>::epsilon());
-
-        if (sigma > 0. && sigma + t == t) {
-            //printf("sigma + t == t with sigma > 0.!\n");
-            sigma = sigma * 10;
-        }
-
-        return status::success;
-    }
-
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
-    {
-        if (!block_lambda) {
-            if constexpr (QssLevel == 1) {
-                output_ports.get(y[o_else_value])
-                  .messages.emplace_front(else_value[0]);
-                if (reach_threshold) {
-                    output_ports.get(y[o_if_value])
-                      .messages.emplace_front(if_value[0]);
-                    output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                    if_value[0] += if_value[1] * e + if_value[2] * e * e;
+            } else {
+                for (const auto& msg : p_if_value.messages) {
+                    if_value[0] = msg[0];
+                    //printf("    if_value %g %g\n", if_value[0], if_value[1]);
+                    if constexpr (QssLevel >= 2)
+                        if_value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    if constexpr (QssLevel == 3)
+                        if_value[2] = msg.size() > 2 ? msg[2] : 0.;
                 }
             }
 
-            if constexpr (QssLevel == 2) {
-                output_ports.get(y[o_else_value])
-                  .messages.emplace_front(else_value[0], else_value[1]);
-                //printf("lambda: %.10g\n", else_value[0]);
-                if (reach_threshold) {
-                    //printf("lambda reach threshold: %.10g\n", if_value[0]);
-                    output_ports.get(y[o_if_value])
-                      .messages.emplace_front(if_value[0], if_value[1]);
-                    output_ports.get(y[o_event]).messages.emplace_front(1.0);
+            if (p_else_value.messages.empty()) {
+                if constexpr (QssLevel == 2)
+                    else_value[0] += else_value[1] * e;
+                if constexpr (QssLevel == 3)
+                    else_value[0] += else_value[1] * e + else_value[2] * e * e;
+            } else {
+                for (const auto& msg : p_else_value.messages) {
+                    else_value[0] = msg[0];
+                    //printf("    else_value %g %g\n", else_value[0], else_value[1]);
+                    if constexpr (QssLevel >= 2)
+                        else_value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    if constexpr (QssLevel == 3)
+                        else_value[2] = msg.size() > 2 ? msg[2] : 0.;
                 }
             }
 
-            if constexpr (QssLevel == 3) {
-                output_ports.get(y[o_else_value])
-                  .messages.emplace_front(
-                    else_value[0], else_value[1], else_value[2]);
-                if (reach_threshold) {
-                    output_ports.get(y[o_if_value])
-                      .messages.emplace_front(
-                        if_value[0], if_value[1], if_value[2]);
-                    output_ports.get(y[o_event]).messages.emplace_front(1.0);
+            if (p_value.messages.empty()) {
+                if constexpr (QssLevel == 2)
+                    value[0] += value[1] * e;
+                if constexpr (QssLevel == 3)
+                    value[0] += value[1] * e + value[2] * e * e;
+            } else {
+                for (const auto& msg : p_value.messages) {
+                    value[0] = msg[0];
+                    //printf("    value %g\n", msg[0]);
+                    if constexpr (QssLevel >= 2)
+                        value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    if constexpr (QssLevel == 3)
+                        value[2] = msg.size() > 2 ? msg[2] : 0.;
                 }
             }
+
+            reach_threshold = false;
+
+            if (value[0] >= threshold) {
+                last_reset = t;
+                reach_threshold = true;
+                sigma = time_domain<time>::zero;
+                //printf("    need to send if_value %g\n", if_value[0]);
+            } else if (old_else_value != else_value[0]) {
+                sigma = time_domain<time>::zero;
+                //printf("    need to send else_value %g\n", else_value[0]);
+            } else
+                compute_wake_up();
+
+            //printf("    end transition. Sigma equals %.10g (next: %.10g - %.10g\n",
+            //       sigma,
+            //       t + sigma,
+            //       t + std::numeric_limits<double>::epsilon());
+
+            if (sigma > 0. && sigma + t == t) {
+                //printf("sigma + t == t with sigma > 0.!\n");
+                sigma = sigma * 10;
+            }
+
+            return status::success;
         }
 
-        return status::success;
-    }
+        status lambda(
+        data_array<output_port, output_port_id>& output_ports) noexcept
+        {
+            if (!block_lambda) {
+                if constexpr (QssLevel == 1) {
+                    output_ports.get(y[o_else_value])
+                    .messages.emplace_front(else_value[0]);
+                    if (reach_threshold) {
+                        output_ports.get(y[o_if_value])
+                        .messages.emplace_front(if_value[0]);
+                        output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                    }
+                }
 
-    message observation(time /*t*/) const noexcept
-    {
-        return message(value[0], if_value[0], else_value[0]);
-    }
-};
+                if constexpr (QssLevel == 2) {
+                    output_ports.get(y[o_else_value])
+                    .messages.emplace_front(else_value[0], else_value[1]);
+                    //printf("lambda: %.10g\n", else_value[0]);
+                    if (reach_threshold) {
+                        //printf("lambda reach threshold: %.10g\n", if_value[0]);
+                        output_ports.get(y[o_if_value])
+                        .messages.emplace_front(if_value[0], if_value[1]);
+                        output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                    }
+                }
+
+                if constexpr (QssLevel == 3) {
+                    output_ports.get(y[o_else_value])
+                    .messages.emplace_front(
+                        else_value[0], else_value[1], else_value[2]);
+                    if (reach_threshold) {
+                        output_ports.get(y[o_if_value])
+                        .messages.emplace_front(
+                            if_value[0], if_value[1], if_value[2]);
+                        output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                    }
+                }
+            }
+
+            return status::success;
+        }
+
+        message observation(time /*t*/) const noexcept
+        {
+            return message(value[0], if_value[0], else_value[0]);
+        }
+    };
 
 using qss1_cross = abstract_cross<1>;
 using qss2_cross = abstract_cross<2>;
 using qss3_cross = abstract_cross<3>;
+
+inline double
+sin_time_function(double t) noexcept
+{
+    const double f0 = 0.1;
+    const double pi = std::acos(-1);
+    return std::sin(2 * pi * f0 * t);
+}
 
 inline double
 square_time_function(double t) noexcept
@@ -5335,6 +5343,8 @@ struct time_func
     output_port_id y[1];
     time sigma;
 
+
+    double default_sigma = 0.01;
     double (*default_f)(double) = &time_function;
 
     double value;
@@ -5343,8 +5353,8 @@ struct time_func
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
         f = default_f;
-        sigma = 1.0;
-        value = sigma;
+        sigma = default_sigma;
+        value = 0.0;
         return status::success;
     }
 
@@ -5353,10 +5363,7 @@ struct time_func
                       time /*e*/,
                       time /*r*/) noexcept
     {
-
-        sigma = (*f)(t);
-        value = sigma;
-
+        value = (*f)(t);
         return status::success;
     }
 
