@@ -113,7 +113,7 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
   // Connections
   expect(sim->connect(cross_lif.y[0], integrator_lif.x[1]) ==
         irt::status::success);
-  expect(sim->connect(cross_lif.y[0], sum_lif.x[0]) ==
+  expect(sim->connect(cross_lif.y[1], sum_lif.x[0]) ==
         irt::status::success);
   expect(sim->connect(integrator_lif.y[0],cross_lif.x[0]) ==
         irt::status::success);     
@@ -231,11 +231,11 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
   expect(sim.connect(integrator_a.y[0], cross.x[2]) ==
           irt::status::success);
 
-  expect(sim.connect(cross.y[0], product.x[0]) == irt::status::success);
-  expect(sim.connect(cross.y[0], product.x[1]) == irt::status::success);
+  expect(sim.connect(cross.y[1], product.x[0]) == irt::status::success);
+  expect(sim.connect(cross.y[1], product.x[1]) == irt::status::success);
   expect(sim.connect(product.y[0], sum_c.x[0]) == irt::status::success);
-  expect(sim.connect(cross.y[0], sum_c.x[1]) == irt::status::success);
-  expect(sim.connect(cross.y[0], sum_b.x[1]) == irt::status::success);
+  expect(sim.connect(cross.y[1], sum_c.x[1]) == irt::status::success);
+  expect(sim.connect(cross.y[1], sum_b.x[1]) == irt::status::success);
 
   expect(sim.connect(constant.y[0], sum_c.x[2]) == irt::status::success);
   expect(sim.connect(constant3.y[0], sum_c.x[3]) == irt::status::success);
@@ -243,13 +243,13 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
   expect(sim.connect(sum_c.y[0], sum_a.x[0]) == irt::status::success);
   // expect(sim.connect(integrator_b.y[0], sum_a.x[1]) ==
   // irt::status::success);
-  expect(sim.connect(cross2.y[0], sum_a.x[1]) == irt::status::success);
+  expect(sim.connect(cross2.y[1], sum_a.x[1]) == irt::status::success);
   expect(sim.connect(sum_a.y[0], integrator_a.x[0]) ==
           irt::status::success);
   expect(sim.connect(cross.y[0], integrator_a.x[1]) ==
           irt::status::success);
 
-  expect(sim.connect(cross2.y[0], sum_b.x[0]) == irt::status::success);
+  expect(sim.connect(cross2.y[1], sum_b.x[0]) == irt::status::success);
   expect(sim.connect(sum_b.y[0], integrator_b.x[0]) ==
           irt::status::success);
 
