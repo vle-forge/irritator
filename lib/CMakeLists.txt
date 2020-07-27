@@ -159,6 +159,11 @@ if (NOT BUILD_SHARED_LIBS)
   irritator_add_test(simulations test/simulations.cpp)
   irritator_add_test(auditory test/auditory.cpp)
 
-  irritator_add_benchmark(benchmark benchmark/benchmark.cpp)
-  irritator_add_benchmark(benchmark2 benchmark/benchmark2.cpp)
+  irritator_add_benchmark(benchmark_exactitude_aqss benchmark/benchmark_exactitude_aqss.cpp)
+  irritator_add_benchmark(benchmark_exactitude_qss1 benchmark/benchmark_exactitude_qss1.cpp)
+  irritator_add_benchmark(benchmark_exactitude_qss2 benchmark/benchmark_exactitude_qss2.cpp)
+
+  irritator_add_benchmark(benchmark_timing_qss1 benchmark/benchmark_timing_qss1.cpp)
+  irritator_add_benchmark(benchmark_timing_qss2 benchmark/benchmark_timing_qss2.cpp)
+  irritator_add_benchmark(benchmark_timing_aqss benchmark/benchmark_timing_aqss.cpp)
 endif ()
