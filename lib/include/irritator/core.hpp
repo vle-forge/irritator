@@ -501,26 +501,30 @@ struct message
       , length{ 0 }
     {}
 
-    template<typename... T>
-    constexpr message(T... args) noexcept
-    {
-        if constexpr (are_all_same<double, T...>()) {
-            static_assert(sizeof...(args) <= 3, "double message limited to 3");
-            using unused = double[];
-            length = 0;
-            (void)unused{ 0.0, (real[length++] = args, 0.0)... };
-        }
-    }
+    constexpr message(const double v) noexcept
+      : real{ v, 0., 0. }
+      , length{ 1 }
+    {}
+
+    constexpr message(const double v1, const double v2) noexcept
+      : real{ v1, v2, 0. }
+      , length{ 2 }
+    {}
+
+    constexpr message(const double v1,
+                      const double v2,
+                      const double v3) noexcept
+      : real{ v1, v2, v3 }
+      , length{ 3 }
+    {}
 
     double operator[](const difference_type i) const noexcept
     {
-        irt_assert(i < static_cast<std::ptrdiff_t>(length));
         return real[i];
     }
 
     double& operator[](const difference_type i) noexcept
     {
-        irt_assert(i < static_cast<std::ptrdiff_t>(length));
         return real[i];
     }
 };

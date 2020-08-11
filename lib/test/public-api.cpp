@@ -534,6 +534,8 @@ main()
         {
             irt::message vdouble(1.0);
             expect(vdouble[0] == 1.0);
+            expect(vdouble[1] == 0.0);
+            expect(vdouble[2] == 0.0);
             expect(vdouble.size() == 1_ul);
         }
 
@@ -541,6 +543,7 @@ main()
             irt::message vdouble(0.0, 1.0);
             expect(vdouble[0] == 0.0);
             expect(vdouble[1] == 1.0);
+            expect(vdouble[2] == 0.0);
             expect(vdouble.size() == 2_ul);
         }
 
