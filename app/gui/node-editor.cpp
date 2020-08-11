@@ -1828,7 +1828,7 @@ static void
 show_dynamics_values(const qss1_cross& dyn)
 {
     ImGui::Text("value: %.3f", dyn.value[0]);
-    ImGui::Text("if-value: %.3f", dyn.if_value);
+    ImGui::Text("if-value: %.3f", dyn.if_value[0]);
     ImGui::Text("else-value: %.3f", dyn.else_value);
 }
 
@@ -1836,7 +1836,7 @@ static void
 show_dynamics_values(const qss2_cross& dyn)
 {
     ImGui::Text("value: %.3f", dyn.value[0]);
-    ImGui::Text("if-value: %.3f", dyn.if_value);
+    ImGui::Text("if-value: %.3f", dyn.if_value[0]);
     ImGui::Text("else-value: %.3f", dyn.else_value);
 }
 
@@ -1844,7 +1844,7 @@ static void
 show_dynamics_values(const qss3_cross& dyn)
 {
     ImGui::Text("value: %.3f", dyn.value[0]);
-    ImGui::Text("if-value: %.3f", dyn.if_value);
+    ImGui::Text("if-value: %.3f", dyn.if_value[0]);
     ImGui::Text("else-value: %.3f", dyn.else_value);
 }
 
