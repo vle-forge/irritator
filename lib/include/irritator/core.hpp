@@ -2969,8 +2969,6 @@ struct integrator
                     time t) noexcept
     {
         for (const auto& msg : port_quanta.messages) {
-            irt_assert(msg.size() == 2);
-
             up_threshold = msg.real[0];
             down_threshold = msg.real[1];
 
@@ -2982,8 +2980,6 @@ struct integrator
         }
 
         for (const auto& msg : port_x_dot.messages) {
-            irt_assert(msg.size() == 1);
-
             archive.emplace_back(msg.real[0], t);
 
             if (st == state::wait_for_x_dot)
@@ -2994,8 +2990,6 @@ struct integrator
         }
 
         for (const auto& msg : port_reset.messages) {
-            irt_assert(msg.size() == 1);
-
             reset_value = msg.real[0];
             reset = true;
         }
@@ -4040,7 +4034,7 @@ struct abstract_wsum
                 } else {
                     for (const auto& msg : input_ports.get(x[i]).messages) {
                         values[i] = msg[0];
-                        values[i + PortNumber] = msg.size() > 1 ? msg[1] : 0.0;
+                        values[i + PortNumber] = msg[1];
                         message = true;
                     }
                 }
@@ -4057,9 +4051,8 @@ struct abstract_wsum
                 } else {
                     for (const auto& msg : i_port.messages) {
                         values[i] = msg[0];
-                        values[i + PortNumber] = msg.size() > 1 ? msg[1] : 0;
-                        values[i + PortNumber + PortNumber] =
-                          msg.size() > 2 ? msg[2] : 0;
+                        values[i + PortNumber] = msg[1];
+                        values[i + PortNumber + PortNumber] = msg[2];
                         message = true;
                     }
                 }
@@ -4183,10 +4176,10 @@ struct abstract_multiplier
             values[0] = msg[0];
 
             if constexpr (QssLevel >= 2)
-                values[2 + 0] = msg.size() > 1 ? msg[1] : 0.0;
+                values[2 + 0] = msg[1];
 
             if constexpr (QssLevel == 3)
-                values[2 + 2 + 0] = msg.size() > 2 ? msg[2] : 0.0;
+                values[2 + 2 + 0] = msg[2];
         }
 
         for (const auto& msg : input_ports.get(x[1]).messages) {
@@ -4195,10 +4188,10 @@ struct abstract_multiplier
             values[1] = msg[0];
 
             if constexpr (QssLevel >= 2)
-                values[2 + 1] = msg.size() > 1 ? msg[1] : 0.0;
+                values[2 + 1] = msg[1];
 
             if constexpr (QssLevel == 3)
-                values[2 + 2 + 1] = msg.size() > 2 ? msg[2] : 0.0;
+                values[2 + 2 + 1] = msg[2];
         }
 
         if constexpr (QssLevel == 2) {
@@ -4337,7 +4330,6 @@ struct quantifier
             double sum = 0.0;
             double nb = 0.0;
             for (const auto& msg : port.messages) {
-                irt_assert(msg.size() == 1);
                 sum += msg.real[0];
                 ++nb;
             }
@@ -4623,8 +4615,6 @@ struct adder
 
         for (size_t i = 0; i != PortNumber; ++i) {
             for (const auto& msg : input_ports.get(x[i]).messages) {
-                irt_assert(msg.size() == 1);
-
                 values[i] = msg.real[0];
 
                 have_message = true;
@@ -4704,8 +4694,6 @@ struct mult
         bool have_message = false;
         for (size_t i = 0; i != PortNumber; ++i) {
             for (const auto& msg : input_ports.get(x[i]).messages) {
-                irt_assert(msg.size() == 1);
-
                 values[i] = msg[0];
                 have_message = true;
             }
@@ -4933,8 +4921,6 @@ struct accumulator
         for (size_t i = 0; i != PortNumber; ++i) {
             auto& port = input_ports.get(x[i + PortNumber]);
             for (const auto& msg : port.messages) {
-                irt_assert(msg.size() >= 1);
-
                 numbers[i] = msg[0];
             }
         }
@@ -4942,8 +4928,6 @@ struct accumulator
         for (size_t i = 0; i != PortNumber; ++i) {
             auto& port = input_ports.get(x[i]);
             for (const auto& msg : port.messages) {
-                irt_assert(msg.size() >= 1);
-
                 if (msg[0] != 0.0)
                     number += numbers[i];
             }
@@ -5001,30 +4985,22 @@ struct cross
         event = 0.0;
 
         for (const auto& msg : input_ports.get(x[port_threshold]).messages) {
-            irt_assert(msg.size() == 1);
-
             threshold = msg.real[0];
             have_message = true;
         }
 
         for (const auto& msg : input_ports.get(x[port_value]).messages) {
-            irt_assert(msg.size() == 1);
-
             value = msg.real[0];
             have_message_value = true;
             have_message = true;
         }
 
         for (const auto& msg : input_ports.get(x[port_if_value]).messages) {
-            irt_assert(msg.size() == 1);
-
             if_value = msg.real[0];
             have_message = true;
         }
 
         for (const auto& msg : input_ports.get(x[port_else_value]).messages) {
-            irt_assert(msg.size() == 1);
-
             else_value = msg.real[0];
             have_message = true;
         }
@@ -5183,9 +5159,9 @@ struct abstract_cross
             for (const auto& msg : p_if_value.messages) {
                 if_value[0] = msg[0];
                 if constexpr (QssLevel >= 2)
-                    if_value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    if_value[1] = msg[1];
                 if constexpr (QssLevel == 3)
-                    if_value[2] = msg.size() > 2 ? msg[2] : 0.;
+                    if_value[2] = msg[2];
             }
         }
 
@@ -5198,9 +5174,9 @@ struct abstract_cross
             for (const auto& msg : p_else_value.messages) {
                 else_value[0] = msg[0];
                 if constexpr (QssLevel >= 2)
-                    else_value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    else_value[1] = msg[1];
                 if constexpr (QssLevel == 3)
-                    else_value[2] = msg.size() > 2 ? msg[2] : 0.;
+                    else_value[2] = msg[2];
             }
         }
 
@@ -5213,9 +5189,9 @@ struct abstract_cross
             for (const auto& msg : p_value.messages) {
                 value[0] = msg[0];
                 if constexpr (QssLevel >= 2)
-                    value[1] = msg.size() > 1 ? msg[1] : 0.;
+                    value[1] = msg[1];
                 if constexpr (QssLevel == 3)
-                    value[2] = msg.size() > 2 ? msg[2] : 0.;
+                    value[2] = msg[2];
             }
         }
 
