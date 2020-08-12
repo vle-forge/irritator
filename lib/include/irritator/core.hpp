@@ -3877,6 +3877,8 @@ struct abstract_sum
                 if (i_port.messages.empty()) {
                     values[i] += values[i + PortNumber] * e +
                                  values[i + PortNumber + PortNumber] * e * e;
+                    values[i + PortNumber] +=
+                      2 * values[i + PortNumber + PortNumber] * e;
                 } else {
                     for (const auto& msg : i_port.messages) {
                         values[i] = msg[0];
@@ -4032,6 +4034,8 @@ struct abstract_wsum
                 if (i_port.messages.empty()) {
                     values[i] += values[i + PortNumber] * e +
                                  values[i + PortNumber + PortNumber] * e * e;
+                    values[i + PortNumber] +=
+                      2 * values[i + PortNumber + PortNumber] * e;
                 } else {
                     for (const auto& msg : i_port.messages) {
                         values[i] = msg[0];
