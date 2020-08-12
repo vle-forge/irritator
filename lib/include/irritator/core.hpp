@@ -5071,7 +5071,7 @@ struct abstract_cross
             sigma = time_domain<time>::infinity;
             if (value[1]) {
                 const auto wakeup = (threshold - value[0]) / value[1];
-                if (wakeup >= 0.)
+                if (wakeup > 0.)
                     sigma = wakeup;
             }
         }
@@ -5080,24 +5080,33 @@ struct abstract_cross
             sigma = time_domain<time>::infinity;
             if (value[1]) {
                 if (value[2]) {
-                    const auto d = value[2] * value[2] - 4 * value[1] -
-                                   (threshold - value[0]);
-                    if (d == 0.) {
-                        const auto wakeup = -value[1] / (2 * value[2]);
-                        if (wakeup >= 0.)
-                            sigma = wakeup;
-                    } else if (d > 0) {
-                        const auto wakeup =
-                          -value[1] +
-                          std::sqrt(value[1] * value[1] -
-                                    4 * value[2] * (threshold - value[0])) /
-                            (2. * value[2]);
-                        if (wakeup >= 0)
-                            sigma = wakeup;
+                    const auto a = value[2];
+                    const auto b = value[1];
+                    const auto c = value[0] - threshold;
+                    const auto d = b * b - 4. * a * c;
+
+                    if (d > 0.) {
+                        const auto x1 = (-b + std::sqrt(d)) / (2. * a);
+                        const auto x2 = (-b - std::sqrt(d)) / (2. * a);
+
+                        if (x1 > 0.) {
+                            if (x2 > 0.) {
+                                sigma = std::min(x1, x2);
+                            } else {
+                                sigma = x1;
+                            }
+                        } else {
+                            if (x2 > 0)
+                                sigma = x2;
+                        }
+                    } if (d == 0.) {
+                        const auto x = -b / (2. * a);
+                        if (x > 0.)
+                            sigma = x;
                     }
                 } else {
                     const auto wakeup = (threshold - value[0]) / value[1];
-                    if (wakeup >= 0.)
+                    if (wakeup > 0.)
                         sigma = wakeup;
                 }
             }
