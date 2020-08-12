@@ -5175,10 +5175,6 @@ struct abstract_cross
         } else
             compute_wake_up();
 
-        if (sigma > 0. && sigma + t == t) {
-            sigma = sigma * 10;
-        }
-
         return status::success;
     }
 
@@ -6472,10 +6468,12 @@ public:
             }
         }
 
+        irt_assert(mdl.tn >= t);
+
         mdl.tl = t;
         mdl.tn = t + dyn.sigma;
-
-        assert(mdl.tn >= t);
+        if (dyn.sigma && mdl.tn == t)
+            mdl.tn = std::nextafter(t, t + 1.);
 
         sched.reintegrate(mdl, mdl.tn);
 
