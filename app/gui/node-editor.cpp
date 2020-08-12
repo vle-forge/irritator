@@ -39,8 +39,7 @@ static auto automatic_layout_y_distance = 350.f;
 static auto grid_layout_x_distance = 250.f;
 static auto grid_layout_y_distance = 250.f;
 
-static ImVec4
-operator*(const ImVec4& lhs, const float rhs) noexcept
+static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
@@ -669,48 +668,49 @@ struct copier
 
             auto ret = sim.dispatch(
               mdl->type,
-              [this, &sim, mdl, &mdl_id_dst]<typename DynamicsM>(
-                DynamicsM& dynamics_models) -> status {
-                  using Dynamics = typename DynamicsM::value_type;
+              [ this, &sim, mdl, &
+                mdl_id_dst ]<typename DynamicsM>(DynamicsM & dynamics_models)
+                ->status {
+                    using Dynamics = typename DynamicsM::value_type;
 
-                  irt_return_if_fail(dynamics_models.can_alloc(1),
-                                     status::dynamics_not_enough_memory);
+                    irt_return_if_fail(dynamics_models.can_alloc(1),
+                                       status::dynamics_not_enough_memory);
 
-                  auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
-                  irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
+                    auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
+                    irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
 
-                  auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
-                  auto new_dyn_id = dynamics_models.get_id(new_dyn);
+                    auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
+                    auto new_dyn_id = dynamics_models.get_id(new_dyn);
 
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      std::fill_n(new_dyn.x,
-                                  std::size(new_dyn.x),
-                                  static_cast<input_port_id>(0));
+                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                        std::fill_n(new_dyn.x,
+                                    std::size(new_dyn.x),
+                                    static_cast<input_port_id>(0));
 
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      std::fill_n(new_dyn.y,
-                                  std::size(new_dyn.y),
-                                  static_cast<output_port_id>(0));
+                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                        std::fill_n(new_dyn.y,
+                                    std::size(new_dyn.y),
+                                    static_cast<output_port_id>(0));
 
-                  irt_return_if_bad(
-                    sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
+                    irt_return_if_bad(
+                      sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
 
-                  *mdl_id_dst = new_dyn.id;
+                    *mdl_id_dst = new_dyn.id;
 
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
-                           ++j)
-                          this->c_input_ports.emplace_back(dyn_ptr->x[j],
-                                                           new_dyn.x[j]);
+                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                        for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
+                             ++j)
+                            this->c_input_ports.emplace_back(dyn_ptr->x[j],
+                                                             new_dyn.x[j]);
 
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
-                           ++j)
-                          this->c_output_ports.emplace_back(dyn_ptr->y[j],
-                                                            new_dyn.y[j]);
+                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                        for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
+                             ++j)
+                            this->c_output_ports.emplace_back(dyn_ptr->y[j],
+                                                              new_dyn.y[j]);
 
-                  return status::success;
-              });
+                    return status::success;
+                });
 
             irt_return_if_bad(ret);
         }
