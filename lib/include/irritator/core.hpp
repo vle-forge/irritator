@@ -3515,7 +3515,6 @@ struct qss3_integrator
                 auto w = c - b * a / 3. + 2. * a * a * a / 27.;
                 auto i1 = -w / 2.;
                 auto i2 = i1 * i1 + v * v * v / 27.;
-                auto s = 0.;
 
                 if (i2 > 0) {
                     i2 = std::sqrt(i2);
@@ -3531,7 +3530,7 @@ struct qss3_integrator
                     else
                         B = -std::pow(std::abs(B), 1. / 3.);
 
-                    auto s = A + B - a / 3.;
+                    s = A + B - a / 3.;
                     if (s < 0.)
                         s = time_domain<time>::infinity;
                 } else if (i2 == 0.) {
