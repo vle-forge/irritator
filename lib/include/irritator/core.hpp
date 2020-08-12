@@ -3494,7 +3494,7 @@ struct qss3_integrator
         constexpr double pi_div_3 = 1.0471975511965976;
 #endif
 
-        X = X + u * e + (mu * e * e) / 2 + (pu * e * e * e) / 3;
+        X = X + u * e + (mu * e * e) / 2. + (pu * e * e * e) / 3.;
         u = value_x;
         mu = value_slope;
         pu = value_derivative;
