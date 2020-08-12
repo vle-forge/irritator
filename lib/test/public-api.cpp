@@ -1940,7 +1940,6 @@ main()
         } while (t < 30.); // 140. error!
     };
 
-#if 0
     "lotka_volterra_simulation_qss3"_test = [] {
         fmt::print("lotka_volterra_simulation_qss3\n");
         irt::simulation sim;
@@ -2034,7 +2033,6 @@ main()
             expect(st == irt::status::success);
         } while (t < 15.0);
     };
-#endif
 
     "lif_simulation_qss3"_test = [] {
         fmt::print("lif_simulation_qss3\n");
