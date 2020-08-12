@@ -2870,7 +2870,7 @@ using transition_function_t = decltype(
 
 template<class T>
 using observation_function_t =
-  decltype(detail::helper<message (T::*)(time) const, &T::observation>{});
+  decltype(detail::helper<message (T::*)(const time) const, &T::observation>{});
 
 template<class T>
 using initialize_function_t =
@@ -3064,7 +3064,7 @@ struct integrator
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
         return message(last_output_value);
     }
@@ -3261,9 +3261,9 @@ struct qss1_integrator
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time e) const noexcept
     {
-        return message(X + u * sigma);
+        return message(X + u * e);
     }
 };
 
@@ -3433,9 +3433,9 @@ struct qss2_integrator
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time e) const noexcept
     {
-        return message(X);
+        return X + (u * e) + (mu / 2.0) * (e * e);
     }
 };
 
@@ -3769,9 +3769,9 @@ struct qss3_integrator
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time e) const noexcept
     {
-        return message(X);
+        return X + u * e + (mu * e * e) / 2 + (pu * e * e * e) / 3;
     }
 };
 
@@ -3893,42 +3893,26 @@ struct abstract_sum
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation([[maybe_unused]] const time e) const noexcept
     {
-        if constexpr (QssLevel == 1) {
-            double value = 0.;
+        double value = 0.;
 
+        if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i)
                 value += values[i];
-
-            return message{ value };
         }
 
-        if constexpr (QssLevel == 2) {
-            double value = 0.;
-            double slope = 0.;
-
-            for (size_t i = 0; i != PortNumber; ++i) {
-                value += values[i];
-                slope += values[i + PortNumber];
-            }
-
-            return message{ value, slope };
+        if constexpr (QssLevel >= 2) {
+            for (size_t i = 0; i != PortNumber; ++i)
+                value += values[i + PortNumber] * e;
         }
 
-        if constexpr (QssLevel == 3) {
-            double value = 0.;
-            double slope = 0.;
-            double derivative = 0.;
-
-            for (size_t i = 0; i != PortNumber; ++i) {
-                value += values[i];
-                slope += values[i + PortNumber];
-                derivative = values[i + PortNumber + PortNumber];
-            }
-
-            return message{ value, slope, derivative };
+        if constexpr (QssLevel >= 3) {
+            for (size_t i = 0; i != PortNumber; ++i)
+                value += values[i + PortNumber + PortNumber] * e * e;
         }
+
+        return message{ value };
     }
 };
 
@@ -4064,43 +4048,27 @@ struct abstract_wsum
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation([[maybe_unused]] const time e) const noexcept
     {
-        if constexpr (QssLevel == 1) {
-            double value = 0.;
+        double value = 0.;
 
+        if constexpr (QssLevel >= 1) {
             for (int i = 0; i != PortNumber; ++i)
                 value += default_input_coeffs[i] * values[i];
-
-            return message{ value };
         }
 
-        if constexpr (QssLevel == 2) {
-            double value = 0.;
-            double slope = 0.;
-
-            for (int i = 0; i != PortNumber; ++i) {
-                value += default_input_coeffs[i] * values[i];
-                slope += default_input_coeffs[i] * values[i + PortNumber];
-            }
-
-            return message{ value, slope };
+        if constexpr (QssLevel >= 2) {
+            for (int i = 0; i != PortNumber; ++i)
+                value += default_input_coeffs[i] * values[i + PortNumber] * e;
         }
 
-        if constexpr (QssLevel == 3) {
-            double value = 0.;
-            double slope = 0.;
-            double derivative = 0.;
-
-            for (size_t i = 0; i != PortNumber; ++i) {
-                value += default_input_coeffs[i] * values[i];
-                slope += default_input_coeffs[i] * values[i + PortNumber];
-                derivative =
-                  default_input_coeffs[i] * values[i + PortNumber + PortNumber];
-            }
-
-            return message{ value, slope, derivative };
+        if constexpr (QssLevel >= 3) {
+            for (size_t i = 0; i != PortNumber; ++i)
+                value += default_input_coeffs[i] *
+                         values[i + PortNumber + PortNumber] * e * e;
         }
+
+        return message{ value };
     }
 };
 
@@ -4203,31 +4171,32 @@ struct abstract_multiplier
         }
 
         if constexpr (QssLevel == 3) {
-            if (!message_port_0)
+            if (!message_port_0) {
                 values[0] += e * values[2 + 0] + values[2 + 2 + 0] * e * e;
+                values[2 + 0] += 2 * values[2 + 2 + 0] * e;
+            }
 
-            if (!message_port_1)
+            if (!message_port_1) {
                 values[1] += e * values[2 + 1] + values[2 + 2 + 1] * e * e;
+                values[2 + 1] += 2 * values[2 + 2 + 1] * e;
+            }
         }
 
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation([[maybe_unused]] const time e) const noexcept
     {
         if constexpr (QssLevel == 1)
-            return { values[0] * values[1] };
+            return values[0] * values[1];
 
         if constexpr (QssLevel == 2)
-            return { values[0] * values[1],
-                     values[2 + 0] * values[1] + values[2 + 1] * values[0] };
+            return (values[0] + e * values[2 + 0]) *
+                   (values[1] + e * values[2 + 1]);
 
         if constexpr (QssLevel == 3)
-            return { values[0] * values[1],
-                     values[2 + 0] * values[1] + values[2 + 1] * values[0],
-                     values[0] * values[2 + 2 + 1] +
-                       values[2 + 0] * values[2 + 1] +
-                       values[2 + 2 + 0] * values[1] };
+            return (values[0] + e * values[2 + 0] + e * e * values[2 + 2 + 0]) *
+                   (values[1] + e * values[2 + 1] + e * e * values[2 + 2 + 1]);
     }
 };
 
@@ -4421,7 +4390,7 @@ struct quantifier
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
         return message(m_upthreshold, m_downthreshold);
     }
@@ -4627,7 +4596,7 @@ struct adder
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
         double ret = 0.0;
 
@@ -4705,7 +4674,7 @@ struct mult
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
         double ret = 1.0;
 
@@ -4747,9 +4716,9 @@ struct counter
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
-        return message(number);
+        return message(static_cast<double>(number));
     }
 };
 
@@ -4793,7 +4762,7 @@ struct generator
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
         return message(value);
     }
@@ -4836,7 +4805,7 @@ struct constant
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
         return message(value);
     }
@@ -4886,7 +4855,7 @@ struct flow
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
         return message(value);
     }
@@ -5030,7 +4999,7 @@ struct cross
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
         return message(value, if_value, else_value);
     }
@@ -5253,7 +5222,7 @@ struct abstract_cross
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*t*/) const noexcept
     {
         return message(value[0], if_value[0], else_value[0]);
     }
@@ -5320,7 +5289,7 @@ struct time_func
         return status::success;
     }
 
-    message observation(time /*t*/) const noexcept
+    message observation(const time /*t*/) const noexcept
     {
         return message(value);
     }
@@ -6493,7 +6462,8 @@ public:
                     observer && observer->observe) {
                     if (observer->time_step == 0.0 ||
                         t - observer->tl >= observer->time_step) {
-                        observer->observe(*observer, t, dyn.observation(t));
+                        observer->observe(
+                          *observer, t, dyn.observation(t - mdl.tl));
                         observer->tl = t;
                     }
                 } else {
