@@ -3828,12 +3828,13 @@ struct abstract_sum
             for (size_t i = 0; i != PortNumber; ++i) {
                 value += values[i];
                 slope += values[i + PortNumber];
-                derivative = values[i + PortNumber + PortNumber];
+                derivative += values[i + PortNumber + PortNumber];
             }
 
             output_ports.get(y[0]).messages.emplace_front(
               value, slope, derivative);
         }
+
         return status::success;
     }
 
