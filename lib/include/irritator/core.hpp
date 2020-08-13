@@ -5135,8 +5135,10 @@ struct abstract_cross
         if (p_if_value.messages.empty()) {
             if constexpr (QssLevel == 2)
                 if_value[0] += if_value[1] * e;
-            if constexpr (QssLevel == 3)
+            if constexpr (QssLevel == 3) {
                 if_value[0] += if_value[1] * e + if_value[2] * e * e;
+                if_value[1] += 2. * if_value[2] * e;
+            }
         } else {
             for (const auto& msg : p_if_value.messages) {
                 if_value[0] = msg[0];
@@ -5150,8 +5152,10 @@ struct abstract_cross
         if (p_else_value.messages.empty()) {
             if constexpr (QssLevel == 2)
                 else_value[0] += else_value[1] * e;
-            if constexpr (QssLevel == 3)
+            if constexpr (QssLevel == 3) {
                 else_value[0] += else_value[1] * e + else_value[2] * e * e;
+                else_value[1] += 2. * else_value[2] * e;
+            }
         } else {
             for (const auto& msg : p_else_value.messages) {
                 else_value[0] = msg[0];
@@ -5165,8 +5169,10 @@ struct abstract_cross
         if (p_value.messages.empty()) {
             if constexpr (QssLevel == 2)
                 value[0] += value[1] * e;
-            if constexpr (QssLevel == 3)
+            if constexpr (QssLevel == 3) {
                 value[0] += value[1] * e + value[2] * e * e;
+                value[1] += 2. * value[2] * e;
+            }
         } else {
             for (const auto& msg : p_value.messages) {
                 value[0] = msg[0];
