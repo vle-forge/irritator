@@ -210,15 +210,15 @@ make_neuron_izhikevich(irt::simulation* sim, int i, double quantum, double a, do
   auto& constant = sim->constant_models.alloc();
   auto& constant2 = sim->constant_models.alloc();
   auto& constant3 = sim->constant_models.alloc();
-  auto& sum_a = sim->qss1_wsum_2_models.alloc();
-  auto& sum_b = sim->qss1_wsum_2_models.alloc();
-  auto& sum_c = sim->qss1_wsum_4_models.alloc();
-  auto& sum_d = sim->qss1_wsum_2_models.alloc();
-  auto& product = sim->qss1_multiplier_models.alloc();
-  auto& integrator_a = sim->qss1_integrator_models.alloc();
-  auto& integrator_b = sim->qss1_integrator_models.alloc();
-  auto& cross = sim->qss1_cross_models.alloc();
-  auto& cross2 = sim->qss1_cross_models.alloc();
+  auto& sum_a = sim->qss3_wsum_2_models.alloc();
+  auto& sum_b = sim->qss3_wsum_2_models.alloc();
+  auto& sum_c = sim->qss3_wsum_4_models.alloc();
+  auto& sum_d = sim->qss3_wsum_2_models.alloc();
+  auto& product = sim->qss3_multiplier_models.alloc();
+  auto& integrator_a = sim->qss3_integrator_models.alloc();
+  auto& integrator_b = sim->qss3_integrator_models.alloc();
+  auto& cross = sim->qss3_cross_models.alloc();
+  auto& cross2 = sim->qss3_cross_models.alloc();
 
 
   double vt = 30.0;
@@ -252,28 +252,28 @@ make_neuron_izhikevich(irt::simulation* sim, int i, double quantum, double a, do
   sim->alloc(constant3, sim->constant_models.get_id(constant3));
   sim->alloc(constant, sim->constant_models.get_id(constant));
   sim->alloc(constant2, sim->constant_models.get_id(constant2));
-  sim->alloc(sum_a, sim->qss1_wsum_2_models.get_id(sum_a));
-  sim->alloc(sum_b, sim->qss1_wsum_2_models.get_id(sum_b));
-  sim->alloc(sum_c, sim->qss1_wsum_4_models.get_id(sum_c));
-  sim->alloc(sum_d, sim->qss1_wsum_2_models.get_id(sum_d));
-  sim->alloc(product, sim->qss1_multiplier_models.get_id(product));
-  sim->alloc(integrator_a, sim->qss1_integrator_models.get_id(integrator_a));
-  sim->alloc(integrator_b, sim->qss1_integrator_models.get_id(integrator_b));
-  sim->alloc(cross, sim->qss1_cross_models.get_id(cross));
-  sim->alloc(cross2, sim->qss1_cross_models.get_id(cross2));
+  sim->alloc(sum_a, sim->qss3_wsum_2_models.get_id(sum_a));
+  sim->alloc(sum_b, sim->qss3_wsum_2_models.get_id(sum_b));
+  sim->alloc(sum_c, sim->qss3_wsum_4_models.get_id(sum_c));
+  sim->alloc(sum_d, sim->qss3_wsum_2_models.get_id(sum_d));
+  sim->alloc(product, sim->qss3_multiplier_models.get_id(product));
+  sim->alloc(integrator_a, sim->qss3_integrator_models.get_id(integrator_a));
+  sim->alloc(integrator_b, sim->qss3_integrator_models.get_id(integrator_b));
+  sim->alloc(cross, sim->qss3_cross_models.get_id(cross));
+  sim->alloc(cross2, sim->qss3_cross_models.get_id(cross2));
 
 
 
-  struct neuron_izhikevich neuron_model = { sim->qss1_wsum_2_models.get_id(sum_a),
-                                            sim->qss1_wsum_2_models.get_id(sum_b),
-                                            sim->qss1_wsum_2_models.get_id(sum_d),
-                                            sim->qss1_wsum_4_models.get_id(sum_c),
-                                            sim->qss1_multiplier_models.get_id(product),
-                                            sim->qss1_integrator_models.get_id(integrator_a),
-                                            sim->qss1_integrator_models.get_id(integrator_b),                                                                     
+  struct neuron_izhikevich neuron_model = { sim->qss3_wsum_2_models.get_id(sum_a),
+                                            sim->qss3_wsum_2_models.get_id(sum_b),
+                                            sim->qss3_wsum_2_models.get_id(sum_d),
+                                            sim->qss3_wsum_4_models.get_id(sum_c),
+                                            sim->qss3_multiplier_models.get_id(product),
+                                            sim->qss3_integrator_models.get_id(integrator_a),
+                                            sim->qss3_integrator_models.get_id(integrator_b),                                                                     
                                             sim->constant_models.get_id(constant3),                                                                     
-                                            sim->qss1_cross_models.get_id(cross), 
-                                            sim->qss1_cross_models.get_id(cross2),                                                                                                                                     
+                                            sim->qss3_cross_models.get_id(cross), 
+                                            sim->qss3_cross_models.get_id(cross2),                                                                                                                                     
                                             sim->constant_models.get_id(constant),
                                             sim->constant_models.get_id(constant2),   
                                             cross.y[1]                                                                
@@ -346,11 +346,11 @@ make_neuron_lif(irt::simulation* sim, int i, double quantum, double tau) noexcep
   double Vt_lif = 1.0;
 
 
-  auto& sum_lif = sim->qss1_wsum_2_models.alloc();
-  auto& integrator_lif = sim->qss1_integrator_models.alloc();
+  auto& sum_lif = sim->qss3_wsum_2_models.alloc();
+  auto& integrator_lif = sim->qss3_integrator_models.alloc();
   auto& constant_lif = sim->constant_models.alloc();
   auto& constant_cross_lif = sim->constant_models.alloc();
-  auto& cross_lif = sim->qss1_cross_models.alloc();
+  auto& cross_lif = sim->qss3_cross_models.alloc();
 
 
   sum_lif.default_input_coeffs[0] = -1.0/tau_lif;
@@ -368,16 +368,16 @@ make_neuron_lif(irt::simulation* sim, int i, double quantum, double tau) noexcep
 
   
 
-  sim->alloc(sum_lif, sim->qss1_wsum_2_models.get_id(sum_lif));
-  sim->alloc(integrator_lif, sim->qss1_integrator_models.get_id(integrator_lif));
+  sim->alloc(sum_lif, sim->qss3_wsum_2_models.get_id(sum_lif));
+  sim->alloc(integrator_lif, sim->qss3_integrator_models.get_id(integrator_lif));
   sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif));
-  sim->alloc(cross_lif, sim->qss1_cross_models.get_id(cross_lif));
+  sim->alloc(cross_lif, sim->qss3_cross_models.get_id(cross_lif));
   sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif));
 
-  struct neuron_lif neuron_model = {sim->qss1_wsum_2_models.get_id(sum_lif),
-                                sim->qss1_integrator_models.get_id(integrator_lif),
+  struct neuron_lif neuron_model = {sim->qss3_wsum_2_models.get_id(sum_lif),
+                                sim->qss3_integrator_models.get_id(integrator_lif),
                                 sim->constant_models.get_id(constant_lif),
-                                sim->qss1_cross_models.get_id(cross_lif),                                                                                                
+                                sim->qss3_cross_models.get_id(cross_lif),                                                                                                
                                 sim->constant_models.get_id(constant_cross_lif),
                                 cross_lif.y[1]                                                                
                                 }; 
@@ -412,15 +412,15 @@ struct synapse make_synapse(irt::simulation* sim, int source, int target,
   dApost = dApost * gamax;
   dApre = dApre * gamax;
 
-  auto& int_pre = sim->qss1_integrator_models.alloc();
-  auto& sum_pre = sim->qss1_wsum_2_models.alloc();
-  auto& mult_pre = sim->qss1_wsum_2_models.alloc();
-  auto& cross_pre = sim->qss1_cross_models.alloc();
+  auto& int_pre = sim->qss3_integrator_models.alloc();
+  auto& sum_pre = sim->qss3_wsum_2_models.alloc();
+  auto& mult_pre = sim->qss3_wsum_2_models.alloc();
+  auto& cross_pre = sim->qss3_cross_models.alloc();
 
-  auto& int_post = sim->qss1_integrator_models.alloc();
-  auto& sum_post = sim->qss1_wsum_2_models.alloc();
-  auto& mult_post = sim->qss1_wsum_2_models.alloc();
-  auto& cross_post = sim->qss1_cross_models.alloc();
+  auto& int_post = sim->qss3_integrator_models.alloc();
+  auto& sum_post = sim->qss3_wsum_2_models.alloc();
+  auto& mult_post = sim->qss3_wsum_2_models.alloc();
+  auto& cross_post = sim->qss3_cross_models.alloc();
 
   auto& const_syn = sim->constant_models.alloc();
   auto& accumulator_syn = sim->accumulator_2_models.alloc();
@@ -449,28 +449,28 @@ struct synapse make_synapse(irt::simulation* sim, int source, int target,
   const_syn.default_value = 1.0;
 
 
-  !expect(irt::is_success(sim->alloc(int_pre, sim->qss1_integrator_models.get_id(int_pre))));
-  !expect(irt::is_success(sim->alloc(sum_pre, sim->qss1_wsum_2_models.get_id(sum_pre))));
-  !expect(irt::is_success(sim->alloc(mult_pre, sim->qss1_wsum_2_models.get_id(mult_pre))));
-  !expect(irt::is_success(sim->alloc(cross_pre, sim->qss1_cross_models.get_id(cross_pre))));
+  !expect(irt::is_success(sim->alloc(int_pre, sim->qss3_integrator_models.get_id(int_pre))));
+  !expect(irt::is_success(sim->alloc(sum_pre, sim->qss3_wsum_2_models.get_id(sum_pre))));
+  !expect(irt::is_success(sim->alloc(mult_pre, sim->qss3_wsum_2_models.get_id(mult_pre))));
+  !expect(irt::is_success(sim->alloc(cross_pre, sim->qss3_cross_models.get_id(cross_pre))));
 
-  !expect(irt::is_success(sim->alloc(int_post, sim->qss1_integrator_models.get_id(int_post))));
-  !expect(irt::is_success(sim->alloc(sum_post, sim->qss1_wsum_2_models.get_id(sum_post))));
-  !expect(irt::is_success(sim->alloc(mult_post, sim->qss1_wsum_2_models.get_id(mult_post))));
-  !expect(irt::is_success(sim->alloc(cross_post, sim->qss1_cross_models.get_id(cross_post))));
+  !expect(irt::is_success(sim->alloc(int_post, sim->qss3_integrator_models.get_id(int_post))));
+  !expect(irt::is_success(sim->alloc(sum_post, sim->qss3_wsum_2_models.get_id(sum_post))));
+  !expect(irt::is_success(sim->alloc(mult_post, sim->qss3_wsum_2_models.get_id(mult_post))));
+  !expect(irt::is_success(sim->alloc(cross_post, sim->qss3_cross_models.get_id(cross_post))));
 
   !expect(irt::is_success(sim->alloc(const_syn, sim->constant_models.get_id(const_syn))));
   !expect(irt::is_success(sim->alloc(accumulator_syn, sim->accumulator_2_models.get_id(accumulator_syn))));
 
-  struct synapse synapse_model = {sim->qss1_wsum_2_models.get_id(sum_pre),
-                                  sim->qss1_wsum_2_models.get_id(mult_pre),
-                                  sim->qss1_integrator_models.get_id(int_pre),
-                                  sim->qss1_cross_models.get_id(cross_pre),  
+  struct synapse synapse_model = {sim->qss3_wsum_2_models.get_id(sum_pre),
+                                  sim->qss3_wsum_2_models.get_id(mult_pre),
+                                  sim->qss3_integrator_models.get_id(int_pre),
+                                  sim->qss3_cross_models.get_id(cross_pre),  
 
-                                  sim->qss1_wsum_2_models.get_id(sum_post),
-                                  sim->qss1_wsum_2_models.get_id(mult_post),
-                                  sim->qss1_integrator_models.get_id(int_post),
-                                  sim->qss1_cross_models.get_id(cross_post),  
+                                  sim->qss3_wsum_2_models.get_id(sum_post),
+                                  sim->qss3_wsum_2_models.get_id(mult_post),
+                                  sim->qss3_integrator_models.get_id(int_post),
+                                  sim->qss3_cross_models.get_id(cross_post),  
 
                                   sim->constant_models.get_id(const_syn),   
                                   sim->accumulator_2_models.get_id(accumulator_syn),                                                                                                                                             
@@ -640,12 +640,12 @@ void network(neuron_type T, std::string matrix_name,int n_dim, int m_dim, double
       expect(irt::is_success(sim.observers.init(base + 3 * N * N)));
 
 
-      expect(irt::is_success(sim.qss1_integrator_models.init(base + 
+      expect(irt::is_success(sim.qss3_integrator_models.init(base + 
         two * N * N + N)));
-      expect(irt::is_success(sim.qss1_wsum_2_models.init(base + two*(two * N * N + N))));
-      expect(irt::is_success(sim.qss1_cross_models.init(base + two * N * N + N)));
-      expect(irt::is_success(sim.qss1_wsum_4_models.init(base + N )));
-      expect(irt::is_success(sim.qss1_multiplier_models.init(base + N )));
+      expect(irt::is_success(sim.qss3_wsum_2_models.init(base + two*(two * N * N + N))));
+      expect(irt::is_success(sim.qss3_cross_models.init(base + two * N * N + N)));
+      expect(irt::is_success(sim.qss3_wsum_4_models.init(base + N )));
+      expect(irt::is_success(sim.qss3_multiplier_models.init(base + N )));
       
       printf(">> Allocating neurones ... ");
       auto start = std::chrono::steady_clock::now();
@@ -663,7 +663,7 @@ void network(neuron_type T, std::string matrix_name,int n_dim, int m_dim, double
           break;
         case izhikevich:
           for (int i = 0 ; i < N; i++) {
-          struct neuron_izhikevich neuron_model = make_neuron_izhikevich(&sim,i,quantum_neuron,(spike_rate/2.0) + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(spike_rate/2.0))),0.2,-65.0,8.0,10.0,0.0);
+          struct neuron_izhikevich neuron_model = make_neuron_izhikevich(&sim,i,quantum_neuron,spike_rate/*(spike_rate/2.0) + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(spike_rate/2.0)))*/,0.2,-65.0,8.0,10.0,0.0);
           neurons_izhikevich.emplace_back(neuron_model);
           }
           break;
@@ -756,7 +756,7 @@ BENCHMARK_P_INSTANCE(Network, matrix, (gener,"jpwh_991.mtx",991,991,500,1e-5,0.1
 BENCHMARK_P_INSTANCE(Network, matrix,(gener,"fully connected",10,10,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix,(gener,"bipartite fully connected",10,10,500,1e-5,0.1,250));*/
 
-/*BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"empty",10,10,500,1e-5,0.1,250));
+/*BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"empty",1000,1000,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"chesapeake.mtx",39,39,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (leaky_int_fire,"celegansneural.mtx",297,297,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (leaky_int_fire,"west0655.mtx",655,655,500,1e-5,0.1,250));
@@ -764,13 +764,13 @@ BENCHMARK_P_INSTANCE(Network, matrix, (leaky_int_fire,"jpwh_991.mtx",991,991,500
 BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"fully connected",10,10,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"bipartite fully connected",10,10,500,1e-5,0.1,250));*/
 
-BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"empty",1000,1000,500,1e-5,0.1,0.02));
-BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"chesapeake.mtx",39,39,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"celegansneural.mtx",297,297,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"west0655.mtx",655,655,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"jpwh_991.mtx",991,991,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"fully connected",10,10,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"bipartite fully connected",10,10,500,1e-5,0.1,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"empty",1000,1000,500,1e-5,1e-3,0.02));
+BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"chesapeake.mtx",39,39,500,1e-5,1e-1,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"celegansneural.mtx",297,297,500,1e-5,1e-3,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"west0655.mtx",655,655,500,1e-5,1e-3,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"jpwh_991.mtx",991,991,500,1e-5,1e-3,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"fully connected",10,10,500,1e-5,1e-3,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"bipartite fully connected",10,10,500,1e-5,1e-3,0.002));
 
 
 int

@@ -333,11 +333,11 @@ BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.02,0.2,-50.0,2.0,10.0,0.0));
 // Fast spiking (FS)
 BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.1,0.2,-65.0,2.0,10.0,0.0));
 // Thalamo-Cortical (TC)
-//BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.02,0.25,-65.0,0.05,10.0,-87.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.02,0.25,-65.0,0.05,10.0,-87.0));
 // Rezonator (RZ)
-//BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.1,0.26,-65.0,2.0,10.0,-63.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.1,0.26,-65.0,2.0,10.0,-63.0));
 // Low-threshold spiking (LTS)
-//BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.02,0.25,-65.0,2.0,10.0,-63.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.02,0.25,-65.0,2.0,10.0,-63.0));
 // Problematic (P)
 BENCHMARK_P_INSTANCE(Izhikevich, QSS1, (1000,1e-2,0.2,2,-56.0,-16.0,-99.0,0.0));
 

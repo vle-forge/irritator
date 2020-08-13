@@ -151,7 +151,7 @@ parseMtxFile(std::string inputFileName) noexcept
     is_general ? inputFile >> m >> n >> data : inputFile >> m >> n;
     I[l] = m-1; // mtx rows and columns are indexed from 1
     J[l] = n-1;
-    K[l] = is_general ? data : 0.0;
+    K[l] = is_general ? data : 1.0;
   }
   inputFile.close();
   struct mtx_matrix matrix = {M,N,NNZ,I,J,K};
@@ -572,11 +572,19 @@ void network(neuron_type T, std::string matrix_name,int n_dim, int m_dim, double
           {
               I[counter] = i;
               J[counter] = j;
-              NNZ[counter] = 0;
+              NNZ[counter] = 1.0;
               counter ++;
           }
         }
         matrix = {n_dim,n_dim,n_dim*n_dim,I,J,NNZ};
+      }
+      else if (matrix_name == "empty")
+      {
+        double* I = new double[n_dim*n_dim];
+        double* J = new double[n_dim*n_dim];
+        double* NNZ = new double[n_dim*n_dim];
+
+        matrix = {n_dim,n_dim,0,I,J,NNZ};
       }
       else if (matrix_name == "bipartite fully connected")
       {
@@ -590,7 +598,7 @@ void network(neuron_type T, std::string matrix_name,int n_dim, int m_dim, double
           {
               I[counter] = i;
               J[counter] = j;
-              NNZ[counter] = 0;
+              NNZ[counter] = 1.0;
               counter ++;
           }
         }
@@ -655,7 +663,7 @@ void network(neuron_type T, std::string matrix_name,int n_dim, int m_dim, double
           break;
         case izhikevich:
           for (int i = 0 ; i < N; i++) {
-          struct neuron_izhikevich neuron_model = make_neuron_izhikevich(&sim,i,quantum_neuron,(spike_rate/2.0) + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(spike_rate/2.0))),0.2,-65.0,8.0,10.0,0.0);
+          struct neuron_izhikevich neuron_model = make_neuron_izhikevich(&sim,i,quantum_neuron,spike_rate/*(spike_rate/2.0) + static_cast <float> (rand()) /( static_cast <float> (RAND_MAX/(spike_rate/2.0)))*/,0.2,-65.0,8.0,10.0,0.0);
           neurons_izhikevich.emplace_back(neuron_model);
           }
           break;
@@ -740,26 +748,29 @@ BENCHMARK_P(Network, matrix, 1, 1,(neuron_type T,std::string matrix_name,int n_d
   network(T,matrix_name,n_dim,m_dim,simulation_duration,quantum_synapse,quantum_neuron,spike_rate);
 }
 
+/*BENCHMARK_P_INSTANCE(Network, matrix,(gener,"empty",10,10,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (gener,"chesapeake.mtx",39,39,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (gener,"celegansneural.mtx",297,297,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (gener,"west0655.mtx",655,655,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (gener,"jpwh_991.mtx",991,991,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix,(gener,"fully connected",10,10,500,1e-5,0.1,250));
-BENCHMARK_P_INSTANCE(Network, matrix,(gener,"bipartite fully connected",10,10,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, matrix,(gener,"bipartite fully connected",10,10,500,1e-5,0.1,250));*/
 
+/*BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"empty",1000,1000,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"chesapeake.mtx",39,39,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (leaky_int_fire,"celegansneural.mtx",297,297,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (leaky_int_fire,"west0655.mtx",655,655,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix, (leaky_int_fire,"jpwh_991.mtx",991,991,500,1e-5,0.1,250));
 BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"fully connected",10,10,500,1e-5,0.1,250));
-BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"bipartite fully connected",10,10,500,1e-5,0.1,250));
+BENCHMARK_P_INSTANCE(Network, matrix,(leaky_int_fire,"bipartite fully connected",10,10,500,1e-5,0.1,250));*/
 
-BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"chesapeake.mtx",39,39,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"celegansneural.mtx",297,297,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"west0655.mtx",655,655,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"jpwh_991.mtx",991,991,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"fully connected",10,10,500,1e-5,0.1,0.002));
-BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"bipartite fully connected",10,10,500,1e-5,0.1,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"empty",1000,1000,500,1e-5,1e-3,0.02));
+BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"chesapeake.mtx",39,39,500,1e-5,1e-1,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"celegansneural.mtx",297,297,500,1e-5,1e-3,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"west0655.mtx",655,655,500,1e-5,1e-3,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix, (izhikevich,"jpwh_991.mtx",991,991,500,1e-5,1e-3,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"fully connected",10,10,500,1e-5,1e-3,0.002));
+BENCHMARK_P_INSTANCE(Network, matrix,(izhikevich,"bipartite fully connected",10,10,500,1e-5,1e-3,0.002));
 
 
 int

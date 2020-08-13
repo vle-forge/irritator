@@ -73,11 +73,11 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
   double Vt_lif = 10.0;
 
 
-  auto& sum_lif = sim->qss2_wsum_2_models.alloc();
-  auto& integrator_lif = sim->qss2_integrator_models.alloc();
+  auto& sum_lif = sim->qss3_wsum_2_models.alloc();
+  auto& integrator_lif = sim->qss3_integrator_models.alloc();
   auto& constant_lif = sim->constant_models.alloc();
   auto& constant_cross_lif = sim->constant_models.alloc();
-  auto& cross_lif = sim->qss2_cross_models.alloc();
+  auto& cross_lif = sim->qss3_cross_models.alloc();
 
 
   sum_lif.default_input_coeffs[0] = -1.0/tau_lif;
@@ -96,16 +96,16 @@ make_neuron(irt::simulation* sim, long unsigned int i, double quantum) noexcept
 
   
 
-  sim->alloc(sum_lif, sim->qss2_wsum_2_models.get_id(sum_lif));
-  sim->alloc(integrator_lif, sim->qss2_integrator_models.get_id(integrator_lif));
+  sim->alloc(sum_lif, sim->qss3_wsum_2_models.get_id(sum_lif));
+  sim->alloc(integrator_lif, sim->qss3_integrator_models.get_id(integrator_lif));
   sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif));
-  sim->alloc(cross_lif, sim->qss2_cross_models.get_id(cross_lif));
+  sim->alloc(cross_lif, sim->qss3_cross_models.get_id(cross_lif));
   sim->alloc(constant_cross_lif, sim->constant_models.get_id(constant_cross_lif));
 
-  struct neuron neuron_model = {sim->qss2_wsum_2_models.get_id(sum_lif),
-                                sim->qss2_integrator_models.get_id(integrator_lif),
+  struct neuron neuron_model = {sim->qss3_wsum_2_models.get_id(sum_lif),
+                                sim->qss3_integrator_models.get_id(integrator_lif),
                                 sim->constant_models.get_id(constant_lif),
-                                sim->qss2_cross_models.get_id(cross_lif),                                                                                                
+                                sim->qss3_cross_models.get_id(cross_lif),                                                                                                
                                 sim->constant_models.get_id(constant_cross_lif),                                                                
                                 }; 
 
@@ -141,7 +141,7 @@ void lif_benchmark(double simulation_duration, double quantum)
 
 
     irt::time t = 0.0;
-    std::string file_name = "output_lif_qss2_sd_"+
+    std::string file_name = "output_lif_qss3_sd_"+
                             std::to_string(simulation_duration)+
                             "_q_"+std::to_string(quantum)+
                             ".csv";
@@ -154,7 +154,7 @@ void lif_benchmark(double simulation_duration, double quantum)
                                         &file_output_initialize,
                                         &file_output_observe,
                                         nullptr);
-    sim.observe(sim.models.get(sim.qss2_integrator_models.get(neuron_model.integrator).id), obs_a);
+    sim.observe(sim.models.get(sim.qss3_integrator_models.get(neuron_model.integrator).id), obs_a);
 
     expect(irt::status::success == sim.initialize(t));
 
@@ -173,15 +173,15 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
   auto& constant = sim.constant_models.alloc();
   auto& constant2 = sim.constant_models.alloc();
   auto& constant3 = sim.constant_models.alloc();
-  auto& sum_a = sim.qss2_wsum_2_models.alloc();
-  auto& sum_b = sim.qss2_wsum_2_models.alloc();
-  auto& sum_c = sim.qss2_wsum_4_models.alloc();
-  auto& sum_d = sim.qss2_wsum_2_models.alloc();
-  auto& product = sim.qss2_multiplier_models.alloc();
-  auto& integrator_a = sim.qss2_integrator_models.alloc();
-  auto& integrator_b = sim.qss2_integrator_models.alloc();
-  auto& cross = sim.qss2_cross_models.alloc();
-  auto& cross2 = sim.qss2_cross_models.alloc();
+  auto& sum_a = sim.qss3_wsum_2_models.alloc();
+  auto& sum_b = sim.qss3_wsum_2_models.alloc();
+  auto& sum_c = sim.qss3_wsum_4_models.alloc();
+  auto& sum_d = sim.qss3_wsum_2_models.alloc();
+  auto& product = sim.qss3_multiplier_models.alloc();
+  auto& integrator_a = sim.qss3_integrator_models.alloc();
+  auto& integrator_b = sim.qss3_integrator_models.alloc();
+  auto& cross = sim.qss3_cross_models.alloc();
+  auto& cross2 = sim.qss3_cross_models.alloc();
 
 
   double vt = 30.0;
@@ -214,15 +214,15 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
   sim.alloc(constant3, sim.constant_models.get_id(constant3));
   sim.alloc(constant, sim.constant_models.get_id(constant));
   sim.alloc(constant2, sim.constant_models.get_id(constant2));
-  sim.alloc(sum_a, sim.qss2_wsum_2_models.get_id(sum_a));
-  sim.alloc(sum_b, sim.qss2_wsum_2_models.get_id(sum_b));
-  sim.alloc(sum_c, sim.qss2_wsum_4_models.get_id(sum_c));
-  sim.alloc(sum_d, sim.qss2_wsum_2_models.get_id(sum_d));
-  sim.alloc(product, sim.qss2_multiplier_models.get_id(product));
-  sim.alloc(integrator_a, sim.qss2_integrator_models.get_id(integrator_a));
-  sim.alloc(integrator_b, sim.qss2_integrator_models.get_id(integrator_b));
-  sim.alloc(cross, sim.qss2_cross_models.get_id(cross));
-  sim.alloc(cross2, sim.qss2_cross_models.get_id(cross2));
+  sim.alloc(sum_a, sim.qss3_wsum_2_models.get_id(sum_a));
+  sim.alloc(sum_b, sim.qss3_wsum_2_models.get_id(sum_b));
+  sim.alloc(sum_c, sim.qss3_wsum_4_models.get_id(sum_c));
+  sim.alloc(sum_d, sim.qss3_wsum_2_models.get_id(sum_d));
+  sim.alloc(product, sim.qss3_multiplier_models.get_id(product));
+  sim.alloc(integrator_a, sim.qss3_integrator_models.get_id(integrator_a));
+  sim.alloc(integrator_b, sim.qss3_integrator_models.get_id(integrator_b));
+  sim.alloc(cross, sim.qss3_cross_models.get_id(cross));
+  sim.alloc(cross2, sim.qss3_cross_models.get_id(cross2));
 
 
   expect(sim.connect(integrator_a.y[0], cross.x[0]) ==
@@ -266,7 +266,7 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
 
 
 
-  std::string file_name = "output_izhikevitch_qss2_a_sd_"+
+  std::string file_name = "output_izhikevitch_qss3_a_sd_"+
                           std::to_string(simulation_duration)+
                           "_q_"+std::to_string(quantum)+
                           "_a_"+std::to_string(a)+
@@ -283,7 +283,7 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
                                     &file_output_initialize,
                                     &file_output_observe,
                                     nullptr);
-  file_name = "output_izhikevitch_qss2_b_sd_"+
+  file_name = "output_izhikevitch_qss3_b_sd_"+
                           std::to_string(simulation_duration)+
                           "_q_"+std::to_string(quantum)+
                           "_a_"+std::to_string(a)+
@@ -314,32 +314,32 @@ void izhikevich_benchmark(double simulation_duration, double quantum, double a, 
   } while (t < simulation_duration);
 };
 
-BENCHMARK_P(LIF, QSS2, 10, 1,( double simulation_duration, double quantum))
+BENCHMARK_P(LIF, QSS3, 10, 1,( double simulation_duration, double quantum))
 {
   lif_benchmark(simulation_duration,quantum);
 }
-BENCHMARK_P(Izhikevich, QSS2, 1, 1,( double simulation_duration, double quantum, double a, double b, double c, double d, double I, double vini))
+BENCHMARK_P(Izhikevich, QSS3, 1, 1,( double simulation_duration, double quantum, double a, double b, double c, double d, double I, double vini))
 {
   izhikevich_benchmark(simulation_duration,quantum,a,b,c,d,I,vini);
 }
 
-BENCHMARK_P_INSTANCE(LIF, QSS2, (1000,1e-2));
+BENCHMARK_P_INSTANCE(LIF, QSS3, (1000,1e-6));
 // Regular spiking (RS)
-BENCHMARK_P_INSTANCE(Izhikevich, QSS2, (1000,1e-2,0.02,0.2,-65.0,8.0,10.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS3, (1000,1e-6,0.02,0.2,-65.0,8.0,10.0,0.0));
 // Intrinsical bursting (IB)
-BENCHMARK_P_INSTANCE(Izhikevich, QSS2, (1000,1e-2,0.02,0.2,-55.0,4.0,10.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS3, (1000,1e-6,0.02,0.2,-55.0,4.0,10.0,0.0));
 // Chattering spiking (CH)
-BENCHMARK_P_INSTANCE(Izhikevich, QSS2, (1000,1e-2,0.02,0.2,-50.0,2.0,10.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS3, (1000,1e-6,0.02,0.2,-50.0,2.0,10.0,0.0));
 // Fast spiking (FS)
-BENCHMARK_P_INSTANCE(Izhikevich, QSS2, (1000,1e-2,0.1,0.2,-65.0,2.0,10.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS3, (1000,1e-6,0.1,0.2,-65.0,2.0,10.0,0.0));
 // Thalamo-Cortical (TC)
-BENCHMARK_P_INSTANCE(Izhikevich, QSS2, (1000,1e-2,0.02,0.25,-65.0,0.05,10.0,-87.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS3, (1000,1e-6,0.02,0.25,-65.0,0.05,10.0,-87.0));
 // Rezonator (RZ)
-BENCHMARK_P_INSTANCE(Izhikevich, QSS2, (1000,1e-2,0.1,0.26,-65.0,2.0,10.0,-63.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS3, (1000,1e-6,0.1,0.26,-65.0,2.0,10.0,-63.0));
 // Low-threshold spiking (LTS)
-BENCHMARK_P_INSTANCE(Izhikevich, QSS2, (1000,1e-2,0.02,0.25,-65.0,2.0,10.0,-63.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS3, (1000,1e-6,0.02,0.25,-65.0,2.0,10.0,-63.0));
 // Problematic (P)
-BENCHMARK_P_INSTANCE(Izhikevich, QSS2, (1000,1e-2,0.2,2,-56.0,-16.0,-99.0,0.0));
+BENCHMARK_P_INSTANCE(Izhikevich, QSS3, (1000,1e-6,0.2,2,-56.0,-16.0,-99.0,0.0));
 
 int
 main()
