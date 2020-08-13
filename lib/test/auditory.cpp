@@ -218,11 +218,12 @@ quantify_data(vector<vector<double>> data, double delta, double default_samplera
         quantified_sigmas.push_back(sigma_vector);
    }
 
-    struct quantized_data result = {quantified_data,
-                                    quantified_sigmas,
-                                    data[0].size() * default_frequency };
-    return result;
+   return data.empty() ? quantized_data{}
+                       : quantized_data{ quantified_data,
+                           quantified_sigmas,
+                           data[0].size() * default_frequency };
 }
+
 // Global data
 double samplerate = 44100.0;
 struct quantized_data quantified_inputs =  quantify_data(parse2DCsvFile("output_cochlea_small.csv"),1e-2,samplerate);
@@ -559,8 +560,10 @@ main()
     }
     std::fclose(os);*/
 
-    if (sound_data.empty() || sound_data_sigmas.empty() || link_data.empty())
+    if (sound_data.empty() || sound_data_sigmas.empty() || link_data.empty()) {
+        fmt::print("Missing input files. Download then first.\n");
         return 0;
+    }
    
     "laudanski_1_simulation"_test = [] {
         irt::simulation sim;
