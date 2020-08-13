@@ -14,6 +14,43 @@
 
 using namespace std;
 
+struct file_output
+{
+    file_output(const char* file_path) noexcept
+      : os(std::fopen(file_path, "w"))
+    {}
+
+    ~file_output() noexcept
+    {
+        if (os)
+            std::fclose(os);
+    }
+
+    std::FILE* os = nullptr;
+};
+
+void
+file_output_initialize(const irt::observer& obs, const irt::time /*t*/) noexcept
+{
+    if (!obs.user_data)
+        return;
+
+    auto* output = reinterpret_cast<file_output*>(obs.user_data);
+    fmt::print(output->os, "t,{}\n", obs.name.c_str());
+}
+
+void
+file_output_observe(const irt::observer& obs,
+                    const irt::time t,
+                    const irt::message& msg) noexcept
+{
+    if (!obs.user_data)
+        return;
+
+    auto* output = reinterpret_cast<file_output*>(obs.user_data);
+    fmt::print(output->os, "{},{}\n", t, msg.real[0]);
+}
+
 static void
 dot_graph_save(const irt::simulation& sim, std::FILE* os)
 {
@@ -133,11 +170,67 @@ vector<vector<double>> parse2DCsvFile(string inputFileName) {
  
     return data;
 }
+struct quantized_data {
+   vector<vector<double>> data;
+   vector<vector<double>>  sigmas;
+   double total_time;
+};
+/**
+ * Quantifies data following the rule delta * floor( x / delta + 1/2) .
+ * @param data input data, each ligne will be quantized.
+ * @param delta the quantization step.
+ * @param default_samplerate the quantization step.
+ * @return quantized data as vector of vector of doubles.
+ */
+struct quantized_data 
+quantify_data(vector<vector<double>> data, double delta, double default_samplerate) {
+   double default_frequency = 1.0/default_samplerate;
+   // Initialize the matrix of quantified data
+   vector<vector<double>> quantified_data;
+   vector<vector<double>> quantified_sigmas;
 
+   // Loop over all the lines, each ligne will be quantized
+   for (int i = 1; i < data.size(); i++) {
+        double prev = data[i][0];
+        double sigma = default_frequency;
+        double accu_sigma = 0.0;
+        vector<double> quantified_vector;
+        vector<double> sigma_vector;
+        for (int j = 1; j < data[i].size(); j++) {
+                double q = delta * (static_cast<int>(data[i][j]/delta) + 0.5);
+                sigma += default_frequency;
+                if (prev != q) {
+                        quantified_vector.push_back(prev);
+                        quantified_vector.push_back(q);
+                        sigma_vector.push_back(sigma);                        
+                        sigma_vector.push_back(default_frequency);
+
+                        accu_sigma += sigma+default_frequency;
+                        sigma = 0.0;
+
+                }
+                prev = q;
+        }
+        quantified_vector.push_back(quantified_vector[quantified_vector.size() - 1]);
+        sigma_vector.push_back(std::abs(data[i].size() * default_frequency - accu_sigma));
+
+        quantified_data.push_back(quantified_vector);
+        quantified_sigmas.push_back(sigma_vector);
+   }
+
+    struct quantized_data result = {quantified_data,
+                                    quantified_sigmas,
+                                    data[0].size() * default_frequency };
+    return result;
+}
 // Global data
-vector<vector<double>> sound_data  = parse2DCsvFile("output_cochlea_small.csv");
-vector<vector<double>> link_data  = parse2DCsvFile("output_link_small.csv");
 double samplerate = 44100.0;
+struct quantized_data quantified_inputs =  quantify_data(parse2DCsvFile("output_cochlea_small.csv"),1e-2,samplerate);
+vector<vector<double>> sound_data  = quantified_inputs.data;
+vector<vector<double>> sound_data_sigmas  = quantified_inputs.sigmas;
+
+vector<vector<double>> link_data  = parse2DCsvFile("output_link_small.csv");
+
 
 struct neuron {
   irt::dynamics_id  sum;
@@ -199,8 +292,9 @@ make_neuron(irt::simulation* sim, long unsigned int i) noexcept
   prod_lif.default_input_coeffs[1] = 0.0;
 
   constant_lif.default_value = 1.0;
-  flow_lif.default_data = sound_data[i+1];
+  flow_lif.default_data = sound_data[i];
   flow_lif.default_samplerate = samplerate;
+  flow_lif.default_sigmas = sound_data_sigmas[i];
   constant_cross_lif.default_value = Vr_lif;
   
   integrator_lif.default_current_value = 0.0;
@@ -450,15 +544,29 @@ int
 main()
 {
     using namespace boost::ut;
+    /*std::FILE* os = std::fopen("output_nm.csv", "w");
+    !expect(os != nullptr);
+    std::string s = "t,data";
 
-    if (sound_data.empty() || link_data.empty())
+    fmt::print(os, s + "\n");
+    double t = 0;
+    for (int j = 0; j < sound_data[100].size(); j++) {
+        t  = t + sound_data_sigmas[100][j];
+        std::string s = std::to_string(t)+","+std::to_string(sound_data[100][j])+",";
+
+        fmt::print(os, s + "\n");
+
+    }
+    std::fclose(os);*/
+
+    if (sound_data.empty() || sound_data_sigmas.empty() || link_data.empty())
         return 0;
    
     "laudanski_1_simulation"_test = [] {
         irt::simulation sim;
 
         // Neuron constants
-        long unsigned int N = sound_data.size() - 1;
+        long unsigned int N = sound_data.size() ;
         long unsigned int M = link_data[0].size();
 
         expect(irt::is_success(sim.init(1000000lu, 100000lu)));
@@ -481,8 +589,8 @@ main()
         std::vector<struct synapse> synapses;
         for (long unsigned int i = 0 ; i < N; i++) {
           for (long unsigned int j = 0 ; j < M; j++) {
-            if(link_data[i+1][j] == 1.0){
-                printf("%ld is linked to %ld\n",i,j);
+            if(link_data[i][j] == 1.0){
+                //printf("%ld is linked to %ld\n",i,j);
                        
                 struct synapse synapse_model = make_synapse(&sim,i,j,
                                                 sim.cross_models.get(first_layer_neurons[i].cross).y[1],
@@ -496,22 +604,20 @@ main()
 
         //dot_graph_save(sim, stdout);
 
-        irt::time t = 0.0;
-        std::FILE* os = std::fopen("output_laudanski.csv", "w");
-        !expect(os != nullptr);
-        
-        std::string s = "t,";
-        for (long unsigned int i = 0; i < 5; i++)
-        {
-          s =  s + "v_cd" + std::to_string(i)
-                + "," 
-                + "v_cd_treshold" + std::to_string(i)
-                + ","
-                + "v_lif" + std::to_string(i)
-                + ",";
-        }
-        fmt::print(os, s + "\n");
 
+        file_output fo_a("output_laudanski.csv");
+        expect(fo_a.os != nullptr);
+
+        auto& obs_a = sim.observers.alloc(0.0001,
+                                "A",
+                                static_cast<void*>(&fo_a),
+                                file_output_initialize,
+                                &file_output_observe,
+                                nullptr);
+
+        sim.observe(sim.models.get(sim.integrator_models.get(first_layer_neurons[0].integrator).id), obs_a);
+
+        irt::time t = 0.0;
         expect(irt::status::success == sim.initialize(t));
 
         do {
@@ -519,21 +625,8 @@ main()
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
 
-            std::string s = std::to_string(t)+",";
-            for (long unsigned int i = 0; i < 5; i++)
-            {
-              s =  s + std::to_string(sim.integrator_models.get(second_layer_neurons[i].integrator1).last_output_value)
-                     + ","
-                     + std::to_string(sim.integrator_models.get(second_layer_neurons[i].integrator2).last_output_value)
-                     + ","
-                     + std::to_string(sim.integrator_models.get(first_layer_neurons[i].integrator).last_output_value)
-                     + ",";
+        } while (t <  quantified_inputs.total_time);
 
-            }
-            fmt::print(os, s + "\n");
-
-        } while (t < sound_data[0].size()/samplerate);
-        std::fclose(os);
       };
 
    
