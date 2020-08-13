@@ -5125,9 +5125,6 @@ struct abstract_cross
 
         const auto old_else_value = else_value[0];
 
-        // if (t != last_reset)
-        // block_lambda = false;
-
         if (p_threshold.messages.empty() && p_if_value.messages.empty() &&
             p_else_value.messages.empty() && p_value.messages.empty()) {
         }
