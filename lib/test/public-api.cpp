@@ -1937,7 +1937,7 @@ main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 30.); // 140. error!
+        } while (t < 140.);
     };
 
     "lotka_volterra_simulation_qss3"_test = [] {
