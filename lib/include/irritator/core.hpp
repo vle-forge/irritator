@@ -4867,20 +4867,24 @@ struct flow
 
     double default_value = 0.0;
     std::vector<double> default_data;
+    std::vector<double> default_sigmas;
     double default_samplerate = 44100.0;
 
     double value = 0.0;
     std::vector<double> data;
+    std::vector<double> sigmas;
     double samplerate = 44100.0;
+
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
 
-        sigma = 1.0 / samplerate;
+        samplerate = default_samplerate;
+        sigma = 1.0/samplerate;
 
         value = default_value;
         data = default_data;
-        samplerate = default_samplerate;
+        sigmas = default_sigmas;
 
         return status::success;
     }
@@ -4890,16 +4894,29 @@ struct flow
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        value = data[static_cast<int>(t * samplerate)];
+
+        double accu_sigma = 0;
+        for(int i = 0; i < sigmas.size(); i++ )
+        {
+           accu_sigma += sigmas[i];
+           if(accu_sigma > t)
+           {
+               
+               value =  data[i];
+               sigma = sigmas[i];
+               return status::success;
+           }
+        }
 
         return status::success;
+
     }
 
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
         output_ports.get(y[0]).messages.emplace_front(value);
-
+        
         return status::success;
     }
 
