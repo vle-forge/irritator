@@ -2538,6 +2538,7 @@ main()
         integrator.default_dQ = 0.001;
 
         cross.default_threshold = Vt;
+        cross.default_detect_up = false;
 
         expect(sim.models.can_alloc(10));
         !expect(irt::is_success(
@@ -2622,9 +2623,10 @@ main()
         constant_cross.default_value = Vr;
 
         integrator.default_X = 0.0;
-        integrator.default_dQ = 0.001;
+        integrator.default_dQ = 0.0001;
 
         cross.default_threshold = Vt;
+        cross.default_detect_up = false;
 
         expect(sim.models.can_alloc(10));
         !expect(irt::is_success(
@@ -2709,9 +2711,10 @@ main()
         constant_cross.default_value = Vr;
 
         integrator.default_X = 0.0;
-        integrator.default_dQ = 0.00001;
+        integrator.default_dQ = 0.0001;
 
         cross.default_threshold = Vt;
+        cross.default_detect_up = false;
 
         expect(sim.models.can_alloc(10));
         !expect(irt::is_success(
