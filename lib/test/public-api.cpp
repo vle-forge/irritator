@@ -2507,7 +2507,6 @@ main()
         } while (t < 1500.0);
     };
 
-/*
     "neg_lif_simulation_qss1"_test = [] {
         fmt::print("neg_lif_simulation_qss1\n");
         irt::simulation sim;
@@ -2594,5 +2593,178 @@ main()
             expect(st == irt::status::success);
         } while (t < 100.0);
     };
-*/
+
+    "neg_lif_simulation_qss2"_test = [] {
+        fmt::print("neg_lif_simulation_qss2\n");
+        irt::simulation sim;
+
+        expect(irt::is_success(sim.init(32lu, 512lu)));
+        expect(sim.qss2_wsum_2_models.can_alloc(1));
+        expect(sim.qss2_integrator_models.can_alloc(1));
+        expect(sim.constant_models.can_alloc(2));
+        expect(sim.qss2_cross_models.can_alloc(1));
+
+        auto& sum = sim.qss2_wsum_2_models.alloc();
+        auto& integrator = sim.qss2_integrator_models.alloc();
+        auto& constant = sim.constant_models.alloc();
+        auto& constant_cross = sim.constant_models.alloc();
+        auto& cross = sim.qss2_cross_models.alloc();
+
+        double tau = 10.0;
+        double Vt = -1.0;
+        double V0 = -10.0;
+        double Vr = 0.0;
+
+        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[1] = V0 / tau;
+
+        constant.default_value = 1.0;
+        constant_cross.default_value = Vr;
+
+        integrator.default_X = 0.0;
+        integrator.default_dQ = 0.001;
+
+        cross.default_threshold = Vt;
+
+        expect(sim.models.can_alloc(10));
+        !expect(irt::is_success(
+          sim.alloc(sum, sim.qss2_wsum_2_models.get_id(sum), "sum")));
+        !expect(irt::is_success(sim.alloc(
+          integrator, sim.qss2_integrator_models.get_id(integrator), "int")));
+        !expect(irt::is_success(
+          sim.alloc(constant, sim.constant_models.get_id(constant), "cte")));
+        !expect(
+          irt::is_success(sim.alloc(constant_cross,
+                                    sim.constant_models.get_id(constant_cross),
+                                    "ctecro")));
+        !expect(irt::is_success(
+          sim.alloc(cross, sim.qss2_cross_models.get_id(cross), "cro")));
+
+        !expect(sim.models.size() == 5_ul);
+
+        // Connections
+
+        // expect(sim.connect(cross.y[1], integrator.x[0]) ==
+        // irt::status::success);
+        expect(sim.connect(cross.y[0], integrator.x[1]) ==
+               irt::status::success);
+        expect(sim.connect(cross.y[1], sum.x[0]) == irt::status::success);
+        expect(sim.connect(integrator.y[0], cross.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(integrator.y[0], cross.x[2]) ==
+               irt::status::success);
+        expect(sim.connect(constant_cross.y[0], cross.x[1]) ==
+               irt::status::success);
+        expect(sim.connect(constant.y[0], sum.x[1]) == irt::status::success);
+        expect(sim.connect(sum.y[0], integrator.x[0]) == irt::status::success);
+
+        file_output fo_a("neg-lif-qss2.csv");
+        expect(fo_a.os != nullptr);
+
+        auto& obs_a = sim.observers.alloc(0.01,
+                                          "A",
+                                          static_cast<void*>(&fo_a),
+                                          file_output_initialize,
+                                          &file_output_observe,
+                                          nullptr);
+
+        sim.observe(sim.models.get(integrator.id), obs_a);
+
+        irt::time t = 0.0;
+
+        expect(sim.initialize(t) == irt::status::success);
+        !expect(sim.sched.size() == 5_ul);
+
+        do {
+            auto st = sim.run(t);
+            expect(st == irt::status::success);
+        } while (t < 100.0);
+    };
+
+    "neg_lif_simulation_qss3"_test = [] {
+        fmt::print("neg_lif_simulation_qss3\n");
+        irt::simulation sim;
+
+        expect(irt::is_success(sim.init(32lu, 512lu)));
+        expect(sim.qss3_wsum_2_models.can_alloc(1));
+        expect(sim.qss3_integrator_models.can_alloc(1));
+        expect(sim.constant_models.can_alloc(2));
+        expect(sim.qss3_cross_models.can_alloc(1));
+
+        auto& sum = sim.qss3_wsum_2_models.alloc();
+        auto& integrator = sim.qss3_integrator_models.alloc();
+        auto& constant = sim.constant_models.alloc();
+        auto& constant_cross = sim.constant_models.alloc();
+        auto& cross = sim.qss3_cross_models.alloc();
+
+        double tau = 10.0;
+        double Vt = -1.0;
+        double V0 = -10.0;
+        double Vr = 0.0;
+
+        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[1] = V0 / tau;
+
+        constant.default_value = 1.0;
+        constant_cross.default_value = Vr;
+
+        integrator.default_X = 0.0;
+        integrator.default_dQ = 0.00001;
+
+        cross.default_threshold = Vt;
+
+        expect(sim.models.can_alloc(10));
+        !expect(irt::is_success(
+          sim.alloc(sum, sim.qss3_wsum_2_models.get_id(sum), "sum")));
+        !expect(irt::is_success(sim.alloc(
+          integrator, sim.qss3_integrator_models.get_id(integrator), "int")));
+        !expect(irt::is_success(
+          sim.alloc(constant, sim.constant_models.get_id(constant), "cte")));
+        !expect(
+          irt::is_success(sim.alloc(constant_cross,
+                                    sim.constant_models.get_id(constant_cross),
+                                    "ctecro")));
+        !expect(irt::is_success(
+          sim.alloc(cross, sim.qss3_cross_models.get_id(cross), "cro")));
+
+        !expect(sim.models.size() == 5_ul);
+
+// Connections
+
+        // expect(sim.connect(cross.y[1], integrator.x[0]) ==
+        // irt::status::success);
+        expect(sim.connect(cross.y[0], integrator.x[1]) ==
+               irt::status::success);
+        expect(sim.connect(cross.y[1], sum.x[0]) == irt::status::success);
+        expect(sim.connect(integrator.y[0], cross.x[0]) ==
+               irt::status::success);
+        expect(sim.connect(integrator.y[0], cross.x[2]) ==
+               irt::status::success);
+        expect(sim.connect(constant_cross.y[0], cross.x[1]) ==
+               irt::status::success);
+        expect(sim.connect(constant.y[0], sum.x[1]) == irt::status::success);
+        expect(sim.connect(sum.y[0], integrator.x[0]) == irt::status::success);
+
+        file_output fo_a("neg-lif-qss3.csv");
+        expect(fo_a.os != nullptr);
+
+        auto& obs_a = sim.observers.alloc(0.01,
+                                          "A",
+                                          static_cast<void*>(&fo_a),
+                                          file_output_initialize,
+                                          &file_output_observe,
+                                          nullptr);
+
+        sim.observe(sim.models.get(integrator.id), obs_a);
+
+        irt::time t = 0.0;
+
+        expect(sim.initialize(t) == irt::status::success);
+        !expect(sim.sched.size() == 5_ul);
+
+        do {
+            auto st = sim.run(t);
+            expect(st == irt::status::success);
+        } while (t < 100.0);
+    };
 }
