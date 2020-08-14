@@ -3740,7 +3740,7 @@ struct qss3_integrator
         auto& port_x = input_ports.get(x[port_x_dot]);
         auto& port_r = input_ports.get(x[port_reset]);
 
-        if (port_x.messages.empty() && port_r.messages.empty() && r == 0.0)
+        if (port_x.messages.empty() && port_r.messages.empty())
             irt_return_if_bad(internal());
         else {
             if (!port_r.messages.empty())
