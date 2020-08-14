@@ -3238,7 +3238,7 @@ struct qss1_integrator
         auto& port_x = input_ports.get(x[port_x_dot]);
         auto& port_r = input_ports.get(x[port_reset]);
 
-        if (port_x.messages.empty() && port_r.messages.empty() && r == 0.0) {
+        if (port_x.messages.empty() && port_r.messages.empty()) {
             irt_return_if_bad(internal());
         } else {
             if (!port_r.messages.empty()) {
@@ -5063,14 +5063,14 @@ struct abstract_cross
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        threshold = default_threshold;
-        value[0] = threshold - 1.0;
-
         std::fill_n(if_value, QssLevel, 0.);
         std::fill_n(else_value, QssLevel, 0.);
         std::fill_n(value, QssLevel, 0.);
 
-        sigma = time_domain<time>::zero;
+        threshold = default_threshold;
+        value[0] = threshold - 1.0;
+
+        sigma = time_domain<time>::infinity;
         last_reset = time_domain<time>::infinity;
         block_lambda = false;
         reach_threshold = false;
@@ -5087,9 +5087,12 @@ struct abstract_cross
         if constexpr (QssLevel == 2) {
             sigma = time_domain<time>::infinity;
             if (value[1]) {
-                const auto wakeup = (threshold - value[0]) / value[1];
-                if (wakeup > 0.)
-                    sigma = wakeup;
+                const auto a = value[1];
+                const auto b = value[0] - threshold;
+                const auto d = -b * a;
+
+                if (d > 0.)
+                    sigma = d;
             }
         }
 
@@ -5122,9 +5125,12 @@ struct abstract_cross
                             sigma = x;
                     }
                 } else {
-                    const auto wakeup = (threshold - value[0]) / value[1];
-                    if (wakeup > 0.)
-                        sigma = wakeup;
+                    const auto a = value[1];
+                    const auto b = value[0] - threshold;
+                    const auto d = -b * a;
+
+                    if (d > 0.)
+                        sigma = d;
                 }
             }
         }
@@ -5141,10 +5147,6 @@ struct abstract_cross
         auto& p_value = input_ports.get(x[port_value]);
 
         const auto old_else_value = else_value[0];
-
-        if (p_threshold.messages.empty() && p_if_value.messages.empty() &&
-            p_else_value.messages.empty() && p_value.messages.empty()) {
-        }
 
         if (p_if_value.messages.empty()) {
             if constexpr (QssLevel == 2)
@@ -5200,13 +5202,17 @@ struct abstract_cross
         reach_threshold = false;
 
         if (value[0] >= threshold) {
-            last_reset = t;
-            reach_threshold = true;
-            sigma = time_domain<time>::zero;
+            if (t != last_reset) {
+                last_reset = t;
+                reach_threshold = true;
+                sigma = time_domain<time>::zero;
+            } else
+                sigma = time_domain<time>::infinity;
         } else if (old_else_value != else_value[0]) {
             sigma = time_domain<time>::zero;
-        } else
+        } else {
             compute_wake_up();
+        }
 
         return status::success;
     }
