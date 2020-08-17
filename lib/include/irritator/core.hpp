@@ -5149,6 +5149,9 @@ struct abstract_cross
 
         const auto old_else_value = else_value[0];
 
+        for (const auto& msg : p_threshold.messages)
+            threshold = msg[0];
+
         if (p_if_value.messages.empty()) {
             if constexpr (QssLevel == 2)
                 if_value[0] += if_value[1] * e;
