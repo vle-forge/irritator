@@ -3239,7 +3239,7 @@ struct qss1_integrator
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
                       time e,
-                      time r) noexcept
+                      time /*r*/) noexcept
     {
         auto& port_x = input_ports.get(x[port_x_dot]);
         auto& port_r = input_ports.get(x[port_reset]);
@@ -3741,7 +3741,7 @@ struct qss3_integrator
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
                       time e,
-                      time r) noexcept
+                      time /*r*/) noexcept
     {
         auto& port_x = input_ports.get(x[port_x_dot]);
         auto& port_r = input_ports.get(x[port_reset]);
