@@ -2700,6 +2700,8 @@ enum class dynamics_type : i8
     qss1_integrator,
     qss1_multiplier,
     qss1_cross,
+    qss1_power,
+    qss1_square,
     qss1_sum_2,
     qss1_sum_3,
     qss1_sum_4,
@@ -2710,6 +2712,8 @@ enum class dynamics_type : i8
     qss2_integrator,
     qss2_multiplier,
     qss2_cross,
+    qss2_power,
+    qss2_square,
     qss2_sum_2,
     qss2_sum_3,
     qss2_sum_4,
@@ -2719,6 +2723,8 @@ enum class dynamics_type : i8
 
     qss3_integrator,
     qss3_multiplier,
+    qss3_power,
+    qss3_square,
     qss3_cross,
     qss3_sum_2,
     qss3_sum_3,
@@ -3773,6 +3779,183 @@ struct qss3_integrator
         return X + u * e + (mu * e * e) / 2 + (pu * e * e * e) / 3;
     }
 };
+
+template<int QssLevel>
+struct abstract_power
+{
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    model_id id;
+    input_port_id x[1];
+    output_port_id y[1];
+    time sigma;
+
+    double value[QssLevel];
+    double default_n;
+
+    abstract_power() noexcept = default;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        std::fill_n(value, QssLevel, 0.0);
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            output_ports.get(y[0]).messages.emplace_front(
+              std::pow(value[0], default_n));
+        }
+
+        if constexpr (QssLevel == 2) {
+            output_ports.get(y[0]).messages.emplace_front(
+              std::pow(value[0], default_n),
+              default_n * std::pow(value[0], default_n - 1) * value[1]);
+        }
+
+        if constexpr (QssLevel == 3) {
+            output_ports.get(y[0]).messages.emplace_front(
+              std::pow(value[0], default_n),
+              default_n * std::pow(value[0], default_n - 1) * value[1],
+              default_n * (default_n - 1) * std::pow(value[0], default_n - 2) *
+                  (value[1] * value[1] / 2.0) +
+                default_n * std::pow(value[0], default_n - 1) * value[2]);
+        }
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        auto& port = input_ports.get(x[0]);
+        sigma = time_domain<time>::infinity;
+
+        if (!port.messages.empty()) {
+            auto& msg = port.messages.front();
+
+            if constexpr (QssLevel == 1) {
+                value[0] = msg[0];
+            }
+
+            if constexpr (QssLevel == 2) {
+                value[0] = msg[0];
+                value[1] = msg[1];
+            }
+
+            if constexpr (QssLevel == 3) {
+                value[0] = msg[0];
+                value[1] = msg[1];
+                value[2] = msg[2];
+            }
+
+            sigma = time_domain<time>::zero;
+        }
+
+        return status::success;
+    }
+
+    message observation(const time /*e*/) const noexcept
+    {
+        return value[0];
+    }
+};
+
+using qss1_power = abstract_power<1>;
+using qss2_power = abstract_power<2>;
+using qss3_power = abstract_power<3>;
+
+template<int QssLevel>
+struct abstract_square
+{
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    model_id id;
+    input_port_id x[1];
+    output_port_id y[1];
+    time sigma;
+
+    double value[QssLevel];
+
+    abstract_square() noexcept = default;
+
+    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    {
+        std::fill_n(value, QssLevel, 0.0);
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            output_ports.get(y[0]).messages.emplace_front(value[0] * value[0]);
+        }
+
+        if constexpr (QssLevel == 2) {
+            output_ports.get(y[0]).messages.emplace_front(
+              value[0] * value[0], 2. * value[0] * value[1]);
+        }
+
+        if constexpr (QssLevel == 3) {
+            output_ports.get(y[0]).messages.emplace_front(
+              value[0] * value[0],
+              2. * value[0] * value[1],
+              2. * value[0] * value[2] + value[1] * value[1]);
+        }
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        auto& port = input_ports.get(x[0]);
+        sigma = time_domain<time>::infinity;
+
+        if (!port.messages.empty()) {
+            auto& msg = port.messages.front();
+
+            if constexpr (QssLevel == 1) {
+                value[0] = msg[0];
+            }
+
+            if constexpr (QssLevel == 2) {
+                value[0] = msg[0];
+                value[1] = msg[1];
+            }
+
+            if constexpr (QssLevel == 3) {
+                value[0] = msg[0];
+                value[1] = msg[1];
+                value[2] = msg[2];
+            }
+
+            sigma = time_domain<time>::zero;
+        }
+
+        return status::success;
+    }
+
+    message observation(const time /*e*/) const noexcept
+    {
+        return value[0];
+    }
+};
+
+using qss1_square = abstract_square<1>;
+using qss2_square = abstract_square<2>;
+using qss3_square = abstract_square<3>;
 
 template<int QssLevel, int PortNumber>
 struct abstract_sum
@@ -5482,6 +5665,8 @@ struct simulation
     data_array<qss1_integrator, dynamics_id> qss1_integrator_models;
     data_array<qss1_multiplier, dynamics_id> qss1_multiplier_models;
     data_array<qss1_cross, dynamics_id> qss1_cross_models;
+    data_array<qss1_power, dynamics_id> qss1_power_models;
+    data_array<qss1_square, dynamics_id> qss1_square_models;
     data_array<qss1_sum_2, dynamics_id> qss1_sum_2_models;
     data_array<qss1_sum_3, dynamics_id> qss1_sum_3_models;
     data_array<qss1_sum_4, dynamics_id> qss1_sum_4_models;
@@ -5492,6 +5677,8 @@ struct simulation
     data_array<qss2_integrator, dynamics_id> qss2_integrator_models;
     data_array<qss2_multiplier, dynamics_id> qss2_multiplier_models;
     data_array<qss2_cross, dynamics_id> qss2_cross_models;
+    data_array<qss2_power, dynamics_id> qss2_power_models;
+    data_array<qss2_square, dynamics_id> qss2_square_models;
     data_array<qss2_sum_2, dynamics_id> qss2_sum_2_models;
     data_array<qss2_sum_3, dynamics_id> qss2_sum_3_models;
     data_array<qss2_sum_4, dynamics_id> qss2_sum_4_models;
@@ -5502,6 +5689,8 @@ struct simulation
     data_array<qss3_integrator, dynamics_id> qss3_integrator_models;
     data_array<qss3_multiplier, dynamics_id> qss3_multiplier_models;
     data_array<qss3_cross, dynamics_id> qss3_cross_models;
+    data_array<qss3_power, dynamics_id> qss3_power_models;
+    data_array<qss3_square, dynamics_id> qss3_square_models;
     data_array<qss3_sum_2, dynamics_id> qss3_sum_2_models;
     data_array<qss3_sum_3, dynamics_id> qss3_sum_3_models;
     data_array<qss3_sum_4, dynamics_id> qss3_sum_4_models;
@@ -5559,6 +5748,10 @@ struct simulation
             return f(qss1_multiplier_models);
         case dynamics_type::qss1_cross:
             return f(qss1_cross_models);
+        case dynamics_type::qss1_power:
+            return f(qss1_power_models);
+        case dynamics_type::qss1_square:
+            return f(qss1_square_models);
         case dynamics_type::qss1_sum_2:
             return f(qss1_sum_2_models);
         case dynamics_type::qss1_sum_3:
@@ -5578,6 +5771,10 @@ struct simulation
             return f(qss2_multiplier_models);
         case dynamics_type::qss2_cross:
             return f(qss2_cross_models);
+        case dynamics_type::qss2_power:
+            return f(qss2_power_models);
+        case dynamics_type::qss2_square:
+            return f(qss2_square_models);
         case dynamics_type::qss2_sum_2:
             return f(qss2_sum_2_models);
         case dynamics_type::qss2_sum_3:
@@ -5597,6 +5794,10 @@ struct simulation
             return f(qss3_multiplier_models);
         case dynamics_type::qss3_cross:
             return f(qss3_cross_models);
+        case dynamics_type::qss3_power:
+            return f(qss3_power_models);
+        case dynamics_type::qss3_square:
+            return f(qss3_square_models);
         case dynamics_type::qss3_sum_2:
             return f(qss3_sum_2_models);
         case dynamics_type::qss3_sum_3:
@@ -5659,6 +5860,10 @@ struct simulation
             return f(qss1_multiplier_models);
         case dynamics_type::qss1_cross:
             return f(qss1_cross_models);
+        case dynamics_type::qss1_power:
+            return f(qss1_power_models);
+        case dynamics_type::qss1_square:
+            return f(qss1_square_models);
         case dynamics_type::qss1_sum_2:
             return f(qss1_sum_2_models);
         case dynamics_type::qss1_sum_3:
@@ -5678,6 +5883,10 @@ struct simulation
             return f(qss2_multiplier_models);
         case dynamics_type::qss2_cross:
             return f(qss2_cross_models);
+        case dynamics_type::qss2_power:
+            return f(qss2_power_models);
+        case dynamics_type::qss2_square:
+            return f(qss2_square_models);
         case dynamics_type::qss2_sum_2:
             return f(qss2_sum_2_models);
         case dynamics_type::qss2_sum_3:
@@ -5697,6 +5906,10 @@ struct simulation
             return f(qss3_multiplier_models);
         case dynamics_type::qss3_cross:
             return f(qss3_cross_models);
+        case dynamics_type::qss3_power:
+            return f(qss3_power_models);
+        case dynamics_type::qss3_square:
+            return f(qss3_square_models);
         case dynamics_type::qss3_sum_2:
             return f(qss3_sum_2_models);
         case dynamics_type::qss3_sum_3:
@@ -5736,6 +5949,7 @@ struct simulation
             return f(cross_models);
         case dynamics_type::accumulator_2:
             return f(accumulator_2_models);
+
         case dynamics_type::time_func:
             return f(time_func_models);
         case dynamics_type::flow:
@@ -5921,6 +6135,8 @@ public:
         irt_return_if_bad(qss1_integrator_models.init(model_capacity));
         irt_return_if_bad(qss1_multiplier_models.init(model_capacity));
         irt_return_if_bad(qss1_cross_models.init(model_capacity));
+        irt_return_if_bad(qss1_power_models.init(model_capacity));
+        irt_return_if_bad(qss1_square_models.init(model_capacity));
         irt_return_if_bad(qss1_sum_2_models.init(model_capacity));
         irt_return_if_bad(qss1_sum_3_models.init(model_capacity));
         irt_return_if_bad(qss1_sum_4_models.init(model_capacity));
@@ -5931,6 +6147,8 @@ public:
         irt_return_if_bad(qss2_integrator_models.init(model_capacity));
         irt_return_if_bad(qss2_multiplier_models.init(model_capacity));
         irt_return_if_bad(qss2_cross_models.init(model_capacity));
+        irt_return_if_bad(qss2_power_models.init(model_capacity));
+        irt_return_if_bad(qss2_square_models.init(model_capacity));
         irt_return_if_bad(qss2_sum_2_models.init(model_capacity));
         irt_return_if_bad(qss2_sum_3_models.init(model_capacity));
         irt_return_if_bad(qss2_sum_4_models.init(model_capacity));
@@ -5941,6 +6159,8 @@ public:
         irt_return_if_bad(qss3_integrator_models.init(model_capacity));
         irt_return_if_bad(qss3_multiplier_models.init(model_capacity));
         irt_return_if_bad(qss3_cross_models.init(model_capacity));
+        irt_return_if_bad(qss3_power_models.init(model_capacity));
+        irt_return_if_bad(qss3_square_models.init(model_capacity));
         irt_return_if_bad(qss3_sum_2_models.init(model_capacity));
         irt_return_if_bad(qss3_sum_3_models.init(model_capacity));
         irt_return_if_bad(qss3_sum_4_models.init(model_capacity));
@@ -6053,6 +6273,10 @@ public:
             mdl.type = dynamics_type::qss1_multiplier;
         else if constexpr (std::is_same_v<Dynamics, qss1_cross>)
             mdl.type = dynamics_type::qss1_cross;
+        else if constexpr (std::is_same_v<Dynamics, qss1_power>)
+            mdl.type = dynamics_type::qss1_power;
+        else if constexpr (std::is_same_v<Dynamics, qss1_square>)
+            mdl.type = dynamics_type::qss1_square;
         else if constexpr (std::is_same_v<Dynamics, qss1_sum_2>)
             mdl.type = dynamics_type::qss1_sum_2;
         else if constexpr (std::is_same_v<Dynamics, qss1_sum_3>)
@@ -6072,6 +6296,10 @@ public:
             mdl.type = dynamics_type::qss2_multiplier;
         else if constexpr (std::is_same_v<Dynamics, qss2_cross>)
             mdl.type = dynamics_type::qss2_cross;
+        else if constexpr (std::is_same_v<Dynamics, qss2_power>)
+            mdl.type = dynamics_type::qss2_power;
+        else if constexpr (std::is_same_v<Dynamics, qss2_square>)
+            mdl.type = dynamics_type::qss2_square;
         else if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
             mdl.type = dynamics_type::qss2_sum_2;
         else if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
@@ -6091,6 +6319,10 @@ public:
             mdl.type = dynamics_type::qss3_multiplier;
         else if constexpr (std::is_same_v<Dynamics, qss3_cross>)
             mdl.type = dynamics_type::qss3_cross;
+        else if constexpr (std::is_same_v<Dynamics, qss3_power>)
+            mdl.type = dynamics_type::qss3_power;
+        else if constexpr (std::is_same_v<Dynamics, qss3_square>)
+            mdl.type = dynamics_type::qss3_square;
         else if constexpr (std::is_same_v<Dynamics, qss3_sum_2>)
             mdl.type = dynamics_type::qss3_sum_2;
         else if constexpr (std::is_same_v<Dynamics, qss3_sum_3>)
@@ -6256,6 +6488,8 @@ public:
         case dynamics_type::qss1_integrator:
         case dynamics_type::qss1_multiplier:
         case dynamics_type::qss1_cross:
+        case dynamics_type::qss1_power:
+        case dynamics_type::qss1_square:
         case dynamics_type::qss1_sum_2:
         case dynamics_type::qss1_sum_3:
         case dynamics_type::qss1_sum_4:
@@ -6265,6 +6499,8 @@ public:
         case dynamics_type::qss2_integrator:
         case dynamics_type::qss2_multiplier:
         case dynamics_type::qss2_cross:
+        case dynamics_type::qss2_power:
+        case dynamics_type::qss2_square:
         case dynamics_type::qss2_sum_2:
         case dynamics_type::qss2_sum_3:
         case dynamics_type::qss2_sum_4:
@@ -6274,6 +6510,8 @@ public:
         case dynamics_type::qss3_integrator:
         case dynamics_type::qss3_multiplier:
         case dynamics_type::qss3_cross:
+        case dynamics_type::qss3_power:
+        case dynamics_type::qss3_square:
         case dynamics_type::qss3_sum_2:
         case dynamics_type::qss3_sum_3:
         case dynamics_type::qss3_sum_4:

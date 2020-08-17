@@ -117,6 +117,58 @@ for_each(DataArray& d_array, Container& container, Function f) noexcept
     }
 }
 
+static const char* dynamics_type_names[] = { "none",
+                                             "qss1_integrator",
+                                             "qss1_multiplier",
+                                             "qss1_cross",
+                                             "qss1_power",
+                                             "qss1_square",
+                                             "qss1_sum_2",
+                                             "qss1_sum_3",
+                                             "qss1_sum_4",
+                                             "qss1_wsum_2",
+                                             "qss1_wsum_3",
+                                             "qss1_wsum_4",
+                                             "qss2_integrator",
+                                             "qss2_multiplier",
+                                             "qss2_cross",
+                                             "qss2_power",
+                                             "qss2_square",
+                                             "qss2_sum_2",
+                                             "qss2_sum_3",
+                                             "qss2_sum_4",
+                                             "qss2_wsum_2",
+                                             "qss2_wsum_3",
+                                             "qss2_wsum_4",
+                                             "qss3_integrator",
+                                             "qss3_multiplier",
+                                             "qss3_cross",
+                                             "qss3_power",
+                                             "qss3_square",
+                                             "qss3_sum_2",
+                                             "qss3_sum_3",
+                                             "qss3_sum_4",
+                                             "qss3_wsum_2",
+                                             "qss3_wsum_3",
+                                             "qss3_wsum_4",
+                                             "integrator",
+                                             "quantifier",
+                                             "adder_2",
+                                             "adder_3",
+                                             "adder_4",
+                                             "mult_2",
+                                             "mult_3",
+                                             "mult_4",
+                                             "counter",
+                                             "generator",
+                                             "constant",
+                                             "cross",
+                                             "time_func",
+                                             "accumulator_2",
+                                             "flow" };
+
+static_assert(std::size(dynamics_type_names) == dynamics_type_size());
+
 static window_logger log_w;
 static data_array<editor, editor_id> editors;
 
@@ -1424,8 +1476,7 @@ get_input_port_names()
                   std::is_same_v<Dynamics, qss3_integrator>)
         return str_integrator;
 
-    if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
-                  std::is_same_v<Dynamics, qss1_multiplier> ||
+    if constexpr (std::is_same_v<Dynamics, qss1_multiplier> ||
                   std::is_same_v<Dynamics, qss1_sum_2> ||
                   std::is_same_v<Dynamics, qss1_wsum_2> ||
                   std::is_same_v<Dynamics, qss2_multiplier> ||
@@ -1462,7 +1513,13 @@ get_input_port_names()
         return str_adaptative_integrator;
 
     if constexpr (std::is_same_v<Dynamics, quantifier> ||
-                  std::is_same_v<Dynamics, counter>)
+                  std::is_same_v<Dynamics, counter> ||
+                  std::is_same_v<Dynamics, qss1_power> ||
+                  std::is_same_v<Dynamics, qss2_power> ||
+                  std::is_same_v<Dynamics, qss3_power> ||
+                  std::is_same_v<Dynamics, qss1_square> ||
+                  std::is_same_v<Dynamics, qss2_square> ||
+                  std::is_same_v<Dynamics, qss3_square>)
         return str_in_1;
 
     if constexpr (std::is_same_v<Dynamics, generator> ||
@@ -1495,6 +1552,8 @@ get_output_port_names()
 
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss1_multiplier> ||
+                  std::is_same_v<Dynamics, qss1_power> ||
+                  std::is_same_v<Dynamics, qss1_square> ||
                   std::is_same_v<Dynamics, qss1_sum_2> ||
                   std::is_same_v<Dynamics, qss1_sum_3> ||
                   std::is_same_v<Dynamics, qss1_sum_4> ||
@@ -1503,6 +1562,8 @@ get_output_port_names()
                   std::is_same_v<Dynamics, qss1_wsum_4> ||
                   std::is_same_v<Dynamics, qss2_integrator> ||
                   std::is_same_v<Dynamics, qss2_multiplier> ||
+                  std::is_same_v<Dynamics, qss2_power> ||
+                  std::is_same_v<Dynamics, qss2_square> ||
                   std::is_same_v<Dynamics, qss2_sum_2> ||
                   std::is_same_v<Dynamics, qss2_sum_3> ||
                   std::is_same_v<Dynamics, qss2_sum_4> ||
@@ -1511,6 +1572,8 @@ get_output_port_names()
                   std::is_same_v<Dynamics, qss2_wsum_4> ||
                   std::is_same_v<Dynamics, qss3_integrator> ||
                   std::is_same_v<Dynamics, qss3_multiplier> ||
+                  std::is_same_v<Dynamics, qss3_power> ||
+                  std::is_same_v<Dynamics, qss3_square> ||
                   std::is_same_v<Dynamics, qss3_sum_2> ||
                   std::is_same_v<Dynamics, qss3_sum_3> ||
                   std::is_same_v<Dynamics, qss3_sum_4> ||
@@ -1843,31 +1906,55 @@ show_dynamics_values(const constant& dyn)
     ImGui::Text("value %.3f", dyn.value);
 }
 
+template<int QssLevel>
 static void
-show_dynamics_values(const qss1_cross& dyn)
+show_dynamics_values(const abstract_cross<QssLevel>& dyn)
 {
     ImGui::Text("threshold: %.3f", dyn.threshold);
     ImGui::Text("value: %.3f", dyn.value[0]);
     ImGui::Text("if-value: %.3f", dyn.if_value[0]);
     ImGui::Text("else-value: %.3f", dyn.else_value[0]);
+
+    if (dyn.detect_up)
+        ImGui::Text("up detection");
+    else
+        ImGui::Text("down detection");
 }
 
 static void
-show_dynamics_values(const qss2_cross& dyn)
+show_dynamics_values(const qss1_power& dyn)
 {
-    ImGui::Text("threshold: %.3f", dyn.threshold);
-    ImGui::Text("value: %.3f", dyn.value[0]);
-    ImGui::Text("if-value: %.3f", dyn.if_value[0]);
-    ImGui::Text("else-value: %.3f", dyn.else_value[0]);
+    ImGui::Text("%.3f", dyn.value[0]);
 }
 
 static void
-show_dynamics_values(const qss3_cross& dyn)
+show_dynamics_values(const qss2_power& dyn)
 {
-    ImGui::Text("threshold: %.3f", dyn.threshold);
-    ImGui::Text("value: %.3f", dyn.value[0]);
-    ImGui::Text("if-value: %.3f", dyn.if_value[0]);
-    ImGui::Text("else-value: %.3f", dyn.else_value[0]);
+    ImGui::Text("%.3f %.3f", dyn.value[0], dyn.value[1]);
+}
+
+static void
+show_dynamics_values(const qss3_power& dyn)
+{
+    ImGui::Text("%.3f %.3f %.3f", dyn.value[0], dyn.value[1], dyn.value[2]);
+}
+
+static void
+show_dynamics_values(const qss1_square& dyn)
+{
+    ImGui::Text("%.3f", dyn.value[0]);
+}
+
+static void
+show_dynamics_values(const qss2_square& dyn)
+{
+    ImGui::Text("%.3f %.3f", dyn.value[0], dyn.value[1]);
+}
+
+static void
+show_dynamics_values(const qss3_square& dyn)
+{
+    ImGui::Text("%.3f %.3f %.3f", dyn.value[0], dyn.value[1], dyn.value[2]);
 }
 
 static void
@@ -2128,19 +2215,52 @@ static void
 show_dynamics_inputs(qss1_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
+    ImGui::Checkbox("up detection", &dyn.detect_up);
 }
 
 static void
 show_dynamics_inputs(qss2_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
+    ImGui::Checkbox("up detection", &dyn.detect_up);
 }
 
 static void
 show_dynamics_inputs(qss3_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
+    ImGui::Checkbox("up detection", &dyn.detect_up);
 }
+
+static void
+show_dynamics_inputs(qss1_power& dyn)
+{
+    ImGui::InputDouble("n", &dyn.default_n);
+}
+
+static void
+show_dynamics_inputs(qss2_power& dyn)
+{
+    ImGui::InputDouble("n", &dyn.default_n);
+}
+
+static void
+show_dynamics_inputs(qss3_power& dyn)
+{
+    ImGui::InputDouble("n", &dyn.default_n);
+}
+
+static void
+show_dynamics_inputs(qss1_square& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss2_square& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(qss3_square& /*dyn*/)
+{}
 
 static void
 show_dynamics_inputs(cross& dyn)
@@ -2319,21 +2439,6 @@ editor::show_top() noexcept
         }
     }
 }
-
-static const char* dynamics_type_names[] = {
-    "none",        "qss1_integrator", "qss1_multiplier",
-    "qss1_cross",  "qss1_sum_2",      "qss1_sum_3",
-    "qss1_sum_4",  "qss1_wsum_2",     "qss1_wsum_3",
-    "qss1_wsum_4", "qss2_integrator", "qss2_multiplier",
-    "qss2_cross",  "qss2_sum_2",      "qss2_sum_3",
-    "qss2_sum_4",  "qss2_wsum_2",     "qss2_wsum_3",
-    "qss2_wsum_4", "integrator",      "quantifier",
-    "adder_2",     "adder_3",         "adder_4",
-    "mult_2",      "mult_3",          "mult_4",
-    "counter",     "generator",       "constant",
-    "cross",       "time_func",       "accumulator_2",
-    "flow"
-};
 
 status
 add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)

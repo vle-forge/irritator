@@ -123,6 +123,8 @@ private:
             { "qss1_integrator", dynamics_type::qss1_integrator },
             { "qss1_multiplier", dynamics_type::qss1_multiplier },
             { "qss1_cross", dynamics_type::qss1_cross },
+            { "qss1_power", dynamics_type::qss1_power },
+            { "qss1_square", dynamics_type::qss1_square },
             { "qss1_sum_2", dynamics_type::qss1_sum_2 },
             { "qss1_sum_3", dynamics_type::qss1_sum_3 },
             { "qss1_sum_4", dynamics_type::qss1_sum_4 },
@@ -132,6 +134,8 @@ private:
             { "qss2_integrator", dynamics_type::qss2_integrator },
             { "qss2_multiplier", dynamics_type::qss2_multiplier },
             { "qss2_cross", dynamics_type::qss2_cross },
+            { "qss2_power", dynamics_type::qss2_power },
+            { "qss2_square", dynamics_type::qss2_square },
             { "qss2_sum_2", dynamics_type::qss2_sum_2 },
             { "qss2_sum_3", dynamics_type::qss2_sum_3 },
             { "qss2_sum_4", dynamics_type::qss2_sum_4 },
@@ -141,6 +145,8 @@ private:
             { "qss3_integrator", dynamics_type::qss3_integrator },
             { "qss3_multiplier", dynamics_type::qss3_multiplier },
             { "qss3_cross", dynamics_type::qss3_cross },
+            { "qss3_power", dynamics_type::qss3_power },
+            { "qss3_square", dynamics_type::qss3_square },
             { "qss3_sum_2", dynamics_type::qss3_sum_2 },
             { "qss3_sum_3", dynamics_type::qss3_sum_3 },
             { "qss3_sum_4", dynamics_type::qss3_sum_4 },
@@ -477,9 +483,39 @@ private:
         return !!(is >> dyn.default_threshold);
     }
 
-    bool read(cross& dyn) noexcept
+    bool read(qss1_power& dyn) noexcept
     {
-        return !!(is >> dyn.default_threshold);
+        return !!(is >> dyn.default_n);
+    }
+
+    bool read(qss2_power& dyn) noexcept
+    {
+        return !!(is >> dyn.default_n);
+    }
+
+    bool read(qss3_power& dyn) noexcept
+    {
+        return !!(is >> dyn.default_n);
+    }
+
+    bool read(qss1_square& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss2_square& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(qss3_square& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(cross& /*dyn*/) noexcept
+    {
+        return true;
     }
 
     bool read(accumulator_2& /*dyn*/) noexcept
@@ -816,6 +852,36 @@ private:
     void write(const qss3_cross& dyn) noexcept
     {
         os << "qss3_cross " << dyn.default_threshold << '\n';
+    }
+
+    void write(const qss1_power& dyn) noexcept
+    {
+        os << "qss1_power " << dyn.default_n << '\n';
+    }
+
+    void write(const qss2_power& dyn) noexcept
+    {
+        os << "qss2_power " << dyn.default_n << '\n';
+    }
+
+    void write(const qss3_power& dyn) noexcept
+    {
+        os << "qss3_power " << dyn.default_n << '\n';
+    }
+
+    void write(const qss1_square& /*dyn*/) noexcept
+    {
+        os << "qss1_square\n";
+    }
+
+    void write(const qss2_square& /*dyn*/) noexcept
+    {
+        os << "qss2_square\n";
+    }
+
+    void write(const qss3_square& /*dyn*/) noexcept
+    {
+        os << "qss3_square\n";
     }
 
     void write(const cross& dyn) noexcept
