@@ -2607,7 +2607,7 @@ editor::show_editor() noexcept
         model_id new_model = undefined<model_id>();
         ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
-        for (size_t i = 0, e = std::size(dynamics_type_names); i != e; ++i) {
+        for (size_t i = 0, e = dynamics_type_size(); i != e; ++i) {
             auto ret = add_popup_menuitem(
               *this, static_cast<dynamics_type>(i), &new_model);
             if (is_bad(ret))
