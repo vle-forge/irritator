@@ -1409,10 +1409,8 @@ static const char* str_in_1[] = { "in" };
 static const char* str_in_2[] = { "in-1", "in-2" };
 static const char* str_in_3[] = { "in-1", "in-2", "in-3" };
 static const char* str_in_4[] = { "in-1", "in-2", "in-3", "in-4" };
-static const char* str_value_if_else[] = { "value", "if", "else" };
+static const char* str_value_if_else[] = { "value", "if", "else", "threshold" };
 static const char* str_in_2_nb_2[] = { "in-1", "in-2", "nb-1", "nb-2" };
-static const char* str_out_1[] = { "out" };
-static const char* str_out_2[] = { "out-1", "out-2" };
 
 template<typename Dynamics>
 static constexpr const char**
@@ -1422,7 +1420,8 @@ get_input_port_names()
         return str_empty;
 
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
-                  std::is_same_v<Dynamics, qss2_integrator>)
+                  std::is_same_v<Dynamics, qss2_integrator> ||
+                  std::is_same_v<Dynamics, qss3_integrator>)
         return str_integrator;
 
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
@@ -1432,6 +1431,9 @@ get_input_port_names()
                   std::is_same_v<Dynamics, qss2_multiplier> ||
                   std::is_same_v<Dynamics, qss2_sum_2> ||
                   std::is_same_v<Dynamics, qss2_wsum_2> ||
+                  std::is_same_v<Dynamics, qss3_multiplier> ||
+                  std::is_same_v<Dynamics, qss3_sum_2> ||
+                  std::is_same_v<Dynamics, qss3_wsum_2> ||
                   std::is_same_v<Dynamics, adder_2> ||
                   std::is_same_v<Dynamics, mult_2>)
         return str_in_2;
@@ -1440,6 +1442,8 @@ get_input_port_names()
                   std::is_same_v<Dynamics, qss1_wsum_3> ||
                   std::is_same_v<Dynamics, qss2_sum_3> ||
                   std::is_same_v<Dynamics, qss2_wsum_3> ||
+                  std::is_same_v<Dynamics, qss3_sum_3> ||
+                  std::is_same_v<Dynamics, qss3_wsum_3> ||
                   std::is_same_v<Dynamics, adder_3> ||
                   std::is_same_v<Dynamics, mult_3>)
         return str_in_3;
@@ -1448,6 +1452,8 @@ get_input_port_names()
                   std::is_same_v<Dynamics, qss1_wsum_4> ||
                   std::is_same_v<Dynamics, qss2_sum_4> ||
                   std::is_same_v<Dynamics, qss2_wsum_4> ||
+                  std::is_same_v<Dynamics, qss3_sum_4> ||
+                  std::is_same_v<Dynamics, qss3_wsum_4> ||
                   std::is_same_v<Dynamics, adder_4> ||
                   std::is_same_v<Dynamics, mult_4>)
         return str_in_4;
@@ -1467,6 +1473,7 @@ get_input_port_names()
 
     if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
                   std::is_same_v<Dynamics, qss2_cross> ||
+                  std::is_same_v<Dynamics, qss3_cross> ||
                   std::is_same_v<Dynamics, cross>)
         return str_value_if_else;
 
@@ -1475,6 +1482,9 @@ get_input_port_names()
 
     return str_error;
 }
+
+static const char* str_out_1[] = { "out" };
+static const char* str_out_cross[] = { "if-value", "else-value", "event" };
 
 template<typename Dynamics>
 static constexpr const char**
@@ -1499,6 +1509,14 @@ get_output_port_names()
                   std::is_same_v<Dynamics, qss2_wsum_2> ||
                   std::is_same_v<Dynamics, qss2_wsum_3> ||
                   std::is_same_v<Dynamics, qss2_wsum_4> ||
+                  std::is_same_v<Dynamics, qss3_integrator> ||
+                  std::is_same_v<Dynamics, qss3_multiplier> ||
+                  std::is_same_v<Dynamics, qss3_sum_2> ||
+                  std::is_same_v<Dynamics, qss3_sum_3> ||
+                  std::is_same_v<Dynamics, qss3_sum_4> ||
+                  std::is_same_v<Dynamics, qss3_wsum_2> ||
+                  std::is_same_v<Dynamics, qss3_wsum_3> ||
+                  std::is_same_v<Dynamics, qss3_wsum_4> ||
                   std::is_same_v<Dynamics, integrator> ||
                   std::is_same_v<Dynamics, quantifier> ||
                   std::is_same_v<Dynamics, adder_2> ||
@@ -1516,8 +1534,9 @@ get_output_port_names()
 
     if constexpr (std::is_same_v<Dynamics, cross> ||
                   std::is_same_v<Dynamics, qss1_cross> ||
-                  std::is_same_v<Dynamics, qss2_cross>)
-        return str_out_2;
+                  std::is_same_v<Dynamics, qss2_cross> ||
+                  std::is_same_v<Dynamics, qss3_cross>)
+        return str_out_cross;
 
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return str_empty;
@@ -1827,30 +1846,34 @@ show_dynamics_values(const constant& dyn)
 static void
 show_dynamics_values(const qss1_cross& dyn)
 {
+    ImGui::Text("threshold: %.3f", dyn.threshold);
     ImGui::Text("value: %.3f", dyn.value[0]);
     ImGui::Text("if-value: %.3f", dyn.if_value[0]);
-    ImGui::Text("else-value: %.3f", dyn.else_value);
+    ImGui::Text("else-value: %.3f", dyn.else_value[0]);
 }
 
 static void
 show_dynamics_values(const qss2_cross& dyn)
 {
+    ImGui::Text("threshold: %.3f", dyn.threshold);
     ImGui::Text("value: %.3f", dyn.value[0]);
     ImGui::Text("if-value: %.3f", dyn.if_value[0]);
-    ImGui::Text("else-value: %.3f", dyn.else_value);
+    ImGui::Text("else-value: %.3f", dyn.else_value[0]);
 }
 
 static void
 show_dynamics_values(const qss3_cross& dyn)
 {
+    ImGui::Text("threshold: %.3f", dyn.threshold);
     ImGui::Text("value: %.3f", dyn.value[0]);
     ImGui::Text("if-value: %.3f", dyn.if_value[0]);
-    ImGui::Text("else-value: %.3f", dyn.else_value);
+    ImGui::Text("else-value: %.3f", dyn.else_value[0]);
 }
 
 static void
 show_dynamics_values(const cross& dyn)
 {
+    ImGui::Text("threshold: %.3f", dyn.threshold);
     ImGui::Text("value: %.3f", dyn.value);
     ImGui::Text("if-value: %.3f", dyn.if_value);
     ImGui::Text("else-value: %.3f", dyn.else_value);
