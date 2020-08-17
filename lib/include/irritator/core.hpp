@@ -5209,7 +5209,7 @@ struct cross
     }
 };
 
-template<size_t QssLevel>
+template<int QssLevel>
 struct abstract_cross
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
