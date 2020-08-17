@@ -5014,12 +5014,11 @@ struct flow
     std::vector<double> sigmas;
     double samplerate = 44100.0;
 
-
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
 
         samplerate = default_samplerate;
-        sigma = 1.0/samplerate;
+        sigma = 1.0 / samplerate;
 
         value = default_value;
         data = default_data;
@@ -5035,27 +5034,24 @@ struct flow
     {
 
         double accu_sigma = 0;
-        for(int i = 0; i < sigmas.size(); i++ )
-        {
-           accu_sigma += sigmas[i];
-           if(accu_sigma > t)
-           {
-               
-               value =  data[i];
-               sigma = sigmas[i];
-               return status::success;
-           }
+        for (std::size_t i = { 0 }; i < sigmas.size(); i++) {
+            accu_sigma += sigmas[i];
+            if (accu_sigma > t) {
+
+                value = data[i];
+                sigma = sigmas[i];
+                return status::success;
+            }
         }
 
         return status::success;
-
     }
 
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
         output_ports.get(y[0]).messages.emplace_front(value);
-        
+
         return status::success;
     }
 
@@ -5303,7 +5299,8 @@ struct abstract_cross
                             if (x2 > 0)
                                 sigma = x2;
                         }
-                    } if (d == 0.) {
+                    }
+                    if (d == 0.) {
                         const auto x = -b / (2. * a);
                         if (x > 0.)
                             sigma = x;
@@ -5388,7 +5385,8 @@ struct abstract_cross
 
         reach_threshold = false;
 
-        if ((detect_up && value[0] >= threshold) || (!detect_up && value[0] <= threshold)) {
+        if ((detect_up && value[0] >= threshold) ||
+            (!detect_up && value[0] <= threshold)) {
             if (t != last_reset) {
                 last_reset = t;
                 reach_threshold = true;
@@ -5409,31 +5407,31 @@ struct abstract_cross
     {
         if constexpr (QssLevel == 1) {
             output_ports.get(y[o_else_value])
-                .messages.emplace_front(else_value[0]);
+              .messages.emplace_front(else_value[0]);
             if (reach_threshold) {
                 output_ports.get(y[o_if_value])
-                    .messages.emplace_front(if_value[0]);
+                  .messages.emplace_front(if_value[0]);
                 output_ports.get(y[o_event]).messages.emplace_front(1.0);
             }
         }
 
         if constexpr (QssLevel == 2) {
             output_ports.get(y[o_else_value])
-                .messages.emplace_front(else_value[0], else_value[1]);
+              .messages.emplace_front(else_value[0], else_value[1]);
             if (reach_threshold) {
                 output_ports.get(y[o_if_value])
-                    .messages.emplace_front(if_value[0], if_value[1]);
+                  .messages.emplace_front(if_value[0], if_value[1]);
                 output_ports.get(y[o_event]).messages.emplace_front(1.0);
             }
         }
 
         if constexpr (QssLevel == 3) {
             output_ports.get(y[o_else_value])
-                .messages.emplace_front(
+              .messages.emplace_front(
                 else_value[0], else_value[1], else_value[2]);
             if (reach_threshold) {
                 output_ports.get(y[o_if_value])
-                    .messages.emplace_front(
+                  .messages.emplace_front(
                     if_value[0], if_value[1], if_value[2]);
                 output_ports.get(y[o_event]).messages.emplace_front(1.0);
             }
