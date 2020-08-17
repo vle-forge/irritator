@@ -2610,12 +2610,63 @@ editor::show_editor() noexcept
         model_id new_model = undefined<model_id>();
         ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
-        for (size_t i = 0, e = dynamics_type_size(); i != e; ++i) {
-            auto ret = add_popup_menuitem(
-              *this, static_cast<dynamics_type>(i), &new_model);
-            if (is_bad(ret))
-                log_w.log(
-                  5, "Fail to allocate new dynamics: %s\n", status_string(ret));
+        if (ImGui::BeginMenu("QSS1")) {
+            int i = static_cast<int>(dynamics_type::qss1_integrator);
+            int e = static_cast<int>(dynamics_type::qss1_wsum_4);
+
+            for (; i != e; ++i) {
+                auto ret = add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
+                if (is_bad(ret))
+                    log_w.log(5,
+                              "Fail to allocate new dynamics: %s\n",
+                              status_string(ret));
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("QSS2")) {
+            int i = static_cast<int>(dynamics_type::qss2_integrator);
+            int e = static_cast<int>(dynamics_type::qss2_wsum_4);
+
+            for (; i != e; ++i) {
+                auto ret = add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
+                if (is_bad(ret))
+                    log_w.log(5,
+                              "Fail to allocate new dynamics: %s\n",
+                              status_string(ret));
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("QSS3")) {
+            int i = static_cast<int>(dynamics_type::qss3_integrator);
+            int e = static_cast<int>(dynamics_type::qss3_wsum_4);
+
+            for (; i != e; ++i) {
+                auto ret = add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
+                if (is_bad(ret))
+                    log_w.log(5,
+                              "Fail to allocate new dynamics: %s\n",
+                              status_string(ret));
+            }
+            ImGui::EndMenu();
+        }
+
+        {
+            int i = static_cast<int>(dynamics_type::integrator);
+            int e = static_cast<int>(dynamics_type_size());
+
+            for (; i != e; ++i) {
+                auto ret = add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
+                if (is_bad(ret))
+                    log_w.log(5,
+                              "Fail to allocate new dynamics: %s\n",
+                              status_string(ret));
+            }
         }
 
         ImGui::EndPopup();
