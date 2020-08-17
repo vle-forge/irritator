@@ -1428,7 +1428,7 @@ editor::show_model_cluster(cluster& mdl) noexcept
             if (auto* port = sim.input_ports.try_to_get(*it); port) {
                 imnodes::BeginInputAttribute(get_in(*it));
                 ImGui::TextUnformatted(port->name.c_str());
-                imnodes::EndAttribute();
+                imnodes::EndInputAttribute();
                 ++it;
             } else {
                 it = mdl.input_ports.erase(it);
@@ -1444,7 +1444,7 @@ editor::show_model_cluster(cluster& mdl) noexcept
             if (auto* port = sim.output_ports.try_to_get(*it); port) {
                 imnodes::BeginOutputAttribute(get_out(*it));
                 ImGui::TextUnformatted(port->name.c_str());
-                imnodes::EndAttribute();
+                imnodes::EndOutputAttribute();
                 ++it;
             } else {
                 it = mdl.output_ports.erase(it);
@@ -1617,7 +1617,7 @@ add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
         for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
             imnodes::BeginInputAttribute(ed.get_in(dyn.x[i]));
             ImGui::TextUnformatted(names[i]);
-            imnodes::EndAttribute();
+            imnodes::EndInputAttribute();
         }
     }
 }
@@ -1632,7 +1632,7 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
         for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
             imnodes::BeginOutputAttribute(ed.get_out(dyn.y[i]));
             ImGui::TextUnformatted(names[i]);
-            imnodes::EndAttribute();
+            imnodes::EndOutputAttribute();
         }
     }
 }
@@ -2709,23 +2709,23 @@ editor::show_editor() noexcept
             imnodes::GetSelectedNodes(selected_nodes.begin());
             log_w.log(7, "%d model(s) to delete\n", num_selected_nodes);
             free_children(selected_nodes);
-            imnodes::ClearSelectedNodesAndLinks();
+            // imnodes::ClearSelectedNodesAndLinks();
         } else if (ImGui::IsKeyReleased('D')) {
             imnodes::GetSelectedNodes(selected_nodes.begin());
             log_w.log(7, "%d model(s)/group(s) to copy\n", num_selected_nodes);
             copy(selected_nodes);
-            imnodes::ClearSelectedNodesAndLinks();
+            // imnodes::ClearSelectedNodesAndLinks();
         } else if (ImGui::IsKeyReleased('G')) {
             if (num_selected_nodes > 1) {
                 imnodes::GetSelectedNodes(selected_nodes.begin());
                 log_w.log(7, "%d model(s) to group\n", num_selected_nodes);
                 group(selected_nodes);
-                imnodes::ClearSelectedNodesAndLinks();
+                // imnodes::ClearSelectedNodesAndLinks();
             } else if (num_selected_nodes == 1) {
                 imnodes::GetSelectedNodes(selected_nodes.begin());
                 log_w.log(7, "group to ungroup\n");
                 ungroup(selected_nodes[0]);
-                imnodes::ClearSelectedNodesAndLinks();
+                // imnodes::ClearSelectedNodesAndLinks();
             }
         }
         selected_nodes.resize(0);
@@ -2765,7 +2765,7 @@ editor::show_editor() noexcept
                     }
                 }
             }
-            imnodes::ClearSelectedNodesAndLinks();
+            // imnodes::ClearSelectedNodesAndLinks();
             selected_links.resize(0);
         }
     }

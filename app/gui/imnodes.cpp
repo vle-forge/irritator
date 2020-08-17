@@ -1,27 +1,3 @@
-/*
- * MIT License
- *
- * Copyright (c) 2019 Johann Muszynski
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- */
-
 // the structure of this file:
 //
 // [SECTION] internal data structures
@@ -33,9 +9,9 @@
 
 #include "imnodes.hpp"
 
-#include "imgui.h"
+#include <imgui.h>
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include "imgui_internal.h"
+#include <imgui_internal.h>
 
 // Check minimum ImGui version
 #define MINIMUM_COMPATIBLE_IMGUI_VERSION 16401
@@ -45,6 +21,7 @@
 #endif
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <new>
 #include <stdint.h>
@@ -347,12 +324,19 @@ enum ClickInteractionType
     ClickInteractionType_None
 };
 
+enum LinkCreationType
+{
+    LinkCreationType_Standard,
+    LinkCreationType_FromDetach
+};
+
 struct ClickInteractionState
 {
     struct
     {
         int start_pin_idx;
-        int end_pin_idx;
+        OptionalIndex end_pin_idx;
+        LinkCreationType link_creation_type;
     } link_creation;
 
     struct
@@ -405,16 +389,26 @@ struct
 
     int current_node_idx;
     int current_pin_idx;
+    int current_attribute_id;
 
     OptionalIndex hovered_node_idx;
     OptionalIndex hovered_link_idx;
     OptionalIndex hovered_pin_idx;
     int hovered_pin_flags;
 
-    OptionalIndex active_pin_idx;
     OptionalIndex deleted_link_idx;
+    OptionalIndex snap_link_idx;
 
     int element_state_change;
+
+    int active_attribute_id;
+    bool active_attribute;
+
+    bool left_mouse_clicked;
+    bool left_mouse_released;
+    bool middle_mouse_clicked;
+    bool left_mouse_dragging;
+    bool middle_mouse_dragging;
 } g;
 
 EditorContext&
@@ -776,6 +770,7 @@ begin_link_detach(EditorContext& editor,
 {
     const LinkData& link = editor.links.pool[link_idx];
     ClickInteractionState& state = editor.click_interaction_state;
+    state.link_creation.end_pin_idx.reset();
     state.link_creation.start_pin_idx = detach_pin_idx == link.start_pin_idx
                                           ? link.end_pin_idx
                                           : link.start_pin_idx;
@@ -791,6 +786,8 @@ begin_link_interaction(EditorContext& editor, const int link_idx)
         if ((g.hovered_pin_flags &
              AttributeFlags_EnableLinkDetachWithDragClick) != 0) {
             begin_link_detach(editor, link_idx, g.hovered_pin_idx.value());
+            editor.click_interaction_state.link_creation.link_creation_type =
+              LinkCreationType_FromDetach;
         }
     }
     // If we aren't near a pin, check if we are clicking the link with the
@@ -826,6 +823,9 @@ begin_link_creation(EditorContext& editor, const int hovered_pin_idx)
     editor.click_interaction_type = ClickInteractionType_LinkCreation;
     editor.click_interaction_state.link_creation.start_pin_idx =
       hovered_pin_idx;
+    editor.click_interaction_state.link_creation.end_pin_idx.reset();
+    editor.click_interaction_state.link_creation.link_creation_type =
+      LinkCreationType_Standard;
     g.element_state_change |= ElementStateChange_LinkStarted;
 }
 
@@ -844,13 +844,10 @@ begin_canvas_interaction(EditorContext& editor)
         return;
     }
 
-    const bool left_mouse_clicked = ImGui::IsMouseClicked(0);
-    const bool middle_mouse_clicked = ImGui::IsMouseClicked(2);
-
     const bool started_panning =
       g.io.emulate_three_button_mouse.enabled
-        ? (left_mouse_clicked && *g.io.emulate_three_button_mouse.modifier)
-        : middle_mouse_clicked;
+        ? (g.left_mouse_clicked && *g.io.emulate_three_button_mouse.modifier)
+        : g.middle_mouse_clicked;
 
     editor.click_interaction_type = started_panning
                                       ? ClickInteractionType_Panning
@@ -923,7 +920,7 @@ box_selector_update_selection(EditorContext& editor, ImRect box_rect)
 void
 translate_selected_nodes(EditorContext& editor)
 {
-    if (ImGui::IsMouseDragging(0)) {
+    if (g.left_mouse_dragging) {
         const ImGuiIO& io = ImGui::GetIO();
         for (int i = 0; i < editor.selected_node_indices.size(); ++i) {
             const int node_idx = editor.selected_node_indices[i];
@@ -967,8 +964,6 @@ finish_link_at_hovered_pin(EditorContext& editor,
 void
 click_interaction_update(EditorContext& editor)
 {
-    const bool left_mouse_released = ImGui::IsMouseReleased(0);
-
     switch (editor.click_interaction_type) {
     case ClickInteractionType_BoxSelection: {
         ImRect& box_rect = editor.click_interaction_state.box_selector.rect;
@@ -984,19 +979,19 @@ click_interaction_update(EditorContext& editor)
         g.canvas_draw_list->AddRect(
           box_rect.Min, box_rect.Max, box_selector_outline);
 
-        if (left_mouse_released) {
+        if (g.left_mouse_released) {
             editor.click_interaction_type = ClickInteractionType_None;
         }
     } break;
     case ClickInteractionType_Node: {
         translate_selected_nodes(editor);
 
-        if (left_mouse_released) {
+        if (g.left_mouse_released) {
             editor.click_interaction_type = ClickInteractionType_None;
         }
     } break;
     case ClickInteractionType_Link: {
-        if (left_mouse_released) {
+        if (g.left_mouse_released) {
             editor.click_interaction_type = ClickInteractionType_None;
         }
     } break;
@@ -1007,13 +1002,29 @@ click_interaction_update(EditorContext& editor)
 
         const ImVec2 start_pos = get_screen_space_pin_coordinates(editor, pin);
 
+        const bool should_snap =
+          g.hovered_pin_idx.has_value() &&
+          editor.pins.pool[g.hovered_pin_idx.value()].type != pin.type;
+
+        const bool snapping_pin_changed =
+          !(g.hovered_pin_idx ==
+            editor.click_interaction_state.link_creation.end_pin_idx);
+
+        // Detach the link that was created by this link event if it's no longer
+        // in snap range
+        if (snapping_pin_changed && g.snap_link_idx.has_value()) {
+            begin_link_detach(
+              editor,
+              g.snap_link_idx.value(),
+              editor.click_interaction_state.link_creation.end_pin_idx.value());
+        }
+
         // If we are within the hover radius of a receiving pin, snap the link
         // endpoint to it
         const ImVec2 end_pos =
-          g.hovered_pin_idx.has_value()
-            ? get_screen_space_pin_coordinates(
-                editor, editor.pins.pool[g.hovered_pin_idx.value()])
-            : ImGui::GetIO().MousePos;
+          should_snap ? get_screen_space_pin_coordinates(
+                          editor, editor.pins.pool[g.hovered_pin_idx.value()])
+                      : ImGui::GetIO().MousePos;
 
         const LinkBezierData link_data = get_link_renderable(
           start_pos, end_pos, pin.type, g.style.link_line_segments_per_length);
@@ -1025,22 +1036,41 @@ click_interaction_update(EditorContext& editor)
                                            g.style.link_thickness,
                                            link_data.num_segments);
 
-        if (left_mouse_released) {
+        const bool link_creation_on_snap =
+          g.hovered_pin_idx.has_value() &&
+          (editor.pins.pool[g.hovered_pin_idx.value()].flags &
+           AttributeFlags_EnableLinkCreationOnSnap);
+
+        if (!should_snap) {
+            editor.click_interaction_state.link_creation.end_pin_idx.reset();
+        }
+
+        if (g.left_mouse_released || (link_creation_on_snap && should_snap)) {
+            // Avoid send OnLinkCreated() events every frame if the snap link is
+            // not saved (only applies for EnableLinkCreationOnSnap)
+            if (!g.left_mouse_released &&
+                editor.click_interaction_state.link_creation.end_pin_idx ==
+                  g.hovered_pin_idx) {
+                break;
+            }
+
             const bool link_created_succesfully =
               finish_link_at_hovered_pin(editor, g.hovered_pin_idx);
 
             if (link_created_succesfully) {
                 g.element_state_change |= ElementStateChange_LinkCreated;
             }
+        }
 
+        if (g.left_mouse_released) {
             editor.click_interaction_type = ClickInteractionType_None;
         }
     } break;
     case ClickInteractionType_Panning: {
         const bool dragging = g.io.emulate_three_button_mouse.enabled
-                                ? (ImGui::IsMouseDragging(0, 0.f) &&
+                                ? (g.left_mouse_dragging &&
                                    (*g.io.emulate_three_button_mouse.modifier))
-                                : ImGui::IsMouseDragging(2, 0.f);
+                                : g.middle_mouse_dragging;
 
         if (dragging) {
             editor.panning += ImGui::GetIO().MouseDelta;
@@ -1099,6 +1129,17 @@ get_node_content_origin(const NodeData& node)
              node.title_bar_content_rect.GetHeight() +
                2.0f * node.layout_style.padding.y);
     return node.origin + title_bar_height + node.layout_style.padding;
+}
+
+inline ImRect
+get_node_title_rect(const NodeData& node)
+{
+    ImRect expanded_title_rect = node.title_bar_content_rect;
+    expanded_title_rect.Expand(node.layout_style.padding);
+
+    return ImRect(expanded_title_rect.Min,
+                  expanded_title_rect.Min + ImVec2(node.rect.GetWidth(), 0.f) +
+                    ImVec2(0.f, expanded_title_rect.GetHeight()));
 }
 
 void
@@ -1239,7 +1280,6 @@ draw_pin_shape(const ImVec2& pin_pos, const PinData& pin, const ImU32 pin_color)
 
 void
 draw_pin(EditorContext& editor,
-         const NodeData& node,
          const int pin_idx,
          const bool left_mouse_clicked)
 {
@@ -1301,13 +1341,7 @@ draw_node(EditorContext& editor, const int node_idx)
 
         // title bar:
         if (node.title_bar_content_rect.GetHeight() > 0.f) {
-            ImRect expanded_title_rect = node.title_bar_content_rect;
-            expanded_title_rect.Expand(node.layout_style.padding);
-
-            ImRect title_bar_rect = ImRect(
-              expanded_title_rect.Min,
-              expanded_title_rect.Min + ImVec2(node.rect.GetWidth(), 0.f) +
-                ImVec2(0.f, expanded_title_rect.GetHeight()));
+            ImRect title_bar_rect = get_node_title_rect(node);
 
             g.canvas_draw_list->AddRectFilled(title_bar_rect.Min,
                                               title_bar_rect.Max,
@@ -1324,17 +1358,13 @@ draw_node(EditorContext& editor, const int node_idx)
         }
     }
 
-    // TODO: this could be done at the beginning of BeginNodeEditor and the
-    // value could be stored in the global struct.
-    const bool left_mouse_clicked = ImGui::IsMouseClicked(0);
-
     for (int i = 0; i < node.pin_indices.size(); ++i) {
-        draw_pin(editor, node, node.pin_indices[i], left_mouse_clicked);
+        draw_pin(editor, node.pin_indices[i], g.left_mouse_clicked);
     }
 
     if (item_hovered) {
         g.hovered_node_idx = node_idx;
-        if (left_mouse_clicked) {
+        if (g.left_mouse_clicked) {
             begin_node_selection(editor, node_idx);
         }
     }
@@ -1357,7 +1387,7 @@ draw_link(EditorContext& editor, const int link_idx)
       is_mouse_hovering_near_link(link_data.bezier, link_data.num_segments);
     if (is_hovered) {
         g.hovered_link_idx = link_idx;
-        if (ImGui::IsMouseClicked(0)) {
+        if (g.left_mouse_clicked) {
             begin_link_interaction(editor, link_idx);
         }
     }
@@ -1388,10 +1418,10 @@ draw_link(EditorContext& editor, const int link_idx)
 }
 
 void
-begin_attribute(const int id,
-                const AttributeType type,
-                const PinShape shape,
-                const int node_idx)
+begin_pin_attribute(const int id,
+                    const AttributeType type,
+                    const PinShape shape,
+                    const int node_idx)
 {
     // Make sure to call BeginNode() before calling
     // BeginAttribute()
@@ -1403,6 +1433,8 @@ begin_attribute(const int id,
 
     EditorContext& editor = editor_context_get();
 
+    g.current_attribute_id = id;
+
     const int pin_idx = editor.pins.find_or_create_index_for(id);
     g.current_pin_idx = pin_idx;
     PinData& pin = editor.pins.pool[pin_idx];
@@ -1413,6 +1445,27 @@ begin_attribute(const int id,
     pin.flags = g.current_attribute_flags;
     pin.color_style.background = g.style.colors[ColorStyle_Pin];
     pin.color_style.hovered = g.style.colors[ColorStyle_PinHovered];
+}
+
+void
+end_pin_attribute()
+{
+    assert(g.current_scope == Scope_Attribute);
+    g.current_scope = Scope_Node;
+
+    ImGui::PopID();
+    ImGui::EndGroup();
+
+    if (ImGui::IsItemActive()) {
+        g.active_attribute = true;
+        g.active_attribute_id = g.current_attribute_id;
+    }
+
+    EditorContext& editor = editor_context_get();
+    PinData& pin = editor.pins.pool[g.current_pin_idx];
+    NodeData& node = editor.nodes.pool[g.current_node_idx];
+    pin.attribute_rect = get_item_rect();
+    node.pin_indices.push_back(g.current_pin_idx);
 }
 } // namespace
 
@@ -1506,6 +1559,9 @@ Initialize()
     g.canvas_origin_screen_space = ImVec2(0.0f, 0.0f);
     g.canvas_rect_screen_space = ImRect(ImVec2(0.f, 0.f), ImVec2(0.f, 0.f));
     g.current_scope = Scope_None;
+
+    g.current_pin_idx = INT_MAX;
+    g.current_node_idx = INT_MAX;
 
     g.default_editor_ctx = EditorContextCreate();
     EditorContextSet(g.default_editor_ctx);
@@ -1629,10 +1685,18 @@ BeginNodeEditor()
     g.hovered_link_idx.reset();
     g.hovered_pin_idx.reset();
     g.hovered_pin_flags = AttributeFlags_None;
-    g.active_pin_idx.reset();
     g.deleted_link_idx.reset();
+    g.snap_link_idx.reset();
 
     g.element_state_change = ElementStateChange_None;
+
+    g.left_mouse_clicked = ImGui::IsMouseClicked(0);
+    g.left_mouse_released = ImGui::IsMouseReleased(0);
+    g.middle_mouse_clicked = ImGui::IsMouseClicked(2);
+    g.left_mouse_dragging = ImGui::IsMouseDragging(0, 0.0f);
+    g.middle_mouse_dragging = ImGui::IsMouseDragging(2, 0.0f);
+
+    g.active_attribute = false;
 
     // reset ui content for the current editor
     EditorContext& editor = editor_context_get();
@@ -1680,16 +1744,13 @@ EndNodeEditor()
 
     EditorContext& editor = editor_context_get();
 
-    const bool is_left_mouse_clicked = ImGui::IsMouseClicked(0);
-    const bool is_middle_mouse_clicked = ImGui::IsMouseClicked(2);
-
     for (int link_idx = 0; link_idx < editor.links.pool.size(); ++link_idx) {
         if (editor.links.in_use[link_idx]) {
             draw_link(editor, link_idx);
         }
     }
 
-    if (is_left_mouse_clicked || is_middle_mouse_clicked) {
+    if (g.left_mouse_clicked || g.middle_mouse_clicked) {
         begin_canvas_interaction(editor);
     }
 
@@ -1789,6 +1850,8 @@ EndNodeTitleBar()
     NodeData& node = editor.nodes.pool[g.current_node_idx];
     node.title_bar_content_rect = get_item_rect();
 
+    ImGui::ItemAdd(get_node_title_rect(node), ImGui::GetID("title_bar"));
+
     ImGui::SetCursorPos(
       grid_space_to_editor_space(get_node_content_origin(node)));
 }
@@ -1796,13 +1859,54 @@ EndNodeTitleBar()
 void
 BeginInputAttribute(const int id, const PinShape shape)
 {
-    begin_attribute(id, AttributeType_Input, shape, g.current_node_idx);
+    begin_pin_attribute(id, AttributeType_Input, shape, g.current_node_idx);
+}
+
+void
+EndInputAttribute()
+{
+    end_pin_attribute();
 }
 
 void
 BeginOutputAttribute(const int id, const PinShape shape)
 {
-    begin_attribute(id, AttributeType_Output, shape, g.current_node_idx);
+    begin_pin_attribute(id, AttributeType_Output, shape, g.current_node_idx);
+}
+
+void
+EndOutputAttribute()
+{
+    end_pin_attribute();
+}
+
+void
+BeginStaticAttribute(const int id)
+{
+    // Make sure to call BeginNode() before calling BeginAttribute()
+    assert(g.current_scope == Scope_Node);
+    g.current_scope = Scope_Attribute;
+
+    g.current_attribute_id = id;
+
+    ImGui::BeginGroup();
+    ImGui::PushID(id);
+}
+
+void
+EndStaticAttribute()
+{
+    // Make sure to call BeginNode() before calling BeginAttribute()
+    assert(g.current_scope == Scope_Attribute);
+    g.current_scope = Scope_Node;
+
+    ImGui::PopID();
+    ImGui::EndGroup();
+
+    if (ImGui::IsItemActive()) {
+        g.active_attribute = true;
+        g.active_attribute_id = g.current_attribute_id;
+    }
 }
 
 void
@@ -1815,14 +1919,21 @@ EndAttribute()
     ImGui::EndGroup();
 
     if (ImGui::IsItemActive()) {
-        g.active_pin_idx = g.current_pin_idx;
+        g.active_attribute = true;
+        g.active_attribute_id = g.current_attribute_id;
     }
 
     EditorContext& editor = editor_context_get();
-    PinData& pin = editor.pins.pool[g.current_pin_idx];
-    NodeData& node = editor.nodes.pool[g.current_node_idx];
-    pin.attribute_rect = get_item_rect();
-    node.pin_indices.push_back(g.current_pin_idx);
+
+    // This is a terrible hack to accommodate this function to be used with
+    // BeginStaticAttribute:
+    if (g.current_pin_idx < editor.pins.pool.size() &&
+        editor.pins.pool[g.current_pin_idx].id == g.current_attribute_id) {
+        PinData& pin = editor.pins.pool[g.current_pin_idx];
+        NodeData& node = editor.nodes.pool[g.current_node_idx];
+        pin.attribute_rect = get_item_rect();
+        node.pin_indices.push_back(g.current_pin_idx);
+    }
 }
 
 void
@@ -1856,6 +1967,21 @@ Link(int id, const int start_attr_id, const int end_attr_id)
     link.color_style.base = g.style.colors[ColorStyle_Link];
     link.color_style.hovered = g.style.colors[ColorStyle_LinkHovered];
     link.color_style.selected = g.style.colors[ColorStyle_LinkSelected];
+
+    // Check if this link was created by the current link event
+    if ((editor.click_interaction_type == ClickInteractionType_LinkCreation &&
+         editor.pins.pool[link.end_pin_idx].flags &
+           AttributeFlags_EnableLinkCreationOnSnap &&
+         editor.click_interaction_state.link_creation.start_pin_idx ==
+           link.start_pin_idx &&
+         editor.click_interaction_state.link_creation.end_pin_idx ==
+           link.end_pin_idx) ||
+        (editor.click_interaction_state.link_creation.start_pin_idx ==
+           link.end_pin_idx &&
+         editor.click_interaction_state.link_creation.end_pin_idx ==
+           link.start_pin_idx)) {
+        g.snap_link_idx = editor.links.find_or_create_index_for(id);
+    }
 }
 
 void
@@ -1940,35 +2066,6 @@ SetNodeGridSpacePos(int node_id, const ImVec2& grid_pos)
     EditorContext& editor = editor_context_get();
     NodeData& node = editor.nodes.find_or_create_new(node_id);
     node.origin = grid_pos;
-}
-
-ImVec2
-GetNodeScreenSpacePos(int node_id)
-{
-    // Remember to call Initialize() before using any other functions!
-    assert(initialized);
-    EditorContext& editor = editor_context_get();
-    NodeData& node = editor.nodes.find_or_create_new(node_id);
-    return grid_space_to_editor_space(node.origin);
-}
-
-ImVec2
-GetNodeGridSpacePos(int node_id)
-{
-    // Remember to call Initialize() before using any other functions!
-    assert(initialized);
-    EditorContext& editor = editor_context_get();
-    NodeData& node = editor.nodes.find_or_create_new(node_id);
-    return node.origin;
-}
-
-void
-ClearSelectedNodesAndLinks()
-{
-    assert(initialized);
-    EditorContext& editor = editor_context_get();
-    editor.selected_link_indices.clear();
-    editor.selected_node_indices.clear();
 }
 
 void
@@ -2074,11 +2171,11 @@ IsAttributeActive()
 {
     assert((g.current_scope & Scope_Node) != 0);
 
-    if (!g.active_pin_idx.has_value()) {
+    if (!g.active_attribute) {
         return false;
     }
 
-    return g.active_pin_idx == g.current_pin_idx;
+    return g.active_attribute_id == g.current_attribute_id;
 }
 
 bool
@@ -2086,13 +2183,12 @@ IsAnyAttributeActive(int* const attribute_id)
 {
     assert((g.current_scope & (Scope_Node | Scope_Attribute)) == 0);
 
-    if (!g.active_pin_idx.has_value()) {
+    if (!g.active_attribute) {
         return false;
     }
 
     if (attribute_id != NULL) {
-        const EditorContext& editor = editor_context_get();
-        *attribute_id = editor.pins.pool[g.active_pin_idx.value()].id;
+        *attribute_id = g.active_attribute_id;
     }
 
     return true;
@@ -2118,16 +2214,32 @@ IsLinkStarted(int* const started_at_id)
 }
 
 bool
-IsLinkDropped()
+IsLinkDropped(int* const started_at_id, const bool including_detached_links)
 {
     // Call this function after EndNodeEditor()!
     assert(g.current_scope == Scope_None);
 
-    return (g.element_state_change & ElementStateChange_LinkDropped) != 0;
+    const EditorContext& editor = editor_context_get();
+
+    const bool link_dropped =
+      (g.element_state_change & ElementStateChange_LinkDropped) != 0 &&
+      (including_detached_links ||
+       editor.click_interaction_state.link_creation.link_creation_type !=
+         LinkCreationType_FromDetach);
+
+    if (link_dropped && started_at_id) {
+        const int pin_idx =
+          editor.click_interaction_state.link_creation.start_pin_idx;
+        *started_at_id = editor.pins.pool[pin_idx].id;
+    }
+
+    return link_dropped;
 }
 
 bool
-IsLinkCreated(int* const started_at_pin_id, int* const ended_at_pin_id)
+IsLinkCreated(int* const started_at_pin_id,
+              int* const ended_at_pin_id,
+              bool* const created_from_snap)
 {
     assert(g.current_scope == Scope_None);
     assert(started_at_pin_id != NULL);
@@ -2141,9 +2253,14 @@ IsLinkCreated(int* const started_at_pin_id, int* const ended_at_pin_id)
         const int start_idx =
           editor.click_interaction_state.link_creation.start_pin_idx;
         const int end_idx =
-          editor.click_interaction_state.link_creation.end_pin_idx;
+          editor.click_interaction_state.link_creation.end_pin_idx.value();
         *started_at_pin_id = editor.pins.pool[start_idx].id;
         *ended_at_pin_id = editor.pins.pool[end_idx].id;
+
+        if (created_from_snap) {
+            *created_from_snap = editor.click_interaction_type ==
+                                 ClickInteractionType_LinkCreation;
+        }
     }
 
     return is_created;
