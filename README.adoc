@@ -42,10 +42,10 @@ cd irritator
 git submodule update --init --recursive
 ....
 
-* from https://forgemia.inra.fr/gauthier.quesnel/baryonyx[ForgeMIA]:
+* from https://forgemia.inra.fr/gauthier.quesnel/irritator[ForgeMIA]:
 
 ....
-git clone https://forgemia.inra.fr/gauthier.quesnel/baryonyx.git
+git clone https://forgemia.inra.fr/gauthier.quesnel/irritator.git
 cd irritator
 git submodule update --init --recursive
 ....
