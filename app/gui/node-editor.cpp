@@ -167,7 +167,7 @@ static const char* dynamics_type_names[] = { "none",
                                              "accumulator_2",
                                              "flow" };
 
-static_assert(std::size(dynamics_type_names) == dynamics_type_size());
+static_assert(std::size(dynamics_type_names) == static_cast<sz>(dynamics_type_size()));
 
 static window_logger log_w;
 static data_array<editor, editor_id> editors;
