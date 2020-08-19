@@ -23,8 +23,6 @@
 #include <cstdint>
 #include <cstring>
 
-#include <vector>
-
 /*****************************************************************************
  *
  * Helper macros
@@ -5004,25 +5002,24 @@ struct flow
     output_port_id y[1];
     time sigma;
 
-    double default_value = 0.0;
-    std::vector<double> default_data;
-    std::vector<double> default_sigmas;
     double default_samplerate = 44100.0;
+    double* default_data;
+    double* default_sigmas;
+    sz default_size;
 
-    double value = 0.0;
-    std::vector<double> data;
-    std::vector<double> sigmas;
-    double samplerate = 44100.0;
+    double accu_sigma;
+    sz i;
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
+        // irt_return_if_fail(default_samplerate > 0.,
+        //                    status::model_flow_bad_samplerate);
 
-        samplerate = default_samplerate;
-        sigma = 1.0 / samplerate;
+        // irt_return_if_fail(default_size > 1, status::model_flow_bad_data);
 
-        value = default_value;
-        data = default_data;
-        sigmas = default_sigmas;
+        sigma = 1.0 / default_samplerate;
+        accu_sigma = 0.;
+        i = 0;
 
         return status::success;
     }
@@ -5032,17 +5029,17 @@ struct flow
                       time /*e*/,
                       time /*r*/) noexcept
     {
+        for (; i < default_size; ++i) {
+            accu_sigma += default_sigmas[i];
 
-        double accu_sigma = 0;
-        for (std::size_t i = { 0 }; i < sigmas.size(); i++) {
-            accu_sigma += sigmas[i];
             if (accu_sigma > t) {
-
-                value = data[i];
-                sigma = sigmas[i];
+                sigma = default_sigmas[i];
                 return status::success;
             }
         }
+
+        sigma = time_domain<time>::infinity;
+        i = default_size - 1;
 
         return status::success;
     }
@@ -5050,14 +5047,14 @@ struct flow
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(value);
+        output_ports.get(y[0]).messages.emplace_front(default_data[i]);
 
         return status::success;
     }
 
     message observation(const time /*e*/) const noexcept
     {
-        return message(value);
+        return message(default_data[i]);
     }
 };
 

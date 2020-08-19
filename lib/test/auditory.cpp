@@ -158,7 +158,7 @@ vector<vector<double>> parse2DCsvFile(string inputFileName) {
                 try {
                     record.push_back(stof(line));
                 }
-                catch (const std::invalid_argument e) {
+                catch (const std::invalid_argument& e) {
                     cout << "NaN found in file " << inputFileName << " line " << l
                          << ' ' << e.what() << endl;
                 }
@@ -190,13 +190,13 @@ quantify_data(vector<vector<double>> data, double delta, double default_samplera
    vector<vector<double>> quantified_sigmas;
 
    // Loop over all the lines, each ligne will be quantized
-   for (int i = 1; i < data.size(); i++) {
+   for (size_t i = 1; i < data.size(); i++) {
         double prev = data[i][0];
         double sigma = default_frequency;
         double accu_sigma = 0.0;
         vector<double> quantified_vector;
         vector<double> sigma_vector;
-        for (int j = 1; j < data[i].size(); j++) {
+        for (size_t j = 1; j < data[i].size(); j++) {
                 double q = delta * (static_cast<int>(data[i][j]/delta) + 0.5);
                 sigma += default_frequency;
                 if (prev != q) {
@@ -212,7 +212,7 @@ quantify_data(vector<vector<double>> data, double delta, double default_samplera
                 prev = q;
         }
         quantified_vector.push_back(quantified_vector[quantified_vector.size() - 1]);
-        sigma_vector.push_back(std::abs(data[i].size() * default_frequency - accu_sigma));
+        sigma_vector.push_back(std::abs(static_cast<double>(data[i].size()) * default_frequency - accu_sigma));
 
         quantified_data.push_back(quantified_vector);
         quantified_sigmas.push_back(sigma_vector);
@@ -221,7 +221,7 @@ quantify_data(vector<vector<double>> data, double delta, double default_samplera
    return data.empty() ? quantized_data{}
                        : quantized_data{ quantified_data,
                            quantified_sigmas,
-                           data[0].size() * default_frequency };
+                           static_cast<double>(data[0].size()) * default_frequency };
 }
 
 // Global data
@@ -293,9 +293,10 @@ make_neuron(irt::simulation* sim, long unsigned int i) noexcept
   prod_lif.default_input_coeffs[1] = 0.0;
 
   constant_lif.default_value = 1.0;
-  flow_lif.default_data = sound_data[i];
+  flow_lif.default_data = sound_data[i].data();
   flow_lif.default_samplerate = samplerate;
-  flow_lif.default_sigmas = sound_data_sigmas[i];
+  flow_lif.default_sigmas = sound_data_sigmas[i].data();
+  flow_lif.default_size = sound_data[i].size();
   constant_cross_lif.default_value = Vr_lif;
   
   integrator_lif.default_current_value = 0.0;

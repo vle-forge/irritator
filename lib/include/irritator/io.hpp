@@ -156,7 +156,8 @@ private:
             { "time_func", dynamics_type::time_func }
         };
 
-        static_assert(std::size(table) == dynamics_type_size());
+        static_assert(std::size(table) ==
+                      static_cast<sz>(dynamics_type_size()));
 
         const auto it =
           std::lower_bound(std::begin(table),
@@ -538,7 +539,7 @@ private:
 
     bool read(flow& dyn) noexcept
     {
-        return !!(is >> dyn.default_value);
+        return !!(is >> dyn.default_samplerate);
     }
 };
 
@@ -902,7 +903,7 @@ private:
 
     void write(const flow& dyn) noexcept
     {
-        os << "flow " << dyn.default_value << '\n';
+        os << "flow " << dyn.default_samplerate << '\n';
     }
 };
 
