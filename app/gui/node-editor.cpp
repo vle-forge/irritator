@@ -2836,7 +2836,11 @@ initialize_observation(irt::editor* ed) noexcept
                               "observation file: %s in "
                               "%s\n",
                               obs->name.c_str(),
+#if _WIN32
                               ed->observation_directory.u8string().c_str());
+#else
+                              reinterpret_cast<const char*>(ed->observation_directory.u8string().c_str()));
+#endif
             }
         }
 
