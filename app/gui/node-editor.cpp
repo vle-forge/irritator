@@ -1987,7 +1987,10 @@ show_dynamics_inputs(none& /*dyn*/)
 static void
 show_dynamics_values(const flow& dyn)
 {
-    ImGui::Text("value %.3f", dyn.value);
+    if (dyn.i < dyn.default_size)
+        ImGui::Text("value %.3f", dyn.default_data[dyn.i]);
+    else
+        ImGui::Text("no data");
 }
 
 static void
@@ -2273,10 +2276,8 @@ show_dynamics_inputs(accumulator_2& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(flow& dyn)
-{
-    ImGui::InputDouble("value", &dyn.default_value);
-}
+show_dynamics_inputs(flow& /*dyn*/)
+{}
 
 static void
 show_dynamics_inputs(time_func& dyn)
