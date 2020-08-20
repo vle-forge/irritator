@@ -187,6 +187,12 @@ enum class status
     io_file_format_dynamics_init_error
 };
 
+constexpr size_t
+status_size() noexcept
+{
+    return static_cast<int>(status::io_file_format_dynamics_init_error) + 1;
+}
+
 constexpr bool
 is_success(status s) noexcept
 {
