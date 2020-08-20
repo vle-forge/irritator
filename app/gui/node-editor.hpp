@@ -64,6 +64,8 @@ status_string(const status s) noexcept
         "model_quantifier_shifting_value_neg",
         "model_quantifier_shifting_value_less_1",
         "model_time_func_bad_init_message",
+        "model_flow_bad_samplerate",
+        "model_flow_bad_data",
         "gui_not_enough_memory",
         "io_file_format_error",
         "io_file_format_model_error",
@@ -73,6 +75,8 @@ status_string(const status s) noexcept
         "io_file_format_dynamics_limit_reach",
         "io_file_format_dynamics_init_error"
     };
+
+    static_assert(std::size(str) == status_size());
 
     return str[static_cast<int>(s)];
 }

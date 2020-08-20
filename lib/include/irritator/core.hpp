@@ -176,6 +176,9 @@ enum class status
 
     model_time_func_bad_init_message,
 
+    model_flow_bad_samplerate,
+    model_flow_bad_data,
+
     gui_not_enough_memory,
 
     io_file_format_error,
@@ -5018,10 +5021,10 @@ struct flow
 
     status initialize(data_array<message, message_id>& /*init*/) noexcept
     {
-        // irt_return_if_fail(default_samplerate > 0.,
-        //                    status::model_flow_bad_samplerate);
+        irt_return_if_fail(default_samplerate > 0.,
+                           status::model_flow_bad_samplerate);
 
-        // irt_return_if_fail(default_size > 1, status::model_flow_bad_data);
+        irt_return_if_fail(default_size > 1, status::model_flow_bad_data);
 
         sigma = 1.0 / default_samplerate;
         accu_sigma = 0.;
