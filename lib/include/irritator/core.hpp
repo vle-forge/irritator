@@ -190,10 +190,16 @@ enum class status
     io_file_format_dynamics_init_error
 };
 
-constexpr size_t
+constexpr i8
+status_last() noexcept
+{
+    return static_cast<i8>(status::io_file_format_dynamics_init_error);
+}
+
+constexpr sz
 status_size() noexcept
 {
-    return static_cast<int>(status::io_file_format_dynamics_init_error) + 1;
+    return static_cast<sz>(status_last() + 1);
 }
 
 constexpr bool
@@ -2759,9 +2765,15 @@ enum class dynamics_type : i8
 };
 
 constexpr i8
+dynamics_type_last() noexcept
+{
+    return static_cast<i8>(dynamics_type::flow);
+}
+
+constexpr sz
 dynamics_type_size() noexcept
 {
-    return static_cast<i8>(dynamics_type::flow) + 1;
+    return static_cast<sz>(dynamics_type_last() + 1);
 }
 
 struct model
