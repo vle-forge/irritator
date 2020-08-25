@@ -255,9 +255,12 @@ struct editor
     double simulation_begin = 0.0;
     double simulation_end = 10.0;
     double simulation_current = 10.0;
+    double simulation_next_time = 0.0;
     float simulation_until;
+
     std::thread simulation_thread;
     simulation_status st = simulation_status::success;
+
     bool simulation_show_value = false;
     bool stop = false;
 
@@ -360,9 +363,9 @@ make_combo_editor_name(editor_id& current) noexcept;
 void
 show_simulation_box(window_logger& log_w, bool* show_simulation);
 
+void
+initialize_observation(irt::editor* ed);
+
 } // namespace irt
 
 #endif
-
-void
-initialize_observation(irt::editor* ed);
