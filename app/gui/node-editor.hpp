@@ -113,7 +113,7 @@ enum class cluster_id : u64;
 
 using child_id = std::variant<model_id, cluster_id>;
 
-enum class simulation_status
+enum class editor_status
 {
     success,
     running_once,
@@ -263,7 +263,7 @@ struct editor
     int simulation_during_bag;
 
     std::thread simulation_thread;
-    simulation_status st = simulation_status::success;
+    editor_status st = editor_status::success;
 
     bool simulation_show_value = false;
     bool stop = false;

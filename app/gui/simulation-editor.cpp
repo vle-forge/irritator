@@ -162,7 +162,7 @@ run_simulation(window_logger& log_w,
                double begin,
                double end,
                double& current,
-               simulation_status& st,
+               editor_status& st,
                const bool& stop) noexcept
 {
     current = begin;
@@ -170,36 +170,36 @@ run_simulation(window_logger& log_w,
         log_w.log(3,
                   "Simulation initialization failure (%s)\n",
                   irt::status_string(ret));
-        st = simulation_status::success;
+        st = editor_status::success;
         return;
     }
 
     do {
         if (auto ret = sim.run(current); irt::is_bad(ret)) {
             log_w.log(3, "Simulation failure (%s)\n", irt::status_string(ret));
-            st = simulation_status::success;
+            st = editor_status::success;
             return;
         }
     } while (current < end && !stop);
 
     sim.clean();
 
-    st = simulation_status::running_once_need_join;
+    st = editor_status::running_once_need_join;
 }
 
 static void
 show_simulation_run_once(window_logger& log_w, editor& ed)
 {
-    if (ed.st == simulation_status::running_once_need_join) {
+    if (ed.st == editor_status::running_once_need_join) {
         if (ed.simulation_thread.joinable()) {
             ed.simulation_thread.join();
-            ed.st = simulation_status::success;
+            ed.st = editor_status::success;
         }
     } else {
         if (ImGui::Button("run")) {
             initialize_observation(log_w, ed);
 
-            ed.st = simulation_status::running_once;
+            ed.st = editor_status::running_once;
             ed.stop = false;
 
             ed.simulation_thread = std::thread(&run_simulation,
@@ -213,7 +213,7 @@ show_simulation_run_once(window_logger& log_w, editor& ed)
         }
     }
 
-    if (ed.st == simulation_status::running_once) {
+    if (ed.st == editor_status::running_once) {
         ImGui::SameLine();
         if (ImGui::Button("Force stop"))
             ed.stop = true;
@@ -237,20 +237,20 @@ simulation_init(window_logger& log_w, editor& ed)
         log_w.log(3,
                   "Simulation initialisation failure (%s)\n",
                   irt::status_string(ret));
-        ed.st = simulation_status::success;
+        ed.st = editor_status::success;
     } else {
         ed.simulation_next_time = ed.sim.sched.empty()
                                     ? time_domain<time>::infinity
                                     : ed.sim.sched.tn();
         ed.simulation_bag_id = 0;
-        ed.st = simulation_status::running_step;
+        ed.st = editor_status::running_step;
     }
 }
 
 static void
 show_simulation_run_debug(window_logger& log_w, editor& ed)
 {
-    if (ed.st == simulation_status::success) {
+    if (ed.st == editor_status::success) {
         ImGui::Text("simulation finished");
 
         if (ImGui::Button("init."))
@@ -268,7 +268,7 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
 
         if (ImGui::Button("Next bag")) {
             if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                ed.st = simulation_status::success;
+                ed.st = editor_status::success;
             }
             ++ed.simulation_bag_id;
         }
@@ -278,7 +278,7 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
         if (ImGui::Button("Bag >> 10")) {
             for (int i = 0; i < 10; ++i) {
                 if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                    ed.st = simulation_status::success;
+                    ed.st = editor_status::success;
                     break;
                 }
                 ++ed.simulation_bag_id;
@@ -290,7 +290,7 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
         if (ImGui::Button("Bag >> 100")) {
             for (int i = 0; i < 100; ++i) {
                 if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                    ed.st = simulation_status::success;
+                    ed.st = editor_status::success;
                     break;
                 }
                 ++ed.simulation_bag_id;
@@ -305,7 +305,7 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
             const auto end = ed.simulation_current + ed.simulation_during_date;
             while (ed.simulation_current < end) {
                 if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                    ed.st = simulation_status::success;
+                    ed.st = editor_status::success;
                     break;
                 }
                 ++ed.simulation_bag_id;
@@ -319,14 +319,14 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
         if (ImGui::Button("run##bag")) {
             for (int i = 0, e = ed.simulation_during_bag; i != e; ++i) {
                 if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                    ed.st = simulation_status::success;
+                    ed.st = editor_status::success;
                     break;
                 }
                 ++ed.simulation_bag_id;
             }
         }
 
-        if (ed.st == simulation_status::running_step) {
+        if (ed.st == editor_status::running_step) {
             ed.simulation_next_time = ed.sim.sched.empty()
                                         ? time_domain<time>::infinity
                                         : ed.sim.sched.tn();
@@ -485,10 +485,10 @@ show_simulation_box(window_logger& log_w, bool* show_simulation)
         //     }
 
         if (match(ed->st,
-                  simulation_status::success,
-                  simulation_status::running_once,
-                  simulation_status::running_once_need_join,
-                  simulation_status::running_step)) {
+                  editor_status::success,
+                  editor_status::running_once,
+                  editor_status::running_once_need_join,
+                  editor_status::running_step)) {
             ImGui::Text("Current: %g", ed->simulation_current);
 
             const double duration = ed->simulation_end - ed->simulation_begin;

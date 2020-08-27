@@ -2238,10 +2238,10 @@ editor::show_model_dynamics(model& mdl) noexcept
 
     if (simulation_show_value &&
         match(st,
-              simulation_status::success,
-              simulation_status::running_once,
-              simulation_status::running_once_need_join,
-              simulation_status::running_step)) {
+              editor_status::success,
+              editor_status::running_once,
+              editor_status::running_once_need_join,
+              editor_status::running_step)) {
 
         sim.dispatch(mdl.type, [&](const auto& d_array) {
             const auto& dyn = d_array.get(mdl.id);
@@ -2273,10 +2273,10 @@ editor::show_top() noexcept
             const auto id = std::get<model_id>(top.children[i].first);
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
                 if (match(st,
-                          simulation_status::success,
-                          simulation_status::running_once,
-                          simulation_status::running_once_need_join,
-                          simulation_status::running_step) &&
+                          editor_status::success,
+                          editor_status::running_once,
+                          editor_status::running_once_need_join,
+                          editor_status::running_step) &&
                     models_make_transition[get_index(id)]) {
 
                     imnodes::PushColorStyle(imnodes::ColorStyle_TitleBar,
@@ -2816,10 +2816,10 @@ show_plot_box(bool* show_plot)
     static editor_id current = undefined<editor_id>();
     if (auto* ed = make_combo_editor_name(current); ed) {
         if (match(ed->st,
-                  simulation_status::success,
-                  simulation_status::running_once,
-                  simulation_status::running_once_need_join,
-                  simulation_status::running_step)) {
+                  editor_status::success,
+                  editor_status::running_once,
+                  editor_status::running_once_need_join,
+                  editor_status::running_step)) {
             if (ImPlot::BeginPlot("simulation", "t", "s")) {
                 ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                 for (const auto& obs : ed->observation_outputs) {
