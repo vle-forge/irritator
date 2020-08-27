@@ -7,6 +7,8 @@
 #define WINDOWS_LEAN_AND_MEAN
 #endif
 
+#include <cstdlib>
+
 #include "gui.hpp"
 #include "imnodes.hpp"
 #include "implot.h"
@@ -226,7 +228,10 @@ simulation_init(window_logger& log_w, editor& ed)
     initialize_observation(log_w, ed);
 
     ed.simulation_current = ed.simulation_begin;
-    ed.simulation_until = static_cast<float>(ed.simulation_begin);
+    ed.simulation_during_date = ed.simulation_begin;
+
+    std::fill_n(
+      ed.models_make_transition.data(), ed.sim.models.max_used(), false);
 
     if (auto ret = ed.sim.initialize(ed.simulation_current); irt::is_bad(ret)) {
         log_w.log(3,
@@ -237,6 +242,7 @@ simulation_init(window_logger& log_w, editor& ed)
         ed.simulation_next_time = ed.sim.sched.empty()
                                     ? time_domain<time>::infinity
                                     : ed.sim.sched.tn();
+        ed.simulation_bag_id = 0;
         ed.st = simulation_status::running_step;
     }
 }
@@ -251,8 +257,9 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
             simulation_init(log_w, ed);
     } else {
         ImGui::Text("Current time %g", ed.simulation_current);
+        ImGui::Text("Current bag %ld", ed.simulation_bag_id);
         ImGui::Text("Next time %g", ed.simulation_next_time);
-        ImGui::Text("Bag size %lu", (unsigned long)ed.sim.sched.size());
+        ImGui::Text("Model %lu", (unsigned long)ed.sim.sched.size());
 
         if (ImGui::Button("re-init."))
             simulation_init(log_w, ed);
@@ -260,15 +267,80 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
         ImGui::SameLine();
 
         if (ImGui::Button("Next bag")) {
-            auto ret = ed.sim.run(ed.simulation_current);
-            if (is_bad(ret)) {
+            if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
                 ed.st = simulation_status::success;
-                ed.simulation_next_time = time_domain<time>::infinity;
-            } else {
-                ed.simulation_next_time = ed.sim.sched.empty()
-                                            ? time_domain<time>::infinity
-                                            : ed.sim.sched.tn();
             }
+            ++ed.simulation_bag_id;
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Bag >> 10")) {
+            for (int i = 0; i < 10; ++i) {
+                if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
+                    ed.st = simulation_status::success;
+                    break;
+                }
+                ++ed.simulation_bag_id;
+            }
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Bag >> 100")) {
+            for (int i = 0; i < 100; ++i) {
+                if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
+                    ed.st = simulation_status::success;
+                    break;
+                }
+                ++ed.simulation_bag_id;
+            }
+        }
+
+        ImGui::InputDouble("##date", &ed.simulation_during_date);
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("run##date")) {
+            const auto end = ed.simulation_current + ed.simulation_during_date;
+            while (ed.simulation_current < end) {
+                if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
+                    ed.st = simulation_status::success;
+                    break;
+                }
+                ++ed.simulation_bag_id;
+            }
+        }
+
+        ImGui::InputInt("##bag", &ed.simulation_during_bag);
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("run##bag")) {
+            for (int i = 0, e = ed.simulation_during_bag; i != e; ++i) {
+                if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
+                    ed.st = simulation_status::success;
+                    break;
+                }
+                ++ed.simulation_bag_id;
+            }
+        }
+
+        if (ed.st == simulation_status::running_step) {
+            ed.simulation_next_time = ed.sim.sched.empty()
+                                        ? time_domain<time>::infinity
+                                        : ed.sim.sched.tn();
+
+            const auto& l = ed.sim.sched.list_model_id();
+
+            std::fill_n(ed.models_make_transition.data(),
+                        ed.sim.models.max_used(),
+                        false);
+
+            for (auto it = l.begin(), e = l.end(); it != e; ++it)
+                ed.models_make_transition[get_index(*it)] = true;
+        } else {
+            ed.simulation_next_time = time_domain<time>::infinity;
         }
     }
 }

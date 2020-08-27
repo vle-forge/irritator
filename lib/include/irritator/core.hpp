@@ -5638,6 +5638,11 @@ public:
         return m_list;
     }
 
+    const list& list_model_id() const noexcept
+    {
+        return m_list;
+    }
+
     time tn() const noexcept
     {
         return m_heap.top()->tn;

@@ -252,11 +252,15 @@ struct editor
     bool show = true;
 
     simulation sim;
+
     double simulation_begin = 0.0;
     double simulation_end = 10.0;
     double simulation_current = 10.0;
     double simulation_next_time = 0.0;
-    float simulation_until;
+    long simulation_bag_id = 0;
+    
+    double simulation_during_date;
+    int simulation_during_bag;
 
     std::thread simulation_thread;
     simulation_status st = simulation_status::success;
@@ -271,6 +275,8 @@ struct editor
     data_array<cluster, cluster_id> clusters;
     array<cluster_id> clusters_mapper; /* group per cluster_id */
     array<cluster_id> models_mapper;   /* group per model_id */
+
+    array<bool> models_make_transition;
 
     ImVector<ImVec2> positions;
     ImVector<ImVec2> displacements;

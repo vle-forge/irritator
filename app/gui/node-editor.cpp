@@ -26,11 +26,14 @@ static int kernel_message_cache = 32768;
 
 static int gui_node_cache = 1024;
 static ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
+static ImVec4 gui_model_transition_color{ .27f, .54f, .54f, 1.f };
 static ImVec4 gui_cluster_color{ .27f, .54f, .27f, 1.f };
 
 static ImU32 gui_hovered_model_color;
-static ImU32 gui_hovered_cluster_color;
 static ImU32 gui_selected_model_color;
+static ImU32 gui_hovered_model_transition_color;
+static ImU32 gui_selected_model_transition_color;
+static ImU32 gui_hovered_cluster_color;
 static ImU32 gui_selected_cluster_color;
 
 static int automatic_layout_iteration_limit = 200;
@@ -39,7 +42,8 @@ static auto automatic_layout_y_distance = 350.f;
 static auto grid_layout_x_distance = 250.f;
 static auto grid_layout_y_distance = 250.f;
 
-static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
+static ImVec4
+operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
@@ -51,6 +55,11 @@ compute_color() noexcept
       ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.25f);
     gui_selected_model_color =
       ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.5f);
+
+    gui_hovered_model_transition_color =
+      ImGui::ColorConvertFloat4ToU32(gui_model_transition_color * 1.25f);
+    gui_selected_model_transition_color =
+      ImGui::ColorConvertFloat4ToU32(gui_model_transition_color * 1.5f);
 
     gui_hovered_cluster_color =
       ImGui::ColorConvertFloat4ToU32(gui_cluster_color * 1.25f);
@@ -607,49 +616,48 @@ struct copier
 
             auto ret = sim.dispatch(
               mdl->type,
-              [ this, &sim, mdl, &
-                mdl_id_dst ]<typename DynamicsM>(DynamicsM & dynamics_models)
-                ->status {
-                    using Dynamics = typename DynamicsM::value_type;
+              [this, &sim, mdl, &mdl_id_dst]<typename DynamicsM>(
+                DynamicsM& dynamics_models) -> status {
+                  using Dynamics = typename DynamicsM::value_type;
 
-                    irt_return_if_fail(dynamics_models.can_alloc(1),
-                                       status::dynamics_not_enough_memory);
+                  irt_return_if_fail(dynamics_models.can_alloc(1),
+                                     status::dynamics_not_enough_memory);
 
-                    auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
-                    irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
+                  auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
+                  irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
 
-                    auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
-                    auto new_dyn_id = dynamics_models.get_id(new_dyn);
+                  auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
+                  auto new_dyn_id = dynamics_models.get_id(new_dyn);
 
-                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                        std::fill_n(new_dyn.x,
-                                    std::size(new_dyn.x),
-                                    static_cast<input_port_id>(0));
+                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                      std::fill_n(new_dyn.x,
+                                  std::size(new_dyn.x),
+                                  static_cast<input_port_id>(0));
 
-                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                        std::fill_n(new_dyn.y,
-                                    std::size(new_dyn.y),
-                                    static_cast<output_port_id>(0));
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                      std::fill_n(new_dyn.y,
+                                  std::size(new_dyn.y),
+                                  static_cast<output_port_id>(0));
 
-                    irt_return_if_bad(
-                      sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
+                  irt_return_if_bad(
+                    sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
 
-                    *mdl_id_dst = new_dyn.id;
+                  *mdl_id_dst = new_dyn.id;
 
-                    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                        for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
-                             ++j)
-                            this->c_input_ports.emplace_back(dyn_ptr->x[j],
-                                                             new_dyn.x[j]);
+                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                      for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
+                           ++j)
+                          this->c_input_ports.emplace_back(dyn_ptr->x[j],
+                                                           new_dyn.x[j]);
 
-                    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                        for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
-                             ++j)
-                            this->c_output_ports.emplace_back(dyn_ptr->y[j],
-                                                              new_dyn.y[j]);
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                      for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
+                           ++j)
+                          this->c_output_ports.emplace_back(dyn_ptr->y[j],
+                                                            new_dyn.y[j]);
 
-                    return status::success;
-                });
+                  return status::success;
+              });
 
             irt_return_if_bad(ret);
         }
@@ -984,12 +992,15 @@ editor::initialize(u32 id) noexcept
         is_bad(clusters.init(sim.models.capacity())) ||
         is_bad(models_mapper.init(sim.models.capacity())) ||
         is_bad(clusters_mapper.init(sim.models.capacity())) ||
+        is_bad(models_make_transition.init(sim.models.capacity())) ||
         is_bad(top.init(static_cast<unsigned>(gui_node_cache))))
         return status::gui_not_enough_memory;
 
     positions.resize(sim.models.capacity() + clusters.capacity());
     displacements.resize(sim.models.capacity() + clusters.capacity(),
                          ImVec2{ 0.f, 0.f });
+
+    std::fill_n(models_make_transition.data(), sim.models.capacity(), false);
 
     format(name, "Editor {}", id);
 
@@ -2261,13 +2272,33 @@ editor::show_top() noexcept
         if (top.children[i].first.index() == 0) {
             const auto id = std::get<model_id>(top.children[i].first);
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                imnodes::PushColorStyle(
-                  imnodes::ColorStyle_TitleBar,
-                  ImGui::ColorConvertFloat4ToU32(gui_model_color));
-                imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
-                                        gui_hovered_model_color);
-                imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarSelected,
-                                        gui_selected_model_color);
+                if (match(st,
+                          simulation_status::success,
+                          simulation_status::running_once,
+                          simulation_status::running_once_need_join,
+                          simulation_status::running_step) &&
+                    models_make_transition[get_index(id)]) {
+
+                    imnodes::PushColorStyle(imnodes::ColorStyle_TitleBar,
+                                            ImGui::ColorConvertFloat4ToU32(
+                                              gui_model_transition_color));
+
+                    imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
+                                            gui_hovered_model_transition_color);
+                    imnodes::PushColorStyle(
+                      imnodes::ColorStyle_TitleBarSelected,
+                      gui_selected_model_transition_color);
+                } else {
+                    imnodes::PushColorStyle(
+                      imnodes::ColorStyle_TitleBar,
+                      ImGui::ColorConvertFloat4ToU32(gui_model_color));
+
+                    imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
+                                            gui_hovered_model_color);
+                    imnodes::PushColorStyle(
+                      imnodes::ColorStyle_TitleBarSelected,
+                      gui_selected_model_color);
+                }
 
                 imnodes::BeginNode(top.children[i].second);
                 imnodes::BeginNodeTitleBar();
