@@ -5740,8 +5740,8 @@ struct simulation
     template<typename Function>
     constexpr status for_all(Function f) noexcept
     {
-        int i = 0;
-        constexpr int e = dynamics_type_size();
+        sz i = 0;
+        constexpr sz e = dynamics_type_size();
 
         for (; i != e; ++i)
             if (auto ret = dispatch(static_cast<dynamics_type>(i), f);
