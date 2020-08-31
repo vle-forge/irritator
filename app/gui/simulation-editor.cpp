@@ -163,43 +163,45 @@ run_simulation(window_logger& log_w,
                double end,
                double& current,
                editor_status& st,
+               status& sim_st,
                const bool& stop) noexcept
 {
     current = begin;
-    if (auto ret = sim.initialize(current); irt::is_bad(ret)) {
+    st = editor_status::initializing;
+    if (sim_st = sim.initialize(current); irt::is_bad(sim_st)) {
         log_w.log(3,
                   "Simulation initialization failure (%s)\n",
-                  irt::status_string(ret));
-        st = editor_status::success;
+                  irt::status_string(sim_st));
+        st = editor_status::editing;
         return;
     }
 
+    st = editor_status::running_thread;
     do {
-        if (auto ret = sim.run(current); irt::is_bad(ret)) {
-            log_w.log(3, "Simulation failure (%s)\n", irt::status_string(ret));
-            st = editor_status::success;
+        if (sim_st = sim.run(current); irt::is_bad(sim_st)) {
+            log_w.log(
+              3, "Simulation failure (%s)\n", irt::status_string(sim_st));
+            st = editor_status::editing;
             return;
         }
     } while (current < end && !stop);
 
     sim.clean();
 
-    st = editor_status::running_once_need_join;
+    st = editor_status::running_thread_need_join;
 }
 
 static void
 show_simulation_run_once(window_logger& log_w, editor& ed)
 {
-    if (ed.st == editor_status::running_once_need_join) {
+    if (ed.st == editor_status::running_thread_need_join) {
         if (ed.simulation_thread.joinable()) {
             ed.simulation_thread.join();
-            ed.st = editor_status::success;
+            ed.st = editor_status::editing;
         }
     } else {
         if (ImGui::Button("run")) {
             initialize_observation(log_w, ed);
-
-            ed.st = editor_status::running_once;
             ed.stop = false;
 
             ed.simulation_thread = std::thread(&run_simulation,
@@ -209,11 +211,12 @@ show_simulation_run_once(window_logger& log_w, editor& ed)
                                                ed.simulation_end,
                                                std::ref(ed.simulation_current),
                                                std::ref(ed.st),
+                                               std::ref(ed.sim_st),
                                                std::cref(ed.stop));
         }
     }
 
-    if (ed.st == editor_status::running_once) {
+    if (ed.st == editor_status::running_thread) {
         ImGui::SameLine();
         if (ImGui::Button("Force stop"))
             ed.stop = true;
@@ -229,119 +232,132 @@ simulation_init(window_logger& log_w, editor& ed)
 
     ed.simulation_current = ed.simulation_begin;
     ed.simulation_during_date = ed.simulation_begin;
+    ed.st = editor_status::initializing;
 
     std::fill_n(
       ed.models_make_transition.data(), ed.sim.models.max_used(), false);
 
-    if (auto ret = ed.sim.initialize(ed.simulation_current); irt::is_bad(ret)) {
+    if (ed.sim_st = ed.sim.initialize(ed.simulation_current);
+        irt::is_bad(ed.sim_st)) {
         log_w.log(3,
                   "Simulation initialisation failure (%s)\n",
-                  irt::status_string(ret));
-        ed.st = editor_status::success;
+                  irt::status_string(ed.sim_st));
+        ed.st = editor_status::editing;
     } else {
         ed.simulation_next_time = ed.sim.sched.empty()
                                     ? time_domain<time>::infinity
                                     : ed.sim.sched.tn();
         ed.simulation_bag_id = 0;
-        ed.st = editor_status::running_step;
+        ed.st = editor_status::running_debug;
     }
 }
 
 static void
 show_simulation_run_debug(window_logger& log_w, editor& ed)
 {
-    if (ed.st == editor_status::success) {
-        ImGui::Text("simulation finished");
+    ImGui::Text("Current time %g", ed.simulation_current);
+    ImGui::Text("Current bag %ld", ed.simulation_bag_id);
+    ImGui::Text("Next time %g", ed.simulation_next_time);
+    ImGui::Text("Model %lu", (unsigned long)ed.sim.sched.size());
 
-        if (ImGui::Button("init."))
-            simulation_init(log_w, ed);
-    } else {
-        ImGui::Text("Current time %g", ed.simulation_current);
-        ImGui::Text("Current bag %ld", ed.simulation_bag_id);
-        ImGui::Text("Next time %g", ed.simulation_next_time);
-        ImGui::Text("Model %lu", (unsigned long)ed.sim.sched.size());
+    if (ImGui::Button("init."))
+        simulation_init(log_w, ed);
 
-        if (ImGui::Button("re-init."))
-            simulation_init(log_w, ed);
+    ImGui::SameLine();
 
-        ImGui::SameLine();
+    if (ImGui::Button("Next bag")) {
+        if (ed.sim_st = ed.sim.run(ed.simulation_current); is_bad(ed.sim_st)) {
+            ed.st = editor_status::editing;
+            log_w.log(3,
+                      "Simulation next bag failure (%s)\n",
+                      irt::status_string(ed.sim_st));
+        }
+        ++ed.simulation_bag_id;
+    }
 
-        if (ImGui::Button("Next bag")) {
-            if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                ed.st = editor_status::success;
+    ImGui::SameLine();
+
+    if (ImGui::Button("Bag >> 10")) {
+        for (int i = 0; i < 10; ++i) {
+            if (ed.sim_st = ed.sim.run(ed.simulation_current);
+                is_bad(ed.sim_st)) {
+                ed.st = editor_status::editing;
+                log_w.log(3,
+                          "Simulation next bag failure (%s)\n",
+                          irt::status_string(ed.sim_st));
+                break;
             }
             ++ed.simulation_bag_id;
         }
+    }
 
-        ImGui::SameLine();
+    ImGui::SameLine();
 
-        if (ImGui::Button("Bag >> 10")) {
-            for (int i = 0; i < 10; ++i) {
-                if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                    ed.st = editor_status::success;
-                    break;
-                }
-                ++ed.simulation_bag_id;
+    if (ImGui::Button("Bag >> 100")) {
+        for (int i = 0; i < 100; ++i) {
+            if (ed.sim_st = ed.sim.run(ed.simulation_current);
+                is_bad(ed.sim_st)) {
+                ed.st = editor_status::editing;
+                log_w.log(3,
+                          "Simulation next bag failure (%s)\n",
+                          irt::status_string(ed.sim_st));
+                break;
             }
+            ++ed.simulation_bag_id;
         }
+    }
 
-        ImGui::SameLine();
+    ImGui::InputDouble("##date", &ed.simulation_during_date);
 
-        if (ImGui::Button("Bag >> 100")) {
-            for (int i = 0; i < 100; ++i) {
-                if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                    ed.st = editor_status::success;
-                    break;
-                }
-                ++ed.simulation_bag_id;
+    ImGui::SameLine();
+
+    if (ImGui::Button("run##date")) {
+        const auto end = ed.simulation_current + ed.simulation_during_date;
+        while (ed.simulation_current < end) {
+            if (ed.sim_st = ed.sim.run(ed.simulation_current);
+                is_bad(ed.sim_st)) {
+                ed.st = editor_status::editing;
+                log_w.log(3,
+                          "Simulation next bag failure (%s)\n",
+                          irt::status_string(ed.sim_st));
+                break;
             }
+            ++ed.simulation_bag_id;
         }
+    }
 
-        ImGui::InputDouble("##date", &ed.simulation_during_date);
+    ImGui::InputInt("##bag", &ed.simulation_during_bag);
 
-        ImGui::SameLine();
+    ImGui::SameLine();
 
-        if (ImGui::Button("run##date")) {
-            const auto end = ed.simulation_current + ed.simulation_during_date;
-            while (ed.simulation_current < end) {
-                if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                    ed.st = editor_status::success;
-                    break;
-                }
-                ++ed.simulation_bag_id;
+    if (ImGui::Button("run##bag")) {
+        for (int i = 0, e = ed.simulation_during_bag; i != e; ++i) {
+            if (ed.sim_st = ed.sim.run(ed.simulation_current);
+                is_bad(ed.sim_st)) {
+                ed.st = editor_status::editing;
+                log_w.log(3,
+                          "Simulation next bag failure (%s)\n",
+                          irt::status_string(ed.sim_st));
+                break;
             }
+            ++ed.simulation_bag_id;
         }
+    }
 
-        ImGui::InputInt("##bag", &ed.simulation_during_bag);
+    if (ed.st == editor_status::running_debug) {
+        ed.simulation_next_time = ed.sim.sched.empty()
+                                    ? time_domain<time>::infinity
+                                    : ed.sim.sched.tn();
 
-        ImGui::SameLine();
+        const auto& l = ed.sim.sched.list_model_id();
 
-        if (ImGui::Button("run##bag")) {
-            for (int i = 0, e = ed.simulation_during_bag; i != e; ++i) {
-                if (auto ret = ed.sim.run(ed.simulation_current); is_bad(ret)) {
-                    ed.st = editor_status::success;
-                    break;
-                }
-                ++ed.simulation_bag_id;
-            }
-        }
+        std::fill_n(
+          ed.models_make_transition.data(), ed.sim.models.max_used(), false);
 
-        if (ed.st == editor_status::running_step) {
-            ed.simulation_next_time = ed.sim.sched.empty()
-                                        ? time_domain<time>::infinity
-                                        : ed.sim.sched.tn();
-
-            const auto& l = ed.sim.sched.list_model_id();
-
-            std::fill_n(ed.models_make_transition.data(),
-                        ed.sim.models.max_used(),
-                        false);
-
-            for (auto it = l.begin(), e = l.end(); it != e; ++it)
-                ed.models_make_transition[get_index(*it)] = true;
-        } else {
-            ed.simulation_next_time = time_domain<time>::infinity;
-        }
+        for (auto it = l.begin(), e = l.end(); it != e; ++it)
+            ed.models_make_transition[get_index(*it)] = true;
+    } else {
+        ed.simulation_next_time = time_domain<time>::infinity;
     }
 }
 
@@ -484,11 +500,7 @@ show_simulation_box(window_logger& log_w, bool* show_simulation)
         //         }
         //     }
 
-        if (match(ed->st,
-                  editor_status::success,
-                  editor_status::running_once,
-                  editor_status::running_once_need_join,
-                  editor_status::running_step)) {
+        if (ed->st != editor_status::editing) {
             ImGui::Text("Current: %g", ed->simulation_current);
 
             const double duration = ed->simulation_end - ed->simulation_begin;

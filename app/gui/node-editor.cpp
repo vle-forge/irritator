@@ -2236,13 +2236,7 @@ editor::show_model_dynamics(model& mdl) noexcept
 
     ImGui::PopItemWidth();
 
-    if (simulation_show_value &&
-        match(st,
-              editor_status::success,
-              editor_status::running_once,
-              editor_status::running_once_need_join,
-              editor_status::running_step)) {
-
+    if (simulation_show_value && st != editor_status::editing) {
         sim.dispatch(mdl.type, [&](const auto& d_array) {
             const auto& dyn = d_array.get(mdl.id);
             add_input_attribute(*this, dyn);
@@ -2272,11 +2266,7 @@ editor::show_top() noexcept
         if (top.children[i].first.index() == 0) {
             const auto id = std::get<model_id>(top.children[i].first);
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                if (match(st,
-                          editor_status::success,
-                          editor_status::running_once,
-                          editor_status::running_once_need_join,
-                          editor_status::running_step) &&
+                if (st != editor_status::editing &&
                     models_make_transition[get_index(id)]) {
 
                     imnodes::PushColorStyle(imnodes::ColorStyle_TitleBar,
@@ -2815,26 +2805,20 @@ show_plot_box(bool* show_plot)
 
     static editor_id current = undefined<editor_id>();
     if (auto* ed = make_combo_editor_name(current); ed) {
-        if (match(ed->st,
-                  editor_status::success,
-                  editor_status::running_once,
-                  editor_status::running_once_need_join,
-                  editor_status::running_step)) {
-            if (ImPlot::BeginPlot("simulation", "t", "s")) {
-                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-                for (const auto& obs : ed->observation_outputs) {
-                    if (obs.observation_type ==
-                          observation_output::type::multiplot &&
-                        obs.xs.data()) {
-                        ImPlot::PlotLine(obs.name.c_str(),
-                                         obs.xs.data(),
-                                         obs.ys.data(),
-                                         static_cast<int>(obs.xs.size()));
-                    }
+        if (ImPlot::BeginPlot("simulation", "t", "s")) {
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+            for (const auto& obs : ed->observation_outputs) {
+                if (obs.observation_type ==
+                      observation_output::type::multiplot &&
+                    obs.xs.data()) {
+                    ImPlot::PlotLine(obs.name.c_str(),
+                                     obs.xs.data(),
+                                     obs.ys.data(),
+                                     static_cast<int>(obs.xs.size()));
                 }
-                ImPlot::PopStyleVar(1);
-                ImPlot::EndPlot();
             }
+            ImPlot::PopStyleVar(1);
+            ImPlot::EndPlot();
         }
     }
 

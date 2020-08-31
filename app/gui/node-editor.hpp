@@ -115,10 +115,11 @@ using child_id = std::variant<model_id, cluster_id>;
 
 enum class editor_status
 {
-    success,
-    running_once,
-    running_once_need_join,
-    running_step,
+    editing,
+    initializing,
+    running_debug,
+    running_thread,
+    running_thread_need_join
 };
 
 static inline constexpr int not_found = -1;
@@ -258,12 +259,13 @@ struct editor
     double simulation_current = 10.0;
     double simulation_next_time = 0.0;
     long simulation_bag_id = 0;
-    
+
     double simulation_during_date;
     int simulation_during_bag;
 
     std::thread simulation_thread;
-    editor_status st = editor_status::success;
+    editor_status st = editor_status::editing;
+    status sim_st = status::success;
 
     bool simulation_show_value = false;
     bool stop = false;
