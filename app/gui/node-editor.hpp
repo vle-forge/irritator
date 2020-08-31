@@ -285,6 +285,8 @@ struct editor
 
     top_cluster top;
 
+    std::string tooltip;
+
     status initialize(u32 id) noexcept;
     void clear() noexcept;
 

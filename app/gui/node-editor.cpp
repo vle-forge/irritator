@@ -2259,6 +2259,82 @@ editor::show_model_dynamics(model& mdl) noexcept
     }
 }
 
+template<typename Dynamics>
+static status
+make_input_tooltip(editor& ed, Dynamics& dyn, std::string& out)
+{
+    for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
+        if (auto* port = ed.sim.input_ports.try_to_get(dyn.x[i]); port) {
+            if (port->messages.empty())
+                continue;
+
+            fmt::format_to(std::back_inserter(out), "x[{}]: ", i);
+
+            for (const auto& msg : port->messages) {
+                switch (msg.size()) {
+                case 0:
+                    fmt::format_to(std::back_inserter(out), "() ");
+                    break;
+                case 1:
+                    fmt::format_to(std::back_inserter(out), "({}) ", msg[0]);
+                    break;
+                case 2:
+                    fmt::format_to(
+                      std::back_inserter(out), "({},{}) ", msg[0], msg[1]);
+                    break;
+                case 3:
+                    fmt::format_to(std::back_inserter(out),
+                                   "({},{},{}) ",
+                                   msg[0],
+                                   msg[1],
+                                   msg[2]);
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+    }
+
+    return status::success;
+}
+
+static void
+show_tooltip(editor& ed, const model& mdl, const model_id id)
+{
+    ed.tooltip.clear();
+
+    if (ed.models_make_transition[get_index(id)]) {
+        fmt::format_to(std::back_inserter(ed.tooltip),
+                       "Transition\n- last time: {}\n- next time:{}\n",
+                       mdl.tl,
+                       mdl.tn);
+
+        auto ret = ed.sim.dispatch(
+          mdl.type, [&]<typename DynamicsModels>(DynamicsModels & dyn_models) {
+              using Dynamics = typename DynamicsModels::value_type;
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                  return make_input_tooltip(
+                    ed, dyn_models.get(mdl.id), ed.tooltip);
+              return status::success;
+          });
+
+        if (is_bad(ret))
+            ed.tooltip += "error\n";
+    } else {
+        fmt::format_to(std::back_inserter(ed.tooltip),
+                       "Not in transition\n- last time: {}\n- next time:{}\n",
+                       mdl.tl,
+                       mdl.tn);
+    }
+
+    ImGui::BeginTooltip();
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+    ImGui::TextUnformatted(ed.tooltip.c_str());
+    ImGui::PopTextWrapPos();
+    ImGui::EndTooltip();
+}
+
 void
 editor::show_top() noexcept
 {
@@ -2511,6 +2587,18 @@ editor::show_editor() noexcept
     imnodes::EndNodeEditor();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+
+    int node_id;
+    if (imnodes::IsNodeHovered(&node_id) &&
+        st == editor_status::running_debug) {
+        const auto index = top.get_index(node_id);
+        if (index != not_found || top.children[index].first.index() == 0) {
+            const auto id = std::get<model_id>(top.children[index].first);
+            if (auto* mdl = sim.models.try_to_get(id); mdl)
+                show_tooltip(*this, *mdl, id);
+        }
+    } else
+        tooltip.clear();
 
     if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1))
         ImGui::OpenPopup("Context menu");
