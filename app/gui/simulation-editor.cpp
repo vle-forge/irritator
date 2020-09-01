@@ -14,6 +14,7 @@
 #include "implot.h"
 #include "node-editor.hpp"
 
+#include <chrono>
 #include <fstream>
 #include <string>
 
@@ -157,6 +158,49 @@ initialize_observation(window_logger& log_w, irt::editor& ed) noexcept
 }
 
 static void
+run_synchronized_simulation(window_logger& log_w,
+                            simulation& sim,
+                            double begin,
+                            double end,
+                            double synchronize_timestep,
+                            double& current,
+                            editor_status& st,
+                            status& sim_st,
+                            const bool& stop) noexcept
+{
+    current = begin;
+    st = editor_status::initializing;
+    if (sim_st = sim.initialize(current); irt::is_bad(sim_st)) {
+        log_w.log(3,
+                  "Simulation initialization failure (%s)\n",
+                  irt::status_string(sim_st));
+        st = editor_status::editing;
+        return;
+    }
+
+    st = editor_status::running_thread;
+    do {
+        const double old = current;
+
+        if (sim_st = sim.run(current); irt::is_bad(sim_st)) {
+            log_w.log(
+              3, "Simulation failure (%s)\n", irt::status_string(sim_st));
+            st = editor_status::editing;
+            return;
+        }
+
+        const auto duration = (current - old) / synchronize_timestep;
+        if (duration > 0.)
+            std::this_thread::sleep_for(
+              std::chrono::duration<double>(duration));
+    } while (current < end && !stop);
+
+    sim.clean();
+
+    st = editor_status::running_thread_need_join;
+}
+
+static void
 run_simulation(window_logger& log_w,
                simulation& sim,
                double begin,
@@ -200,19 +244,38 @@ show_simulation_run_once(window_logger& log_w, editor& ed)
             ed.st = editor_status::editing;
         }
     } else {
+        ImGui::Checkbox("Time synchronization", &ed.use_real_time);
+
+        if (ed.use_real_time)
+            ImGui::InputDouble("t/s", &ed.synchronize_timestep);
+
         if (ImGui::Button("run")) {
             initialize_observation(log_w, ed);
             ed.stop = false;
 
-            ed.simulation_thread = std::thread(&run_simulation,
-                                               std::ref(log_w),
-                                               std::ref(ed.sim),
-                                               ed.simulation_begin,
-                                               ed.simulation_end,
-                                               std::ref(ed.simulation_current),
-                                               std::ref(ed.st),
-                                               std::ref(ed.sim_st),
-                                               std::cref(ed.stop));
+            if (ed.use_real_time)
+                ed.simulation_thread =
+                  std::thread(&run_synchronized_simulation,
+                              std::ref(log_w),
+                              std::ref(ed.sim),
+                              ed.simulation_begin,
+                              ed.simulation_end,
+                              ed.synchronize_timestep,
+                              std::ref(ed.simulation_current),
+                              std::ref(ed.st),
+                              std::ref(ed.sim_st),
+                              std::cref(ed.stop));
+            else
+                ed.simulation_thread =
+                  std::thread(&run_simulation,
+                              std::ref(log_w),
+                              std::ref(ed.sim),
+                              ed.simulation_begin,
+                              ed.simulation_end,
+                              std::ref(ed.simulation_current),
+                              std::ref(ed.st),
+                              std::ref(ed.sim_st),
+                              std::cref(ed.stop));
         }
     }
 

@@ -1002,6 +1002,9 @@ editor::initialize(u32 id) noexcept
 
     std::fill_n(models_make_transition.data(), sim.models.capacity(), false);
 
+    use_real_time = false;
+    synchronize_timestep = 0.;
+
     format(name, "Editor {}", id);
 
     initialized = true;
