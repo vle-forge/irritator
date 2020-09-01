@@ -786,6 +786,10 @@ void
 editor::compute_grid_layout() noexcept
 {
     const auto size = length(top.children);
+
+    if (size == 0)
+        return;
+
     const auto tmp = std::sqrt(size);
     const auto column = static_cast<int>(tmp);
     auto line = column;
@@ -822,6 +826,8 @@ editor::compute_grid_layout() noexcept
         positions[elem].y = new_pos.y;
         ++elem;
     }
+
+    imnodes::EditorContextMoveToNode(top.children[size / 2].second);
 }
 
 void
@@ -926,6 +932,8 @@ editor::compute_automatic_layout() noexcept
             imnodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
         }
     }
+
+    imnodes::EditorContextMoveToNode(top.children[size / 2].second);
 }
 
 status
