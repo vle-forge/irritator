@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/examples.hpp>
 #include <irritator/io.hpp>
 
 #include <boost/ut.hpp>
@@ -46,6 +47,26 @@ file_output_observe(const irt::observer& obs,
 
     auto* output = reinterpret_cast<file_output*>(obs.user_data);
     fmt::print(output->os, "{},{}\n", t, msg.real[0]);
+}
+
+static void empty_fun(irt::model_id /*id*/) noexcept
+{}
+
+static irt::status
+run_simulation(irt::simulation& sim, const double duration)
+{
+    using namespace boost::ut;
+
+    irt::time t = 0.0;
+
+    expect(sim.initialize(t) == irt::status::success);
+
+    do {
+        auto status = sim.run(t);
+        expect(status == irt::status::success);
+    } while (t < duration);
+
+    return irt::status::success;
 }
 
 int
@@ -595,7 +616,7 @@ main()
             expect(irt::is_success(st));
         } while (t < sim.end);
 
-        expect(cnt.number == 2);
+        expect(cnt.number == static_cast<irt::i64>(2));
     };
 
     "cross_simulation"_test = [] {
@@ -640,7 +661,7 @@ main()
             expect(irt::is_success(st));
         } while (t < sim.end);
 
-        expect(cnt.number == 2);
+        expect(cnt.number == static_cast<irt::i64>(2));
     };
 
     "generator_counter_simluation"_test = [] {
@@ -677,7 +698,7 @@ main()
             expect(cnt.number <= static_cast<irt::i64>(t));
         } while (t < sim.end);
 
-        expect(cnt.number == 9);
+        expect(cnt.number == static_cast<irt::i64>(9));
     };
 
     "time_func"_test = [] {
@@ -688,6 +709,12 @@ main()
         expect(irt::is_success(sim.init(16lu, 256lu)));
         expect(sim.time_func_models.can_alloc(1));
         expect(sim.counter_models.can_alloc(1));
+
+        // expect(sim.can_alloc<irt::time_func>(1));
+        // expect(sim.can_alloc<irt::counter>(1));
+
+        // auto& time_fun = sim.alloc<irt::time_func>("time");
+        // auto& cnt = sim.alloc<irt::counter>("cnt");
 
         auto& time_fun = sim.time_func_models.alloc();
         auto& cnt = sim.counter_models.alloc();
@@ -2660,5 +2687,113 @@ main()
             auto st = sim.run(t);
             expect(st == irt::status::success);
         } while (t < 100.0);
+    };
+
+    "all"_test = [] {
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_lotka_volterra<1>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_negative_lif<1>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_lif<1>(sim, empty_fun) == irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_van_der_pol<1>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_izhikevich<1>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_lotka_volterra<2>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_negative_lif<2>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_lif<2>(sim, empty_fun) == irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_van_der_pol<2>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_izhikevich<2>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_lotka_volterra<3>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_negative_lif<3>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_lif<3>(sim, empty_fun) == irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_van_der_pol<3>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
+        {
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+            expect(example_qss_izhikevich<3>(sim, empty_fun) ==
+                   irt::status::success);
+            expect(run_simulation(sim, 30.) == irt::status::success);
+        }
     };
 }
