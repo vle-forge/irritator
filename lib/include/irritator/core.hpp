@@ -621,6 +621,11 @@ public:
             free_head = nullptr; // of elements allocated.
         }
     }
+
+    bool can_alloc(size_t number) const noexcept
+    {
+        return number + size < capacity;
+    }
 };
 
 template<typename T>
@@ -6336,6 +6341,12 @@ public:
         }
 
         return false;
+    }
+
+    bool can_connect(size_t number) const noexcept
+    {
+        return output_port_list_allocator.can_alloc(number) &&
+               input_port_list_allocator.can_alloc(number);
     }
 
     status connect(output_port_id src, input_port_id dst) noexcept

@@ -2700,7 +2700,7 @@ editor::show_editor() noexcept
             auto* o_port = sim.output_ports.try_to_get(out);
             auto* i_port = sim.input_ports.try_to_get(in);
 
-            if (i_port && o_port)
+            if (i_port && o_port && sim.can_connect(1u))
                 if (auto status = sim.connect(out, in); is_bad(status))
                     log_w.log(6,
                               "Fail to connect these models: %s\n",

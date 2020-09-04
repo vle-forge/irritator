@@ -26,8 +26,9 @@ example_qss_lotka_volterra(simulation& sim, F f) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     bool success = sim.can_alloc<abstract_wsum<QssLevel, 2>>(2) &&
-            sim.can_alloc<abstract_multiplier<QssLevel>>(1) &&
-            sim.can_alloc<abstract_integrator<QssLevel>>(2);
+                   sim.can_alloc<abstract_multiplier<QssLevel>>(1) &&
+                   sim.can_alloc<abstract_integrator<QssLevel>>(2) &&
+                   sim.can_connect(8);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -74,9 +75,9 @@ example_qss_lif(simulation& sim, F f) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     bool success = sim.can_alloc<abstract_wsum<QssLevel, 2>>(1) &&
-        sim.can_alloc<abstract_integrator<QssLevel>>(1) &&
-        sim.can_alloc<abstract_cross<QssLevel>>(1) &&
-        sim.can_alloc<constant>(2);
+                   sim.can_alloc<abstract_integrator<QssLevel>>(1) &&
+                   sim.can_alloc<abstract_cross<QssLevel>>(1) &&
+                   sim.can_alloc<constant>(2) && sim.can_connect(7);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -90,7 +91,7 @@ example_qss_lif(simulation& sim, F f) noexcept
 
     auto& cst_cross = sim.alloc<constant>("ctecro");
     cst_cross.default_value = Vr;
-    
+
     auto& sum = sim.alloc<abstract_wsum<QssLevel, 2>>("sum");
     sum.default_input_coeffs[0] = -1.0 / tau;
     sum.default_input_coeffs[1] = V0 / tau;
@@ -124,12 +125,12 @@ status
 example_qss_izhikevich(simulation& sim, F f) noexcept
 {
     bool success = sim.can_alloc<constant>(3) &&
-        sim.can_alloc<abstract_wsum<QssLevel, 2>>(3) &&
-        sim.can_alloc<abstract_wsum<QssLevel, 4>>(1) &&
-        sim.can_alloc<abstract_multiplier<QssLevel>>(1) &&
-        sim.can_alloc<abstract_integrator<QssLevel>>(2) &&
-        sim.can_alloc<abstract_cross<QssLevel>>(2) &&
-        sim.models.can_alloc(12);
+                   sim.can_alloc<abstract_wsum<QssLevel, 2>>(3) &&
+                   sim.can_alloc<abstract_wsum<QssLevel, 4>>(1) &&
+                   sim.can_alloc<abstract_multiplier<QssLevel>>(1) &&
+                   sim.can_alloc<abstract_integrator<QssLevel>>(2) &&
+                   sim.can_alloc<abstract_cross<QssLevel>>(2) &&
+                   sim.can_connect(22);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -226,9 +227,9 @@ status
 example_qss_van_der_pol(simulation& sim, F f) noexcept
 {
     bool success = sim.can_alloc<abstract_wsum<QssLevel, 3>>(1) &&
-        sim.can_alloc<abstract_multiplier<QssLevel>>(2) &&
-        sim.can_alloc<abstract_integrator<QssLevel>>(2) &&
-        sim.models.can_alloc(5);
+                   sim.can_alloc<abstract_multiplier<QssLevel>>(2) &&
+                   sim.can_alloc<abstract_integrator<QssLevel>>(2) &&
+                   sim.can_connect(9);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -239,10 +240,10 @@ example_qss_van_der_pol(simulation& sim, F f) noexcept
     auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>("int-b");
 
     integrator_a.default_X = 0.0;
-    integrator_a.default_dQ = 0.001;        
+    integrator_a.default_dQ = 0.001;
 
     integrator_b.default_X = 10.0;
-    integrator_b.default_dQ = 0.001;             
+    integrator_b.default_dQ = 0.001;
 
     constexpr double mu = 4.0;
     sum.default_input_coeffs[0] = mu;
@@ -273,9 +274,9 @@ status
 example_qss_negative_lif(simulation& sim, F f) noexcept
 {
     bool success = sim.can_alloc<abstract_wsum<QssLevel, 2>>(1) &&
-        sim.can_alloc<abstract_integrator<QssLevel>>(1) &&
-        sim.can_alloc<abstract_cross<QssLevel>>(1) &&
-        sim.can_alloc<constant>(2);
+                   sim.can_alloc<abstract_integrator<QssLevel>>(1) &&
+                   sim.can_alloc<abstract_cross<QssLevel>>(1) &&
+                   sim.can_alloc<constant>(2) && sim.can_connect(7);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
