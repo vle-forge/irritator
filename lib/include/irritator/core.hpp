@@ -97,6 +97,14 @@
         }                                                                      \
     } while (0)
 
+#if defined(__GNUC__)
+#define irt_unreachable() __builtin_unreachable();
+#elif defined(_MSC_VER)
+#define irt_unreachable() __assume(0)
+#else
+#define irt_unreachable()
+#endif
+
 namespace irt {
 
 using i8 = int8_t;
@@ -5690,7 +5698,7 @@ struct simulation
             return f(flow_models);
         }
 
-        return status::unknown_dynamics;
+        irt_unreachable();
     }
 
     template<typename Function>
@@ -5803,7 +5811,7 @@ struct simulation
             return f(flow_models);
         }
 
-        return status::unknown_dynamics;
+        irt_unreachable();
     }
 
     status get_output_port_index(const model& mdl,
