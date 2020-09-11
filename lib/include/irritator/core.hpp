@@ -6467,10 +6467,10 @@ public:
 
         for (const output_port_id src : emitting_output_ports) {
             if (auto* port_src = output_ports.try_to_get(src); port_src) {
-                for (const message& msg : port_src->messages) {
-                    for (const input_port_id dst : port_src->connections) {
-                        if (auto* port_dst = input_ports.try_to_get(dst);
-                            port_dst) {
+                for (const input_port_id dst : port_src->connections) {
+                    if (auto* port_dst = input_ports.try_to_get(dst);
+                        port_dst) {
+                        for (const message& msg : port_src->messages) {
                             port_dst->messages.emplace_front(msg);
 
                             if (auto* mdl = models.try_to_get(port_dst->model);
