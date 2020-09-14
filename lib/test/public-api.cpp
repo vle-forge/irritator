@@ -179,15 +179,15 @@ main()
         expect(f1 == "");
         expect(f1.size() == 0_ul);
 
-        f1.append("ok");
+        f1 = "ok";
         expect(f1 == "ok");
         expect(f1.size() == 2_ul);
 
-        f1.append("ok");
+        f1 = "okok";
         expect(f1 == "okok");
         expect(f1.size() == 4_ul);
 
-        f1.append("1234");
+        f1 = "okok123456";
         expect(f1 == "okok123");
         expect(f1.size() == 7_ul);
 

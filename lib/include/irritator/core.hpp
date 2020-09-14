@@ -402,21 +402,6 @@ public:
         return { buffer_, size_ };
     }
 
-    constexpr void append(const std::string_view str) noexcept
-    {
-        const size_t remaining = length - size_;
-
-        if (remaining) {
-            size_t copy = std::min(remaining - 1, str.size());
-            std::strncpy(buffer_ + size_, str.data(), copy);
-            copy += size_;
-            size_ = static_cast<unsigned char>(copy);
-            assert(size_ < length);
-
-            buffer_[size_] = '\0';
-        }
-    }
-
     constexpr void clear() noexcept
     {
         std::fill_n(buffer_, length, '\0');
