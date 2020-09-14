@@ -2326,7 +2326,6 @@ main()
         sum.default_input_coeffs[1] = -mu;
         sum.default_input_coeffs[2] = -1.0;
 
-
         expect(sim.models.can_alloc(10));
         !expect(irt::is_success(
           sim.alloc(sum, sim.adder_3_models.get_id(sum), "sum")));
@@ -2350,11 +2349,9 @@ main()
 
         expect(sim.connect(integrator_b.y[0], sum.x[0]) ==
                irt::status::success);
-        expect(sim.connect(product.y[0], sum.x[1]) ==
-               irt::status::success);               
+        expect(sim.connect(product.y[0], sum.x[1]) == irt::status::success);
         expect(sim.connect(integrator_a.y[0], sum.x[2]) ==
                irt::status::success);
-
 
         expect(sim.connect(integrator_b.y[0], product.x[0]) ==
                irt::status::success);
@@ -2362,7 +2359,6 @@ main()
                irt::status::success);
         expect(sim.connect(integrator_a.y[0], product.x[2]) ==
                irt::status::success);
-
 
         expect(sim.connect(quantifier_a.y[0], integrator_a.x[0]) ==
                irt::status::success);
@@ -2414,40 +2410,38 @@ main()
         expect(sim.qss3_multiplier_models.can_alloc(2));
         expect(sim.qss3_integrator_models.can_alloc(2));
 
-
         auto& sum = sim.qss3_wsum_3_models.alloc();
         auto& product1 = sim.qss3_multiplier_models.alloc();
         auto& product2 = sim.qss3_multiplier_models.alloc();
         auto& integrator_a = sim.qss3_integrator_models.alloc();
         auto& integrator_b = sim.qss3_integrator_models.alloc();
 
-
         integrator_a.default_X = 0.0;
-        integrator_a.default_dQ = 0.001;        
+        integrator_a.default_dQ = 0.001;
 
         integrator_b.default_X = 10.0;
-        integrator_b.default_dQ = 0.001;             
-
-
+        integrator_b.default_dQ = 0.001;
 
         double mu = 4.0;
         sum.default_input_coeffs[0] = mu;
         sum.default_input_coeffs[1] = -mu;
         sum.default_input_coeffs[2] = -1.0;
 
-
         expect(sim.models.can_alloc(10));
         !expect(irt::is_success(
           sim.alloc(sum, sim.qss3_wsum_3_models.get_id(sum), "sum")));
-        !expect(irt::is_success(
-          sim.alloc(product1, sim.qss3_multiplier_models.get_id(product1), "prod1")));
-        !expect(irt::is_success(
-          sim.alloc(product2, sim.qss3_multiplier_models.get_id(product2), "prod2")));
         !expect(irt::is_success(sim.alloc(
-          integrator_a, sim.qss3_integrator_models.get_id(integrator_a), "int_a")));
+          product1, sim.qss3_multiplier_models.get_id(product1), "prod1")));
         !expect(irt::is_success(sim.alloc(
-          integrator_b, sim.qss3_integrator_models.get_id(integrator_b), "int_b")));
-
+          product2, sim.qss3_multiplier_models.get_id(product2), "prod2")));
+        !expect(irt::is_success(
+          sim.alloc(integrator_a,
+                    sim.qss3_integrator_models.get_id(integrator_a),
+                    "int_a")));
+        !expect(irt::is_success(
+          sim.alloc(integrator_b,
+                    sim.qss3_integrator_models.get_id(integrator_b),
+                    "int_b")));
 
         !expect(sim.models.size() == 5_ul);
 
@@ -2458,11 +2452,9 @@ main()
 
         expect(sim.connect(integrator_b.y[0], sum.x[0]) ==
                irt::status::success);
-        expect(sim.connect(product2.y[0], sum.x[1]) ==
-               irt::status::success);               
+        expect(sim.connect(product2.y[0], sum.x[1]) == irt::status::success);
         expect(sim.connect(integrator_a.y[0], sum.x[2]) ==
                irt::status::success);
-
 
         expect(sim.connect(integrator_b.y[0], product1.x[0]) ==
                irt::status::success);
@@ -2472,8 +2464,6 @@ main()
                irt::status::success);
         expect(sim.connect(integrator_a.y[0], product2.x[1]) ==
                irt::status::success);
-
-
 
         file_output fo_a("van_der_pol_qss3_a.csv");
         file_output fo_b("van_der_pol_qss3_b.csv");
@@ -2732,7 +2722,7 @@ main()
 
         !expect(sim.models.size() == 5_ul);
 
-// Connections
+        // Connections
 
         // expect(sim.connect(cross.y[1], integrator.x[0]) ==
         // irt::status::success);
