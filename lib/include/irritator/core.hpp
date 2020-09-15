@@ -2819,13 +2819,6 @@ struct observer
     void (*free)(const observer& obs, const time t) noexcept = nullptr;
 };
 
-struct init_message
-{
-    message_id msg;
-    flat_list<std::pair<model_id, int>> models;
-    small_string<7> name;
-};
-
 struct input_port
 {
     model_id model;
@@ -2884,8 +2877,7 @@ using observation_function_t =
 
 template<class T>
 using initialize_function_t =
-  decltype(detail::helper<status (T::*)(data_array<message, message_id>&),
-                          &T::initialize>{});
+  decltype(detail::helper<status (T::*)(), &T::initialize>{});
 
 template<typename T>
 using has_input_port_t = decltype(&T::x);
@@ -2956,7 +2948,7 @@ struct integrator
       , st(other.st)
     {}
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         current_value = default_current_value;
         reset_value = default_reset_value;
@@ -3187,7 +3179,7 @@ struct qss1_integrator
       , sigma(other.sigma)
     {}
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         irt_return_if_fail(std::isfinite(default_X),
                            status::model_integrator_X_error);
@@ -3316,7 +3308,7 @@ struct qss2_integrator
       , sigma(other.sigma)
     {}
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         irt_return_if_fail(std::isfinite(default_X),
                            status::model_integrator_X_error);
@@ -3473,7 +3465,7 @@ struct qss3_integrator
 
     qss3_integrator() = default;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         irt_return_if_fail(std::isfinite(default_X),
                            status::model_integrator_X_error);
@@ -3799,7 +3791,7 @@ struct abstract_power
 
     abstract_power() noexcept = default;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         std::fill_n(value, QssLevel, 0.0);
         sigma = time_domain<time>::infinity;
@@ -3889,7 +3881,7 @@ struct abstract_square
 
     abstract_square() noexcept = default;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         std::fill_n(value, QssLevel, 0.0);
         sigma = time_domain<time>::infinity;
@@ -3976,7 +3968,7 @@ struct abstract_sum
 
     abstract_sum() noexcept = default;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         std::fill_n(values, QssLevel * PortNumber, 0.0);
         sigma = time_domain<time>::infinity;
@@ -4131,7 +4123,7 @@ struct abstract_wsum
 
     abstract_wsum() noexcept = default;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         std::fill_n(values, QssLevel * PortNumber, 0.);
         sigma = time_domain<time>::infinity;
@@ -4287,7 +4279,7 @@ struct abstract_multiplier
 
     abstract_multiplier() noexcept = default;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         std::fill_n(values, QssLevel * 2, 0.);
         sigma = time_domain<time>::infinity;
@@ -4457,7 +4449,7 @@ struct quantifier
       , m_adapt_state(other.m_adapt_state)
     {}
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         m_step_size = default_step_size;
         m_past_length = default_past_length;
@@ -4740,7 +4732,7 @@ struct adder
         std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
     }
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
 
@@ -4820,7 +4812,7 @@ struct mult
         std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
     }
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
 
@@ -4883,8 +4875,7 @@ struct counter
     time sigma;
     i64 number;
 
-    status initialize(
-      data_array<message, message_id>& /*init_messages*/) noexcept
+    status initialize() noexcept
     {
         number = { 0 };
         sigma = time_domain<time>::infinity;
@@ -4925,8 +4916,7 @@ struct generator
     double period = 1.0;
     double offset = 1.0;
 
-    status initialize(
-      data_array<message, message_id>& /*init_messages*/) noexcept
+    status initialize() noexcept
     {
         value = default_value;
         period = default_period;
@@ -4969,7 +4959,7 @@ struct constant
 
     double value = 0.0;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         sigma = time_domain<time>::zero;
 
@@ -5016,7 +5006,7 @@ struct flow
     double accu_sigma;
     sz i;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         irt_return_if_fail(default_samplerate > 0.,
                            status::model_flow_bad_samplerate);
@@ -5073,8 +5063,7 @@ struct accumulator
     double number;
     double numbers[PortNumber];
 
-    status initialize(
-      data_array<message, message_id>& /*init_messages*/) noexcept
+    status initialize() noexcept
     {
         number = 0.0;
         std::fill_n(numbers, PortNumber, 0.0);
@@ -5133,7 +5122,7 @@ struct cross
         port_threshold
     };
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         threshold = default_threshold;
         value = threshold - 1.0;
@@ -5244,7 +5233,7 @@ struct abstract_cross
         o_event
     };
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         std::fill_n(if_value, QssLevel, 0.);
         std::fill_n(else_value, QssLevel, 0.);
@@ -5485,7 +5474,7 @@ struct time_func
     double value;
     double (*f)(double) = nullptr;
 
-    status initialize(data_array<message, message_id>& /*init*/) noexcept
+    status initialize() noexcept
     {
         f = default_f;
         sigma = default_sigma;
@@ -5661,7 +5650,6 @@ struct simulation
 
     data_array<model, model_id> models;
 
-    data_array<init_message, message_id> init_messages;
     data_array<message, message_id> messages;
     data_array<input_port, input_port_id> input_ports;
     data_array<output_port, output_port_id> output_ports;
@@ -6131,7 +6119,6 @@ public:
         irt_return_if_bad(sched.init(model_capacity));
 
         irt_return_if_bad(models.init(model_capacity));
-        irt_return_if_bad(init_messages.init(model_capacity));
         irt_return_if_bad(messages.init(messages_capacity));
         irt_return_if_bad(input_ports.init(model_capacity));
         irt_return_if_bad(output_ports.init(model_capacity));
@@ -6237,7 +6224,6 @@ public:
 
         models.clear();
 
-        init_messages.clear();
         messages.clear();
         input_ports.clear();
         output_ports.clear();
@@ -6684,7 +6670,7 @@ public:
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     {
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
-            irt_return_if_bad(dyn.initialize(messages));
+            irt_return_if_bad(dyn.initialize());
 
         mdl.tl = t;
         mdl.tn = t + dyn.sigma;
