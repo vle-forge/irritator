@@ -694,7 +694,7 @@ main()
             expect(irt::is_success(st));
         } while (t < sim.end);
 
-        expect(cnt.number == 2_ul);
+        expect(cnt.number == 2);
     };
 
     "cross_simulation"_test = [] {
@@ -739,7 +739,7 @@ main()
             expect(irt::is_success(st));
         } while (t < sim.end);
 
-        expect(cnt.number == 2_ul);
+        expect(cnt.number == 2);
     };
 
     "generator_counter_simluation"_test = [] {
@@ -776,7 +776,7 @@ main()
             expect(cnt.number <= static_cast<irt::i64>(t));
         } while (t < sim.end);
 
-        expect(cnt.number == 9_ul);
+        expect(cnt.number == 9);
     };
 
     "time_func"_test = [] {

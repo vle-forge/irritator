@@ -16,83 +16,6 @@
 
 #include <fstream>
 
-static void
-dot_graph_save(const irt::simulation& sim, std::FILE* os)
-{
-    /* With input and output port.
-
-    digraph graphname{
-        graph[rankdir = "LR"];
-        node[shape = "record"];
-        edge[];
-
-        "sum_a"[label = "sum-a | <f0> | <f1>"];
-
-        "sum_a":f0->int_a[id = 1];
-        sum_b->int_b[label = "2-10"];
-        prod->sum_b[label = "3-4"];
-        prod -> "sum_a":f0[label = "3-2"];
-        int_a->qua_a[label = "4-11"];
-        int_a->prod[label = "4-5"];
-        int_a -> "sum_a":f1[label = "4-1"];
-        int_b->qua_b[label = "5-12"];
-        int_b->prod[label = "5-6"];
-        int_b->sum_b[label = "5-3"];
-        qua_a->int_a[label = "6-7"];
-        qua_b->int_b[label = "7-9"];
-    }
-    */
-
-    !boost::ut::expect(os != nullptr);
-
-    std::fputs("digraph graphname {\n", os);
-
-    irt::output_port* output_port = nullptr;
-    while (sim.output_ports.next(output_port)) {
-        for (const irt::input_port_id dst : output_port->connections) {
-            if (auto* input_port = sim.input_ports.try_to_get(dst);
-                input_port) {
-                auto* mdl_src = sim.models.try_to_get(output_port->model);
-                auto* mdl_dst = sim.models.try_to_get(input_port->model);
-
-                if (!(mdl_src && mdl_dst))
-
-                    continue;
-                if (mdl_src->name.empty())
-                    fmt::print(os, "{} -> ", irt::get_key(output_port->model));
-                else
-                    fmt::print(os, "{} -> ", mdl_src->name.c_str());
-
-                if (mdl_dst->name.empty())
-                    fmt::print(os, "{}", irt::get_key(input_port->model));
-                else
-                    fmt::print(os, "{}", mdl_dst->name.c_str());
-
-                std::fputs(" [label=\"", os);
-
-                if (output_port->name.empty())
-                    fmt::print(
-                      os,
-                      "{}",
-                      irt::get_key(sim.output_ports.get_id(*output_port)));
-                else
-                    fmt::print(os, "{}", output_port->name.c_str());
-
-                std::fputs("-", os);
-
-                if (input_port->name.empty())
-                    fmt::print(
-                      os,
-                      "{}",
-                      irt::get_key(sim.input_ports.get_id(*input_port)));
-                else
-                    fmt::print(os, "{}", input_port->name.c_str());
-
-                std::fputs("\"];\n", os);
-            }
-        }
-    }
-}
 struct mtx_matrix
 {
     int M;
@@ -219,9 +142,9 @@ struct synapse
     irt::dynamics_id constant_syn;
     irt::dynamics_id accumulator_syn;
 };
+
 struct neuron_izhikevich
 make_neuron_izhikevich(irt::simulation* sim,
-                       int i,
                        double quantum,
                        double a,
                        double b,
@@ -359,11 +282,9 @@ make_neuron_izhikevich(irt::simulation* sim,
 
     return neuron_model;
 }
+
 struct neuron_gen
-make_neuron_gen(irt::simulation* sim,
-                int i,
-                double offset,
-                double period) noexcept
+make_neuron_gen(irt::simulation* sim, double offset, double period) noexcept
 {
     using namespace boost::ut;
     auto& gen = sim->generator_models.alloc();
@@ -378,11 +299,9 @@ make_neuron_gen(irt::simulation* sim,
                                        gen.y[0] };
     return neuron_model;
 }
+
 struct neuron_lif
-make_neuron_lif(irt::simulation* sim,
-                int i,
-                double quantum,
-                double tau) noexcept
+make_neuron_lif(irt::simulation* sim, double quantum, double tau) noexcept
 {
     using namespace boost::ut;
     double tau_lif = tau;
@@ -449,10 +368,9 @@ make_neuron_lif(irt::simulation* sim,
            irt::status::success);
     return neuron_model;
 }
+
 struct synapse
 make_synapse(irt::simulation* sim,
-             int source,
-             int target,
              irt::output_port_id presynaptic,
              irt::output_port_id postsynaptic,
              double quantum)
@@ -647,7 +565,7 @@ network(neuron_type T,
     }
 
     printf(">> Reading mtx matrix of the network ... %s: M=%i, N=%i, NNZ=%i\n",
-           matrix_name,
+           matrix_name.c_str(),
            matrix.M,
            matrix.N,
            matrix.NNZ);
@@ -702,9 +620,8 @@ network(neuron_type T,
         for (int i = 0; i < N; i++) {
             struct neuron_gen neuron_model = make_neuron_gen(
               &sim,
-              i,
-              0.0 + static_cast<float>(rand()) /
-                      (static_cast<float>(RAND_MAX / (1.0 - 0.0))),
+              0.0 + static_cast<double>(rand()) /
+                      (static_cast<double>(RAND_MAX / (1.0 - 0.0))),
               spike_rate);
             neurons_gen.emplace_back(neuron_model);
         }
@@ -713,11 +630,10 @@ network(neuron_type T,
         for (int i = 0; i < N; i++) {
             struct neuron_izhikevich neuron_model = make_neuron_izhikevich(
               &sim,
-              i,
               quantum_neuron,
               (spike_rate / 2.0) +
-                static_cast<float>(rand()) /
-                  (static_cast<float>(RAND_MAX / (spike_rate / 2.0))),
+                static_cast<double>(rand()) /
+                  (static_cast<double>(RAND_MAX / (spike_rate / 2.0))),
               0.2,
               -65.0,
               8.0,
@@ -730,7 +646,6 @@ network(neuron_type T,
         for (int i = 0; i < N; i++) {
             struct neuron_lif neuron_model = make_neuron_lif(
               &sim,
-              i,
               quantum_neuron,
               spike_rate); //+ static_cast <float> (rand()) /( static_cast
                            //<float> (RAND_MAX/(spike_rate))));
@@ -755,10 +670,8 @@ network(neuron_type T,
         for (int l = 0; l < matrix.NNZ; l++) {
             struct synapse synapse_model =
               make_synapse(&sim,
-                           matrix.rows[l],
-                           matrix.columns[l],
-                           neurons_gen[matrix.rows[l]].out_port,
-                           neurons_gen[matrix.columns[l]].out_port,
+                           neurons_gen[(size_t)matrix.rows[l]].out_port,
+                           neurons_gen[(size_t)matrix.columns[l]].out_port,
                            quantum_synapse);
             synapses.emplace_back(synapse_model);
         }
@@ -766,13 +679,11 @@ network(neuron_type T,
     case izhikevich:
         printf("    -Neurons type Izhikevich. \n");
         for (int l = 0; l < matrix.NNZ; l++) {
-            struct synapse synapse_model =
-              make_synapse(&sim,
-                           matrix.rows[l],
-                           matrix.columns[l],
-                           neurons_izhikevich[matrix.rows[l]].out_port,
-                           neurons_izhikevich[matrix.columns[l]].out_port,
-                           quantum_synapse);
+            struct synapse synapse_model = make_synapse(
+              &sim,
+              neurons_izhikevich[(size_t)matrix.rows[l]].out_port,
+              neurons_izhikevich[(size_t)matrix.columns[l]].out_port,
+              quantum_synapse);
             synapses.emplace_back(synapse_model);
         }
         break;
@@ -781,10 +692,8 @@ network(neuron_type T,
         for (int l = 0; l < matrix.NNZ; l++) {
             struct synapse synapse_model =
               make_synapse(&sim,
-                           matrix.rows[l],
-                           matrix.columns[l],
-                           neurons_lif[matrix.rows[l]].out_port,
-                           neurons_lif[matrix.columns[l]].out_port,
+                           neurons_lif[(size_t)matrix.rows[l]].out_port,
+                           neurons_lif[(size_t)matrix.columns[l]].out_port,
                            quantum_synapse);
             synapses.emplace_back(synapse_model);
         }

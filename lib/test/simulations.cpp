@@ -123,11 +123,11 @@ struct synapse
 };
 
 struct neuron
-make_neuron(irt::simulation* sim, long unsigned int i) noexcept
+make_neuron(irt::simulation* sim) noexcept
 {
     using namespace boost::ut;
-    double tau_lif = 1.0 + static_cast<float>(rand()) /
-                             (static_cast<float>(RAND_MAX / (2.0 - 1.0)));
+    double tau_lif = 1.0 + static_cast<double>(rand()) /
+                             (static_cast<double>(RAND_MAX / (2.0 - 1.0)));
     double Vr_lif = 0.0;
     double Vt_lif = 1.0;
 
@@ -405,7 +405,7 @@ main()
 
         std::vector<struct neuron> neurons;
         for (long unsigned int i = 0; i < N; i++) {
-            struct neuron neuron_model = make_neuron(&sim, i);
+            struct neuron neuron_model = make_neuron(&sim);
             neurons.emplace_back(neuron_model);
         }
 
