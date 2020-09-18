@@ -2532,13 +2532,6 @@ public:
         } else {
             root = nullptr;
         }
-
-        // assert(m_size > 0);
-
-        // m_size--;
-        // detach_subheap(elem);
-        // elem = merge_subheaps(elem);
-        // root = merge(root, elem);
     }
 
     void pop() noexcept
