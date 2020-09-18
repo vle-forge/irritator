@@ -379,7 +379,7 @@ public:
         std::memcpy(buffer_, str.data(), copy_length);
         buffer_[copy_length] = '\0';
 
-        size_ = static_cast<unsigned char>(copy_length);
+        size_ = static_cast<u8>(copy_length);
     }
 
     constexpr std::string_view sv() const noexcept
