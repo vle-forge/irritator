@@ -109,6 +109,14 @@ using u32 = uint32_t;
 using u64 = uint64_t;
 using sz = size_t;
 
+template<typename Integer>
+constexpr typename std::make_unsigned<Integer>::type
+to_unsigned(Integer value)
+{
+    irt_assert(value >= 0);
+    return static_cast<typename std::make_unsigned<Integer>::type>(value);
+}
+
 /*****************************************************************************
  *
  * Return status of many function
