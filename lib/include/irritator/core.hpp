@@ -490,7 +490,7 @@ struct message
 
     constexpr std::size_t size() const noexcept
     {
-        assert(length >= 0);
+        irt_assert(length >= 0);
         return static_cast<std::size_t>(length);
     }
 
@@ -621,7 +621,7 @@ public:
 
     void free(T* n) noexcept
     {
-        assert(n);
+        irt_assert(n);
 
         block* ptr = reinterpret_cast<block*>(n);
 
@@ -887,14 +887,14 @@ public:
 
     reference front() noexcept
     {
-        assert(!empty());
+        irt_assert(!empty());
 
         return node->value;
     }
 
     const_reference front() const noexcept
     {
-        assert(!empty());
+        irt_assert(!empty());
 
         return node->value;
     }
@@ -978,7 +978,7 @@ public:
 
     iterator erase_after(iterator it) noexcept
     {
-        assert(allocator);
+        irt_assert(allocator);
 
         if (it.node == nullptr)
             return end();
@@ -1575,7 +1575,7 @@ public:
     template<typename... Args>
     iterator emplace_back(Args&&... args) noexcept
     {
-        assert(m_size < m_capacity);
+        irt_assert(m_size < m_capacity);
 
         unsigned ret = m_size++;
         new (&m_items[ret]) T(std::forward<Args>(args)...);
@@ -1597,10 +1597,10 @@ public:
     iterator erase_and_swap(const_iterator it) noexcept
     {
         auto diff = std::distance(cbegin(), it);
-        assert(diff < std::numeric_limits<unsigned>::max());
+        irt_assert(diff < std::numeric_limits<unsigned>::max());
 
         auto i = static_cast<unsigned>(diff);
-        assert(i < m_size);
+        irt_assert(i < m_size);
 
         if (m_size - 1 == i) {
             pop_back();
@@ -1615,13 +1615,13 @@ public:
 
     reference operator[](size_type i) noexcept
     {
-        assert(i < m_size);
+        irt_assert(i < m_size);
         return m_items[i];
     }
 
     const_reference operator[](size_type i) const noexcept
     {
-        assert(i < m_size);
+        irt_assert(i < m_size);
         return m_items[i];
     }
 
@@ -1677,25 +1677,25 @@ public:
 
     reference front() noexcept
     {
-        assert(m_size > 0);
+        irt_assert(m_size > 0);
         return m_items[0];
     }
 
     const_reference front() const noexcept
     {
-        assert(m_size > 0);
+        irt_assert(m_size > 0);
         return m_items[0];
     }
 
     reference back() noexcept
     {
-        assert(m_size > 0);
+        irt_assert(m_size > 0);
         return m_items[m_size - 1];
     }
 
     const_reference back() const noexcept
     {
-        assert(m_size > 0);
+        irt_assert(m_size > 0);
         return m_items[m_size - 1];
     }
 };
@@ -1776,13 +1776,13 @@ public:
 
     reference operator[](size_type i) noexcept
     {
-        assert(i < m_capacity);
+        irt_assert(i < m_capacity);
         return m_items[i];
     }
 
     const_reference operator[](size_type i) const noexcept
     {
-        assert(i < m_capacity);
+        irt_assert(i < m_capacity);
         return m_items[i];
     }
 
@@ -2100,9 +2100,9 @@ public:
         auto id = get_id(t);
         auto index = get_index(id);
 
-        assert(&m_items[index] == static_cast<void*>(&t));
-        assert(m_items[index].id == id);
-        assert(is_valid(id));
+        irt_assert(&m_items[index] == static_cast<void*>(&t));
+        irt_assert(m_items[index].id == id);
+        irt_assert(is_valid(id));
 
         if constexpr (!std::is_trivial_v<T>)
             m_items[index].item.~T();
@@ -2123,8 +2123,8 @@ public:
     {
         auto index = get_index(id);
 
-        assert(m_items[index].id == id);
-        assert(is_valid(id));
+        irt_assert(m_items[index].id == id);
+        irt_assert(is_valid(id));
 
         if constexpr (std::is_trivial_v<T>)
             m_items[index].item.~T();
@@ -2142,7 +2142,7 @@ public:
      */
     Identifier get_id(const T* t) const noexcept
     {
-        assert(t != nullptr);
+        irt_assert(t != nullptr);
 
         auto* ptr = reinterpret_cast<const item*>(t);
         return ptr->id;
@@ -2333,7 +2333,8 @@ public:
     template<typename... Args>
     T& alloc(Args&&... args) noexcept
     {
-        assert(can_alloc(1) && "check alloc() with full() before using use.");
+        irt_assert(can_alloc(1) &&
+                   "check alloc() with full() before using use.");
 
         auto& ret = data.alloc(std::forward<Args>(args)...);
         ret.archive.set_allocator(&shared_allocator);
@@ -2536,7 +2537,7 @@ public:
 
     void pop() noexcept
     {
-        assert(m_size > 0);
+        irt_assert(m_size > 0);
 
         m_size--;
 
@@ -5545,7 +5546,7 @@ public:
      */
     void insert(model& mdl, model_id id, time tn) noexcept
     {
-        assert(mdl.handle == nullptr);
+        irt_assert(mdl.handle == nullptr);
 
         mdl.handle = m_heap.insert(tn, id);
     }
@@ -5556,7 +5557,7 @@ public:
      */
     void reintegrate(model& mdl, time tn) noexcept
     {
-        assert(mdl.handle != nullptr);
+        irt_assert(mdl.handle != nullptr);
 
         mdl.handle->tn = tn;
 
@@ -5573,7 +5574,7 @@ public:
 
     void update(model& mdl, time tn) noexcept
     {
-        assert(mdl.handle != nullptr);
+        irt_assert(mdl.handle != nullptr);
 
         mdl.handle->tn = tn;
 
