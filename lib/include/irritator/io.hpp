@@ -18,7 +18,7 @@ class reader
 private:
     std::istream& is;
 
-    array<model_id> map;
+    std::vector<model_id> map;
     int model_error = 0;
     int connection_error = 0;
 
@@ -40,9 +40,11 @@ public:
         irt_return_if_fail(model_number > 0,
                            status::io_file_format_model_number_error);
 
-        irt_return_if_bad(map.init(model_number));
-
-        std::fill_n(std::begin(map), std::size(map), static_cast<model_id>(0));
+        try {
+            map.resize(model_number, model_id{ 0 });
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::io_not_enough_memory;
+        }
 
         int id;
 
@@ -547,7 +549,7 @@ struct writer
 {
     std::ostream& os;
 
-    array<model_id> map;
+    std::vector<model_id> map;
 
     writer(std::ostream& os_) noexcept
       : os(os_)
@@ -557,9 +559,11 @@ struct writer
     {
         os << sim.models.size() << '\n';
 
-        irt_return_if_bad(map.init(sim.models.size()));
-
-        std::fill_n(std::begin(map), std::size(map), static_cast<model_id>(0));
+        try {
+            map.resize(sim.models.size(), model_id{ 0 });
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::io_not_enough_memory;
+        }
 
         model* mdl = nullptr;
         int id = 0;
