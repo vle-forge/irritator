@@ -811,7 +811,7 @@ editor::compute_grid_layout() noexcept
         for (int j = 0; j < line; ++j) {
             new_pos.x =
               panning.x + static_cast<float>(j) * grid_layout_x_distance;
-            imnodes::SetNodeScreenSpacePos(top.children[elem].second, new_pos);
+            imnodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
             positions[elem].x = new_pos.x;
             positions[elem].y = new_pos.y;
             ++elem;
@@ -822,13 +822,13 @@ editor::compute_grid_layout() noexcept
     new_pos.y = panning.y + static_cast<float>(column) * grid_layout_y_distance;
     for (int j = 0; j < remaining; ++j) {
         new_pos.x = panning.x + static_cast<float>(j) * grid_layout_x_distance;
-        imnodes::SetNodeScreenSpacePos(top.children[elem].second, new_pos);
+        imnodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
         positions[elem].x = new_pos.x;
         positions[elem].y = new_pos.y;
         ++elem;
     }
 
-    imnodes::EditorContextMoveToNode(top.children[size / 2].second);
+    imnodes::EditorContextResetPanning(positions[0]);
 }
 
 void
@@ -934,7 +934,7 @@ editor::compute_automatic_layout() noexcept
         }
     }
 
-    imnodes::EditorContextMoveToNode(top.children[size / 2].second);
+    imnodes::EditorContextResetPanning(positions[0]);
 }
 
 status
@@ -2795,8 +2795,8 @@ editor::show_editor() noexcept
 
         if (new_model != undefined<model_id>()) {
             parent(new_model, undefined<cluster_id>());
-            imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
-                                           click_pos);
+            imnodes::SetNodeGridSpacePos(top.emplace_back(new_model),
+                                         click_pos);
         }
     }
 
