@@ -1341,7 +1341,8 @@ editor::show_model_cluster(cluster& mdl) noexcept
 
         while (it != end) {
             if (auto* port = sim.input_ports.try_to_get(*it); port) {
-                imnodes::BeginInputAttribute(get_in(*it));
+                imnodes::BeginInputAttribute(get_in(*it),
+                                             imnodes::PinShape_TriangleFilled);
                 ImGui::TextUnformatted(port->name.c_str());
                 imnodes::EndInputAttribute();
                 ++it;
@@ -1357,7 +1358,8 @@ editor::show_model_cluster(cluster& mdl) noexcept
 
         while (it != end) {
             if (auto* port = sim.output_ports.try_to_get(*it); port) {
-                imnodes::BeginOutputAttribute(get_out(*it));
+                imnodes::BeginOutputAttribute(get_out(*it),
+                                              imnodes::PinShape_TriangleFilled);
                 ImGui::TextUnformatted(port->name.c_str());
                 imnodes::EndOutputAttribute();
                 ++it;
@@ -1530,7 +1532,8 @@ add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
         const auto** names = get_input_port_names<Dynamics>();
 
         for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-            imnodes::BeginInputAttribute(ed.get_in(dyn.x[i]));
+            imnodes::BeginInputAttribute(ed.get_in(dyn.x[i]),
+                                         imnodes::PinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             imnodes::EndInputAttribute();
         }
@@ -1545,7 +1548,8 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
         const auto** names = get_output_port_names<Dynamics>();
 
         for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-            imnodes::BeginOutputAttribute(ed.get_out(dyn.y[i]));
+            imnodes::BeginOutputAttribute(ed.get_out(dyn.y[i]),
+                                          imnodes::PinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             imnodes::EndOutputAttribute();
         }
