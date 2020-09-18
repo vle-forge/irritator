@@ -598,28 +598,25 @@ public:
         }
     }
 
-    std::pair<bool, T*> try_alloc() noexcept
-    {
-        if (free_head == nullptr && max_size >= capacity)
-            return { false, nullptr };
-
-        return { true, alloc() };
-    }
-
     T* alloc() noexcept
     {
-        ++size;
         block* new_block = nullptr;
 
         if (free_head != nullptr) {
             new_block = free_head;
             free_head = free_head->next;
         } else {
-            assert(max_size < capacity);
+            irt_assert(max_size < capacity);
             new_block = reinterpret_cast<block*>(&blocks[max_size++]);
         }
+        ++size;
 
         return reinterpret_cast<T*>(new_block);
+    }
+
+    bool can_alloc() noexcept
+    {
+        return free_head != nullptr || max_size < capacity;
     }
 
     void free(T* n) noexcept
