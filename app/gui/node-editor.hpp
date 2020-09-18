@@ -225,18 +225,17 @@ struct observation_output
 
     observation_output() = default;
 
-    observation_output(const char* name_)
+    observation_output(std::string_view name_)
       : name(name_)
     {}
 
     std::ofstream ofs;
     std::string name;
-    array<float> xs;
-    array<float> ys;
+    std::vector<float> xs;
+    std::vector<float> ys;
     double tl = 0.0;
     float min = -1.f;
     float max = +1.f;
-    int id = 0;
     type observation_type = type::none;
 };
 
@@ -266,15 +265,15 @@ struct editor
     bool simulation_show_value = false;
     bool stop = false;
 
-    vector<observation_output> observation_outputs;
-    array<observation_output::type> observation_types;
+    std::vector<observation_output> observation_outputs;
+    std::vector<observation_output::type> observation_types;
     std::filesystem::path observation_directory;
 
     data_array<cluster, cluster_id> clusters;
-    array<cluster_id> clusters_mapper; /* group per cluster_id */
-    array<cluster_id> models_mapper;   /* group per model_id */
+    std::vector<cluster_id> clusters_mapper; /* group per cluster_id */
+    std::vector<cluster_id> models_mapper;   /* group per model_id */
 
-    array<bool> models_make_transition;
+    std::vector<bool> models_make_transition;
 
     ImVector<ImVec2> positions;
     ImVector<ImVec2> displacements;

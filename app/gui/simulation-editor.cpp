@@ -34,12 +34,11 @@ observation_output_initialize(const irt::observer& obs,
     if (match(output->observation_type,
               observation_output::type::multiplot,
               observation_output::type::both)) {
-        std::fill_n(output->xs.data(), output->xs.size(), 0.f);
-        std::fill_n(output->ys.data(), output->ys.size(), 0.f);
+        output->xs.clear();
+        output->ys.clear();
         output->tl = t;
         output->min = -1.f;
         output->max = +1.f;
-        output->id = 0;
     }
 
     if (match(output->observation_type,
@@ -74,11 +73,8 @@ observation_output_observe(const irt::observer& obs,
 
         for (double to_fill = output->tl; to_fill < t;
              to_fill += obs.time_step) {
-            if (static_cast<size_t>(output->id) < output->xs.size()) {
-                output->ys[output->id] = value;
-                output->xs[output->id] = static_cast<float>(t);
-                ++output->id;
-            }
+            output->ys.emplace_back(value);
+            output->xs.emplace_back(static_cast<float>(t));
         }
     }
 
@@ -113,20 +109,22 @@ initialize_observation(window_logger& log_w, irt::editor& ed) noexcept
     ed.observation_outputs.clear();
     observer* obs = nullptr;
     while (ed.sim.observers.next(obs)) {
-        auto* output = ed.observation_outputs.emplace_back(obs->name.c_str());
+        auto& output = ed.observation_outputs.emplace_back(obs->name.sv());
 
         const auto type =
           ed.observation_types[get_index(ed.sim.observers.get_id(*obs))];
         const auto diff = ed.simulation_end - ed.simulation_begin;
         const auto freq = diff / obs->time_step;
         const auto length = static_cast<size_t>(freq);
-        output->observation_type = type;
+        output.observation_type = type;
 
         if (match(type,
                   observation_output::type::multiplot,
                   observation_output::type::both)) {
-            output->xs.init(length);
-            output->ys.init(length);
+            output.xs.clear();
+            output.ys.clear();
+            output.xs.reserve(length);
+            output.ys.reserve(length);
         }
 
         if (!obs->name.empty()) {
@@ -135,7 +133,7 @@ initialize_observation(window_logger& log_w, irt::editor& ed) noexcept
 
             if (type == observation_output::type::file ||
                 type == observation_output::type::both) {
-                if (output->ofs.open(obs_file_path); !output->ofs.is_open())
+                if (output.ofs.open(obs_file_path); !output.ofs.is_open())
                     log_w.log(4,
                               "Fail to open "
                               "observation file: %s in "
@@ -153,7 +151,7 @@ initialize_observation(window_logger& log_w, irt::editor& ed) noexcept
         obs->initialize = &observation_output_initialize;
         obs->observe = &observation_output_observe;
         obs->free = &observation_output_free;
-        obs->user_data = static_cast<void*>(output);
+        obs->user_data = static_cast<void*>(&output);
     }
 }
 
@@ -297,8 +295,7 @@ simulation_init(window_logger& log_w, editor& ed)
     ed.simulation_during_date = ed.simulation_begin;
     ed.st = editor_status::initializing;
 
-    std::fill_n(
-      ed.models_make_transition.data(), ed.sim.models.max_used(), false);
+    ed.models_make_transition.resize(ed.sim.models.max_used(), false);
 
     if (ed.sim_st = ed.sim.initialize(ed.simulation_current);
         irt::is_bad(ed.sim_st)) {
@@ -414,9 +411,7 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
 
         const auto& l = ed.sim.sched.list_model_id();
 
-        std::fill_n(
-          ed.models_make_transition.data(), ed.sim.models.max_used(), false);
-
+        ed.models_make_transition.resize(ed.sim.models.max_used(), false);
         for (auto it = l.begin(), e = l.end(); it != e; ++it)
             ed.models_make_transition[get_index(*it)] = true;
     } else {

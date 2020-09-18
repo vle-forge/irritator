@@ -993,22 +993,27 @@ editor::copy(const ImVector<int>& nodes) noexcept
 status
 editor::initialize(u32 id) noexcept
 {
-    if (is_bad(sim.init(static_cast<unsigned>(kernel_model_cache),
-                        static_cast<unsigned>(kernel_message_cache))) ||
-        is_bad(observation_outputs.init(sim.models.capacity())) ||
-        is_bad(observation_types.init(sim.models.capacity())) ||
-        is_bad(clusters.init(sim.models.capacity())) ||
-        is_bad(models_mapper.init(sim.models.capacity())) ||
-        is_bad(clusters_mapper.init(sim.models.capacity())) ||
-        is_bad(models_make_transition.init(sim.models.capacity())) ||
-        is_bad(top.init(static_cast<unsigned>(gui_node_cache))))
-        return status::gui_not_enough_memory;
+    irt_return_if_bad(sim.init(to_unsigned(kernel_model_cache),
+                               to_unsigned(kernel_message_cache)));
+    irt_return_if_bad(clusters.init(sim.models.capacity()));
+    irt_return_if_bad(top.init(to_unsigned(gui_node_cache)));
 
-    positions.resize(sim.models.capacity() + clusters.capacity());
-    displacements.resize(sim.models.capacity() + clusters.capacity(),
+    try {
+        observation_outputs.resize(sim.models.capacity());
+        observation_types.resize(sim.models.capacity(),
+                                 observation_output::type::none);
+
+        models_mapper.resize(sim.models.capacity(), undefined<cluster_id>());
+        clusters_mapper.resize(sim.models.capacity(), undefined<cluster_id>());
+        models_make_transition.resize(sim.models.capacity(), false);
+
+        positions.resize(sim.models.capacity() + clusters.capacity(),
                          ImVec2{ 0.f, 0.f });
-
-    std::fill_n(models_make_transition.data(), sim.models.capacity(), false);
+        displacements.resize(sim.models.capacity() + clusters.capacity(),
+                             ImVec2{ 0.f, 0.f });
+    } catch (const std::bad_alloc& /*e*/) {
+        return status::gui_not_enough_memory;
+    }
 
     use_real_time = false;
     synchronize_timestep = 0.;
@@ -2905,7 +2910,7 @@ show_plot_box(bool* show_plot)
             for (const auto& obs : ed->observation_outputs) {
                 if (obs.observation_type ==
                       observation_output::type::multiplot &&
-                    obs.xs.data()) {
+                    !obs.xs.empty()) {
                     ImPlot::PlotLine(obs.name.c_str(),
                                      obs.xs.data(),
                                      obs.ys.data(),
