@@ -17,6 +17,7 @@
 
 #include <fmt/format.h>
 #include <irritator/core.hpp>
+#include <irritator/examples.hpp>
 #include <irritator/io.hpp>
 
 namespace irt {
@@ -2522,22 +2523,126 @@ editor::show_editor() noexcept
             ImGui::EndMenu();
         }
 
+        auto empty_fun = [this](irt::model_id id) {
+            this->top.emplace_back(id);
+            parent(id, undefined<cluster_id>());
+        };
+
         if (ImGui::BeginMenu("Examples")) {
-            if (ImGui::MenuItem("Insert Lotka Volterra model")) {
+            if (ImGui::MenuItem("Insert example AQSS lotka_volterra"))
                 if (auto ret = add_lotka_volterra(); is_bad(ret))
                     log_w.log(3,
                               "Fail to initialize a Lotka Volterra "
                               "model (%s)\n",
                               status_string(ret));
-            }
-
-            if (ImGui::MenuItem("Insert Izhikevitch model")) {
+            if (ImGui::MenuItem("Insert Izhikevitch model"))
                 if (auto ret = add_izhikevitch(); is_bad(ret))
                     log_w.log(3,
                               "Fail to initialize an Izhikevitch "
                               "model (%s)\n",
                               status_string(ret));
-            }
+
+            if (ImGui::MenuItem("Insert example QSS1 lotka_volterra"))
+                if (auto ret = example_qss_lotka_volterra<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_lotka_volterra<1>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 negative_lif"))
+                if (auto ret = example_qss_negative_lif<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_negative_lif<1>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 lif"))
+                if (auto ret = example_qss_lif<1>(sim, empty_fun); is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize example_qss_lif<1>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 van_der_pol"))
+                if (auto ret = example_qss_van_der_pol<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_van_der_pol<1>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 izhikevich"))
+                if (auto ret = example_qss_izhikevich<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_izhikevich<1>: %s\n",
+                      status_string(ret));
+
+            if (ImGui::MenuItem("Insert example QSS2 lotka_volterra"))
+                if (auto ret = example_qss_lotka_volterra<2>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_lotka_volterra<2>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS2 negative_lif"))
+                if (auto ret = example_qss_negative_lif<2>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_negative_lif<2>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS2 lif"))
+                if (auto ret = example_qss_lif<2>(sim, empty_fun); is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize example_qss_lif<2>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS2 van_der_pol"))
+                if (auto ret = example_qss_van_der_pol<2>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_van_der_pol<2>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS2 izhikevich"))
+                if (auto ret = example_qss_izhikevich<2>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_izhikevich<2>: %s\n",
+                      status_string(ret));
+
+            if (ImGui::MenuItem("Insert example QSS3 lotka_volterra"))
+                if (auto ret = example_qss_lotka_volterra<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_lotka_volterra<3>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 negative_lif"))
+                if (auto ret = example_qss_negative_lif<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_negative_lif<3>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 lif"))
+                if (auto ret = example_qss_lif<3>(sim, empty_fun); is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize example_qss_lif<3>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 van_der_pol"))
+                if (auto ret = example_qss_van_der_pol<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_van_der_pol<3>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 izhikevich"))
+                if (auto ret = example_qss_izhikevich<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_izhikevich<3>: %s\n",
+                      status_string(ret));
 
             ImGui::EndMenu();
         }
