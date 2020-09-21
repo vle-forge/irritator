@@ -4633,9 +4633,9 @@ struct flow
     time sigma;
 
     double default_samplerate = 44100.0;
-    double* default_data;
-    double* default_sigmas;
-    sz default_size;
+    double* default_data = nullptr;
+    double* default_sigmas = nullptr;
+    sz default_size = 0u;
 
     double accu_sigma;
     sz i;
@@ -4645,7 +4645,9 @@ struct flow
         irt_return_if_fail(default_samplerate > 0.,
                            status::model_flow_bad_samplerate);
 
-        irt_return_if_fail(default_size > 1, status::model_flow_bad_data);
+        irt_return_if_fail(default_data != nullptr &&
+                             default_sigmas != nullptr && default_size > 1,
+                           status::model_flow_bad_data);
 
         sigma = 1.0 / default_samplerate;
         accu_sigma = 0.;
