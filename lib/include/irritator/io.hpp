@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <istream>
 #include <ostream>
+#include <vector>
 
 namespace irt {
 
