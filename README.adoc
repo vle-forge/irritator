@@ -22,12 +22,11 @@ license]. See the LICENSE file.
 ** `clang` ≥ 9 (https://clang.llvm.org/cxx_status.html[notes])
 ** `visual studio 2019 16.0` (https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes[notes])
 
-For recent Debian GNU/Linux and Ubuntu derivatives (remove clang to
-only use gcc):
+For recent Debian GNU/Linux and Ubuntu derivatives.
 
 [source,bash]
 ....
-apt-get install build-essential cmake clang
+apt-get install build-essential cmake libglew2 libglew-dev libglfw3-dev libglx0 libopengl0 libgl1-mesa-dev
 ....
 
 == First installation
@@ -48,6 +47,23 @@ git submodule update --init --recursive
 git clone https://forgemia.inra.fr/gauthier.quesnel/irritator.git
 cd irritator
 git submodule update --init --recursive
+....
+
+* build
+
+[source,bash]
+....
+cmake -B build
+cd build
+make
+make install
+....
+
+* start the GUI
+
+[source,bash]
+....
+./app/gui/irritator-0.1
 ....
 
 == File format
