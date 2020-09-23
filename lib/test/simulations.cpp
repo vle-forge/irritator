@@ -66,24 +66,14 @@ dot_graph_save(const irt::simulation& sim, std::FILE* os)
 
                 fmt::print(os, " [label=\"");
 
-                if (output_port->name.empty())
-                    fmt::print(
-                      os,
-                      "{}",
-                      irt::get_key(sim.output_ports.get_id(*output_port)));
-                else
-                    fmt::print(os, "{}", output_port->name.c_str());
+                fmt::print(os,
+                           "{}",
+                           irt::get_key(sim.output_ports.get_id(*output_port)));
 
                 fmt::print(os, "-");
 
-                if (input_port->name.empty())
-                    fmt::print(
-                      os,
-                      "{}",
-                      irt::get_key(sim.input_ports.get_id(*input_port)));
-                else
-
-                    fmt::print(os, "{}", input_port->name.c_str());
+                fmt::print(
+                  os, "{}", irt::get_key(sim.input_ports.get_id(*input_port)));
 
                 fmt::print(os, "\"];\n");
             }

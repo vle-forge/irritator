@@ -126,58 +126,6 @@ for_each(DataArray& d_array, Container& container, Function f) noexcept
     }
 }
 
-static const char* dynamics_type_names[] = { "none",
-                                             "qss1_integrator",
-                                             "qss1_multiplier",
-                                             "qss1_cross",
-                                             "qss1_power",
-                                             "qss1_square",
-                                             "qss1_sum_2",
-                                             "qss1_sum_3",
-                                             "qss1_sum_4",
-                                             "qss1_wsum_2",
-                                             "qss1_wsum_3",
-                                             "qss1_wsum_4",
-                                             "qss2_integrator",
-                                             "qss2_multiplier",
-                                             "qss2_cross",
-                                             "qss2_power",
-                                             "qss2_square",
-                                             "qss2_sum_2",
-                                             "qss2_sum_3",
-                                             "qss2_sum_4",
-                                             "qss2_wsum_2",
-                                             "qss2_wsum_3",
-                                             "qss2_wsum_4",
-                                             "qss3_integrator",
-                                             "qss3_multiplier",
-                                             "qss3_cross",
-                                             "qss3_power",
-                                             "qss3_square",
-                                             "qss3_sum_2",
-                                             "qss3_sum_3",
-                                             "qss3_sum_4",
-                                             "qss3_wsum_2",
-                                             "qss3_wsum_3",
-                                             "qss3_wsum_4",
-                                             "integrator",
-                                             "quantifier",
-                                             "adder_2",
-                                             "adder_3",
-                                             "adder_4",
-                                             "mult_2",
-                                             "mult_3",
-                                             "mult_4",
-                                             "counter",
-                                             "generator",
-                                             "constant",
-                                             "cross",
-                                             "time_func",
-                                             "accumulator_2",
-                                             "flow" };
-
-static_assert(std::size(dynamics_type_names) ==
-              static_cast<sz>(dynamics_type_size()));
 
 static window_logger log_w;
 static data_array<editor, editor_id> editors;
@@ -1343,7 +1291,7 @@ editor::show_model_cluster(cluster& mdl) noexcept
             if (auto* port = sim.input_ports.try_to_get(*it); port) {
                 imnodes::BeginInputAttribute(get_in(*it),
                                              imnodes::PinShape_TriangleFilled);
-                ImGui::TextUnformatted(port->name.c_str());
+                ImGui::TextUnformatted("");
                 imnodes::EndInputAttribute();
                 ++it;
             } else {
@@ -1360,7 +1308,7 @@ editor::show_model_cluster(cluster& mdl) noexcept
             if (auto* port = sim.output_ports.try_to_get(*it); port) {
                 imnodes::BeginOutputAttribute(get_out(*it),
                                               imnodes::PinShape_TriangleFilled);
-                ImGui::TextUnformatted(port->name.c_str());
+                ImGui::TextUnformatted("");
                 imnodes::EndOutputAttribute();
                 ++it;
             } else {
@@ -1368,160 +1316,6 @@ editor::show_model_cluster(cluster& mdl) noexcept
             }
         }
     }
-}
-
-static const char* str_error[] = { "Error" };
-static const char* str_empty[] = { "" };
-static const char* str_integrator[] = { "x-dot", "reset" };
-static const char* str_adaptative_integrator[] = { "quanta", "x-dot", "reset" };
-static const char* str_in_1[] = { "in" };
-static const char* str_in_2[] = { "in-1", "in-2" };
-static const char* str_in_3[] = { "in-1", "in-2", "in-3" };
-static const char* str_in_4[] = { "in-1", "in-2", "in-3", "in-4" };
-static const char* str_value_if_else[] = { "value", "if", "else", "threshold" };
-static const char* str_in_2_nb_2[] = { "in-1", "in-2", "nb-1", "nb-2" };
-
-template<typename Dynamics>
-static constexpr const char**
-get_input_port_names()
-{
-    if constexpr (std::is_same_v<Dynamics, none>)
-        return str_empty;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
-                  std::is_same_v<Dynamics, qss2_integrator> ||
-                  std::is_same_v<Dynamics, qss3_integrator>)
-        return str_integrator;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_multiplier> ||
-                  std::is_same_v<Dynamics, qss1_sum_2> ||
-                  std::is_same_v<Dynamics, qss1_wsum_2> ||
-                  std::is_same_v<Dynamics, qss2_multiplier> ||
-                  std::is_same_v<Dynamics, qss2_sum_2> ||
-                  std::is_same_v<Dynamics, qss2_wsum_2> ||
-                  std::is_same_v<Dynamics, qss3_multiplier> ||
-                  std::is_same_v<Dynamics, qss3_sum_2> ||
-                  std::is_same_v<Dynamics, qss3_wsum_2> ||
-                  std::is_same_v<Dynamics, adder_2> ||
-                  std::is_same_v<Dynamics, mult_2>)
-        return str_in_2;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_sum_3> ||
-                  std::is_same_v<Dynamics, qss1_wsum_3> ||
-                  std::is_same_v<Dynamics, qss2_sum_3> ||
-                  std::is_same_v<Dynamics, qss2_wsum_3> ||
-                  std::is_same_v<Dynamics, qss3_sum_3> ||
-                  std::is_same_v<Dynamics, qss3_wsum_3> ||
-                  std::is_same_v<Dynamics, adder_3> ||
-                  std::is_same_v<Dynamics, mult_3>)
-        return str_in_3;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_sum_4> ||
-                  std::is_same_v<Dynamics, qss1_wsum_4> ||
-                  std::is_same_v<Dynamics, qss2_sum_4> ||
-                  std::is_same_v<Dynamics, qss2_wsum_4> ||
-                  std::is_same_v<Dynamics, qss3_sum_4> ||
-                  std::is_same_v<Dynamics, qss3_wsum_4> ||
-                  std::is_same_v<Dynamics, adder_4> ||
-                  std::is_same_v<Dynamics, mult_4>)
-        return str_in_4;
-
-    if constexpr (std::is_same_v<Dynamics, integrator>)
-        return str_adaptative_integrator;
-
-    if constexpr (std::is_same_v<Dynamics, quantifier> ||
-                  std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, qss1_power> ||
-                  std::is_same_v<Dynamics, qss2_power> ||
-                  std::is_same_v<Dynamics, qss3_power> ||
-                  std::is_same_v<Dynamics, qss1_square> ||
-                  std::is_same_v<Dynamics, qss2_square> ||
-                  std::is_same_v<Dynamics, qss3_square>)
-        return str_in_1;
-
-    if constexpr (std::is_same_v<Dynamics, generator> ||
-                  std::is_same_v<Dynamics, constant> ||
-                  std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, flow>)
-        return str_empty;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
-                  std::is_same_v<Dynamics, qss2_cross> ||
-                  std::is_same_v<Dynamics, qss3_cross> ||
-                  std::is_same_v<Dynamics, cross>)
-        return str_value_if_else;
-
-    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
-        return str_in_2_nb_2;
-
-    return str_error;
-}
-
-static const char* str_out_1[] = { "out" };
-static const char* str_out_cross[] = { "if-value", "else-value", "event" };
-
-template<typename Dynamics>
-static constexpr const char**
-get_output_port_names()
-{
-    if constexpr (std::is_same_v<Dynamics, none>)
-        return str_empty;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
-                  std::is_same_v<Dynamics, qss1_multiplier> ||
-                  std::is_same_v<Dynamics, qss1_power> ||
-                  std::is_same_v<Dynamics, qss1_square> ||
-                  std::is_same_v<Dynamics, qss1_sum_2> ||
-                  std::is_same_v<Dynamics, qss1_sum_3> ||
-                  std::is_same_v<Dynamics, qss1_sum_4> ||
-                  std::is_same_v<Dynamics, qss1_wsum_2> ||
-                  std::is_same_v<Dynamics, qss1_wsum_3> ||
-                  std::is_same_v<Dynamics, qss1_wsum_4> ||
-                  std::is_same_v<Dynamics, qss2_integrator> ||
-                  std::is_same_v<Dynamics, qss2_multiplier> ||
-                  std::is_same_v<Dynamics, qss2_power> ||
-                  std::is_same_v<Dynamics, qss2_square> ||
-                  std::is_same_v<Dynamics, qss2_sum_2> ||
-                  std::is_same_v<Dynamics, qss2_sum_3> ||
-                  std::is_same_v<Dynamics, qss2_sum_4> ||
-                  std::is_same_v<Dynamics, qss2_wsum_2> ||
-                  std::is_same_v<Dynamics, qss2_wsum_3> ||
-                  std::is_same_v<Dynamics, qss2_wsum_4> ||
-                  std::is_same_v<Dynamics, qss3_integrator> ||
-                  std::is_same_v<Dynamics, qss3_multiplier> ||
-                  std::is_same_v<Dynamics, qss3_power> ||
-                  std::is_same_v<Dynamics, qss3_square> ||
-                  std::is_same_v<Dynamics, qss3_sum_2> ||
-                  std::is_same_v<Dynamics, qss3_sum_3> ||
-                  std::is_same_v<Dynamics, qss3_sum_4> ||
-                  std::is_same_v<Dynamics, qss3_wsum_2> ||
-                  std::is_same_v<Dynamics, qss3_wsum_3> ||
-                  std::is_same_v<Dynamics, qss3_wsum_4> ||
-                  std::is_same_v<Dynamics, integrator> ||
-                  std::is_same_v<Dynamics, quantifier> ||
-                  std::is_same_v<Dynamics, adder_2> ||
-                  std::is_same_v<Dynamics, adder_3> ||
-                  std::is_same_v<Dynamics, adder_4> ||
-                  std::is_same_v<Dynamics, mult_2> ||
-                  std::is_same_v<Dynamics, mult_3> ||
-                  std::is_same_v<Dynamics, mult_4> ||
-                  std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, generator> ||
-                  std::is_same_v<Dynamics, constant> ||
-                  std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, flow>)
-        return str_out_1;
-
-    if constexpr (std::is_same_v<Dynamics, cross> ||
-                  std::is_same_v<Dynamics, qss1_cross> ||
-                  std::is_same_v<Dynamics, qss2_cross> ||
-                  std::is_same_v<Dynamics, qss3_cross>)
-        return str_out_cross;
-
-    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
-        return str_empty;
-
-    return str_error;
 }
 
 template<typename Dynamics>

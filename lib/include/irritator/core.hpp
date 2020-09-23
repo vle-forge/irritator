@@ -2448,7 +2448,6 @@ struct input_port
     model_id model;
     flat_list<output_port_id> connections;
     flat_list<message> messages;
-    small_string<8> name;
 };
 
 struct output_port
@@ -2456,7 +2455,6 @@ struct output_port
     model_id model;
     flat_list<input_port_id> connections;
     flat_list<message> messages;
-    small_string<8> name;
 };
 
 namespace detail {
