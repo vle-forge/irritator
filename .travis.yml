@@ -51,25 +51,14 @@ jobs:
           packages:
             - *common_packages
             - g++-9
-# Disabled: too many std::u8string conversion errors.
-#     - os: linux
-#       dist: bionic
-#       env: USE_COVERAGE=no CC=clang-9 CXX=clang++-9 CXXFLAGS="-stdlib=libc++ -std=c++2a -O2 -g"
-#       addons:
-#         apt:
-#           sources:
-#             - sourceline: 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main'
-#               key_url: https://apt.llvm.org/llvm-snapshot.gpg.key
-#             - ubuntu-toolchain-r-test
-#           packages:
-#             - *common_packages
-#             - clang-9
-#             - libc++-9-dev
-#             - libc++abi-9-dev
-# Disabled: until add macos port.
-#     - os: osx
-#       osx_image: xcode12
-#       env: USE_COVERAGE=no CC=clang CXX=clang++ CXXFLAGS="-std=c++2a -O2 -g"
+    - os: osx
+      osx_image: xcode12
+      env: USE_COVERAGE=no CC=clang CXX=clang++ CXXFLAGS="-std=c++2a -O2 -g"
+      addons:
+        homebrew:
+          packages:
+            - glew
+            - glfw
 
 install:
   - cd ${TRAVIS_BUILD_DIR}
