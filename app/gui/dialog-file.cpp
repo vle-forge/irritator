@@ -25,8 +25,14 @@ struct file_dialog
     std::vector<std::filesystem::path> paths;
     std::filesystem::path current;
     std::filesystem::path selected;
+#if defined(__APPLE__)
+    // @TODO Remove this part when XCode allows u8string concatenation.
+    std::string temp;
+    char buffer[512];
+#else
     std::u8string temp;
     char8_t buffer[512];
+#endif
 
     bool is_open = true;
 
@@ -64,12 +70,23 @@ struct file_dialog
             return true;
 
         const char8_t** filters = file_filters;
+
+#if defined(__APPLE__)
+        // @TODO Remove this part when XCode allows u8string find/compare.
+        while (*filters) {
+            if (p.u8string().find(reinterpret_cast<const char*>(*filters)) == 0)
+                return true;
+
+            ++filters;
+        }
+#else
         while (*filters) {
             if (p.u8string().find(*filters) == 0)
                 return true;
 
             ++filters;
         }
+#endif
 
         return false;
     }
@@ -80,12 +97,23 @@ struct file_dialog
             return true;
 
         const char8_t** filters = extension_filters;
+
+#if defined(__APPLE__)
+        // @TODO Remove this part when XCode allows u8string find/compare.
+        while (*filters) {
+            if (p.extension().u8string() == reinterpret_cast<const char*>(*filters))
+                return true;
+
+            ++filters;
+        }
+#else
         while (*filters) {
             if (p.extension().u8string() == *filters)
                 return true;
 
             ++filters;
         }
+#endif
 
         return false;
     }
@@ -235,8 +263,14 @@ load_file_dialog(std::filesystem::path& out)
                  ++it) {
                 fd.temp.clear();
                 if (std::filesystem::is_directory(*it)) {
+#if defined(__APPLE__)
+                    // @TODO Remove this part when XCode allows u8string concatenation.
+                    fd.temp = "[Dir] ";
+                    fd.temp += reinterpret_cast<const char*>(it->filename().u8string().c_str());
+#else
                     fd.temp = u8"[Dir] ";
                     fd.temp += it->filename().u8string();
+#endif
                 } else
                     fd.temp = it->filename().u8string();
 
@@ -348,7 +382,12 @@ save_file_dialog(std::filesystem::path& out)
                  ++it) {
                 fd.temp.clear();
                 if (std::filesystem::is_directory(*it))
+#if defined(__APPLE__)
+                    // @TODO Remove this part when XCode allows u8string concatenation.
+                    fd.temp = "[Dir] ";
+#else
                     fd.temp = u8"[Dir] ";
+#endif
 
                 fd.temp = it->filename().u8string();
 
