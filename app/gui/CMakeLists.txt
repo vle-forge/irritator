@@ -54,12 +54,15 @@ target_include_directories(irritator-gui
 target_link_libraries(irritator-gui
     PRIVATE
     $<$<PLATFORM_ID:Linux>:GLEW::GLEW>
+    $<$<PLATFORM_ID:Darwin>:GLEW::glew>
     $<$<CXX_COMPILER_ID:GNU>:stdc++fs>
     $<$<CXX_COMPILER_ID:Clang>:c++fs>
     threads
     $<$<PLATFORM_ID:Linux>:dl>
     $<$<PLATFORM_ID:Linux>:OpenGL::GL>
     $<$<PLATFORM_ID:Linux>:glfw>
+    $<$<PLATFORM_ID:Darwin>:OpenGL::GL>
+    $<$<PLATFORM_ID:Darwin>:glfw>
     $<$<PLATFORM_ID:Windows>:d3d12>
     $<$<PLATFORM_ID:Windows>:dxguid>
     $<$<PLATFORM_ID:Windows>:dxgi>
