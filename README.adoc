@@ -11,23 +11,39 @@ v0.1.0, 2020-xx-xx
 
 Copyright © 2020 http://www.inrae.fr/en[INRA]
 
-The software is released under the https://www.boost.org/LICENSE_1_0.txt[Boost
-license]. See the LICENSE file.
+The software is released under the https://www.boost.org/LICENSE_1_0.txt[Boost license]. See the LICENSE file.
 
 == Requirements and recommended
+
+Irritator works for Linux, Windows and MacOS.
 
 * `cmake` (≥ 3.11)
 * $$C++$$ compiler with $$C++20$$ support:
 ** `gcc` ≥ 8 (https://www.gnu.org/software/gcc/projects/cxx-status.html[notes])
 ** `clang` ≥ 9 (https://clang.llvm.org/cxx_status.html[notes])
 ** `visual studio 2019 16.0` (https://docs.microsoft.com/en-us/visualstudio/releasenotes/vs2017-relnotes[notes])
+** `Xcode 12` (https://apps.apple.com/app/xcode[notes])
 
-For recent Debian GNU/Linux and Ubuntu derivatives.
+=== Linux
+
+Install the glfw3 and OpenGL libraries. On Debian GNU/Linux and Ubuntu derivatives.
 
 [source,bash]
 ....
 apt-get install build-essential cmake libglew2 libglew-dev libglfw3-dev libglx0 libopengl0 libgl1-mesa-dev
 ....
+
+=== Windows
+
+Install (https://visualstudio.microsoft.com/[Visual Studio 2019]) with `cmake`
+support  then open the Irrirator source directory and build.
+
+=== MacOS
+
+Install (https://apps.apple.com/app/xcode[Xcode 12]) and Xcode Command Line
+Tools via the command `xcode-select --install` in terminal.  Then using
+(https://brew.sh[Homebrew]), install `cmake`, `glew` and `glfw` the OpenGL
+dependencies. 
 
 == First installation
 
