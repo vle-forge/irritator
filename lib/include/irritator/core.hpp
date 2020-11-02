@@ -193,7 +193,7 @@ status_last() noexcept
 constexpr sz
 status_size() noexcept
 {
-    return static_cast<sz>(status_last() + 1);
+    return static_cast<sz>(status_last() + static_cast<i8>(1));
 }
 
 constexpr bool
