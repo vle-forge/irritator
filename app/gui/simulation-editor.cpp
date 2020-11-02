@@ -295,7 +295,7 @@ simulation_init(window_logger& log_w, editor& ed)
     ed.simulation_during_date = ed.simulation_begin;
     ed.st = editor_status::initializing;
 
-    ed.models_make_transition.resize(ed.sim.models.max_used(), false);
+    ed.models_make_transition.resize(ed.sim.models.capacity(), false);
 
     if (ed.sim_st = ed.sim.initialize(ed.simulation_current);
         irt::is_bad(ed.sim_st)) {
@@ -411,7 +411,10 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
 
         const auto& l = ed.sim.sched.list_model_id();
 
-        ed.models_make_transition.resize(ed.sim.models.max_used(), false);
+        std::fill_n(ed.models_make_transition.begin(),
+                    ed.models_make_transition.size(),
+                    false);
+
         for (auto it = l.begin(), e = l.end(); it != e; ++it)
             ed.models_make_transition[get_index(*it)] = true;
     } else {
