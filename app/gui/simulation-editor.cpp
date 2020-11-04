@@ -241,17 +241,16 @@ show_simulation_run_once(window_logger& log_w, editor& ed)
             ed.simulation_thread.join();
             ed.st = editor_status::editing;
         }
-    } else {
+    } else if (ed.st == editor_status::editing || ed.st == editor_status::running_debug) {
         ImGui::Checkbox("Time synchronization", &ed.use_real_time);
 
-        if (ed.use_real_time)
+        if (ed.use_real_time) {
             ImGui::InputDouble("t/s", &ed.synchronize_timestep);
 
-        if (ImGui::Button("run")) {
-            initialize_observation(log_w, ed);
-            ed.stop = false;
+            if (ed.synchronize_timestep > 0. && ImGui::Button("run")) {
+                initialize_observation(log_w, ed);
+                ed.stop = false;
 
-            if (ed.use_real_time)
                 ed.simulation_thread =
                   std::thread(&run_synchronized_simulation,
                               std::ref(log_w),
@@ -263,7 +262,12 @@ show_simulation_run_once(window_logger& log_w, editor& ed)
                               std::ref(ed.st),
                               std::ref(ed.sim_st),
                               std::cref(ed.stop));
-            else
+            }
+        } else {
+            if (ImGui::Button("run")) {
+                initialize_observation(log_w, ed);
+                ed.stop = false;
+
                 ed.simulation_thread =
                   std::thread(&run_simulation,
                               std::ref(log_w),
@@ -274,6 +278,7 @@ show_simulation_run_once(window_logger& log_w, editor& ed)
                               std::ref(ed.st),
                               std::ref(ed.sim_st),
                               std::cref(ed.stop));
+            }
         }
     }
 
