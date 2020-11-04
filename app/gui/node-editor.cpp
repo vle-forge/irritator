@@ -2126,7 +2126,7 @@ show_tooltip(editor& ed, const model& mdl, const model_id id)
                        mdl.tn);
 
         auto ret = ed.sim.dispatch(
-          mdl.type, [&]<typename DynamicsModels>(DynamicsModels & dyn_models) {
+          mdl.type, [&]<typename DynamicsModels>(DynamicsModels& dyn_models) {
               using Dynamics = typename DynamicsModels::value_type;
               if constexpr (is_detected_v<has_input_port_t, Dynamics>)
                   return make_input_tooltip(
@@ -2251,11 +2251,16 @@ add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
             if (!ed.sim.models.can_alloc(1) || !d_array.can_alloc(1))
                 return status::data_array_not_enough_memory;
 
-            auto& mdl = d_array.alloc();
-            ed.sim.alloc(mdl,
-                         d_array.get_id(mdl),
+            auto& dyn = d_array.alloc();
+            ed.sim.alloc(dyn,
+                         d_array.get_id(dyn),
                          dynamics_type_names[static_cast<i8>(type)]);
-            *new_model = mdl.id;
+
+            const auto mdl_id = dyn.id;
+            auto* mdl = ed.sim.models.try_to_get(mdl_id);
+            ed.sim.make_initialize(*mdl, ed.simulation_current);
+
+            *new_model = mdl_id;
         }
 
         return status::success;
