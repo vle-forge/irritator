@@ -2589,7 +2589,7 @@ editor::show_editor() noexcept
 
         if (new_model != undefined<model_id>()) {
             parent(new_model, undefined<cluster_id>());
-            imnodes::SetNodeGridSpacePos(top.emplace_back(new_model),
+            imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
                                          click_pos);
         }
     }
