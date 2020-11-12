@@ -5872,8 +5872,7 @@ struct simulation
     void for_all_input_port(const model& mdl, Function f)
     {
         dispatch(
-          mdl.type,
-          [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
+          mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
               using TT = T;
               using Dynamics = typename TT::value_type;
 
@@ -5892,8 +5891,7 @@ struct simulation
     void for_all_output_port(const model& mdl, Function f)
     {
         dispatch(
-          mdl.type,
-          [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
+          mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
               using TT = T;
               using Dynamics = typename TT::value_type;
 
@@ -5915,8 +5913,7 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [dyn_id = mdl.id, port, index]<typename T>(
-            T& dyn_models) -> status {
+          [dyn_id = mdl.id, port, index]<typename T>(T& dyn_models) -> status {
               using TT = T;
               using Dynamics = typename TT::value_type;
 
@@ -5942,8 +5939,7 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [dyn_id = mdl.id, index, port]<typename T>(
-            T& dyn_models) -> status {
+          [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status {
               using TT = T;
               using Dynamics = typename TT::value_type;
 
@@ -5969,9 +5965,8 @@ struct simulation
     {
         return dispatch(
           mdl.type,
-          [dyn_id = mdl.id, index, port]<typename T>(
-            T& dyn_models) -> status {
-            using TT = T;
+          [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status {
+              using TT = T;
               using Dynamics = typename TT::value_type;
 
               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
@@ -6121,7 +6116,7 @@ public:
         input_ports.clear();
         output_ports.clear();
 
-        for_all([]<typename DynamicsM>(DynamicsM & dyn_models)->status {
+        for_all([]<typename DynamicsM>(DynamicsM& dyn_models) -> status {
             dyn_models.clear();
             return status::success;
         });
@@ -6532,8 +6527,7 @@ public:
     {
         return dispatch(
           mdl.type,
-          [ this, &mdl,
-            t ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
+          [this, &mdl, t]<typename DynamicsModels>(DynamicsModels& dyn_models) {
               return this->make_initialize(mdl, dyn_models.get(mdl.id), t);
           });
     }
@@ -6602,12 +6596,12 @@ public:
                            time t,
                            flat_list<output_port_id>& o) noexcept
     {
-        return dispatch(
-          mdl.type,
-          [ this, &mdl, t, &
-            o ]<typename DynamicsModels>(DynamicsModels & dyn_models) {
-              return this->make_transition(mdl, dyn_models.get(mdl.id), t, o);
-          });
+        return dispatch(mdl.type,
+                        [this, &mdl, t, &o]<typename DynamicsModels>(
+                          DynamicsModels& dyn_models) {
+                            return this->make_transition(
+                              mdl, dyn_models.get(mdl.id), t, o);
+                        });
     }
 };
 
