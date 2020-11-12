@@ -2077,6 +2077,7 @@ private:
     size_t capacity{ 0 };
     node* root{ nullptr };
     node* nodes{ nullptr };
+    node* free_list{ nullptr };
 
 public:
     using handle = node*;
@@ -2107,6 +2108,7 @@ public:
         max_size = 0;
         capacity = new_capacity;
         root = nullptr;
+        free_list = nullptr;
 
         return status::success;
     }
@@ -2116,11 +2118,20 @@ public:
         m_size = 0;
         max_size = 0;
         root = nullptr;
+        free_list = nullptr;
     }
 
     handle insert(time tn, model_id id) noexcept
     {
-        node* new_node = &nodes[max_size++];
+        node* new_node;
+
+        if (free_list) {
+            new_node = free_list;
+            free_list = free_list->next;
+        } else {
+            new_node = &nodes[max_size++];
+        }
+
         new_node->tn = tn;
         new_node->id = id;
         new_node->prev = nullptr;
@@ -2135,6 +2146,22 @@ public:
             root = merge(new_node, root);
 
         return new_node;
+    }
+
+    void destroy(handle elem) noexcept
+    {
+        irt_assert(elem);
+
+        if (m_size == 0) {
+            clear();
+        } else {
+            elem->prev = nullptr;
+            elem->child = nullptr;
+            elem->id = static_cast<model_id>(0);
+
+            elem->next = free_list;
+            free_list = elem;
+        }
     }
 
     void insert(handle elem) noexcept
@@ -5211,6 +5238,7 @@ public:
     {
         if (mdl.handle) {
             m_heap.remove(mdl.handle);
+            m_heap.destroy(mdl.handle);
             mdl.handle = nullptr;
         }
     }
