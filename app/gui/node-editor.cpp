@@ -133,10 +133,6 @@ static data_array<editor, editor_id> editors;
 void
 editor::clear() noexcept
 {
-    observation_outputs.clear();
-    observation_types.clear();
-    observation_directory.clear();
-
     clusters.clear();
     sim.clear();
 
