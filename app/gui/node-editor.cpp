@@ -2253,7 +2253,7 @@ add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
 
             const auto mdl_id = dyn.id;
             auto* mdl = ed.sim.models.try_to_get(mdl_id);
-            ed.sim.make_initialize(*mdl, ed.simulation_current);
+            ed.sim.make_initialize(*mdl, dyn, ed.simulation_current);
 
             *new_model = mdl_id;
         }
