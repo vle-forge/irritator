@@ -2138,12 +2138,7 @@ public:
         new_node->next = nullptr;
         new_node->child = nullptr;
 
-        ++m_size;
-
-        if (root == nullptr)
-            root = new_node;
-        else
-            root = merge(new_node, root);
+        insert(new_node);
 
         return new_node;
     }
@@ -2180,22 +2175,25 @@ public:
 
     void remove(handle elem) noexcept
     {
+        irt_assert(elem);
+
         if (elem == root) {
             pop();
             return;
         }
 
-        if (m_size > 0) {
-            m_size--;
-            detach_subheap(elem);
+        irt_assert(m_size > 0);
+
+        m_size--;
+        detach_subheap(elem);
+
+        if (elem->prev) { /* Not use pop() before. Use in interactive code */
             elem = merge_subheaps(elem);
             root = merge(root, elem);
-        } else {
-            root = nullptr;
         }
     }
 
-    void pop() noexcept
+    handle pop() noexcept
     {
         irt_assert(m_size > 0);
 
@@ -2207,6 +2205,10 @@ public:
             root = nullptr;
         else
             root = merge_subheaps(top);
+
+        top->child = top->next = top->prev = nullptr;
+
+        return top;
     }
 
     void decrease(handle elem) noexcept
@@ -5249,6 +5251,8 @@ public:
 
         mdl.handle->tn = tn;
 
+        irt_assert(tn <= mdl.tn);
+
         if (tn < mdl.tn)
             m_heap.decrease(mdl.handle);
         else if (tn > mdl.tn)
@@ -5261,15 +5265,10 @@ public:
 
         m_list.clear();
 
-        m_list.emplace_front(m_heap.top()->id);
-        m_heap.pop();
+        m_list.emplace_front(m_heap.pop()->id);
 
-        auto nb = 1u;
-        while (!m_heap.empty() && t == tn()) {
-            m_list.emplace_front(m_heap.top()->id);
-            m_heap.pop();
-            nb++;
-        }
+        while (!m_heap.empty() && t == tn())
+            m_list.emplace_front(m_heap.pop()->id);
 
         return m_list;
     }
