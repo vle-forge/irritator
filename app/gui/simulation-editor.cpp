@@ -193,8 +193,6 @@ run_synchronized_simulation(window_logger& log_w,
               std::chrono::duration<double>(duration));
     } while (current < end && !stop);
 
-    sim.clean();
-
     st = editor_status::running_thread_need_join;
 }
 
@@ -227,8 +225,6 @@ run_simulation(window_logger& log_w,
             return;
         }
     } while (current < end && !stop);
-
-    sim.clean();
 
     st = editor_status::running_thread_need_join;
 }
