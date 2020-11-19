@@ -287,11 +287,11 @@ izhikevich_benchmark(double simulation_duration,
     irt::time t = 0.0;
 
     expect(irt::status::success == sim.initialize(t));
-    !expect(sim.sched.size() == 12_ul);
+    expect((sim.sched.size() == 12_ul) >> fatal);
 
     do {
         irt::status st = sim.run(t);
-        expect(st == irt::status::success);
+        expect((st == irt::status::success) >> fatal);
     } while (t < simulation_duration);
 };
 

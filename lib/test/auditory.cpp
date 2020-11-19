@@ -421,13 +421,15 @@ make_synapse(irt::simulation* sim,
 
     const_syn.default_value = 1.0;
 
-    !expect(irt::is_success(
-      sim->alloc(sum_pre, sim->adder_2_models.get_id(sum_pre))));
-    !expect(irt::is_success(
-      sim->alloc(cross_pre, sim->cross_models.get_id(cross_pre))));
-
-    !expect(irt::is_success(
-      sim->alloc(const_syn, sim->constant_models.get_id(const_syn))));
+    expect((irt::is_success(
+             sim->alloc(sum_pre, sim->adder_2_models.get_id(sum_pre)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(cross_pre, sim->cross_models.get_id(cross_pre)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(const_syn, sim->constant_models.get_id(const_syn)))) >>
+           fatal);
 
     struct synapse synapse_model = {
         sim->adder_2_models.get_id(sum_pre),
@@ -436,7 +438,6 @@ make_synapse(irt::simulation* sim,
         sim->constant_models.get_id(const_syn),
     };
 
-    // Connections
     expect(sim->connect(other, sum_pre.x[0]) == irt::status::success);
     expect(sim->connect(other, cross_pre.x[2]) == irt::status::success);
     expect(sim->connect(const_syn.y[0], sum_pre.x[1]) == irt::status::success);

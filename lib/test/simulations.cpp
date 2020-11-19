@@ -257,32 +257,45 @@ make_synapse(irt::simulation* sim,
     snprintf(ctesyn, 7, "cte%ld%ld", source, target);
     snprintf(accumsyn, 7, "acc%ld%ld", source, target);
 
-    !expect(irt::is_success(
-      sim->alloc(int_pre, sim->integrator_models.get_id(int_pre))));
-    !expect(irt::is_success(
-      sim->alloc(quant_pre, sim->quantifier_models.get_id(quant_pre))));
-    !expect(irt::is_success(
-      sim->alloc(sum_pre, sim->adder_2_models.get_id(sum_pre))));
-    !expect(irt::is_success(
-      sim->alloc(mult_pre, sim->adder_2_models.get_id(mult_pre))));
-    !expect(irt::is_success(
-      sim->alloc(cross_pre, sim->cross_models.get_id(cross_pre))));
+    expect((irt::is_success(
+             sim->alloc(int_pre, sim->integrator_models.get_id(int_pre)))) >>
+           fatal);
+    expect((irt::is_success(sim->alloc(
+             quant_pre, sim->quantifier_models.get_id(quant_pre)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(sum_pre, sim->adder_2_models.get_id(sum_pre)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(mult_pre, sim->adder_2_models.get_id(mult_pre)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(cross_pre, sim->cross_models.get_id(cross_pre)))) >>
+           fatal);
 
-    !expect(irt::is_success(
-      sim->alloc(int_post, sim->integrator_models.get_id(int_post))));
-    !expect(irt::is_success(
-      sim->alloc(quant_post, sim->quantifier_models.get_id(quant_post))));
-    !expect(irt::is_success(
-      sim->alloc(sum_post, sim->adder_2_models.get_id(sum_post))));
-    !expect(irt::is_success(
-      sim->alloc(mult_post, sim->adder_2_models.get_id(mult_post))));
-    !expect(irt::is_success(
-      sim->alloc(cross_post, sim->cross_models.get_id(cross_post))));
+    expect((irt::is_success(
+             sim->alloc(int_post, sim->integrator_models.get_id(int_post)))) >>
+           fatal);
+    expect((irt::is_success(sim->alloc(
+             quant_post, sim->quantifier_models.get_id(quant_post)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(sum_post, sim->adder_2_models.get_id(sum_post)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(mult_post, sim->adder_2_models.get_id(mult_post)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(cross_post, sim->cross_models.get_id(cross_post)))) >>
+           fatal);
 
-    !expect(irt::is_success(
-      sim->alloc(const_syn, sim->constant_models.get_id(const_syn))));
-    !expect(irt::is_success(sim->alloc(
-      accumulator_syn, sim->accumulator_2_models.get_id(accumulator_syn))));
+    expect((irt::is_success(
+             sim->alloc(const_syn, sim->constant_models.get_id(const_syn)))) >>
+           fatal);
+    expect(
+      (irt::is_success(sim->alloc(
+        accumulator_syn, sim->accumulator_2_models.get_id(accumulator_syn)))) >>
+      fatal);
 
     struct synapse synapse_model = {
         sim->adder_2_models.get_id(sum_pre),
@@ -415,7 +428,7 @@ main()
 
         irt::time t = 0.0;
         std::FILE* os = std::fopen("output_song.csv", "w");
-        !expect(os != nullptr);
+        expect((os != nullptr) >> fatal);
 
         std::string s = "t,";
         for (long unsigned int i = 0; i < N * N; i++) {

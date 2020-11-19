@@ -381,28 +381,39 @@ make_synapse(irt::simulation* sim,
 
     const_syn.default_value = 1.0;
 
-    !expect(irt::is_success(
-      sim->alloc(int_pre, sim->qss1_integrator_models.get_id(int_pre))));
-    !expect(irt::is_success(
-      sim->alloc(sum_pre, sim->qss1_wsum_2_models.get_id(sum_pre))));
-    !expect(irt::is_success(
-      sim->alloc(mult_pre, sim->qss1_wsum_2_models.get_id(mult_pre))));
-    !expect(irt::is_success(
-      sim->alloc(cross_pre, sim->qss1_cross_models.get_id(cross_pre))));
+    expect((irt::is_success(sim->alloc(
+             int_pre, sim->qss1_integrator_models.get_id(int_pre)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(sum_pre, sim->qss1_wsum_2_models.get_id(sum_pre)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(mult_pre, sim->qss1_wsum_2_models.get_id(mult_pre)))) >>
+           fatal);
+    expect((irt::is_success(sim->alloc(
+             cross_pre, sim->qss1_cross_models.get_id(cross_pre)))) >>
+           fatal);
 
-    !expect(irt::is_success(
-      sim->alloc(int_post, sim->qss1_integrator_models.get_id(int_post))));
-    !expect(irt::is_success(
-      sim->alloc(sum_post, sim->qss1_wsum_2_models.get_id(sum_post))));
-    !expect(irt::is_success(
-      sim->alloc(mult_post, sim->qss1_wsum_2_models.get_id(mult_post))));
-    !expect(irt::is_success(
-      sim->alloc(cross_post, sim->qss1_cross_models.get_id(cross_post))));
+    expect((irt::is_success(sim->alloc(
+             int_post, sim->qss1_integrator_models.get_id(int_post)))) >>
+           fatal);
+    expect((irt::is_success(
+             sim->alloc(sum_post, sim->qss1_wsum_2_models.get_id(sum_post)))) >>
+           fatal);
+    expect((irt::is_success(sim->alloc(
+             mult_post, sim->qss1_wsum_2_models.get_id(mult_post)))) >>
+           fatal);
+    expect((irt::is_success(sim->alloc(
+             cross_post, sim->qss1_cross_models.get_id(cross_post)))) >>
+           fatal);
 
-    !expect(irt::is_success(
-      sim->alloc(const_syn, sim->constant_models.get_id(const_syn))));
-    !expect(irt::is_success(sim->alloc(
-      accumulator_syn, sim->accumulator_2_models.get_id(accumulator_syn))));
+    expect((irt::is_success(
+             sim->alloc(const_syn, sim->constant_models.get_id(const_syn)))) >>
+           fatal);
+    expect(
+      (irt::is_success(sim->alloc(
+        accumulator_syn, sim->accumulator_2_models.get_id(accumulator_syn)))) >>
+      fatal);
 
     struct synapse synapse_model = {
         sim->qss1_wsum_2_models.get_id(sum_pre),
