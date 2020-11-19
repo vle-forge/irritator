@@ -12,6 +12,7 @@
 #include "imnodes.hpp"
 #include "implot.h"
 
+#include <cinttypes>
 #include <fstream>
 #include <string>
 
@@ -373,14 +374,14 @@ editor::free_group(cluster& group) noexcept
             auto id = std::get<model_id>(child);
             models_mapper[get_index(id)] = undefined<cluster_id>();
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                log_w.log(7, "delete model %s\n", mdl->name.c_str());
+                log_w.log(7, "delete model %" PRIu64 "\n", id);
                 sim.deallocate(id);
             }
         } else {
             auto id = std::get<cluster_id>(child);
             clusters_mapper[get_index(id)] = undefined<cluster_id>();
             if (auto* gp = clusters.try_to_get(id); gp) {
-                log_w.log(7, "delete group %s\n", gp->name.c_str());
+                log_w.log(7, "delete group %" PRIu64 "\n", gp);
                 free_group(*gp);
             }
         }
@@ -404,7 +405,7 @@ editor::free_children(const ImVector<int>& nodes) noexcept
             const auto id = std::get<model_id>(child.first);
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
                 models_mapper[get_index(id)] = undefined<cluster_id>();
-                log_w.log(7, "delete %s\n", mdl->name.c_str());
+                log_w.log(7, "delete %" PRIu64 "\n", id);
                 parent(id, undefined<cluster_id>());
                 sim.deallocate(id);
             }
@@ -412,7 +413,7 @@ editor::free_children(const ImVector<int>& nodes) noexcept
             const auto id = std::get<cluster_id>(child.first);
             if (auto* gp = clusters.try_to_get(id); gp) {
                 clusters_mapper[get_index(id)] = undefined<cluster_id>();
-                log_w.log(7, "delete group %s\n", gp->name.c_str());
+                log_w.log(7, "delete group %" PRIu64 "\n", id);
                 free_group(*gp);
             }
         }
@@ -583,8 +584,7 @@ struct copier
                                   std::size(new_dyn.y),
                                   static_cast<output_port_id>(0));
 
-                  irt_return_if_bad(
-                    sim.alloc(new_dyn, new_dyn_id, mdl->name.c_str()));
+                  irt_return_if_bad(sim.alloc(new_dyn, new_dyn_id));
 
                   *mdl_id_dst = new_dyn.id;
 
@@ -1006,20 +1006,17 @@ editor::add_lotka_volterra() noexcept
     sum_b.default_input_coeffs[0] = -1.0;
     sum_b.default_input_coeffs[1] = 0.1;
 
+    irt_return_if_bad(sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a)));
+    irt_return_if_bad(sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b)));
+    irt_return_if_bad(sim.alloc(product, sim.mult_2_models.get_id(product)));
     irt_return_if_bad(
-      sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
+      sim.alloc(integrator_a, sim.integrator_models.get_id(integrator_a)));
     irt_return_if_bad(
-      sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
+      sim.alloc(integrator_b, sim.integrator_models.get_id(integrator_b)));
     irt_return_if_bad(
-      sim.alloc(product, sim.mult_2_models.get_id(product), "prod"));
-    irt_return_if_bad(sim.alloc(
-      integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
-    irt_return_if_bad(sim.alloc(
-      integrator_b, sim.integrator_models.get_id(integrator_b), "int_b"));
-    irt_return_if_bad(sim.alloc(
-      quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a"));
-    irt_return_if_bad(sim.alloc(
-      quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
+      sim.alloc(quantifier_a, sim.quantifier_models.get_id(quantifier_a)));
+    irt_return_if_bad(
+      sim.alloc(quantifier_b, sim.quantifier_models.get_id(quantifier_b)));
 
     irt_return_if_bad(sim.connect(sum_a.y[0], integrator_a.x[1]));
     irt_return_if_bad(sim.connect(sum_b.y[0], integrator_b.x[1]));
@@ -1125,35 +1122,28 @@ editor::add_izhikevitch() noexcept
     sum_d.default_input_coeffs[1] = d;
 
     irt_return_if_bad(
-      sim.alloc(constant3, sim.constant_models.get_id(constant3), "tfun"));
+      sim.alloc(constant3, sim.constant_models.get_id(constant3)));
     irt_return_if_bad(
-      sim.alloc(constant, sim.constant_models.get_id(constant), "1.0"));
+      sim.alloc(constant, sim.constant_models.get_id(constant)));
     irt_return_if_bad(
-      sim.alloc(constant2, sim.constant_models.get_id(constant2), "-56.0"));
+      sim.alloc(constant2, sim.constant_models.get_id(constant2)));
 
-    irt_return_if_bad(
-      sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a), "sum_a"));
-    irt_return_if_bad(
-      sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b), "sum_b"));
-    irt_return_if_bad(
-      sim.alloc(sum_c, sim.adder_4_models.get_id(sum_c), "sum_c"));
-    irt_return_if_bad(
-      sim.alloc(sum_d, sim.adder_2_models.get_id(sum_d), "sum_d"));
+    irt_return_if_bad(sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a)));
+    irt_return_if_bad(sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b)));
+    irt_return_if_bad(sim.alloc(sum_c, sim.adder_4_models.get_id(sum_c)));
+    irt_return_if_bad(sim.alloc(sum_d, sim.adder_2_models.get_id(sum_d)));
 
+    irt_return_if_bad(sim.alloc(product, sim.mult_2_models.get_id(product)));
     irt_return_if_bad(
-      sim.alloc(product, sim.mult_2_models.get_id(product), "prod"));
-    irt_return_if_bad(sim.alloc(
-      integrator_a, sim.integrator_models.get_id(integrator_a), "int_a"));
-    irt_return_if_bad(sim.alloc(
-      integrator_b, sim.integrator_models.get_id(integrator_b), "int_b"));
-    irt_return_if_bad(sim.alloc(
-      quantifier_a, sim.quantifier_models.get_id(quantifier_a), "qua_a"));
-    irt_return_if_bad(sim.alloc(
-      quantifier_b, sim.quantifier_models.get_id(quantifier_b), "qua_b"));
+      sim.alloc(integrator_a, sim.integrator_models.get_id(integrator_a)));
     irt_return_if_bad(
-      sim.alloc(cross, sim.cross_models.get_id(cross), "cross"));
+      sim.alloc(integrator_b, sim.integrator_models.get_id(integrator_b)));
     irt_return_if_bad(
-      sim.alloc(cross2, sim.cross_models.get_id(cross2), "cross2"));
+      sim.alloc(quantifier_a, sim.quantifier_models.get_id(quantifier_a)));
+    irt_return_if_bad(
+      sim.alloc(quantifier_b, sim.quantifier_models.get_id(quantifier_b)));
+    irt_return_if_bad(sim.alloc(cross, sim.cross_models.get_id(cross)));
+    irt_return_if_bad(sim.alloc(cross2, sim.cross_models.get_id(cross2)));
 
     irt_return_if_bad(sim.connect(integrator_a.y[0], cross.x[0]));
     irt_return_if_bad(sim.connect(constant2.y[0], cross.x[1]));
@@ -2025,8 +2015,7 @@ editor::show_model_dynamics(model& mdl) noexcept
                 }
             } else {
                 if (!obs) {
-                    auto& o =
-                      sim.observers.alloc(0.01, mdl.name.c_str(), nullptr);
+                    auto& o = sim.observers.alloc(0.01, "TODO", nullptr);
                     sim.observe(mdl, o);
                 }
 
@@ -2178,18 +2167,19 @@ editor::show_top() noexcept
 
                 imnodes::BeginNode(top.children[i].second);
                 imnodes::BeginNodeTitleBar();
-                ImGui::TextUnformatted(mdl->name.c_str());
-                ImGui::OpenPopupOnItemClick("Rename model", 1);
+                // ImGui::TextUnformatted(mdl->name.c_str());
+                // ImGui::OpenPopupOnItemClick("Rename model", 1);
 
-                bool is_rename = true;
-                ImGui::SetNextWindowSize(ImVec2(250, 200), ImGuiCond_Always);
-                if (ImGui::BeginPopupModal("Rename model", &is_rename)) {
-                    ImGui::InputText(
-                      "Name##edit-1", mdl->name.begin(), mdl->name.capacity());
-                    if (ImGui::Button("Close"))
-                        ImGui::CloseCurrentPopup();
-                    ImGui::EndPopup();
-                }
+                // bool is_rename = true;
+                // ImGui::SetNextWindowSize(ImVec2(250, 200), ImGuiCond_Always);
+                // if (ImGui::BeginPopupModal("Rename model", &is_rename)) {
+                //    ImGui::InputText(
+                //      "Name##edit-1", mdl->name.begin(),
+                //      mdl->name.capacity());
+                //    if (ImGui::Button("Close"))
+                //        ImGui::CloseCurrentPopup();
+                //    ImGui::EndPopup();
+                //}
 
                 ImGui::Text("%s",
                             dynamics_type_names[static_cast<int>(mdl->type)]);
@@ -2247,9 +2237,7 @@ add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
                 return status::data_array_not_enough_memory;
 
             auto& dyn = d_array.alloc();
-            ed.sim.alloc(dyn,
-                         d_array.get_id(dyn),
-                         dynamics_type_names[static_cast<i8>(type)]);
+            ed.sim.alloc(dyn, d_array.get_id(dyn));
 
             const auto mdl_id = dyn.id;
             auto* mdl = ed.sim.models.try_to_get(mdl_id);
@@ -2590,7 +2578,7 @@ editor::show_editor() noexcept
         if (new_model != undefined<model_id>()) {
             parent(new_model, undefined<cluster_id>());
             imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
-                                         click_pos);
+                                           click_pos);
         }
     }
 

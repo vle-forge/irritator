@@ -405,13 +405,13 @@ public:
         int id;
 
         for (int i = 0; i != model_number; ++i, ++model_error) {
-            irt_return_if_fail((is >> id >> temp_1 >> temp_2),
+            irt_return_if_fail((is >> id >> temp_1),
                                status::io_file_format_model_error);
 
             irt_return_if_fail(0 <= id && id < model_number,
                                status::io_file_format_model_error);
 
-            irt_return_if_bad(read(sim, id, temp_1, temp_2));
+            irt_return_if_bad(read(sim, id, temp_1));
         }
 
         while (is) {
@@ -537,10 +537,7 @@ private:
         return false;
     }
 
-    status read(simulation& sim,
-                int id,
-                const char* name,
-                const char* dynamics_name) noexcept
+    status read(simulation& sim, int id, const char* dynamics_name) noexcept
     {
         dynamics_type type;
 
@@ -548,13 +545,13 @@ private:
                            status::io_file_format_dynamics_unknown);
 
         model_id mdl = static_cast<model_id>(0);
-        auto ret = sim.dispatch(type, [this, &sim, name](auto& dyn_models) {
+        auto ret = sim.dispatch(type, [this, &sim](auto& dyn_models) {
             irt_return_if_fail(dyn_models.can_alloc(1),
                                status::io_file_format_dynamics_limit_reach);
             auto& dyn = dyn_models.alloc();
             auto dyn_id = dyn_models.get_id(dyn);
 
-            sim.alloc(dyn, dyn_id, name);
+            sim.alloc(dyn, dyn_id);
 
             irt_return_if_fail(read(dyn),
                                status::io_file_format_dynamics_init_error);
@@ -926,7 +923,7 @@ struct writer
         while (sim.models.next(mdl)) {
             const auto mdl_id = sim.models.get_id(mdl);
 
-            os << id << ' ' << mdl->name.c_str() << ' ';
+            os << id << ' ';
             map[id] = mdl_id;
 
             sim.dispatch(mdl->type, [this, mdl](auto& dyn_models) {
@@ -1292,24 +1289,13 @@ public:
                     if (!(mdl_src && mdl_dst))
                         continue;
 
-                    if (mdl_src->name.empty())
-                        os << irt::get_key(output_port->model);
-                    else
-                        os << mdl_src->name.c_str();
-
+                    os << irt::get_key(output_port->model);
                     os << " -> ";
-
-                    if (mdl_dst->name.empty())
-                        os << irt::get_key(input_port->model);
-                    else
-                        os << mdl_dst->name.c_str();
+                    os << irt::get_key(input_port->model);
 
                     os << " [label=\"";
-
                     os << irt::get_key(sim.output_ports.get_id(*output_port));
-
                     os << " - ";
-
                     os << irt::get_key(sim.input_ports.get_id(*input_port));
 
                     os << "\"];\n";

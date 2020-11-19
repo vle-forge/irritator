@@ -52,30 +52,14 @@ dot_graph_save(const irt::simulation& sim, std::FILE* os)
                 auto* mdl_dst = sim.models.try_to_get(input_port->model);
 
                 if (!(mdl_src && mdl_dst))
-
                     continue;
-                if (mdl_src->name.empty())
-                    fmt::print(os, "{} -> ", irt::get_key(output_port->model));
-                else
-                    fmt::print(os, "{} -> ", mdl_src->name.c_str());
-
-                if (mdl_dst->name.empty())
-                    fmt::print(os, "{}", irt::get_key(input_port->model));
-                else
-                    fmt::print(os, "{}", mdl_dst->name.c_str());
-
-                fmt::print(os, " [label=\"");
 
                 fmt::print(os,
-                           "{}",
-                           irt::get_key(sim.output_ports.get_id(*output_port)));
-
-                fmt::print(os, "-");
-
-                fmt::print(
-                  os, "{}", irt::get_key(sim.input_ports.get_id(*input_port)));
-
-                fmt::print(os, "\"];\n");
+                           "{} -> {} [label=\"{}-{}\"];\n",
+                           irt::get_key(output_port->model),
+                           irt::get_key(input_port->model),
+                           irt::get_key(sim.output_ports.get_id(*output_port)),
+                           irt::get_key(sim.input_ports.get_id(*input_port)));
             }
         }
     }
@@ -274,33 +258,31 @@ make_synapse(irt::simulation* sim,
     snprintf(accumsyn, 7, "acc%ld%ld", source, target);
 
     !expect(irt::is_success(
-      sim->alloc(int_pre, sim->integrator_models.get_id(int_pre), intpre)));
+      sim->alloc(int_pre, sim->integrator_models.get_id(int_pre))));
     !expect(irt::is_success(
-      sim->alloc(quant_pre, sim->quantifier_models.get_id(quant_pre), quapre)));
+      sim->alloc(quant_pre, sim->quantifier_models.get_id(quant_pre))));
     !expect(irt::is_success(
-      sim->alloc(sum_pre, sim->adder_2_models.get_id(sum_pre), addpre)));
+      sim->alloc(sum_pre, sim->adder_2_models.get_id(sum_pre))));
     !expect(irt::is_success(
-      sim->alloc(mult_pre, sim->adder_2_models.get_id(mult_pre), propre)));
+      sim->alloc(mult_pre, sim->adder_2_models.get_id(mult_pre))));
     !expect(irt::is_success(
-      sim->alloc(cross_pre, sim->cross_models.get_id(cross_pre), crosspre)));
+      sim->alloc(cross_pre, sim->cross_models.get_id(cross_pre))));
 
     !expect(irt::is_success(
-      sim->alloc(int_post, sim->integrator_models.get_id(int_post), intpost)));
+      sim->alloc(int_post, sim->integrator_models.get_id(int_post))));
+    !expect(irt::is_success(
+      sim->alloc(quant_post, sim->quantifier_models.get_id(quant_post))));
+    !expect(irt::is_success(
+      sim->alloc(sum_post, sim->adder_2_models.get_id(sum_post))));
+    !expect(irt::is_success(
+      sim->alloc(mult_post, sim->adder_2_models.get_id(mult_post))));
+    !expect(irt::is_success(
+      sim->alloc(cross_post, sim->cross_models.get_id(cross_post))));
+
+    !expect(irt::is_success(
+      sim->alloc(const_syn, sim->constant_models.get_id(const_syn))));
     !expect(irt::is_success(sim->alloc(
-      quant_post, sim->quantifier_models.get_id(quant_post), quapost)));
-    !expect(irt::is_success(
-      sim->alloc(sum_post, sim->adder_2_models.get_id(sum_post), addpost)));
-    !expect(irt::is_success(
-      sim->alloc(mult_post, sim->adder_2_models.get_id(mult_post), propost)));
-    !expect(irt::is_success(
-      sim->alloc(cross_post, sim->cross_models.get_id(cross_post), crosspost)));
-
-    !expect(irt::is_success(
-      sim->alloc(const_syn, sim->constant_models.get_id(const_syn), ctesyn)));
-    !expect(irt::is_success(
-      sim->alloc(accumulator_syn,
-                 sim->accumulator_2_models.get_id(accumulator_syn),
-                 accumsyn)));
+      accumulator_syn, sim->accumulator_2_models.get_id(accumulator_syn))));
 
     struct synapse synapse_model = {
         sim->adder_2_models.get_id(sum_pre),

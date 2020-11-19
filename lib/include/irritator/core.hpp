@@ -2424,8 +2424,6 @@ struct model
     observer_id obs_id{ 0 };
 
     dynamics_type type{ dynamics_type::none };
-
-    small_string<7> name;
 };
 
 struct observer
@@ -6000,8 +5998,8 @@ public:
 
         irt_return_if_bad(models.init(model_capacity));
         irt_return_if_bad(messages.init(messages_capacity));
-        irt_return_if_bad(input_ports.init(model_capacity));
-        irt_return_if_bad(output_ports.init(model_capacity));
+        irt_return_if_bad(input_ports.init(model_capacity * ten));
+        irt_return_if_bad(output_ports.init(model_capacity * ten));
 
         irt_return_if_bad(none_models.init(model_capacity));
 
@@ -6130,7 +6128,7 @@ public:
      *
      */
     template<typename Dynamics>
-    Dynamics& alloc(const char* name) noexcept
+    Dynamics& alloc() noexcept
     {
         /* Use can_alloc before using this function. */
         irt_assert(!models.full());
@@ -6146,9 +6144,6 @@ public:
 
         auto& dynamics = dynamics_models.alloc();
         auto dynamics_id = dynamics_models.get_id(dynamics);
-
-        if (name)
-            mdl.name.assign(name);
 
         mdl.id = dynamics_id;
         dynamics.id = mdl_id;
@@ -6177,9 +6172,7 @@ public:
     }
 
     template<typename Dynamics>
-    status alloc(Dynamics& dynamics,
-                 dynamics_id id,
-                 const char* name = nullptr) noexcept
+    status alloc(Dynamics& dynamics, dynamics_id id) noexcept
     {
         irt_return_if_fail(!models.full(), status::simulation_not_enough_model);
 
@@ -6187,9 +6180,6 @@ public:
         model_id mdl_id = models.get_id(mdl);
         mdl.handle = nullptr;
         mdl.id = id;
-
-        if (name)
-            mdl.name.assign(name);
 
         mdl.type = dynamics_typeof<Dynamics>();
         dynamics.id = mdl_id;

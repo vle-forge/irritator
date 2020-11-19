@@ -32,21 +32,21 @@ example_qss_lotka_volterra(simulation& sim, F f) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>("int_a");
+    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
     integrator_a.default_X = 18.0;
     integrator_a.default_dQ = 0.1;
 
-    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>("int_b");
+    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
     integrator_b.default_X = 7.0;
     integrator_b.default_dQ = 0.1;
 
-    auto& product = sim.alloc<abstract_multiplier<QssLevel>>("prod");
+    auto& product = sim.alloc<abstract_multiplier<QssLevel>>();
 
-    auto& sum_a = sim.alloc<abstract_wsum<QssLevel, 2>>("sum_a");
+    auto& sum_a = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_a.default_input_coeffs[0] = 2.0;
     sum_a.default_input_coeffs[1] = -0.4;
 
-    auto& sum_b = sim.alloc<abstract_wsum<QssLevel, 2>>("sum_b");
+    auto& sum_b = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_b.default_input_coeffs[0] = -1.0;
     sum_b.default_input_coeffs[1] = 0.1;
 
@@ -86,21 +86,21 @@ example_qss_lif(simulation& sim, F f) noexcept
     constexpr double V0 = 10.0;
     constexpr double Vr = -V0;
 
-    auto& cst = sim.alloc<constant>("cte");
+    auto& cst = sim.alloc<constant>();
     cst.default_value = 1.0;
 
-    auto& cst_cross = sim.alloc<constant>("ctecro");
+    auto& cst_cross = sim.alloc<constant>();
     cst_cross.default_value = Vr;
 
-    auto& sum = sim.alloc<abstract_wsum<QssLevel, 2>>("sum");
+    auto& sum = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum.default_input_coeffs[0] = -1.0 / tau;
     sum.default_input_coeffs[1] = V0 / tau;
 
-    auto& integrator = sim.alloc<abstract_integrator<QssLevel>>("int");
+    auto& integrator = sim.alloc<abstract_integrator<QssLevel>>();
     integrator.default_X = 0.0;
     integrator.default_dQ = 0.001;
 
-    auto& cross = sim.alloc<abstract_cross<QssLevel>>("cro");
+    auto& cross = sim.alloc<abstract_cross<QssLevel>>();
     cross.default_threshold = Vt;
 
     sim.connect(cross.y[0], integrator.x[1]);
@@ -134,18 +134,18 @@ example_qss_izhikevich(simulation& sim, F f) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& cst = sim.alloc<constant>("1");
-    auto& cst2 = sim.alloc<constant>("-56");
-    auto& cst3 = sim.alloc<constant>("tfun");
-    auto& sum_a = sim.alloc<abstract_wsum<QssLevel, 2>>("sum-a");
-    auto& sum_b = sim.alloc<abstract_wsum<QssLevel, 2>>("sum-b");
-    auto& sum_c = sim.alloc<abstract_wsum<QssLevel, 4>>("sum-c");
-    auto& sum_d = sim.alloc<abstract_wsum<QssLevel, 2>>("sum-d");
-    auto& product = sim.alloc<abstract_multiplier<QssLevel>>("prod");
-    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>("int-a");
-    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>("int-b");
-    auto& cross = sim.alloc<abstract_cross<QssLevel>>("cross");
-    auto& cross2 = sim.alloc<abstract_cross<QssLevel>>("cross2");
+    auto& cst = sim.alloc<constant>();
+    auto& cst2 = sim.alloc<constant>();
+    auto& cst3 = sim.alloc<constant>();
+    auto& sum_a = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_b = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_c = sim.alloc<abstract_wsum<QssLevel, 4>>();
+    auto& sum_d = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& product = sim.alloc<abstract_multiplier<QssLevel>>();
+    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
+    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
+    auto& cross = sim.alloc<abstract_cross<QssLevel>>();
+    auto& cross2 = sim.alloc<abstract_cross<QssLevel>>();
 
     constexpr double a = 0.2;
     constexpr double b = 2.0;
@@ -233,11 +233,11 @@ example_qss_van_der_pol(simulation& sim, F f) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum = sim.alloc<abstract_wsum<QssLevel, 3>>("sum");
-    auto& product1 = sim.alloc<abstract_multiplier<QssLevel>>("prod1");
-    auto& product2 = sim.alloc<abstract_multiplier<QssLevel>>("prod2");
-    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>("int-a");
-    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>("int-b");
+    auto& sum = sim.alloc<abstract_wsum<QssLevel, 3>>();
+    auto& product1 = sim.alloc<abstract_multiplier<QssLevel>>();
+    auto& product2 = sim.alloc<abstract_multiplier<QssLevel>>();
+    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
+    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
 
     integrator_a.default_X = 0.0;
     integrator_a.default_dQ = 0.001;
@@ -280,11 +280,11 @@ example_qss_negative_lif(simulation& sim, F f) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum = sim.alloc<abstract_wsum<QssLevel, 2>>("sum");
-    auto& integrator = sim.alloc<abstract_integrator<QssLevel>>("int");
-    auto& cross = sim.alloc<abstract_cross<QssLevel>>("cro");
-    auto& cst = sim.alloc<constant>("cte");
-    auto& cst_cross = sim.alloc<constant>("ctecro");
+    auto& sum = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& integrator = sim.alloc<abstract_integrator<QssLevel>>();
+    auto& cross = sim.alloc<abstract_cross<QssLevel>>();
+    auto& cst = sim.alloc<constant>();
+    auto& cst_cross = sim.alloc<constant>();
 
     constexpr double tau = 10.0;
     constexpr double Vt = -1.0;
