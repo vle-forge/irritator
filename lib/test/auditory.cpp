@@ -198,7 +198,7 @@ struct synapse
 };
 
 struct neuron
-make_neuron(irt::simulation* sim, long unsigned int i) noexcept
+make_neuron(irt::simulation* sim, size_t i) noexcept
 {
     using namespace boost::ut;
     double tau_lif = 1.5 * 0.001;
@@ -478,21 +478,21 @@ main()
         irt::simulation sim;
 
         // Neuron constants
-        long unsigned int N = sound_data.size();
-        long unsigned int M = link_data[0].size();
+        size_t N = sound_data.size();
+        size_t M = link_data[0].size();
 
         expect(irt::is_success(sim.init(1000000lu, 100000lu)));
 
         // Neurons
         std::vector<struct neuron> first_layer_neurons;
-        for (long unsigned int i = 0; i < N; i++) {
+        for (size_t i = 0; i < N; i++) {
 
             struct neuron neuron_model = make_neuron(&sim, i);
             first_layer_neurons.emplace_back(neuron_model);
         }
 
         std::vector<struct neuron_adaptive> second_layer_neurons;
-        for (long unsigned int i = 0; i < M; i++) {
+        for (size_t i = 0; i < M; i++) {
 
             struct neuron_adaptive neuron_adaptive_model =
               make_neuron_adaptive(&sim);
@@ -500,8 +500,8 @@ main()
         }
 
         std::vector<struct synapse> synapses;
-        for (long unsigned int i = 0; i < N; i++) {
-            for (long unsigned int j = 0; j < M; j++) {
+        for (size_t i = 0; i < N; i++) {
+            for (size_t j = 0; j < M; j++) {
                 if (link_data[i][j] == 1.0) {
                     // printf("%ld is linked to %ld\n",i,j);
 
