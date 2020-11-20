@@ -627,8 +627,8 @@ main()
             sim.alloc<irt::qss3_wsum_2>();
             sim.alloc<irt::qss3_wsum_3>();
             sim.alloc<irt::qss3_wsum_4>();
-            // sim.alloc<irt::integrator>(); // TODO alloc need static_dispatch to return
-            // sim.alloc<irt::quantifier>(); // a data_array. Need to remove data_array_archive.
+            sim.alloc<irt::integrator>();
+            sim.alloc<irt::quantifier>();
             sim.alloc<irt::adder_2>();
             sim.alloc<irt::adder_3>();
             sim.alloc<irt::adder_4>();
@@ -662,7 +662,7 @@ main()
             irt::reader r(is);
             expect(irt::is_success(r(sim)));
 
-            expect(sim.models.size() == 47);
+            expect(sim.models.size() == 49);
         }
     };
 
