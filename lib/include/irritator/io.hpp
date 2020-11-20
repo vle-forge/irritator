@@ -470,17 +470,16 @@ private:
             { "constant", dynamics_type::constant },
             { "counter", dynamics_type::counter },
             { "cross", dynamics_type::cross },
-            { "generator", dynamics_type::generator },
             { "flow", dynamics_type::flow },
+            { "generator", dynamics_type::generator },
             { "integrator", dynamics_type::integrator },
             { "mult_2", dynamics_type::mult_2 },
             { "mult_3", dynamics_type::mult_3 },
             { "mult_4", dynamics_type::mult_4 },
             { "none", dynamics_type::none },
-            { "quantifier", dynamics_type::quantifier },
+            { "qss1_cross", dynamics_type::qss1_cross },
             { "qss1_integrator", dynamics_type::qss1_integrator },
             { "qss1_multiplier", dynamics_type::qss1_multiplier },
-            { "qss1_cross", dynamics_type::qss1_cross },
             { "qss1_power", dynamics_type::qss1_power },
             { "qss1_square", dynamics_type::qss1_square },
             { "qss1_sum_2", dynamics_type::qss1_sum_2 },
@@ -489,9 +488,9 @@ private:
             { "qss1_wsum_2", dynamics_type::qss1_wsum_2 },
             { "qss1_wsum_3", dynamics_type::qss1_wsum_3 },
             { "qss1_wsum_4", dynamics_type::qss1_wsum_4 },
+            { "qss2_cross", dynamics_type::qss2_cross },
             { "qss2_integrator", dynamics_type::qss2_integrator },
             { "qss2_multiplier", dynamics_type::qss2_multiplier },
-            { "qss2_cross", dynamics_type::qss2_cross },
             { "qss2_power", dynamics_type::qss2_power },
             { "qss2_square", dynamics_type::qss2_square },
             { "qss2_sum_2", dynamics_type::qss2_sum_2 },
@@ -500,9 +499,9 @@ private:
             { "qss2_wsum_2", dynamics_type::qss2_wsum_2 },
             { "qss2_wsum_3", dynamics_type::qss2_wsum_3 },
             { "qss2_wsum_4", dynamics_type::qss2_wsum_4 },
+            { "qss3_cross", dynamics_type::qss3_cross },
             { "qss3_integrator", dynamics_type::qss3_integrator },
             { "qss3_multiplier", dynamics_type::qss3_multiplier },
-            { "qss3_cross", dynamics_type::qss3_cross },
             { "qss3_power", dynamics_type::qss3_power },
             { "qss3_square", dynamics_type::qss3_square },
             { "qss3_sum_2", dynamics_type::qss3_sum_2 },
@@ -511,6 +510,7 @@ private:
             { "qss3_wsum_2", dynamics_type::qss3_wsum_2 },
             { "qss3_wsum_3", dynamics_type::qss3_wsum_3 },
             { "qss3_wsum_4", dynamics_type::qss3_wsum_4 },
+            { "quantifier", dynamics_type::quantifier },
             { "time_func", dynamics_type::time_func }
         };
 
@@ -526,11 +526,6 @@ private:
 
         if (it != std::end(table) && it->name == dynamics_name) {
             *type = it->type;
-            return true;
-        }
-
-        if (dynamics_name == "flow") {
-            *type = dynamics_type::flow;
             return true;
         }
 
@@ -869,9 +864,9 @@ private:
         return true;
     }
 
-    bool read(cross& /*dyn*/) noexcept
+    bool read(cross& dyn) noexcept
     {
-        return true;
+        return !!(is >> dyn.default_threshold);
     }
 
     bool read(accumulator_2& /*dyn*/) noexcept

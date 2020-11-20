@@ -585,6 +585,87 @@ main()
         }
     };
 
+    "input_output"_test = [] {
+        std::string str;
+        str.reserve(4096u);
+
+        {
+            irt::simulation sim;
+            expect(irt::is_success(sim.init(64lu, 4096lu)));
+
+            sim.alloc<irt::none>();
+            sim.alloc<irt::qss1_integrator>();
+            sim.alloc<irt::qss1_multiplier>();
+            sim.alloc<irt::qss1_cross>();
+            sim.alloc<irt::qss1_power>();
+            sim.alloc<irt::qss1_square>();
+            sim.alloc<irt::qss1_sum_2>();
+            sim.alloc<irt::qss1_sum_3>();
+            sim.alloc<irt::qss1_sum_4>();
+            sim.alloc<irt::qss1_wsum_2>();
+            sim.alloc<irt::qss1_wsum_3>();
+            sim.alloc<irt::qss1_wsum_4>();
+            sim.alloc<irt::qss2_integrator>();
+            sim.alloc<irt::qss2_multiplier>();
+            sim.alloc<irt::qss2_cross>();
+            sim.alloc<irt::qss2_power>();
+            sim.alloc<irt::qss2_square>();
+            sim.alloc<irt::qss2_sum_2>();
+            sim.alloc<irt::qss2_sum_3>();
+            sim.alloc<irt::qss2_sum_4>();
+            sim.alloc<irt::qss2_wsum_2>();
+            sim.alloc<irt::qss2_wsum_3>();
+            sim.alloc<irt::qss2_wsum_4>();
+            sim.alloc<irt::qss3_integrator>();
+            sim.alloc<irt::qss3_multiplier>();
+            sim.alloc<irt::qss3_power>();
+            sim.alloc<irt::qss3_square>();
+            sim.alloc<irt::qss3_cross>();
+            sim.alloc<irt::qss3_sum_2>();
+            sim.alloc<irt::qss3_sum_3>();
+            sim.alloc<irt::qss3_sum_4>();
+            sim.alloc<irt::qss3_wsum_2>();
+            sim.alloc<irt::qss3_wsum_3>();
+            sim.alloc<irt::qss3_wsum_4>();
+            // sim.alloc<irt::integrator>(); // TODO alloc need static_dispatch to return
+            // sim.alloc<irt::quantifier>(); // a data_array. Need to remove data_array_archive.
+            sim.alloc<irt::adder_2>();
+            sim.alloc<irt::adder_3>();
+            sim.alloc<irt::adder_4>();
+            sim.alloc<irt::mult_2>();
+            sim.alloc<irt::mult_3>();
+            sim.alloc<irt::mult_4>();
+            sim.alloc<irt::counter>();
+            sim.alloc<irt::generator>();
+            sim.alloc<irt::constant>();
+            sim.alloc<irt::cross>();
+            sim.alloc<irt::time_func>();
+            sim.alloc<irt::accumulator_2>();
+            sim.alloc<irt::flow>();
+
+            std::ostringstream os;
+            irt::writer w(os);
+
+            expect(irt::is_success(w(sim)));
+            str = os.str();
+        }
+
+        expect(!str.empty());
+        fmt::print(str);
+
+        {
+            std::istringstream is(str);
+
+            irt::simulation sim;
+            expect(irt::is_success(sim.init(64lu, 32lu)));
+
+            irt::reader r(is);
+            expect(irt::is_success(r(sim)));
+
+            expect(sim.models.size() == 47);
+        }
+    };
+
     "constant_simulation"_test = [] {
         irt::simulation sim;
 
