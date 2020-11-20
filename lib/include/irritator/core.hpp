@@ -1935,120 +1935,6 @@ struct record
     time date{ time_domain<time>::infinity };
 };
 
-template<typename T, typename Identifier>
-class data_array_archive
-{
-private:
-    flat_double_list<record>::allocator_type shared_allocator;
-    data_array<T, Identifier> data;
-
-public:
-    using identifier_type = Identifier;
-    using value_type = T;
-
-    data_array_archive() = default;
-
-    ~data_array_archive() noexcept = default;
-
-    status init(std::size_t capacity, std::size_t archive_capacity)
-    {
-        irt_return_if_bad(data.init(capacity));
-        irt_return_if_bad(shared_allocator.init(archive_capacity));
-
-        return status::success;
-    }
-
-    void clear() noexcept
-    {
-        data.clear();
-    }
-
-    template<typename... Args>
-    T& alloc(Args&&... args) noexcept
-    {
-        irt_assert(can_alloc(1) &&
-                   "check alloc() with full() before using use.");
-
-        auto& ret = data.alloc(std::forward<Args>(args)...);
-        ret.archive.set_allocator(&shared_allocator);
-
-        return ret;
-    }
-
-    template<typename... Args>
-    std::pair<bool, T*> try_alloc(Args&&... args) noexcept
-    {
-        auto ret = data.try_alloc(std::forward<Args>(args)...);
-        if (ret.first)
-            ret.second->set_allocator(&shared_allocator);
-
-        return ret;
-    }
-
-    void free(T& t) noexcept
-    {
-        data.free(t);
-    }
-
-    /**
-     * @brief Free the element pointer by @c id.
-     *
-     * Internally, puts the elelent @c t entry on free list and use id to store
-     * next.
-     */
-    void free(Identifier id) noexcept
-    {
-        data.free(id);
-    }
-
-    /**
-     * @brief Accessor to the id part of the item
-     *
-     * @return @c Identifier.
-     */
-    Identifier get_id(const T& t) const noexcept
-    {
-        return data.get_id(t);
-    }
-
-    /**
-     * @brief Accessor to the item part of the id.
-     *
-     * @return @c T
-     */
-    T& get(Identifier id) noexcept
-    {
-        return data.get(id);
-    }
-
-    /**
-     * @brief Accessor to the item part of the id.
-     *
-     * @return @c T
-     */
-    const T& get(Identifier id) const noexcept
-    {
-        return data.get(id);
-    }
-
-    /**
-     * @brief Get a T from an ID.
-     *
-     * @details Validates ID, then returns item, returns null if invalid.
-     * For cases like AI references and others where 'the thing might have
-     * been deleted out from under me.
-     */
-    T* try_to_get(Identifier id) const noexcept
-    {
-        return data.try_to_get(id);
-    }
-
-    constexpr bool can_alloc(std::size_t place) const noexcept
-    {
-        return data.can_alloc(place);
-    }
-};
-
 /**
  * @brief Pairing heap implementation.
  *
@@ -5415,8 +5301,8 @@ struct simulation
     flat_list<message>::allocator_type message_list_allocator;
     flat_list<input_port_id>::allocator_type input_port_list_allocator;
     flat_list<output_port_id>::allocator_type output_port_list_allocator;
-
     flat_list<output_port_id>::allocator_type emitting_output_port_allocator;
+    flat_double_list<record>::allocator_type flat_double_list_shared_allocator;
 
     data_array<model, model_id> models;
 
@@ -5462,8 +5348,8 @@ struct simulation
     data_array<qss3_wsum_3, dynamics_id> qss3_wsum_3_models;
     data_array<qss3_wsum_4, dynamics_id> qss3_wsum_4_models;
 
-    data_array_archive<integrator, dynamics_id> integrator_models;
-    data_array_archive<quantifier, dynamics_id> quantifier_models;
+    data_array<integrator, dynamics_id> integrator_models;
+    data_array<quantifier, dynamics_id> quantifier_models;
     data_array<adder_2, dynamics_id> adder_2_models;
     data_array<adder_3, dynamics_id> adder_3_models;
     data_array<adder_4, dynamics_id> adder_4_models;
@@ -6039,10 +5925,8 @@ public:
         irt_return_if_bad(qss3_wsum_3_models.init(model_capacity));
         irt_return_if_bad(qss3_wsum_4_models.init(model_capacity));
 
-        irt_return_if_bad(
-          integrator_models.init(model_capacity, model_capacity * ten));
-        irt_return_if_bad(
-          quantifier_models.init(model_capacity, model_capacity * ten));
+        irt_return_if_bad(integrator_models.init(model_capacity));
+        irt_return_if_bad(quantifier_models.init(model_capacity));
         irt_return_if_bad(adder_2_models.init(model_capacity));
         irt_return_if_bad(adder_3_models.init(model_capacity));
         irt_return_if_bad(adder_4_models.init(model_capacity));
@@ -6058,6 +5942,9 @@ public:
         irt_return_if_bad(flow_models.init(model_capacity));
 
         irt_return_if_bad(observers.init(model_capacity));
+
+        irt_return_if_bad(
+          flat_double_list_shared_allocator.init(integrator_models.capacity() * ten));
 
         return status::success;
     }
@@ -6148,6 +6035,11 @@ public:
         mdl.id = dynamics_id;
         dynamics.id = mdl_id;
 
+        if constexpr (std::is_same_v<Dynamics, integrator>)
+            dynamics.archive.set_allocator(&flat_double_list_shared_allocator);
+        if constexpr (std::is_same_v<Dynamics, quantifier>)
+            dynamics.archive.set_allocator(&flat_double_list_shared_allocator);
+
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dynamics.x); i != e; ++i) {
                 auto& port = input_ports.alloc();
@@ -6183,6 +6075,11 @@ public:
 
         mdl.type = dynamics_typeof<Dynamics>();
         dynamics.id = mdl_id;
+
+        if constexpr (std::is_same_v<Dynamics, integrator>)
+            dynamics.archive.set_allocator(&flat_double_list_shared_allocator);
+        if constexpr (std::is_same_v<Dynamics, quantifier>)
+            dynamics.archive.set_allocator(&flat_double_list_shared_allocator);
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dynamics.x); i != e; ++i) {

@@ -595,9 +595,9 @@ network(neuron_type T,
       irt::is_success(sim.output_ports.init(base + (two * N * N + N) * 7)));
 
     expect(irt::is_success(sim.integrator_models.init(
-      base + two * N * N + N, base + (two * N * N + N) * ten)));
+      base + two * N * N + N)));
     expect(irt::is_success(sim.quantifier_models.init(
-      base + two * N * N + N, base + (two * N * N + N) * ten)));
+      base + two * N * N + N)));
     expect(
       irt::is_success(sim.adder_2_models.init(base + two * (two * N * N + N))));
 
