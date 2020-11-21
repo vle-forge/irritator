@@ -2492,6 +2492,14 @@ editor::show_editor() noexcept
                 "D -- duplicate selected nodes / "
                 "G -- group model");
 
+    ImGui::Columns(2, "TODO column");
+    if (starting) {
+        ImGui::SetColumnWidth(0, 400.f);
+        starting = false;
+    }
+
+    ImGui::Separator();
+
     imnodes::BeginNodeEditor();
 
     show_top();
@@ -2675,6 +2683,9 @@ editor::show_editor() noexcept
             selected_links.resize(0);
         }
     }
+
+    ImGui::NextColumn();
+    ImGui::Text("Here node editor");
 
     ImGui::End();
 

@@ -280,6 +280,7 @@ struct editor
     ImVector<ImVec2> displacements;
 
     bool use_real_time;
+    bool starting = true;
     double synchronize_timestep;
 
     top_cluster top;
