@@ -2444,14 +2444,20 @@ editor::show_editor() noexcept
         if (load_file_dialog(path)) {
             show_load_file_dialog = false;
             log_w.log(
-              5, "Load file from %s\n", (const char*)path.u8string().c_str());
+              5, "Load file from %s: ", (const char*)path.u8string().c_str());
             if (auto is = std::ifstream(path); is.is_open()) {
                 reader r(is);
-                auto ret = r(sim);
+                auto ret = r(sim, [this](model_id id) {
+                    parent(id, undefined<cluster_id>());
+                    
+                    imnodes::SetNodeEditorSpacePos(
+                      top.emplace_back(id), imnodes::EditorContextGetPanning());
+                });
+
                 if (is_success(ret))
                     log_w.log(5, "success\n");
                 else
-                    log_w.log(4, "error writing\n");
+                    log_w.log(4, "fail\n");
             }
         }
     }
