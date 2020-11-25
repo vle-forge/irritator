@@ -101,7 +101,8 @@ struct file_dialog
 #if defined(__APPLE__)
         // @TODO Remove this part when XCode allows u8string find/compare.
         while (*filters) {
-            if (p.extension().u8string() == reinterpret_cast<const char*>(*filters))
+            if (p.extension().u8string() ==
+                reinterpret_cast<const char*>(*filters))
                 return true;
 
             ++filters;
@@ -237,7 +238,9 @@ load_file_dialog(std::filesystem::path& out)
     std::filesystem::path next;
     bool res = false;
 
-    if (ImGui::BeginPopupModal("Select file path to load")) {
+    if (ImGui::BeginPopupModal("Select file path to load",
+                               nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
         bool path_click = false;
 
         fd.show_drives(&path_click, &next);
@@ -246,10 +249,10 @@ load_file_dialog(std::filesystem::path& out)
             fd.show_path(&path_click, &next);
 
         if (!path_click) {
-            ImVec2 size = ImGui::GetContentRegionMax();
-            size.y *= 0.8f;
-
-            ImGui::BeginChild("##select_files", size);
+            ImGui::BeginChild("##select_files",
+                              ImVec2{ 0.f, 350.f },
+                              true,
+                              ImGuiWindowFlags_HorizontalScrollbar);
 
             if (ImGui::Selectable("..##select_file", (fd.selected == ".."))) {
                 if (next.empty()) {
@@ -264,9 +267,11 @@ load_file_dialog(std::filesystem::path& out)
                 fd.temp.clear();
                 if (std::filesystem::is_directory(*it)) {
 #if defined(__APPLE__)
-                    // @TODO Remove this part when XCode allows u8string concatenation.
+                    // @TODO Remove this part when XCode allows u8string
+                    // concatenation.
                     fd.temp = "[Dir] ";
-                    fd.temp += reinterpret_cast<const char*>(it->filename().u8string().c_str());
+                    fd.temp += reinterpret_cast<const char*>(
+                      it->filename().u8string().c_str());
 #else
                     fd.temp = u8"[Dir] ";
                     fd.temp += it->filename().u8string();
@@ -307,10 +312,12 @@ load_file_dialog(std::filesystem::path& out)
         ImGui::Text("File Name: %s",
                     (const char*)fd.selected.u8string().c_str());
 
-        float width = ImGui::GetContentRegionAvailWidth();
-        ImGui::PushItemWidth(width);
+        const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
+        const auto region_width = ImGui::GetContentRegionAvail().x;
+        const auto button_size =
+          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
 
-        if (ImGui::Button("Ok", ImVec2(width / 2, 0))) {
+        if (ImGui::Button("Ok", button_size)) {
             auto sel = fd.current;
             sel /= fd.selected;
             out = sel;
@@ -320,11 +327,9 @@ load_file_dialog(std::filesystem::path& out)
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
 
-        if (ImGui::Button("Cancel", ImVec2(width / 2, 0))) {
+        if (ImGui::Button("Cancel", button_size)) {
             res = true;
         }
-
-        ImGui::PopItemWidth();
 
         if (res) {
             ImGui::CloseCurrentPopup();
@@ -357,7 +362,9 @@ save_file_dialog(std::filesystem::path& out)
     std::filesystem::path next;
     bool res = false;
 
-    if (ImGui::BeginPopupModal("Select file path to save")) {
+    if (ImGui::BeginPopupModal("Select file path to save",
+                               nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
         bool path_click = false;
 
         fd.show_drives(&path_click, &next);
@@ -366,10 +373,10 @@ save_file_dialog(std::filesystem::path& out)
             fd.show_path(&path_click, &next);
 
         if (!path_click) {
-            ImVec2 size = ImGui::GetContentRegionMax();
-            size.y *= 0.8f;
-
-            ImGui::BeginChild("##select_files", size);
+            ImGui::BeginChild("##select_files",
+                              ImVec2{ 0.f, 350.f },
+                              true,
+                              ImGuiWindowFlags_HorizontalScrollbar);
             if (ImGui::Selectable("..##select_file", (fd.selected == ".."))) {
                 if (next.empty()) {
                     next = fd.current.parent_path();
@@ -383,7 +390,8 @@ save_file_dialog(std::filesystem::path& out)
                 fd.temp.clear();
                 if (std::filesystem::is_directory(*it))
 #if defined(__APPLE__)
-                    // @TODO Remove this part when XCode allows u8string concatenation.
+                    // @TODO Remove this part when XCode allows u8string
+                    // concatenation.
                     fd.temp = "[Dir] ";
 #else
                     fd.temp = u8"[Dir] ";
@@ -438,10 +446,11 @@ save_file_dialog(std::filesystem::path& out)
         ImGui::Text("Directory name: %s",
                     (const char*)fd.current.u8string().c_str());
 
-        float width = ImGui::GetContentRegionAvailWidth();
-        ImGui::PushItemWidth(width);
+        const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
+        const auto region_width = ImGui::GetContentRegionAvail().x;
+        const auto button_size = ImVec2{ (region_width - item_spacing) / 2.f, 0};
 
-        if (ImGui::Button("Ok", ImVec2(width / 2, 0))) {
+        if (ImGui::Button("Ok", button_size)) {
             auto sel = fd.current;
             sel /= fd.buffer;
             out = sel;
@@ -451,11 +460,9 @@ save_file_dialog(std::filesystem::path& out)
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
 
-        if (ImGui::Button("Cancel", ImVec2(width / 2, 0))) {
+        if (ImGui::Button("Cancel", button_size)) {
             res = true;
         }
-
-        ImGui::PopItemWidth();
 
         if (res) {
             ImGui::CloseCurrentPopup();

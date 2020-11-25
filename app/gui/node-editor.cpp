@@ -2437,10 +2437,7 @@ editor::show_editor() noexcept
     }
 
     if (show_load_file_dialog) {
-        auto size = ImGui::GetContentRegionMax();
-        ImGui::SetNextWindowSize(ImVec2(size.x * 0.7f, size.y * 0.7f));
         ImGui::OpenPopup("Select file path to load");
-
         if (load_file_dialog(path)) {
             show_load_file_dialog = false;
             log_w.log(
@@ -2465,9 +2462,6 @@ editor::show_editor() noexcept
     if (show_save_file_dialog) {
         if (sim.models.size()) {
             ImGui::OpenPopup("Select file path to save");
-
-            auto size = ImGui::GetContentRegionMax();
-            ImGui::SetNextWindowSize(ImVec2(size.x * 0.7f, size.y * 0.7f));
             if (save_file_dialog(path)) {
                 show_save_file_dialog = false;
                 log_w.log(
