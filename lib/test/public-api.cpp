@@ -664,6 +664,20 @@ main()
 
             expect(sim.models.size() == 49);
         }
+
+        {
+            std::istringstream is(str);
+            int i = 0;
+
+            irt::simulation sim;
+            expect(irt::is_success(sim.init(64lu, 32lu)));
+
+            irt::reader r(is);
+            expect(irt::is_success(r(sim, [&i](irt::model_id id) { ++i; })));
+            expect(i == 49);
+
+            expect(sim.models.size() == 49);
+        }
     };
 
     "constant_simulation"_test = [] {

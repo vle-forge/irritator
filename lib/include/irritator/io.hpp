@@ -377,6 +377,7 @@ private:
     std::vector<model_id> map;
     int model_error = 0;
     int connection_error = 0;
+    int model_number = 0;
 
     char temp_1[32];
     char temp_2[32];
@@ -390,7 +391,38 @@ public:
 
     status operator()(simulation& sim) noexcept
     {
-        int model_number = 0;
+        irt_return_if_bad(do_read_model_number());
+
+        for (int i = 0; i != model_number; ++i, ++model_error) {
+            int id;
+            do_read_model(sim, &id);
+        }
+
+        irt_return_if_bad(do_read_connections(sim));
+
+        return status::success;
+    }
+
+    template<typename CallBackFunction>
+    status operator()(simulation& sim, CallBackFunction f) noexcept
+    {
+        irt_return_if_bad(do_read_model_number());
+
+        for (int i = 0; i != model_number; ++i, ++model_error) {
+            int id;
+            irt_return_if_bad(do_read_model(sim, &id));
+            f(map[id]);
+        }
+
+        irt_return_if_bad(do_read_connections(sim));
+
+        return status::success;
+    }
+
+private:
+    status do_read_model_number() noexcept
+    {
+        model_number = 0;
 
         irt_return_if_fail((is >> model_number), status::io_file_format_error);
         irt_return_if_fail(model_number > 0,
@@ -402,18 +434,24 @@ public:
             return status::io_not_enough_memory;
         }
 
-        int id;
+        return status::success;
+    }
 
-        for (int i = 0; i != model_number; ++i, ++model_error) {
-            irt_return_if_fail((is >> id >> temp_1),
-                               status::io_file_format_model_error);
+    status do_read_model(simulation& sim, int *id) noexcept
+    {
+        irt_return_if_fail((is >> *id >> temp_1),
+                           status::io_file_format_model_error);
 
-            irt_return_if_fail(0 <= id && id < model_number,
-                               status::io_file_format_model_error);
+        irt_return_if_fail(0 <= *id && *id < model_number,
+                           status::io_file_format_model_error);
 
-            irt_return_if_bad(read(sim, id, temp_1));
-        }
+        irt_return_if_bad(do_read_dynamics(sim, *id, temp_1));
 
+        return status::success;
+    }
+
+    status do_read_connections(simulation& sim) noexcept
+    {
         while (is) {
             int mdl_src_index, port_src_index, mdl_dst_index, port_dst_index;
 
@@ -446,7 +484,6 @@ public:
         return status::success;
     }
 
-private:
     bool convert(const std::string_view dynamics_name,
                  dynamics_type* type) noexcept
     {
@@ -532,21 +569,22 @@ private:
         return false;
     }
 
-    status read(simulation& sim, int id, const char* dynamics_name) noexcept
+    status do_read_dynamics(simulation& sim, int id, const char* dynamics_name) noexcept
     {
         dynamics_type type;
 
         irt_return_if_fail(convert(dynamics_name, &type),
                            status::io_file_format_dynamics_unknown);
 
-        model_id mdl = static_cast<model_id>(0);
-        auto ret = sim.dispatch(type, [this, &sim](auto& dyn_models) {
+        model_id mdl_id = static_cast<model_id>(0);
+        auto ret = sim.dispatch(type, [this, &sim, &mdl_id](auto& dyn_models) {
             irt_return_if_fail(dyn_models.can_alloc(1),
                                status::io_file_format_dynamics_limit_reach);
             auto& dyn = dyn_models.alloc();
             auto dyn_id = dyn_models.get_id(dyn);
 
             sim.alloc(dyn, dyn_id);
+            mdl_id = dyn.id;
 
             irt_return_if_fail(read(dyn),
                                status::io_file_format_dynamics_init_error);
@@ -556,7 +594,7 @@ private:
 
         irt_return_if_bad(ret);
 
-        map[id] = mdl;
+        map[id] = mdl_id;
 
         return status::success;
     }
