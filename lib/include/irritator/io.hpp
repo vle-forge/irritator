@@ -437,7 +437,7 @@ private:
         return status::success;
     }
 
-    status do_read_model(simulation& sim, int *id) noexcept
+    status do_read_model(simulation& sim, int* id) noexcept
     {
         irt_return_if_fail((is >> *id >> temp_1),
                            status::io_file_format_model_error);
@@ -453,9 +453,9 @@ private:
     status do_read_connections(simulation& sim) noexcept
     {
         while (is) {
-            int mdl_src_index, port_src_index, mdl_dst_index, port_dst_index;
+            int mdl_src_id, port_src_index, mdl_dst_id, port_dst_index;
 
-            if (!(is >> mdl_src_index >> port_src_index >> mdl_dst_index >>
+            if (!(is >> mdl_src_id >> port_src_index >> mdl_dst_id >>
                   port_dst_index)) {
                 if (is.eof())
                     break;
@@ -463,10 +463,15 @@ private:
                 irt_bad_return(status::io_file_format_error);
             }
 
-            auto* mdl_src = sim.models.try_to_get(mdl_src_index);
+            irt_return_if_fail(0 <= mdl_src_id && mdl_src_id < model_number,
+                               status::io_file_format_model_error);
+            irt_return_if_fail(0 <= mdl_dst_id && mdl_dst_id < model_number,
+                               status::io_file_format_model_error);
+
+            auto* mdl_src = sim.models.try_to_get(map[mdl_src_id]);
             irt_return_if_fail(mdl_src, status::io_file_format_model_unknown);
 
-            auto* mdl_dst = sim.models.try_to_get(mdl_dst_index);
+            auto* mdl_dst = sim.models.try_to_get(map[mdl_dst_id]);
             irt_return_if_fail(mdl_dst, status::io_file_format_model_unknown);
 
             output_port_id output_port;
@@ -569,7 +574,9 @@ private:
         return false;
     }
 
-    status do_read_dynamics(simulation& sim, int id, const char* dynamics_name) noexcept
+    status do_read_dynamics(simulation& sim,
+                            int id,
+                            const char* dynamics_name) noexcept
     {
         dynamics_type type;
 
