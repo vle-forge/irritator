@@ -242,9 +242,7 @@ load_file_dialog(std::filesystem::path& out)
     std::filesystem::path next;
     bool res = false;
 
-    if (ImGui::BeginPopupModal("Select file path to load",
-                               nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal("Select file path to load")) {
         bool path_click = false;
 
         fd.show_drives(&path_click, &next);
@@ -366,9 +364,7 @@ save_file_dialog(std::filesystem::path& out)
     std::filesystem::path next;
     bool res = false;
 
-    if (ImGui::BeginPopupModal("Select file path to save",
-                               nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal("Select file path to save")) {
         bool path_click = false;
 
         fd.show_drives(&path_click, &next);
