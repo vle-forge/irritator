@@ -211,6 +211,10 @@ struct file_dialog
 
             if (ImGui::Button((const char*)it->u8string().c_str())) {
                 next->clear();
+#if _WIN32
+                if (it == current.begin())
+                    ++it;
+#endif
                 for (auto jt = current.begin(); jt != it; ++jt)
                     *next /= jt->native();
                 *next /= it->native();
