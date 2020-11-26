@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <istream>
 #include <ostream>
+#include <streambuf>
 #include <vector>
 
 namespace irt {
@@ -369,14 +370,106 @@ get_output_port_names(const dynamics_type type) noexcept
     irt_unreachable();
 }
 
+class streambuf : public std::streambuf
+{
+public:
+    std::streambuf* m_stream_buffer = { nullptr };
+    std::streamsize m_file_position = { 0 };
+    int m_line_number = { 1 };
+    int m_last_line_number = { 1 };
+    int m_column = { 0 };
+    int m_prev_column = { -1 };
+
+    streambuf(std::streambuf* sbuf)
+      : m_stream_buffer(sbuf)
+    {}
+
+    streambuf(const streambuf&) = delete;
+    streambuf& operator=(const streambuf&) = delete;
+
+protected:
+    std::streambuf::int_type underflow() override final
+    {
+        return m_stream_buffer->sgetc();
+    }
+
+    std::streambuf::int_type uflow() override final
+    {
+        int_type rc = m_stream_buffer->sbumpc();
+
+        m_last_line_number = m_line_number;
+        if (traits_type::eq_int_type(rc, traits_type::to_int_type('\n'))) {
+            ++m_line_number;
+            m_prev_column = m_column + 1;
+            m_column = -1;
+        }
+
+        ++m_column;
+        ++m_file_position;
+
+        return rc;
+    }
+
+    std::streambuf::int_type pbackfail(std::streambuf::int_type c) override final
+    {
+        if (traits_type::eq_int_type(c, traits_type::to_int_type('\n'))) {
+            --m_line_number;
+            m_last_line_number = m_line_number;
+            m_column = m_prev_column;
+            m_prev_column = 0;
+        }
+
+        --m_column;
+        --m_file_position;
+
+        if (c != traits_type::eof())
+            return m_stream_buffer->sputbackc(traits_type::to_char_type(c));
+
+        return m_stream_buffer->sungetc();
+    }
+
+    std::ios::pos_type seekoff(std::ios::off_type pos,
+                               std::ios_base::seekdir dir,
+                               std::ios_base::openmode mode) override final
+    {
+        if (dir == std::ios_base::beg &&
+            pos == static_cast<std::ios::off_type>(0)) {
+            m_last_line_number = 1;
+            m_line_number = 1;
+            m_column = 0;
+            m_prev_column = -1;
+            m_file_position = 0;
+
+            return m_stream_buffer->pubseekoff(pos, dir, mode);
+        }
+
+        return std::streambuf::seekoff(pos, dir, mode);
+    }
+
+    std::ios::pos_type seekpos(std::ios::pos_type pos,
+                               std::ios_base::openmode mode) override final
+    {
+        if (pos == static_cast<std::ios::pos_type>(0)) {
+            m_last_line_number = 1;
+            m_line_number = 1;
+            m_column = 0;
+            m_prev_column = -1;
+            m_file_position = 0;
+
+            return m_stream_buffer->pubseekpos(pos, mode);
+        }
+
+        return std::streambuf::seekpos(pos, mode);
+    }
+};
+
 class reader
 {
 private:
-    std::istream& is;
+    streambuf buf;
+    std::istream is;
 
     std::vector<model_id> map;
-    int model_error = 0;
-    int connection_error = 0;
     int model_number = 0;
 
     char temp_1[32];
@@ -384,10 +477,16 @@ private:
 
 public:
     reader(std::istream& is_) noexcept
-      : is(is_)
+      : buf(is_.rdbuf())
+      , is(&buf)
     {}
 
     ~reader() noexcept = default;
+
+    int model_error = 0;
+    int connection_error = 0;
+    int line_error = 0;
+    int column_error = 0;
 
     status operator()(simulation& sim) noexcept
     {
@@ -395,7 +494,7 @@ public:
 
         for (int i = 0; i != model_number; ++i, ++model_error) {
             int id;
-            do_read_model(sim, &id);
+            irt_return_if_bad(do_read_model(sim, &id));
         }
 
         irt_return_if_bad(do_read_connections(sim));
@@ -420,11 +519,19 @@ public:
     }
 
 private:
+    void update_error_report() noexcept
+    {
+        line_error = buf.m_line_number;
+        column_error = buf.m_column;
+    }
+
     status do_read_model_number() noexcept
     {
         model_number = 0;
 
+        update_error_report();
         irt_return_if_fail((is >> model_number), status::io_file_format_error);
+
         irt_return_if_fail(model_number > 0,
                            status::io_file_format_model_number_error);
 
@@ -439,6 +546,7 @@ private:
 
     status do_read_model(simulation& sim, int* id) noexcept
     {
+        update_error_report();
         irt_return_if_fail((is >> *id >> temp_1),
                            status::io_file_format_model_error);
 
@@ -455,6 +563,7 @@ private:
         while (is) {
             int mdl_src_id, port_src_index, mdl_dst_id, port_dst_index;
 
+            update_error_report();
             if (!(is >> mdl_src_id >> port_src_index >> mdl_dst_id >>
                   port_dst_index)) {
                 if (is.eof())
@@ -593,6 +702,7 @@ private:
             sim.alloc(dyn, dyn_id);
             mdl_id = dyn.id;
 
+            update_error_report();
             irt_return_if_fail(read(dyn),
                                status::io_file_format_dynamics_init_error);
 

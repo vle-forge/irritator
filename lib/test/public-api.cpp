@@ -678,6 +678,24 @@ main()
 
             expect(sim.models.size() == 49);
         }
+
+        {
+            std::string string_error{ "1\n0 qss1_integrator A B C\n" };
+            std::istringstream is{ string_error };
+            irt::simulation sim;
+            expect(irt::is_success(sim.init(64lu, 32lu)));
+
+            irt::is_fatal_breakpoint = false;
+
+            irt::reader r(is);
+            expect(irt::is_bad(r(sim)));
+            expect(r.line_error == 2);
+            expect(r.column_error == 17);
+            expect(r.model_error == 0);
+            expect(r.connection_error == 0);
+
+            irt::is_fatal_breakpoint = true;
+        }
     };
 
     "constant_simulation"_test = [] {
@@ -1435,17 +1453,25 @@ main()
         cross.default_threshold = Vt;
 
         expect(sim.models.can_alloc(10));
-        expect((
-          irt::is_success(sim.alloc(sum, sim.adder_2_models.get_id(sum)))) >> fatal);
-        expect((irt::is_success(
-          sim.alloc(quantifier, sim.quantifier_models.get_id(quantifier)))) >> fatal);
-        expect((irt::is_success(
-          sim.alloc(integrator, sim.integrator_models.get_id(integrator)))) >> fatal);
-        expect((irt::is_success(sim.alloc(I, sim.time_func_models.get_id(I)))) >> fatal);
+        expect(
+          (irt::is_success(sim.alloc(sum, sim.adder_2_models.get_id(sum)))) >>
+          fatal);
         expect((irt::is_success(sim.alloc(
-          constant_cross, sim.constant_models.get_id(constant_cross)))) >> fatal);
-        expect((
-          irt::is_success(sim.alloc(cross, sim.cross_models.get_id(cross)))) >> fatal);
+                 quantifier, sim.quantifier_models.get_id(quantifier)))) >>
+               fatal);
+        expect((irt::is_success(sim.alloc(
+                 integrator, sim.integrator_models.get_id(integrator)))) >>
+               fatal);
+        expect(
+          (irt::is_success(sim.alloc(I, sim.time_func_models.get_id(I)))) >>
+          fatal);
+        expect(
+          (irt::is_success(sim.alloc(
+            constant_cross, sim.constant_models.get_id(constant_cross)))) >>
+          fatal);
+        expect(
+          (irt::is_success(sim.alloc(cross, sim.cross_models.get_id(cross)))) >>
+          fatal);
 
         expect((sim.models.size() == 6_ul) >> fatal);
 
@@ -1614,16 +1640,22 @@ main()
         cross.default_threshold = Vt;
 
         expect(sim.models.can_alloc(10));
-        expect((
-          irt::is_success(sim.alloc(sum, sim.qss2_wsum_2_models.get_id(sum)))) >> fatal);
-        expect((irt::is_success(sim.alloc(
-          integrator, sim.qss2_integrator_models.get_id(integrator)))) >> fatal);
         expect((irt::is_success(
-          sim.alloc(constant, sim.constant_models.get_id(constant)))) >> fatal);
+                 sim.alloc(sum, sim.qss2_wsum_2_models.get_id(sum)))) >>
+               fatal);
         expect((irt::is_success(sim.alloc(
-          constant_cross, sim.constant_models.get_id(constant_cross)))) >> fatal);
+                 integrator, sim.qss2_integrator_models.get_id(integrator)))) >>
+               fatal);
         expect((irt::is_success(
-          sim.alloc(cross, sim.qss2_cross_models.get_id(cross)))) >> fatal);
+                 sim.alloc(constant, sim.constant_models.get_id(constant)))) >>
+               fatal);
+        expect(
+          (irt::is_success(sim.alloc(
+            constant_cross, sim.constant_models.get_id(constant_cross)))) >>
+          fatal);
+        expect((irt::is_success(
+                 sim.alloc(cross, sim.qss2_cross_models.get_id(cross)))) >>
+               fatal);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -1726,32 +1758,46 @@ main()
         sum_d.default_input_coeffs[1] = d;
 
         expect((sim.models.can_alloc(12)) >> fatal);
+        expect((irt::is_success(sim.alloc(
+                 constant3, sim.constant_models.get_id(constant3)))) >>
+               fatal);
         expect((irt::is_success(
-          sim.alloc(constant3, sim.constant_models.get_id(constant3)))) >> fatal);
-        expect((irt::is_success(
-          sim.alloc(constant, sim.constant_models.get_id(constant)))) >> fatal);
-        expect((irt::is_success(
-          sim.alloc(constant2, sim.constant_models.get_id(constant2)))) >> fatal);
+                 sim.alloc(constant, sim.constant_models.get_id(constant)))) >>
+               fatal);
+        expect((irt::is_success(sim.alloc(
+                 constant2, sim.constant_models.get_id(constant2)))) >>
+               fatal);
 
         expect((irt::is_success(
-          sim.alloc(sum_a, sim.qss1_wsum_2_models.get_id(sum_a)))) >> fatal);
+                 sim.alloc(sum_a, sim.qss1_wsum_2_models.get_id(sum_a)))) >>
+               fatal);
         expect((irt::is_success(
-          sim.alloc(sum_b, sim.qss1_wsum_2_models.get_id(sum_b)))) >> fatal);
+                 sim.alloc(sum_b, sim.qss1_wsum_2_models.get_id(sum_b)))) >>
+               fatal);
         expect((irt::is_success(
-          sim.alloc(sum_c, sim.qss1_wsum_4_models.get_id(sum_c)))) >> fatal);
+                 sim.alloc(sum_c, sim.qss1_wsum_4_models.get_id(sum_c)))) >>
+               fatal);
         expect((irt::is_success(
-          sim.alloc(sum_d, sim.qss1_wsum_2_models.get_id(sum_d)))) >> fatal);
+                 sim.alloc(sum_d, sim.qss1_wsum_2_models.get_id(sum_d)))) >>
+               fatal);
 
-        expect((irt::is_success(
-          sim.alloc(product, sim.qss1_multiplier_models.get_id(product)))) >> fatal);
         expect((irt::is_success(sim.alloc(
-          integrator_a, sim.qss1_integrator_models.get_id(integrator_a)))) >> fatal);
-        expect((irt::is_success(sim.alloc(
-          integrator_b, sim.qss1_integrator_models.get_id(integrator_b)))) >> fatal);
+                 product, sim.qss1_multiplier_models.get_id(product)))) >>
+               fatal);
+        expect(
+          (irt::is_success(sim.alloc(
+            integrator_a, sim.qss1_integrator_models.get_id(integrator_a)))) >>
+          fatal);
+        expect(
+          (irt::is_success(sim.alloc(
+            integrator_b, sim.qss1_integrator_models.get_id(integrator_b)))) >>
+          fatal);
         expect((irt::is_success(
-          sim.alloc(cross, sim.qss1_cross_models.get_id(cross)))) >> fatal);
+                 sim.alloc(cross, sim.qss1_cross_models.get_id(cross)))) >>
+               fatal);
         expect((irt::is_success(
-          sim.alloc(cross2, sim.qss1_cross_models.get_id(cross2)))) >> fatal);
+                 sim.alloc(cross2, sim.qss1_cross_models.get_id(cross2)))) >>
+               fatal);
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
@@ -2128,16 +2174,22 @@ main()
         cross.default_threshold = Vt;
 
         expect(sim.models.can_alloc(10));
-        expect((
-          irt::is_success(sim.alloc(sum, sim.qss3_wsum_2_models.get_id(sum)))) >> fatal);
-        expect((irt::is_success(sim.alloc(
-          integrator, sim.qss3_integrator_models.get_id(integrator)))) >> fatal);
         expect((irt::is_success(
-          sim.alloc(constant, sim.constant_models.get_id(constant)))) >> fatal);
+                 sim.alloc(sum, sim.qss3_wsum_2_models.get_id(sum)))) >>
+               fatal);
         expect((irt::is_success(sim.alloc(
-          constant_cross, sim.constant_models.get_id(constant_cross)))) >> fatal);
+                 integrator, sim.qss3_integrator_models.get_id(integrator)))) >>
+               fatal);
         expect((irt::is_success(
-          sim.alloc(cross, sim.qss3_cross_models.get_id(cross)))) >> fatal);
+                 sim.alloc(constant, sim.constant_models.get_id(constant)))) >>
+               fatal);
+        expect(
+          (irt::is_success(sim.alloc(
+            constant_cross, sim.constant_models.get_id(constant_cross)))) >>
+          fatal);
+        expect((irt::is_success(
+                 sim.alloc(cross, sim.qss3_cross_models.get_id(cross)))) >>
+               fatal);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
