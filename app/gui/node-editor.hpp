@@ -373,9 +373,6 @@ make_combo_editor_name(editor_id& current) noexcept;
 void
 show_simulation_box(window_logger& log_w, bool* show_simulation);
 
-void
-initialize_observation(irt::editor* ed);
-
 } // namespace irt
 
 #endif
