@@ -585,6 +585,36 @@ main()
         }
     };
 
+    "simulation-dispatch"_test = [] {
+        irt::simulation sim;
+        sim.init(64u, 256u);
+        auto& dyn1 = sim.alloc<irt::none>();
+        auto& dyn2 = sim.alloc<irt::qss1_integrator>();
+        auto& dyn3 = sim.alloc<irt::qss1_multiplier>();
+
+        auto& mdl = sim.models.get(dyn1.id);
+
+        sim.dispatch_2(mdl.type, [](const auto& dyns) { std::cout << "ok"; });
+
+        auto ret = sim.dispatch_2(mdl.type, [](const auto& dyns) {
+            std::cout << "ok";
+            return 1;
+        });
+
+        expect(ret == 1);
+
+        auto ret_2 = sim.dispatch_2(
+          mdl.type,
+          [](const auto& dyns, int v1, double v2) {
+              std::cout << "ok" << v1 << ' ' << v2;
+              return v2 + v1;
+          },
+          123,
+          456.0);
+
+        expect(ret_2 == 579.0);
+    };
+
     "input_output"_test = [] {
         std::string str;
         str.reserve(4096u);

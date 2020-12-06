@@ -18,6 +18,7 @@
 #endif
 
 #include <string_view>
+#include <type_traits>
 
 #include <cmath>
 #include <cstdint>
@@ -5737,11 +5738,237 @@ struct simulation
         irt_unreachable();
     }
 
+    template<typename Function, typename... Args>
+    constexpr auto dispatch_2(const dynamics_type type,
+                              Function&& f,
+                              Args... args) noexcept
+    {
+        switch (type) {
+        case dynamics_type::none:
+            return f(none_models, args...);
+
+        case dynamics_type::qss1_integrator:
+            return f(qss1_integrator_models, args...);
+        case dynamics_type::qss1_multiplier:
+            return f(qss1_multiplier_models, args...);
+        case dynamics_type::qss1_cross:
+            return f(qss1_cross_models, args...);
+        case dynamics_type::qss1_power:
+            return f(qss1_power_models, args...);
+        case dynamics_type::qss1_square:
+            return f(qss1_square_models, args...);
+        case dynamics_type::qss1_sum_2:
+            return f(qss1_sum_2_models, args...);
+        case dynamics_type::qss1_sum_3:
+            return f(qss1_sum_3_models, args...);
+        case dynamics_type::qss1_sum_4:
+            return f(qss1_sum_4_models, args...);
+        case dynamics_type::qss1_wsum_2:
+            return f(qss1_wsum_2_models, args...);
+        case dynamics_type::qss1_wsum_3:
+            return f(qss1_wsum_3_models, args...);
+        case dynamics_type::qss1_wsum_4:
+            return f(qss1_wsum_4_models, args...);
+
+        case dynamics_type::qss2_integrator:
+            return f(qss2_integrator_models, args...);
+        case dynamics_type::qss2_multiplier:
+            return f(qss2_multiplier_models, args...);
+        case dynamics_type::qss2_cross:
+            return f(qss2_cross_models, args...);
+        case dynamics_type::qss2_power:
+            return f(qss2_power_models, args...);
+        case dynamics_type::qss2_square:
+            return f(qss2_square_models, args...);
+        case dynamics_type::qss2_sum_2:
+            return f(qss2_sum_2_models, args...);
+        case dynamics_type::qss2_sum_3:
+            return f(qss2_sum_3_models, args...);
+        case dynamics_type::qss2_sum_4:
+            return f(qss2_sum_4_models, args...);
+        case dynamics_type::qss2_wsum_2:
+            return f(qss2_wsum_2_models, args...);
+        case dynamics_type::qss2_wsum_3:
+            return f(qss2_wsum_3_models, args...);
+        case dynamics_type::qss2_wsum_4:
+            return f(qss2_wsum_4_models, args...);
+
+        case dynamics_type::qss3_integrator:
+            return f(qss3_integrator_models, args...);
+        case dynamics_type::qss3_multiplier:
+            return f(qss3_multiplier_models, args...);
+        case dynamics_type::qss3_cross:
+            return f(qss3_cross_models, args...);
+        case dynamics_type::qss3_power:
+            return f(qss3_power_models, args...);
+        case dynamics_type::qss3_square:
+            return f(qss3_square_models, args...);
+        case dynamics_type::qss3_sum_2:
+            return f(qss3_sum_2_models, args...);
+        case dynamics_type::qss3_sum_3:
+            return f(qss3_sum_3_models, args...);
+        case dynamics_type::qss3_sum_4:
+            return f(qss3_sum_4_models, args...);
+        case dynamics_type::qss3_wsum_2:
+            return f(qss3_wsum_2_models, args...);
+        case dynamics_type::qss3_wsum_3:
+            return f(qss3_wsum_3_models, args...);
+        case dynamics_type::qss3_wsum_4:
+            return f(qss3_wsum_4_models, args...);
+
+        case dynamics_type::integrator:
+            return f(integrator_models, args...);
+        case dynamics_type::quantifier:
+            return f(quantifier_models, args...);
+        case dynamics_type::adder_2:
+            return f(adder_2_models, args...);
+        case dynamics_type::adder_3:
+            return f(adder_3_models, args...);
+        case dynamics_type::adder_4:
+            return f(adder_4_models, args...);
+        case dynamics_type::mult_2:
+            return f(mult_2_models, args...);
+        case dynamics_type::mult_3:
+            return f(mult_3_models, args...);
+        case dynamics_type::mult_4:
+            return f(mult_4_models, args...);
+        case dynamics_type::counter:
+            return f(counter_models, args...);
+        case dynamics_type::generator:
+            return f(generator_models, args...);
+        case dynamics_type::constant:
+            return f(constant_models, args...);
+        case dynamics_type::cross:
+            return f(cross_models, args...);
+        case dynamics_type::accumulator_2:
+            return f(accumulator_2_models, args...);
+        case dynamics_type::time_func:
+            return f(time_func_models, args...);
+        case dynamics_type::flow:
+            return f(flow_models, args...);
+        }
+
+        irt_unreachable();
+    }
+
+    template<typename Function, typename... Args>
+    constexpr auto dispatch_2(const dynamics_type type,
+                              Function&& f,
+                              Args... args) const noexcept
+    {
+        switch (type) {
+        case dynamics_type::none:
+            return f(none_models, args...);
+
+        case dynamics_type::qss1_integrator:
+            return f(qss1_integrator_models, args...);
+        case dynamics_type::qss1_multiplier:
+            return f(qss1_multiplier_models, args...);
+        case dynamics_type::qss1_cross:
+            return f(qss1_cross_models, args...);
+        case dynamics_type::qss1_power:
+            return f(qss1_power_models, args...);
+        case dynamics_type::qss1_square:
+            return f(qss1_square_models, args...);
+        case dynamics_type::qss1_sum_2:
+            return f(qss1_sum_2_models, args...);
+        case dynamics_type::qss1_sum_3:
+            return f(qss1_sum_3_models, args...);
+        case dynamics_type::qss1_sum_4:
+            return f(qss1_sum_4_models, args...);
+        case dynamics_type::qss1_wsum_2:
+            return f(qss1_wsum_2_models, args...);
+        case dynamics_type::qss1_wsum_3:
+            return f(qss1_wsum_3_models, args...);
+        case dynamics_type::qss1_wsum_4:
+            return f(qss1_wsum_4_models, args...);
+
+        case dynamics_type::qss2_integrator:
+            return f(qss2_integrator_models, args...);
+        case dynamics_type::qss2_multiplier:
+            return f(qss2_multiplier_models, args...);
+        case dynamics_type::qss2_cross:
+            return f(qss2_cross_models, args...);
+        case dynamics_type::qss2_power:
+            return f(qss2_power_models, args...);
+        case dynamics_type::qss2_square:
+            return f(qss2_square_models, args...);
+        case dynamics_type::qss2_sum_2:
+            return f(qss2_sum_2_models, args...);
+        case dynamics_type::qss2_sum_3:
+            return f(qss2_sum_3_models, args...);
+        case dynamics_type::qss2_sum_4:
+            return f(qss2_sum_4_models, args...);
+        case dynamics_type::qss2_wsum_2:
+            return f(qss2_wsum_2_models, args...);
+        case dynamics_type::qss2_wsum_3:
+            return f(qss2_wsum_3_models, args...);
+        case dynamics_type::qss2_wsum_4:
+            return f(qss2_wsum_4_models, args...);
+
+        case dynamics_type::qss3_integrator:
+            return f(qss3_integrator_models, args...);
+        case dynamics_type::qss3_multiplier:
+            return f(qss3_multiplier_models, args...);
+        case dynamics_type::qss3_cross:
+            return f(qss3_cross_models, args...);
+        case dynamics_type::qss3_power:
+            return f(qss3_power_models, args...);
+        case dynamics_type::qss3_square:
+            return f(qss3_square_models, args...);
+        case dynamics_type::qss3_sum_2:
+            return f(qss3_sum_2_models, args...);
+        case dynamics_type::qss3_sum_3:
+            return f(qss3_sum_3_models, args...);
+        case dynamics_type::qss3_sum_4:
+            return f(qss3_sum_4_models, args...);
+        case dynamics_type::qss3_wsum_2:
+            return f(qss3_wsum_2_models, args...);
+        case dynamics_type::qss3_wsum_3:
+            return f(qss3_wsum_3_models, args...);
+        case dynamics_type::qss3_wsum_4:
+            return f(qss3_wsum_4_models, args...);
+
+        case dynamics_type::integrator:
+            return f(integrator_models, args...);
+        case dynamics_type::quantifier:
+            return f(quantifier_models, args...);
+        case dynamics_type::adder_2:
+            return f(adder_2_models, args...);
+        case dynamics_type::adder_3:
+            return f(adder_3_models, args...);
+        case dynamics_type::adder_4:
+            return f(adder_4_models, args...);
+        case dynamics_type::mult_2:
+            return f(mult_2_models, args...);
+        case dynamics_type::mult_3:
+            return f(mult_3_models, args...);
+        case dynamics_type::mult_4:
+            return f(mult_4_models, args...);
+        case dynamics_type::counter:
+            return f(counter_models, args...);
+        case dynamics_type::generator:
+            return f(generator_models, args...);
+        case dynamics_type::constant:
+            return f(constant_models, args...);
+        case dynamics_type::cross:
+            return f(cross_models, args...);
+        case dynamics_type::accumulator_2:
+            return f(accumulator_2_models, args...);
+        case dynamics_type::time_func:
+            return f(time_func_models, args...);
+        case dynamics_type::flow:
+            return f(flow_models, args...);
+        }
+
+        irt_unreachable();
+    }
+
     status get_output_port_index(const model& mdl,
                                  const output_port_id port,
                                  int* index) const noexcept
     {
-        return dispatch(
+        return dispatch_2(
           mdl.type,
           [dyn_id = mdl.id, port, index]<typename DynamicsM>(
             DynamicsM& dyn_models) -> status {
@@ -5955,8 +6182,8 @@ public:
 
         irt_return_if_bad(observers.init(model_capacity));
 
-        irt_return_if_bad(
-          flat_double_list_shared_allocator.init(integrator_models.capacity() * ten));
+        irt_return_if_bad(flat_double_list_shared_allocator.init(
+          integrator_models.capacity() * ten));
 
         return status::success;
     }
