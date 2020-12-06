@@ -5391,7 +5391,7 @@ struct simulation
         constexpr sz e = dynamics_type_size();
 
         for (; i != e; ++i)
-            if (auto ret = dispatch_2(static_cast<dynamics_type>(i), f);
+            if (auto ret = dispatch(static_cast<dynamics_type>(i), f);
                 is_bad(ret))
                 return ret;
 
@@ -5515,9 +5515,9 @@ struct simulation
     }
 
     template<typename Function, typename... Args>
-    constexpr auto dispatch_2(const dynamics_type type,
-                              Function&& f,
-                              Args... args) noexcept
+    constexpr auto dispatch(const dynamics_type type,
+                            Function&& f,
+                            Args... args) noexcept
     {
         switch (type) {
         case dynamics_type::none:
@@ -5628,9 +5628,9 @@ struct simulation
     }
 
     template<typename Function, typename... Args>
-    constexpr auto dispatch_2(const dynamics_type type,
-                              Function&& f,
-                              Args... args) const noexcept
+    constexpr auto dispatch(const dynamics_type type,
+                            Function&& f,
+                            Args... args) const noexcept
     {
         switch (type) {
         case dynamics_type::none:
@@ -5744,7 +5744,7 @@ struct simulation
                                  const output_port_id port,
                                  int* index) const noexcept
     {
-        return dispatch_2(
+        return dispatch(
           mdl.type,
           [dyn_id = mdl.id, port, index]<typename DynamicsM>(
             DynamicsM& dyn_models) -> status {
@@ -5769,7 +5769,7 @@ struct simulation
     template<typename Function>
     void for_all_input_port(const model& mdl, Function f)
     {
-        dispatch_2(
+        dispatch(
           mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
               using TT = T;
               using Dynamics = typename TT::value_type;
@@ -5787,7 +5787,7 @@ struct simulation
     template<typename Function>
     void for_all_output_port(const model& mdl, Function f)
     {
-        dispatch_2(
+        dispatch(
           mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
               using TT = T;
               using Dynamics = typename TT::value_type;
@@ -5806,7 +5806,7 @@ struct simulation
                                 const input_port_id port,
                                 int* index) const noexcept
     {
-        return dispatch_2(
+        return dispatch(
           mdl.type,
           [dyn_id = mdl.id, port, index]<typename T>(T& dyn_models) -> status {
               using TT = T;
@@ -5832,7 +5832,7 @@ struct simulation
                               int index,
                               output_port_id* port) const noexcept
     {
-        return dispatch_2(
+        return dispatch(
           mdl.type,
           [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status {
               using TT = T;
@@ -5858,7 +5858,7 @@ struct simulation
                              int index,
                              input_port_id* port) const noexcept
     {
-        return dispatch_2(
+        return dispatch(
           mdl.type,
           [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status {
               using TT = T;
@@ -6133,7 +6133,7 @@ public:
             observers.free(*obs);
         }
 
-        dispatch_2(mdl->type, [&](auto& d_array) {
+        dispatch(mdl->type, [&](auto& d_array) {
             do_deallocate(d_array.get(mdl->id));
             d_array.free(mdl->id);
         });
@@ -6421,7 +6421,7 @@ public:
 
     status make_initialize(model& mdl, time t) noexcept
     {
-        return dispatch_2(
+        return dispatch(
           mdl.type,
           [this, &mdl, t]<typename DynamicsModels>(DynamicsModels& dyn_models) {
               return this->make_initialize(mdl, dyn_models.get(mdl.id), t);
@@ -6492,12 +6492,12 @@ public:
                            time t,
                            flat_list<output_port_id>& o) noexcept
     {
-        return dispatch_2(mdl.type,
-                          [this, &mdl, t, &o]<typename DynamicsModels>(
-                            DynamicsModels& dyn_models) {
-                              return this->make_transition(
-                                mdl, dyn_models.get(mdl.id), t, o);
-                          });
+        return dispatch(mdl.type,
+                        [this, &mdl, t, &o]<typename DynamicsModels>(
+                          DynamicsModels& dyn_models) {
+                            return this->make_transition(
+                              mdl, dyn_models.get(mdl.id), t, o);
+                        });
     }
 };
 

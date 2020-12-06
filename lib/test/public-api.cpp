@@ -594,16 +594,16 @@ main()
 
         auto& mdl = sim.models.get(dyn1.id);
 
-        sim.dispatch_2(mdl.type, [](const auto& dyns) { std::cout << "ok"; });
+        sim.dispatch(mdl.type, [](const auto& dyns) { std::cout << "ok"; });
 
-        auto ret = sim.dispatch_2(mdl.type, [](const auto& dyns) {
+        auto ret = sim.dispatch(mdl.type, [](const auto& dyns) {
             std::cout << "ok";
             return 1;
         });
 
         expect(ret == 1);
 
-        auto ret_2 = sim.dispatch_2(
+        auto ret_2 = sim.dispatch(
           mdl.type,
           [](const auto& dyns, int v1, double v2) {
               std::cout << "ok" << v1 << ' ' << v2;
