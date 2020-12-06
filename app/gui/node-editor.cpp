@@ -559,7 +559,7 @@ struct copier
             auto* mdl = sim.models.try_to_get(c_models[i].src);
             auto* mdl_id_dst = &c_models[i].dst;
 
-            auto ret = sim.dispatch(
+            auto ret = sim.dispatch_2(
               mdl->type,
               [this, &sim, mdl, &mdl_id_dst]<typename DynamicsM>(
                 DynamicsM& dynamics_models) -> status {
@@ -2036,24 +2036,22 @@ editor::show_model_dynamics(model& mdl) noexcept
     ImGui::PopItemWidth();
 
     if (simulation_show_value && st != editor_status::editing) {
-        sim.dispatch(mdl.type, [&](const auto& d_array) {
+        sim.dispatch_2(mdl.type, [&](const auto& d_array) {
             const auto& dyn = d_array.get(mdl.id);
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
             show_dynamics_values(dyn);
             ImGui::PopItemWidth();
             add_output_attribute(*this, dyn);
-            return status::success;
         });
     } else {
-        sim.dispatch(mdl.type, [&](auto& d_array) {
+        sim.dispatch_2(mdl.type, [&](auto& d_array) {
             auto& dyn = d_array.get(mdl.id);
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
             show_dynamics_inputs(dyn);
             ImGui::PopItemWidth();
             add_output_attribute(*this, dyn);
-            return status::success;
         });
     }
 }
@@ -2109,12 +2107,13 @@ show_tooltip(editor& ed, const model& mdl, const model_id id)
                        mdl.tl,
                        mdl.tn);
 
-        auto ret = ed.sim.dispatch(
+        auto ret = ed.sim.dispatch_2(
           mdl.type, [&]<typename DynamicsModels>(DynamicsModels& dyn_models) {
               using Dynamics = typename DynamicsModels::value_type;
               if constexpr (is_detected_v<has_input_port_t, Dynamics>)
                   return make_input_tooltip(
                     ed, dyn_models.get(mdl.id), ed.tooltip);
+
               return status::success;
           });
 
@@ -2231,7 +2230,7 @@ editor::show_top() noexcept
 status
 add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
 {
-    return ed.sim.dispatch(type, [&](auto& d_array) {
+    return ed.sim.dispatch_2(type, [&](auto& d_array) {
         if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)])) {
             if (!ed.sim.models.can_alloc(1) || !d_array.can_alloc(1))
                 return status::data_array_not_enough_memory;

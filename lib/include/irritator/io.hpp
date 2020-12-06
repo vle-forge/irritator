@@ -693,7 +693,7 @@ private:
                            status::io_file_format_dynamics_unknown);
 
         model_id mdl_id = static_cast<model_id>(0);
-        auto ret = sim.dispatch(type, [this, &sim, &mdl_id](auto& dyn_models) {
+        auto ret = sim.dispatch_2(type, [this, &sim, &mdl_id](auto& dyn_models) {
             irt_return_if_fail(dyn_models.can_alloc(1),
                                status::io_file_format_dynamics_limit_reach);
             auto& dyn = dyn_models.alloc();
@@ -1076,9 +1076,8 @@ struct writer
             os << id << ' ';
             map[id] = mdl_id;
 
-            sim.dispatch(mdl->type, [this, mdl](auto& dyn_models) {
+            sim.dispatch_2(mdl->type, [this, mdl](auto& dyn_models) {
                 write(dyn_models.get(mdl->id));
-                return status::success;
             });
 
             ++id;

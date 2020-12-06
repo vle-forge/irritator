@@ -5391,7 +5391,7 @@ struct simulation
         constexpr sz e = dynamics_type_size();
 
         for (; i != e; ++i)
-            if (auto ret = dispatch(static_cast<dynamics_type>(i), f);
+            if (auto ret = dispatch_2(static_cast<dynamics_type>(i), f);
                 is_bad(ret))
                 return ret;
 
@@ -5993,7 +5993,7 @@ struct simulation
     template<typename Function>
     void for_all_input_port(const model& mdl, Function f)
     {
-        dispatch(
+        dispatch_2(
           mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
               using TT = T;
               using Dynamics = typename TT::value_type;
@@ -6005,14 +6005,13 @@ struct simulation
                               port)
                               f(*port, dyn->x[i]);
               }
-              return status::success;
           });
     }
 
     template<typename Function>
     void for_all_output_port(const model& mdl, Function f)
     {
-        dispatch(
+        dispatch_2(
           mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
               using TT = T;
               using Dynamics = typename TT::value_type;
@@ -6024,8 +6023,6 @@ struct simulation
                               port)
                               f(*port, dyn->y[i]);
               }
-
-              return status::success;
           });
     }
 
@@ -6033,7 +6030,7 @@ struct simulation
                                 const input_port_id port,
                                 int* index) const noexcept
     {
-        return dispatch(
+        return dispatch_2(
           mdl.type,
           [dyn_id = mdl.id, port, index]<typename T>(T& dyn_models) -> status {
               using TT = T;
@@ -6059,7 +6056,7 @@ struct simulation
                               int index,
                               output_port_id* port) const noexcept
     {
-        return dispatch(
+        return dispatch_2(
           mdl.type,
           [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status {
               using TT = T;
@@ -6085,7 +6082,7 @@ struct simulation
                              int index,
                              input_port_id* port) const noexcept
     {
-        return dispatch(
+        return dispatch_2(
           mdl.type,
           [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status {
               using TT = T;
@@ -6352,8 +6349,7 @@ public:
     status deallocate(model_id id)
     {
         auto* mdl = models.try_to_get(id);
-        if (!mdl)
-            return status::success;
+        irt_return_if_fail(mdl, status::unknown_dynamics);
 
         if (auto* obs = observers.try_to_get(mdl->obs_id); obs) {
             obs->model = static_cast<model_id>(0);
@@ -6361,16 +6357,15 @@ public:
             observers.free(*obs);
         }
 
-        auto ret = dispatch(mdl->type, [&](auto& d_array) {
+        dispatch_2(mdl->type, [&](auto& d_array) {
             do_deallocate(d_array.get(mdl->id));
             d_array.free(mdl->id);
-            return status::success;
         });
 
         sched.erase(*mdl);
         models.free(*mdl);
 
-        return ret;
+        return status::success;
     }
 
     template<typename Dynamics>
@@ -6650,7 +6645,7 @@ public:
 
     status make_initialize(model& mdl, time t) noexcept
     {
-        return dispatch(
+        return dispatch_2(
           mdl.type,
           [this, &mdl, t]<typename DynamicsModels>(DynamicsModels& dyn_models) {
               return this->make_initialize(mdl, dyn_models.get(mdl.id), t);
@@ -6721,12 +6716,12 @@ public:
                            time t,
                            flat_list<output_port_id>& o) noexcept
     {
-        return dispatch(mdl.type,
-                        [this, &mdl, t, &o]<typename DynamicsModels>(
-                          DynamicsModels& dyn_models) {
-                            return this->make_transition(
-                              mdl, dyn_models.get(mdl.id), t, o);
-                        });
+        return dispatch_2(mdl.type,
+                          [this, &mdl, t, &o]<typename DynamicsModels>(
+                            DynamicsModels& dyn_models) {
+                              return this->make_transition(
+                                mdl, dyn_models.get(mdl.id), t, o);
+                          });
     }
 };
 
