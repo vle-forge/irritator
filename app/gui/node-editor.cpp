@@ -2227,10 +2227,10 @@ editor::show_top() noexcept
     }
 }
 
-status
+void
 add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
 {
-    return ed.sim.dispatch(type, [&](auto& d_array) {
+    auto ret = ed.sim.dispatch(type, [&](auto& d_array) {
         if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)])) {
             if (!ed.sim.models.can_alloc(1) || !d_array.can_alloc(1))
                 return status::data_array_not_enough_memory;
@@ -2247,6 +2247,9 @@ add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
 
         return status::success;
     });
+
+    if (is_bad(ret))
+        log_w.log(5, "Fail to allocate new dynamics: %s\n", status_string(ret));
 }
 
 bool
@@ -2522,63 +2525,50 @@ editor::show_editor() noexcept
         ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
         if (ImGui::BeginMenu("QSS1")) {
-            int i = static_cast<int>(dynamics_type::qss1_integrator);
-            int e = static_cast<int>(dynamics_type::qss1_wsum_4);
-
-            for (; i != e; ++i) {
-                auto ret = add_popup_menuitem(
-                  *this, static_cast<dynamics_type>(i), &new_model);
-                if (is_bad(ret))
-                    log_w.log(5,
-                              "Fail to allocate new dynamics: %s\n",
-                              status_string(ret));
-            }
+            auto i = static_cast<int>(dynamics_type::qss1_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss1_wsum_4);
+            for (; i != e; ++i)
+                add_popup_menuitem(*this, static_cast<dynamics_type>(i), &new_model);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("QSS2")) {
-            int i = static_cast<int>(dynamics_type::qss2_integrator);
-            int e = static_cast<int>(dynamics_type::qss2_wsum_4);
+            auto i = static_cast<int>(dynamics_type::qss2_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss2_wsum_4);
 
-            for (; i != e; ++i) {
-                auto ret = add_popup_menuitem(
-                  *this, static_cast<dynamics_type>(i), &new_model);
-                if (is_bad(ret))
-                    log_w.log(5,
-                              "Fail to allocate new dynamics: %s\n",
-                              status_string(ret));
-            }
+            for (; i != e; ++i)
+                add_popup_menuitem(*this, static_cast<dynamics_type>(i), &new_model);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("QSS3")) {
-            int i = static_cast<int>(dynamics_type::qss3_integrator);
-            int e = static_cast<int>(dynamics_type::qss3_wsum_4);
+            auto i = static_cast<int>(dynamics_type::qss3_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss3_wsum_4);
 
-            for (; i != e; ++i) {
-                auto ret = add_popup_menuitem(
-                  *this, static_cast<dynamics_type>(i), &new_model);
-                if (is_bad(ret))
-                    log_w.log(5,
-                              "Fail to allocate new dynamics: %s\n",
-                              status_string(ret));
-            }
+            for (; i != e; ++i)
+                add_popup_menuitem(*this, static_cast<dynamics_type>(i), &new_model);
             ImGui::EndMenu();
         }
 
-        {
-            int i = static_cast<int>(dynamics_type::integrator);
-            int e = static_cast<int>(dynamics_type_size());
-
-            for (; i != e; ++i) {
-                auto ret = add_popup_menuitem(
-                  *this, static_cast<dynamics_type>(i), &new_model);
-                if (is_bad(ret))
-                    log_w.log(5,
-                              "Fail to allocate new dynamics: %s\n",
-                              status_string(ret));
-            }
+        if (ImGui::BeginMenu("AQSS (experimental)")) {
+            add_popup_menuitem(*this, dynamics_type::integrator, &new_model);
+            add_popup_menuitem(*this, dynamics_type::quantifier, &new_model);
+            add_popup_menuitem(*this, dynamics_type::adder_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::adder_3, &new_model);
+            add_popup_menuitem(*this, dynamics_type::adder_4, &new_model);
+            add_popup_menuitem(*this, dynamics_type::mult_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::mult_3, &new_model);
+            add_popup_menuitem(*this, dynamics_type::mult_4, &new_model);
+            add_popup_menuitem(*this, dynamics_type::cross, &new_model);
+            ImGui::EndMenu();
         }
+
+        add_popup_menuitem(*this, dynamics_type::counter, &new_model);
+        add_popup_menuitem(*this, dynamics_type::generator, &new_model);
+        add_popup_menuitem(*this, dynamics_type::constant, &new_model);
+        add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
+        add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+        add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
         ImGui::EndPopup();
 
