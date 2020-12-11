@@ -19,141 +19,143 @@
 #include <string>
 
 #include <fmt/format.h>
+#include <fmt/ostream.h>
+
 #include <irritator/core.hpp>
 #include <irritator/io.hpp>
 
 namespace irt {
-static void
-observation_output_initialize(const irt::observer& obs,
-                              const irt::time t) noexcept
+
+void
+observation_plot_output_initialize(const irt::observer& obs,
+                                   const irt::time t) noexcept
 {
+    // const auto diff = ed.simulation_end - ed.simulation_begin;
+    // const auto freq = diff / obs->time_step;
+    // const auto length = std::min((size_t)freq, (size_t)4096);
+
     if (!obs.user_data)
         return;
 
-    auto* output = reinterpret_cast<observation_output*>(obs.user_data);
-    if (match(output->observation_type,
-              observation_output::type::multiplot,
-              observation_output::type::both)) {
-        output->xs.clear();
-        output->ys.clear();
-        output->tl = t;
-        output->min = -1.f;
-        output->max = +1.f;
-    }
-
-    if (match(output->observation_type,
-              observation_output::type::file,
-              observation_output::type::both)) {
-        if (!output->ofs.is_open()) {
-            if (output->observation_type == observation_output::type::both)
-                output->observation_type = observation_output::type::multiplot;
-            else
-                output->observation_type = observation_output::type::none;
-        } else
-            output->ofs << "t," << output->name << '\n';
-    }
+    auto* output = reinterpret_cast<plot_output*>(obs.user_data);
+    output->xs.clear();
+    output->ys.clear();
+    output->xs.reserve(4096u);
+    output->ys.reserve(4096u);
+    output->tl = t;
+    output->min = -1.f;
+    output->max = +1.f;
 }
 
-static void
-observation_output_observe(const irt::observer& obs,
-                           const irt::time t,
-                           const irt::message& msg) noexcept
+void
+observation_file_output_initialize(const irt::observer& obs,
+                                   const irt::time t) noexcept
 {
     if (!obs.user_data)
         return;
 
-    auto* output = reinterpret_cast<observation_output*>(obs.user_data);
+    auto* output = reinterpret_cast<file_output*>(obs.user_data);
+    output->tl = t;
+
+    if (output->ofs.is_open())
+        fmt::print(output->ofs, "t,{}\n", output->name.c_str());
+}
+
+void
+observation_plot_output_observe(const irt::observer& obs,
+                                const irt::time t,
+                                const irt::message& msg) noexcept
+{
+    if (!obs.user_data)
+        return;
+
+    auto* output = reinterpret_cast<plot_output*>(obs.user_data);
     const auto value = static_cast<float>(msg[0]);
 
-    if (match(output->observation_type,
-              observation_output::type::multiplot,
-              observation_output::type::both)) {
-        output->min = std::min(output->min, value);
-        output->max = std::max(output->max, value);
+    output->min = std::min(output->min, value);
+    output->max = std::max(output->max, value);
 
-        for (double to_fill = output->tl; to_fill < t;
-             to_fill += obs.time_step) {
-            output->ys.emplace_back(value);
-            output->xs.emplace_back(static_cast<float>(t));
-        }
-    }
-
-    if (match(output->observation_type,
-              observation_output::type::file,
-              observation_output::type::both)) {
-        output->ofs << t << ',' << value << '\n';
+    for (auto to_fill = output->tl; to_fill < t; to_fill += obs.time_step) {
+        output->ys.emplace_back(value);
+        output->xs.emplace_back(static_cast<float>(t));
     }
 
     output->tl = t;
 }
 
-static void
-observation_output_free(const irt::observer& obs,
-                        const irt::time /*t*/) noexcept
+void
+observation_file_output_observe(const irt::observer& obs,
+                                const irt::time t,
+                                const irt::message& msg) noexcept
 {
     if (!obs.user_data)
         return;
 
-    auto* output = reinterpret_cast<observation_output*>(obs.user_data);
+    auto* output = reinterpret_cast<file_output*>(obs.user_data);
+    const auto value = static_cast<float>(msg[0]);
 
-    if (match(output->observation_type,
-              observation_output::type::file,
-              observation_output::type::both)) {
-        output->ofs.close();
-    }
+    fmt::print(output->ofs, "{},{}\n", t, value);
+
+    output->tl = t;
 }
 
-static void
-initialize_observation(window_logger& log_w, irt::editor& ed) noexcept
+void
+observation_plot_output_free(const irt::observer& /*obs*/,
+                             const irt::time /*t*/) noexcept
+{}
+
+void
+observation_file_output_free(const irt::observer& obs,
+                             const irt::time /*t*/) noexcept
 {
-    ed.observation_outputs.clear();
-    observer* obs = nullptr;
-    while (ed.sim.observers.next(obs)) {
-        auto& output = ed.observation_outputs.emplace_back(obs->name.sv());
+    if (!obs.user_data)
+        return;
 
-        const auto type =
-          ed.observation_types[get_index(ed.sim.observers.get_id(*obs))];
-        const auto diff = ed.simulation_end - ed.simulation_begin;
-        const auto freq = diff / obs->time_step;
-        const auto length = static_cast<size_t>(freq);
-        output.observation_type = type;
-
-        if (match(type,
-                  observation_output::type::multiplot,
-                  observation_output::type::both)) {
-            output.xs.clear();
-            output.ys.clear();
-            output.xs.reserve(length);
-            output.ys.reserve(length);
-        }
-
-        if (!obs->name.empty()) {
-            const std::filesystem::path obs_file_path =
-              ed.observation_directory / obs->name.c_str();
-
-            if (type == observation_output::type::file ||
-                type == observation_output::type::both) {
-                if (output.ofs.open(obs_file_path); !output.ofs.is_open())
-                    log_w.log(4,
-                              "Fail to open "
-                              "observation file: %s in "
-                              "%s\n",
-                              obs->name.c_str(),
-#if _WIN32
-                              ed.observation_directory.u8string().c_str());
-#else
-                              reinterpret_cast<const char*>(
-                                ed.observation_directory.u8string().c_str()));
-#endif
-            }
-        }
-
-        obs->initialize = &observation_output_initialize;
-        obs->observe = &observation_output_observe;
-        obs->free = &observation_output_free;
-        obs->user_data = static_cast<void*>(&output);
-    }
+    auto* output = reinterpret_cast<file_output*>(obs.user_data);
+    output->ofs.close();
 }
+
+// static void
+// initialize_observation(window_logger& log_w, irt::editor& ed) noexcept
+//{
+//    observer* obs = nullptr;
+//    while (ed.sim.observers.next(obs)) {
+//        auto& output = ed.observation_outputs.emplace_back(obs->name.sv());
+//
+//
+//        if (output.plot) {
+//            output.xs.clear();
+//            output.ys.clear();
+//            output.xs.reserve(length);
+//            output.ys.reserve(length);
+//        }
+//
+//        if (!obs->name.empty()) {
+//            const std::filesystem::path obs_file_path =
+//              ed.observation_directory / obs->name.c_str();
+//
+//            if (output.file) {
+//                if (output.ofs.open(obs_file_path); !output.ofs.is_open())
+//                    log_w.log(4,
+//                              "Fail to open "
+//                              "observation file: %s in "
+//                              "%s\n",
+//                              obs->name.c_str(),
+//#if _WIN32
+//                              ed.observation_directory.u8string().c_str());
+//#else
+//                              reinterpret_cast<const char*>(
+//                                ed.observation_directory.u8string().c_str()));
+//#endif
+//            }
+//        }
+//
+//        obs->initialize = &observation_output_initialize;
+//        obs->observe = &observation_output_observe;
+//        obs->free = &observation_output_free;
+//        obs->user_data = static_cast<void*>(&output);
+//    }
+//}
 
 static void
 run_synchronized_simulation(window_logger& log_w,
@@ -237,14 +239,15 @@ show_simulation_run_once(window_logger& log_w, editor& ed)
             ed.simulation_thread.join();
             ed.st = editor_status::editing;
         }
-    } else if (ed.st == editor_status::editing || ed.st == editor_status::running_debug) {
+    } else if (ed.st == editor_status::editing ||
+               ed.st == editor_status::running_debug) {
         ImGui::Checkbox("Time synchronization", &ed.use_real_time);
 
         if (ed.use_real_time) {
             ImGui::InputDouble("t/s", &ed.synchronize_timestep);
 
             if (ed.synchronize_timestep > 0. && ImGui::Button("run")) {
-                initialize_observation(log_w, ed);
+                // initialize_observation(log_w, ed);
                 ed.stop = false;
 
                 ed.simulation_thread =
@@ -261,7 +264,7 @@ show_simulation_run_once(window_logger& log_w, editor& ed)
             }
         } else {
             if (ImGui::Button("run")) {
-                initialize_observation(log_w, ed);
+                // initialize_observation(log_w, ed);
                 ed.stop = false;
 
                 ed.simulation_thread =
@@ -290,7 +293,7 @@ simulation_init(window_logger& log_w, editor& ed)
 {
     ed.sim.clean();
 
-    initialize_observation(log_w, ed);
+    // initialize_observation(log_w, ed);
 
     ed.simulation_current = ed.simulation_begin;
     ed.simulation_during_date = ed.simulation_begin;

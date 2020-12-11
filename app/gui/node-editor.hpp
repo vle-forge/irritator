@@ -214,30 +214,90 @@ struct window_logger
     void show(bool* is_show);
 };
 
-struct observation_output
+struct plot_output
 {
-    enum class type
-    {
-        none,
-        multiplot,
-        file,
-        both
-    };
+    plot_output() = default;
 
-    observation_output() = default;
-
-    observation_output(std::string_view name_)
+    plot_output(std::string_view name_)
       : name(name_)
     {}
 
-    std::ofstream ofs;
-    std::string name;
+    void clear()
+    {
+        name.clear();
+        xs.clear();
+        ys.clear();
+        tl = 0.0;
+        min = -1.f;
+        max = +1.f;
+    }
+
     std::vector<float> xs;
     std::vector<float> ys;
+    small_string<24u> name;
     double tl = 0.0;
     float min = -1.f;
     float max = +1.f;
-    type observation_type = type::none;
+};
+
+struct file_output
+{
+    file_output() = default;
+
+    file_output(std::string_view name_)
+      : name(name_)
+    {}
+
+    void clear()
+    {
+        ofs.close();
+        name.clear();
+        tl = 0.0;
+    }
+
+    std::ofstream ofs;
+    small_string<24u> name;
+    double tl = 0.0;
+};
+
+void
+observation_plot_output_initialize(const irt::observer& obs,
+                                   const irt::time t) noexcept;
+void
+observation_file_output_initialize(const irt::observer& obs,
+                                   const irt::time t) noexcept;
+void
+observation_plot_output_observe(const irt::observer& obs,
+                                const irt::time t,
+                                const irt::message& msg) noexcept;
+
+void
+observation_file_output_observe(const irt::observer& obs,
+                                const irt::time t,
+                                const irt::message& msg) noexcept;
+void
+observation_plot_output_free(const irt::observer& /*obs*/,
+                             const irt::time /*t*/) noexcept;
+
+void
+observation_file_output_free(const irt::observer& obs,
+                             const irt::time /*t*/) noexcept;
+
+enum class plot_output_id : u64;
+enum class file_output_id : u64;
+
+struct observation_output
+{
+    constexpr observation_output() = default;
+
+    constexpr void clear() noexcept
+    {
+        plot_id = undefined<plot_output_id>();
+        file_id = undefined<file_output_id>();
+    }
+
+    plot_output_id plot_id = undefined<plot_output_id>();
+    file_output_id file_id = undefined<file_output_id>();
 };
 
 struct editor
@@ -266,8 +326,10 @@ struct editor
     bool simulation_show_value = false;
     bool stop = false;
 
+    data_array<plot_output, plot_output_id> plot_outs;
+    data_array<file_output, file_output_id> file_outs;
+
     std::vector<observation_output> observation_outputs;
-    std::vector<observation_output::type> observation_types;
     std::filesystem::path observation_directory;
 
     data_array<cluster, cluster_id> clusters;

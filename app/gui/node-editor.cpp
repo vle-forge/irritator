@@ -44,6 +44,8 @@ static auto automatic_layout_y_distance = 350.f;
 static auto grid_layout_x_distance = 250.f;
 static auto grid_layout_y_distance = 250.f;
 
+static bool show_dynamics_inputs_in_editor = false;
+
 static ImVec4
 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
@@ -376,6 +378,13 @@ editor::free_group(cluster& group) noexcept
             if (auto* mdl = sim.models.try_to_get(id); mdl) {
                 log_w.log(7, "delete model %" PRIu64 "\n", id);
                 sim.deallocate(id);
+
+                if (auto* out = plot_outs.try_to_get(
+                      observation_outputs[get_index(id)].plot_id))
+                    plot_outs.free(*out);
+                if (auto* out = file_outs.try_to_get(
+                      observation_outputs[get_index(id)].file_id))
+                    file_outs.free(*out);
             }
         } else {
             auto id = std::get<cluster_id>(child);
@@ -408,6 +417,13 @@ editor::free_children(const ImVector<int>& nodes) noexcept
                 log_w.log(7, "delete %" PRIu64 "\n", id);
                 parent(id, undefined<cluster_id>());
                 sim.deallocate(id);
+
+                if (auto* out = plot_outs.try_to_get(
+                      observation_outputs[get_index(id)].plot_id))
+                    plot_outs.free(*out);
+                if (auto* out = file_outs.try_to_get(
+                      observation_outputs[get_index(id)].file_id))
+                    file_outs.free(*out);
             }
         } else {
             const auto id = std::get<cluster_id>(child.first);
@@ -941,12 +957,11 @@ editor::initialize(u32 id) noexcept
                                to_unsigned(kernel_message_cache)));
     irt_return_if_bad(clusters.init(sim.models.capacity()));
     irt_return_if_bad(top.init(to_unsigned(gui_node_cache)));
+    irt_return_if_bad(plot_outs.init(to_unsigned(kernel_model_cache)));
+    irt_return_if_bad(file_outs.init(to_unsigned(kernel_model_cache)));
 
     try {
         observation_outputs.resize(sim.models.capacity());
-        observation_types.resize(sim.models.capacity(),
-                                 observation_output::type::none);
-
         models_mapper.resize(sim.models.capacity(), undefined<cluster_id>());
         clusters_mapper.resize(sim.models.capacity(), undefined<cluster_id>());
         models_make_transition.resize(sim.models.capacity(), false);
@@ -1993,48 +2008,6 @@ show_dynamics_inputs(time_func& dyn)
 void
 editor::show_model_dynamics(model& mdl) noexcept
 {
-    ImGui::PushItemWidth(100.0f);
-
-    {
-        const char* items[] = { "none", "multiplot", "file", "both" };
-        int current_item = 0; /* Default show none */
-        auto* obs = sim.observers.try_to_get(mdl.obs_id);
-
-        if (obs)
-            current_item =
-              static_cast<int>(observation_types[get_index(mdl.obs_id)]);
-
-        if (ImGui::Combo(
-              "observation", &current_item, items, IM_ARRAYSIZE(items))) {
-            if (current_item == 0) {
-                if (obs) {
-                    observation_types[get_index(mdl.obs_id)] =
-                      observation_output::type::none;
-                    sim.observers.free(*obs);
-                    mdl.obs_id = static_cast<observer_id>(0);
-                }
-            } else {
-                if (!obs) {
-                    auto& o = sim.observers.alloc(0.01, "TODO", nullptr);
-                    sim.observe(mdl, o);
-                }
-
-                observation_types[get_index(mdl.obs_id)] =
-                  static_cast<observation_output::type>(current_item);
-            }
-        }
-
-        if (current_item == 1) {
-            if (auto* o = sim.observers.try_to_get(mdl.obs_id); o) {
-                float v = static_cast<float>(o->time_step);
-                if (ImGui::InputFloat("freq.", &v, 0.001f, 0.1f, "%.3f", 0))
-                    o->time_step = static_cast<double>(v);
-            }
-        }
-    }
-
-    ImGui::PopItemWidth();
-
     if (simulation_show_value && st != editor_status::editing) {
         sim.dispatch(mdl.type, [&](const auto& d_array) {
             const auto& dyn = d_array.get(mdl.id);
@@ -2049,7 +2022,9 @@ editor::show_model_dynamics(model& mdl) noexcept
             auto& dyn = d_array.get(mdl.id);
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
-            show_dynamics_inputs(dyn);
+
+            if (show_dynamics_inputs_in_editor)
+                show_dynamics_inputs(dyn);
             ImGui::PopItemWidth();
             add_output_attribute(*this, dyn);
         });
@@ -2263,7 +2238,7 @@ editor::show_editor() noexcept
     windows_flags |= ImGuiWindowFlags_MenuBar;
 
     ImGui::SetNextWindowPos(ImVec2(500, 50), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(500, 500), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(800, 700), ImGuiCond_Once);
     if (!ImGui::Begin(name.c_str(), &show, windows_flags)) {
         ImGui::End();
         return true;
@@ -2301,6 +2276,9 @@ editor::show_editor() noexcept
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Edition")) {
+            ImGui::MenuItem("Show parameter in models",
+                            nullptr,
+                            &show_dynamics_inputs_in_editor);
             if (ImGui::MenuItem("Clear"))
                 clear();
             if (ImGui::MenuItem("Grid Reorder"))
@@ -2448,7 +2426,7 @@ editor::show_editor() noexcept
                 reader r(is);
                 auto ret = r(sim, [this](model_id id) {
                     parent(id, undefined<cluster_id>());
-                    
+
                     imnodes::SetNodeEditorSpacePos(
                       top.emplace_back(id), imnodes::EditorContextGetPanning());
                 });
@@ -2488,9 +2466,9 @@ editor::show_editor() noexcept
                 "D -- duplicate selected nodes / "
                 "G -- group model");
 
-    ImGui::Columns(2, "TODO column");
+    ImGui::Columns(2, "Edit");
     if (starting) {
-        ImGui::SetColumnWidth(0, 400.f);
+        ImGui::SetColumnWidth(0, 580.f);
         starting = false;
     }
 
@@ -2528,7 +2506,8 @@ editor::show_editor() noexcept
             auto i = static_cast<int>(dynamics_type::qss1_integrator);
             const auto e = static_cast<int>(dynamics_type::qss1_wsum_4);
             for (; i != e; ++i)
-                add_popup_menuitem(*this, static_cast<dynamics_type>(i), &new_model);
+                add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
             ImGui::EndMenu();
         }
 
@@ -2537,7 +2516,8 @@ editor::show_editor() noexcept
             const auto e = static_cast<int>(dynamics_type::qss2_wsum_4);
 
             for (; i != e; ++i)
-                add_popup_menuitem(*this, static_cast<dynamics_type>(i), &new_model);
+                add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
             ImGui::EndMenu();
         }
 
@@ -2546,7 +2526,8 @@ editor::show_editor() noexcept
             const auto e = static_cast<int>(dynamics_type::qss3_wsum_4);
 
             for (; i != e; ++i)
-                add_popup_menuitem(*this, static_cast<dynamics_type>(i), &new_model);
+                add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
             ImGui::EndMenu();
         }
 
@@ -2668,7 +2649,109 @@ editor::show_editor() noexcept
     }
 
     ImGui::NextColumn();
-    ImGui::Text("Here node editor");
+
+    if (ImGui::CollapsingHeader("Selected Models",
+                                ImGuiTreeNodeFlags_CollapsingHeader |
+                                  ImGuiTreeNodeFlags_DefaultOpen) &&
+        num_selected_nodes) {
+        selected_nodes.resize(num_selected_nodes, -1);
+        imnodes::GetSelectedNodes(selected_nodes.begin());
+
+        for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
+            const auto index = top.get_index(selected_nodes[i]);
+
+            if (index == not_found)
+                continue;
+
+            const auto& child = top.children[index];
+            if (child.first.index())
+                continue;
+
+            const auto id = std::get<model_id>(child.first);
+            model* mdl = sim.models.try_to_get(id);
+            if (!mdl)
+                continue;
+
+            // TODO use the dynamic or model name.
+            const auto& name = dynamics_type_names[static_cast<int>(mdl->type)];
+            if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen)) {
+                auto& out = observation_outputs[get_index(id)];
+
+                auto* plot = plot_outs.try_to_get(out.plot_id);
+                auto* file = file_outs.try_to_get(out.file_id);
+
+                irt_assert(!(file && plot));
+                int choose = plot ? 1 : file ? 2 : 0;
+
+                ImGui::RadioButton("none", &choose, 0);
+                ImGui::SameLine();
+                ImGui::RadioButton("plot", &choose, 1);
+                ImGui::SameLine();
+                ImGui::RadioButton("file", &choose, 2);
+
+                if (choose == 1) {
+                    if (file) {
+                        file_outs.free(*file);
+                        sim.observers.free(mdl->obs_id);
+                    }
+
+                    if (!plot) {
+                        plot_output& tf = plot_outs.alloc("unamed");
+                        plot = &tf;
+                        out.plot_id = plot_outs.get_id(tf);
+                        auto& o =
+                          sim.observers.alloc(0.01, "unamed", (void*)plot);
+                        o.initialize = &observation_plot_output_initialize;
+                        o.observe = &observation_plot_output_observe;
+                        o.free = &observation_plot_output_free;
+                        sim.observe(*mdl, o);
+                    }
+
+                    ImGui::InputText(
+                      "name##plot", plot->name.begin(), plot->name.size());
+                } else if (choose == 2) {
+                    if (plot) {
+                        plot_outs.free(*plot);
+                        sim.observers.free(mdl->obs_id);
+                    }
+
+                    if (!file) {
+                        file_output& tf = file_outs.alloc("unamed");
+                        file = &tf;
+                        out.file_id = file_outs.get_id(tf);
+                        auto& o =
+                          sim.observers.alloc(0.01, "unamed", (void*)file);
+                        o.initialize = &observation_file_output_initialize;
+                        o.observe = &observation_file_output_observe;
+                        o.free = &observation_file_output_free;
+                        sim.observe(*mdl, o);
+                    }
+                    ImGui::InputText(
+                      "name##file", file->name.begin(), file->name.size());
+                } else {
+                    if (plot) {
+                        plot_outs.free(*plot);
+                        sim.observers.free(mdl->obs_id);
+                    }
+
+                    if (file) {
+                        file_outs.free(*file);
+                        sim.observers.free(mdl->obs_id);
+                    }
+                }
+
+                sim.dispatch(
+                  mdl->type,
+                  [](auto& d_array, model& mdl) {
+                      auto& dyn = d_array.get(mdl.id);
+                      show_dynamics_inputs(dyn);
+                  },
+                  *mdl);
+
+                ImGui::TreePop();
+            }
+        }
+    }
 
     ImGui::End();
 
@@ -2798,16 +2881,16 @@ show_plot_box(bool* show_plot)
     if (auto* ed = make_combo_editor_name(current); ed) {
         if (ImPlot::BeginPlot("simulation", "t", "s")) {
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-            for (const auto& obs : ed->observation_outputs) {
-                if (obs.observation_type ==
-                      observation_output::type::multiplot &&
-                    !obs.xs.empty()) {
-                    ImPlot::PlotLine(obs.name.c_str(),
-                                     obs.xs.data(),
-                                     obs.ys.data(),
-                                     static_cast<int>(obs.xs.size()));
-                }
+
+            plot_output* out = nullptr;
+            while (ed->plot_outs.next(out)) {
+                if (!out->xs.empty() && !out->ys.empty())
+                    ImPlot::PlotLine(out->name.c_str(),
+                                     out->xs.data(),
+                                     out->ys.data(),
+                                     static_cast<int>(out->xs.size()));
             }
+
             ImPlot::PopStyleVar(1);
             ImPlot::EndPlot();
         }
