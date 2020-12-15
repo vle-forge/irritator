@@ -18,6 +18,14 @@ node_editor_show();
 void
 node_editor_shutdown();
 
+/* Move into internal API */
+
+std::optional<std::filesystem::path>
+get_home_directory();
+
+std::optional<std::filesystem::path>
+get_executable_directory();
+
 /* Filesytem dialog box */
 
 bool

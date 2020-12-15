@@ -214,6 +214,17 @@ struct window_logger
     void show(bool* is_show);
 };
 
+struct path_manager
+{
+    path_manager(window_logger& log);
+
+    std::filesystem::path home_dir;
+    std::filesystem::path install_dir;
+
+    std::vector<std::filesystem::path> libraries;
+};
+
+
 struct plot_output
 {
     plot_output() = default;

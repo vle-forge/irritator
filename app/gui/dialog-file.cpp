@@ -18,7 +18,134 @@
 #include <filesystem>
 #include <vector>
 
+#if defined(__linux__)
+#include <errno.h>
+#include <pwd.h>
+#include <unistd.h>
+#elif defined(__APPLE__)
+#include <errno.h>
+#include <mach-o/dyld.h>
+#include <pwd.h>
+#include <unistd.h>
+#elif defined(_WIN32)
+#include <KnownFolders.h>
+#include <shlobj.h>
+#include <wchar.h>
+#include <windows.h>
+#endif
+
 namespace irt {
+
+#if defined(__linux__) || defined(__APPLE__)
+std::optional<std::filesystem::path>
+get_home_directory()
+{
+    if (auto* home = std::getenv("HOME"); home)
+        return std::filesystem::path{ home };
+
+    auto size = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (size == -1)
+        size = 16384u;
+
+    std::vector<char> buf(size, '\0');
+    struct passwd pwd;
+    struct passwd* result;
+
+    const auto s = getpwuid_r(getpid(), &pwd, buf.data(), size, &result);
+    if (!result)
+        return std::nullopt;
+
+    return std::filesystem::path{ std::string_view{ buf.data() } };
+}
+#elif defined(_WIN32)
+std::optional<std::filesystem::path>
+get_home_directory()
+{
+    PWSTR path{ nullptr };
+    const auto hr =
+      ::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path);
+
+    std::filesystem::path ret;
+
+    if (SUCCEEDED(hr))
+        ret = path;
+
+    ::CoTaskMemFree(path);
+
+    return ret;
+}
+#endif
+
+#if defined(__linux__)
+std::optional<std::filesystem::path>
+get_executable_directory()
+{
+    std::vector<char> buf(PATH_MAX, '\0');
+    const auto size = readlink("/proc/self/exe", buf.data(), PATH_MAX);
+
+    if (size <= 0)
+        return std::nullopt;
+
+    return std::filesystem::path{ std::string_view{ buf.data(), size } };
+}
+#elif defined(__APPLE__)
+std::optional<std::filesystem::path>
+get_executable_directory()
+{
+    std::vector<char> buf(MAXPATHLEN, '\0');
+    uint32_t size{ 0 };
+
+    if (_NSGetExecutablePath(buf.data(), &size))
+        return std::nullopt;
+
+    return std::filesystem::path{ std::string_view{ buf.data(), size } };
+}
+#elif defined(_WIN32)
+std::optional<std::filesystem::path>
+get_executable_directory()
+{
+    std::wstring filepath;
+    auto size = ::GetModuleFileNameW(NULL, &filepath[0], 0u);
+
+    while (static_cast<size_t>(size) > filepath.size()) {
+        filepath.resize(size, '\0');
+        size = ::GetModuleFileNameW(
+          NULL, &filepath[0], static_cast<DWORD>(filepath.size()));
+    }
+
+    if (!size)
+        return std::nullopt;
+
+    return std::filesystem::path{ filepath };
+}
+#endif
+
+path_manager::path_manager(window_logger& logger)
+{
+    if (auto home = get_home_directory(); home) {
+        home_dir = home.value();
+        home_dir /= "irritator";
+    } else {
+        logger.log(
+          3, "Fail to retrieve home directory. Use current directory instead");
+        home_dir = std::filesystem::current_path();
+    }
+
+    if (auto install = get_executable_directory(); install) {
+        install_dir = install.value();
+    } else {
+        logger.log(
+          3,
+          "Fail to retrieve executable directory. Use current directory "
+          "instead");
+        install_dir = std::filesystem::current_path();
+    }
+
+    logger.log(5,
+               "home: %s\ninstall: %s\n",
+               home_dir.u8string().c_str(),
+               install_dir.u8string().c_str());
+}
 
 struct file_dialog
 {
