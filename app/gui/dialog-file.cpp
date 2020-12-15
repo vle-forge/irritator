@@ -575,7 +575,118 @@ save_file_dialog(std::filesystem::path& out)
 
         const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
         const auto region_width = ImGui::GetContentRegionAvail().x;
-        const auto button_size = ImVec2{ (region_width - item_spacing) / 2.f, 0};
+        const auto button_size =
+          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
+
+        if (ImGui::Button("Ok", button_size)) {
+            auto sel = fd.current;
+            sel /= fd.buffer;
+            out = sel;
+            res = true;
+        }
+
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+
+        if (ImGui::Button("Cancel", button_size)) {
+            res = true;
+        }
+
+        if (res) {
+            ImGui::CloseCurrentPopup();
+            fd.clear();
+        }
+
+        ImGui::EndPopup();
+    }
+
+    return res;
+}
+
+bool
+select_directory_dialog(std::filesystem::path& out)
+{
+    if (fd.current.empty()) {
+        fd.fill_drives();
+        fd.selected.clear();
+        std::error_code error;
+        fd.current = std::filesystem::current_path(error);
+    }
+
+    std::filesystem::path next;
+    bool res = false;
+
+    if (ImGui::BeginPopupModal("Select directory")) {
+        bool path_click = false;
+
+        fd.show_drives(&path_click, &next);
+
+        if (!path_click)
+            fd.show_path(&path_click, &next);
+
+        if (!path_click) {
+            ImGui::BeginChild("##select_files",
+                              ImVec2{ 0.f, 350.f },
+                              true,
+                              ImGuiWindowFlags_HorizontalScrollbar);
+            if (ImGui::Selectable("..##select_file", (fd.selected == ".."))) {
+                if (next.empty()) {
+                    next = fd.current.parent_path();
+                    fd.selected.clear();
+                    path_click = true;
+                }
+            }
+
+            for (auto it = fd.paths.begin(), et = fd.paths.end(); it != et;
+                 ++it) {
+                fd.temp.clear();
+                if (std::filesystem::is_directory(*it)) {
+#if defined(__APPLE__)
+                    // @TODO Remove this part when XCode allows u8string
+                    // concatenation.
+                    fd.temp = "[Dir] ";
+                    fd.temp += reinterpret_cast<const char*>(
+                      it->filename().u8string().c_str());
+#else
+                    fd.temp = u8"[Dir] ";
+                    fd.temp += it->filename().u8string();
+#endif
+
+                    if (ImGui::Selectable((const char*)fd.temp.c_str(),
+                                          (it->filename() == fd.selected))) {
+                        fd.selected = it->filename();
+
+                        if (next.empty()) {
+                            fd.selected.clear();
+                            next = fd.current;
+                            next /= it->filename();
+                            path_click = true;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            ImGui::EndChild();
+        }
+
+        if (path_click) {
+            fd.paths.clear();
+            fd.extension_filters = nullptr;
+            fd.file_filters = nullptr;
+
+            fd.copy_files_and_directories(next);
+            fd.sort();
+            fd.current = next;
+        }
+
+        ImGui::Text("Directory name: %s",
+                    (const char*)fd.current.u8string().c_str());
+
+        const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
+        const auto region_width = ImGui::GetContentRegionAvail().x;
+        const auto button_size =
+          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
 
         if (ImGui::Button("Ok", button_size)) {
             auto sel = fd.current;

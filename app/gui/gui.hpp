@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_GUI_2020
 
 #include <filesystem>
+#include <optional>
 
 namespace irt {
 
@@ -33,6 +34,9 @@ load_file_dialog(std::filesystem::path& out);
 
 bool
 save_file_dialog(std::filesystem::path& out);
+
+bool
+select_directory_dialog(std::filesystem::path& out);
 
 } // namespace irt
 

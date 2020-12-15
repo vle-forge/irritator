@@ -360,6 +360,10 @@ struct editor
 
     std::string tooltip;
 
+    bool show_load_file_dialog = false;
+    bool show_save_file_dialog = false;
+    bool show_select_directory_dialog = false;
+
     status initialize(u32 id) noexcept;
     void clear() noexcept;
 
@@ -444,7 +448,7 @@ editor*
 make_combo_editor_name(editor_id& current) noexcept;
 
 void
-show_simulation_box(window_logger& log_w, bool* show_simulation);
+show_simulation_box(editor& ed, window_logger& log_w, bool* show_simulation);
 
 } // namespace irt
 

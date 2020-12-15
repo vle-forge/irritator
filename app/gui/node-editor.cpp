@@ -970,6 +970,9 @@ editor::initialize(u32 id) noexcept
                          ImVec2{ 0.f, 0.f });
         displacements.resize(sim.models.capacity() + clusters.capacity(),
                              ImVec2{ 0.f, 0.f });
+
+        observation_directory = std::filesystem::current_path();
+
     } catch (const std::bad_alloc& /*e*/) {
         return status::gui_not_enough_memory;
     }
@@ -2231,8 +2234,6 @@ bool
 editor::show_editor() noexcept
 {
     imnodes::EditorContextSet(context);
-    static bool show_load_file_dialog = false;
-    static bool show_save_file_dialog = false;
 
     ImGuiWindowFlags windows_flags = 0;
     windows_flags |= ImGuiWindowFlags_MenuBar;
@@ -2275,6 +2276,7 @@ editor::show_editor() noexcept
 
             ImGui::EndMenu();
         }
+
         if (ImGui::BeginMenu("Edition")) {
             ImGui::MenuItem("Show parameter in models",
                             nullptr,
@@ -2414,6 +2416,16 @@ editor::show_editor() noexcept
         }
 
         ImGui::EndMenuBar();
+    }
+
+    if (show_select_directory_dialog) {
+        ImGui::OpenPopup("Select directory");
+        if (select_directory_dialog(observation_directory)) {
+            show_select_directory_dialog = false;
+
+            log_w.log(
+              5, "Output directory: %s", (const char*)path.u8string().c_str());
+        }
     }
 
     if (show_load_file_dialog) {
@@ -2952,18 +2964,18 @@ node_editor_show()
                 editor* next = ed;
                 editors.next(next);
                 editors_free(*ed);
+            } else {
+                if (show_log)
+                    log_w.show(&show_log);
+
+                if (show_simulation)
+                    show_simulation_box(*ed, log_w, &show_simulation);
+
+                if (show_plot)
+                    show_plot_box(&show_plot);
             }
         }
     }
-
-    if (show_log)
-        log_w.show(&show_log);
-
-    if (show_simulation)
-        show_simulation_box(log_w, &show_simulation);
-
-    if (show_plot)
-        show_plot_box(&show_plot);
 
     if (show_demo)
         ImGui::ShowDemoWindow();
