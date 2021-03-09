@@ -120,7 +120,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
     imnodes::Initialize();
-    irt::node_editor_initialize();
+    irt::application_initialize();
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can
@@ -169,7 +169,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        if (!irt::node_editor_show())
+        if (!irt::application_show())
             glfwSetWindowShouldClose(window, GLFW_TRUE);
 
         // Rendering
@@ -189,7 +189,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     // Cleanup
 
-    irt::node_editor_shutdown();
+    irt::application_shutdown();
     imnodes::Shutdown();
 
     ImGui_ImplOpenGL3_Shutdown();

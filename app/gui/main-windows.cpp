@@ -97,7 +97,7 @@ int main(int, char**)
         g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
     imnodes::Initialize();
-    irt::node_editor_initialize();
+    irt::application_initialize();
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -141,7 +141,7 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        if (!irt::node_editor_show())
+        if (!irt::application_show())
             ::PostMessage(hwnd, WM_CLOSE, 0, 0);
 
         // Rendering
@@ -180,7 +180,7 @@ int main(int, char**)
         frameCtxt->FenceValue = fenceValue;
     }
 
-    irt::node_editor_shutdown();
+    irt::application_shutdown();
 
     imnodes::Shutdown();
 

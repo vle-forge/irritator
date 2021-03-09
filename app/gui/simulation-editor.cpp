@@ -431,7 +431,7 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
 }
 
 void
-show_simulation_box(editor& ed, window_logger& log_w, bool* show_simulation)
+show_simulation_box(editor& ed, bool* show_simulation)
 {
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(250, 350), ImGuiCond_Once);

@@ -23,37 +23,14 @@
 
 namespace irt {
 
-static int kernel_model_cache = 1024;
-static int kernel_message_cache = 32768;
-
-static int gui_node_cache = 1024;
-static ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
-static ImVec4 gui_model_transition_color{ .27f, .54f, .54f, 1.f };
-static ImVec4 gui_cluster_color{ .27f, .54f, .27f, 1.f };
-
-static ImU32 gui_hovered_model_color;
-static ImU32 gui_selected_model_color;
-static ImU32 gui_hovered_model_transition_color;
-static ImU32 gui_selected_model_transition_color;
-static ImU32 gui_hovered_cluster_color;
-static ImU32 gui_selected_cluster_color;
-
-static int automatic_layout_iteration_limit = 200;
-static auto automatic_layout_x_distance = 350.f;
-static auto automatic_layout_y_distance = 350.f;
-static auto grid_layout_x_distance = 250.f;
-static auto grid_layout_y_distance = 250.f;
-
-static bool show_dynamics_inputs_in_editor = false;
-
 static ImVec4
 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
 
-static void
-compute_color() noexcept
+void
+editor::settings_manager::compute_colors() noexcept
 {
     gui_hovered_model_color =
       ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.25f);
@@ -129,9 +106,6 @@ for_each(DataArray& d_array, Container& container, Function f) noexcept
         }
     }
 }
-
-static window_logger log_w;
-static data_array<editor, editor_id> editors;
 
 void
 editor::clear() noexcept
@@ -766,10 +740,11 @@ editor::compute_grid_layout() noexcept
     int elem = 0;
 
     for (int i = 0; i < column; ++i) {
-        new_pos.y = panning.y + static_cast<float>(i) * grid_layout_y_distance;
+        new_pos.y =
+          panning.y + static_cast<float>(i) * settings.grid_layout_y_distance;
         for (int j = 0; j < line; ++j) {
-            new_pos.x =
-              panning.x + static_cast<float>(j) * grid_layout_x_distance;
+            new_pos.x = panning.x +
+                        static_cast<float>(j) * settings.grid_layout_x_distance;
             imnodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
             positions[elem].x = new_pos.x;
             positions[elem].y = new_pos.y;
@@ -778,9 +753,11 @@ editor::compute_grid_layout() noexcept
     }
 
     new_pos.x = panning.x;
-    new_pos.y = panning.y + static_cast<float>(column) * grid_layout_y_distance;
+    new_pos.y =
+      panning.y + static_cast<float>(column) * settings.grid_layout_y_distance;
     for (int j = 0; j < remaining; ++j) {
-        new_pos.x = panning.x + static_cast<float>(j) * grid_layout_x_distance;
+        new_pos.x =
+          panning.x + static_cast<float>(j) * settings.grid_layout_x_distance;
         imnodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
         positions[elem].x = new_pos.x;
         positions[elem].y = new_pos.y;
@@ -809,8 +786,10 @@ editor::compute_automatic_layout() noexcept
         remaining -= column;
     }
 
-    const float W = static_cast<float>(column) * automatic_layout_x_distance;
-    const float L = line + (remaining > 0) ? automatic_layout_y_distance : 0.f;
+    const float W =
+      static_cast<float>(column) * settings.automatic_layout_x_distance;
+    const float L =
+      line + (remaining > 0) ? settings.automatic_layout_y_distance : 0.f;
     const float area = W * L;
     const float k_square = area / static_cast<float>(top.children.size());
     const float k = std::sqrt(k_square);
@@ -819,9 +798,11 @@ editor::compute_automatic_layout() noexcept
     //                   static_cast<float>(automatic_layout_iteration_limit);
     // t *= t;
 
-    float t = 1.f - 1.f / static_cast<float>(automatic_layout_iteration_limit);
+    float t =
+      1.f - 1.f / static_cast<float>(settings.automatic_layout_iteration_limit);
 
-    for (int iteration = 0; iteration < automatic_layout_iteration_limit;
+    for (int iteration = 0;
+         iteration < settings.automatic_layout_iteration_limit;
          ++iteration) {
         for (int i_v = 0; i_v < size; ++i_v) {
             const int v = i_v;
@@ -953,12 +934,12 @@ editor::copy(const ImVector<int>& nodes) noexcept
 status
 editor::initialize(u32 id) noexcept
 {
-    irt_return_if_bad(sim.init(to_unsigned(kernel_model_cache),
-                               to_unsigned(kernel_message_cache)));
+    irt_return_if_bad(sim.init(to_unsigned(settings.kernel_model_cache),
+                               to_unsigned(settings.kernel_message_cache)));
     irt_return_if_bad(clusters.init(sim.models.capacity()));
-    irt_return_if_bad(top.init(to_unsigned(gui_node_cache)));
-    irt_return_if_bad(plot_outs.init(to_unsigned(kernel_model_cache)));
-    irt_return_if_bad(file_outs.init(to_unsigned(kernel_model_cache)));
+    irt_return_if_bad(top.init(to_unsigned(settings.gui_node_cache)));
+    irt_return_if_bad(plot_outs.init(to_unsigned(settings.kernel_model_cache)));
+    irt_return_if_bad(file_outs.init(to_unsigned(settings.kernel_model_cache)));
 
     try {
         observation_outputs.resize(sim.models.capacity());
@@ -2026,7 +2007,7 @@ editor::show_model_dynamics(model& mdl) noexcept
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
 
-            if (show_dynamics_inputs_in_editor)
+            if (settings.show_dynamics_inputs_in_editor)
                 show_dynamics_inputs(dyn);
             ImGui::PopItemWidth();
             add_output_attribute(*this, dyn);
@@ -2121,25 +2102,27 @@ editor::show_top() noexcept
                 if (st != editor_status::editing &&
                     models_make_transition[get_index(id)]) {
 
-                    imnodes::PushColorStyle(imnodes::ColorStyle_TitleBar,
-                                            ImGui::ColorConvertFloat4ToU32(
-                                              gui_model_transition_color));
+                    imnodes::PushColorStyle(
+                      imnodes::ColorStyle_TitleBar,
+                      ImGui::ColorConvertFloat4ToU32(
+                        settings.gui_model_transition_color));
 
-                    imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
-                                            gui_hovered_model_transition_color);
+                    imnodes::PushColorStyle(
+                      imnodes::ColorStyle_TitleBarHovered,
+                      settings.gui_hovered_model_transition_color);
                     imnodes::PushColorStyle(
                       imnodes::ColorStyle_TitleBarSelected,
-                      gui_selected_model_transition_color);
+                      settings.gui_selected_model_transition_color);
                 } else {
                     imnodes::PushColorStyle(
                       imnodes::ColorStyle_TitleBar,
-                      ImGui::ColorConvertFloat4ToU32(gui_model_color));
+                      ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
 
                     imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
-                                            gui_hovered_model_color);
+                                            settings.gui_hovered_model_color);
                     imnodes::PushColorStyle(
                       imnodes::ColorStyle_TitleBarSelected,
-                      gui_selected_model_color);
+                      settings.gui_selected_model_color);
                 }
 
                 imnodes::BeginNode(top.children[i].second);
@@ -2173,11 +2156,11 @@ editor::show_top() noexcept
             if (auto* gp = clusters.try_to_get(id); gp) {
                 imnodes::PushColorStyle(
                   imnodes::ColorStyle_TitleBar,
-                  ImGui::ColorConvertFloat4ToU32(gui_cluster_color));
+                  ImGui::ColorConvertFloat4ToU32(settings.gui_cluster_color));
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
-                                        gui_hovered_cluster_color);
+                                        settings.gui_hovered_cluster_color);
                 imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarSelected,
-                                        gui_selected_cluster_color);
+                                        settings.gui_selected_cluster_color);
 
                 imnodes::BeginNode(top.children[i].second);
                 imnodes::BeginNodeTitleBar();
@@ -2203,6 +2186,46 @@ editor::show_top() noexcept
             }
         }
     }
+}
+
+void
+editor::settings_manager::show(bool* is_open)
+{
+    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
+    if (!ImGui::Begin("Settings", is_open)) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Text("Kernel");
+    ImGui::DragInt("model cache", &kernel_model_cache, 1.f, 1024, 1024 * 1024);
+    ImGui::DragInt("msg cache", &kernel_message_cache, 1.f, 1024, 1024 * 1024);
+
+    ImGui::Text("Graphics");
+    ImGui::DragInt("node cache", &gui_node_cache, 1.f, 1024, 1024 * 1024);
+    if (ImGui::ColorEdit3(
+          "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
+        compute_colors();
+    if (ImGui::ColorEdit3(
+          "cluster", (float*)&gui_cluster_color, ImGuiColorEditFlags_NoOptions))
+        compute_colors();
+
+    ImGui::Text("Automatic layout parameters");
+    ImGui::DragInt(
+      "max iteration", &automatic_layout_iteration_limit, 1.f, 0, 1000);
+    ImGui::DragFloat(
+      "a-x-distance", &automatic_layout_x_distance, 1.f, 150.f, 500.f);
+    ImGui::DragFloat(
+      "a-y-distance", &automatic_layout_y_distance, 1.f, 150.f, 500.f);
+
+    ImGui::Text("Grid layout parameters");
+    ImGui::DragFloat(
+      "g-x-distance", &grid_layout_x_distance, 1.f, 150.f, 500.f);
+    ImGui::DragFloat(
+      "g-y-distance", &grid_layout_y_distance, 1.f, 150.f, 500.f);
+
+    ImGui::End();
 }
 
 void
@@ -2280,13 +2303,15 @@ editor::show_editor() noexcept
         if (ImGui::BeginMenu("Edition")) {
             ImGui::MenuItem("Show parameter in models",
                             nullptr,
-                            &show_dynamics_inputs_in_editor);
+                            &settings.show_dynamics_inputs_in_editor);
             if (ImGui::MenuItem("Clear"))
                 clear();
             if (ImGui::MenuItem("Grid Reorder"))
                 compute_grid_layout();
             if (ImGui::MenuItem("Automatic Layout"))
                 compute_automatic_layout();
+            if (ImGui::MenuItem("Settings"))
+                show_settings = true;
 
             ImGui::EndMenu();
         }
@@ -2599,15 +2624,15 @@ editor::show_editor() noexcept
     if (num_selected_nodes > 0) {
         selected_nodes.resize(num_selected_nodes, -1);
 
-        if (ImGui::IsKeyReleased('X')) {
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
             imnodes::GetSelectedNodes(selected_nodes.begin());
             log_w.log(7, "%d model(s) to delete\n", num_selected_nodes);
             free_children(selected_nodes);
-        } else if (ImGui::IsKeyReleased('D')) {
+        } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('D')) {
             imnodes::GetSelectedNodes(selected_nodes.begin());
             log_w.log(7, "%d model(s)/group(s) to copy\n", num_selected_nodes);
             copy(selected_nodes);
-        } else if (ImGui::IsKeyReleased('G')) {
+        } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('G')) {
             if (num_selected_nodes > 1) {
                 imnodes::GetSelectedNodes(selected_nodes.begin());
                 log_w.log(7, "%d model(s) to group\n", num_selected_nodes);
@@ -2622,7 +2647,7 @@ editor::show_editor() noexcept
     } else if (num_selected_links > 0) {
         selected_links.resize(static_cast<size_t>(num_selected_links));
 
-        if (ImGui::IsKeyReleased('X')) {
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
             std::fill_n(selected_links.begin(), selected_links.size(), -1);
             imnodes::GetSelectedLinks(selected_links.begin());
             std::sort(
@@ -2669,6 +2694,13 @@ editor::show_editor() noexcept
         selected_nodes.resize(num_selected_nodes, -1);
         imnodes::GetSelectedNodes(selected_nodes.begin());
 
+        static std::vector<std::string> names;
+        names.clear();
+        names.resize(selected_nodes.size());
+
+        for (int i = 0, e = selected_nodes.size(); i != e; ++i)
+            names[i] = fmt::format("{}", selected_nodes[i]);
+
         for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
             const auto index = top.get_index(selected_nodes[i]);
 
@@ -2684,9 +2716,8 @@ editor::show_editor() noexcept
             if (!mdl)
                 continue;
 
-            // TODO use the dynamic or model name.
-            const auto& name = dynamics_type_names[static_cast<int>(mdl->type)];
-            if (ImGui::TreeNodeEx(name, ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (ImGui::TreeNodeEx(names[i].c_str(),
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
                 auto& out = observation_outputs[get_index(id)];
 
                 auto* plot = plot_outs.try_to_get(out.plot_id);
@@ -2694,6 +2725,9 @@ editor::show_editor() noexcept
 
                 irt_assert(!(file && plot));
                 int choose = plot ? 1 : file ? 2 : 0;
+
+                ImGui::Text("%s",
+                            dynamics_type_names[static_cast<int>(mdl->type)]);
 
                 ImGui::RadioButton("none", &choose, 0);
                 ImGui::SameLine();
@@ -2708,11 +2742,11 @@ editor::show_editor() noexcept
                     }
 
                     if (!plot) {
-                        plot_output& tf = plot_outs.alloc("unamed");
+                        plot_output& tf = plot_outs.alloc(names[i].c_str());
                         plot = &tf;
                         out.plot_id = plot_outs.get_id(tf);
-                        auto& o =
-                          sim.observers.alloc(0.01, "unamed", (void*)plot);
+                        auto& o = sim.observers.alloc(
+                          0.01, names[i].c_str(), (void*)plot);
                         o.initialize = &observation_plot_output_initialize;
                         o.observe = &observation_plot_output_observe;
                         o.free = &observation_plot_output_free;
@@ -2720,7 +2754,7 @@ editor::show_editor() noexcept
                     }
 
                     ImGui::InputText(
-                      "name##plot", plot->name.begin(), plot->name.size());
+                      "name##plot", plot->name.begin(), plot->name.capacity());
                 } else if (choose == 2) {
                     if (plot) {
                         plot_outs.free(*plot);
@@ -2728,18 +2762,18 @@ editor::show_editor() noexcept
                     }
 
                     if (!file) {
-                        file_output& tf = file_outs.alloc("unamed");
+                        file_output& tf = file_outs.alloc(names[i].c_str());
                         file = &tf;
                         out.file_id = file_outs.get_id(tf);
-                        auto& o =
-                          sim.observers.alloc(0.01, "unamed", (void*)file);
+                        auto& o = sim.observers.alloc(
+                          0.01, names[i].c_str(), (void*)file);
                         o.initialize = &observation_file_output_initialize;
                         o.observe = &observation_file_output_observe;
                         o.free = &observation_file_output_free;
                         sim.observe(*mdl, o);
                     }
                     ImGui::InputText(
-                      "name##file", file->name.begin(), file->name.size());
+                      "name##file", file->name.begin(), file->name.capacity());
                 } else {
                     if (plot) {
                         plot_outs.free(*plot);
@@ -2771,7 +2805,7 @@ editor::show_editor() noexcept
 }
 
 editor*
-editors_new()
+application::alloc_editor()
 {
     if (!editors.can_alloc(1u)) {
         log_w.log(2, "Too many open editor\n");
@@ -2790,45 +2824,14 @@ editors_new()
 }
 
 void
-editors_free(editor& ed)
+application::free_editor(editor& ed)
 {
     log_w.log(5, "Close editor %s\n", ed.name.c_str());
     editors.free(ed);
 }
 
-editor*
-make_combo_editor_name(editor_id& current) noexcept
-{
-    editor* first = editors.try_to_get(current);
-    if (first == nullptr) {
-        if (!editors.next(first)) {
-            current = undefined<editor_id>();
-            return nullptr;
-        }
-    }
-
-    current = editors.get_id(first);
-
-    if (ImGui::BeginCombo("Name", first->name.c_str())) {
-        editor* ed = nullptr;
-        while (editors.next(ed)) {
-            const bool is_selected = current == editors.get_id(ed);
-
-            if (ImGui::Selectable(ed->name.c_str(), is_selected))
-                current = editors.get_id(ed);
-
-            if (is_selected)
-                ImGui::SetItemDefaultFocus();
-        }
-
-        ImGui::EndCombo();
-    }
-
-    return editors.try_to_get(current);
-}
-
-static void
-show_settings_window(bool* is_open)
+void
+application::settings_manager::show(bool* is_open)
 {
     ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
@@ -2837,50 +2840,48 @@ show_settings_window(bool* is_open)
         return;
     }
 
-    ImGui::Text("Kernel");
-    ImGui::DragInt("model cache", &kernel_model_cache, 1.f, 1024, 1024 * 1024);
-    ImGui::DragInt("msg cache", &kernel_message_cache, 1.f, 1024, 1024 * 1024);
-
-    ImGui::Text("Graphics");
-    ImGui::DragInt("node cache", &gui_node_cache, 1.f, 1024, 1024 * 1024);
-    if (ImGui::ColorEdit3(
-          "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
-        compute_color();
-    if (ImGui::ColorEdit3(
-          "cluster", (float*)&gui_cluster_color, ImGuiColorEditFlags_NoOptions))
-        compute_color();
-
-    ImGui::Text("Automatic layout parameters");
-    ImGui::DragInt(
-      "max iteration", &automatic_layout_iteration_limit, 1.f, 0, 1000);
-    ImGui::DragFloat(
-      "a-x-distance", &automatic_layout_x_distance, 1.f, 150.f, 500.f);
-    ImGui::DragFloat(
-      "a-y-distance", &automatic_layout_y_distance, 1.f, 150.f, 500.f);
-
-    ImGui::Text("Grid layout parameters");
-    ImGui::DragFloat(
-      "g-x-distance", &grid_layout_x_distance, 1.f, 150.f, 500.f);
-    ImGui::DragFloat(
-      "g-y-distance", &grid_layout_y_distance, 1.f, 150.f, 500.f);
+    ImGui::Text("Home.......: %s", home_dir.u8string().c_str());
+    ImGui::Text("Executable.: %s", executable_dir.u8string().c_str());
+    ImGui::Text("Libraries..:");
+    for (sz i = 0u, e = libraries_dir.size(); i != e; ++i)
+        ImGui::Text("- %s", libraries_dir[i].c_str());
 
     ImGui::End();
 }
 
-void
-node_editor_initialize()
+editor*
+make_combo_editor_name(application& app, editor_id& current) noexcept
 {
-    if (auto ret = editors.init(50u); is_bad(ret)) {
-        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
-    } else {
-        compute_color();
-        if (auto* ed = editors_new(); ed)
-            ed->context = imnodes::EditorContextCreate();
+    editor* first = app.editors.try_to_get(current);
+    if (first == nullptr) {
+        if (!app.editors.next(first)) {
+            current = undefined<editor_id>();
+            return nullptr;
+        }
     }
+
+    current = app.editors.get_id(first);
+
+    if (ImGui::BeginCombo("Name", first->name.c_str())) {
+        editor* ed = nullptr;
+        while (app.editors.next(ed)) {
+            const bool is_selected = current == app.editors.get_id(ed);
+
+            if (ImGui::Selectable(ed->name.c_str(), is_selected))
+                current = app.editors.get_id(ed);
+
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
+        }
+
+        ImGui::EndCombo();
+    }
+
+    return app.editors.try_to_get(current);
 }
 
 void
-show_plot_box(bool* show_plot)
+show_plot_box(application& app, bool* show_plot)
 {
     ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
@@ -2890,7 +2891,7 @@ show_plot_box(bool* show_plot)
     }
 
     static editor_id current = undefined<editor_id>();
-    if (auto* ed = make_combo_editor_name(current); ed) {
+    if (auto* ed = make_combo_editor_name(app, current); ed) {
         if (ImPlot::BeginPlot("simulation", "t", "s")) {
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
 
@@ -2911,20 +2912,28 @@ show_plot_box(bool* show_plot)
     ImGui::End();
 }
 
-bool
-node_editor_show()
+void
+application_initialize()
 {
-    static bool show_log = true;
-    static bool show_simulation = true;
-    static bool show_demo = false;
-    static bool show_plot = true;
-    static bool show_settings = false;
+    if (auto ret = app.editors.init(50u); is_bad(ret)) {
+        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
+    } else {
+        if (auto* ed = app.alloc_editor(); ed) {
+            ed->context = imnodes::EditorContextCreate();
+            ed->settings.compute_colors();
+        }
+    }
+}
+
+bool
+application_show()
+{
     bool ret = true;
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("New")) {
-                if (auto* ed = editors_new(); ed)
+                if (auto* ed = app.alloc_editor(); ed)
                     ed->context = imnodes::EditorContextCreate();
             }
 
@@ -2937,19 +2946,19 @@ node_editor_show()
 
         if (ImGui::BeginMenu("Window")) {
             editor* ed = nullptr;
-            while (editors.next(ed))
+            while (app.editors.next(ed))
                 ImGui::MenuItem(ed->name.c_str(), nullptr, &ed->show);
 
-            ImGui::MenuItem("Simulation", nullptr, &show_simulation);
-            ImGui::MenuItem("Plot", nullptr, &show_plot);
-            ImGui::MenuItem("Settings", nullptr, &show_settings);
-            ImGui::MenuItem("Log", nullptr, &show_log);
+            ImGui::MenuItem("Simulation", nullptr, &app.show_simulation);
+            ImGui::MenuItem("Plot", nullptr, &app.show_plot);
+            ImGui::MenuItem("Settings", nullptr, &app.show_settings);
+            ImGui::MenuItem("Log", nullptr, &app.show_log);
 
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Help")) {
-            ImGui::MenuItem("Demo window", nullptr, &show_demo);
+            ImGui::MenuItem("Demo window", nullptr, &app.show_demo);
 
             ImGui::EndMenu();
         }
@@ -2958,39 +2967,42 @@ node_editor_show()
     }
 
     editor* ed = nullptr;
-    while (editors.next(ed)) {
+    while (app.editors.next(ed)) {
         if (ed->show) {
             if (!ed->show_editor()) {
                 editor* next = ed;
-                editors.next(next);
-                editors_free(*ed);
+                app.editors.next(next);
+                app.free_editor(*ed);
             } else {
-                if (show_log)
-                    log_w.show(&show_log);
+                if (app.show_simulation)
+                    show_simulation_box(*ed, &app.show_simulation);
 
-                if (show_simulation)
-                    show_simulation_box(*ed, log_w, &show_simulation);
+                if (app.show_plot)
+                    show_plot_box(app, &app.show_plot);
 
-                if (show_plot)
-                    show_plot_box(&show_plot);
+                if (ed->show_settings)
+                    ed->settings.show(&ed->show_settings);
             }
         }
     }
 
-    if (show_demo)
-        ImGui::ShowDemoWindow();
+    if (app.show_log)
+        log_w.show(&app.show_log);
 
-    if (show_settings)
-        show_settings_window(&show_settings);
+    if (app.show_settings)
+        app.settings.show(&app.show_settings);
+
+    if (app.show_demo)
+        ImGui::ShowDemoWindow();
 
     return ret;
 }
 
 void
-node_editor_shutdown()
+application_shutdown()
 {
     editor* ed = nullptr;
-    while (editors.next(ed))
+    while (app.editors.next(ed))
         imnodes::EditorContextFree(ed->context);
 }
 

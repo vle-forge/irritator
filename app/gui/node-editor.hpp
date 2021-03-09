@@ -214,16 +214,7 @@ struct window_logger
     void show(bool* is_show);
 };
 
-struct path_manager
-{
-    path_manager(window_logger& log);
-
-    std::filesystem::path home_dir;
-    std::filesystem::path install_dir;
-
-    std::vector<std::filesystem::path> libraries;
-};
-
+static inline window_logger log_w;
 
 struct plot_output
 {
@@ -363,6 +354,36 @@ struct editor
     bool show_load_file_dialog = false;
     bool show_save_file_dialog = false;
     bool show_select_directory_dialog = false;
+    bool show_settings = false;
+
+    struct settings_manager
+    {
+        int kernel_model_cache = 1024;
+        int kernel_message_cache = 32768;
+        int gui_node_cache = 1024;
+        ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
+        ImVec4 gui_model_transition_color{ .27f, .54f, .54f, 1.f };
+        ImVec4 gui_cluster_color{ .27f, .54f, .27f, 1.f };
+
+        ImU32 gui_hovered_model_color;
+        ImU32 gui_selected_model_color;
+        ImU32 gui_hovered_model_transition_color;
+        ImU32 gui_selected_model_transition_color;
+        ImU32 gui_hovered_cluster_color;
+        ImU32 gui_selected_cluster_color;
+
+        int automatic_layout_iteration_limit = 200;
+        float automatic_layout_x_distance = 350.f;
+        float automatic_layout_y_distance = 350.f;
+        float grid_layout_x_distance = 250.f;
+        float grid_layout_y_distance = 250.f;
+
+        bool show_dynamics_inputs_in_editor = false;
+
+        void compute_colors() noexcept;
+        void show(bool* is_open);
+
+    } settings;
 
     status initialize(u32 id) noexcept;
     void clear() noexcept;
@@ -444,11 +465,38 @@ struct editor
     bool show_editor() noexcept;
 };
 
-editor*
-make_combo_editor_name(editor_id& current) noexcept;
-
 void
-show_simulation_box(editor& ed, window_logger& log_w, bool* show_simulation);
+show_simulation_box(editor& ed, bool* show_simulation);
+
+struct application
+{
+    data_array<editor, editor_id> editors;
+
+    struct settings_manager
+    {
+        settings_manager() noexcept;
+
+        std::filesystem::path home_dir;
+        std::filesystem::path executable_dir;
+        std::vector<std::string> libraries_dir;
+
+        void show(bool *is_open);
+    } settings;
+
+    bool show_log = true;
+    bool show_simulation = true;
+    bool show_demo = false;
+    bool show_plot = true;
+    bool show_settings = false;
+
+    editor* alloc_editor();
+    void free_editor(editor& ed);
+};
+
+static inline application app;
+
+editor*
+make_combo_editor_name(application& app, editor_id& current) noexcept;
 
 } // namespace irt
 

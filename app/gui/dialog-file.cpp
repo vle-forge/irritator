@@ -120,31 +120,39 @@ get_executable_directory()
 }
 #endif
 
-path_manager::path_manager(window_logger& logger)
+application::settings_manager::settings_manager() noexcept
 {
-    if (auto home = get_home_directory(); home) {
-        home_dir = home.value();
-        home_dir /= "irritator";
-    } else {
-        logger.log(
-          3, "Fail to retrieve home directory. Use current directory instead");
-        home_dir = std::filesystem::current_path();
-    }
+    try {
+        if (auto home = get_home_directory(); home) {
+            home_dir = home.value();
+            home_dir /= "irritator";
+        } else {
+            log_w.log(
+              3,
+              "Fail to retrieve home directory. Use current directory instead");
+            home_dir = std::filesystem::current_path();
+        }
 
-    if (auto install = get_executable_directory(); install) {
-        install_dir = install.value();
-    } else {
-        logger.log(
-          3,
-          "Fail to retrieve executable directory. Use current directory "
-          "instead");
-        install_dir = std::filesystem::current_path();
-    }
+        if (auto install = get_executable_directory(); install) {
+            executable_dir = install.value();
+        } else {
+            log_w.log(
+              3,
+              "Fail to retrieve executable directory. Use current directory "
+              "instead");
+            executable_dir = std::filesystem::current_path();
+        }
 
-    logger.log(5,
-               "home: %s\ninstall: %s\n",
-               home_dir.u8string().c_str(),
-               install_dir.u8string().c_str());
+        log_w.log(5,
+                  "home: %s\ninstall: %s\n",
+                  home_dir.u8string().c_str(),
+                  executable_dir.u8string().c_str());
+
+        // TODO Fill the libraries vectors with users and systems directory.
+
+    } catch (const std::exception& /*e*/) {
+        log_w.log(2, "Fail to initialize application");
+    }
 }
 
 struct file_dialog

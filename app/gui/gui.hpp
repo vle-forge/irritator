@@ -11,13 +11,13 @@
 namespace irt {
 
 void
-node_editor_initialize();
+application_initialize();
 
 bool
-node_editor_show();
+application_show();
 
 void
-node_editor_shutdown();
+application_shutdown();
 
 /* Move into internal API */
 
