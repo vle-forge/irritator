@@ -123,48 +123,6 @@ observation_file_output_free(const irt::observer& obs,
     output->ofs.close();
 }
 
-// static void
-// initialize_observation(window_logger& log_w, irt::editor& ed) noexcept
-//{
-//    observer* obs = nullptr;
-//    while (ed.sim.observers.next(obs)) {
-//        auto& output = ed.observation_outputs.emplace_back(obs->name.sv());
-//
-//
-//        if (output.plot) {
-//            output.xs.clear();
-//            output.ys.clear();
-//            output.xs.reserve(length);
-//            output.ys.reserve(length);
-//        }
-//
-//        if (!obs->name.empty()) {
-//            const std::filesystem::path obs_file_path =
-//              ed.observation_directory / obs->name.c_str();
-//
-//            if (output.file) {
-//                if (output.ofs.open(obs_file_path); !output.ofs.is_open())
-//                    log_w.log(4,
-//                              "Fail to open "
-//                              "observation file: %s in "
-//                              "%s\n",
-//                              obs->name.c_str(),
-//#if _WIN32
-//                              ed.observation_directory.u8string().c_str());
-//#else
-//                              reinterpret_cast<const char*>(
-//                                ed.observation_directory.u8string().c_str()));
-//#endif
-//            }
-//        }
-//
-//        obs->initialize = &observation_output_initialize;
-//        obs->observe = &observation_output_observe;
-//        obs->free = &observation_output_free;
-//        obs->user_data = static_cast<void*>(&output);
-//    }
-//}
-
 static void
 run_synchronized_simulation(window_logger& log_w,
                             simulation& sim,
