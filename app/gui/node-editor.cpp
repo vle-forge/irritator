@@ -2743,6 +2743,7 @@ editor::show_editor() noexcept
 
                     if (!plot) {
                         plot_output& tf = plot_outs.alloc(names[i].c_str());
+                        tf.ed = this;
                         plot = &tf;
                         out.plot_id = plot_outs.get_id(tf);
                         auto& o = sim.observers.alloc(
@@ -2763,6 +2764,7 @@ editor::show_editor() noexcept
 
                     if (!file) {
                         file_output& tf = file_outs.alloc(names[i].c_str());
+                        tf.ed = this;
                         file = &tf;
                         out.file_id = file_outs.get_id(tf);
                         auto& o = sim.observers.alloc(

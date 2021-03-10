@@ -216,6 +216,8 @@ struct window_logger
 
 static inline window_logger log_w;
 
+struct editor;
+
 struct plot_output
 {
     plot_output() = default;
@@ -224,16 +226,7 @@ struct plot_output
       : name(name_)
     {}
 
-    void clear()
-    {
-        name.clear();
-        xs.clear();
-        ys.clear();
-        tl = 0.0;
-        min = -1.f;
-        max = +1.f;
-    }
-
+    editor* ed = nullptr;
     std::vector<float> xs;
     std::vector<float> ys;
     small_string<24u> name;
@@ -250,13 +243,7 @@ struct file_output
       : name(name_)
     {}
 
-    void clear()
-    {
-        ofs.close();
-        name.clear();
-        tl = 0.0;
-    }
-
+    editor* ed = nullptr;
     std::ofstream ofs;
     small_string<24u> name;
     double tl = 0.0;
@@ -480,7 +467,7 @@ struct application
         std::filesystem::path executable_dir;
         std::vector<std::string> libraries_dir;
 
-        void show(bool *is_open);
+        void show(bool* is_open);
     } settings;
 
     bool show_log = true;

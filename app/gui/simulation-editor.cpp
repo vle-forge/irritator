@@ -57,7 +57,11 @@ observation_file_output_initialize(const irt::observer& obs,
     auto* output = reinterpret_cast<file_output*>(obs.user_data);
     output->tl = t;
 
-    std::filesystem::path file(obs.name.begin());
+    std::filesystem::path file;
+    if (output->ed && !output->ed->observation_directory.empty())
+        file = output->ed->observation_directory;
+
+    file.append(obs.name.begin());
     file.replace_extension(".dat");
 
     output->ofs.open(file);
