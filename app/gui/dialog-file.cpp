@@ -258,15 +258,15 @@ struct file_dialog
     {
         std::error_code err;
         for (std::filesystem::directory_iterator it(current_path, err), et;
-             !err && it != et;
+             it != et;
              ++it) {
 
-            if (it->is_directory(err) && !err) {
+            if (it->is_directory(err)) {
                 paths.emplace_back(*it);
                 continue;
             }
 
-            if (it->is_regular_file(err) && !err) {
+            if (it->is_regular_file(err)) {
                 if (have_good_extension(*it) &&
                     have_good_file_name_starts(*it)) {
                     paths.emplace_back(*it);
@@ -281,14 +281,16 @@ struct file_dialog
         std::sort(std::begin(paths),
                   std::end(paths),
                   [](const auto& lhs, const auto& rhs) {
-                      if (std::filesystem::is_directory(lhs)) {
-                          if (std::filesystem::is_directory(rhs))
+                      std::error_code ec1, ec2;
+
+                      if (std::filesystem::is_directory(lhs, ec1)) {
+                          if (std::filesystem::is_directory(rhs, ec2))
                               return lhs.filename() < rhs.filename();
 
                           return true;
                       }
 
-                      if (std::filesystem::is_directory(rhs))
+                      if (std::filesystem::is_directory(rhs, ec2))
                           return false;
 
                       return lhs.filename() < rhs.filename();
@@ -402,7 +404,8 @@ load_file_dialog(std::filesystem::path& out)
             for (auto it = fd.paths.begin(), et = fd.paths.end(); it != et;
                  ++it) {
                 fd.temp.clear();
-                if (std::filesystem::is_directory(*it)) {
+                std::error_code ec;
+                if (std::filesystem::is_directory(*it, ec)) {
 #if defined(__APPLE__)
                     // @TODO Remove this part when XCode allows u8string
                     // concatenation.
@@ -420,7 +423,7 @@ load_file_dialog(std::filesystem::path& out)
                                       (it->filename() == fd.selected))) {
                     fd.selected = it->filename();
 
-                    if (std::filesystem::is_directory(*it)) {
+                    if (std::filesystem::is_directory(*it, ec)) {
                         if (next.empty()) {
                             fd.selected.clear();
                             next = fd.current;
@@ -523,7 +526,8 @@ save_file_dialog(std::filesystem::path& out)
             for (auto it = fd.paths.begin(), et = fd.paths.end(); it != et;
                  ++it) {
                 fd.temp.clear();
-                if (std::filesystem::is_directory(*it))
+                std::error_code ec;
+                if (std::filesystem::is_directory(*it, ec))
 #if defined(__APPLE__)
                     // @TODO Remove this part when XCode allows u8string
                     // concatenation.
@@ -538,7 +542,7 @@ save_file_dialog(std::filesystem::path& out)
                                       (it->filename() == fd.selected))) {
                     fd.selected = it->filename();
 
-                    if (std::filesystem::is_directory(*it)) {
+                    if (std::filesystem::is_directory(*it, ec)) {
                         if (next.empty()) {
                             fd.selected.clear();
                             next = fd.current;
@@ -547,7 +551,7 @@ save_file_dialog(std::filesystem::path& out)
                         }
                     }
 
-                    if (std::filesystem::is_regular_file(*it)) {
+                    if (std::filesystem::is_regular_file(*it, ec)) {
                         const size_t max_size =
                           std::min(std::size(it->filename().u8string()),
                                    std::size(fd.buffer) - 1);
@@ -648,7 +652,8 @@ select_directory_dialog(std::filesystem::path& out)
             for (auto it = fd.paths.begin(), et = fd.paths.end(); it != et;
                  ++it) {
                 fd.temp.clear();
-                if (std::filesystem::is_directory(*it)) {
+                std::error_code ec;
+                if (std::filesystem::is_directory(*it, ec)) {
 #if defined(__APPLE__)
                     // @TODO Remove this part when XCode allows u8string
                     // concatenation.
