@@ -262,6 +262,95 @@ almost_equal(T x, T y, int ulp)
 
 /*****************************************************************************
  *
+ * Definition of a lightweight std::function
+ *
+ ****************************************************************************/
+
+template<class F>
+class function_ref;
+
+template<class R, class... Args>
+class function_ref<R(Args...)>
+{
+public:
+    constexpr function_ref() noexcept = delete;
+
+    /// Creates a `function_ref` which refers to the same callable as `rhs`.
+    constexpr function_ref(const function_ref<R(Args...)>& rhs) noexcept =
+      default;
+
+    /// Constructs a `function_ref` referring to `f`.
+    ///
+    /// \synopsis template <typename F> constexpr function_ref(F &&f) noexcept
+    template<
+      typename F,
+      std::enable_if_t<!std::is_same<std::decay_t<F>, function_ref>::value &&
+                       std::is_invocable_r<R, F&&, Args...>::value>* = nullptr>
+    constexpr function_ref(F&& f) noexcept
+      : obj(const_cast<void*>(reinterpret_cast<const void*>(std::addressof(f))))
+    {
+        cb = [](void* obj, Args... args) -> R {
+            return std::invoke(
+              *reinterpret_cast<typename std::add_pointer<F>::type>(obj),
+              std::forward<Args>(args)...);
+        };
+    }
+
+    /// Makes `*this` refer to the same callable as `rhs`.
+    constexpr function_ref<R(Args...)>& operator=(
+      const function_ref<R(Args...)>& rhs) noexcept = default;
+
+    /// Makes `*this` refer to `f`.
+    ///
+    /// \synopsis template <typename F> constexpr function_ref &operator=(F &&f)
+    /// noexcept;
+    template<
+      typename F,
+      std::enable_if_t<std::is_invocable_r<R, F&&, Args...>::value>* = nullptr>
+    constexpr function_ref<R(Args...)>& operator=(F&& f) noexcept
+    {
+        obj = reinterpret_cast<void*>(std::addressof(f));
+        cb = [](void* obj, Args... args) {
+            return std::invoke(
+              *reinterpret_cast<typename std::add_pointer<F>::type>(obj),
+              std::forward<Args>(args)...);
+        };
+
+        return *this;
+    }
+
+    constexpr void swap(function_ref<R(Args...)>& rhs) noexcept
+    {
+        std::swap(obj, rhs.obj);
+        std::swap(cb, rhs.cb);
+    }
+
+    R operator()(Args... args) const
+    {
+        return cb(obj, std::forward<Args>(args)...);
+    }
+
+private:
+    void* obj = nullptr;
+    R (*cb)(void*, Args...) = nullptr;
+};
+
+/// Swaps the referred callables of `lhs` and `rhs`.
+template<typename R, typename... Args>
+constexpr void
+swap(function_ref<R(Args...)>& lhs, function_ref<R(Args...)>& rhs) noexcept
+{
+    lhs.swap(rhs);
+}
+
+template<typename R, typename... Args>
+function_ref(R (*)(Args...)) -> function_ref<R(Args...)>;
+
+template<typename R, typename... Args>
+function_ref(R (*)(Args...) noexcept) -> function_ref<R(Args...) noexcept>;
+
+/*****************************************************************************
+ *
  * Definition of Time
  *
  * TODO:

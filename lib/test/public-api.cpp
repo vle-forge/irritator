@@ -50,6 +50,31 @@ file_output_observe(const irt::observer& obs,
     fmt::print(output->os, "{},{}\n", t, msg.real[0]);
 }
 
+bool function_ref_called = false;
+
+void
+function_ref_f()
+{
+    function_ref_called = true;
+}
+
+struct function_ref_class
+{
+    bool baz_called = false;
+
+    void baz()
+    {
+        baz_called = true;
+    }
+
+    bool qux_called = false;
+
+    void qux()
+    {
+        qux_called = true;
+    }
+};
+
 static void empty_fun(irt::model_id /*id*/) noexcept
 {}
 
@@ -186,6 +211,40 @@ main()
         irt::status s2 = irt::status::block_allocator_not_enough_memory;
         expect(irt::is_success(s2) == false);
         expect(irt::is_bad(s2) == true);
+    };
+
+    "function_ref"_test = [] {
+        {
+            irt::function_ref<void(void)> fr = function_ref_f;
+            fr();
+            expect(function_ref_called == true);
+        }
+
+        {
+            function_ref_class o;
+            auto x = &function_ref_class::baz;
+            irt::function_ref<void(function_ref_class&)> fr = x;
+            fr(o);
+            expect(o.baz_called);
+            x = &function_ref_class::qux;
+            fr = x;
+            fr(o);
+            expect(o.qux_called);
+        }
+
+        {
+            auto x = [] { return 42; };
+            irt::function_ref<int()> fr = x;
+            expect(fr() == 42);
+        }
+
+        {
+            int i = 0;
+            auto x = [&i] { i = 42; };
+            irt::function_ref<void()> fr = x;
+            fr();
+            expect(i == 42);
+        }
     };
 
     "time"_test = [] {
