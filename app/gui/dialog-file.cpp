@@ -23,6 +23,8 @@
 #include <pwd.h>
 #include <unistd.h>
 #elif defined(__APPLE__)
+#include <sys/param.h>
+#include <sys/mount.h>
 #include <errno.h>
 #include <mach-o/dyld.h>
 #include <pwd.h>
