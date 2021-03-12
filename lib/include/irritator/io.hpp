@@ -410,7 +410,8 @@ protected:
         return rc;
     }
 
-    std::streambuf::int_type pbackfail(std::streambuf::int_type c) override final
+    std::streambuf::int_type pbackfail(
+      std::streambuf::int_type c) override final
     {
         if (traits_type::eq_int_type(c, traits_type::to_int_type('\n'))) {
             --m_line_number;
@@ -502,8 +503,8 @@ public:
         return status::success;
     }
 
-    template<typename CallBackFunction>
-    status operator()(simulation& sim, CallBackFunction f) noexcept
+    status operator()(simulation& sim,
+                      function_ref<void(const model_id)> f) noexcept
     {
         irt_return_if_bad(do_read_model_number());
 

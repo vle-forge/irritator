@@ -5855,8 +5855,8 @@ struct simulation
           });
     }
 
-    template<typename Function>
-    void for_all_input_port(const model& mdl, Function f)
+    void for_all_input_port(const model& mdl,
+                            function_ref<void(input_port&, input_port_id)> f)
     {
         dispatch(
           mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
@@ -5873,8 +5873,8 @@ struct simulation
           });
     }
 
-    template<typename Function>
-    void for_all_output_port(const model& mdl, Function f)
+    void for_all_output_port(const model& mdl,
+                             function_ref<void(output_port&, output_port_id)> f)
     {
         dispatch(
           mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
