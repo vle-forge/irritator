@@ -1915,21 +1915,21 @@ static void
 show_dynamics_inputs(qss1_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
-    ImGui::Checkbox("up detection", &dyn.detect_up);
+    ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
 show_dynamics_inputs(qss2_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
-    ImGui::Checkbox("up detection", &dyn.detect_up);
+    ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
 show_dynamics_inputs(qss3_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
-    ImGui::Checkbox("up detection", &dyn.detect_up);
+    ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
