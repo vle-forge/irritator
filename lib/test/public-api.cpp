@@ -95,6 +95,44 @@ run_simulation(irt::simulation& sim, const double duration)
     return irt::status::success;
 }
 
+struct global_alloc
+{
+    size_t allocation_size = 0;
+    int allocation_number = 0;
+
+    void* operator()(size_t size)
+    {
+        allocation_size += size;
+        allocation_number++;
+
+        return std::malloc(size);
+    }
+};
+
+struct global_free
+{
+    int free_number = 0;
+
+    void operator()(void *ptr)
+    {
+        free_number++;
+
+        if (ptr)
+            std::free(ptr);
+    }
+};
+
+static
+void* null_alloc(size_t /*sz*/)
+{
+    return nullptr;
+}
+
+static
+void null_free(void *)
+{
+}
+
 int
 main()
 {
@@ -3101,5 +3139,35 @@ main()
                    irt::status::success);
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
+    };
+
+    "memory"_test = [] {
+        global_alloc g_a;
+        global_free g_b;
+
+        {
+            irt::g_alloc_fn = g_a;
+            irt::g_free_fn = g_b;
+
+            irt::simulation sim;
+            expect(sim.init(30u, 30u) == irt::status::success);
+        }
+
+        expect(g_a.allocation_size > 0);
+        expect(g_a.allocation_number == g_b.free_number);
+
+        irt::g_alloc_fn.reset();
+        irt::g_free_fn.reset();
+    };
+
+    "null_memory"_test = [] {
+        irt::is_fatal_breakpoint = false;
+        irt::g_alloc_fn = null_alloc;
+        irt::g_free_fn = null_free;
+
+        irt::simulation sim;
+        expect(sim.init(30u, 30u) != irt::status::success);
+
+        irt::is_fatal_breakpoint = true;
     };
 }

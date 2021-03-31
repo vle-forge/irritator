@@ -330,6 +330,12 @@ public:
         return cb(obj, std::forward<Args>(args)...);
     }
 
+    constexpr void reset() noexcept
+    {
+        obj = nullptr;
+        cb = nullptr;
+    }
+
 private:
     void* obj = nullptr;
     R (*cb)(void*, Args...) = nullptr;
@@ -348,6 +354,31 @@ function_ref(R (*)(Args...)) -> function_ref<R(Args...)>;
 
 template<typename R, typename... Args>
 function_ref(R (*)(Args...) noexcept) -> function_ref<R(Args...) noexcept>;
+
+/*****************************************************************************
+ *
+ * Allocator
+ *
+ ****************************************************************************/
+
+using global_alloc_function_type = function_ref<void*(sz size)>;
+using global_free_function_type = function_ref<void(void *ptr)>;
+
+inline
+void* malloc_wrapper(sz size)
+{
+    return std::malloc(size);
+}
+
+inline
+void free_wrapper(void *ptr)
+{
+    if (ptr)
+        std::free(ptr);
+}
+
+static inline global_alloc_function_type g_alloc_fn = malloc_wrapper;
+static inline global_free_function_type g_free_fn = free_wrapper;
 
 /*****************************************************************************
  *
@@ -660,7 +691,7 @@ public:
     ~block_allocator() noexcept
     {
         if (blocks)
-            std::free(blocks);
+            g_free_fn(blocks);
     }
 
     status init(std::size_t new_capacity) noexcept
@@ -670,9 +701,10 @@ public:
 
         if (new_capacity != capacity) {
             if (blocks)
-                std::free(blocks);
+                g_free_fn(blocks);
+
             blocks =
-              static_cast<block*>(std::malloc(new_capacity * sizeof(block)));
+                static_cast<block*>(g_alloc_fn(new_capacity * sizeof(block)));
             if (blocks == nullptr)
                 return status::block_allocator_not_enough_memory;
         }
@@ -1696,7 +1728,7 @@ public:
         clear();
 
         if (m_items)
-            std::free(m_items);
+            g_free_fn(m_items);
     }
 
     /**
@@ -1711,7 +1743,7 @@ public:
         if (capacity > get_max_size<Identifier>())
             return status::data_array_init_capacity_error;
 
-        m_items = static_cast<item*>(std::malloc(capacity * sizeof(item)));
+        m_items = static_cast<item*>(g_alloc_fn(capacity * sizeof(item)));
         if (!m_items)
             return status::data_array_not_enough_memory;
 
@@ -2075,7 +2107,7 @@ public:
     ~heap() noexcept
     {
         if (nodes)
-            std::free(nodes);
+            g_free_fn(nodes);
     }
 
     status init(size_t new_capacity) noexcept
@@ -2085,9 +2117,10 @@ public:
 
         if (new_capacity != capacity) {
             if (nodes)
-                std::free(nodes);
+                g_free_fn(nodes);
+
             nodes =
-              static_cast<node*>(std::malloc(new_capacity * sizeof(node)));
+              static_cast<node*>(g_alloc_fn(new_capacity * sizeof(node)));
             if (nodes == nullptr)
                 return status::head_allocator_not_enough_memory;
         }
