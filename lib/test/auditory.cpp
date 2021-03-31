@@ -16,40 +16,39 @@ using namespace std;
 
 struct file_output
 {
-    file_output(const char* file_path) noexcept
-      : os(std::fopen(file_path, "w"))
+    std::FILE* os = nullptr;
+    std::string filename;
+
+    file_output(const std::string_view name)
+      : filename(name)
     {}
 
-    ~file_output() noexcept
-    {
-        if (os)
-            std::fclose(os);
-    }
-
-    std::FILE* os = nullptr;
-};
-
-void
-file_output_initialize(const irt::observer& obs, const irt::time /*t*/) noexcept
-{
-    if (!obs.user_data)
-        return;
-
-    auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    fmt::print(output->os, "t,{}\n", obs.name.c_str());
-}
-
-void
-file_output_observe(const irt::observer& obs,
+    void operator()(const irt::observer& obs,
                     const irt::time t,
-                    const irt::message& msg) noexcept
-{
-    if (!obs.user_data)
-        return;
+                    const irt::observer::status s)
+    {
+        switch (s) {
+        case irt::observer::status::initialize:
+            if (os)
+                std::fclose(os);
+            os = std::fopen(filename.c_str(), "w");
+            if (os)
+                fmt::print(os, "t,{}\n", obs.name.c_str());
+            break;
 
-    auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    fmt::print(output->os, "{},{}\n", t, msg.real[0]);
-}
+        case irt::observer::status::run:
+            if (os)
+                fmt::print(os, "{},{}\n", t, obs.msg.real[0]);
+            break;
+
+        case irt::observer::status::finalize:
+            if (os)
+                std::fclose(os);
+            os = nullptr;
+            break;
+        }
+    }
+};
 
 /**
  * Reads csv file into table, exported as a vector of vector of doubles.
@@ -523,12 +522,7 @@ main()
         file_output fo_a("output_laudanski.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.0001,
-                                          "A",
-                                          static_cast<void*>(&fo_a),
-                                          file_output_initialize,
-                                          &file_output_observe,
-                                          nullptr);
+        auto& obs_a = sim.observers.alloc(0.0001, "A", fo_a);
 
         sim.observe(
           sim.models.get(

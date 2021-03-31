@@ -18,40 +18,39 @@ using namespace std;
 
 struct file_output
 {
-    file_output(const char* file_path) noexcept
-      : os(std::fopen(file_path, "w"))
-    {}
+    std::FILE* os = nullptr;
+    std::string filename;
 
-    ~file_output() noexcept
+    file_output(const std::string_view name)
+      : filename(name)
+    {
+        os = std::fopen(filename.c_str(), "w");
+    }
+
+    ~file_output()
     {
         if (os)
             std::fclose(os);
     }
 
-    std::FILE* os = nullptr;
-};
-
-void
-file_output_initialize(const irt::observer& obs, const irt::time /*t*/) noexcept
-{
-    if (!obs.user_data)
-        return;
-
-    auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    fmt::print(output->os, "t,{}\n", obs.name.c_str());
-}
-
-void
-file_output_observe(const irt::observer& obs,
+    void operator()(const irt::observer& obs,
                     const irt::time t,
-                    const irt::message& msg) noexcept
-{
-    if (!obs.user_data)
-        return;
+                    const irt::observer::status s) noexcept
+    {
+        switch (s) {
+        case irt::observer::status::initialize:
+            fmt::print(os, "t,{}\n", obs.name.c_str());
+            break;
 
-    auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    fmt::print(output->os, "{},{}\n", t, msg.real[0]);
-}
+        case irt::observer::status::run:
+            fmt::print(os, "{},{}\n", t, obs.msg.real[0]);
+            break;
+
+        case irt::observer::status::finalize:
+            break;
+        }
+    }
+};
 
 struct neuron
 {
@@ -148,12 +147,7 @@ lif_benchmark(double simulation_duration, double quantum)
     file_output fo_a(file_name.c_str());
     expect(fo_a.os != nullptr);
 
-    auto& obs_a = sim.observers.alloc(0.01,
-                                      "A",
-                                      static_cast<void*>(&fo_a),
-                                      &file_output_initialize,
-                                      &file_output_observe,
-                                      nullptr);
+    auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
     sim.observe(sim.models.get(
                   sim.qss2_integrator_models.get(neuron_model.integrator).id),
                 obs_a);
@@ -317,12 +311,7 @@ izhikevich_benchmark(double simulation_duration,
     file_output fo_a(file_name.c_str());
     expect(fo_a.os != nullptr);
 
-    auto& obs_a = sim.observers.alloc(0.01,
-                                      "A",
-                                      static_cast<void*>(&fo_a),
-                                      &file_output_initialize,
-                                      &file_output_observe,
-                                      nullptr);
+    auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
     file_name = "output_izhikevitch_aqss_b_sd_" +
                 std::to_string(simulation_duration) + "_q_" +
                 std::to_string(quantum) + "_a_" + std::to_string(a) + "_b_" +
@@ -330,12 +319,7 @@ izhikevich_benchmark(double simulation_duration,
                 std::to_string(d) + ".csv";
     file_output fo_b(file_name.c_str());
     expect(fo_b.os != nullptr);
-    auto& obs_b = sim.observers.alloc(0.01,
-                                      "B",
-                                      static_cast<void*>(&fo_b),
-                                      &file_output_initialize,
-                                      &file_output_observe,
-                                      nullptr);
+    auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
 
     sim.observe(sim.models.get(integrator_a.id), obs_a);
     sim.observe(sim.models.get(integrator_b.id), obs_b);

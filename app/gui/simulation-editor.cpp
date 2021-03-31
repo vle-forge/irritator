@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <filesystem>
 #include <string>
 
 #include <fmt/format.h>
@@ -27,100 +28,72 @@
 namespace irt {
 
 void
-observation_plot_output_initialize(const irt::observer& obs,
-                                   const irt::time t) noexcept
+plot_output::operator()(const irt::observer& obs,
+                        const irt::time t,
+                        const irt::observer::status s)
 {
-    // const auto diff = ed.simulation_end - ed.simulation_begin;
-    // const auto freq = diff / obs->time_step;
-    // const auto length = std::min((size_t)freq, (size_t)4096);
+    switch (s) {
+    case irt::observer::status::initialize:
+        xs.clear();
+        ys.clear();
+        xs.reserve(4096u);
+        ys.reserve(4096u);
+        tl = t;
+        min = -1.f;
+        max = +1.f;
+        break;
+    case irt::observer::status::run: {
+        const float value = static_cast<float>(obs.msg[0]);
+        min = std::min(min, value);
+        max = std::max(max, value);
 
-    if (!obs.user_data)
-        return;
+        for (auto to_fill = tl; to_fill < t; to_fill += obs.time_step) {
+            ys.emplace_back(value);
+            xs.emplace_back(static_cast<float>(t));
+        }
 
-    auto* output = reinterpret_cast<plot_output*>(obs.user_data);
-    output->xs.clear();
-    output->ys.clear();
-    output->xs.reserve(4096u);
-    output->ys.reserve(4096u);
-    output->tl = t;
-    output->min = -1.f;
-    output->max = +1.f;
-}
-
-void
-observation_file_output_initialize(const irt::observer& obs,
-                                   const irt::time t) noexcept
-{
-    if (!obs.user_data)
-        return;
-
-    auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    output->tl = t;
-
-    std::filesystem::path file;
-    if (output->ed && !output->ed->observation_directory.empty())
-        file = output->ed->observation_directory;
-
-    file.append(obs.name.begin());
-    file.replace_extension(".dat");
-
-    output->ofs.open(file);
-    if (output->ofs.is_open())
-        fmt::print(output->ofs, "t,{}\n", output->name.c_str());
-}
-
-void
-observation_plot_output_observe(const irt::observer& obs,
-                                const irt::time t,
-                                const irt::message& msg) noexcept
-{
-    if (!obs.user_data)
-        return;
-
-    auto* output = reinterpret_cast<plot_output*>(obs.user_data);
-    const auto value = static_cast<float>(msg[0]);
-
-    output->min = std::min(output->min, value);
-    output->max = std::max(output->max, value);
-
-    for (auto to_fill = output->tl; to_fill < t; to_fill += obs.time_step) {
-        output->ys.emplace_back(value);
-        output->xs.emplace_back(static_cast<float>(t));
+        tl = t;
+    } break;
+    case irt::observer::status::finalize:
+        ys.emplace_back(static_cast<float>(obs.msg[0]));
+        xs.emplace_back(static_cast<float>(t));
+        break;
     }
-
-    output->tl = t;
 }
 
 void
-observation_file_output_observe(const irt::observer& obs,
-                                const irt::time t,
-                                const irt::message& msg) noexcept
+file_output::operator()(const irt::observer& obs,
+                        const irt::time t,
+                        const irt::observer::status s)
 {
-    if (!obs.user_data)
-        return;
+    std::filesystem::path file;
 
-    auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    const auto value = static_cast<float>(msg[0]);
+    switch (s) {
+    case irt::observer::status::initialize:
+        tl = t;
 
-    fmt::print(output->ofs, "{},{}\n", t, value);
+        if (ed && !ed->observation_directory.empty())
+            file = ed->observation_directory;
 
-    output->tl = t;
-}
+        file.append(obs.name.begin());
+        file.replace_extension(".dat");
 
-void
-observation_plot_output_free(const irt::observer& /*obs*/,
-                             const irt::time /*t*/) noexcept
-{}
-
-void
-observation_file_output_free(const irt::observer& obs,
-                             const irt::time /*t*/) noexcept
-{
-    if (!obs.user_data)
-        return;
-
-    auto* output = reinterpret_cast<file_output*>(obs.user_data);
-    output->ofs.close();
+        ofs.open(file);
+        if (ofs.is_open())
+            fmt::print(ofs, "t,{}\n", name.c_str());
+        break;
+    case irt::observer::status::run:
+        if (ofs.is_open())
+            fmt::print(ofs, "{},{}\n", t, obs.msg[0]);
+        tl = t;
+        break;
+    case irt::observer::status::finalize:
+        if (ofs.is_open()) {
+            fmt::print(ofs, "{},{}\n", t, obs.msg[0]);
+            ofs.close();
+        }
+        break;
+    }
 }
 
 static void
@@ -161,6 +134,8 @@ run_synchronized_simulation(window_logger& log_w,
               std::chrono::duration<double>(duration));
     } while (current < end && !stop);
 
+    sim.finalize(end);
+
     st = editor_status::running_thread_need_join;
 }
 
@@ -193,6 +168,8 @@ run_simulation(window_logger& log_w,
             return;
         }
     } while (current < end && !stop);
+
+    sim.finalize(end);
 
     st = editor_status::running_thread_need_join;
 }

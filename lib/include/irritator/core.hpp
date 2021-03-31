@@ -330,6 +330,11 @@ public:
         return cb(obj, std::forward<Args>(args)...);
     }
 
+    constexpr bool empty() const noexcept
+    {
+        return obj == nullptr;
+    }
+
     constexpr void reset() noexcept
     {
         obj = nullptr;
@@ -362,23 +367,23 @@ function_ref(R (*)(Args...) noexcept) -> function_ref<R(Args...) noexcept>;
  ****************************************************************************/
 
 using global_alloc_function_type = function_ref<void*(sz size)>;
-using global_free_function_type = function_ref<void(void *ptr)>;
+using global_free_function_type = function_ref<void(void* ptr)>;
 
-inline
-void* malloc_wrapper(sz size)
+static inline void*
+malloc_wrapper(sz size)
 {
     return std::malloc(size);
 }
 
-inline
-void free_wrapper(void *ptr)
+static inline void
+free_wrapper(void* ptr)
 {
     if (ptr)
         std::free(ptr);
 }
 
-static inline global_alloc_function_type g_alloc_fn = malloc_wrapper;
-static inline global_free_function_type g_free_fn = free_wrapper;
+static inline global_alloc_function_type g_alloc_fn{ malloc_wrapper };
+static inline global_free_function_type g_free_fn{ free_wrapper };
 
 /*****************************************************************************
  *
@@ -704,7 +709,7 @@ public:
                 g_free_fn(blocks);
 
             blocks =
-                static_cast<block*>(g_alloc_fn(new_capacity * sizeof(block)));
+              static_cast<block*>(g_alloc_fn(new_capacity * sizeof(block)));
             if (blocks == nullptr)
                 return status::block_allocator_not_enough_memory;
         }
@@ -2119,8 +2124,7 @@ public:
             if (nodes)
                 g_free_fn(nodes);
 
-            nodes =
-              static_cast<node*>(g_alloc_fn(new_capacity * sizeof(node)));
+            nodes = static_cast<node*>(g_alloc_fn(new_capacity * sizeof(node)));
             if (nodes == nullptr)
                 return status::head_allocator_not_enough_memory;
         }
@@ -2447,48 +2451,34 @@ struct model
     dynamics_type type{ dynamics_type::none };
 };
 
+struct observer;
+
 struct observer
 {
+    enum class status
+    {
+        initialize,
+        run,
+        finalize
+    };
+
+    using update_fn =
+      function_ref<void(const observer&, const time, const observer::status)>;
+
     observer() noexcept = default;
 
-    observer(const time time_step_,
-             const char* name_,
-             void* user_data_) noexcept
-      : time_step(std::clamp(time_step_, 0.0, time_domain<time>::infinity))
+    observer(const time time_step_, const char* name_, update_fn cb_)
+      : cb(cb_)
+      , time_step(std::clamp(time_step_, 0.0, time_domain<time>::infinity))
       , name(name_)
-      , user_data(user_data_)
     {}
 
-    observer(const time time_step_,
-             const char* name_,
-             void* user_data_,
-             void (*initialize_)(const observer& obs, const time t) noexcept,
-             void (*observe_)(const observer& obs,
-                              const time t,
-                              const message& msg) noexcept,
-             void (*free_)(const observer& obs, const time t) noexcept)
-      : time_step(std::clamp(time_step_, 0.0, time_domain<time>::infinity))
-      , name(name_)
-      , user_data(user_data_)
-      , initialize(initialize_)
-      , observe(observe_)
-      , free(free_)
-    {}
-
+    update_fn cb;
     double tl = 0.0;
     double time_step = 0.0;
     small_string<8> name;
     model_id model = static_cast<model_id>(0);
-
-    void* user_data = nullptr;
-
-    void (*initialize)(const observer& obs, const time t) noexcept = nullptr;
-
-    void (*observe)(const observer& obs,
-                    const time t,
-                    const message& msg) noexcept = nullptr;
-
-    void (*free)(const observer& obs, const time t) noexcept = nullptr;
+    message msg;
 };
 
 struct input_port
@@ -6098,8 +6088,7 @@ public:
     /**
      * @brief cleanup simulation object
      *
-     * Clean scheduller and input/output port from message. This function
-     * must be call at the end of the simulation.
+     * Clean scheduller and input/output port from message.
      */
     void clean() noexcept
     {
@@ -6477,8 +6466,8 @@ public:
         irt::observer* obs = nullptr;
         while (observers.next(obs)) {
             obs->tl = t;
-            if (obs->initialize)
-                obs->initialize(*obs, t);
+            if (!obs->cb.empty())
+                obs->cb(*obs, t, observer::status::initialize);
         }
 
         return status::success;
@@ -6585,11 +6574,11 @@ public:
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
             if (mdl.obs_id != static_cast<observer_id>(0)) {
                 if (auto* observer = observers.try_to_get(mdl.obs_id);
-                    observer && observer->observe) {
+                    observer && !observer->cb.empty()) {
                     if (observer->time_step == 0.0 ||
                         t - observer->tl >= observer->time_step) {
-                        observer->observe(
-                          *observer, t, dyn.observation(t - mdl.tl));
+                        observer->msg = dyn.observation(t - mdl.tl);
+                        observer->cb(*observer, t, observer::status::run);
                         observer->tl = t;
                     }
                 } else {
@@ -6620,6 +6609,47 @@ public:
                             return this->make_transition(
                               mdl, dyn_models.get(mdl.id), t, o);
                         });
+    }
+
+    template<typename Dynamics>
+    void make_finalize(model& mdl,
+                       Dynamics& dyn,
+                       observer& obs,
+                       time t) noexcept
+    {
+        if constexpr (is_detected_v<observation_function_t, Dynamics>) {
+            obs.msg = dyn.observation(t - mdl.tl);
+            obs.cb(obs, t, observer::status::finalize);
+            obs.tl = t;
+        }
+    }
+
+    /**
+     * @brief Finalize and cleanup simulation objects.
+     *
+     * Clean:
+     * - the scheduller nodes
+     * - all input/output remaining messages
+     * - call the observers' callback to finalize observation
+     *
+     * This function must be call at the end of the simulation.
+     */
+    void finalize(time t) noexcept
+    {
+        model* mdl = nullptr;
+        while (models.next(mdl)) {
+            if (mdl->obs_id != static_cast<observer_id>(0)) {
+                if (auto* obs = observers.try_to_get(mdl->obs_id);
+                    obs && !obs->cb.empty()) {
+                    dispatch(mdl->type,
+                             [this, mdl, obs, t]<typename DynamicsModels>(
+                               DynamicsModels& dyn_models) {
+                                 this->make_finalize(
+                                   *mdl, dyn_models.get(mdl->id), *obs, t);
+                             });
+                }
+            }
+        }
     }
 };
 

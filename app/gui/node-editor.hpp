@@ -218,6 +218,9 @@ static inline window_logger log_w;
 
 struct editor;
 
+enum class plot_output_id : u64;
+enum class file_output_id : u64;
+
 struct plot_output
 {
     plot_output() = default;
@@ -225,6 +228,10 @@ struct plot_output
     plot_output(std::string_view name_)
       : name(name_)
     {}
+
+    void operator()(const irt::observer& obs,
+                    const irt::time t,
+                    const irt::observer::status s);
 
     editor* ed = nullptr;
     std::vector<float> xs;
@@ -243,37 +250,15 @@ struct file_output
       : name(name_)
     {}
 
+    void operator()(const irt::observer& obs,
+                const irt::time t,
+                const irt::observer::status s);
+
     editor* ed = nullptr;
     std::ofstream ofs;
     small_string<24u> name;
     double tl = 0.0;
 };
-
-void
-observation_plot_output_initialize(const irt::observer& obs,
-                                   const irt::time t) noexcept;
-void
-observation_file_output_initialize(const irt::observer& obs,
-                                   const irt::time t) noexcept;
-void
-observation_plot_output_observe(const irt::observer& obs,
-                                const irt::time t,
-                                const irt::message& msg) noexcept;
-
-void
-observation_file_output_observe(const irt::observer& obs,
-                                const irt::time t,
-                                const irt::message& msg) noexcept;
-void
-observation_plot_output_free(const irt::observer& /*obs*/,
-                             const irt::time /*t*/) noexcept;
-
-void
-observation_file_output_free(const irt::observer& obs,
-                             const irt::time /*t*/) noexcept;
-
-enum class plot_output_id : u64;
-enum class file_output_id : u64;
 
 struct observation_output
 {
