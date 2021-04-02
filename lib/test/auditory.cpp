@@ -25,6 +25,7 @@ struct file_output
 
     void operator()(const irt::observer& obs,
                     const irt::dynamics_type /*type*/,
+                    const irt::time tl,
                     const irt::time t,
                     const irt::observer::status s)
     {

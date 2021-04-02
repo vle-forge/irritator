@@ -231,6 +231,7 @@ struct plot_output
 
     void operator()(const irt::observer& obs,
                     const irt::dynamics_type /*type*/,
+                    const irt::time tl,
                     const irt::time t,
                     const irt::observer::status s);
 
@@ -239,7 +240,7 @@ struct plot_output
     std::vector<float> ys;
     small_string<24u> name;
     double tl = 0.0;
-    double time_step = 0.1;
+    double time_step = 0.01;
 };
 
 struct file_output
@@ -252,6 +253,7 @@ struct file_output
 
     void operator()(const irt::observer& obs,
                     const irt::dynamics_type /*type*/,
+                    const irt::time tl,
                     const irt::time t,
                     const irt::observer::status s);
 

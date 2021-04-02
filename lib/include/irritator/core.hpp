@@ -2478,7 +2478,7 @@ struct observer
 
     using update_fn =
       function_ref<void(const observer&, const dynamics_type,
-          const time, const observer::status)>;
+          const time, const time, const observer::status)>;
 
     observer(const char* name_, update_fn cb_) noexcept
       : cb(cb_)
@@ -2486,7 +2486,6 @@ struct observer
     {}
 
     update_fn cb;
-    double tl = 0.0;
     small_string<8> name;
     model_id model = static_cast<model_id>(0);
     message msg;
@@ -6478,8 +6477,7 @@ public:
         while (observers.next(obs)) {
             if (auto* mdl = models.try_to_get(obs->model); mdl) {
                 obs->msg.reset();
-                obs->cb(*obs, mdl->type, t, observer::status::initialize);
-                obs->tl = t;
+                obs->cb(*obs, mdl->type, mdl->tl, t, observer::status::initialize);
             }
         }
 
@@ -6559,6 +6557,17 @@ public:
       time t,
       flat_list<output_port_id>& emitting_output_ports) noexcept
     {
+        if constexpr (is_detected_v<observation_function_t, Dynamics>) {
+            if (mdl.obs_id != static_cast<observer_id>(0)) {
+                if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
+                    obs->msg = dyn.observation(t - mdl.tl);
+                    obs->cb(*obs, mdl.type, mdl.tl, t, observer::status::run);
+                } else {
+                    mdl.obs_id = static_cast<observer_id>(0);
+                }
+            }
+        }
+
         if (mdl.tn == mdl.handle->tn) {
             if constexpr (is_detected_v<lambda_function_t, Dynamics>) {
                 if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
@@ -6583,18 +6592,6 @@ public:
             for (size_t i = 0, e = std::size(dyn.x); i != e; ++i)
                 if (auto* port = input_ports.try_to_get(dyn.x[i]); port)
                     port->messages.clear();
-
-        if constexpr (is_detected_v<observation_function_t, Dynamics>) {
-            if (mdl.obs_id != static_cast<observer_id>(0)) {
-                if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
-                    obs->msg = dyn.observation(t - mdl.tl);
-                    obs->cb(*obs, mdl.type, t, observer::status::run);
-                    obs->tl = t;
-                } else {
-                    mdl.obs_id = static_cast<observer_id>(0);
-                }
-            }
-        }
 
         irt_assert(mdl.tn >= t);
 
@@ -6628,8 +6625,7 @@ public:
     {
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
             obs.msg = dyn.observation(t - mdl.tl);
-            obs.cb(obs, mdl.type, t, observer::status::finalize);
-            obs.tl = t;
+            obs.cb(obs, mdl.type, mdl.tl, t, observer::status::finalize);
         }
     }
 

@@ -15,8 +15,8 @@
 #include "node-editor.hpp"
 
 #include <chrono>
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 #include <fmt/format.h>
@@ -27,33 +27,83 @@
 
 namespace irt {
 
+static void
+push_data(std::vector<float>& xs, std::vector<float>& ys,
+    const double x, const double y) noexcept
+{
+    if (xs.size() < xs.capacity()) {
+        xs.emplace_back(static_cast<float>(x));
+        ys.emplace_back(static_cast<float>(y));
+    }
+}
+
+static void
+pop_data(std::vector<float>& xs, std::vector<float>& ys) noexcept
+{
+    ys.pop_back();
+    xs.pop_back();
+}
+
 void
 plot_output::operator()(const irt::observer& obs,
-                        const irt::dynamics_type /*type*/,
+                        const irt::dynamics_type type,
+                        const irt::time tl,
                         const irt::time t,
                         const irt::observer::status s)
 {
-    switch (s) {
-    case irt::observer::status::initialize:
+    if (s == irt::observer::status::initialize) {
         xs.clear();
         ys.clear();
-        xs.reserve(4096u);
-        ys.reserve(4096u);
-        tl = t;
-        break;
-    case irt::observer::status::run: {
-        const float value = static_cast<float>(obs.msg[0]);
+        xs.reserve(4096u * 4096u);
+        ys.reserve(4096u * 4096u);
+        return;
+    }
 
+    while (!xs.empty() && xs.back() == tl)
+        pop_data(xs, ys);
+
+    switch (type) {
+    case irt::dynamics_type::qss1_integrator: {
         for (auto to_fill = tl; to_fill < t; to_fill += time_step) {
-            ys.emplace_back(value);
-            xs.emplace_back(static_cast<float>(t));
+            const auto e = to_fill - tl;
+            const auto value = obs.msg[0] + obs.msg[1] * e;
+            push_data(xs, ys, to_fill, value);
         }
-
-        tl = t;
+        const auto e = t - tl;
+        const auto value = obs.msg[0] + obs.msg[1] * e;
+        push_data(xs, ys, t, value);
     } break;
-    case irt::observer::status::finalize:
-        ys.emplace_back(static_cast<float>(obs.msg[0]));
-        xs.emplace_back(static_cast<float>(t));
+
+    case irt::dynamics_type::qss2_integrator: {
+        for (auto to_fill = tl; to_fill < t; to_fill += time_step) {
+            const auto e = to_fill - tl;
+            const auto value = obs.msg[0] + obs.msg[1] * e +
+                               (obs.msg[2] * e * e / 2.0);
+            push_data(xs, ys, to_fill, value);
+        }
+        const auto e = t - tl;
+        const auto value =
+          obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
+        push_data(xs, ys, t, value);
+    } break;
+
+    case irt::dynamics_type::qss3_integrator: {
+        for (auto to_fill = tl; to_fill < t; to_fill += time_step) {
+            const auto e = to_fill - tl;
+            const auto value = obs.msg[0] + obs.msg[1] * e +
+                               (obs.msg[2] * e * e / 2.0) +
+                               (obs.msg[3] * e * e * e / 3.0);
+            push_data(xs, ys, to_fill, value);
+        }
+        const auto e = t - tl;
+        const auto value = obs.msg[0] + obs.msg[1] * e +
+                           (obs.msg[2] * e * e / 2.0) +
+                           (obs.msg[3] * e * e * e / 3.0);
+        push_data(xs, ys, t, value);
+    } break;
+
+    default:
+        push_data(xs, ys, t, obs.msg[0]);
         break;
     }
 }
@@ -61,6 +111,7 @@ plot_output::operator()(const irt::observer& obs,
 void
 file_output::operator()(const irt::observer& obs,
                         const irt::dynamics_type /*type*/,
+                        const irt::time tl,
                         const irt::time t,
                         const irt::observer::status s)
 {
@@ -68,8 +119,6 @@ file_output::operator()(const irt::observer& obs,
 
     switch (s) {
     case irt::observer::status::initialize:
-        tl = t;
-
         if (ed && !ed->observation_directory.empty())
             file = ed->observation_directory;
 
@@ -83,7 +132,6 @@ file_output::operator()(const irt::observer& obs,
     case irt::observer::status::run:
         if (ofs.is_open())
             fmt::print(ofs, "{},{}\n", t, obs.msg[0]);
-        tl = t;
         break;
     case irt::observer::status::finalize:
         if (ofs.is_open()) {
