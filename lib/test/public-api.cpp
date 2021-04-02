@@ -1118,8 +1118,8 @@ main()
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -1305,11 +1305,11 @@ main()
         file_output fo_a("izhikevitch_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         file_output fo_b("izhikevitch_b.csv");
         expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -1395,8 +1395,8 @@ main()
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -1482,8 +1482,8 @@ main()
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -1582,7 +1582,7 @@ main()
         file_output fo_a("lif-qss.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         sim.observe(sim.models.get(integrator.id), obs_a);
 
@@ -1668,7 +1668,7 @@ main()
         file_output fo_a("lif-qss1.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         sim.observe(sim.models.get(integrator.id), obs_a);
 
@@ -1755,7 +1755,7 @@ main()
         file_output fo_a("lif-qss2.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.001, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         sim.observe(sim.models.get(integrator.id), obs_a);
 
@@ -1914,11 +1914,11 @@ main()
         file_output fo_a("izhikevitch-qss1_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.1, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         file_output fo_b("izhikevitch-qss1_b.csv");
         expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc(0.1, "B", fo_b);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -2075,11 +2075,11 @@ main()
         file_output fo_a("izhikevitch-qss2_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         file_output fo_b("izhikevitch-qss2_b.csv");
         expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -2165,8 +2165,8 @@ main()
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -2254,7 +2254,7 @@ main()
         file_output fo_a("lif-qss3.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.001, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         sim.observe(sim.models.get(integrator.id), obs_a);
 
@@ -2411,11 +2411,11 @@ main()
         file_output fo_a("izhikevitch-qss3_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         file_output fo_b("izhikevitch-qss3_b.csv");
         expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -2527,8 +2527,8 @@ main()
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -2616,8 +2616,8 @@ main()
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
-        auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
+        auto& obs_b = sim.observers.alloc("B", fo_b);
 
         sim.observe(sim.models.get(integrator_a.id), obs_a);
         sim.observe(sim.models.get(integrator_b.id), obs_b);
@@ -2705,7 +2705,7 @@ main()
         file_output fo_a("neg-lif-qss1.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         sim.observe(sim.models.get(integrator.id), obs_a);
 
@@ -2792,7 +2792,7 @@ main()
         file_output fo_a("neg-lif-qss2.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         sim.observe(sim.models.get(integrator.id), obs_a);
 
@@ -2879,7 +2879,7 @@ main()
         file_output fo_a("neg-lif-qss3.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         sim.observe(sim.models.get(integrator.id), obs_a);
 

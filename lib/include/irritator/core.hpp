@@ -2465,17 +2465,13 @@ struct observer
     using update_fn =
       function_ref<void(const observer&, const time, const observer::status)>;
 
-    observer() noexcept = default;
-
-    observer(const time time_step_, const char* name_, update_fn cb_)
+    observer(const char* name_, update_fn cb_) noexcept
       : cb(cb_)
-      , time_step(std::clamp(time_step_, 0.0, time_domain<time>::infinity))
       , name(name_)
     {}
 
     update_fn cb;
     double tl = 0.0;
-    double time_step = 0.0;
     small_string<8> name;
     model_id model = static_cast<model_id>(0);
     message msg;
@@ -6573,14 +6569,10 @@ public:
 
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
             if (mdl.obs_id != static_cast<observer_id>(0)) {
-                if (auto* observer = observers.try_to_get(mdl.obs_id);
-                    observer && !observer->cb.empty()) {
-                    if (observer->time_step == 0.0 ||
-                        t - observer->tl >= observer->time_step) {
-                        observer->msg = dyn.observation(t - mdl.tl);
-                        observer->cb(*observer, t, observer::status::run);
-                        observer->tl = t;
-                    }
+                if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
+                    obs->msg = dyn.observation(t - mdl.tl);
+                    obs->cb(*obs, t, observer::status::run);
+                    obs->tl = t;
                 } else {
                     mdl.obs_id = static_cast<observer_id>(0);
                 }

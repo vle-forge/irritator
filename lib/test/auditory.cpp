@@ -522,7 +522,7 @@ main()
         file_output fo_a("output_laudanski.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc(0.0001, "A", fo_a);
+        auto& obs_a = sim.observers.alloc("A", fo_a);
 
         sim.observe(
           sim.models.get(

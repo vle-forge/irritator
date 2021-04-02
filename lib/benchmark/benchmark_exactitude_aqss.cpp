@@ -147,7 +147,7 @@ lif_benchmark(double simulation_duration, double quantum)
     file_output fo_a(file_name.c_str());
     expect(fo_a.os != nullptr);
 
-    auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+    auto& obs_a = sim.observers.alloc("A", fo_a);
     sim.observe(sim.models.get(
                   sim.qss2_integrator_models.get(neuron_model.integrator).id),
                 obs_a);
@@ -311,7 +311,7 @@ izhikevich_benchmark(double simulation_duration,
     file_output fo_a(file_name.c_str());
     expect(fo_a.os != nullptr);
 
-    auto& obs_a = sim.observers.alloc(0.01, "A", fo_a);
+    auto& obs_a = sim.observers.alloc("A", fo_a);
     file_name = "output_izhikevitch_aqss_b_sd_" +
                 std::to_string(simulation_duration) + "_q_" +
                 std::to_string(quantum) + "_a_" + std::to_string(a) + "_b_" +
@@ -319,7 +319,7 @@ izhikevich_benchmark(double simulation_duration,
                 std::to_string(d) + ".csv";
     file_output fo_b(file_name.c_str());
     expect(fo_b.os != nullptr);
-    auto& obs_b = sim.observers.alloc(0.01, "B", fo_b);
+    auto& obs_b = sim.observers.alloc("B", fo_b);
 
     sim.observe(sim.models.get(integrator_a.id), obs_a);
     sim.observe(sim.models.get(integrator_b.id), obs_b);

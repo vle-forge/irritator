@@ -2747,7 +2747,7 @@ editor::show_editor() noexcept
                         plot = &tf;
                         out.plot_id = plot_outs.get_id(tf);
                         auto& o =
-                          sim.observers.alloc(0.01, names[i].c_str(), tf);
+                          sim.observers.alloc(names[i].c_str(), tf);
                         sim.observe(*mdl, o);
                     }
 
@@ -2765,7 +2765,7 @@ editor::show_editor() noexcept
                         file = &tf;
                         out.file_id = file_outs.get_id(tf);
                         auto& o =
-                          sim.observers.alloc(0.01, names[i].c_str(), tf);
+                          sim.observers.alloc(names[i].c_str(), tf);
                         sim.observe(*mdl, o);
                     }
                     ImGui::InputText(

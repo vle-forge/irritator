@@ -238,6 +238,7 @@ struct plot_output
     std::vector<float> ys;
     small_string<24u> name;
     double tl = 0.0;
+    double time_step = 0.1;
     float min = -1.f;
     float max = +1.f;
 };

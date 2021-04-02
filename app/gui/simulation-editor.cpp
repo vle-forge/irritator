@@ -47,7 +47,7 @@ plot_output::operator()(const irt::observer& obs,
         min = std::min(min, value);
         max = std::max(max, value);
 
-        for (auto to_fill = tl; to_fill < t; to_fill += obs.time_step) {
+        for (auto to_fill = tl; to_fill < t; to_fill += time_step) {
             ys.emplace_back(value);
             xs.emplace_back(static_cast<float>(t));
         }
