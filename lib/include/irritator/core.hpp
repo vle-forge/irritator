@@ -2477,7 +2477,8 @@ struct observer
     };
 
     using update_fn =
-      function_ref<void(const observer&, const time, const observer::status)>;
+      function_ref<void(const observer&, const dynamics_type,
+          const time, const observer::status)>;
 
     observer(const char* name_, update_fn cb_) noexcept
       : cb(cb_)
@@ -6475,9 +6476,11 @@ public:
 
         irt::observer* obs = nullptr;
         while (observers.next(obs)) {
-            obs->tl = t;
-            if (!obs->cb.empty())
-                obs->cb(*obs, t, observer::status::initialize);
+            if (auto* mdl = models.try_to_get(obs->model); mdl) {
+                obs->msg.reset();
+                obs->cb(*obs, mdl->type, t, observer::status::initialize);
+                obs->tl = t;
+            }
         }
 
         return status::success;
@@ -6585,7 +6588,7 @@ public:
             if (mdl.obs_id != static_cast<observer_id>(0)) {
                 if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
                     obs->msg = dyn.observation(t - mdl.tl);
-                    obs->cb(*obs, t, observer::status::run);
+                    obs->cb(*obs, mdl.type, t, observer::status::run);
                     obs->tl = t;
                 } else {
                     mdl.obs_id = static_cast<observer_id>(0);
@@ -6625,7 +6628,7 @@ public:
     {
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
             obs.msg = dyn.observation(t - mdl.tl);
-            obs.cb(obs, t, observer::status::finalize);
+            obs.cb(obs, mdl.type, t, observer::status::finalize);
             obs.tl = t;
         }
     }
@@ -6645,8 +6648,7 @@ public:
         model* mdl = nullptr;
         while (models.next(mdl)) {
             if (mdl->obs_id != static_cast<observer_id>(0)) {
-                if (auto* obs = observers.try_to_get(mdl->obs_id);
-                    obs && !obs->cb.empty()) {
+                if (auto* obs = observers.try_to_get(mdl->obs_id); obs) {
                     dispatch(mdl->type,
                              [this, mdl, obs, t]<typename DynamicsModels>(
                                DynamicsModels& dyn_models) {

@@ -230,6 +230,7 @@ struct plot_output
     {}
 
     void operator()(const irt::observer& obs,
+                    const irt::dynamics_type /*type*/,
                     const irt::time t,
                     const irt::observer::status s);
 
@@ -252,8 +253,9 @@ struct file_output
     {}
 
     void operator()(const irt::observer& obs,
-                const irt::time t,
-                const irt::observer::status s);
+                    const irt::dynamics_type /*type*/,
+                    const irt::time t,
+                    const irt::observer::status s);
 
     editor* ed = nullptr;
     std::ofstream ofs;

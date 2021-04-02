@@ -29,6 +29,7 @@ namespace irt {
 
 void
 plot_output::operator()(const irt::observer& obs,
+                        const irt::dynamics_type /*type*/,
                         const irt::time t,
                         const irt::observer::status s)
 {
@@ -63,6 +64,7 @@ plot_output::operator()(const irt::observer& obs,
 
 void
 file_output::operator()(const irt::observer& obs,
+                        const irt::dynamics_type /*type*/,
                         const irt::time t,
                         const irt::observer::status s)
 {

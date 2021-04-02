@@ -33,6 +33,7 @@ struct file_output
     }
 
     void operator()(const irt::observer& obs,
+                    const irt::dynamics_type /*type*/,
                     const irt::time t,
                     const irt::observer::status s) noexcept
     {
@@ -46,6 +47,7 @@ struct file_output
             break;
 
         case irt::observer::status::finalize:
+            fmt::print(os, "{},{}\n", t, obs.msg.real[0]);
             break;
         }
     }
