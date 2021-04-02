@@ -2739,7 +2739,7 @@ struct integrator
 
     message observation(const time /*e*/) const noexcept
     {
-        return message(last_output_value);
+        return { last_output_value };
     }
 
     status ta() noexcept
@@ -2938,9 +2938,9 @@ struct abstract_integrator<1>
         return status::success;
     }
 
-    message observation(const time e) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
-        return message(X + u * e);
+        return { X, u };
     }
 };
 
@@ -3111,9 +3111,9 @@ struct abstract_integrator<2>
         return status::success;
     }
 
-    message observation(const time e) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
-        return X + (u * e) + (mu / 2.0) * (e * e);
+        return { X, u, mu };
     }
 };
 
@@ -3447,9 +3447,9 @@ struct abstract_integrator<3>
         return status::success;
     }
 
-    message observation(const time e) const noexcept
+    message observation(const time /*e*/) const noexcept
     {
-        return X + u * e + (mu * e * e) / 2 + (pu * e * e * e) / 3;
+        return { X, u, mu, pu };
     }
 };
 
@@ -3540,7 +3540,7 @@ struct abstract_power
 
     message observation(const time /*e*/) const noexcept
     {
-        return value[0];
+        return { value[0] };
     }
 };
 
@@ -3626,7 +3626,7 @@ struct abstract_square
 
     message observation(const time /*e*/) const noexcept
     {
-        return value[0];
+        return { value[0] };
     }
 };
 
@@ -3774,7 +3774,7 @@ struct abstract_sum
                 value += values[i + PortNumber + PortNumber] * e * e;
         }
 
-        return message{ value };
+        return { value };
     }
 };
 
@@ -3932,7 +3932,7 @@ struct abstract_wsum
                          values[i + PortNumber + PortNumber] * e * e;
         }
 
-        return message{ value };
+        return { value };
     }
 };
 
@@ -4256,7 +4256,7 @@ struct quantifier
 
     message observation(const time /*e*/) const noexcept
     {
-        return message(m_upthreshold, m_downthreshold);
+        return { m_upthreshold, m_downthreshold };
     }
 
 private:
@@ -4467,7 +4467,7 @@ struct adder
         for (size_t i = 0; i != PortNumber; ++i)
             ret += input_coeffs[i] * values[i];
 
-        return message(ret);
+        return { ret };
     }
 };
 
@@ -4545,7 +4545,7 @@ struct mult
         for (size_t i = 0; i != PortNumber; ++i)
             ret *= std::pow(values[i], input_coeffs[i]);
 
-        return message(ret);
+        return { ret };
     }
 };
 
@@ -4581,7 +4581,7 @@ struct counter
 
     message observation(const time /*e*/) const noexcept
     {
-        return message(static_cast<double>(number));
+        return { static_cast<double>(number) };
     }
 };
 
@@ -4626,7 +4626,7 @@ struct generator
 
     message observation(const time /*e*/) const noexcept
     {
-        return message(value);
+        return { value };
     }
 };
 
@@ -4669,7 +4669,7 @@ struct constant
 
     message observation(const time /*e*/) const noexcept
     {
-        return message(value);
+        return { value };
     }
 };
 
@@ -4733,7 +4733,7 @@ struct flow
 
     message observation(const time /*e*/) const noexcept
     {
-        return message(default_data[i]);
+        return { default_data[i] };
     }
 };
 
@@ -4876,7 +4876,7 @@ struct cross
 
     message observation(const time /*e*/) const noexcept
     {
-        return message(value, if_value, else_value);
+        return { value, if_value, else_value };
     }
 };
 
@@ -5117,7 +5117,7 @@ struct abstract_cross
 
     message observation(const time /*t*/) const noexcept
     {
-        return message(value[0], if_value[0], else_value[0]);
+        return { value[0], if_value[0], else_value[0] };
     }
 };
 
@@ -5184,7 +5184,7 @@ struct time_func
 
     message observation(const time /*t*/) const noexcept
     {
-        return message(value);
+        return { value };
     }
 };
 
