@@ -40,13 +40,9 @@ plot_output::operator()(const irt::observer& obs,
         xs.reserve(4096u);
         ys.reserve(4096u);
         tl = t;
-        min = -1.f;
-        max = +1.f;
         break;
     case irt::observer::status::run: {
         const float value = static_cast<float>(obs.msg[0]);
-        min = std::min(min, value);
-        max = std::max(max, value);
 
         for (auto to_fill = tl; to_fill < t; to_fill += time_step) {
             ys.emplace_back(value);
