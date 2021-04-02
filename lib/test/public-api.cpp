@@ -544,10 +544,12 @@ main()
     "message"_test = [] {
         {
             irt::message vdouble;
-            expect(vdouble.real[0] == 0.0);
-            expect(vdouble.real[1] == 0.0);
-            expect(vdouble.real[2] == 0.0);
+            expect(vdouble[0] == 0.0);
+            expect(vdouble[1] == 0.0);
+            expect(vdouble[2] == 0.0);
+            expect(vdouble[3] == 0.0);
             expect(vdouble.size() == 0_ul);
+            expect(vdouble.ssize() == 0);
         }
 
         {
@@ -555,7 +557,9 @@ main()
             expect(vdouble[0] == 1.0);
             expect(vdouble[1] == 0.0);
             expect(vdouble[2] == 0.0);
+            expect(vdouble[3] == 0.0);
             expect(vdouble.size() == 1_ul);
+            expect(vdouble.ssize() == 1);
         }
 
         {
@@ -563,15 +567,29 @@ main()
             expect(vdouble[0] == 0.0);
             expect(vdouble[1] == 1.0);
             expect(vdouble[2] == 0.0);
+            expect(vdouble[3] == 0.0);
             expect(vdouble.size() == 2_ul);
+            expect(vdouble.ssize() == 2);
         }
 
         {
-            irt::message vdouble(1.0, 2.0, 3.0);
-            expect(vdouble[0] == 1.0);
-            expect(vdouble[1] == 2.0);
-            expect(vdouble[2] == 3.0);
+            irt::message vdouble(0.0, 0.0, 1.0);
+            expect(vdouble[0] == 0.0);
+            expect(vdouble[1] == 0.0);
+            expect(vdouble[2] == 1.0);
+            expect(vdouble[3] == 0.0);
             expect(vdouble.size() == 3_ul);
+            expect(vdouble.ssize() == 3);
+        }
+
+        {
+            irt::message vdouble(0.0, 0.0, 0.0, 1.0);
+            expect(vdouble[0] == 0.0);
+            expect(vdouble[1] == 0.0);
+            expect(vdouble[2] == 0.0);
+            expect(vdouble[3] == 1.0);
+            expect(vdouble.size() == 4_ul);
+            expect(vdouble.ssize() == 4);
         }
     };
 

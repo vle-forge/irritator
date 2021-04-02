@@ -617,45 +617,59 @@ struct message
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
-    double real[3];
-    i8 length;
+    double real[4];
 
-    constexpr std::size_t size() const noexcept
+    constexpr size_type size() const noexcept
     {
-        irt_assert(length >= 0);
-        return static_cast<std::size_t>(length);
+        return real[3] ? 4u : real[2] ? 3u : real[1] ? 2u : real[0] ? 1u : 0u;
+    }
+
+    constexpr difference_type ssize() const noexcept
+    {
+        return real[3] ? 4 : real[2] ? 3 : real[1] ? 2 : real[0] ? 1 : 0;
     }
 
     constexpr message() noexcept
-      : real{ 0.0, 0.0, 0.0 }
-      , length{ 0 }
+      : real{ 0., 0., 0., 0. }
     {}
 
     constexpr message(const double v) noexcept
-      : real{ v, 0., 0. }
-      , length{ 1 }
+      : real{ v, 0., 0., 0. }
     {}
 
     constexpr message(const double v1, const double v2) noexcept
-      : real{ v1, v2, 0. }
-      , length{ 2 }
+      : real{ v1, v2, 0., 0. }
     {}
 
     constexpr message(const double v1,
                       const double v2,
                       const double v3) noexcept
-      : real{ v1, v2, v3 }
-      , length{ 3 }
+      : real{ v1, v2, v3, 0. }
     {}
 
-    double operator[](const difference_type i) const noexcept
+    constexpr message(const double v1,
+                      const double v2,
+                      const double v3,
+                      const double v4) noexcept
+      : real{ v1, v2, v3, v4 }
+    {}
+
+    constexpr double operator[](const difference_type i) const noexcept
     {
         return real[i];
     }
 
-    double& operator[](const difference_type i) noexcept
+    constexpr double& operator[](const difference_type i) noexcept
     {
         return real[i];
+    }
+
+    constexpr void reset() noexcept
+    {
+        real[0] = 0.;
+        real[1] = 0.;
+        real[2] = 0.;
+        real[3] = 0.;
     }
 };
 
