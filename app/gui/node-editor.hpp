@@ -260,7 +260,27 @@ struct file_output
     editor* ed = nullptr;
     std::ofstream ofs;
     small_string<24u> name;
+};
+
+struct file_discrete_output
+{
+    file_discrete_output() = default;
+
+    file_discrete_output(std::string_view name_)
+      : name(name_)
+    {}
+
+    void operator()(const irt::observer& obs,
+                    const irt::dynamics_type /*type*/,
+                    const irt::time tl,
+                    const irt::time t,
+                    const irt::observer::status s);
+
+    editor* ed = nullptr;
+    std::ofstream ofs;
+    small_string<24u> name;
     double tl = 0.0;
+    double time_step = 0.01;
 };
 
 struct observation_output

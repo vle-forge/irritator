@@ -28,8 +28,10 @@
 namespace irt {
 
 static void
-push_data(std::vector<float>& xs, std::vector<float>& ys,
-    const double x, const double y) noexcept
+push_data(std::vector<float>& xs,
+          std::vector<float>& ys,
+          const double x,
+          const double y) noexcept
 {
     if (xs.size() < xs.capacity()) {
         xs.emplace_back(static_cast<float>(x));
@@ -64,10 +66,10 @@ plot_output::operator()(const irt::observer& obs,
 
     switch (type) {
     case irt::dynamics_type::qss1_integrator: {
-        for (auto to_fill = tl; to_fill < t; to_fill += time_step) {
-            const auto e = to_fill - tl;
+        for (auto td = tl; td < t; td += time_step) {
+            const auto e = td - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e;
-            push_data(xs, ys, to_fill, value);
+            push_data(xs, ys, td, value);
         }
         const auto e = t - tl;
         const auto value = obs.msg[0] + obs.msg[1] * e;
@@ -75,11 +77,11 @@ plot_output::operator()(const irt::observer& obs,
     } break;
 
     case irt::dynamics_type::qss2_integrator: {
-        for (auto to_fill = tl; to_fill < t; to_fill += time_step) {
-            const auto e = to_fill - tl;
-            const auto value = obs.msg[0] + obs.msg[1] * e +
-                               (obs.msg[2] * e * e / 2.0);
-            push_data(xs, ys, to_fill, value);
+        for (auto td = tl; td < t; td += time_step) {
+            const auto e = td - tl;
+            const auto value =
+              obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
+            push_data(xs, ys, td, value);
         }
         const auto e = t - tl;
         const auto value =
@@ -88,12 +90,12 @@ plot_output::operator()(const irt::observer& obs,
     } break;
 
     case irt::dynamics_type::qss3_integrator: {
-        for (auto to_fill = tl; to_fill < t; to_fill += time_step) {
-            const auto e = to_fill - tl;
+        for (auto td = tl; td < t; td += time_step) {
+            const auto e = td - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e +
                                (obs.msg[2] * e * e / 2.0) +
                                (obs.msg[3] * e * e * e / 3.0);
-            push_data(xs, ys, to_fill, value);
+            push_data(xs, ys, td, value);
         }
         const auto e = t - tl;
         const auto value = obs.msg[0] + obs.msg[1] * e +
@@ -109,8 +111,79 @@ plot_output::operator()(const irt::observer& obs,
 }
 
 void
+file_discrete_output::operator()(const irt::observer& obs,
+                                 const irt::dynamics_type type,
+                                 const irt::time tl,
+                                 const irt::time t,
+                                 const irt::observer::status s)
+{
+    switch (s) {
+    case irt::observer::status::initialize: {
+        std::filesystem::path file;
+        if (ed && !ed->observation_directory.empty())
+            file = ed->observation_directory;
+
+        file.append(obs.name.begin());
+        file.replace_extension(".dat");
+
+        ofs.open(file);
+        fmt::print(ofs, "t,{}\n", name.c_str());
+    } break;
+
+    default:
+        switch (type) {
+        case irt::dynamics_type::qss1_integrator: {
+            for (auto td = tl; td < t; td += time_step) {
+                const auto e = td - tl;
+                const auto value = obs.msg[0] + obs.msg[1] * e;
+                fmt::print(ofs, "{},{}\n", td, value);
+            }
+            const auto e = t - tl;
+            const auto value = obs.msg[0] + obs.msg[1] * e;
+            fmt::print(ofs, "{},{}\n", t, value);
+        } break;
+
+        case irt::dynamics_type::qss2_integrator: {
+            for (auto td = tl; td < t; td += time_step) {
+                const auto e = td - tl;
+                const auto value =
+                  obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
+                fmt::print(ofs, "{},{}\n", td, value);
+            }
+            const auto e = t - tl;
+            const auto value =
+              obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
+            fmt::print(ofs, "{},{}\n", t, value);
+        } break;
+
+        case irt::dynamics_type::qss3_integrator: {
+            for (auto td = tl; td < t; td += time_step) {
+                const auto e = td - tl;
+                const auto value = obs.msg[0] + obs.msg[1] * e +
+                                   (obs.msg[2] * e * e / 2.0) +
+                                   (obs.msg[3] * e * e * e / 3.0);
+                fmt::print(ofs, "{},{}\n", td, value);
+            }
+            const auto e = t - tl;
+            const auto value = obs.msg[0] + obs.msg[1] * e +
+                               (obs.msg[2] * e * e / 2.0) +
+                               (obs.msg[3] * e * e * e / 3.0);
+            fmt::print(ofs, "{},{}\n", t, value);
+        } break;
+
+        default:
+            fmt::print(ofs, "{},{}\n", t, obs.msg[0]);
+            break;
+        }
+    }
+
+    if (s == irt::observer::status::finalize)
+        ofs.close();
+}
+
+void
 file_output::operator()(const irt::observer& obs,
-                        const irt::dynamics_type /*type*/,
+                        const irt::dynamics_type type,
                         const irt::time tl,
                         const irt::time t,
                         const irt::observer::status s)
@@ -126,20 +199,51 @@ file_output::operator()(const irt::observer& obs,
         file.replace_extension(".dat");
 
         ofs.open(file);
-        if (ofs.is_open())
+
+        switch (type) {
+        case irt::dynamics_type::qss1_integrator:
+            fmt::print(ofs, "t,{0},{0}'\n", name.c_str());
+            break;
+        case irt::dynamics_type::qss2_integrator:
+            fmt::print(ofs, "t,{0},{0}',{0}''\n", name.c_str());
+            break;
+        case irt::dynamics_type::qss3_integrator:
+            fmt::print(ofs, "t,{0},{0}',{0}'',{0}'''\n", name.c_str());
+            break;
+        default:
             fmt::print(ofs, "t,{}\n", name.c_str());
+            break;
+        }
         break;
+
     case irt::observer::status::run:
-        if (ofs.is_open())
-            fmt::print(ofs, "{},{}\n", t, obs.msg[0]);
-        break;
     case irt::observer::status::finalize:
-        if (ofs.is_open()) {
+        switch (type) {
+        case irt::dynamics_type::qss1_integrator:
+            fmt::print(ofs, "{},{},{}\n", t, obs.msg[0], obs.msg[1]);
+            break;
+        case irt::dynamics_type::qss2_integrator:
+            fmt::print(
+              ofs, "{},{},{},{}\n", t, obs.msg[0], obs.msg[1], obs.msg[2]);
+            break;
+        case irt::dynamics_type::qss3_integrator:
+            fmt::print(ofs,
+                       "{},{},{},{},{}\n",
+                       t,
+                       obs.msg[0],
+                       obs.msg[1],
+                       obs.msg[2],
+                       obs.msg[3]);
+            break;
+        default:
             fmt::print(ofs, "{},{}\n", t, obs.msg[0]);
-            ofs.close();
+            break;
         }
         break;
     }
+
+    if (s == irt::observer::status::finalize)
+        ofs.close();
 }
 
 static void
