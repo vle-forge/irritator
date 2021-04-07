@@ -119,7 +119,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
-    imnodes::Initialize();
+    imnodes::CreateContext();
     irt::application_initialize();
 
     // Load Fonts
@@ -190,7 +190,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // Cleanup
 
     irt::application_shutdown();
-    imnodes::Shutdown();
+    imnodes::DestroyContext();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();

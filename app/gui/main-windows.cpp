@@ -96,7 +96,8 @@ int main(int, char**)
         g_pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
         g_pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
 
-    imnodes::Initialize();
+    imnodes::CreateContext();
+
     irt::application_initialize();
 
     // Load Fonts
@@ -182,8 +183,8 @@ int main(int, char**)
 
     irt::application_shutdown();
 
-    imnodes::Shutdown();
-
+    imnodes::DestroyContext();
+    
     WaitForLastSubmittedFrame();
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
