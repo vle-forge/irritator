@@ -8,6 +8,7 @@ set(gui_sources
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.h
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_demo.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_draw.cpp
+    ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_tables.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_widgets.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_internal.h
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imconfig.h
@@ -18,10 +19,10 @@ set(gui_sources
 if (WIN32)
     list(APPEND gui_sources
         main-windows.cpp
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_win32.cpp
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_win32.h
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_dx12.h
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_dx12.cpp)
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_win32.cpp
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_win32.h
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_dx12.h
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_dx12.cpp)
 else ()
     set(OpenGL_GL_PREFERENCE GLVND)
     find_package(OpenGL REQUIRED)
@@ -29,10 +30,10 @@ else ()
     find_package(GLEW REQUIRED)
     list(APPEND gui_sources
         main-unix.cpp
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_glfw.cpp
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_glfw.h
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_opengl3.cpp
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/imgui_impl_opengl3.h
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_glfw.cpp
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_glfw.h
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_opengl3.cpp
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_opengl3.h
         ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w/GL/gl3w.c
         ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w/GL/gl3w.h
         ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w/GL/glcorearb.h)
@@ -47,8 +48,8 @@ target_include_directories(irritator-gui
     $<INSTALL_INTERFACE:include>
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/../../external/imgui/backends
     ${PROJECT_SOURCE_DIR}/../../external/imgui
-    ${PROJECT_SOURCE_DIR}/../../external/imgui/examples
     ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w)
 
 target_link_libraries(irritator-gui
