@@ -220,6 +220,7 @@ struct editor;
 
 enum class plot_output_id : u64;
 enum class file_output_id : u64;
+enum class file_discrete_output_id : u64;
 
 struct plot_output
 {
@@ -252,7 +253,7 @@ struct file_output
     {}
 
     void operator()(const irt::observer& obs,
-                    const irt::dynamics_type /*type*/,
+                    const irt::dynamics_type type,
                     const irt::time tl,
                     const irt::time t,
                     const irt::observer::status s);
@@ -271,7 +272,7 @@ struct file_discrete_output
     {}
 
     void operator()(const irt::observer& obs,
-                    const irt::dynamics_type /*type*/,
+                    const irt::dynamics_type type,
                     const irt::time tl,
                     const irt::time t,
                     const irt::observer::status s);
@@ -283,19 +284,10 @@ struct file_discrete_output
     double time_step = 0.01;
 };
 
-struct observation_output
-{
-    constexpr observation_output() = default;
-
-    constexpr void clear() noexcept
-    {
-        plot_id = undefined<plot_output_id>();
-        file_id = undefined<file_output_id>();
-    }
-
-    plot_output_id plot_id = undefined<plot_output_id>();
-    file_output_id file_id = undefined<file_output_id>();
-};
+using observation_output = std::variant<std::monostate,
+                                        plot_output_id,
+                                        file_output_id,
+                                        file_discrete_output_id>;
 
 struct editor
 {
@@ -325,8 +317,48 @@ struct editor
 
     data_array<plot_output, plot_output_id> plot_outs;
     data_array<file_output, file_output_id> file_outs;
-
+    data_array<file_discrete_output, file_discrete_output_id>
+      file_discrete_outs;
     std::vector<observation_output> observation_outputs;
+
+    template<typename Function, typename... Args>
+    constexpr void observation_dispatch(const u32 index,
+                                        Function&& f,
+                                        Args... args) noexcept
+    {
+        switch (observation_outputs[index].index()) {
+        case 1:
+            f(plot_outs,
+              std::get<plot_output_id>(observation_outputs[index]),
+              args...);
+            break;
+
+        case 2:
+            f(file_outs,
+              std::get<file_output_id>(observation_outputs[index]),
+              args...);
+            break;
+
+        case 3:
+            f(file_discrete_outs,
+              std::get<file_discrete_output_id>(observation_outputs[index]),
+              args...);
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    void observation_outputs_free(const u32 index) noexcept
+    {
+        observation_dispatch(index, [](auto& outs, auto out_id) {
+            outs.free(out_id);
+        });
+
+        observation_outputs[index] = std::monostate{};
+    }
+
     std::filesystem::path observation_directory;
 
     data_array<cluster, cluster_id> clusters;

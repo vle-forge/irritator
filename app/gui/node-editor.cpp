@@ -353,12 +353,11 @@ editor::free_group(cluster& group) noexcept
                 log_w.log(7, "delete model %" PRIu64 "\n", id);
                 sim.deallocate(id);
 
-                if (auto* out = plot_outs.try_to_get(
-                      observation_outputs[get_index(id)].plot_id))
-                    plot_outs.free(*out);
-                if (auto* out = file_outs.try_to_get(
-                      observation_outputs[get_index(id)].file_id))
-                    file_outs.free(*out);
+                observation_dispatch(
+                  get_index(id),
+                  [this](auto& outs, auto id) { outs.free(id); });
+
+                observation_outputs[get_index(id)] = std::monostate{};
             }
         } else {
             auto id = std::get<cluster_id>(child);
@@ -392,12 +391,11 @@ editor::free_children(const ImVector<int>& nodes) noexcept
                 parent(id, undefined<cluster_id>());
                 sim.deallocate(id);
 
-                if (auto* out = plot_outs.try_to_get(
-                      observation_outputs[get_index(id)].plot_id))
-                    plot_outs.free(*out);
-                if (auto* out = file_outs.try_to_get(
-                      observation_outputs[get_index(id)].file_id))
-                    file_outs.free(*out);
+                observation_dispatch(
+                  get_index(id),
+                  [this](auto& outs, const auto id) { outs.free(id); });
+
+                observation_outputs[get_index(id)] = std::monostate{};
             }
         } else {
             const auto id = std::get<cluster_id>(child.first);
@@ -940,6 +938,8 @@ editor::initialize(u32 id) noexcept
     irt_return_if_bad(top.init(to_unsigned(settings.gui_node_cache)));
     irt_return_if_bad(plot_outs.init(to_unsigned(settings.kernel_model_cache)));
     irt_return_if_bad(file_outs.init(to_unsigned(settings.kernel_model_cache)));
+    irt_return_if_bad(
+      file_discrete_outs.init(to_unsigned(settings.kernel_model_cache)));
 
     try {
         observation_outputs.resize(sim.models.capacity());
@@ -2718,68 +2718,93 @@ editor::show_editor() noexcept
 
             if (ImGui::TreeNodeEx(names[i].c_str(),
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
-                auto& out = observation_outputs[get_index(id)];
-
-                auto* plot = plot_outs.try_to_get(out.plot_id);
-                auto* file = file_outs.try_to_get(out.file_id);
-
-                irt_assert(!(file && plot));
-                int choose = plot ? 1 : file ? 2 : 0;
+                const auto index = get_index(id);
+                auto out = observation_outputs[index];
+                auto old_choose = static_cast<int>(out.index());
+                auto choose = old_choose;
 
                 ImGui::Text("%s",
                             dynamics_type_names[static_cast<int>(mdl->type)]);
 
-                ImGui::RadioButton("none", &choose, 0);
-                ImGui::SameLine();
-                ImGui::RadioButton("plot", &choose, 1);
-                ImGui::SameLine();
-                ImGui::RadioButton("file", &choose, 2);
+                const char* items[] = { "none", "plot", "file", "file dt " };
+                ImGui::Combo("type", &choose, items, IM_ARRAYSIZE(items));
 
                 if (choose == 1) {
-                    if (file) {
-                        file_outs.free(*file);
+                    if (old_choose == 2 || old_choose == 3) {
                         sim.observers.free(mdl->obs_id);
+                        observation_outputs_free(index);
                     }
 
-                    if (!plot) {
+                    plot_output* plot;
+                    if (old_choose != 1) {
                         plot_output& tf = plot_outs.alloc(names[i].c_str());
-                        tf.ed = this;
                         plot = &tf;
-                        out.plot_id = plot_outs.get_id(tf);
-                        auto& o =
-                          sim.observers.alloc(names[i].c_str(), tf);
+                        tf.ed = this;
+                        observation_outputs[index] = plot_outs.get_id(tf);
+                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
                         sim.observe(*mdl, o);
+                    } else {
+                        plot =
+                          plot_outs.try_to_get(std::get<plot_output_id>(out));
+                        irt_assert(plot);
                     }
 
                     ImGui::InputText(
                       "name##plot", plot->name.begin(), plot->name.capacity());
+                    ImGui::InputDouble(
+                      "dt##plot", &plot->time_step, 0.001, 1.0, "%.8f");
                 } else if (choose == 2) {
-                    if (plot) {
-                        plot_outs.free(*plot);
+                    if (old_choose == 1 || old_choose == 3) {
                         sim.observers.free(mdl->obs_id);
+                        observation_outputs_free(index);
                     }
 
-                    if (!file) {
+                    file_output* file;
+                    if (old_choose != 2) {
                         file_output& tf = file_outs.alloc(names[i].c_str());
-                        tf.ed = this;
                         file = &tf;
-                        out.file_id = file_outs.get_id(tf);
-                        auto& o =
-                          sim.observers.alloc(names[i].c_str(), tf);
+                        tf.ed = this;
+                        observation_outputs[index] = file_outs.get_id(tf);
+                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
                         sim.observe(*mdl, o);
+                    } else {
+                        file =
+                          file_outs.try_to_get(std::get<file_output_id>(out));
+                        irt_assert(file);
                     }
+
                     ImGui::InputText(
                       "name##file", file->name.begin(), file->name.capacity());
-                } else {
-                    if (plot) {
-                        plot_outs.free(*plot);
+                } else if (choose == 3) {
+                    if (old_choose == 1 || old_choose == 2) {
                         sim.observers.free(mdl->obs_id);
+                        observation_outputs_free(index);
                     }
 
-                    if (file) {
-                        file_outs.free(*file);
-                        sim.observers.free(mdl->obs_id);
+                    file_discrete_output* file;
+                    if (old_choose != 3) {
+                        file_discrete_output& tf =
+                          file_discrete_outs.alloc(names[i].c_str());
+                        file = &tf;
+                        tf.ed = this;
+                        observation_outputs[index] =
+                          file_discrete_outs.get_id(tf);
+                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                        sim.observe(*mdl, o);
+                    } else {
+                        file = file_discrete_outs.try_to_get(
+                          std::get<file_discrete_output_id>(out));
+                        irt_assert(file);
                     }
+
+                    ImGui::InputText("name##filedt",
+                                     file->name.begin(),
+                                     file->name.capacity());
+                    ImGui::InputDouble(
+                      "dt##filedt", &file->time_step, 0.001, 1.0, "%.8f");
+                } else if (old_choose != choose) {
+                    sim.observers.free(mdl->obs_id);
+                    observation_outputs_free(index);
                 }
 
                 sim.dispatch(
