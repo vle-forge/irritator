@@ -946,6 +946,28 @@ main()
         expect(sim.begin == irt::time_domain<irt::time>::zero);
         expect(sim.end == irt::time_domain<irt::time>::infinity);
 
+        expect(sim.external_sources.can_alloc(1));
+
+        {
+            auto& src = sim.external_sources.alloc();
+            double data = 0.0;
+            src.data = &data;
+            src.index = 0;
+            src.size = 1;
+            src.type = irt::external_source::source_type::constant;
+            gen.default_value_source_id = sim.external_sources.get_id(src);
+        }
+
+        {
+            auto& src = sim.external_sources.alloc();
+            double data = 1.0;
+            src.data = &data;
+            src.index = 0;
+            src.size = 1;
+            src.type = irt::external_source::source_type::constant;
+            gen.default_lambda_source_id = sim.external_sources.get_id(src);
+        }
+
         sim.end = 10.0;
 
         irt::time t = sim.begin;

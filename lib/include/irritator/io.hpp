@@ -58,6 +58,7 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "mult_3",
                                                     "mult_4",
                                                     "counter",
+                                                    "buffer",
                                                     "generator",
                                                     "constant",
                                                     "cross",
@@ -133,6 +134,7 @@ get_input_port_names() noexcept
 
     if constexpr (std::is_same_v<Dynamics, quantifier> ||
                   std::is_same_v<Dynamics, counter> ||
+                  std::is_same_v<Dynamics, buffer> ||
                   std::is_same_v<Dynamics, qss1_power> ||
                   std::is_same_v<Dynamics, qss2_power> ||
                   std::is_same_v<Dynamics, qss3_power> ||
@@ -287,6 +289,7 @@ get_output_port_names() noexcept
                   std::is_same_v<Dynamics, mult_3> ||
                   std::is_same_v<Dynamics, mult_4> ||
                   std::is_same_v<Dynamics, counter> ||
+                  std::is_same_v<Dynamics, buffer> ||
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
@@ -351,6 +354,7 @@ get_output_port_names(const dynamics_type type) noexcept
     case dynamics_type::mult_3:
     case dynamics_type::mult_4:
     case dynamics_type::counter:
+    case dynamics_type::buffer:
     case dynamics_type::generator:
     case dynamics_type::constant:
     case dynamics_type::time_func:
@@ -619,6 +623,7 @@ private:
             { "adder_2", dynamics_type::adder_2 },
             { "adder_3", dynamics_type::adder_3 },
             { "adder_4", dynamics_type::adder_4 },
+            { "buffer", dynamics_type::buffer },
             { "constant", dynamics_type::constant },
             { "counter", dynamics_type::counter },
             { "cross", dynamics_type::cross },
@@ -964,10 +969,14 @@ private:
         return true;
     }
 
+    bool read(buffer& dyn) noexcept
+    {
+        return !!(is >> dyn.default_value >> dyn.default_offset);
+    }
+
     bool read(generator& dyn) noexcept
     {
-        return !!(is >> dyn.default_value >> dyn.default_period >>
-                  dyn.default_offset);
+        return !!(is >> dyn.default_value >> dyn.default_offset);
     }
 
     bool read(constant& dyn) noexcept
@@ -1275,10 +1284,9 @@ private:
            << dyn.default_past_length << ' '
            << ((dyn.default_adapt_state == quantifier::adapt_state::possible)
                  ? "possible "
-                 : dyn.default_adapt_state ==
-                       quantifier::adapt_state::impossible
-                     ? "impossibe "
-                     : "done ")
+               : dyn.default_adapt_state == quantifier::adapt_state::impossible
+                 ? "impossibe "
+                 : "done ")
            << (dyn.default_zero_init_offset == true ? "true\n" : "false\n");
     }
 
@@ -1335,11 +1343,16 @@ private:
         os << "counter\n";
     }
 
+    void write(const buffer& dyn) noexcept
+    {
+        os << "buffer " << dyn.default_value << ' ' << dyn.default_offset
+           << '\n';
+    }
+
     void write(const generator& dyn) noexcept
     {
-        os << "generator " << dyn.default_value << ' ' << dyn.default_period
-           << ' ' << dyn.default_offset << '\n';
-        ;
+        os << "generator " << dyn.default_value << ' ' << dyn.default_offset
+           << '\n';
     }
 
     void write(const constant& dyn) noexcept

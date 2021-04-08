@@ -1592,9 +1592,17 @@ show_dynamics_values(const counter& dyn)
 }
 
 static void
+show_dynamics_values(const buffer& dyn)
+{
+    ImGui::Text("next %.3f", dyn.sigma);
+    ImGui::Text("value %.3f", dyn.value);
+}
+
+static void
 show_dynamics_values(const generator& dyn)
 {
     ImGui::Text("next %.3f", dyn.sigma);
+    ImGui::Text("value %.3f", dyn.value);
 }
 
 static void
@@ -1898,10 +1906,16 @@ show_dynamics_inputs(counter& /*dyn*/)
 {}
 
 static void
+show_dynamics_inputs(buffer& dyn)
+{
+    ImGui::InputDouble("value", &dyn.default_value);
+    ImGui::InputDouble("offset", &dyn.default_offset);
+}
+
+static void
 show_dynamics_inputs(generator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_value);
-    ImGui::InputDouble("period", &dyn.default_period);
     ImGui::InputDouble("offset", &dyn.default_offset);
 }
 
@@ -2582,6 +2596,7 @@ editor::show_editor() noexcept
         }
 
         add_popup_menuitem(*this, dynamics_type::counter, &new_model);
+        add_popup_menuitem(*this, dynamics_type::buffer, &new_model);
         add_popup_menuitem(*this, dynamics_type::generator, &new_model);
         add_popup_menuitem(*this, dynamics_type::constant, &new_model);
         add_popup_menuitem(*this, dynamics_type::time_func, &new_model);

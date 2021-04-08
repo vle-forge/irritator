@@ -173,12 +173,22 @@ enum class status
     model_connect_input_port_unknown,
     model_connect_already_exist,
     model_connect_bad_dynamics,
+
+    model_buffer_null_ta_source,
+    model_buffer_empty_ta_source,
+
     model_integrator_dq_error,
     model_integrator_X_error,
     model_integrator_internal_error,
     model_integrator_output_error,
     model_integrator_running_without_x_dot,
     model_integrator_ta_with_bad_x_dot,
+
+    model_generator_null_ta_source,
+    model_generator_empty_ta_source,
+    model_generator_null_value_source,
+    model_generator_empty_value_source,
+
     model_quantifier_bad_quantum_parameter,
     model_quantifier_bad_archive_length_parameter,
     model_quantifier_shifting_value_neg,
@@ -2433,6 +2443,7 @@ enum class dynamics_type : i8
     mult_4,
 
     counter,
+    buffer,
     generator,
     constant,
     cross,
@@ -2476,9 +2487,11 @@ struct observer
         finalize
     };
 
-    using update_fn =
-      function_ref<void(const observer&, const dynamics_type,
-          const time, const time, const observer::status)>;
+    using update_fn = function_ref<void(const observer&,
+                                        const dynamics_type,
+                                        const time,
+                                        const time,
+                                        const observer::status)>;
 
     observer(const char* name_, update_fn cb_) noexcept
       : cb(cb_)
@@ -2557,6 +2570,9 @@ using has_output_port_t = decltype(&T::y);
 
 template<typename T>
 using has_init_port_t = decltype(&T::init);
+
+template<typename T>
+using has_sim_attribute_t = decltype(&T::sim);
 
 struct simulation;
 
@@ -4584,36 +4600,98 @@ struct counter
     }
 };
 
+struct external_source
+{
+    double* data = nullptr; // @todo use a std::span<double> instead
+    sz index = 0;           // of data and size.
+    sz size = 0;
+    u64 id = 0;
+
+    function_ref<bool(external_source& src)> expand;
+
+    bool next(double& value) noexcept
+    {
+        irt_assert(data);
+
+        if (index >= size) {
+            if (expand.empty() || !expand(*this))
+                return false;
+        }
+
+        value = data[index++];
+        return true;
+    }
+};
+
+enum class external_source_id : u64;
+
+struct buffer
+{
+    model_id id;
+    input_port_id x[1];
+    output_port_id y[1];
+    time sigma;
+
+    external_source_id default_lambda_source_id = external_source_id{ 0 };
+    simulation* sim = nullptr;
+
+    double default_offset = 0.0;
+    double default_value = 0.0;
+    double value;
+
+    status initialize() noexcept
+    {
+        sigma = default_offset;
+        value = default_value;
+
+        return status::success;
+    }
+
+    status transition(data_array<input_port, input_port_id>& input_ports,
+                      time /*t*/,
+                      time /*e*/,
+                      time r) noexcept;
+
+    status lambda(
+      data_array<output_port, output_port_id>& output_ports) noexcept
+    {
+        output_ports.get(y[0]).messages.emplace_front(value);
+
+        return status::success;
+    }
+
+    message observation(const time /*e*/) const noexcept
+    {
+        return { value };
+    }
+};
+
 struct generator
 {
     model_id id;
     output_port_id y[1];
     time sigma;
-    double default_value = 0.0;
-    double default_period = 1.0;
+
+    external_source_id default_lambda_source_id = external_source_id{ 0 };
+    external_source_id default_value_source_id = external_source_id{ 0 };
+    simulation* sim = nullptr;
+
     double default_offset = 1.0;
-    double value = 0.0;
-    double period = 1.0;
-    double offset = 1.0;
+    double default_value = 0.0;
+    double value;
 
     status initialize() noexcept
     {
+        sigma = default_offset;
         value = default_value;
-        period = default_period;
-        offset = default_offset;
-
-        sigma = offset;
 
         return status::success;
     }
+
     status transition(data_array<input_port, input_port_id>& /*input_ports*/,
                       time /*t*/,
                       time /*e*/,
-                      time /*r*/) noexcept
-    {
-        sigma = period;
-        return status::success;
-    }
+                      time /*r*/) noexcept;
 
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
@@ -5414,6 +5492,8 @@ dynamics_typeof() noexcept
 
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
+    if constexpr (std::is_same_v<Dynamics, buffer>)
+        return dynamics_type::buffer;
     if constexpr (std::is_same_v<Dynamics, generator>)
         return dynamics_type::generator;
     if constexpr (std::is_same_v<Dynamics, constant>)
@@ -5492,6 +5572,7 @@ struct simulation
     data_array<mult_3, dynamics_id> mult_3_models;
     data_array<mult_4, dynamics_id> mult_4_models;
     data_array<counter, dynamics_id> counter_models;
+    data_array<buffer, dynamics_id> buffer_models;
     data_array<generator, dynamics_id> generator_models;
     data_array<constant, dynamics_id> constant_models;
     data_array<cross, dynamics_id> cross_models;
@@ -5500,6 +5581,8 @@ struct simulation
     data_array<flow, dynamics_id> flow_models;
 
     data_array<observer, observer_id> observers;
+
+    data_array<external_source, external_source_id> external_sources;
 
     scheduller sched;
 
@@ -5615,6 +5698,8 @@ struct simulation
 
         if constexpr (std::is_same_v<Dynamics, counter>)
             return counter_models;
+        if constexpr (std::is_same_v<Dynamics, buffer>)
+            return buffer_models;
         if constexpr (std::is_same_v<Dynamics, generator>)
             return generator_models;
         if constexpr (std::is_same_v<Dynamics, constant>)
@@ -5732,6 +5817,8 @@ struct simulation
             return f(mult_4_models, args...);
         case dynamics_type::counter:
             return f(counter_models, args...);
+        case dynamics_type::buffer:
+            return f(buffer_models, args...);
         case dynamics_type::generator:
             return f(generator_models, args...);
         case dynamics_type::constant:
@@ -5845,6 +5932,8 @@ struct simulation
             return f(mult_4_models, args...);
         case dynamics_type::counter:
             return f(counter_models, args...);
+        case dynamics_type::buffer:
+            return f(buffer_models, args...);
         case dynamics_type::generator:
             return f(generator_models, args...);
         case dynamics_type::constant:
@@ -6068,6 +6157,7 @@ public:
         irt_return_if_bad(mult_3_models.init(model_capacity));
         irt_return_if_bad(mult_4_models.init(model_capacity));
         irt_return_if_bad(counter_models.init(model_capacity));
+        irt_return_if_bad(buffer_models.init(model_capacity));
         irt_return_if_bad(generator_models.init(model_capacity));
         irt_return_if_bad(constant_models.init(model_capacity));
         irt_return_if_bad(cross_models.init(model_capacity));
@@ -6076,6 +6166,8 @@ public:
         irt_return_if_bad(flow_models.init(model_capacity));
 
         irt_return_if_bad(observers.init(model_capacity));
+
+        irt_return_if_bad(external_sources.init(ten * ten));
 
         irt_return_if_bad(flat_double_list_shared_allocator.init(
           integrator_models.capacity() * ten));
@@ -6371,6 +6463,7 @@ public:
         case dynamics_type::mult_3:
         case dynamics_type::mult_4:
         case dynamics_type::counter:
+        case dynamics_type::buffer:
         case dynamics_type::generator:
         case dynamics_type::constant:
         case dynamics_type::cross:
@@ -6477,7 +6570,8 @@ public:
         while (observers.next(obs)) {
             if (auto* mdl = models.try_to_get(obs->model); mdl) {
                 obs->msg.reset();
-                obs->cb(*obs, mdl->type, mdl->tl, t, observer::status::initialize);
+                obs->cb(
+                  *obs, mdl->type, mdl->tl, t, observer::status::initialize);
             }
         }
 
@@ -6531,6 +6625,9 @@ public:
     {
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
             irt_return_if_bad(dyn.initialize());
+
+        if constexpr (is_detected_v<has_sim_attribute_t, Dynamics>)
+            dyn.sim = this;
 
         mdl.tl = t;
         mdl.tn = t + dyn.sigma;
@@ -6656,6 +6753,61 @@ public:
         }
     }
 };
+
+inline status
+buffer::transition(data_array<input_port, input_port_id>& input_ports,
+                   time /*t*/,
+                   time /*e*/,
+                   time r) noexcept
+{
+    irt_assert(sim);
+    bool have_message = false;
+
+    auto& port = input_ports.get(x[0]);
+    for (const auto& msg : port.messages) {
+        value = msg[0];
+        have_message = true;
+    }
+
+    if (time_domain<time>::is_zero(r)) {
+        auto* src_v =
+          sim->external_sources.try_to_get(default_lambda_source_id);
+        if (!src_v)
+            irt_bad_return(status::model_buffer_null_ta_source);
+
+        if (!src_v->next(sigma))
+            irt_bad_return(status::model_buffer_empty_ta_source);
+    } else {
+        sigma = r;
+    }
+
+    return status::success;
+}
+
+inline status
+generator::transition(data_array<input_port, input_port_id>& /*input_ports*/,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+{
+    irt_assert(sim);
+
+    auto* src_l = sim->external_sources.try_to_get(default_lambda_source_id);
+    if (!src_l)
+        irt_bad_return(status::model_generator_null_ta_source);
+
+    if (!src_l->next(sigma))
+        irt_bad_return(status::model_generator_empty_ta_source);
+
+    auto* src_v = sim->external_sources.try_to_get(default_value_source_id);
+    if (!src_v)
+        irt_bad_return(status::model_generator_null_value_source);
+
+    if (!src_v->next(value))
+        irt_bad_return(status::model_generator_empty_value_source);
+
+    return status::success;
+}
 
 } // namespace irt
 
