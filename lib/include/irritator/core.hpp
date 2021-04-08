@@ -273,7 +273,7 @@ template<class R, class... Args>
 class function_ref<R(Args...)>
 {
 public:
-    constexpr function_ref() noexcept = delete;
+    constexpr function_ref() noexcept = default;
 
     /// Creates a `function_ref` which refers to the same callable as `rhs`.
     constexpr function_ref(const function_ref<R(Args...)>& rhs) noexcept =
