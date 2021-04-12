@@ -4,6 +4,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/examples.hpp>
+#include <irritator/external_source.hpp>
 #include <irritator/io.hpp>
 
 #include <boost/ut.hpp>
@@ -11,6 +12,7 @@
 #include <fmt/format.h>
 
 #include <iostream>
+#include <random>
 #include <sstream>
 
 #include <cstdio>
@@ -948,23 +950,31 @@ main()
 
         expect(sim.external_sources.can_alloc(1));
 
+        double data[2] = { 0.0, 1.0 };
+
         {
             auto& src = sim.external_sources.alloc();
-            double data = 0.0;
-            src.data = &data;
+            src.data = &data[0];
             src.index = 0;
             src.size = 1;
-            src.type = irt::external_source::source_type::constant;
+            src.expand = [](auto& src) {
+                src.index = 0;
+                return true;
+            };
+
             gen.default_value_source_id = sim.external_sources.get_id(src);
         }
 
         {
             auto& src = sim.external_sources.alloc();
-            double data = 1.0;
-            src.data = &data;
+            src.data = &data[1];
             src.index = 0;
             src.size = 1;
-            src.type = irt::external_source::source_type::constant;
+            src.expand = [](auto& src) {
+                src.index = 0;
+                return true;
+            };
+
             gen.default_lambda_source_id = sim.external_sources.get_id(src);
         }
 
@@ -3076,5 +3086,26 @@ main()
         expect(sim.init(30u, 30u) != irt::status::success);
 
         irt::is_fatal_breakpoint = true;
+    };
+
+    "external_source"_test = [] {
+        std::error_code ec;
+        std::stringstream ofs_b;
+        std::stringstream ofs_t;
+
+        std::default_random_engine gen(1234);
+        std::poisson_distribution dist(4.0);
+
+        irt::source::generate_random_file(
+          ofs_b, gen, dist, 1024, irt::source::random_file_type::binary);
+
+        auto str_b = ofs_b.str();
+        expect(str_b.size() == 1024 * 8);
+
+        irt::source::generate_random_file(
+          ofs_t, gen, dist, 1024, irt::source::random_file_type::text);
+
+        auto str_t = ofs_b.str();
+        expect(str_t.size() > 1024 * 2);
     };
 }
