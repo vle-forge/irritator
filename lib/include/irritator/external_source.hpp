@@ -8,7 +8,6 @@
 #include <irritator/core.hpp>
 
 #include <array>
-#include <filesystem>
 #include <fstream>
 
 namespace irt::source {
