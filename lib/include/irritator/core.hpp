@@ -4606,6 +4606,7 @@ struct external_source
     sz index = 0;           // of data and size.
     sz size = 0;
     u64 id = 0;
+    u32 type = 0;
 
     function_ref<bool(external_source& src)> expand;
 

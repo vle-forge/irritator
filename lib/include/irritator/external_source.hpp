@@ -8,13 +8,26 @@
 #include <irritator/core.hpp>
 
 #include <array>
+#include <filesystem>
 #include <fstream>
 
 namespace irt::source {
 
+struct constant
+{
+    double value;
+
+    bool operator()(external_source& src)
+    {
+        src.index = 0;
+        return true;
+    }
+};
+
 struct binary_file
 {
     std::array<char, 1024 * 1024> buffer;
+    std::filesystem::path file_path;
     std::ifstream ifs;
     sz buffer_size = 0;
     bool use_rewind = false;
@@ -23,6 +36,13 @@ struct binary_file
 
     bool init(external_source& src)
     {
+        if (!ifs) {
+            ifs.open(file_path);
+
+            if (!ifs)
+                return false;
+        }
+
         if (!read(src))
             return false;
     }
@@ -61,6 +81,7 @@ private:
 struct text_file
 {
     std::array<double, 1024 * 1024 / 8> buffer;
+    std::filesystem::path file_path;
     std::ifstream ifs;
     bool use_rewind = false;
 
@@ -68,6 +89,13 @@ struct text_file
 
     bool init(external_source& src)
     {
+        if (!ifs) {
+            ifs.open(file_path);
+
+            if (!ifs)
+                return false;
+        }
+
         if (!read(src))
             return false;
     }

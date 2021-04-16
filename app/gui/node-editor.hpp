@@ -6,9 +6,11 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_NODE_EDITOR_2020
 
 #include <irritator/core.hpp>
+#include <irritator/external_source.hpp>
 
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <thread>
 #include <variant>
 #include <vector>
@@ -295,6 +297,22 @@ using observation_output = std::variant<std::monostate,
                                         file_output_id,
                                         file_discrete_output_id>;
 
+struct sources
+{
+    std::map<int, irt::source::constant> csts;
+    std::map<int, irt::source::binary_file> bins;
+    std::map<int, irt::source::text_file> texts;
+    int csts_next_id = 1;
+    int bins_next_id = 1;
+    int texts_next_id = 1;
+
+    irt::source::constant* new_constant() noexcept;
+    irt::source::binary_file* new_binary_file() noexcept;
+    irt::source::text_file* new_text_file() noexcept;
+
+    void show(bool* is_show);
+};
+
 struct editor
 {
     small_string<16> name;
@@ -358,9 +376,8 @@ struct editor
 
     void observation_outputs_free(const u32 index) noexcept
     {
-        observation_dispatch(index, [](auto& outs, auto out_id) {
-            outs.free(out_id);
-        });
+        observation_dispatch(
+          index, [](auto& outs, auto out_id) { outs.free(out_id); });
 
         observation_outputs[index] = std::monostate{};
     }
@@ -516,11 +533,14 @@ struct application
         void show(bool* is_open);
     } settings;
 
+    sources srcs;
+
     bool show_log = true;
     bool show_simulation = true;
     bool show_demo = false;
     bool show_plot = true;
     bool show_settings = false;
+    bool show_sources = false;
 
     editor* alloc_editor();
     void free_editor(editor& ed);

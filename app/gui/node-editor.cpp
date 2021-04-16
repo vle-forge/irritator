@@ -2993,6 +2993,7 @@ application_show()
 
             ImGui::MenuItem("Simulation", nullptr, &app.show_simulation);
             ImGui::MenuItem("Plot", nullptr, &app.show_plot);
+            ImGui::MenuItem("Sources", nullptr, &app.show_sources);
             ImGui::MenuItem("Settings", nullptr, &app.show_settings);
             ImGui::MenuItem("Log", nullptr, &app.show_log);
 
@@ -3036,6 +3037,9 @@ application_show()
 
     if (app.show_demo)
         ImGui::ShowDemoWindow();
+
+    if (app.show_sources)
+        app.srcs.show(&app.show_sources);
 
     return ret;
 }
