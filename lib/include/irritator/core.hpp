@@ -4605,10 +4605,12 @@ struct external_source
     double* data = nullptr; // @todo use a std::span<double> instead
     sz index = 0;           // of data and size.
     sz size = 0;
-    u64 id = 0;
+    u32 id = 0;
     u32 type = 0;
 
     function_ref<bool(external_source& src)> expand;
+
+    external_source() noexcept = default;
 
     bool next(double& value) noexcept
     {
@@ -4624,8 +4626,6 @@ struct external_source
     }
 };
 
-enum class external_source_id : u64;
-
 struct buffer
 {
     model_id id;
@@ -4633,8 +4633,7 @@ struct buffer
     output_port_id y[1];
     time sigma;
 
-    external_source_id default_lambda_source_id = external_source_id{ 0 };
-    simulation* sim = nullptr;
+    external_source default_lambda_source;
 
     double default_offset = 0.0;
     double default_value = 0.0;
@@ -4673,9 +4672,8 @@ struct generator
     output_port_id y[1];
     time sigma;
 
-    external_source_id default_lambda_source_id = external_source_id{ 0 };
-    external_source_id default_value_source_id = external_source_id{ 0 };
-    simulation* sim = nullptr;
+    external_source default_lambda_source;
+    external_source default_value_source;
 
     double default_offset = 1.0;
     double default_value = 0.0;
@@ -5583,8 +5581,6 @@ struct simulation
 
     data_array<observer, observer_id> observers;
 
-    data_array<external_source, external_source_id> external_sources;
-
     scheduller sched;
 
     time begin = time_domain<time>::zero;
@@ -6168,8 +6164,6 @@ public:
 
         irt_return_if_bad(observers.init(model_capacity));
 
-        irt_return_if_bad(external_sources.init(ten * ten));
-
         irt_return_if_bad(flat_double_list_shared_allocator.init(
           integrator_models.capacity() * ten));
 
@@ -6627,8 +6621,8 @@ public:
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
             irt_return_if_bad(dyn.initialize());
 
-        if constexpr (is_detected_v<has_sim_attribute_t, Dynamics>)
-            dyn.sim = this;
+        //if constexpr (is_detected_v<has_sim_attribute_t, Dynamics>)
+        //    dyn.sim = this;
 
         mdl.tl = t;
         mdl.tn = t + dyn.sigma;
@@ -6761,7 +6755,6 @@ buffer::transition(data_array<input_port, input_port_id>& input_ports,
                    time /*e*/,
                    time r) noexcept
 {
-    irt_assert(sim);
     bool have_message = false;
 
     auto& port = input_ports.get(x[0]);
@@ -6771,12 +6764,10 @@ buffer::transition(data_array<input_port, input_port_id>& input_ports,
     }
 
     if (time_domain<time>::is_zero(r)) {
-        auto* src_v =
-          sim->external_sources.try_to_get(default_lambda_source_id);
-        if (!src_v)
+        if (!default_lambda_source.data)
             irt_bad_return(status::model_buffer_null_ta_source);
 
-        if (!src_v->next(sigma))
+        if (!default_lambda_source.next(sigma))
             irt_bad_return(status::model_buffer_empty_ta_source);
     } else {
         sigma = r;
@@ -6791,20 +6782,16 @@ generator::transition(data_array<input_port, input_port_id>& /*input_ports*/,
                       time /*e*/,
                       time /*r*/) noexcept
 {
-    irt_assert(sim);
-
-    auto* src_l = sim->external_sources.try_to_get(default_lambda_source_id);
-    if (!src_l)
+    if (!default_lambda_source.data)
         irt_bad_return(status::model_generator_null_ta_source);
 
-    if (!src_l->next(sigma))
+    if (!default_lambda_source.next(sigma))
         irt_bad_return(status::model_generator_empty_ta_source);
 
-    auto* src_v = sim->external_sources.try_to_get(default_value_source_id);
-    if (!src_v)
+    if (!default_value_source.data)
         irt_bad_return(status::model_generator_null_value_source);
 
-    if (!src_v->next(value))
+    if (!default_value_source.next(value))
         irt_bad_return(status::model_generator_empty_value_source);
 
     return status::success;
