@@ -763,14 +763,14 @@ sources::show(bool* is_show)
 }
 
 void
-sources::show_menu(external_source& src)
+sources::show_menu(const char* title, external_source& src)
 {
     small_string<16> tmp;
     std::pair<const int, source::constant>* constant_ptr = nullptr;
     std::pair<const int, source::binary_file>* binary_file_ptr = nullptr;
     std::pair<const int, source::text_file>* text_file_ptr = nullptr;
 
-    if (ImGui::BeginPopup("Select source")) {
+    if (ImGui::BeginPopup(title)) {
         if (!csts.empty() && ImGui::BeginMenu("Constant")) {
             for (auto& elem : csts) {
                 fmt::format_to_n(tmp.begin(), tmp.capacity(), "{}", elem.first);

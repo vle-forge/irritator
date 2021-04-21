@@ -1910,6 +1910,23 @@ show_dynamics_inputs(buffer& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_value);
     ImGui::InputDouble("offset", &dyn.default_offset);
+
+    {
+        const char* title = "Select time sources";
+        if (ImGui::Button("Times"))
+            ImGui::OpenPopup(title);
+        ImGui::SameLine();
+
+        if (dyn.default_lambda_source.data == nullptr) {
+            ImGui::TextUnformatted("<None>");
+        } else {
+            ImGui::Text("%" PRIu32 "-%" PRIu32,
+                        dyn.default_lambda_source.type,
+                        dyn.default_lambda_source.id);
+        }
+
+        app.srcs.show_menu(title, dyn.default_lambda_source);
+    }
 }
 
 static void
@@ -1918,17 +1935,39 @@ show_dynamics_inputs(generator& dyn)
     ImGui::InputDouble("value", &dyn.default_value);
     ImGui::InputDouble("offset", &dyn.default_offset);
 
-    if (ImGui::Button("Select.."))
-        ImGui::OpenPopup("Select source");
-    ImGui::SameLine();
-    if (dyn.default_value_source_id == external_source_id{ 0 }) {
-        ImGui::TextUnformatted("<None>");
-    } else {
-        ImGui::Text("%" PRIu64, static_cast<u64>(dyn.default_value_source_id));
+    {
+        const char* title = "Select values sources";
+        if (ImGui::Button("Values"))
+            ImGui::OpenPopup(title);
+        ImGui::SameLine();
+
+        if (dyn.default_value_source.data == nullptr) {
+            ImGui::TextUnformatted("<None>");
+        } else {
+            ImGui::Text("%" PRIu32 "-%" PRIu32,
+                        dyn.default_value_source.type,
+                        dyn.default_value_source.id);
+        }
+
+        app.srcs.show_menu(title, dyn.default_value_source);
     }
 
-    external_source src;
-    app.srcs.show_menu(src);
+    {
+        const char* title = "Select time sources";
+        if (ImGui::Button("Times"))
+            ImGui::OpenPopup(title);
+        ImGui::SameLine();
+
+        if (dyn.default_lambda_source.data == nullptr) {
+            ImGui::TextUnformatted("<None>");
+        } else {
+            ImGui::Text("%" PRIu32 "-%" PRIu32,
+                        dyn.default_lambda_source.type,
+                        dyn.default_lambda_source.id);
+        }
+
+        app.srcs.show_menu(title, dyn.default_lambda_source);
+    }
 }
 
 static void
