@@ -30,10 +30,14 @@ get_executable_directory();
 /* Filesytem dialog box */
 
 bool
-load_file_dialog(std::filesystem::path& out);
+load_file_dialog(std::filesystem::path& out,
+                 const char* title,
+                 const char8_t** filters);
 
 bool
-save_file_dialog(std::filesystem::path& out);
+save_file_dialog(std::filesystem::path& out,
+                 const char* title,
+                 const char8_t** filters);
 
 bool
 select_directory_dialog(std::filesystem::path& out);

@@ -2468,8 +2468,11 @@ editor::show_editor() noexcept
     }
 
     if (show_load_file_dialog) {
-        ImGui::OpenPopup("Select file path to load");
-        if (load_file_dialog(path)) {
+        const char* title = "Select file path to load";
+        const char8_t* filters[] = { u8".irt", nullptr };
+
+        ImGui::OpenPopup(title);
+        if (load_file_dialog(path, title, filters)) {
             show_load_file_dialog = false;
             log_w.log(
               5, "Load file from %s: ", (const char*)path.u8string().c_str());
@@ -2492,8 +2495,11 @@ editor::show_editor() noexcept
 
     if (show_save_file_dialog) {
         if (sim.models.size()) {
-            ImGui::OpenPopup("Select file path to save");
-            if (save_file_dialog(path)) {
+            const char* title = "Select file path to save";
+            const char8_t* filters[] = { u8".irt", nullptr };
+
+            ImGui::OpenPopup(title);
+            if (save_file_dialog(path, title, filters)) {
                 show_save_file_dialog = false;
                 log_w.log(
                   5, "Save file to %s\n", (const char*)path.u8string().c_str());
