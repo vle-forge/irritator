@@ -536,6 +536,25 @@ show_random()
     }
 }
 
+static void
+size_in_bytes(const sources& src) noexcept
+{
+    constexpr sz K = 1024u;
+    constexpr sz M = K * 1024u;
+    constexpr sz G = M * 1024u;
+
+    const sz c = src.csts.size() * sizeof(irt::source::constant) +
+                 src.bins.size() * sizeof(irt::source::binary_file) +
+                 src.texts.size() * sizeof(irt::source::text_file);
+
+    if (c / G > 0)
+        ImGui::Text("Memory usage: %f Gb", ((double)c / (double)G));
+    else if (c / M > 0)
+        ImGui::Text("Memory usage: %f Mb", ((double)c / (double)M));
+    else
+        ImGui::Text("Memory usage: %f Kb", ((double)c / (double)K));
+}
+
 void
 sources::show(bool* is_show)
 {
@@ -737,6 +756,8 @@ sources::show(bool* is_show)
             }
         }
     }
+
+    size_in_bytes(*this);
 
     ImGui::End();
 }
