@@ -17,6 +17,16 @@ struct constant
 {
     double value;
 
+    bool init(external_source& src)
+    {
+        src.type = 0;
+        src.id = 0;
+        src.data = &value;
+        src.index = 0;
+
+        return true;
+    }
+
     bool operator()(external_source& src)
     {
         src.index = 0;
@@ -36,6 +46,9 @@ struct binary_file
 
     bool init(external_source& src)
     {
+        src.type = 1;
+        src.id = 0;
+
         if (!ifs) {
             ifs.open(file_path);
 
@@ -45,6 +58,8 @@ struct binary_file
 
         if (!read(src))
             return false;
+
+        return true;
     }
 
     bool operator()(external_source& src)
@@ -89,6 +104,9 @@ struct text_file
 
     bool init(external_source& src)
     {
+        src.type = 2;
+        src.id = 0;
+
         if (!ifs) {
             ifs.open(file_path);
 
@@ -98,6 +116,8 @@ struct text_file
 
         if (!read(src))
             return false;
+
+        return true;
     }
 
     bool operator()(external_source& src)

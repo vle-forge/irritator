@@ -79,7 +79,7 @@ static constexpr const char* items[] = {
 };
 
 template<typename RandomGenerator, typename Distribution>
-inline void
+static void
 generate(std::ostream& os,
          RandomGenerator& gen,
          Distribution dist,
@@ -336,7 +336,7 @@ struct distribution_manager
     }
 };
 
-void
+static void
 show_random()
 {
     static distribution_manager dm;
@@ -760,6 +760,70 @@ sources::show(bool* is_show)
     size_in_bytes(*this);
 
     ImGui::End();
+}
+
+void
+sources::show_menu(external_source& src)
+{
+    small_string<16> tmp;
+    std::pair<const int, source::constant>* constant_ptr = nullptr;
+    std::pair<const int, source::binary_file>* binary_file_ptr = nullptr;
+    std::pair<const int, source::text_file>* text_file_ptr = nullptr;
+
+    if (ImGui::BeginPopup("Select source")) {
+        if (!csts.empty() && ImGui::BeginMenu("Constant")) {
+            for (auto& elem : csts) {
+                fmt::format_to_n(tmp.begin(), tmp.capacity(), "{}", elem.first);
+                if (ImGui::MenuItem(tmp.c_str())) {
+                    constant_ptr = &elem;
+                    break;
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        if (!bins.empty() && ImGui::BeginMenu("Binary files")) {
+            for (auto& elem : bins) {
+                fmt::format_to_n(tmp.begin(), tmp.capacity(), "{}", elem.first);
+                if (ImGui::MenuItem(tmp.c_str())) {
+                    binary_file_ptr = &elem;
+                    break;
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        if (!texts.empty() && ImGui::BeginMenu("Text files")) {
+            for (auto& elem : texts) {
+                fmt::format_to_n(tmp.begin(), tmp.capacity(), "{}", elem.first);
+                if (ImGui::MenuItem(tmp.c_str())) {
+                    text_file_ptr = &elem;
+                    break;
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        if (constant_ptr != nullptr) {
+            constant_ptr->second.init(src);
+            src.id = constant_ptr->first;
+            constant_ptr = nullptr;
+        }
+
+        if (binary_file_ptr != nullptr) {
+            binary_file_ptr->second.init(src);
+            src.id = binary_file_ptr->first;
+            binary_file_ptr = nullptr;
+        }
+
+        if (text_file_ptr != nullptr) {
+            text_file_ptr->second.init(src);
+            src.id = text_file_ptr->first;
+            text_file_ptr = nullptr;
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 } // namespace irt

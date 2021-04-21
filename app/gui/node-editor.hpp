@@ -311,6 +311,7 @@ struct sources
     irt::source::text_file* new_text_file() noexcept;
 
     void show(bool* is_show);
+    void show_menu(external_source& src);
 };
 
 struct editor

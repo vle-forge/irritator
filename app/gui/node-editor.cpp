@@ -1917,6 +1917,18 @@ show_dynamics_inputs(generator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_value);
     ImGui::InputDouble("offset", &dyn.default_offset);
+
+    if (ImGui::Button("Select.."))
+        ImGui::OpenPopup("Select source");
+    ImGui::SameLine();
+    if (dyn.default_value_source_id == external_source_id{ 0 }) {
+        ImGui::TextUnformatted("<None>");
+    } else {
+        ImGui::Text("%" PRIu64, static_cast<u64>(dyn.default_value_source_id));
+    }
+
+    external_source src;
+    app.srcs.show_menu(src);
 }
 
 static void
