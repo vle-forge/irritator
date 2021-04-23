@@ -208,14 +208,14 @@ make_neuron(irt::simulation* sim, size_t i) noexcept
     /*double ref_lif = 0.5*1e-3;
     double sigma_lif = 0.02;*/
 
-    auto& sum_lif = sim->adder_2_models.alloc();
-    auto& prod_lif = sim->adder_2_models.alloc();
-    auto& integrator_lif = sim->integrator_models.alloc();
-    auto& quantifier_lif = sim->quantifier_models.alloc();
-    auto& constant_lif = sim->constant_models.alloc();
-    auto& flow_lif = sim->flow_models.alloc();
-    auto& constant_cross_lif = sim->constant_models.alloc();
-    auto& cross_lif = sim->cross_models.alloc();
+    auto& sum_lif = sim->alloc<irt::adder_2>();
+    auto& prod_lif = sim->alloc<irt::adder_2>();
+    auto& integrator_lif = sim->alloc<irt::integrator>();
+    auto& quantifier_lif = sim->alloc<irt::quantifier>();
+    auto& constant_lif = sim->alloc<irt::constant>();
+    auto& flow_lif = sim->alloc<irt::flow>();
+    auto& constant_cross_lif = sim->alloc<irt::constant>();
+    auto& cross_lif = sim->alloc<irt::cross>();
 
     sum_lif.default_input_coeffs[0] = -1.0;
     sum_lif.default_input_coeffs[1] = 1.0;
@@ -238,16 +238,6 @@ make_neuron(irt::simulation* sim, size_t i) noexcept
     quantifier_lif.default_past_length = 3;
 
     cross_lif.default_threshold = Vt_lif;
-
-    sim->alloc(sum_lif, sim->adder_2_models.get_id(sum_lif));
-    sim->alloc(prod_lif, sim->adder_2_models.get_id(prod_lif));
-    sim->alloc(integrator_lif, sim->integrator_models.get_id(integrator_lif));
-    sim->alloc(quantifier_lif, sim->quantifier_models.get_id(quantifier_lif));
-    sim->alloc(constant_lif, sim->constant_models.get_id(constant_lif));
-    sim->alloc(flow_lif, sim->flow_models.get_id(flow_lif));
-    sim->alloc(cross_lif, sim->cross_models.get_id(cross_lif));
-    sim->alloc(constant_cross_lif,
-               sim->constant_models.get_id(constant_cross_lif));
 
     struct neuron neuron_model = {
         sim->adder_2_models.get_id(sum_lif),

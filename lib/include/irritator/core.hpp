@@ -693,9 +693,6 @@ template<typename T>
 class block_allocator
 {
 public:
-    static_assert(std::is_trivially_destructible_v<T>,
-                  "block_allocator is only for POD object");
-
     using value_type = T;
 
     union block
@@ -1642,9 +1639,6 @@ public:
 enum class model_id : std::uint64_t;
 enum class dynamics_id : std::uint64_t;
 enum class message_id : std::uint64_t;
-enum class input_port_id : std::uint64_t;
-enum class output_port_id : std::uint64_t;
-enum class init_port_id : std::uint64_t;
 enum class observer_id : std::uint64_t;
 
 template<typename T>
@@ -2393,7 +2387,7 @@ private:
  *
  ****************************************************************************/
 
-enum class dynamics_type : i8
+enum class dynamics_type : i32
 {
     none,
 
@@ -2464,18 +2458,6 @@ dynamics_type_size() noexcept
     return static_cast<sz>(dynamics_type_last() + 1);
 }
 
-struct model
-{
-    double tl{ 0 };
-    double tn{ time_domain<time>::infinity };
-    heap::handle handle{ nullptr };
-
-    dynamics_id id{ 0 };
-    observer_id obs_id{ 0 };
-
-    dynamics_type type{ dynamics_type::none };
-};
-
 struct observer;
 
 struct observer
@@ -2504,20 +2486,6 @@ struct observer
     message msg;
 };
 
-struct input_port
-{
-    model_id model;
-    flat_list<output_port_id> connections;
-    flat_list<message> messages;
-};
-
-struct output_port
-{
-    model_id model;
-    flat_list<input_port_id> connections;
-    flat_list<message> messages;
-};
-
 namespace detail {
 
 template<typename, template<typename...> class, typename...>
@@ -2544,15 +2512,12 @@ constexpr bool is_detected_v =
   detail::is_detected<std::void_t<>, Operation, Arguments...>::value;
 
 template<class T>
-using lambda_function_t = decltype(
-  detail::helper<status (T::*)(data_array<output_port, output_port_id>&),
-                 &T::lambda>{});
+using lambda_function_t =
+  decltype(detail::helper<status (T::*)(), &T::lambda>{});
 
 template<class T>
-using transition_function_t = decltype(
-  detail::helper<
-    status (T::*)(data_array<input_port, input_port_id>&, time, time, time),
-    &T::transition>{});
+using transition_function_t =
+  decltype(detail::helper<status (T::*)(time, time, time), &T::transition>{});
 
 template<class T>
 using observation_function_t =
@@ -2576,17 +2541,34 @@ using has_sim_attribute_t = decltype(&T::sim);
 
 struct simulation;
 
+struct node
+{
+    node() = default;
+
+    node(const model_id model_, const int port_index_) noexcept
+        : model(model_)
+        , port_index(port_index_)
+    {}
+
+    model_id model = model_id{ 0 };
+    int port_index = 0;
+};
+
+struct port
+{
+    flat_list<node> connections;
+    flat_list<message> messages;
+};
+
 struct none
 {
-    model_id id;
     time sigma = time_domain<time>::infinity;
 };
 
 struct integrator
 {
-    model_id id;
-    input_port_id x[3];
-    output_port_id y[1];
+    port x[3];
+    port y[1];
     time sigma = time_domain<time>::zero;
 
     enum port_name
@@ -2651,9 +2633,9 @@ struct integrator
         return status::success;
     }
 
-    status external(input_port& port_quanta,
-                    input_port& port_x_dot,
-                    input_port& port_reset,
+    status external(port& port_quanta,
+                    port& port_x_dot,
+                    port& port_reset,
                     time t) noexcept
     {
         for (const auto& msg : port_quanta.messages) {
@@ -2712,14 +2694,11 @@ struct integrator
         }
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time t,
-                      time /*e*/,
-                      time r) noexcept
+    status transition(time t, time /*e*/, time r) noexcept
     {
-        auto& port_1 = input_ports.get(x[port_quanta]);
-        auto& port_2 = input_ports.get(x[port_x_dot]);
-        auto& port_3 = input_ports.get(x[port_reset]);
+        auto& port_1 = x[port_quanta];
+        auto& port_2 = x[port_x_dot];
+        auto& port_3 = x[port_reset];
 
         if (port_1.messages.empty() && port_2.messages.empty() &&
             port_3.messages.empty()) {
@@ -2734,16 +2713,14 @@ struct integrator
         return ta();
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        auto& port = output_ports.get(y[0]);
         switch (st) {
         case state::running:
-            port.messages.emplace_front(expected_value);
+            y[0].messages.emplace_front(expected_value);
             return status::success;
         case state::init:
-            port.messages.emplace_front(current_value);
+            y[0].messages.emplace_front(current_value);
             return status::success;
         default:
             return status::model_integrator_output_error;
@@ -2842,9 +2819,8 @@ struct abstract_integrator;
 template<>
 struct abstract_integrator<1>
 {
-    model_id id;
-    input_port_id x[2];
-    output_port_id y[1];
+    port x[2];
+    port y[1];
     double default_X = 0.;
     double default_dQ = 0.01;
     double X;
@@ -2922,13 +2898,10 @@ struct abstract_integrator<1>
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time e,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time e, time /*r*/) noexcept
     {
-        auto& port_x = input_ports.get(x[port_x_dot]);
-        auto& port_r = input_ports.get(x[port_reset]);
+        auto& port_x = x[port_x_dot];
+        auto& port_r = x[port_reset];
 
         if (port_x.messages.empty() && port_r.messages.empty()) {
             irt_return_if_bad(internal());
@@ -2943,12 +2916,9 @@ struct abstract_integrator<1>
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        auto& port = output_ports.get(y[0]);
-
-        port.messages.emplace_front(X + u * sigma);
+        y[0].messages.emplace_front(X + u * sigma);
 
         return status::success;
     }
@@ -2968,9 +2938,8 @@ struct abstract_integrator<1>
 template<>
 struct abstract_integrator<2>
 {
-    model_id id;
-    input_port_id x[2];
-    output_port_id y[1];
+    port x[2];
+    port y[1];
     double default_X = 0.;
     double default_dQ = 0.01;
     double X;
@@ -3093,13 +3062,10 @@ struct abstract_integrator<2>
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time e,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time e, time /*r*/) noexcept
     {
-        auto& port_x = input_ports.get(x[port_x_dot]);
-        auto& port_r = input_ports.get(x[port_reset]);
+        auto& port_x = x[port_x_dot];
+        auto& port_r = x[port_reset];
 
         if (port_x.messages.empty() && port_r.messages.empty())
             irt_return_if_bad(internal());
@@ -3115,12 +3081,9 @@ struct abstract_integrator<2>
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        auto& port = output_ports.get(y[0]);
-
-        port.messages.emplace_front(X + u * sigma + mu * sigma * sigma / 2.,
+        y[0].messages.emplace_front(X + u * sigma + mu * sigma * sigma / 2.,
                                     u + mu * sigma);
 
         return status::success;
@@ -3135,9 +3098,8 @@ struct abstract_integrator<2>
 template<>
 struct abstract_integrator<3>
 {
-    model_id id;
-    input_port_id x[2];
-    output_port_id y[1];
+    port x[2];
+    port y[1];
     double default_X = 0.;
     double default_dQ = 0.01;
     double X;
@@ -3426,13 +3388,10 @@ struct abstract_integrator<3>
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time e,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time e, time /*r*/) noexcept
     {
-        auto& port_x = input_ports.get(x[port_x_dot]);
-        auto& port_r = input_ports.get(x[port_reset]);
+        auto& port_x = x[port_x_dot];
+        auto& port_r = x[port_reset];
 
         if (port_x.messages.empty() && port_r.messages.empty())
             irt_return_if_bad(internal());
@@ -3449,12 +3408,9 @@ struct abstract_integrator<3>
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        auto& port = output_ports.get(y[0]);
-
-        port.messages.emplace_front(X + u * sigma + (mu * sigma * sigma) / 2. +
+        y[0].messages.emplace_front(X + u * sigma + (mu * sigma * sigma) / 2. +
                                       (pu * sigma * sigma * sigma) / 3.,
                                     u + mu * sigma + pu * sigma * sigma,
                                     mu / 2. + pu * sigma);
@@ -3477,9 +3433,8 @@ struct abstract_power
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    model_id id;
-    input_port_id x[1];
-    output_port_id y[1];
+    port x[1];
+    port y[1];
     time sigma;
 
     double value[QssLevel];
@@ -3495,22 +3450,20 @@ struct abstract_power
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
         if constexpr (QssLevel == 1) {
-            output_ports.get(y[0]).messages.emplace_front(
-              std::pow(value[0], default_n));
+            y[0].messages.emplace_front(std::pow(value[0], default_n));
         }
 
         if constexpr (QssLevel == 2) {
-            output_ports.get(y[0]).messages.emplace_front(
+            y[0].messages.emplace_front(
               std::pow(value[0], default_n),
               default_n * std::pow(value[0], default_n - 1) * value[1]);
         }
 
         if constexpr (QssLevel == 3) {
-            output_ports.get(y[0]).messages.emplace_front(
+            y[0].messages.emplace_front(
               std::pow(value[0], default_n),
               default_n * std::pow(value[0], default_n - 1) * value[1],
               default_n * (default_n - 1) * std::pow(value[0], default_n - 2) *
@@ -3521,16 +3474,12 @@ struct abstract_power
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
-        auto& port = input_ports.get(x[0]);
         sigma = time_domain<time>::infinity;
 
-        if (!port.messages.empty()) {
-            auto& msg = port.messages.front();
+        if (!x[0].messages.empty()) {
+            auto& msg = x[0].messages.front();
 
             if constexpr (QssLevel == 1) {
                 value[0] = msg[0];
@@ -3568,9 +3517,8 @@ struct abstract_square
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    model_id id;
-    input_port_id x[1];
-    output_port_id y[1];
+    port x[1];
+    port y[1];
     time sigma;
 
     double value[QssLevel];
@@ -3585,38 +3533,33 @@ struct abstract_square
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
         if constexpr (QssLevel == 1) {
-            output_ports.get(y[0]).messages.emplace_front(value[0] * value[0]);
+            y[0].messages.emplace_front(value[0] * value[0]);
         }
 
         if constexpr (QssLevel == 2) {
-            output_ports.get(y[0]).messages.emplace_front(
-              value[0] * value[0], 2. * value[0] * value[1]);
+            y[0].messages.emplace_front(value[0] * value[0],
+                                        2. * value[0] * value[1]);
         }
 
         if constexpr (QssLevel == 3) {
-            output_ports.get(y[0]).messages.emplace_front(
-              value[0] * value[0],
-              2. * value[0] * value[1],
-              2. * value[0] * value[2] + value[1] * value[1]);
+            y[0].messages.emplace_front(value[0] * value[0],
+                                        2. * value[0] * value[1],
+                                        2. * value[0] * value[2] +
+                                          value[1] * value[1]);
         }
 
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
-        auto& port = input_ports.get(x[0]);
         sigma = time_domain<time>::infinity;
 
-        if (!port.messages.empty()) {
-            auto& msg = port.messages.front();
+        if (!x[0].messages.empty()) {
+            auto& msg = x[0].messages.front();
 
             if constexpr (QssLevel == 1) {
                 value[0] = msg[0];
@@ -3655,9 +3598,8 @@ struct abstract_sum
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    model_id id;
-    input_port_id x[PortNumber];
-    output_port_id y[1];
+    port x[PortNumber];
+    port y[1];
     time sigma;
 
     double values[QssLevel * PortNumber];
@@ -3672,15 +3614,14 @@ struct abstract_sum
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
         if constexpr (QssLevel == 1) {
             double value = 0.;
             for (int i = 0; i != PortNumber; ++i)
                 value += values[i];
 
-            output_ports.get(y[0]).messages.emplace_front(value);
+            y[0].messages.emplace_front(value);
         }
 
         if constexpr (QssLevel == 2) {
@@ -3692,7 +3633,7 @@ struct abstract_sum
                 slope += values[i + PortNumber];
             }
 
-            output_ports.get(y[0]).messages.emplace_front(value, slope);
+            y[0].messages.emplace_front(value, slope);
         }
 
         if constexpr (QssLevel == 3) {
@@ -3706,23 +3647,19 @@ struct abstract_sum
                 derivative += values[i + PortNumber + PortNumber];
             }
 
-            output_ports.get(y[0]).messages.emplace_front(
-              value, slope, derivative);
+            y[0].messages.emplace_front(value, slope, derivative);
         }
 
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      [[maybe_unused]] time e,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, [[maybe_unused]] time e, time /*r*/) noexcept
     {
         bool message = false;
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                for (const auto& msg : input_ports.get(x[i]).messages) {
+                for (const auto& msg : x[i].messages) {
                     values[i] = msg[0];
                     message = true;
                 }
@@ -3731,12 +3668,10 @@ struct abstract_sum
 
         if constexpr (QssLevel == 2) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto& i_port = input_ports.get(x[i]);
-
-                if (i_port.messages.empty()) {
+                if (x[i].messages.empty()) {
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    for (const auto& msg : i_port.messages) {
+                    for (const auto& msg : x[i].messages) {
                         values[i] = msg[0];
                         values[i + PortNumber] = msg[1];
                         message = true;
@@ -3747,15 +3682,13 @@ struct abstract_sum
 
         if constexpr (QssLevel == 3) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto& i_port = input_ports.get(x[i]);
-
-                if (i_port.messages.empty()) {
+                if (x[i].messages.empty()) {
                     values[i] += values[i + PortNumber] * e +
                                  values[i + PortNumber + PortNumber] * e * e;
                     values[i + PortNumber] +=
                       2 * values[i + PortNumber + PortNumber] * e;
                 } else {
-                    for (const auto& msg : i_port.messages) {
+                    for (const auto& msg : x[i].messages) {
                         values[i] = msg[0];
                         values[i + PortNumber] = msg[1];
                         values[i + PortNumber + PortNumber] = msg[2];
@@ -3809,9 +3742,8 @@ struct abstract_wsum
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    model_id id;
-    input_port_id x[PortNumber];
-    output_port_id y[1];
+    port x[PortNumber];
+    port y[1];
     time sigma;
 
     double default_input_coeffs[PortNumber] = { 0 };
@@ -3827,8 +3759,7 @@ struct abstract_wsum
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
         if constexpr (QssLevel == 1) {
             double value = 0.0;
@@ -3836,7 +3767,7 @@ struct abstract_wsum
             for (int i = 0; i != PortNumber; ++i)
                 value += default_input_coeffs[i] * values[i];
 
-            output_ports.get(y[0]).messages.emplace_front(value);
+            y[0].messages.emplace_front(value);
         }
 
         if constexpr (QssLevel == 2) {
@@ -3848,7 +3779,7 @@ struct abstract_wsum
                 slope += default_input_coeffs[i] * values[i + PortNumber];
             }
 
-            output_ports.get(y[0]).messages.emplace_front(value, slope);
+            y[0].messages.emplace_front(value, slope);
         }
 
         if constexpr (QssLevel == 3) {
@@ -3863,23 +3794,19 @@ struct abstract_wsum
                   default_input_coeffs[i] * values[i + PortNumber + PortNumber];
             }
 
-            output_ports.get(y[0]).messages.emplace_front(
-              value, slope, derivative);
+            y[0].messages.emplace_front(value, slope, derivative);
         }
 
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      [[maybe_unused]] time e,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, [[maybe_unused]] time e, time /*r*/) noexcept
     {
         bool message = false;
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                for (const auto& msg : input_ports.get(x[i]).messages) {
+                for (const auto& msg : x[i].messages) {
                     values[i] = msg[0];
                     message = true;
                 }
@@ -3888,12 +3815,10 @@ struct abstract_wsum
 
         if constexpr (QssLevel == 2) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto& i_port = input_ports.get(x[i]);
-
-                if (i_port.messages.empty()) {
+                if (x[i].messages.empty()) {
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    for (const auto& msg : input_ports.get(x[i]).messages) {
+                    for (const auto& msg : x[i].messages) {
                         values[i] = msg[0];
                         values[i + PortNumber] = msg[1];
                         message = true;
@@ -3904,15 +3829,13 @@ struct abstract_wsum
 
         if constexpr (QssLevel == 3) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto& i_port = input_ports.get(x[i]);
-
-                if (i_port.messages.empty()) {
+                if (x[i].messages.empty()) {
                     values[i] += values[i + PortNumber] * e +
                                  values[i + PortNumber + PortNumber] * e * e;
                     values[i + PortNumber] +=
                       2 * values[i + PortNumber + PortNumber] * e;
                 } else {
-                    for (const auto& msg : i_port.messages) {
+                    for (const auto& msg : x[i].messages) {
                         values[i] = msg[0];
                         values[i + PortNumber] = msg[1];
                         values[i + PortNumber + PortNumber] = msg[2];
@@ -3966,9 +3889,8 @@ struct abstract_multiplier
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    model_id id;
-    input_port_id x[2];
-    output_port_id y[1];
+    port x[2];
+    port y[1];
     time sigma;
 
     double values[QssLevel * 2];
@@ -3983,22 +3905,20 @@ struct abstract_multiplier
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
         if constexpr (QssLevel == 1) {
-            output_ports.get(y[0]).messages.emplace_front(values[0] *
-                                                          values[1]);
+            y[0].messages.emplace_front(values[0] * values[1]);
         }
 
         if constexpr (QssLevel == 2) {
-            output_ports.get(y[0]).messages.emplace_front(
-              values[0] * values[1],
-              values[2 + 0] * values[1] + values[2 + 1] * values[0]);
+            y[0].messages.emplace_front(values[0] * values[1],
+                                        values[2 + 0] * values[1] +
+                                          values[2 + 1] * values[0]);
         }
 
         if constexpr (QssLevel == 3) {
-            output_ports.get(y[0]).messages.emplace_front(
+            y[0].messages.emplace_front(
               values[0] * values[1],
               values[2 + 0] * values[1] + values[2 + 1] * values[0],
               values[0] * values[2 + 2 + 1] + values[2 + 0] * values[2 + 1] +
@@ -4008,16 +3928,13 @@ struct abstract_multiplier
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      [[maybe_unused]] time e,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, [[maybe_unused]] time e, time /*r*/) noexcept
     {
         bool message_port_0 = false;
         bool message_port_1 = false;
         sigma = time_domain<time>::infinity;
 
-        for (const auto& msg : input_ports.get(x[0]).messages) {
+        for (const auto& msg : x[0].messages) {
             sigma = time_domain<time>::zero;
             message_port_0 = true;
             values[0] = msg[0];
@@ -4029,7 +3946,7 @@ struct abstract_multiplier
                 values[2 + 2 + 0] = msg[2];
         }
 
-        for (const auto& msg : input_ports.get(x[1]).messages) {
+        for (const auto& msg : x[1].messages) {
             message_port_1 = true;
             sigma = time_domain<time>::zero;
             values[1] = msg[0];
@@ -4085,9 +4002,8 @@ using qss3_multiplier = abstract_multiplier<3>;
 
 struct quantifier
 {
-    model_id id;
-    input_port_id x[1];
-    output_port_id y[1];
+    port x[1];
+    port y[1];
     time sigma = time_domain<time>::infinity;
 
     enum class state
@@ -4170,14 +4086,14 @@ struct quantifier
         return status::success;
     }
 
-    status external(input_port& port, time t) noexcept
+    status external(port& p, time t) noexcept
     {
         double val = 0.0, shifting_factor = 0.0;
 
         {
             double sum = 0.0;
             double nb = 0.0;
-            for (const auto& msg : port.messages) {
+            for (const auto& msg : p.messages) {
                 sum += msg.real[0];
                 ++nb;
             }
@@ -4241,30 +4157,23 @@ struct quantifier
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time t,
-                      time /*e*/,
-                      time r) noexcept
+    status transition(time t, time /*e*/, time r) noexcept
     {
-        auto& port = input_ports.get(x[0]);
-
-        if (port.messages.empty()) {
+        if (x[0].messages.empty()) {
             irt_return_if_bad(internal());
         } else {
             if (time_domain<time>::is_zero(r))
                 irt_return_if_bad(internal());
 
-            irt_return_if_bad(external(port, t));
+            irt_return_if_bad(external(x[0], t));
         }
 
         return ta();
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        if (auto* port = output_ports.try_to_get(y[0]); port)
-            port->messages.emplace_front(m_upthreshold, m_downthreshold);
+        y[0].messages.emplace_front(m_upthreshold, m_downthreshold);
 
         return status::success;
     }
@@ -4408,9 +4317,8 @@ struct adder
 {
     static_assert(PortNumber > 1, "adder model need at least two input port");
 
-    model_id id;
-    input_port_id x[PortNumber];
-    output_port_id y[1];
+    port x[PortNumber];
+    port y[1];
     time sigma;
 
     double default_values[PortNumber];
@@ -4441,28 +4349,24 @@ struct adder
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
         double to_send = 0.0;
 
         for (size_t i = 0; i != PortNumber; ++i)
             to_send += input_coeffs[i] * values[i];
 
-        output_ports.get(y[0]).messages.emplace_front(to_send);
+        y[0].messages.emplace_front(to_send);
 
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
         bool have_message = false;
 
         for (size_t i = 0; i != PortNumber; ++i) {
-            for (const auto& msg : input_ports.get(x[i]).messages) {
+            for (const auto& msg : x[i].messages) {
                 values[i] = msg.real[0];
 
                 have_message = true;
@@ -4491,9 +4395,8 @@ struct mult
 {
     static_assert(PortNumber > 1, "mult model need at least two input port");
 
-    model_id id;
-    input_port_id x[PortNumber];
-    output_port_id y[1];
+    port x[PortNumber];
+    port y[1];
     time sigma;
 
     double default_values[PortNumber];
@@ -4521,27 +4424,23 @@ struct mult
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
         double to_send = 1.0;
 
         for (size_t i = 0; i != PortNumber; ++i)
             to_send *= std::pow(values[i], input_coeffs[i]);
 
-        output_ports.get(y[0]).messages.emplace_front(to_send);
+        y[0].messages.emplace_front(to_send);
 
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
         bool have_message = false;
         for (size_t i = 0; i != PortNumber; ++i) {
-            for (const auto& msg : input_ports.get(x[i]).messages) {
+            for (const auto& msg : x[i].messages) {
                 values[i] = msg[0];
                 have_message = true;
             }
@@ -4566,8 +4465,7 @@ struct mult
 
 struct counter
 {
-    model_id id;
-    input_port_id x[1];
+    port x[1];
     time sigma;
     i64 number;
 
@@ -4579,15 +4477,10 @@ struct counter
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
-        auto& port = input_ports.get(x[0]);
-
         const auto diff =
-          std::distance(std::begin(port.messages), std::end(port.messages));
+          std::distance(std::begin(x[0].messages), std::end(x[0].messages));
 
         number += static_cast<i64>(diff);
 
@@ -4631,9 +4524,8 @@ struct external_source
 
 struct buffer
 {
-    model_id id;
-    input_port_id x[1];
-    output_port_id y[1];
+    port x[1];
+    port y[1];
     time sigma;
     message msg_list;
 
@@ -4650,18 +4542,10 @@ struct buffer
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time r) noexcept
+    status transition(time /*t*/, time /*e*/, time r) noexcept
     {
-        bool have_message = false;
-
-        auto& port = input_ports.get(x[0]);
-        for (const auto& msg : port.messages) {
+        for (const auto& msg : x[0].messages)
             msg_list = msg;
-            have_message = true;
-        }
 
         if (time_domain<time>::is_zero(r)) {
             if (!default_ta_source.data)
@@ -4678,10 +4562,9 @@ struct buffer
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(msg_list);
+        y[0].messages.emplace_front(msg_list);
 
         return status::success;
     }
@@ -4694,8 +4577,7 @@ struct buffer
 
 struct generator
 {
-    model_id id;
-    output_port_id y[1];
+    port y[1];
     time sigma;
 
     external_source default_ta_source;
@@ -4716,10 +4598,7 @@ struct generator
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
         if (!default_ta_source.data)
             irt_bad_return(status::model_generator_null_ta_source);
@@ -4738,11 +4617,9 @@ struct generator
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(
-          *default_value_source.data);
+        y[0].messages.emplace_front(*default_value_source.data);
 
         return status::success;
     }
@@ -4755,8 +4632,7 @@ struct generator
 
 struct constant
 {
-    model_id id;
-    output_port_id y[1];
+    port y[1];
     time sigma;
 
     double default_value = 0.0;
@@ -4772,20 +4648,16 @@ struct constant
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
         sigma = time_domain<time>::infinity;
 
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(value);
+        y[0].messages.emplace_front(value);
 
         return status::success;
     }
@@ -4798,8 +4670,7 @@ struct constant
 
 struct flow
 {
-    model_id id;
-    output_port_id y[1];
+    port y[1];
     time sigma;
 
     double default_samplerate = 44100.0;
@@ -4826,10 +4697,7 @@ struct flow
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-                      time t,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time t, time /*e*/, time /*r*/) noexcept
     {
         for (; i < default_size; ++i) {
             accu_sigma += default_sigmas[i];
@@ -4846,10 +4714,9 @@ struct flow
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(default_data[i]);
+        y[0].messages.emplace_front(default_data[i]);
 
         return status::success;
     }
@@ -4863,8 +4730,7 @@ struct flow
 template<size_t PortNumber>
 struct accumulator
 {
-    model_id id;
-    input_port_id x[2 * PortNumber];
+    port x[2 * PortNumber];
     time sigma;
     double number;
     double numbers[PortNumber];
@@ -4879,26 +4745,17 @@ struct accumulator
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            auto& port = input_ports.get(x[i + PortNumber]);
-            for (const auto& msg : port.messages) {
+        for (size_t i = 0; i != PortNumber; ++i)
+            for (const auto& msg : x[i + PortNumber].messages)
                 numbers[i] = msg[0];
-            }
-        }
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            auto& port = input_ports.get(x[i]);
-            for (const auto& msg : port.messages) {
+        for (size_t i = 0; i != PortNumber; ++i)
+            for (const auto& msg : x[i].messages)
                 if (msg[0] != 0.0)
                     number += numbers[i];
-            }
-        }
 
         return status::success;
     }
@@ -4906,9 +4763,8 @@ struct accumulator
 
 struct cross
 {
-    model_id id;
-    input_port_id x[4];
-    output_port_id y[2];
+    port x[4];
+    port y[2];
     time sigma;
 
     double default_threshold = 0.0;
@@ -4942,32 +4798,29 @@ struct cross
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
         bool have_message = false;
         bool have_message_value = false;
         event = 0.0;
 
-        for (const auto& msg : input_ports.get(x[port_threshold]).messages) {
+        for (const auto& msg : x[port_threshold].messages) {
             threshold = msg.real[0];
             have_message = true;
         }
 
-        for (const auto& msg : input_ports.get(x[port_value]).messages) {
+        for (const auto& msg : x[port_value].messages) {
             value = msg.real[0];
             have_message_value = true;
             have_message = true;
         }
 
-        for (const auto& msg : input_ports.get(x[port_if_value]).messages) {
+        for (const auto& msg : x[port_if_value].messages) {
             if_value = msg.real[0];
             have_message = true;
         }
 
-        for (const auto& msg : input_ports.get(x[port_else_value]).messages) {
+        for (const auto& msg : x[port_else_value].messages) {
             else_value = msg.real[0];
             have_message = true;
         }
@@ -4988,11 +4841,10 @@ struct cross
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(result);
-        output_ports.get(y[1]).messages.emplace_front(event);
+        y[0].messages.emplace_front(result);
+        y[1].messages.emplace_front(event);
 
         return status::success;
     }
@@ -5008,9 +4860,8 @@ struct abstract_cross
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    model_id id;
-    input_port_id x[4];
-    output_port_id y[3];
+    port x[4];
+    port y[3];
     time sigma;
 
     double default_threshold = 0.0;
@@ -5115,15 +4966,12 @@ struct abstract_cross
         }
     }
 
-    status transition(data_array<input_port, input_port_id>& input_ports,
-                      time t,
-                      [[maybe_unused]] time e,
-                      time /*r*/) noexcept
+    status transition(time t, [[maybe_unused]] time e, time /*r*/) noexcept
     {
-        auto& p_threshold = input_ports.get(x[port_threshold]);
-        auto& p_if_value = input_ports.get(x[port_if_value]);
-        auto& p_else_value = input_ports.get(x[port_else_value]);
-        auto& p_value = input_ports.get(x[port_value]);
+        auto& p_threshold = x[port_threshold];
+        auto& p_if_value = x[port_if_value];
+        auto& p_else_value = x[port_else_value];
+        auto& p_value = x[port_value];
 
         const auto old_else_value = else_value[0];
 
@@ -5200,38 +5048,32 @@ struct abstract_cross
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
         if constexpr (QssLevel == 1) {
-            output_ports.get(y[o_else_value])
-              .messages.emplace_front(else_value[0]);
+            y[o_else_value].messages.emplace_front(else_value[0]);
             if (reach_threshold) {
-                output_ports.get(y[o_if_value])
-                  .messages.emplace_front(if_value[0]);
-                output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                y[o_if_value].messages.emplace_front(if_value[0]);
+                y[o_event].messages.emplace_front(1.0);
             }
         }
 
         if constexpr (QssLevel == 2) {
-            output_ports.get(y[o_else_value])
-              .messages.emplace_front(else_value[0], else_value[1]);
+            y[o_else_value].messages.emplace_front(else_value[0],
+                                                   else_value[1]);
             if (reach_threshold) {
-                output_ports.get(y[o_if_value])
-                  .messages.emplace_front(if_value[0], if_value[1]);
-                output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                y[o_if_value].messages.emplace_front(if_value[0], if_value[1]);
+                y[o_event].messages.emplace_front(1.0);
             }
         }
 
         if constexpr (QssLevel == 3) {
-            output_ports.get(y[o_else_value])
-              .messages.emplace_front(
-                else_value[0], else_value[1], else_value[2]);
+            y[o_else_value].messages.emplace_front(
+              else_value[0], else_value[1], else_value[2]);
             if (reach_threshold) {
-                output_ports.get(y[o_if_value])
-                  .messages.emplace_front(
-                    if_value[0], if_value[1], if_value[2]);
-                output_ports.get(y[o_event]).messages.emplace_front(1.0);
+                y[o_if_value].messages.emplace_front(
+                  if_value[0], if_value[1], if_value[2]);
+                y[o_event].messages.emplace_front(1.0);
             }
         }
 
@@ -5270,8 +5112,7 @@ time_function(double t) noexcept
 
 struct time_func
 {
-    model_id id;
-    output_port_id y[1];
+    port y[1];
     time sigma;
 
     double default_sigma = 0.01;
@@ -5288,19 +5129,15 @@ struct time_func
         return status::success;
     }
 
-    status transition(data_array<input_port, input_port_id>& /*input_ports*/,
-                      time t,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(time t, time /*e*/, time /*r*/) noexcept
     {
         value = (*f)(t);
         return status::success;
     }
 
-    status lambda(
-      data_array<output_port, output_port_id>& output_ports) noexcept
+    status lambda() noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(value);
+        y[0].messages.emplace_front(value);
 
         return status::success;
     }
@@ -5320,6 +5157,20 @@ using mult_3 = mult<3>;
 using mult_4 = mult<4>;
 
 using accumulator_2 = accumulator<2>;
+
+struct model
+{
+    double tl = 0.0;
+    double tn = time_domain<time>::infinity;
+    heap::handle handle = nullptr;
+
+    observer_id obs_id = observer_id{ 0 };
+    dynamics_type type{ dynamics_type::none };
+
+    std::byte dyn[344];
+};
+
+// static_assert(sizeof(model) == 344 + 8 + 8 + 8 + 8 + 4);
 
 /*****************************************************************************
  *
@@ -5556,75 +5407,50 @@ dynamics_typeof() noexcept
     return dynamics_type::none;
 }
 
+template<typename Dynamics>
+Dynamics&
+get_dyn(model& mdl) noexcept
+{
+    irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
+    return *reinterpret_cast<Dynamics*>(&mdl.dyn);
+}
+
+template<typename Dynamics>
+const Dynamics&
+get_dyn(const model& mdl) noexcept
+{
+    irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
+    return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
+}
+
+template<typename Dynamics>
+constexpr const model&
+get_model(const Dynamics& d) noexcept
+{
+    const Dynamics* __mptr = &d;
+    return *(const model*)((const char*)__mptr - offsetof(model, dyn));
+}
+
+template<typename Dynamics>
+constexpr model&
+get_model(Dynamics& d) noexcept
+{
+    Dynamics* __mptr = &d;
+    return *(model*)((char*)__mptr - offsetof(model, dyn));
+}
+
 struct simulation
 {
     flat_list<model_id>::allocator_type model_list_allocator;
     flat_list<message>::allocator_type message_list_allocator;
-    flat_list<input_port_id>::allocator_type input_port_list_allocator;
-    flat_list<output_port_id>::allocator_type output_port_list_allocator;
-    flat_list<output_port_id>::allocator_type emitting_output_port_allocator;
+    flat_list<node>::allocator_type input_port_list_allocator;
+    flat_list<node>::allocator_type output_port_list_allocator;
+    flat_list<port*>::allocator_type emitting_output_port_allocator;
     flat_double_list<record>::allocator_type flat_double_list_shared_allocator;
 
     data_array<model, model_id> models;
 
     data_array<message, message_id> messages;
-    data_array<input_port, input_port_id> input_ports;
-    data_array<output_port, output_port_id> output_ports;
-
-    data_array<none, dynamics_id> none_models;
-
-    data_array<qss1_integrator, dynamics_id> qss1_integrator_models;
-    data_array<qss1_multiplier, dynamics_id> qss1_multiplier_models;
-    data_array<qss1_cross, dynamics_id> qss1_cross_models;
-    data_array<qss1_power, dynamics_id> qss1_power_models;
-    data_array<qss1_square, dynamics_id> qss1_square_models;
-    data_array<qss1_sum_2, dynamics_id> qss1_sum_2_models;
-    data_array<qss1_sum_3, dynamics_id> qss1_sum_3_models;
-    data_array<qss1_sum_4, dynamics_id> qss1_sum_4_models;
-    data_array<qss1_wsum_2, dynamics_id> qss1_wsum_2_models;
-    data_array<qss1_wsum_3, dynamics_id> qss1_wsum_3_models;
-    data_array<qss1_wsum_4, dynamics_id> qss1_wsum_4_models;
-
-    data_array<qss2_integrator, dynamics_id> qss2_integrator_models;
-    data_array<qss2_multiplier, dynamics_id> qss2_multiplier_models;
-    data_array<qss2_cross, dynamics_id> qss2_cross_models;
-    data_array<qss2_power, dynamics_id> qss2_power_models;
-    data_array<qss2_square, dynamics_id> qss2_square_models;
-    data_array<qss2_sum_2, dynamics_id> qss2_sum_2_models;
-    data_array<qss2_sum_3, dynamics_id> qss2_sum_3_models;
-    data_array<qss2_sum_4, dynamics_id> qss2_sum_4_models;
-    data_array<qss2_wsum_2, dynamics_id> qss2_wsum_2_models;
-    data_array<qss2_wsum_3, dynamics_id> qss2_wsum_3_models;
-    data_array<qss2_wsum_4, dynamics_id> qss2_wsum_4_models;
-
-    data_array<qss3_integrator, dynamics_id> qss3_integrator_models;
-    data_array<qss3_multiplier, dynamics_id> qss3_multiplier_models;
-    data_array<qss3_cross, dynamics_id> qss3_cross_models;
-    data_array<qss3_power, dynamics_id> qss3_power_models;
-    data_array<qss3_square, dynamics_id> qss3_square_models;
-    data_array<qss3_sum_2, dynamics_id> qss3_sum_2_models;
-    data_array<qss3_sum_3, dynamics_id> qss3_sum_3_models;
-    data_array<qss3_sum_4, dynamics_id> qss3_sum_4_models;
-    data_array<qss3_wsum_2, dynamics_id> qss3_wsum_2_models;
-    data_array<qss3_wsum_3, dynamics_id> qss3_wsum_3_models;
-    data_array<qss3_wsum_4, dynamics_id> qss3_wsum_4_models;
-
-    data_array<integrator, dynamics_id> integrator_models;
-    data_array<quantifier, dynamics_id> quantifier_models;
-    data_array<adder_2, dynamics_id> adder_2_models;
-    data_array<adder_3, dynamics_id> adder_3_models;
-    data_array<adder_4, dynamics_id> adder_4_models;
-    data_array<mult_2, dynamics_id> mult_2_models;
-    data_array<mult_3, dynamics_id> mult_3_models;
-    data_array<mult_4, dynamics_id> mult_4_models;
-    data_array<counter, dynamics_id> counter_models;
-    data_array<buffer, dynamics_id> buffer_models;
-    data_array<generator, dynamics_id> generator_models;
-    data_array<constant, dynamics_id> constant_models;
-    data_array<cross, dynamics_id> cross_models;
-    data_array<time_func, dynamics_id> time_func_models;
-    data_array<accumulator_2, dynamics_id> accumulator_2_models;
-    data_array<flow, dynamics_id> flow_models;
 
     data_array<observer, observer_id> observers;
 
@@ -5633,507 +5459,395 @@ struct simulation
     time begin = time_domain<time>::zero;
     time end = time_domain<time>::infinity;
 
+
+
+    template<typename Dynamics>
+    constexpr model_id get_id(const Dynamics& dyn) const
+    {
+        return models.get_id(get_model(dyn));
+    }
+
+#if 0
     template<typename Function>
-    constexpr status for_all(Function f) noexcept
+    constexpr void for_all(Function f) noexcept
     {
-        sz i = 0;
-        constexpr sz e = dynamics_type_size();
+        model* mdl = nullptr;
 
-        for (; i != e; ++i)
-            if (auto ret = dispatch(static_cast<dynamics_type>(i), f);
-                is_bad(ret))
-                return ret;
-
-        return status::success;
+        while (models.next(mdl))
+            dispatch(*mdl, f);
     }
-
-    template<typename Dynamics>
-    constexpr const data_array<Dynamics, dynamics_id>& static_dispatch()
-      const noexcept
-    {
-        if constexpr (std::is_same_v<Dynamics, none>)
-            return none_models;
-
-        if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
-            return qss1_integrator_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_multiplier>)
-            return qss1_multiplier_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_cross>)
-            return qss1_cross_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_power>)
-            return qss1_power_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_square>)
-            return qss1_square_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_sum_2>)
-            return qss1_sum_2_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_sum_3>)
-            return qss1_sum_3_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_sum_4>)
-            return qss1_sum_4_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_wsum_2>)
-            return qss1_wsum_2_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_wsum_3>)
-            return qss1_wsum_3_models;
-        if constexpr (std::is_same_v<Dynamics, qss1_wsum_4>)
-            return qss1_wsum_4_models;
-
-        if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
-            return qss2_integrator_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
-            return qss2_multiplier_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_cross>)
-            return qss2_cross_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_power>)
-            return qss2_power_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_square>)
-            return qss2_square_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
-            return qss2_sum_2_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
-            return qss2_sum_3_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_sum_4>)
-            return qss2_sum_4_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_wsum_2>)
-            return qss2_wsum_2_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_wsum_3>)
-            return qss2_wsum_3_models;
-        if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
-            return qss2_wsum_4_models;
-
-        if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
-            return qss3_integrator_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_multiplier>)
-            return qss3_multiplier_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_cross>)
-            return qss3_cross_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_power>)
-            return qss3_power_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_square>)
-            return qss3_square_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_sum_2>)
-            return qss3_sum_2_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_sum_3>)
-            return qss3_sum_3_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_sum_4>)
-            return qss3_sum_4_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_wsum_2>)
-            return qss3_wsum_2_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_wsum_3>)
-            return qss3_wsum_3_models;
-        if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
-            return qss3_wsum_4_models;
-
-        if constexpr (std::is_same_v<Dynamics, integrator>)
-            return integrator_models;
-        if constexpr (std::is_same_v<Dynamics, quantifier>)
-            return quantifier_models;
-        if constexpr (std::is_same_v<Dynamics, adder_2>)
-            return adder_2_models;
-        if constexpr (std::is_same_v<Dynamics, adder_3>)
-            return adder_3_models;
-        if constexpr (std::is_same_v<Dynamics, adder_4>)
-            return adder_4_models;
-        if constexpr (std::is_same_v<Dynamics, mult_2>)
-            return mult_2_models;
-        if constexpr (std::is_same_v<Dynamics, mult_3>)
-            return mult_3_models;
-        if constexpr (std::is_same_v<Dynamics, mult_4>)
-            return mult_4_models;
-
-        if constexpr (std::is_same_v<Dynamics, counter>)
-            return counter_models;
-        if constexpr (std::is_same_v<Dynamics, buffer>)
-            return buffer_models;
-        if constexpr (std::is_same_v<Dynamics, generator>)
-            return generator_models;
-        if constexpr (std::is_same_v<Dynamics, constant>)
-            return constant_models;
-        if constexpr (std::is_same_v<Dynamics, cross>)
-            return cross_models;
-        if constexpr (std::is_same_v<Dynamics, time_func>)
-            return time_func_models;
-        if constexpr (std::is_same_v<Dynamics, accumulator_2>)
-            return accumulator_2_models;
-        if constexpr (std::is_same_v<Dynamics, flow>)
-            return flow_models;
-    }
-
-    template<typename Dynamics>
-    constexpr data_array<Dynamics, dynamics_id>& static_dispatch() noexcept
-    {
-        return const_cast<data_array<Dynamics, dynamics_id>&>(
-          std::as_const(*this).static_dispatch<Dynamics>());
-    }
+#endif
 
     template<typename Function, typename... Args>
-    constexpr auto dispatch(const dynamics_type type,
-                            Function&& f,
-                            Args... args) noexcept
+    constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
     {
-        switch (type) {
+        switch (mdl.type) {
         case dynamics_type::none:
-            return f(none_models, args...);
+            return f(*reinterpret_cast<none*>(&mdl.dyn), args...);
 
         case dynamics_type::qss1_integrator:
-            return f(qss1_integrator_models, args...);
+            return f(*reinterpret_cast<qss1_integrator*>(&mdl.dyn), args...);
         case dynamics_type::qss1_multiplier:
-            return f(qss1_multiplier_models, args...);
+            return f(*reinterpret_cast<qss1_multiplier*>(&mdl.dyn), args...);
         case dynamics_type::qss1_cross:
-            return f(qss1_cross_models, args...);
+            return f(*reinterpret_cast<qss1_cross*>(&mdl.dyn), args...);
         case dynamics_type::qss1_power:
-            return f(qss1_power_models, args...);
+            return f(*reinterpret_cast<qss1_power*>(&mdl.dyn), args...);
         case dynamics_type::qss1_square:
-            return f(qss1_square_models, args...);
+            return f(*reinterpret_cast<qss1_square*>(&mdl.dyn), args...);
         case dynamics_type::qss1_sum_2:
-            return f(qss1_sum_2_models, args...);
+            return f(*reinterpret_cast<qss1_sum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss1_sum_3:
-            return f(qss1_sum_3_models, args...);
+            return f(*reinterpret_cast<qss1_sum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss1_sum_4:
-            return f(qss1_sum_4_models, args...);
+            return f(*reinterpret_cast<qss1_sum_4*>(&mdl.dyn), args...);
         case dynamics_type::qss1_wsum_2:
-            return f(qss1_wsum_2_models, args...);
+            return f(*reinterpret_cast<qss1_wsum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss1_wsum_3:
-            return f(qss1_wsum_3_models, args...);
+            return f(*reinterpret_cast<qss1_wsum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss1_wsum_4:
-            return f(qss1_wsum_4_models, args...);
+            return f(*reinterpret_cast<qss1_wsum_4*>(&mdl.dyn), args...);
 
         case dynamics_type::qss2_integrator:
-            return f(qss2_integrator_models, args...);
+            return f(*reinterpret_cast<qss2_integrator*>(&mdl.dyn), args...);
         case dynamics_type::qss2_multiplier:
-            return f(qss2_multiplier_models, args...);
+            return f(*reinterpret_cast<qss2_multiplier*>(&mdl.dyn), args...);
         case dynamics_type::qss2_cross:
-            return f(qss2_cross_models, args...);
+            return f(*reinterpret_cast<qss2_cross*>(&mdl.dyn), args...);
         case dynamics_type::qss2_power:
-            return f(qss2_power_models, args...);
+            return f(*reinterpret_cast<qss2_power*>(&mdl.dyn), args...);
         case dynamics_type::qss2_square:
-            return f(qss2_square_models, args...);
+            return f(*reinterpret_cast<qss2_square*>(&mdl.dyn), args...);
         case dynamics_type::qss2_sum_2:
-            return f(qss2_sum_2_models, args...);
+            return f(*reinterpret_cast<qss2_sum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss2_sum_3:
-            return f(qss2_sum_3_models, args...);
+            return f(*reinterpret_cast<qss2_sum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss2_sum_4:
-            return f(qss2_sum_4_models, args...);
+            return f(*reinterpret_cast<qss2_sum_4*>(&mdl.dyn), args...);
         case dynamics_type::qss2_wsum_2:
-            return f(qss2_wsum_2_models, args...);
+            return f(*reinterpret_cast<qss2_wsum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss2_wsum_3:
-            return f(qss2_wsum_3_models, args...);
+            return f(*reinterpret_cast<qss2_wsum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss2_wsum_4:
-            return f(qss2_wsum_4_models, args...);
+            return f(*reinterpret_cast<qss2_wsum_4*>(&mdl.dyn), args...);
 
         case dynamics_type::qss3_integrator:
-            return f(qss3_integrator_models, args...);
+            return f(*reinterpret_cast<qss3_integrator*>(&mdl.dyn), args...);
         case dynamics_type::qss3_multiplier:
-            return f(qss3_multiplier_models, args...);
+            return f(*reinterpret_cast<qss3_multiplier*>(&mdl.dyn), args...);
         case dynamics_type::qss3_cross:
-            return f(qss3_cross_models, args...);
+            return f(*reinterpret_cast<qss3_cross*>(&mdl.dyn), args...);
         case dynamics_type::qss3_power:
-            return f(qss3_power_models, args...);
+            return f(*reinterpret_cast<qss3_power*>(&mdl.dyn), args...);
         case dynamics_type::qss3_square:
-            return f(qss3_square_models, args...);
+            return f(*reinterpret_cast<qss3_square*>(&mdl.dyn), args...);
         case dynamics_type::qss3_sum_2:
-            return f(qss3_sum_2_models, args...);
+            return f(*reinterpret_cast<qss3_sum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss3_sum_3:
-            return f(qss3_sum_3_models, args...);
+            return f(*reinterpret_cast<qss3_sum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss3_sum_4:
-            return f(qss3_sum_4_models, args...);
+            return f(*reinterpret_cast<qss3_sum_4*>(&mdl.dyn), args...);
         case dynamics_type::qss3_wsum_2:
-            return f(qss3_wsum_2_models, args...);
+            return f(*reinterpret_cast<qss3_wsum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss3_wsum_3:
-            return f(qss3_wsum_3_models, args...);
+            return f(*reinterpret_cast<qss3_wsum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss3_wsum_4:
-            return f(qss3_wsum_4_models, args...);
+            return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn), args...);
 
         case dynamics_type::integrator:
-            return f(integrator_models, args...);
+            return f(*reinterpret_cast<integrator*>(&mdl.dyn), args...);
         case dynamics_type::quantifier:
-            return f(quantifier_models, args...);
+            return f(*reinterpret_cast<quantifier*>(&mdl.dyn), args...);
         case dynamics_type::adder_2:
-            return f(adder_2_models, args...);
+            return f(*reinterpret_cast<adder_2*>(&mdl.dyn), args...);
         case dynamics_type::adder_3:
-            return f(adder_3_models, args...);
+            return f(*reinterpret_cast<adder_3*>(&mdl.dyn), args...);
         case dynamics_type::adder_4:
-            return f(adder_4_models, args...);
+            return f(*reinterpret_cast<adder_4*>(&mdl.dyn), args...);
         case dynamics_type::mult_2:
-            return f(mult_2_models, args...);
+            return f(*reinterpret_cast<mult_2*>(&mdl.dyn), args...);
         case dynamics_type::mult_3:
-            return f(mult_3_models, args...);
+            return f(*reinterpret_cast<mult_3*>(&mdl.dyn), args...);
         case dynamics_type::mult_4:
-            return f(mult_4_models, args...);
+            return f(*reinterpret_cast<mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
-            return f(counter_models, args...);
+            return f(*reinterpret_cast<counter*>(&mdl.dyn), args...);
         case dynamics_type::buffer:
-            return f(buffer_models, args...);
+            return f(*reinterpret_cast<buffer*>(&mdl.dyn), args...);
         case dynamics_type::generator:
-            return f(generator_models, args...);
+            return f(*reinterpret_cast<generator*>(&mdl.dyn), args...);
         case dynamics_type::constant:
-            return f(constant_models, args...);
+            return f(*reinterpret_cast<constant*>(&mdl.dyn), args...);
         case dynamics_type::cross:
-            return f(cross_models, args...);
+            return f(*reinterpret_cast<cross*>(&mdl.dyn), args...);
         case dynamics_type::accumulator_2:
-            return f(accumulator_2_models, args...);
+            return f(*reinterpret_cast<accumulator_2*>(&mdl.dyn), args...);
         case dynamics_type::time_func:
-            return f(time_func_models, args...);
+            return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
         case dynamics_type::flow:
-            return f(flow_models, args...);
+            return f(*reinterpret_cast<flow*>(&mdl.dyn), args...);
         }
 
         irt_unreachable();
     }
 
     template<typename Function, typename... Args>
-    constexpr auto dispatch(const dynamics_type type,
+    constexpr auto dispatch(const model& mdl,
                             Function&& f,
                             Args... args) const noexcept
     {
-        switch (type) {
+        switch (mdl.type) {
         case dynamics_type::none:
-            return f(none_models, args...);
+            return f(*reinterpret_cast<const none*>(&mdl.dyn), args...);
 
         case dynamics_type::qss1_integrator:
-            return f(qss1_integrator_models, args...);
+            return f(*reinterpret_cast<const qss1_integrator*>(&mdl.dyn),
+                     args...);
         case dynamics_type::qss1_multiplier:
-            return f(qss1_multiplier_models, args...);
+            return f(*reinterpret_cast<const qss1_multiplier*>(&mdl.dyn),
+                     args...);
         case dynamics_type::qss1_cross:
-            return f(qss1_cross_models, args...);
+            return f(*reinterpret_cast<const qss1_cross*>(&mdl.dyn), args...);
         case dynamics_type::qss1_power:
-            return f(qss1_power_models, args...);
+            return f(*reinterpret_cast<const qss1_power*>(&mdl.dyn), args...);
         case dynamics_type::qss1_square:
-            return f(qss1_square_models, args...);
+            return f(*reinterpret_cast<const qss1_square*>(&mdl.dyn), args...);
         case dynamics_type::qss1_sum_2:
-            return f(qss1_sum_2_models, args...);
+            return f(*reinterpret_cast<const qss1_sum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss1_sum_3:
-            return f(qss1_sum_3_models, args...);
+            return f(*reinterpret_cast<const qss1_sum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss1_sum_4:
-            return f(qss1_sum_4_models, args...);
+            return f(*reinterpret_cast<const qss1_sum_4*>(&mdl.dyn), args...);
         case dynamics_type::qss1_wsum_2:
-            return f(qss1_wsum_2_models, args...);
+            return f(*reinterpret_cast<const qss1_wsum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss1_wsum_3:
-            return f(qss1_wsum_3_models, args...);
+            return f(*reinterpret_cast<const qss1_wsum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss1_wsum_4:
-            return f(qss1_wsum_4_models, args...);
+            return f(*reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn), args...);
 
         case dynamics_type::qss2_integrator:
-            return f(qss2_integrator_models, args...);
+            return f(*reinterpret_cast<const qss2_integrator*>(&mdl.dyn),
+                     args...);
         case dynamics_type::qss2_multiplier:
-            return f(qss2_multiplier_models, args...);
+            return f(*reinterpret_cast<const qss2_multiplier*>(&mdl.dyn),
+                     args...);
         case dynamics_type::qss2_cross:
-            return f(qss2_cross_models, args...);
+            return f(*reinterpret_cast<const qss2_cross*>(&mdl.dyn), args...);
         case dynamics_type::qss2_power:
-            return f(qss2_power_models, args...);
+            return f(*reinterpret_cast<const qss2_power*>(&mdl.dyn), args...);
         case dynamics_type::qss2_square:
-            return f(qss2_square_models, args...);
+            return f(*reinterpret_cast<const qss2_square*>(&mdl.dyn), args...);
         case dynamics_type::qss2_sum_2:
-            return f(qss2_sum_2_models, args...);
+            return f(*reinterpret_cast<const qss2_sum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss2_sum_3:
-            return f(qss2_sum_3_models, args...);
+            return f(*reinterpret_cast<const qss2_sum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss2_sum_4:
-            return f(qss2_sum_4_models, args...);
+            return f(*reinterpret_cast<const qss2_sum_4*>(&mdl.dyn), args...);
         case dynamics_type::qss2_wsum_2:
-            return f(qss2_wsum_2_models, args...);
+            return f(*reinterpret_cast<const qss2_wsum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss2_wsum_3:
-            return f(qss2_wsum_3_models, args...);
+            return f(*reinterpret_cast<const qss2_wsum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss2_wsum_4:
-            return f(qss2_wsum_4_models, args...);
+            return f(*reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn), args...);
 
         case dynamics_type::qss3_integrator:
-            return f(qss3_integrator_models, args...);
+            return f(*reinterpret_cast<const qss3_integrator*>(&mdl.dyn),
+                     args...);
         case dynamics_type::qss3_multiplier:
-            return f(qss3_multiplier_models, args...);
+            return f(*reinterpret_cast<const qss3_multiplier*>(&mdl.dyn),
+                     args...);
         case dynamics_type::qss3_cross:
-            return f(qss3_cross_models, args...);
+            return f(*reinterpret_cast<const qss3_cross*>(&mdl.dyn), args...);
         case dynamics_type::qss3_power:
-            return f(qss3_power_models, args...);
+            return f(*reinterpret_cast<const qss3_power*>(&mdl.dyn), args...);
         case dynamics_type::qss3_square:
-            return f(qss3_square_models, args...);
+            return f(*reinterpret_cast<const qss3_square*>(&mdl.dyn), args...);
         case dynamics_type::qss3_sum_2:
-            return f(qss3_sum_2_models, args...);
+            return f(*reinterpret_cast<const qss3_sum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss3_sum_3:
-            return f(qss3_sum_3_models, args...);
+            return f(*reinterpret_cast<const qss3_sum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss3_sum_4:
-            return f(qss3_sum_4_models, args...);
+            return f(*reinterpret_cast<const qss3_sum_4*>(&mdl.dyn), args...);
         case dynamics_type::qss3_wsum_2:
-            return f(qss3_wsum_2_models, args...);
+            return f(*reinterpret_cast<const qss3_wsum_2*>(&mdl.dyn), args...);
         case dynamics_type::qss3_wsum_3:
-            return f(qss3_wsum_3_models, args...);
+            return f(*reinterpret_cast<const qss3_wsum_3*>(&mdl.dyn), args...);
         case dynamics_type::qss3_wsum_4:
-            return f(qss3_wsum_4_models, args...);
+            return f(*reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn), args...);
 
         case dynamics_type::integrator:
-            return f(integrator_models, args...);
+            return f(*reinterpret_cast<const integrator*>(&mdl.dyn), args...);
         case dynamics_type::quantifier:
-            return f(quantifier_models, args...);
+            return f(*reinterpret_cast<const quantifier*>(&mdl.dyn), args...);
         case dynamics_type::adder_2:
-            return f(adder_2_models, args...);
+            return f(*reinterpret_cast<const adder_2*>(&mdl.dyn), args...);
         case dynamics_type::adder_3:
-            return f(adder_3_models, args...);
+            return f(*reinterpret_cast<const adder_3*>(&mdl.dyn), args...);
         case dynamics_type::adder_4:
-            return f(adder_4_models, args...);
+            return f(*reinterpret_cast<const adder_4*>(&mdl.dyn), args...);
         case dynamics_type::mult_2:
-            return f(mult_2_models, args...);
+            return f(*reinterpret_cast<const mult_2*>(&mdl.dyn), args...);
         case dynamics_type::mult_3:
-            return f(mult_3_models, args...);
+            return f(*reinterpret_cast<const mult_3*>(&mdl.dyn), args...);
         case dynamics_type::mult_4:
-            return f(mult_4_models, args...);
+            return f(*reinterpret_cast<const mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
-            return f(counter_models, args...);
+            return f(*reinterpret_cast<const counter*>(&mdl.dyn), args...);
         case dynamics_type::buffer:
-            return f(buffer_models, args...);
+            return f(*reinterpret_cast<const buffer*>(&mdl.dyn), args...);
         case dynamics_type::generator:
-            return f(generator_models, args...);
+            return f(*reinterpret_cast<const generator*>(&mdl.dyn), args...);
         case dynamics_type::constant:
-            return f(constant_models, args...);
+            return f(*reinterpret_cast<const constant*>(&mdl.dyn), args...);
         case dynamics_type::cross:
-            return f(cross_models, args...);
+            return f(*reinterpret_cast<const cross*>(&mdl.dyn), args...);
         case dynamics_type::accumulator_2:
-            return f(accumulator_2_models, args...);
+            return f(*reinterpret_cast<const accumulator_2*>(&mdl.dyn),
+                     args...);
         case dynamics_type::time_func:
-            return f(time_func_models, args...);
+            return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
         case dynamics_type::flow:
-            return f(flow_models, args...);
+            return f(*reinterpret_cast<const flow*>(&mdl.dyn), args...);
         }
 
         irt_unreachable();
     }
 
-    status get_output_port_index(const model& mdl,
-                                 const output_port_id port,
-                                 int* index) const noexcept
-    {
-        return dispatch(
-          mdl.type,
-          [dyn_id = mdl.id, port, index]<typename DynamicsM>(
-            DynamicsM& dyn_models) -> status {
-              using Dynamics = typename DynamicsM::value_type;
+    // status get_output_port_index(const model& mdl,
+    //                             const port& port,
+    //                             int* index) const noexcept
+    //{
+    //    return dispatch(
+    //      mdl, [port, index]<typename Dynamics>(auto& dyn) -> status {
+    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+    //              for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+    //                  if (&dyn.y[i] == port) {
+    //                      *index = static_cast<int>(i);
+    //                      return status::success;
+    //                  }
+    //              }
 
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  auto* dyn = dyn_models.try_to_get(dyn_id);
-                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
+    //              return status::dynamics_unknown_port_id;
+    //          }
+    //      });
+    //}
 
-                  for (size_t i = 0, e = std::size(dyn->y); i != e; ++i) {
-                      if (dyn->y[i] == port) {
-                          *index = static_cast<int>(i);
-                          return status::success;
-                      }
-                  }
-              }
+    // void for_all_input_port(const model& mdl,
+    //                        function_ref<void(input_port&, input_port_id)> f)
+    //{
+    //    dispatch(
+    //      mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
+    //          using TT = T;
+    //          using Dynamics = typename TT::value_type;
 
-              return status::dynamics_unknown_port_id;
-          });
-    }
+    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+    //              if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
+    //                  for (size_t i = 0, e = std::size(dyn->x); i != e; ++i)
+    //                      if (auto* port = input_ports.try_to_get(dyn->x[i]);
+    //                          port)
+    //                          f(*port, dyn->x[i]);
+    //          }
+    //      });
+    //}
 
-    void for_all_input_port(const model& mdl,
-                            function_ref<void(input_port&, input_port_id)> f)
-    {
-        dispatch(
-          mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
-              using TT = T;
-              using Dynamics = typename TT::value_type;
+    // void for_all_output_port(const model& mdl,
+    //                         function_ref<void(output_port&, port)> f)
+    //{
+    //    dispatch(
+    //      mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
+    //          using TT = T;
+    //          using Dynamics = typename TT::value_type;
 
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
-                      for (size_t i = 0, e = std::size(dyn->x); i != e; ++i)
-                          if (auto* port = input_ports.try_to_get(dyn->x[i]);
-                              port)
-                              f(*port, dyn->x[i]);
-              }
-          });
-    }
+    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+    //              if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
+    //                  for (size_t i = 0, e = std::size(dyn->y); i != e; ++i)
+    //                      if (auto* port = output_ports.try_to_get(dyn->y[i]);
+    //                          port)
+    //                          f(*port, dyn->y[i]);
+    //          }
+    //      });
+    //}
 
-    void for_all_output_port(const model& mdl,
-                             function_ref<void(output_port&, output_port_id)> f)
-    {
-        dispatch(
-          mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
-              using TT = T;
-              using Dynamics = typename TT::value_type;
+    // status get_input_port_index(const model& mdl,
+    //                            const port port,
+    //                            int* index) const noexcept
+    //{
+    //    return dispatch(
+    //      mdl.type,
+    //      [dyn_id = mdl.id, port, index]<typename T>(T& dyn_models) -> status
+    //      {
+    //          using TT = T;
+    //          using Dynamics = typename TT::value_type;
 
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
-                      for (size_t i = 0, e = std::size(dyn->y); i != e; ++i)
-                          if (auto* port = output_ports.try_to_get(dyn->y[i]);
-                              port)
-                              f(*port, dyn->y[i]);
-              }
-          });
-    }
+    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+    //              auto* dyn = dyn_models.try_to_get(dyn_id);
+    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-    status get_input_port_index(const model& mdl,
-                                const input_port_id port,
-                                int* index) const noexcept
-    {
-        return dispatch(
-          mdl.type,
-          [dyn_id = mdl.id, port, index]<typename T>(T& dyn_models) -> status {
-              using TT = T;
-              using Dynamics = typename TT::value_type;
+    //              for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
+    //                  if (dyn->x[i] == port) {
+    //                      *index = static_cast<int>(i);
+    //                      return status::success;
+    //                  }
+    //              }
+    //          }
 
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  auto* dyn = dyn_models.try_to_get(dyn_id);
-                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
+    //          return status::dynamics_unknown_port_id;
+    //      });
+    //}
 
-                  for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
-                      if (dyn->x[i] == port) {
-                          *index = static_cast<int>(i);
-                          return status::success;
-                      }
-                  }
-              }
+    // status get_port(const model& mdl, int index, port* port) const noexcept
+    //{
+    //    return dispatch(
+    //      mdl.type,
+    //      [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status
+    //      {
+    //          using TT = T;
+    //          using Dynamics = typename TT::value_type;
 
-              return status::dynamics_unknown_port_id;
-          });
-    }
+    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+    //              auto* dyn = dyn_models.try_to_get(dyn_id);
+    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-    status get_output_port_id(const model& mdl,
-                              int index,
-                              output_port_id* port) const noexcept
-    {
-        return dispatch(
-          mdl.type,
-          [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status {
-              using TT = T;
-              using Dynamics = typename TT::value_type;
+    //              irt_return_if_fail(0 <= index && static_cast<size_t>(index)
+    //              <
+    //                                                 std::size(dyn->y),
+    //                                 status::dynamics_unknown_port_id);
 
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  auto* dyn = dyn_models.try_to_get(dyn_id);
-                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
+    //              *port = dyn->y[index];
+    //              return status::success;
+    //          }
 
-                  irt_return_if_fail(0 <= index && static_cast<size_t>(index) <
-                                                     std::size(dyn->y),
-                                     status::dynamics_unknown_port_id);
+    //          return status::dynamics_unknown_port_id;
+    //      });
+    //}
 
-                  *port = dyn->y[index];
-                  return status::success;
-              }
+    // status get_input_port_id(const model& mdl,
+    //                         int index,
+    //                         input_port_id* port) const noexcept
+    //{
+    //    return dispatch(
+    //      mdl.type,
+    //      [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status
+    //      {
+    //          using TT = T;
+    //          using Dynamics = typename TT::value_type;
 
-              return status::dynamics_unknown_port_id;
-          });
-    }
+    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+    //              auto* dyn = dyn_models.try_to_get(dyn_id);
+    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
 
-    status get_input_port_id(const model& mdl,
-                             int index,
-                             input_port_id* port) const noexcept
-    {
-        return dispatch(
-          mdl.type,
-          [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status {
-              using TT = T;
-              using Dynamics = typename TT::value_type;
+    //              irt_return_if_fail(0 <= index && static_cast<size_t>(index)
+    //              <
+    //                                                 std::size(dyn->x),
+    //                                 status::dynamics_unknown_port_id);
 
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  auto* dyn = dyn_models.try_to_get(dyn_id);
-                  irt_return_if_fail(dyn, status::dynamics_unknown_id);
+    //              *port = dyn->x[index];
+    //              return status::success;
+    //          }
 
-                  irt_return_if_fail(0 <= index && static_cast<size_t>(index) <
-                                                     std::size(dyn->x),
-                                     status::dynamics_unknown_port_id);
-
-                  *port = dyn->x[index];
-                  return status::success;
-              }
-
-              return status::dynamics_unknown_port_id;
-          });
-    }
+    //          return status::dynamics_unknown_port_id;
+    //      });
+    //}
 
 public:
     status init(size_t model_capacity, size_t messages_capacity)
@@ -6151,68 +5865,10 @@ public:
 
         irt_return_if_bad(models.init(model_capacity));
         irt_return_if_bad(messages.init(messages_capacity));
-        irt_return_if_bad(input_ports.init(model_capacity * ten));
-        irt_return_if_bad(output_ports.init(model_capacity * ten));
-
-        irt_return_if_bad(none_models.init(model_capacity));
-
-        irt_return_if_bad(qss1_integrator_models.init(model_capacity));
-        irt_return_if_bad(qss1_multiplier_models.init(model_capacity));
-        irt_return_if_bad(qss1_cross_models.init(model_capacity));
-        irt_return_if_bad(qss1_power_models.init(model_capacity));
-        irt_return_if_bad(qss1_square_models.init(model_capacity));
-        irt_return_if_bad(qss1_sum_2_models.init(model_capacity));
-        irt_return_if_bad(qss1_sum_3_models.init(model_capacity));
-        irt_return_if_bad(qss1_sum_4_models.init(model_capacity));
-        irt_return_if_bad(qss1_wsum_2_models.init(model_capacity));
-        irt_return_if_bad(qss1_wsum_3_models.init(model_capacity));
-        irt_return_if_bad(qss1_wsum_4_models.init(model_capacity));
-
-        irt_return_if_bad(qss2_integrator_models.init(model_capacity));
-        irt_return_if_bad(qss2_multiplier_models.init(model_capacity));
-        irt_return_if_bad(qss2_cross_models.init(model_capacity));
-        irt_return_if_bad(qss2_power_models.init(model_capacity));
-        irt_return_if_bad(qss2_square_models.init(model_capacity));
-        irt_return_if_bad(qss2_sum_2_models.init(model_capacity));
-        irt_return_if_bad(qss2_sum_3_models.init(model_capacity));
-        irt_return_if_bad(qss2_sum_4_models.init(model_capacity));
-        irt_return_if_bad(qss2_wsum_2_models.init(model_capacity));
-        irt_return_if_bad(qss2_wsum_3_models.init(model_capacity));
-        irt_return_if_bad(qss2_wsum_4_models.init(model_capacity));
-
-        irt_return_if_bad(qss3_integrator_models.init(model_capacity));
-        irt_return_if_bad(qss3_multiplier_models.init(model_capacity));
-        irt_return_if_bad(qss3_cross_models.init(model_capacity));
-        irt_return_if_bad(qss3_power_models.init(model_capacity));
-        irt_return_if_bad(qss3_square_models.init(model_capacity));
-        irt_return_if_bad(qss3_sum_2_models.init(model_capacity));
-        irt_return_if_bad(qss3_sum_3_models.init(model_capacity));
-        irt_return_if_bad(qss3_sum_4_models.init(model_capacity));
-        irt_return_if_bad(qss3_wsum_2_models.init(model_capacity));
-        irt_return_if_bad(qss3_wsum_3_models.init(model_capacity));
-        irt_return_if_bad(qss3_wsum_4_models.init(model_capacity));
-
-        irt_return_if_bad(integrator_models.init(model_capacity));
-        irt_return_if_bad(quantifier_models.init(model_capacity));
-        irt_return_if_bad(adder_2_models.init(model_capacity));
-        irt_return_if_bad(adder_3_models.init(model_capacity));
-        irt_return_if_bad(adder_4_models.init(model_capacity));
-        irt_return_if_bad(mult_2_models.init(model_capacity));
-        irt_return_if_bad(mult_3_models.init(model_capacity));
-        irt_return_if_bad(mult_4_models.init(model_capacity));
-        irt_return_if_bad(counter_models.init(model_capacity));
-        irt_return_if_bad(buffer_models.init(model_capacity));
-        irt_return_if_bad(generator_models.init(model_capacity));
-        irt_return_if_bad(constant_models.init(model_capacity));
-        irt_return_if_bad(cross_models.init(model_capacity));
-        irt_return_if_bad(time_func_models.init(model_capacity));
-        irt_return_if_bad(accumulator_2_models.init(model_capacity));
-        irt_return_if_bad(flow_models.init(model_capacity));
-
         irt_return_if_bad(observers.init(model_capacity));
 
-        irt_return_if_bad(flat_double_list_shared_allocator.init(
-          integrator_models.capacity() * ten));
+        irt_return_if_bad(
+          flat_double_list_shared_allocator.init(model_capacity * ten));
 
         return status::success;
     }
@@ -6220,8 +5876,7 @@ public:
     template<typename Dynamics>
     constexpr bool can_alloc(size_t number) const noexcept
     {
-        return static_dispatch<Dynamics>().can_alloc(number) &&
-               models.can_alloc(number);
+        return models.can_alloc(number);
     }
 
     bool can_alloc(size_t place) const noexcept
@@ -6238,13 +5893,20 @@ public:
     {
         sched.clear();
 
-        output_port* out = nullptr;
-        while (output_ports.next(out))
-            out->messages.clear();
+        model *mdl = nullptr;
+        while (models.next(mdl)) {
+            dispatch(*mdl, []<typename Dynamics>([[maybe_unused]] Dynamics& dyn) -> void {
+                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                    for (sz i = 0; i < std::size(dyn.x); ++i)
+                        dyn.x[i].messages.clear();
+                }
 
-        input_port* in = nullptr;
-        while (input_ports.next(in))
-            in->messages.clear();
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    for (sz i = 0; i < std::size(dyn.y); ++i)
+                        dyn.y[i].messages.clear();
+                }
+            });
+        }
     }
 
     /**
@@ -6262,16 +5924,7 @@ public:
         emitting_output_port_allocator.reset();
 
         models.clear();
-
         messages.clear();
-        input_ports.clear();
-        output_ports.clear();
-
-        for_all([]<typename DynamicsM>(DynamicsM& dyn_models) -> status {
-            dyn_models.clear();
-            return status::success;
-        });
-
         observers.clear();
 
         begin = time_domain<time>::zero;
@@ -6287,88 +5940,73 @@ public:
         /* Use can_alloc before using this function. */
         irt_assert(!models.full());
 
-        const auto dynamics_type = dynamics_typeof<Dynamics>();
-        auto& dynamics_models = static_dispatch<Dynamics>();
-        irt_assert(!dynamics_models.full());
-
         auto& mdl = models.alloc();
-        auto mdl_id = models.get_id(mdl);
-        mdl.type = dynamics_type;
+        mdl.type = dynamics_typeof<Dynamics>();;
         mdl.handle = nullptr;
 
-        auto& dynamics = dynamics_models.alloc();
-        auto dynamics_id = dynamics_models.get_id(dynamics);
-
-        mdl.id = dynamics_id;
-        dynamics.id = mdl_id;
+        new (&mdl.dyn) Dynamics{};
+        Dynamics& dyn = get_dyn<Dynamics>(mdl);
 
         if constexpr (std::is_same_v<Dynamics, integrator>)
-            dynamics.archive.set_allocator(&flat_double_list_shared_allocator);
+            dyn.archive.set_allocator(&flat_double_list_shared_allocator);
         if constexpr (std::is_same_v<Dynamics, quantifier>)
-            dynamics.archive.set_allocator(&flat_double_list_shared_allocator);
+            dyn.archive.set_allocator(&flat_double_list_shared_allocator);
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dynamics.x); i != e; ++i) {
-                auto& port = input_ports.alloc();
-                port.model = dynamics.id;
-                port.connections.set_allocator(&output_port_list_allocator);
-                port.messages.set_allocator(&message_list_allocator);
-                dynamics.x[i] = input_ports.get_id(port);
+            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
+                dyn.x[i].connections.set_allocator(&output_port_list_allocator);
+                dyn.x[i].messages.set_allocator(&message_list_allocator);
             }
         }
 
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dynamics.y); i != e; ++i) {
-                auto& port = output_ports.alloc();
-                port.model = dynamics.id;
-                port.connections.set_allocator(&input_port_list_allocator);
-                port.messages.set_allocator(&message_list_allocator);
-                dynamics.y[i] = output_ports.get_id(port);
+            for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+                dyn.y[i].connections.set_allocator(&input_port_list_allocator);
+                dyn.y[i].messages.set_allocator(&message_list_allocator);
             }
         }
 
-        return dynamics;
+        return dyn;
     }
 
-    template<typename Dynamics>
-    status alloc(Dynamics& dynamics, dynamics_id id) noexcept
+    /** @brief This function allocates dynamics and models.
+     *
+     */
+    model& alloc(dynamics_type type) noexcept
     {
-        irt_return_if_fail(!models.full(), status::simulation_not_enough_model);
+        /* Use can_alloc before using this function. */
+        irt_assert(!models.full());
 
-        model& mdl = models.alloc();
-        model_id mdl_id = models.get_id(mdl);
+        auto& mdl = models.alloc();
+        mdl.type = type;
         mdl.handle = nullptr;
-        mdl.id = id;
 
-        mdl.type = dynamics_typeof<Dynamics>();
-        dynamics.id = mdl_id;
+        dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
+            new (&dyn) Dynamics{};
 
-        if constexpr (std::is_same_v<Dynamics, integrator>)
-            dynamics.archive.set_allocator(&flat_double_list_shared_allocator);
-        if constexpr (std::is_same_v<Dynamics, quantifier>)
-            dynamics.archive.set_allocator(&flat_double_list_shared_allocator);
+            if constexpr (std::is_same_v<Dynamics, integrator>)
+                dyn.archive.set_allocator(&flat_double_list_shared_allocator);
+            if constexpr (std::is_same_v<Dynamics, quantifier>)
+                dyn.archive.set_allocator(&flat_double_list_shared_allocator);
 
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dynamics.x); i != e; ++i) {
-                auto& port = input_ports.alloc();
-                port.model = dynamics.id;
-                port.connections.set_allocator(&output_port_list_allocator);
-                port.messages.set_allocator(&message_list_allocator);
-                dynamics.x[i] = input_ports.get_id(port);
+            if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
+                    dyn.x[i].connections.set_allocator(
+                      &output_port_list_allocator);
+                    dyn.x[i].messages.set_allocator(&message_list_allocator);
+                }
             }
-        }
 
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dynamics.y); i != e; ++i) {
-                auto& port = output_ports.alloc();
-                port.model = dynamics.id;
-                port.connections.set_allocator(&input_port_list_allocator);
-                port.messages.set_allocator(&message_list_allocator);
-                dynamics.y[i] = output_ports.get_id(port);
+            if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+                    dyn.y[i].connections.set_allocator(
+                      &input_port_list_allocator);
+                    dyn.y[i].messages.set_allocator(&message_list_allocator);
+                }
             }
-        }
+        });
 
-        return status::success;
+        return mdl;
     }
 
     void observe(model& mdl, observer& obs) noexcept
@@ -6388,9 +6026,8 @@ public:
             observers.free(*obs);
         }
 
-        dispatch(mdl->type, [&](auto& d_array) {
-            do_deallocate(d_array.get(mdl->id));
-            d_array.free(mdl->id);
+        dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
+            this->do_deallocate<Dynamics>(dyn);
         });
 
         sched.erase(*mdl);
@@ -6400,64 +6037,59 @@ public:
     }
 
     template<typename Dynamics>
-    void do_deallocate([[maybe_unused]] Dynamics& dyn) noexcept
+    void do_deallocate(Dynamics& dyn) noexcept
     {
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                auto& src = output_ports.get(dyn.y[i]);
+            auto& mdl_src = get_model(dyn);
 
-                while (!src.connections.empty())
-                    disconnect(dyn.y[i], src.connections.front());
+            for (int i = 0, e = (int)std::size(dyn.y); i != e; ++i) {
+                while (!dyn.y[i].connections.empty()) {
+                    auto* mdl_dst = models.try_to_get(dyn.y[i].connections.front().model);
+                    if (mdl_dst) {
+                        disconnect(mdl_src, i, *mdl_dst,
+                                   dyn.y[i].connections.front().port_index); 
+                    }
+                }
 
-                src.connections.clear();
-                src.messages.clear();
+                dyn.y[i].connections.clear();
+                dyn.y[i].messages.clear();
             }
         }
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-                auto& dst = input_ports.get(dyn.x[i]);
+            auto& mdl_dst = get_model(dyn);
 
-                while (!dst.connections.empty())
-                    disconnect(dst.connections.front(), dyn.x[i]);
+            for (int i = 0, e = (int)std::size(dyn.x); i != e; ++i) {
+                while (!dyn.x[i].connections.empty()) {
+                    auto* mdl_src = models.try_to_get(dyn.x[i].connections.front().model);
+                    if (mdl_src) {
+                        disconnect(*mdl_src, dyn.x[i].connections.front().port_index,
+                                   mdl_dst, i);
+                    }
+                }
 
-                dst.connections.clear();
-                dst.messages.clear();
+                dyn.x[i].connections.clear();
+                dyn.x[i].messages.clear();
             }
         }
 
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-            for (size_t i = 0, e = std::size(dyn.y); i != e; ++i)
-                output_ports.free(dyn.y[i]);
-
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i)
-                input_ports.free(dyn.x[i]);
+        dyn.~Dynamics();
     }
 
-    bool is_ports_compatible(const output_port_id src_id,
-                             const output_port& src,
-                             const input_port_id dst_id,
-                             const input_port& dst) const noexcept
+    bool is_ports_compatible(const model& mdl_src,
+                             [[maybe_unused]] const int o_port_index,
+                             const model& mdl_dst,
+                             const int i_port_index) const noexcept
     {
-        auto* mdl_src = models.try_to_get(src.model);
-        auto* mdl_dst = models.try_to_get(dst.model);
-
-        if (mdl_src == mdl_dst)
+        if (&mdl_src == &mdl_dst)
             return false;
 
-        int o_port_index, i_port_index;
-
-        if (is_bad(get_output_port_index(*mdl_src, src_id, &o_port_index)) ||
-            is_bad(get_input_port_index(*mdl_dst, dst_id, &i_port_index)))
-            return false;
-
-        switch (mdl_src->type) {
+        switch (mdl_src.type) {
         case dynamics_type::none:
             return false;
 
         case dynamics_type::quantifier:
-            if (mdl_dst->type == dynamics_type::integrator &&
+            if (mdl_dst.type == dynamics_type::integrator &&
                 i_port_index ==
                   static_cast<int>(integrator::port_name::port_quanta))
                 return true;
@@ -6512,7 +6144,7 @@ public:
         case dynamics_type::time_func:
         case dynamics_type::flow:
         case dynamics_type::accumulator_2:
-            if (mdl_dst->type == dynamics_type::integrator &&
+            if (mdl_dst.type == dynamics_type::integrator &&
                 i_port_index ==
                   static_cast<int>(integrator::port_name::port_quanta))
                 return false;
@@ -6529,48 +6161,117 @@ public:
                input_port_list_allocator.can_alloc(number);
     }
 
-    status connect(output_port_id src, input_port_id dst) noexcept
+    status get_input_port(model& src, int port_src, port*& p)
     {
-        auto* src_port = output_ports.try_to_get(src);
-        irt_return_if_fail(src_port, status::model_connect_output_port_unknown);
+        return dispatch(
+          src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                  if (port_src >= 0 && port_src < (int)std::size(dyn.x)) {
+                      p = &dyn.x[port_src];
+                      return status::success;
+                  }
+              }
 
-        auto* dst_port = input_ports.try_to_get(dst);
-        irt_return_if_fail(dst_port, status::model_connect_input_port_unknown);
+              return status::model_connect_output_port_unknown;
+          });
+    }
 
-        irt_return_if_fail(std::find(std::begin(src_port->connections),
-                                     std::end(src_port->connections),
-                                     dst) == std::end(src_port->connections),
-                           status::model_connect_already_exist);
+    status get_output_port(model& dst, int port_dst, port*& p)
+    {
+        return dispatch(
+          dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                  if (port_dst >= 0 && port_dst < (int)std::size(dyn.y)) {
+                      p = &dyn.y[port_dst];
+                      return status::success;
+                  }
+              }
 
-        irt_return_if_fail(is_ports_compatible(src, *src_port, dst, *dst_port),
-                           status::model_connect_bad_dynamics);
+              return status::model_connect_output_port_unknown;
+          });
+    }
 
-        src_port->connections.emplace_front(dst);
-        dst_port->connections.emplace_front(src);
+    status connect(model& src, int port_src, model& dst, int port_dst) noexcept
+    {
+        port* src_port = nullptr;
+        irt_return_if_bad(get_output_port(src, port_src, src_port));
+
+        port* dst_port = nullptr;
+        irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
+
+        auto model_src_id = models.get_id(src);
+        auto model_dst_id = models.get_id(dst);
+
+        auto it = src_port->connections.begin();
+        auto et = src_port->connections.end();
+
+        while (it != et) {
+            irt_return_if_fail(
+                !(it->model == model_dst_id && it->port_index == port_dst),
+                status::model_connect_already_exist);
+
+            ++it;
+        };
+
+        irt_return_if_fail(is_ports_compatible(src, port_src, dst, port_dst),
+                status::model_connect_bad_dynamics);
+
+        src_port->connections.emplace_front(model_dst_id, port_dst);
+        dst_port->connections.emplace_front(model_src_id, port_src);
 
         return status::success;
     }
 
-    status disconnect(output_port_id src, input_port_id dst) noexcept
+    template<typename DynamicsSrc, typename DynamicsDst>
+    status connect(DynamicsSrc& src, int port_src, DynamicsDst& dst, int port_dst) noexcept
     {
-        auto* src_port = output_ports.try_to_get(src);
-        if (!src_port)
-            return status::model_connect_output_port_unknown;
+        model& src_model = get_model(src);
+        model& dst_model = get_model(dst);
+        model_id model_src_id = get_id(src);
+        model_id model_dst_id = get_id(dst);
 
-        auto* dst_port = input_ports.try_to_get(dst);
-        if (!dst_port)
-            return status::model_connect_input_port_unknown;
+        auto it = std::begin(src.y[port_src].connections);
+        auto et = std::end(src.y[port_src].connections);
+
+        while (it != et) {
+            irt_return_if_fail(
+                !(it->model == model_dst_id && it->port_index == port_dst),
+                status::model_connect_already_exist);
+
+            ++it;
+        }
+
+        irt_return_if_fail(is_ports_compatible(src_model, port_src, dst_model, port_dst),
+                status::model_connect_bad_dynamics);
+
+        src.y[port_src].connections.emplace_front(model_dst_id, port_dst);
+        dst.x[port_dst].connections.emplace_front(model_src_id, port_src);
+
+        return status::success;
+    }
+
+    status disconnect(model& src,
+                      int port_src,
+                      model& dst,
+                      int port_dst) noexcept
+    {
+        port* src_port = nullptr;
+        irt_return_if_bad(get_output_port(src, port_src, src_port));
+
+        port* dst_port = nullptr;
+        irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
 
         {
             const auto end = std::end(src_port->connections);
             auto it = std::begin(src_port->connections);
 
-            if (*it == dst) {
+            if (it->model == models.get_id(dst) && it->port_index == port_dst) {
                 src_port->connections.pop_front();
             } else {
                 auto prev = it++;
                 while (it != end) {
-                    if (*it == dst) {
+                    if (it->model == models.get_id(dst) &&
+                        it->port_index == port_dst) {
                         src_port->connections.erase_after(prev);
                         break;
                     }
@@ -6583,12 +6284,13 @@ public:
             const auto end = std::end(dst_port->connections);
             auto it = std::begin(dst_port->connections);
 
-            if (*it == src) {
+            if (it->model == models.get_id(src) && it->port_index == port_src) {
                 dst_port->connections.pop_front();
             } else {
                 auto prev = it++;
                 while (it != end) {
-                    if (*it == src) {
+                    if (it->model == models.get_id(src) &&
+                        it->port_index == port_src) {
                         dst_port->connections.erase_after(prev);
                         break;
                     }
@@ -6631,32 +6333,28 @@ public:
 
         const auto& bag = sched.pop();
 
-        flat_list<output_port_id> emitting_output_ports(
-          &emitting_output_port_allocator);
+        flat_list<port*> emitting_output_ports(&emitting_output_port_allocator);
 
         for (const auto id : bag)
             if (auto* mdl = models.try_to_get(id); mdl)
                 irt_return_if_bad(
                   make_transition(*mdl, t, emitting_output_ports));
 
-        for (const output_port_id src : emitting_output_ports) {
-            if (auto* port_src = output_ports.try_to_get(src); port_src) {
-                for (const input_port_id dst : port_src->connections) {
-                    if (auto* port_dst = input_ports.try_to_get(dst);
-                        port_dst) {
-                        for (const message& msg : port_src->messages) {
-                            port_dst->messages.emplace_front(msg);
+        for (port* port_src : emitting_output_ports) {
+            for (node& dst : port_src->connections) {
+                if (auto* mdl = models.try_to_get(dst.model); mdl) {
+                    port* port_dst = nullptr;
+                    irt_return_if_bad(
+                      get_input_port(*mdl, dst.port_index, port_dst));
 
-                            if (auto* mdl = models.try_to_get(port_dst->model);
-                                mdl) {
-                                sched.update(*mdl, t);
-                            }
-                        }
+                    for (const message& msg : port_src->messages) {
+                        port_dst->messages.emplace_front(msg);
+                        sched.update(*mdl, t);
                     }
                 }
-
-                port_src->messages.clear();
             }
+
+            port_src->messages.clear();
         }
 
         return status::success;
@@ -6675,26 +6373,23 @@ public:
         mdl.tn = t + dyn.sigma;
         mdl.handle = nullptr;
 
-        sched.insert(mdl, dyn.id, mdl.tn);
+        sched.insert(mdl, models.get_id(mdl), mdl.tn);
 
         return status::success;
     }
 
     status make_initialize(model& mdl, time t) noexcept
     {
-        return dispatch(
-          mdl.type,
-          [this, &mdl, t]<typename DynamicsModels>(DynamicsModels& dyn_models) {
-              return this->make_initialize(mdl, dyn_models.get(mdl.id), t);
-          });
+        return dispatch(mdl, [this, &mdl, t]<typename Dynamics>(Dynamics& dyn) {
+            return this->make_initialize(mdl, dyn, t);
+        });
     }
 
     template<typename Dynamics>
-    status make_transition(
-      model& mdl,
-      Dynamics& dyn,
-      time t,
-      flat_list<output_port_id>& emitting_output_ports) noexcept
+    status make_transition(model& mdl,
+                           Dynamics& dyn,
+                           time t,
+                           flat_list<port*>& emitting_output_ports) noexcept
     {
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
             if (mdl.obs_id != static_cast<observer_id>(0)) {
@@ -6710,27 +6405,21 @@ public:
         if (mdl.tn == mdl.handle->tn) {
             if constexpr (is_detected_v<lambda_function_t, Dynamics>) {
                 if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    irt_return_if_bad(dyn.lambda(output_ports));
+                    irt_return_if_bad(dyn.lambda());
 
-                    for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                        if (auto* port_src = output_ports.try_to_get(dyn.y[i]);
-                            port_src) {
-                            if (!port_src->messages.empty())
-                                emitting_output_ports.emplace_front(dyn.y[i]);
-                        }
-                    }
+                    for (size_t i = 0, e = std::size(dyn.y); i != e; ++i)
+                        if (!dyn.y[i].messages.empty())
+                            emitting_output_ports.emplace_front(&dyn.y[i]);
                 }
             }
         }
 
         if constexpr (is_detected_v<transition_function_t, Dynamics>)
-            irt_return_if_bad(
-              dyn.transition(input_ports, t, t - mdl.tl, mdl.tn - t));
+            irt_return_if_bad(dyn.transition(t, t - mdl.tl, mdl.tn - t));
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>)
             for (size_t i = 0, e = std::size(dyn.x); i != e; ++i)
-                if (auto* port = input_ports.try_to_get(dyn.x[i]); port)
-                    port->messages.clear();
+                dyn.x[i].messages.clear();
 
         irt_assert(mdl.tn >= t);
 
@@ -6744,15 +6433,11 @@ public:
         return status::success;
     }
 
-    status make_transition(model& mdl,
-                           time t,
-                           flat_list<output_port_id>& o) noexcept
+    status make_transition(model& mdl, time t, flat_list<port*>& o) noexcept
     {
-        return dispatch(mdl.type,
-                        [this, &mdl, t, &o]<typename DynamicsModels>(
-                          DynamicsModels& dyn_models) {
-                            return this->make_transition(
-                              mdl, dyn_models.get(mdl.id), t, o);
+        return dispatch(mdl,
+                        [this, &mdl, t, &o]<typename Dynamics>(Dynamics& dyn) {
+                            return this->make_transition(mdl, dyn, t, o);
                         });
     }
 
@@ -6784,12 +6469,11 @@ public:
         while (models.next(mdl)) {
             if (mdl->obs_id != static_cast<observer_id>(0)) {
                 if (auto* obs = observers.try_to_get(mdl->obs_id); obs) {
-                    dispatch(mdl->type,
-                             [this, mdl, obs, t]<typename DynamicsModels>(
-                               DynamicsModels& dyn_models) {
-                                 this->make_finalize(
-                                   *mdl, dyn_models.get(mdl->id), *obs, t);
-                             });
+                    dispatch(
+                      *mdl,
+                      [this, mdl, obs, t]<typename Dynamics>(Dynamics& dyn) {
+                          this->make_finalize(*mdl, dyn, *obs, t);
+                      });
                 }
             }
         }

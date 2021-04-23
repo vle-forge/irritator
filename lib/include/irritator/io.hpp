@@ -211,6 +211,7 @@ get_input_port_names(const dynamics_type type) noexcept
 
     case dynamics_type::quantifier:
     case dynamics_type::counter:
+    case dynamics_type::buffer:
     case dynamics_type::qss1_power:
     case dynamics_type::qss2_power:
     case dynamics_type::qss3_power:
@@ -289,6 +290,7 @@ get_output_port_names() noexcept
                   std::is_same_v<Dynamics, mult_3> ||
                   std::is_same_v<Dynamics, mult_4> ||
                   std::is_same_v<Dynamics, counter> ||
+                  std::is_same_v<Dynamics, buffer> ||
                   std::is_same_v<Dynamics, buffer> ||
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
@@ -588,15 +590,17 @@ private:
             auto* mdl_dst = sim.models.try_to_get(map[mdl_dst_id]);
             irt_return_if_fail(mdl_dst, status::io_file_format_model_unknown);
 
-            output_port_id output_port;
-            input_port_id input_port;
+            port* output_port = nullptr;
+            port* input_port = nullptr;
 
             irt_return_if_bad(
-              sim.get_output_port_id(*mdl_src, port_src_index, &output_port));
+              sim.get_output_port(*mdl_src, port_src_index, output_port));
             irt_return_if_bad(
-              sim.get_input_port_id(*mdl_dst, port_dst_index, &input_port));
+              sim.get_input_port(*mdl_dst, port_dst_index, input_port));
 
-            irt_return_if_bad(sim.connect(output_port, input_port));
+            irt_return_if_bad(
+              sim.connect(*mdl_src, port_src_index, *mdl_dst, port_dst_index));
+
             ++connection_error;
         }
 
@@ -698,26 +702,20 @@ private:
         irt_return_if_fail(convert(dynamics_name, &type),
                            status::io_file_format_dynamics_unknown);
 
-        model_id mdl_id = static_cast<model_id>(0);
-        auto ret = sim.dispatch(type, [this, &sim, &mdl_id](auto& dyn_models) {
-            irt_return_if_fail(dyn_models.can_alloc(1),
-                               status::io_file_format_dynamics_limit_reach);
-            auto& dyn = dyn_models.alloc();
-            auto dyn_id = dyn_models.get_id(dyn);
+        auto& mdl = sim.alloc(type);
+        update_error_report();
 
-            sim.alloc(dyn, dyn_id);
-            mdl_id = dyn.id;
+        auto ret =
+          sim.dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
+              irt_return_if_fail(this->read(dyn),
+                                 status::io_file_format_dynamics_init_error);
 
-            update_error_report();
-            irt_return_if_fail(read(dyn),
-                               status::io_file_format_dynamics_init_error);
-
-            return status::success;
-        });
+              return status::success;
+          });
 
         irt_return_if_bad(ret);
 
-        map[id] = mdl_id;
+        map[id] = sim.models.get_id(mdl);
 
         return status::success;
     }
@@ -1086,43 +1084,40 @@ struct writer
             os << id << ' ';
             map[id] = mdl_id;
 
-            sim.dispatch(mdl->type, [this, mdl](auto& dyn_models) {
-                write(dyn_models.get(mdl->id));
+            sim.dispatch(*mdl, [this, mdl](auto& dyn) -> void {
+                this->write(dyn);
             });
 
             ++id;
         }
 
-        irt::output_port* out = nullptr;
-        while (sim.output_ports.next(out)) {
-            for (auto dst : out->connections) {
-                if (auto* in = sim.input_ports.try_to_get(dst); in) {
-                    auto* mdl_src = sim.models.try_to_get(out->model);
-                    auto* mdl_dst = sim.models.try_to_get(in->model);
+        mdl = nullptr;
+        while (sim.models.next(mdl)) {
+            sim.dispatch(*mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+                        for (const auto& elem : dyn.y[i].connections) {
+                            auto* dst = sim.models.try_to_get(elem.model);
+                            if (dst) {
+                                auto it_out = std::find(map.begin(), map.end(), sim.models.get_id(*mdl));
+                                auto it_in = std::find(map.begin(), map.end(), elem.model);
 
-                    if (!(mdl_src && mdl_dst))
-                        continue;
+                                irt_assert(it_out != map.end());
+                                irt_assert(it_in != map.end());
 
-                    int src_index = -1;
-                    int dst_index = -1;
-
-                    irt_return_if_bad(
-                      sim.get_input_port_index(*mdl_dst, dst, &dst_index));
-
-                    irt_return_if_bad(sim.get_output_port_index(
-                      *mdl_src, sim.output_ports.get_id(out), &src_index));
-
-                    auto it_out = std::find(map.begin(), map.end(), out->model);
-                    auto it_in = std::find(map.begin(), map.end(), in->model);
-
-                    assert(it_out != map.end());
-                    assert(it_in != map.end());
-
-                    os << std::distance(map.begin(), it_out) << ' ' << src_index
-                       << ' ' << std::distance(map.begin(), it_in) << ' '
-                       << dst_index << '\n';
+                                os << std::distance(map.begin(), it_out)
+                                    << ' '
+                                    << i 
+                                    << ' '
+                                    << std::distance(map.begin(), it_in)
+                                    << ' '
+                                    << elem.port_index
+                                    << '\n';
+                            }
+                        }
+                    }
                 }
-            }
+            });
         }
 
         return status::success;
@@ -1351,8 +1346,7 @@ private:
 
     void write(const generator& dyn) noexcept
     {
-        os << "generator " << ' ' << dyn.default_offset
-           << '\n';
+    os << "generator " << ' ' << dyn.default_offset << '\n';
     }
 
     void write(const constant& dyn) noexcept
@@ -1418,7 +1412,7 @@ private:
     void write(const time_func& dyn) noexcept
     {
         os << "time_func "
-           << (dyn.default_f == &time_function ? "time\n" : "square\n");
+            << (dyn.default_f == &time_function ? "time\n" : "square\n");
     }
 
     void write(const flow& dyn) noexcept
@@ -1434,36 +1428,37 @@ private:
 
 public:
     dot_writer(std::ostream& os_)
-      : os(os_)
+        : os(os_)
     {}
 
     void operator()(const simulation& sim) noexcept
     {
         os << "digraph graphname {\n";
 
-        irt::output_port* output_port = nullptr;
-        while (sim.output_ports.next(output_port)) {
-            for (const irt::input_port_id dst : output_port->connections) {
-                if (auto* input_port = sim.input_ports.try_to_get(dst);
-                    input_port) {
-                    auto* mdl_src = sim.models.try_to_get(output_port->model);
-                    auto* mdl_dst = sim.models.try_to_get(input_port->model);
+        irt::model* mdl = nullptr;
+        while (sim.models.next(mdl)) {
+            sim.dispatch(*mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics & dyn)
+            {
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+                        for (const auto& elem : dyn.y[i].connections) {
+                            auto* dst = sim.models.try_to_get(elem.model);
+                            if (dst) {
+                                auto src_id = sim.models.get_id(*mdl);
 
-                    if (!(mdl_src && mdl_dst))
-                        continue;
-
-                    os << irt::get_key(output_port->model);
-                    os << " -> ";
-                    os << irt::get_key(input_port->model);
-
-                    os << " [label=\"";
-                    os << irt::get_key(sim.output_ports.get_id(*output_port));
-                    os << " - ";
-                    os << irt::get_key(sim.input_ports.get_id(*input_port));
-
-                    os << "\"];\n";
+                                os << irt::get_key(src_id)
+                                   << " -> "
+                                   << irt::get_key(elem.model)
+                                   << " [label=\""
+                                   << i
+                                   << " - "
+                                   << elem.port_index
+                                   << "\"];\n";
+                            }
+                        }
+                    }
                 }
-            }
+            });
         }
     }
 };

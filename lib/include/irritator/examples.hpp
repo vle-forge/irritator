@@ -50,20 +50,20 @@ example_qss_lotka_volterra(simulation& sim, F f) noexcept
     sum_b.default_input_coeffs[0] = -1.0;
     sum_b.default_input_coeffs[1] = 0.1;
 
-    sim.connect(sum_a.y[0], integrator_a.x[0]);
-    sim.connect(sum_b.y[0], integrator_b.x[0]);
-    sim.connect(integrator_a.y[0], sum_a.x[0]);
-    sim.connect(integrator_b.y[0], sum_b.x[0]);
-    sim.connect(integrator_a.y[0], product.x[0]);
-    sim.connect(integrator_b.y[0], product.x[1]);
-    sim.connect(product.y[0], sum_a.x[1]);
-    sim.connect(product.y[0], sum_b.x[1]);
+    sim.connect(sum_a, 0, integrator_a, 0);
+    sim.connect(sum_b, 0, integrator_b, 0);
+    sim.connect(integrator_a, 0, sum_a, 0);
+    sim.connect(integrator_b, 0, sum_b, 0);
+    sim.connect(integrator_a, 0, product, 0);
+    sim.connect(integrator_b, 0, product, 1);
+    sim.connect(product, 0, sum_a, 1);
+    sim.connect(product, 0, sum_b, 1);
 
-    f(sum_a.id);
-    f(sum_b.id);
-    f(product.id);
-    f(integrator_a.id);
-    f(integrator_b.id);
+    f(sim.get_id(sum_a));
+    f(sim.get_id(sum_b));
+    f(sim.get_id(product));
+    f(sim.get_id(integrator_a));
+    f(sim.get_id(integrator_b));
 
     return status::success;
 }
@@ -103,19 +103,19 @@ example_qss_lif(simulation& sim, F f) noexcept
     auto& cross = sim.alloc<abstract_cross<QssLevel>>();
     cross.default_threshold = Vt;
 
-    sim.connect(cross.y[0], integrator.x[1]);
-    sim.connect(cross.y[1], sum.x[0]);
-    sim.connect(integrator.y[0], cross.x[0]);
-    sim.connect(integrator.y[0], cross.x[2]);
-    sim.connect(cst_cross.y[0], cross.x[1]);
-    sim.connect(cst.y[0], sum.x[1]);
-    sim.connect(sum.y[0], integrator.x[0]);
+    sim.connect(cross, 0, integrator, 1);
+    sim.connect(cross, 1, sum, 0);
+    sim.connect(integrator, 0, cross, 0);
+    sim.connect(integrator, 0, cross, 2);
+    sim.connect(cst_cross, 0, cross, 1);
+    sim.connect(cst, 0, sum, 1);
+    sim.connect(sum, 0, integrator, 0);
 
-    f(sum.id);
-    f(cst.id);
-    f(cst_cross.id);
-    f(integrator.id);
-    f(cross.id);
+    f(sim.get_id(sum));
+    f(sim.get_id(cst));
+    f(sim.get_id(cst_cross));
+    f(sim.get_id(integrator));
+    f(sim.get_id(cross));
 
     return status::success;
 }
@@ -178,46 +178,46 @@ example_qss_izhikevich(simulation& sim, F f) noexcept
     sum_d.default_input_coeffs[0] = 1.0;
     sum_d.default_input_coeffs[1] = d;
 
-    sim.connect(integrator_a.y[0], cross.x[0]);
-    sim.connect(cst2.y[0], cross.x[1]);
-    sim.connect(integrator_a.y[0], cross.x[2]);
+    sim.connect(integrator_a, 0, cross, 0);
+    sim.connect(cst2, 0, cross, 1);
+    sim.connect(integrator_a, 0, cross, 2);
 
-    sim.connect(cross.y[1], product.x[0]);
-    sim.connect(cross.y[1], product.x[1]);
-    sim.connect(product.y[0], sum_c.x[0]);
-    sim.connect(cross.y[1], sum_c.x[1]);
-    sim.connect(cross.y[1], sum_b.x[1]);
+    sim.connect(cross, 1, product, 0);
+    sim.connect(cross, 1, product, 1);
+    sim.connect(product, 0, sum_c, 0);
+    sim.connect(cross, 1, sum_c, 1);
+    sim.connect(cross, 1, sum_b, 1);
 
-    sim.connect(cst.y[0], sum_c.x[2]);
-    sim.connect(cst3.y[0], sum_c.x[3]);
+    sim.connect(cst, 0, sum_c, 2);
+    sim.connect(cst3, 0, sum_c, 3);
 
-    sim.connect(sum_c.y[0], sum_a.x[0]);
-    sim.connect(cross2.y[1], sum_a.x[1]);
-    sim.connect(sum_a.y[0], integrator_a.x[0]);
-    sim.connect(cross.y[0], integrator_a.x[1]);
+    sim.connect(sum_c, 0, sum_a, 0);
+    sim.connect(cross2, 1, sum_a, 1);
+    sim.connect(sum_a, 0, integrator_a, 0);
+    sim.connect(cross, 0, integrator_a, 1);
 
-    sim.connect(cross2.y[1], sum_b.x[0]);
-    sim.connect(sum_b.y[0], integrator_b.x[0]);
+    sim.connect(cross2, 1, sum_b, 0);
+    sim.connect(sum_b, 0, integrator_b, 0);
 
-    sim.connect(cross2.y[0], integrator_b.x[1]);
-    sim.connect(integrator_a.y[0], cross2.x[0]);
-    sim.connect(integrator_b.y[0], cross2.x[2]);
-    sim.connect(sum_d.y[0], cross2.x[1]);
-    sim.connect(integrator_b.y[0], sum_d.x[0]);
-    sim.connect(cst.y[0], sum_d.x[1]);
+    sim.connect(cross2, 0, integrator_b, 1);
+    sim.connect(integrator_a, 0, cross2, 0);
+    sim.connect(integrator_b, 0, cross2, 2);
+    sim.connect(sum_d, 0, cross2, 1);
+    sim.connect(integrator_b, 0, sum_d, 0);
+    sim.connect(cst, 0, sum_d, 1);
 
-    f(cst.id);
-    f(cst2.id);
-    f(cst3.id);
-    f(sum_a.id);
-    f(sum_b.id);
-    f(sum_c.id);
-    f(sum_d.id);
-    f(product.id);
-    f(integrator_a.id);
-    f(integrator_b.id);
-    f(cross.id);
-    f(cross2.id);
+    f(sim.get_id(cst));
+    f(sim.get_id(cst2));
+    f(sim.get_id(cst3));
+    f(sim.get_id(sum_a));
+    f(sim.get_id(sum_b));
+    f(sim.get_id(sum_c));
+    f(sim.get_id(sum_d));
+    f(sim.get_id(product));
+    f(sim.get_id(integrator_a));
+    f(sim.get_id(integrator_b));
+    f(sim.get_id(cross));
+    f(sim.get_id(cross2));
 
     return status::success;
 }
@@ -250,21 +250,21 @@ example_qss_van_der_pol(simulation& sim, F f) noexcept
     sum.default_input_coeffs[1] = -mu;
     sum.default_input_coeffs[2] = -1.0;
 
-    sim.connect(integrator_b.y[0], integrator_a.x[0]);
-    sim.connect(sum.y[0], integrator_b.x[0]);
-    sim.connect(integrator_b.y[0], sum.x[0]);
-    sim.connect(product2.y[0], sum.x[1]);
-    sim.connect(integrator_a.y[0], sum.x[2]);
-    sim.connect(integrator_b.y[0], product1.x[0]);
-    sim.connect(integrator_a.y[0], product1.x[1]);
-    sim.connect(product1.y[0], product2.x[0]);
-    sim.connect(integrator_a.y[0], product2.x[1]);
+    sim.connect(integrator_b, 0, integrator_a, 0);
+    sim.connect(sum, 0, integrator_b, 0);
+    sim.connect(integrator_b, 0, sum, 0);
+    sim.connect(product2, 0, sum, 1);
+    sim.connect(integrator_a, 0, sum, 2);
+    sim.connect(integrator_b, 0, product1, 0);
+    sim.connect(integrator_a, 0, product1, 1);
+    sim.connect(product1, 0, product2, 0);
+    sim.connect(integrator_a, 0, product2, 1);
 
-    f(sum.id);
-    f(product1.id);
-    f(product2.id);
-    f(integrator_a.id);
-    f(integrator_b.id);
+    f(sim.get_id(sum));
+    f(sim.get_id(product1));
+    f(sim.get_id(product2));
+    f(sim.get_id(integrator_a));
+    f(sim.get_id(integrator_b));
 
     return status::success;
 }
@@ -303,19 +303,19 @@ example_qss_negative_lif(simulation& sim, F f) noexcept
     cross.default_threshold = Vt;
     cross.default_detect_up = false;
 
-    sim.connect(cross.y[0], integrator.x[1]);
-    sim.connect(cross.y[1], sum.x[0]);
-    sim.connect(integrator.y[0], cross.x[0]);
-    sim.connect(integrator.y[0], cross.x[2]);
-    sim.connect(cst_cross.y[0], cross.x[1]);
-    sim.connect(cst.y[0], sum.x[1]);
-    sim.connect(sum.y[0], integrator.x[0]);
+    sim.connect(cross, 0, integrator, 1);
+    sim.connect(cross, 1, sum, 0);
+    sim.connect(integrator, 0, cross, 0);
+    sim.connect(integrator, 0, cross, 2);
+    sim.connect(cst_cross, 0, cross, 1);
+    sim.connect(cst, 0, sum, 1);
+    sim.connect(sum, 0, integrator, 0);
 
-    f(sum.id);
-    f(integrator.id);
-    f(cross.id);
-    f(cst.id);
-    f(cst_cross.id);
+    f(sim.get_id(sum));
+    f(sim.get_id(integrator));
+    f(sim.get_id(cross));
+    f(sim.get_id(cst));
+    f(sim.get_id(cst_cross));
 
     return status::success;
 }

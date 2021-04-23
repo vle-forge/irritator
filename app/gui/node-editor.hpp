@@ -187,14 +187,75 @@ struct top_cluster
     }
 };
 
+inline int
+make_input_node_id(const irt::model_id mdl, const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    irt::u32 index = irt::get_index(mdl);
+    irt_assert(index < 268435456u);
+
+    irt::u32 port_index = static_cast<irt::u32>(port) << 28u;
+    index |= port_index;
+
+    return static_cast<int>(index);
+}
+
+inline int
+make_output_node_id(const irt::model_id mdl, const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    irt::u32 index = irt::get_index(mdl);
+    irt_assert(index < 268435456u);
+
+    irt::u32 port_index = static_cast<irt::u32>(8u + port) << 28u;
+
+    index |= port_index;
+
+    return static_cast<int>(index);
+}
+
+inline std::pair<irt::u32, irt::u32>
+get_model_input_port(const int node_id) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    irt::u32 port = real_node_id >> 28u;
+    irt_assert(port < 8u);
+
+    constexpr irt::u32 mask = ~(15u << 28u);
+    irt::u32 index = real_node_id & mask;
+
+    return std::make_pair(index, port);
+}
+
+inline std::pair<irt::u32, irt::u32>
+get_model_output_port(const int node_id) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    irt::u32 port = real_node_id >> 28u;
+
+    irt_assert(port >= 8u && port < 16u);
+    port -= 8u;
+    irt_assert(port < 8u);
+
+    constexpr irt::u32 mask = ~(15u << 28u);
+
+    irt::u32 index = real_node_id & mask;
+
+    return std::make_pair(index, port);
+}
+
 struct cluster
 {
     cluster() = default;
 
     small_string<16> name;
     std::vector<child_id> children;
-    std::vector<input_port_id> input_ports;
-    std::vector<output_port_id> output_ports;
+    std::vector<int> input_ports;
+    std::vector<int> output_ports;
 
     int get(const child_id id) const noexcept
     {
@@ -311,7 +372,7 @@ struct sources
     irt::source::text_file* new_text_file() noexcept;
 
     void show(bool* is_show);
-    void show_menu(const char *title, external_source& src);
+    void show_menu(const char* title, external_source& src);
 };
 
 struct editor
@@ -473,36 +534,33 @@ struct editor
         models_mapper[get_index(child)] = parent;
     }
 
-    static int get_in(input_port_id id) noexcept
+    struct gport
     {
-        return static_cast<int>(get_index(id));
+        gport() noexcept = default;
+
+        gport(irt::model* model_, const int port_index_) noexcept 
+        : model(model_)
+        , port_index(port_index_)
+        {}
+
+        irt::model* model = nullptr;
+        int port_index = 0;
+    };
+
+    gport get_in(const int index) noexcept
+    {
+        const auto model_index_port = get_model_input_port(index);
+        auto* mdl = sim.models.try_to_get(model_index_port.first);
+
+        return { mdl, static_cast<int>(model_index_port.second) };
     }
 
-    input_port_id get_in(int index) const noexcept
+    gport get_out(const int index) noexcept
     {
-        auto* port = sim.input_ports.try_to_get(static_cast<u32>(index));
+        const auto model_index_port = get_model_output_port(index);
+        auto* mdl = sim.models.try_to_get(model_index_port.first);
 
-        return port ? sim.input_ports.get_id(port) : undefined<input_port_id>();
-    }
-
-    static int get_out(output_port_id id) noexcept
-    {
-        constexpr u32 is_output = 1 << 31;
-        u32 index = get_index(id);
-        index |= is_output;
-
-        return static_cast<int>(index);
-    }
-
-    output_port_id get_out(int index) const noexcept
-    {
-        constexpr u32 mask = ~(1 << 31); /* remove the first bit */
-        index &= mask;
-
-        auto* port = sim.output_ports.try_to_get(static_cast<u32>(index));
-
-        return port ? sim.output_ports.get_id(port)
-                    : undefined<output_port_id>();
+        return { mdl, static_cast<int>(model_index_port.second) };
     }
 
     status add_lotka_volterra() noexcept;

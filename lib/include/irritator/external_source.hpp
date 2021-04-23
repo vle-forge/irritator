@@ -188,7 +188,7 @@ struct random_source
         return false;
     }
 
-    bool operator()(external_source& src)
+    bool operator()(external_source& /*src*/)
     {
         if (!use_rewind)
             return false;

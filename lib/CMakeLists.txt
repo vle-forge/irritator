@@ -127,7 +127,7 @@ endfunction()
 
 irritator_add_test(test-api test/public-api.cpp)
 irritator_add_test(simulations test/simulations.cpp)
-irritator_add_test(auditory test/auditory.cpp)
+# irritator_add_test(auditory test/auditory.cpp)
 
 # irritator_add_benchmark(benchmark_exactitude_aqss benchmark/benchmark_exactitude_aqss.cpp)
 # irritator_add_benchmark(benchmark_exactitude_qss1 benchmark/benchmark_exactitude_qss1.cpp)

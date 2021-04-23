@@ -52,59 +52,8 @@ template<size_t N, typename... Args>
 void
 format(small_string<N>& str, const char* fmt, const Args&... args)
 {
-    auto ret = fmt::format_to_n(str.begin(), N, fmt, args...);
+    auto ret = fmt::format_to_n(str.begin(), N - 1, fmt, args...);
     str.size(ret.size);
-}
-
-template<typename DataArray, typename Container, typename Function>
-void
-for_each(DataArray& d_array, Container& container, Function f) noexcept
-{
-    using identifier_type = typename DataArray::identifier_type;
-
-    static_assert(
-      std::is_same<identifier_type, typename Container::value_type>::value,
-      "Container must store same identifier_type as DataArray");
-
-    auto first = std::begin(container);
-    [[maybe_unused]] auto previous = first;
-    auto last = std::end(container);
-
-    while (first != last) {
-        if (auto* ptr = d_array.try_to_get(*first); ptr) {
-            f(*ptr, *first);
-
-            if constexpr (std::is_same_v<std::vector<identifier_type>,
-                                         std::remove_cvref_t<Container>>) {
-                ++first;
-            } else if constexpr (std::is_same_v<
-                                   flat_list<identifier_type>,
-                                   std::remove_cvref_t<Container>>) {
-                previous = first++;
-            } else {
-                abort();
-            }
-        } else {
-            if constexpr (std::is_same_v<std::vector<identifier_type>,
-                                         std::remove_cvref_t<Container>>) {
-                std::swap(*first, container.back());
-                container.pop_back();
-                last = std::end(container);
-            } else if constexpr (std::is_same_v<
-                                   flat_list<identifier_type>,
-                                   std::remove_cvref_t<Container>>) {
-                if (previous == first) {
-                    container.pop_front();
-                    first = container.begin();
-                    previous = first;
-                } else {
-                    first = container.erase_after(previous);
-                }
-            } else {
-                abort();
-            }
-        }
-    }
 }
 
 void
@@ -200,13 +149,13 @@ editor::group(const ImVector<int>& nodes) noexcept
         return;
     }
 
-    /* First, move children models and groups from the current cluster into the
-       newly allocated cluster. */
-
     auto& new_cluster = clusters.alloc();
     auto new_cluster_id = clusters.get_id(new_cluster);
     format(new_cluster.name, "Group {}", new_cluster_id);
     parent(new_cluster_id, undefined<cluster_id>());
+
+    /* First, move children models and groups from the current cluster into the
+       newly allocated cluster. */
 
     for (int i = 0, e = nodes.size(); i != e; ++i) {
         if (auto index = top.get_index(nodes[i]); index != not_found) {
@@ -231,33 +180,41 @@ editor::group(const ImVector<int>& nodes) noexcept
        cluster, we try to detect if the corresponding model is or is not in the
        same cluster. */
 
-    for (const auto child : top.children) {
+    for (const auto &child : top.children) {
         if (child.first.index() == 0) {
             const auto child_id = std::get<model_id>(child.first);
 
             if (auto* model = sim.models.try_to_get(child_id); model) {
-                sim.for_all_input_port(
+                sim.dispatch(
                   *model,
-                  [this, &new_cluster](const input_port& port,
-                                       input_port_id /*pid*/) {
-                      for (const auto id : port.connections) {
-                          if (auto* p = this->sim.output_ports.try_to_get(id);
-                              p)
-                              if (is_in_hierarchy(new_cluster,
-                                                  this->parent(p->model)))
-                                  new_cluster.output_ports.emplace_back(id);
+                  [this, &new_cluster]<typename Dynamics>(Dynamics& dyn) {
+                      if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                          for (sz i = 0u, e = std::size(dyn.x); i != e; ++i) {
+                              for (const auto& elem : dyn.x[i].connections) {
+                                  auto* src = sim.models.try_to_get(elem.model);
+                                  if (src &&
+                                      is_in_hierarchy(new_cluster,
+                                                      this->parent(elem.model)))
+                                      new_cluster.output_ports.emplace_back(
+                                        make_output_node_id(elem.model,
+                                                            elem.port_index));
+                              }
+                          }
                       }
-                  });
 
-                sim.for_all_output_port(
-                  *model,
-                  [this, &new_cluster](const output_port& port,
-                                       output_port_id /*pid*/) {
-                      for (const auto id : port.connections) {
-                          if (auto* p = this->sim.input_ports.try_to_get(id); p)
-                              if (is_in_hierarchy(new_cluster,
-                                                  this->parent(p->model)))
-                                  new_cluster.input_ports.emplace_back(id);
+                      if constexpr (is_detected_v<has_output_port_t,
+                                                  Dynamics>) {
+                          for (sz i = 0u, e = std::size(dyn.y); i != e; ++i) {
+                              for (const auto& elem : dyn.y[i].connections) {
+                                  auto* src = sim.models.try_to_get(elem.model);
+                                  if (src &&
+                                      is_in_hierarchy(new_cluster,
+                                                      this->parent(elem.model)))
+                                      new_cluster.input_ports.emplace_back(
+                                        make_input_node_id(elem.model,
+                                                           elem.port_index));
+                              }
+                          }
                       }
                   });
             }
@@ -266,28 +223,68 @@ editor::group(const ImVector<int>& nodes) noexcept
 
             if (auto* group = clusters.try_to_get(child_id); group) {
                 for (const auto id : group->input_ports) {
-                    if (auto* p = sim.input_ports.try_to_get(id); p) {
-                        for (const auto d_id : p->connections) {
-                            if (auto* d_p = sim.output_ports.try_to_get(d_id);
-                                d_p) {
-                                if (is_in_hierarchy(new_cluster,
-                                                    this->parent(d_p->model)))
-                                    new_cluster.output_ports.emplace_back(d_id);
-                            }
-                        }
+                    const auto model_port = get_in(id);
+
+                    if (model_port.model) {
+                        sim.dispatch(
+                          *model_port.model,
+                          [this, &new_cluster, &model_port]<typename Dynamics>(
+                            Dynamics& dyn) {
+                              if constexpr (is_detected_v<has_input_port_t,
+                                                          Dynamics>) {
+                                  for (sz i = 0u, e = std::size(dyn.x); i != e;
+                                       ++i) {
+                                      for (const auto& elem :
+                                           dyn.x[model_port.port_index]
+                                             .connections) {
+                                          auto* src =
+                                            sim.models.try_to_get(elem.model);
+                                          if (src &&
+                                              is_in_hierarchy(
+                                                new_cluster,
+                                                this->parent(elem.model)))
+                                              new_cluster.output_ports
+                                                .emplace_back(
+                                                  make_output_node_id(
+                                                    elem.model,
+                                                    elem.port_index));
+                                      }
+                                  }
+                              }
+                          });
                     }
                 }
 
                 for (const auto id : group->output_ports) {
-                    if (auto* p = sim.output_ports.try_to_get(id); p) {
-                        for (const auto d_id : p->connections) {
-                            if (auto* d_p = sim.input_ports.try_to_get(d_id);
-                                d_p) {
-                                if (is_in_hierarchy(new_cluster,
-                                                    this->parent(d_p->model)))
-                                    new_cluster.input_ports.emplace_back(d_id);
-                            }
-                        }
+                    const auto model_port = get_out(id);
+
+                    if (model_port.model) {
+                        sim.dispatch(
+                          *model_port.model,
+                          [this, &new_cluster, &model_port]<typename Dynamics>(
+                            Dynamics& dyn) {
+                              if constexpr (is_detected_v<has_output_port_t,
+                                                          Dynamics>) {
+                                  for (sz i = 0u, e = std::size(dyn.y); i != e;
+                                       ++i) {
+                                      for (const auto& elem :
+                                           dyn.y[model_port.port_index]
+                                             .connections) {
+                                          auto* dst =
+                                            sim.models.try_to_get(elem.model);
+                                          if (dst &&
+                                              is_in_hierarchy(
+                                                new_cluster,
+                                                this->parent(elem.model)))
+                                              new_cluster.input_ports
+                                                .emplace_back(
+                                                  make_input_node_id(
+                                                    elem.model,
+                                                    elem.port_index));
+                                      }
+                                  }
+                              }
+                          });
                     }
                 }
             }
@@ -440,26 +437,24 @@ struct copier
     {
         copy_input_port() = default;
 
-        copy_input_port(const input_port_id src_,
-                        const input_port_id dst_) noexcept
+        copy_input_port(const int src_, const int dst_) noexcept
           : src(src_)
           , dst(dst_)
         {}
 
-        input_port_id src, dst;
+        int src, dst;
     };
 
     struct copy_output_port
     {
         copy_output_port() = default;
 
-        copy_output_port(const output_port_id src_,
-                         const output_port_id dst_) noexcept
+        copy_output_port(const int src_, const int dst_) noexcept
           : src(src_)
           , dst(dst_)
         {}
 
-        output_port_id src, dst;
+        int src, dst;
     };
 
     std::vector<copy_model> c_models;
@@ -501,7 +496,7 @@ struct copier
     template<typename Container, typename T>
     static int get(const Container& c, const T src) noexcept
     {
-        const typename Container::value_type val = { src, undefined<T>() };
+        const typename Container::value_type val{};
 
         auto it = std::lower_bound(std::begin(c),
                                    std::end(c),
@@ -527,12 +522,12 @@ struct copier
         return get(c_clusters, src);
     }
 
-    int get_input_port(const input_port_id src) const noexcept
+    int get_input_port(const int src) const noexcept
     {
         return get(c_input_ports, src);
     }
 
-    int get_output_port(const output_port_id src) const noexcept
+    int get_output_port(const int src) const noexcept
     {
         return get(c_output_ports, src);
     }
@@ -548,45 +543,26 @@ struct copier
             auto* mdl_id_dst = &c_models[i].dst;
 
             auto ret = sim.dispatch(
-              mdl->type,
-              [this, &sim, mdl, &mdl_id_dst]<typename DynamicsM>(
-                DynamicsM& dynamics_models) -> status {
-                  using Dynamics = typename DynamicsM::value_type;
-
-                  irt_return_if_fail(dynamics_models.can_alloc(1),
+              *mdl,
+              [this, &sim, mdl, &mdl_id_dst]<typename Dynamics>(
+                Dynamics& dyn) -> status {
+                  irt_return_if_fail(sim.models.can_alloc(1),
                                      status::dynamics_not_enough_memory);
 
-                  auto* dyn_ptr = dynamics_models.try_to_get(mdl->id);
-                  irt_return_if_fail(dyn_ptr, status::dynamics_unknown_id);
-
-                  auto& new_dyn = dynamics_models.alloc(*dyn_ptr);
-                  auto new_dyn_id = dynamics_models.get_id(new_dyn);
+                  auto& new_dyn = sim.alloc<Dynamics>();
+                  *mdl_id_dst = sim.get_id(new_dyn);
 
                   if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      std::fill_n(new_dyn.x,
-                                  std::size(new_dyn.x),
-                                  static_cast<input_port_id>(0));
+                      for (sz j = 0u, ej = std::size(new_dyn.x); j != ej; ++j)
+                          this->c_input_ports.emplace_back(
+                            make_input_node_id(sim.models.get_id(mdl), (int)j),
+                            make_input_node_id(*mdl_id_dst, (int)j));
 
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      std::fill_n(new_dyn.y,
-                                  std::size(new_dyn.y),
-                                  static_cast<output_port_id>(0));
-
-                  irt_return_if_bad(sim.alloc(new_dyn, new_dyn_id));
-
-                  *mdl_id_dst = new_dyn.id;
-
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      for (size_t j = 0, ej = std::size(new_dyn.x); j != ej;
-                           ++j)
-                          this->c_input_ports.emplace_back(dyn_ptr->x[j],
-                                                           new_dyn.x[j]);
-
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      for (size_t j = 0, ej = std::size(new_dyn.y); j != ej;
-                           ++j)
-                          this->c_output_ports.emplace_back(dyn_ptr->y[j],
-                                                            new_dyn.y[j]);
+                      for (sz j = 0, ej = std::size(new_dyn.y); j != ej; ++j)
+                          this->c_output_ports.emplace_back(
+                            make_output_node_id(sim.models.get_id(mdl), (int)j),
+                            make_input_node_id(*mdl_id_dst, (int)j));
 
                   return status::success;
               });
@@ -629,30 +605,31 @@ struct copier
             }
         }
 
-        for (size_t i = 0, e = std::size(c_input_ports); i != e; ++i) {
-            const auto* src = sim.input_ports.try_to_get(c_input_ports[i].src);
-            auto* dst = sim.input_ports.try_to_get(c_input_ports[i].dst);
+        // for (size_t i = 0, e = std::size(c_input_ports); i != e; ++i) {
+        //    const auto* src =
+        //    sim.input_ports.try_to_get(c_input_ports[i].src); auto* dst =
+        //    sim.input_ports.try_to_get(c_input_ports[i].dst);
 
-            assert(dst->connections.empty());
+        //    assert(dst->connections.empty());
 
-            for (const auto port : src->connections) {
-                const auto index = get_output_port(port);
-                dst->connections.emplace_front(c_output_ports[index].dst);
-            }
-        }
+        //    for (const auto port : src->connections) {
+        //        const auto index = get_output_port(port);
+        //        dst->connections.emplace_front(c_output_ports[index].dst);
+        //    }
+        //}
 
-        for (size_t i = 0, e = std::size(c_output_ports); i != e; ++i) {
-            const auto* src =
-              sim.output_ports.try_to_get(c_output_ports[i].src);
-            auto* dst = sim.output_ports.try_to_get(c_output_ports[i].dst);
+        // for (size_t i = 0, e = std::size(c_output_ports); i != e; ++i) {
+        //    const auto* src =
+        //      sim.output_ports.try_to_get(c_output_ports[i].src);
+        //    auto* dst = sim.output_ports.try_to_get(c_output_ports[i].dst);
 
-            assert(dst->connections.empty());
+        //    assert(dst->connections.empty());
 
-            for (const auto port : src->connections) {
-                const auto index = get_input_port(port);
-                dst->connections.emplace_front(c_input_ports[index].dst);
-            }
-        }
+        //    for (const auto port : src->connections) {
+        //        const auto index = get_input_port(port);
+        //        dst->connections.emplace_front(c_input_ports[index].dst);
+        //    }
+        //}
 
         for (size_t i = 0, e = std::size(c_models); i != e; ++i) {
             const auto parent_src = ed.parent(c_models[i].src);
@@ -692,26 +669,55 @@ struct copier
 };
 
 static void
-compute_connection_distance(output_port& port, editor& ed, const float k)
+compute_connection_distance(const child_id src,
+                            const child_id dst,
+                            editor& ed,
+                            const float k)
 {
-    for_each(ed.sim.input_ports,
-             port.connections,
-             [&](const auto& i_port, const auto /*i_id*/) {
-                 const auto v = ed.get_top_group_ref(port.model);
-                 const auto u = ed.get_top_group_ref(i_port.model);
+    const auto v = ed.get_top_group_ref(src);
+    const auto u = ed.get_top_group_ref(dst);
 
-                 const float dx = ed.positions[v].x - ed.positions[u].x;
-                 const float dy = ed.positions[v].y - ed.positions[u].y;
-                 if (dx && dy) {
-                     const float d2 = dx * dx / dy * dy;
-                     const float coeff = std::sqrt(d2) / k;
+    const float dx = ed.positions[v].x - ed.positions[u].x;
+    const float dy = ed.positions[v].y - ed.positions[u].y;
+    if (dx && dy) {
+        const float d2 = dx * dx / dy * dy;
+        const float coeff = std::sqrt(d2) / k;
 
-                     ed.displacements[v].x -= dx * coeff;
-                     ed.displacements[v].y -= dy * coeff;
-                     ed.displacements[u].x += dx * coeff;
-                     ed.displacements[u].y += dy * coeff;
-                 }
-             });
+        ed.displacements[v].x -= dx * coeff;
+        ed.displacements[v].y -= dy * coeff;
+        ed.displacements[u].x += dx * coeff;
+        ed.displacements[u].y += dy * coeff;
+    }
+}
+
+static void
+compute_connection_distance(const model& mdl,
+                            const int port,
+                            editor& ed,
+                            const float k)
+{
+    ed.sim.dispatch(
+      mdl, [&mdl, port, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
+          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+              for (auto& dst : dyn.y[port].connections)
+                  compute_connection_distance(
+                    ed.sim.get_id(mdl), dst.model, ed, k);
+          }
+      });
+}
+
+static void
+compute_connection_distance(const model& mdl, editor& ed, const float k)
+{
+    ed.sim.dispatch(
+      mdl, [&mdl, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
+          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+              for (sz i = 0, e = std::size(dyn.y); i != e; ++i)
+                  for (auto& dst : dyn.y[i].connections)
+                      compute_connection_distance(
+                        ed.sim.get_id(mdl), dst.model, ed, k);
+          }
+      });
 }
 
 void
@@ -828,22 +834,20 @@ editor::compute_automatic_layout() noexcept
         for (size_t i = 0, e = top.children.size(); i != e; ++i) {
             if (top.children[i].first.index() == 0) {
                 const auto id = std::get<model_id>(top.children[i].first);
-                if (const auto* mdl = sim.models.try_to_get(id); mdl) {
-                    sim.for_all_output_port(
-                      *mdl,
-                      [this, k](output_port& port, output_port_id /*id*/) {
-                          compute_connection_distance(port, *this, k);
-                      });
-                }
+                if (const auto* mdl = sim.models.try_to_get(id); mdl)
+                    compute_connection_distance(*mdl, *this, k);
             } else {
                 const auto id = std::get<cluster_id>(top.children[i].first);
                 if (auto* gp = clusters.try_to_get(id); gp) {
-                    for_each(
-                      sim.output_ports,
-                      gp->output_ports,
-                      [this, k](output_port& port, output_port_id /*id*/) {
-                          compute_connection_distance(port, *this, k);
-                      });
+                    for (sz i = 0; i < std::size(gp->output_ports); ++i) {
+                        auto model_port = get_out(gp->output_ports[i]);
+                        if (model_port.model) {
+                            compute_connection_distance(*model_port.model,
+                                                        model_port.port_index,
+                                                        *this,
+                                                        k);
+                        }
+                    }
                 }
             }
         }
@@ -971,18 +975,16 @@ editor::initialize(u32 id) noexcept
 status
 editor::add_lotka_volterra() noexcept
 {
-    if (!sim.adder_2_models.can_alloc(2) || !sim.mult_2_models.can_alloc(2) ||
-        !sim.integrator_models.can_alloc(2) ||
-        !sim.quantifier_models.can_alloc(2) || !sim.models.can_alloc(10))
+    if (!sim.models.can_alloc(10))
         return status::simulation_not_enough_model;
 
-    auto& sum_a = sim.adder_2_models.alloc();
-    auto& sum_b = sim.adder_2_models.alloc();
-    auto& product = sim.mult_2_models.alloc();
-    auto& integrator_a = sim.integrator_models.alloc();
-    auto& integrator_b = sim.integrator_models.alloc();
-    auto& quantifier_a = sim.quantifier_models.alloc();
-    auto& quantifier_b = sim.quantifier_models.alloc();
+    auto& sum_a = sim.alloc<adder_2>();
+    auto& sum_b = sim.alloc<adder_2>();
+    auto& product = sim.alloc<mult_2>();
+    auto& integrator_a = sim.alloc<integrator>();
+    auto& integrator_b = sim.alloc<integrator>();
+    auto& quantifier_a = sim.alloc<quantifier>();
+    auto& quantifier_b = sim.alloc<quantifier>();
 
     integrator_a.default_current_value = 18.0;
 
@@ -1005,50 +1007,38 @@ editor::add_lotka_volterra() noexcept
     sum_b.default_input_coeffs[0] = -1.0;
     sum_b.default_input_coeffs[1] = 0.1;
 
-    irt_return_if_bad(sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a)));
-    irt_return_if_bad(sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b)));
-    irt_return_if_bad(sim.alloc(product, sim.mult_2_models.get_id(product)));
-    irt_return_if_bad(
-      sim.alloc(integrator_a, sim.integrator_models.get_id(integrator_a)));
-    irt_return_if_bad(
-      sim.alloc(integrator_b, sim.integrator_models.get_id(integrator_b)));
-    irt_return_if_bad(
-      sim.alloc(quantifier_a, sim.quantifier_models.get_id(quantifier_a)));
-    irt_return_if_bad(
-      sim.alloc(quantifier_b, sim.quantifier_models.get_id(quantifier_b)));
+    irt_return_if_bad(sim.connect(sum_a, 0, integrator_a, 1));
+    irt_return_if_bad(sim.connect(sum_b, 0, integrator_b, 1));
 
-    irt_return_if_bad(sim.connect(sum_a.y[0], integrator_a.x[1]));
-    irt_return_if_bad(sim.connect(sum_b.y[0], integrator_b.x[1]));
+    irt_return_if_bad(sim.connect(integrator_a, 0, sum_a, 0));
+    irt_return_if_bad(sim.connect(integrator_b, 0, sum_b, 0));
 
-    irt_return_if_bad(sim.connect(integrator_a.y[0], sum_a.x[0]));
-    irt_return_if_bad(sim.connect(integrator_b.y[0], sum_b.x[0]));
+    irt_return_if_bad(sim.connect(integrator_a, 0, product, 0));
+    irt_return_if_bad(sim.connect(integrator_b, 0, product, 1));
 
-    irt_return_if_bad(sim.connect(integrator_a.y[0], product.x[0]));
-    irt_return_if_bad(sim.connect(integrator_b.y[0], product.x[1]));
+    irt_return_if_bad(sim.connect(product, 0, sum_a, 1));
+    irt_return_if_bad(sim.connect(product, 0, sum_b, 1));
 
-    irt_return_if_bad(sim.connect(product.y[0], sum_a.x[1]));
-    irt_return_if_bad(sim.connect(product.y[0], sum_b.x[1]));
+    irt_return_if_bad(sim.connect(quantifier_a, 0, integrator_a, 0));
+    irt_return_if_bad(sim.connect(quantifier_b, 0, integrator_b, 0));
+    irt_return_if_bad(sim.connect(integrator_a, 0, quantifier_a, 0));
+    irt_return_if_bad(sim.connect(integrator_b, 0, quantifier_b, 0));
 
-    irt_return_if_bad(sim.connect(quantifier_a.y[0], integrator_a.x[0]));
-    irt_return_if_bad(sim.connect(quantifier_b.y[0], integrator_b.x[0]));
-    irt_return_if_bad(sim.connect(integrator_a.y[0], quantifier_a.x[0]));
-    irt_return_if_bad(sim.connect(integrator_b.y[0], quantifier_b.x[0]));
+    top.emplace_back(sim.get_id(sum_a));
+    top.emplace_back(sim.get_id(sum_b));
+    top.emplace_back(sim.get_id(product));
+    top.emplace_back(sim.get_id(integrator_a));
+    top.emplace_back(sim.get_id(integrator_b));
+    top.emplace_back(sim.get_id(quantifier_a));
+    top.emplace_back(sim.get_id(quantifier_b));
 
-    top.emplace_back(sum_a.id);
-    top.emplace_back(sum_b.id);
-    top.emplace_back(product.id);
-    top.emplace_back(integrator_a.id);
-    top.emplace_back(integrator_b.id);
-    top.emplace_back(quantifier_a.id);
-    top.emplace_back(quantifier_b.id);
-
-    parent(sum_a.id, undefined<cluster_id>());
-    parent(sum_b.id, undefined<cluster_id>());
-    parent(product.id, undefined<cluster_id>());
-    parent(integrator_a.id, undefined<cluster_id>());
-    parent(integrator_b.id, undefined<cluster_id>());
-    parent(quantifier_a.id, undefined<cluster_id>());
-    parent(quantifier_b.id, undefined<cluster_id>());
+    parent(sim.get_id(sum_a), undefined<cluster_id>());
+    parent(sim.get_id(sum_b), undefined<cluster_id>());
+    parent(sim.get_id(product), undefined<cluster_id>());
+    parent(sim.get_id(integrator_a), undefined<cluster_id>());
+    parent(sim.get_id(integrator_b), undefined<cluster_id>());
+    parent(sim.get_id(quantifier_a), undefined<cluster_id>());
+    parent(sim.get_id(quantifier_b), undefined<cluster_id>());
 
     return status::success;
 }
@@ -1056,27 +1046,23 @@ editor::add_lotka_volterra() noexcept
 status
 editor::add_izhikevitch() noexcept
 {
-    if (!sim.constant_models.can_alloc(3) || !sim.adder_2_models.can_alloc(3) ||
-        !sim.adder_4_models.can_alloc(1) || !sim.mult_2_models.can_alloc(1) ||
-        !sim.integrator_models.can_alloc(2) ||
-        !sim.quantifier_models.can_alloc(2) || !sim.cross_models.can_alloc(2) ||
-        !sim.models.can_alloc(14))
+    if (!sim.models.can_alloc(14))
         return status::simulation_not_enough_model;
 
-    auto& constant = sim.constant_models.alloc();
-    auto& constant2 = sim.constant_models.alloc();
-    auto& constant3 = sim.constant_models.alloc();
-    auto& sum_a = sim.adder_2_models.alloc();
-    auto& sum_b = sim.adder_2_models.alloc();
-    auto& sum_c = sim.adder_4_models.alloc();
-    auto& sum_d = sim.adder_2_models.alloc();
-    auto& product = sim.mult_2_models.alloc();
-    auto& integrator_a = sim.integrator_models.alloc();
-    auto& integrator_b = sim.integrator_models.alloc();
-    auto& quantifier_a = sim.quantifier_models.alloc();
-    auto& quantifier_b = sim.quantifier_models.alloc();
-    auto& cross = sim.cross_models.alloc();
-    auto& cross2 = sim.cross_models.alloc();
+    auto& constant = sim.alloc<irt::constant>();
+    auto& constant2 = sim.alloc<irt::constant>();
+    auto& constant3 = sim.alloc<irt::constant>();
+    auto& sum_a = sim.alloc<irt::adder_2>();
+    auto& sum_b = sim.alloc<irt::adder_2>();
+    auto& sum_c = sim.alloc<irt::adder_4>();
+    auto& sum_d = sim.alloc<irt::adder_2>();
+    auto& product = sim.alloc<irt::mult_2>();
+    auto& integrator_a = sim.alloc<irt::integrator>();
+    auto& integrator_b = sim.alloc<irt::integrator>();
+    auto& quantifier_a = sim.alloc<irt::quantifier>();
+    auto& quantifier_b = sim.alloc<irt::quantifier>();
+    auto& cross = sim.alloc<irt::cross>();
+    auto& cross2 = sim.alloc<irt::cross>();
 
     double a = 0.2;
     double b = 2.0;
@@ -1120,108 +1106,115 @@ editor::add_izhikevitch() noexcept
     sum_d.default_input_coeffs[0] = 1.0;
     sum_d.default_input_coeffs[1] = d;
 
-    irt_return_if_bad(
-      sim.alloc(constant3, sim.constant_models.get_id(constant3)));
-    irt_return_if_bad(
-      sim.alloc(constant, sim.constant_models.get_id(constant)));
-    irt_return_if_bad(
-      sim.alloc(constant2, sim.constant_models.get_id(constant2)));
+    irt_return_if_bad(sim.connect(integrator_a, 0, cross, 0));
+    irt_return_if_bad(sim.connect(constant2, 0, cross, 1));
+    irt_return_if_bad(sim.connect(integrator_a, 0, cross, 2));
 
-    irt_return_if_bad(sim.alloc(sum_a, sim.adder_2_models.get_id(sum_a)));
-    irt_return_if_bad(sim.alloc(sum_b, sim.adder_2_models.get_id(sum_b)));
-    irt_return_if_bad(sim.alloc(sum_c, sim.adder_4_models.get_id(sum_c)));
-    irt_return_if_bad(sim.alloc(sum_d, sim.adder_2_models.get_id(sum_d)));
+    irt_return_if_bad(sim.connect(cross, 0, quantifier_a, 0));
+    irt_return_if_bad(sim.connect(cross, 0, product, 0));
+    irt_return_if_bad(sim.connect(cross, 0, product, 1));
+    irt_return_if_bad(sim.connect(product, 0, sum_c, 0));
+    irt_return_if_bad(sim.connect(cross, 0, sum_c, 1));
+    irt_return_if_bad(sim.connect(cross, 0, sum_b, 1));
 
-    irt_return_if_bad(sim.alloc(product, sim.mult_2_models.get_id(product)));
-    irt_return_if_bad(
-      sim.alloc(integrator_a, sim.integrator_models.get_id(integrator_a)));
-    irt_return_if_bad(
-      sim.alloc(integrator_b, sim.integrator_models.get_id(integrator_b)));
-    irt_return_if_bad(
-      sim.alloc(quantifier_a, sim.quantifier_models.get_id(quantifier_a)));
-    irt_return_if_bad(
-      sim.alloc(quantifier_b, sim.quantifier_models.get_id(quantifier_b)));
-    irt_return_if_bad(sim.alloc(cross, sim.cross_models.get_id(cross)));
-    irt_return_if_bad(sim.alloc(cross2, sim.cross_models.get_id(cross2)));
+    irt_return_if_bad(sim.connect(constant, 0, sum_c, 2));
+    irt_return_if_bad(sim.connect(constant3, 0, sum_c, 3));
 
-    irt_return_if_bad(sim.connect(integrator_a.y[0], cross.x[0]));
-    irt_return_if_bad(sim.connect(constant2.y[0], cross.x[1]));
-    irt_return_if_bad(sim.connect(integrator_a.y[0], cross.x[2]));
+    irt_return_if_bad(sim.connect(sum_c, 0, sum_a, 0));
+    irt_return_if_bad(sim.connect(integrator_b, 0, sum_a, 1));
+    irt_return_if_bad(sim.connect(cross2, 0, sum_a, 1));
+    irt_return_if_bad(sim.connect(sum_a, 0, integrator_a, 1));
+    irt_return_if_bad(sim.connect(cross, 0, integrator_a, 2));
+    irt_return_if_bad(sim.connect(quantifier_a, 0, integrator_a, 0));
 
-    irt_return_if_bad(sim.connect(cross.y[0], quantifier_a.x[0]));
-    irt_return_if_bad(sim.connect(cross.y[0], product.x[0]));
-    irt_return_if_bad(sim.connect(cross.y[0], product.x[1]));
-    irt_return_if_bad(sim.connect(product.y[0], sum_c.x[0]));
-    irt_return_if_bad(sim.connect(cross.y[0], sum_c.x[1]));
-    irt_return_if_bad(sim.connect(cross.y[0], sum_b.x[1]));
+    irt_return_if_bad(sim.connect(cross2, 0, quantifier_b, 0));
+    irt_return_if_bad(sim.connect(cross2, 0, sum_b, 0));
+    irt_return_if_bad(sim.connect(quantifier_b, 0, integrator_b, 0));
+    irt_return_if_bad(sim.connect(sum_b, 0, integrator_b, 1));
 
-    irt_return_if_bad(sim.connect(constant.y[0], sum_c.x[2]));
-    irt_return_if_bad(sim.connect(constant3.y[0], sum_c.x[3]));
+    irt_return_if_bad(sim.connect(cross2, 0, integrator_b, 2));
+    irt_return_if_bad(sim.connect(integrator_a, 0, cross2, 0));
+    irt_return_if_bad(sim.connect(integrator_b, 0, cross2, 2));
+    irt_return_if_bad(sim.connect(sum_d, 0, cross2, 1));
+    irt_return_if_bad(sim.connect(integrator_b, 0, sum_d, 0));
+    irt_return_if_bad(sim.connect(constant, 0, sum_d, 1));
 
-    irt_return_if_bad(sim.connect(sum_c.y[0], sum_a.x[0]));
-    irt_return_if_bad(sim.connect(integrator_b.y[0], sum_a.x[1]));
-    irt_return_if_bad(sim.connect(cross2.y[0], sum_a.x[1]));
-    irt_return_if_bad(sim.connect(sum_a.y[0], integrator_a.x[1]));
-    irt_return_if_bad(sim.connect(cross.y[0], integrator_a.x[2]));
-    irt_return_if_bad(sim.connect(quantifier_a.y[0], integrator_a.x[0]));
+    top.emplace_back(sim.get_id(constant));
+    top.emplace_back(sim.get_id(constant2));
+    top.emplace_back(sim.get_id(constant3));
+    top.emplace_back(sim.get_id(sum_a));
+    top.emplace_back(sim.get_id(sum_b));
+    top.emplace_back(sim.get_id(sum_c));
+    top.emplace_back(sim.get_id(sum_d));
+    top.emplace_back(sim.get_id(product));
+    top.emplace_back(sim.get_id(integrator_a));
+    top.emplace_back(sim.get_id(integrator_b));
+    top.emplace_back(sim.get_id(quantifier_a));
+    top.emplace_back(sim.get_id(quantifier_b));
+    top.emplace_back(sim.get_id(cross));
+    top.emplace_back(sim.get_id(cross2));
 
-    irt_return_if_bad(sim.connect(cross2.y[0], quantifier_b.x[0]));
-    irt_return_if_bad(sim.connect(cross2.y[0], sum_b.x[0]));
-    irt_return_if_bad(sim.connect(quantifier_b.y[0], integrator_b.x[0]));
-    irt_return_if_bad(sim.connect(sum_b.y[0], integrator_b.x[1]));
-
-    irt_return_if_bad(sim.connect(cross2.y[0], integrator_b.x[2]));
-    irt_return_if_bad(sim.connect(integrator_a.y[0], cross2.x[0]));
-    irt_return_if_bad(sim.connect(integrator_b.y[0], cross2.x[2]));
-    irt_return_if_bad(sim.connect(sum_d.y[0], cross2.x[1]));
-    irt_return_if_bad(sim.connect(integrator_b.y[0], sum_d.x[0]));
-    irt_return_if_bad(sim.connect(constant.y[0], sum_d.x[1]));
-
-    top.emplace_back(constant.id);
-    top.emplace_back(constant2.id);
-    top.emplace_back(constant3.id);
-    top.emplace_back(sum_a.id);
-    top.emplace_back(sum_b.id);
-    top.emplace_back(sum_c.id);
-    top.emplace_back(sum_d.id);
-    top.emplace_back(product.id);
-    top.emplace_back(integrator_a.id);
-    top.emplace_back(integrator_b.id);
-    top.emplace_back(quantifier_a.id);
-    top.emplace_back(quantifier_b.id);
-    top.emplace_back(cross.id);
-    top.emplace_back(cross2.id);
-
-    parent(constant.id, undefined<cluster_id>());
-    parent(constant2.id, undefined<cluster_id>());
-    parent(constant3.id, undefined<cluster_id>());
-    parent(sum_a.id, undefined<cluster_id>());
-    parent(sum_b.id, undefined<cluster_id>());
-    parent(sum_c.id, undefined<cluster_id>());
-    parent(sum_d.id, undefined<cluster_id>());
-    parent(product.id, undefined<cluster_id>());
-    parent(integrator_a.id, undefined<cluster_id>());
-    parent(integrator_b.id, undefined<cluster_id>());
-    parent(quantifier_a.id, undefined<cluster_id>());
-    parent(quantifier_b.id, undefined<cluster_id>());
-    parent(cross.id, undefined<cluster_id>());
-    parent(cross2.id, undefined<cluster_id>());
+    parent(sim.get_id(constant), undefined<cluster_id>());
+    parent(sim.get_id(constant2), undefined<cluster_id>());
+    parent(sim.get_id(constant3), undefined<cluster_id>());
+    parent(sim.get_id(sum_a), undefined<cluster_id>());
+    parent(sim.get_id(sum_b), undefined<cluster_id>());
+    parent(sim.get_id(sum_c), undefined<cluster_id>());
+    parent(sim.get_id(sum_d), undefined<cluster_id>());
+    parent(sim.get_id(product), undefined<cluster_id>());
+    parent(sim.get_id(integrator_a), undefined<cluster_id>());
+    parent(sim.get_id(integrator_b), undefined<cluster_id>());
+    parent(sim.get_id(quantifier_a), undefined<cluster_id>());
+    parent(sim.get_id(quantifier_b), undefined<cluster_id>());
+    parent(sim.get_id(cross), undefined<cluster_id>());
+    parent(sim.get_id(cross2), undefined<cluster_id>());
 
     return status::success;
 }
 
 static int
-show_connection(output_port& port,
-                output_port_id id,
-                data_array<input_port, input_port_id>& input_ports,
-                int connection_id)
+show_connection(editor& ed, const model& mdl, int port, int connection_id)
 {
-    for_each(input_ports,
-             port.connections,
-             [&connection_id, id](const auto& /*i_port*/, const auto i_id) {
-                 imnodes::Link(
-                   connection_id++, editor::get_out(id), editor::get_in(i_id));
-             });
+    ed.sim.dispatch(
+      mdl,
+      [&ed, &mdl, port, &connection_id]<typename Dynamics>(
+        Dynamics& dyn) -> void {
+          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+              int out = make_output_node_id(ed.sim.get_id(dyn), port);
+
+              for (const auto& c : dyn.y[port].connections) {
+                  if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
+                      mdl_dst) {
+                      int in = make_input_node_id(c.model, c.port_index);
+                      imnodes::Link(connection_id++, out, in);
+                  }
+              }
+          }
+      });
+
+    return connection_id;
+}
+
+static int
+show_connection(editor& ed, const model& mdl, int connection_id)
+{
+    ed.sim.dispatch(
+      mdl,
+      [&ed, &mdl, &connection_id]<typename Dynamics>(Dynamics& dyn) -> void {
+          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+              for (sz i = 0, e = std::size(dyn.y); i != e; ++i) {
+                  int out = make_output_node_id(ed.sim.get_id(dyn), (int)i);
+
+                  for (const auto& c : dyn.y[i].connections) {
+                      if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
+                          mdl_dst) {
+                          int in = make_input_node_id(c.model, c.port_index);
+                          imnodes::Link(connection_id++, out, in);
+                      }
+                  }
+              }
+          }
+      });
 
     return connection_id;
 }
@@ -1234,31 +1227,20 @@ editor::show_connections() noexcept
     for (size_t i = 0, e = top.children.size(); i != e; ++i) {
         if (top.children[i].first.index() == 0) {
             const auto id = std::get<model_id>(top.children[i].first);
-            if (const auto* mdl = sim.models.try_to_get(id); mdl) {
-                sim.for_all_output_port(
-                  *mdl,
-                  [this, &connection_id](output_port& port,
-                                         output_port_id /*id*/) {
-                      connection_id =
-                        show_connection(port,
-                                        this->sim.output_ports.get_id(port),
-                                        this->sim.input_ports,
-                                        connection_id);
-                  });
-            }
+            if (const auto* mdl = sim.models.try_to_get(id); mdl)
+                connection_id = show_connection(*this, *mdl, connection_id);
         } else {
             const auto id = std::get<cluster_id>(top.children[i].first);
             if (auto* gp = clusters.try_to_get(id); gp) {
-                for_each(sim.output_ports,
-                         gp->output_ports,
-                         [this, &connection_id](output_port& port,
-                                                output_port_id /*id*/) {
-                             connection_id = show_connection(
-                               port,
-                               this->sim.output_ports.get_id(port),
-                               this->sim.input_ports,
-                               connection_id);
-                         });
+                for (sz i = 0; i < std::size(gp->output_ports); ++i) {
+                    auto model_port = get_out(gp->output_ports[i]);
+                    if (model_port.model) {
+                        show_connection(*this,
+                                        *model_port.model,
+                                        model_port.port_index,
+                                        connection_id);
+                    }
+                }
             }
         }
     }
@@ -1272,8 +1254,9 @@ editor::show_model_cluster(cluster& mdl) noexcept
         auto end = mdl.input_ports.end();
 
         while (it != end) {
-            if (auto* port = sim.input_ports.try_to_get(*it); port) {
-                imnodes::BeginInputAttribute(get_in(*it),
+            const auto node = get_in(*it);
+            if (node.model) {
+                imnodes::BeginInputAttribute(*it,
                                              imnodes::PinShape_TriangleFilled);
                 ImGui::TextUnformatted("");
                 imnodes::EndInputAttribute();
@@ -1289,8 +1272,10 @@ editor::show_model_cluster(cluster& mdl) noexcept
         auto end = mdl.output_ports.end();
 
         while (it != end) {
-            if (auto* port = sim.output_ports.try_to_get(*it); port) {
-                imnodes::BeginOutputAttribute(get_out(*it),
+            const auto node = get_out(*it);
+
+            if (node.model) {
+                imnodes::BeginOutputAttribute(*it,
                                               imnodes::PinShape_TriangleFilled);
                 ImGui::TextUnformatted("");
                 imnodes::EndOutputAttribute();
@@ -1310,7 +1295,13 @@ add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
         const auto** names = get_input_port_names<Dynamics>();
 
         for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-            imnodes::BeginInputAttribute(ed.get_in(dyn.x[i]),
+            irt_assert(i < 8u);
+            const auto& mdl = get_model(dyn);
+            const auto mdl_id = ed.sim.models.get_id(mdl);
+
+            assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
+
+            imnodes::BeginInputAttribute(make_input_node_id(mdl_id, (int)i),
                                          imnodes::PinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             imnodes::EndInputAttribute();
@@ -1326,7 +1317,14 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
         const auto** names = get_output_port_names<Dynamics>();
 
         for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-            imnodes::BeginOutputAttribute(ed.get_out(dyn.y[i]),
+            irt_assert(i < 8u);
+
+            const auto& mdl = get_model(dyn);
+            const auto mdl_id = ed.sim.models.get_id(mdl);
+
+            assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
+
+            imnodes::BeginOutputAttribute(make_output_node_id(mdl_id, (int)i),
                                           imnodes::PinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             imnodes::EndOutputAttribute();
@@ -2055,8 +2053,7 @@ void
 editor::show_model_dynamics(model& mdl) noexcept
 {
     if (simulation_show_value && st != editor_status::editing) {
-        sim.dispatch(mdl.type, [&](const auto& d_array) {
-            const auto& dyn = d_array.get(mdl.id);
+        sim.dispatch(mdl, [&](const auto& dyn) {
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
             show_dynamics_values(dyn);
@@ -2064,8 +2061,7 @@ editor::show_model_dynamics(model& mdl) noexcept
             add_output_attribute(*this, dyn);
         });
     } else {
-        sim.dispatch(mdl.type, [&](auto& d_array) {
-            auto& dyn = d_array.get(mdl.id);
+        sim.dispatch(mdl, [&](auto& dyn) {
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
 
@@ -2081,14 +2077,14 @@ template<typename Dynamics>
 static status
 make_input_tooltip(editor& ed, Dynamics& dyn, std::string& out)
 {
-    for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-        if (auto* port = ed.sim.input_ports.try_to_get(dyn.x[i]); port) {
-            if (port->messages.empty())
+    if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+        for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
+            if (dyn.x[i].messages.empty())
                 continue;
 
             fmt::format_to(std::back_inserter(out), "x[{}]: ", i);
 
-            for (const auto& msg : port->messages) {
+            for (const auto& msg : dyn.x[i].messages) {
                 switch (msg.size()) {
                 case 0:
                     fmt::format_to(std::back_inserter(out), "() ");
@@ -2128,15 +2124,12 @@ show_tooltip(editor& ed, const model& mdl, const model_id id)
                        mdl.tl,
                        mdl.tn);
 
-        auto ret = ed.sim.dispatch(
-          mdl.type, [&]<typename DynamicsModels>(DynamicsModels& dyn_models) {
-              using Dynamics = typename DynamicsModels::value_type;
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                  return make_input_tooltip(
-                    ed, dyn_models.get(mdl.id), ed.tooltip);
+        auto ret = ed.sim.dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                return make_input_tooltip(ed, dyn, ed.tooltip);
 
-              return status::success;
-          });
+            return status::success;
+        });
 
         if (is_bad(ret))
             ed.tooltip += "error\n";
@@ -2193,8 +2186,9 @@ editor::show_top() noexcept
                 // ImGui::OpenPopupOnItemClick("Rename model", 1);
 
                 // bool is_rename = true;
-                // ImGui::SetNextWindowSize(ImVec2(250, 200), ImGuiCond_Always);
-                // if (ImGui::BeginPopupModal("Rename model", &is_rename)) {
+                // ImGui::SetNextWindowSize(ImVec2(250, 200),
+                // ImGuiCond_Always); if (ImGui::BeginPopupModal("Rename
+                // model", &is_rename)) {
                 //    ImGui::InputText(
                 //      "Name##edit-1", mdl->name.begin(),
                 //      mdl->name.capacity());
@@ -2290,29 +2284,20 @@ editor::settings_manager::show(bool* is_open)
     ImGui::End();
 }
 
-void
+status
 add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
 {
-    auto ret = ed.sim.dispatch(type, [&](auto& d_array) {
-        if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)])) {
-            if (!ed.sim.models.can_alloc(1) || !d_array.can_alloc(1))
-                return status::data_array_not_enough_memory;
+    if (!ed.sim.models.can_alloc(1))
+        return status::data_array_not_enough_memory;
 
-            auto& dyn = d_array.alloc();
-            ed.sim.alloc(dyn, d_array.get_id(dyn));
+    if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)])) {
+        auto& mdl = ed.sim.alloc(type);
+        *new_model = ed.sim.models.get_id(mdl);
 
-            const auto mdl_id = dyn.id;
-            auto* mdl = ed.sim.models.try_to_get(mdl_id);
-            ed.sim.make_initialize(*mdl, dyn, ed.simulation_current);
+        return ed.sim.make_initialize(mdl, ed.simulation_current);
+    }
 
-            *new_model = mdl_id;
-        }
-
-        return status::success;
-    });
-
-    if (is_bad(ret))
-        log_w.log(5, "Fail to allocate new dynamics: %s\n", status_string(ret));
+    return status::success;
 }
 
 bool
@@ -2400,17 +2385,17 @@ editor::show_editor() noexcept
             if (ImGui::MenuItem("Insert example QSS1 lotka_volterra"))
                 if (auto ret = example_qss_lotka_volterra<1>(sim, empty_fun);
                     is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_lotka_volterra<1>: %s\n",
-                      status_string(ret));
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_lotka_volterra<1>: %s\n",
+                              status_string(ret));
             if (ImGui::MenuItem("Insert example QSS1 negative_lif"))
                 if (auto ret = example_qss_negative_lif<1>(sim, empty_fun);
                     is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_negative_lif<1>: %s\n",
-                      status_string(ret));
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_negative_lif<1>: %s\n",
+                              status_string(ret));
             if (ImGui::MenuItem("Insert example QSS1 lif"))
                 if (auto ret = example_qss_lif<1>(sim, empty_fun); is_bad(ret))
                     log_w.log(3,
@@ -2434,17 +2419,17 @@ editor::show_editor() noexcept
             if (ImGui::MenuItem("Insert example QSS2 lotka_volterra"))
                 if (auto ret = example_qss_lotka_volterra<2>(sim, empty_fun);
                     is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_lotka_volterra<2>: %s\n",
-                      status_string(ret));
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_lotka_volterra<2>: %s\n",
+                              status_string(ret));
             if (ImGui::MenuItem("Insert example QSS2 negative_lif"))
                 if (auto ret = example_qss_negative_lif<2>(sim, empty_fun);
                     is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_negative_lif<2>: %s\n",
-                      status_string(ret));
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_negative_lif<2>: %s\n",
+                              status_string(ret));
             if (ImGui::MenuItem("Insert example QSS2 lif"))
                 if (auto ret = example_qss_lif<2>(sim, empty_fun); is_bad(ret))
                     log_w.log(3,
@@ -2468,17 +2453,17 @@ editor::show_editor() noexcept
             if (ImGui::MenuItem("Insert example QSS3 lotka_volterra"))
                 if (auto ret = example_qss_lotka_volterra<3>(sim, empty_fun);
                     is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_lotka_volterra<3>: %s\n",
-                      status_string(ret));
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_lotka_volterra<3>: %s\n",
+                              status_string(ret));
             if (ImGui::MenuItem("Insert example QSS3 negative_lif"))
                 if (auto ret = example_qss_negative_lif<3>(sim, empty_fun);
                     is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_negative_lif<3>: %s\n",
-                      status_string(ret));
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_negative_lif<3>: %s\n",
+                              status_string(ret));
             if (ImGui::MenuItem("Insert example QSS3 lif"))
                 if (auto ret = example_qss_lif<3>(sim, empty_fun); is_bad(ret))
                     log_w.log(3,
@@ -2669,17 +2654,17 @@ editor::show_editor() noexcept
     {
         int start = 0, end = 0;
         if (imnodes::IsLinkCreated(&start, &end)) {
-            output_port_id out = get_out(start);
-            input_port_id in = get_in(end);
+            const gport out = get_out(start);
+            const gport in = get_in(end);
 
-            auto* o_port = sim.output_ports.try_to_get(out);
-            auto* i_port = sim.input_ports.try_to_get(in);
-
-            if (i_port && o_port && sim.can_connect(1u))
-                if (auto status = sim.connect(out, in); is_bad(status))
+            if (out.model && in.model && sim.can_connect(1)) {
+                if (auto status = sim.connect(
+                      *out.model, out.port_index, *in.model, in.port_index);
+                    is_bad(status))
                     log_w.log(6,
                               "Fail to connect these models: %s\n",
                               status_string(status));
+            }
         }
     }
 
@@ -2728,30 +2713,49 @@ editor::show_editor() noexcept
 
             log_w.log(7, "%d connection(s) to delete\n", num_selected_links);
 
-            output_port* o_port = nullptr;
-            while (sim.output_ports.next(o_port) && link_id_to_delete != -1) {
-                for (const auto dst : o_port->connections) {
-                    if (auto* i_port = sim.input_ports.try_to_get(dst);
-                        i_port) {
-                        if (current_link_id == link_id_to_delete) {
-                            sim.disconnect(sim.output_ports.get_id(o_port),
-                                           dst);
+            auto selected_links_ptr = selected_links.Data;
+            auto selected_links_size = selected_links.Size;
 
-                            ++i;
+            model* mdl = nullptr;
+            while (sim.models.next(mdl) && link_id_to_delete != -1) {
+                sim.dispatch(
+                  *mdl,
+                  [this,
+                   &mdl,
+                   &i,
+                   &current_link_id,
+                   selected_links_ptr,
+                   selected_links_size,
+                   &link_id_to_delete]<typename Dynamics>(Dynamics& dyn) {
+                      if constexpr (is_detected_v<has_output_port_t,
+                                                  Dynamics>) {
+                          for (sz j = 0, e = std::size(dyn.y); j != e; ++j) {
+                              for (const auto& elem : dyn.y[j].connections) {
+                                  if (current_link_id == link_id_to_delete) {
+                                      this->sim.disconnect(
+                                        *mdl,
+                                        (int)j,
+                                        this->sim.models.get(elem.model),
+                                        elem.port_index);
 
-                            if (i != selected_links.size())
-                                link_id_to_delete = selected_links[i];
-                            else
-                                link_id_to_delete = -1;
-                        }
+                                      ++i;
 
-                        ++current_link_id;
-                    }
-                }
+                                      if (i != selected_links_size)
+                                          link_id_to_delete =
+                                            selected_links_ptr[i];
+                                      else
+                                          link_id_to_delete = -1;
+                                  }
+
+                                  ++current_link_id;
+                              }
+                          }
+                      }
+                  });
             }
-
-            selected_links.resize(0);
         }
+
+        selected_links.resize(0);
     }
 
     ImGui::NextColumn();
@@ -2876,13 +2880,9 @@ editor::show_editor() noexcept
                     observation_outputs_free(index);
                 }
 
-                sim.dispatch(
-                  mdl->type,
-                  [](auto& d_array, model& mdl) {
-                      auto& dyn = d_array.get(mdl.id);
-                      show_dynamics_inputs(dyn);
-                  },
-                  *mdl);
+                sim.dispatch(*mdl, []<typename Dynamics>(Dynamics& dyn) {
+                    show_dynamics_inputs(dyn);
+                });
 
                 ImGui::TreePop();
             }
