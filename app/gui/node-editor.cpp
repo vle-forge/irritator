@@ -1595,14 +1595,12 @@ static void
 show_dynamics_values(const buffer& dyn)
 {
     ImGui::Text("next %.3f", dyn.sigma);
-    ImGui::Text("value %.3f", dyn.value);
 }
 
 static void
 show_dynamics_values(const generator& dyn)
 {
     ImGui::Text("next %.3f", dyn.sigma);
-    ImGui::Text("value %.3f", dyn.value);
 }
 
 static void
@@ -1917,22 +1915,21 @@ show_dynamics_inputs(buffer& dyn)
             ImGui::OpenPopup(title);
         ImGui::SameLine();
 
-        if (dyn.default_lambda_source.data == nullptr) {
+        if (dyn.default_ta_source.data == nullptr) {
             ImGui::TextUnformatted("<None>");
         } else {
             ImGui::Text("%" PRIu32 "-%" PRIu32,
-                        dyn.default_lambda_source.type,
-                        dyn.default_lambda_source.id);
+                        dyn.default_ta_source.type,
+                        dyn.default_ta_source.id);
         }
 
-        app.srcs.show_menu(title, dyn.default_lambda_source);
+        app.srcs.show_menu(title, dyn.default_ta_source);
     }
 }
 
 static void
 show_dynamics_inputs(generator& dyn)
 {
-    ImGui::InputDouble("value", &dyn.default_value);
     ImGui::InputDouble("offset", &dyn.default_offset);
 
     {
@@ -1958,15 +1955,15 @@ show_dynamics_inputs(generator& dyn)
             ImGui::OpenPopup(title);
         ImGui::SameLine();
 
-        if (dyn.default_lambda_source.data == nullptr) {
+        if (dyn.default_ta_source.data == nullptr) {
             ImGui::TextUnformatted("<None>");
         } else {
             ImGui::Text("%" PRIu32 "-%" PRIu32,
-                        dyn.default_lambda_source.type,
-                        dyn.default_lambda_source.id);
+                        dyn.default_ta_source.type,
+                        dyn.default_ta_source.id);
         }
 
-        app.srcs.show_menu(title, dyn.default_lambda_source);
+        app.srcs.show_menu(title, dyn.default_ta_source);
     }
 }
 

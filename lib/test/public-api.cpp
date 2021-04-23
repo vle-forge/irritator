@@ -961,10 +961,10 @@ main()
         }
 
         {
-            gen.default_lambda_source.data = &data[1];
-            gen.default_lambda_source.index = 0;
-            gen.default_lambda_source.size = 1;
-            gen.default_lambda_source.expand = [](auto& src) {
+            gen.default_ta_source.data = &data[1];
+            gen.default_ta_source.index = 0;
+            gen.default_ta_source.size = 1;
+            gen.default_ta_source.expand = [](auto& src) {
                 src.index = 0;
                 return true;
             };

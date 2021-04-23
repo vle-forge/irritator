@@ -4612,16 +4612,19 @@ struct external_source
 
     external_source() noexcept = default;
 
-    bool next(double& value) noexcept
+    bool next() noexcept
     {
         irt_assert(data);
 
         if (index >= size) {
             if (expand.empty() || !expand(*this))
                 return false;
+
+            index = 0;
+        } else {
+            ++index;
         }
 
-        value = data[index++];
         return true;
     }
 };
@@ -4632,17 +4635,17 @@ struct buffer
     input_port_id x[1];
     output_port_id y[1];
     time sigma;
+    message msg_list;
 
-    external_source default_lambda_source;
+    external_source default_ta_source;
 
     double default_offset = 0.0;
     double default_value = 0.0;
-    double value;
 
     status initialize() noexcept
     {
-        sigma = default_offset;
-        value = default_value;
+        if (!default_ta_source.data)
+            irt_bad_return(status::model_buffer_null_ta_source);
 
         return status::success;
     }
@@ -4650,19 +4653,42 @@ struct buffer
     status transition(data_array<input_port, input_port_id>& input_ports,
                       time /*t*/,
                       time /*e*/,
-                      time r) noexcept;
+                      time r) noexcept
+    {
+        bool have_message = false;
+
+        auto& port = input_ports.get(x[0]);
+        for (const auto& msg : port.messages) {
+            msg_list = msg;
+            have_message = true;
+        }
+
+        if (time_domain<time>::is_zero(r)) {
+            if (!default_ta_source.data)
+                irt_bad_return(status::model_buffer_null_ta_source);
+
+            if (!default_ta_source.next())
+                irt_bad_return(status::model_buffer_empty_ta_source);
+
+            sigma = *default_ta_source.data;
+        } else {
+            sigma = r;
+        }
+
+        return status::success;
+    }
 
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(value);
+        output_ports.get(y[0]).messages.emplace_front(msg_list);
 
         return status::success;
     }
 
     message observation(const time /*e*/) const noexcept
     {
-        return { value };
+        return msg_list;
     }
 };
 
@@ -4672,17 +4698,20 @@ struct generator
     output_port_id y[1];
     time sigma;
 
-    external_source default_lambda_source;
+    external_source default_ta_source;
     external_source default_value_source;
 
     double default_offset = 1.0;
-    double default_value = 0.0;
-    double value;
 
     status initialize() noexcept
     {
         sigma = default_offset;
-        value = default_value;
+
+        if (!default_ta_source.data)
+            irt_bad_return(status::model_generator_empty_ta_source);
+
+        if (!default_value_source.data)
+            irt_bad_return(status::model_generator_empty_value_source);
 
         return status::success;
     }
@@ -4690,19 +4719,37 @@ struct generator
     status transition(data_array<input_port, input_port_id>& /*input_ports*/,
                       time /*t*/,
                       time /*e*/,
-                      time /*r*/) noexcept;
+                      time /*r*/) noexcept
+    {
+        if (!default_ta_source.data)
+            irt_bad_return(status::model_generator_null_ta_source);
+
+        if (!default_ta_source.next())
+            irt_bad_return(status::model_generator_empty_ta_source);
+
+        if (!default_value_source.data)
+            irt_bad_return(status::model_generator_null_value_source);
+
+        if (!default_value_source.next())
+            irt_bad_return(status::model_generator_empty_value_source);
+
+        sigma = *default_ta_source.data;
+
+        return status::success;
+    }
 
     status lambda(
       data_array<output_port, output_port_id>& output_ports) noexcept
     {
-        output_ports.get(y[0]).messages.emplace_front(value);
+        output_ports.get(y[0]).messages.emplace_front(
+          *default_value_source.data);
 
         return status::success;
     }
 
     message observation(const time /*e*/) const noexcept
     {
-        return { value };
+        return { *default_value_source.data };
     }
 };
 
@@ -6621,7 +6668,7 @@ public:
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
             irt_return_if_bad(dyn.initialize());
 
-        //if constexpr (is_detected_v<has_sim_attribute_t, Dynamics>)
+        // if constexpr (is_detected_v<has_sim_attribute_t, Dynamics>)
         //    dyn.sim = this;
 
         mdl.tl = t;
@@ -6748,54 +6795,6 @@ public:
         }
     }
 };
-
-inline status
-buffer::transition(data_array<input_port, input_port_id>& input_ports,
-                   time /*t*/,
-                   time /*e*/,
-                   time r) noexcept
-{
-    bool have_message = false;
-
-    auto& port = input_ports.get(x[0]);
-    for (const auto& msg : port.messages) {
-        value = msg[0];
-        have_message = true;
-    }
-
-    if (time_domain<time>::is_zero(r)) {
-        if (!default_lambda_source.data)
-            irt_bad_return(status::model_buffer_null_ta_source);
-
-        if (!default_lambda_source.next(sigma))
-            irt_bad_return(status::model_buffer_empty_ta_source);
-    } else {
-        sigma = r;
-    }
-
-    return status::success;
-}
-
-inline status
-generator::transition(data_array<input_port, input_port_id>& /*input_ports*/,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-{
-    if (!default_lambda_source.data)
-        irt_bad_return(status::model_generator_null_ta_source);
-
-    if (!default_lambda_source.next(sigma))
-        irt_bad_return(status::model_generator_empty_ta_source);
-
-    if (!default_value_source.data)
-        irt_bad_return(status::model_generator_null_value_source);
-
-    if (!default_value_source.next(value))
-        irt_bad_return(status::model_generator_empty_value_source);
-
-    return status::success;
-}
 
 } // namespace irt
 

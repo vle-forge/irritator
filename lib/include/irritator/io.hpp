@@ -976,7 +976,7 @@ private:
 
     bool read(generator& dyn) noexcept
     {
-        return !!(is >> dyn.default_value >> dyn.default_offset);
+        return !!(is >> dyn.default_offset);
     }
 
     bool read(constant& dyn) noexcept
@@ -1351,7 +1351,7 @@ private:
 
     void write(const generator& dyn) noexcept
     {
-        os << "generator " << dyn.default_value << ' ' << dyn.default_offset
+        os << "generator " << ' ' << dyn.default_offset
            << '\n';
     }
 
