@@ -6346,13 +6346,13 @@ public:
         if constexpr (std::is_same_v<Dynamics, quantifier>)
             dyn.archive.set_allocator(&flat_double_list_shared_allocator);
 
-         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
                 dyn.x[i].messages.set_allocator(&message_list_allocator);
             }
         }
 
-         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
                 dyn.y[i].messages.set_allocator(&message_list_allocator);
             }
