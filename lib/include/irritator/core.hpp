@@ -5489,6 +5489,74 @@ using mult_4 = mult<4>;
 
 using accumulator_2 = accumulator<2>;
 
+constexpr sz
+max(sz a)
+{
+    return a;
+}
+
+template<typename... Args>
+constexpr sz
+max(sz a, Args... args)
+{
+    return std::max(max(args...), a);
+}
+
+constexpr sz
+max_size_in_bytes() noexcept
+{
+    return max(sizeof(none),
+               sizeof(qss1_integrator),
+               sizeof(qss1_multiplier),
+               sizeof(qss1_cross),
+               sizeof(qss1_power),
+               sizeof(qss1_square),
+               sizeof(qss1_sum_2),
+               sizeof(qss1_sum_3),
+               sizeof(qss1_sum_4),
+               sizeof(qss1_wsum_2),
+               sizeof(qss1_wsum_3),
+               sizeof(qss1_wsum_4),
+               sizeof(qss2_integrator),
+               sizeof(qss2_multiplier),
+               sizeof(qss2_cross),
+               sizeof(qss2_power),
+               sizeof(qss2_square),
+               sizeof(qss2_sum_2),
+               sizeof(qss2_sum_3),
+               sizeof(qss2_sum_4),
+               sizeof(qss2_wsum_2),
+               sizeof(qss2_wsum_3),
+               sizeof(qss2_wsum_4),
+               sizeof(qss3_integrator),
+               sizeof(qss3_multiplier),
+               sizeof(qss3_cross),
+               sizeof(qss3_power),
+               sizeof(qss3_square),
+               sizeof(qss3_sum_2),
+               sizeof(qss3_sum_3),
+               sizeof(qss3_sum_4),
+               sizeof(qss3_wsum_2),
+               sizeof(qss3_wsum_3),
+               sizeof(qss3_wsum_4),
+               sizeof(integrator),
+               sizeof(quantifier),
+               sizeof(adder_2),
+               sizeof(adder_3),
+               sizeof(adder_4),
+               sizeof(mult_2),
+               sizeof(mult_3),
+               sizeof(mult_4),
+               sizeof(counter),
+               sizeof(buffer),
+               sizeof(generator),
+               sizeof(constant),
+               sizeof(cross),
+               sizeof(time_func),
+               sizeof(accumulator_2),
+               sizeof(flow));
+}
+
 struct model
 {
     double tl = 0.0;
@@ -5498,10 +5566,8 @@ struct model
     observer_id obs_id = observer_id{ 0 };
     dynamics_type type{ dynamics_type::none };
 
-    std::byte dyn[288];
+    std::byte dyn[max_size_in_bytes()];
 };
-
-// static_assert(sizeof(model) == 344 + 8 + 8 + 8 + 8 + 4);
 
 /*****************************************************************************
  *
