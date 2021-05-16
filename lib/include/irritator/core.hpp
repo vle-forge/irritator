@@ -797,6 +797,326 @@ public:
 };
 
 template<typename T>
+class shared_flat_list
+{
+public:
+    struct node_type
+    {
+        T value;
+        node_type* next = nullptr;
+    };
+
+public:
+    using allocator_type = block_allocator<node_type>;
+    using value_type = T;
+    using reference = T&;
+    using const_reference = const T&;
+    using pointer = T*;
+
+    class iterator
+    {
+    private:
+        node_type* node{ nullptr };
+
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = T;
+        using pointer = T*;
+        using reference = T&;
+        using difference_type = std::ptrdiff_t;
+
+        iterator() noexcept = default;
+
+        iterator(node_type* n) noexcept
+          : node(n)
+        {}
+
+        iterator(const iterator& other) noexcept
+          : node(other.node)
+        {}
+
+        iterator& operator=(const iterator& other) noexcept
+        {
+            node = other.node;
+            return *this;
+        }
+
+        T& operator*() noexcept
+        {
+            return node->value;
+        }
+
+        T* operator->() noexcept
+        {
+            return &node->value;
+        }
+
+        iterator operator++() noexcept
+        {
+            if (node != nullptr)
+                node = node->next;
+
+            return *this;
+        }
+
+        iterator operator++(int) noexcept
+        {
+            iterator tmp(*this);
+
+            if (node != nullptr)
+                node = node->next;
+
+            return tmp;
+        }
+
+        bool operator==(const iterator& other) const noexcept
+        {
+            return node == other.node;
+        }
+
+        bool operator!=(const iterator& other) const noexcept
+        {
+            return node != other.node;
+        }
+
+        void swap(iterator& other) noexcept
+        {
+            std::swap(node, other.node);
+        }
+
+        friend class shared_flat_list<T>;
+    };
+
+    class const_iterator
+    {
+    private:
+        const node_type* node{ nullptr };
+
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = T;
+        using pointer = T*;
+        using reference = T&;
+        using difference_type = std::ptrdiff_t;
+
+        const_iterator() noexcept = default;
+
+        const_iterator(node_type* n) noexcept
+          : node(n)
+        {}
+
+        const_iterator(const const_iterator& other) noexcept
+          : node(other.node)
+        {}
+
+        const_iterator& operator=(const const_iterator& other) noexcept
+        {
+            node = other.node;
+            return *this;
+        }
+
+        const T& operator*() noexcept
+        {
+            return node->value;
+        }
+
+        const T* operator->() noexcept
+        {
+            return &node->value;
+        }
+
+        const_iterator operator++() noexcept
+        {
+            if (node != nullptr)
+                node = node->next;
+
+            return *this;
+        }
+
+        const_iterator operator++(int) noexcept
+        {
+            const_iterator tmp(*this);
+
+            if (node != nullptr)
+                node = node->next;
+
+            return tmp;
+        }
+
+        bool operator==(const const_iterator& other) const noexcept
+        {
+            return node == other.node;
+        }
+
+        bool operator!=(const const_iterator& other) const noexcept
+        {
+            return node != other.node;
+        }
+
+        void swap(const_iterator& other) noexcept
+        {
+            std::swap(node, other.node);
+        }
+
+        friend class shared_flat_list<T>;
+    };
+
+private:
+    node_type* node{ nullptr };
+
+public:
+    shared_flat_list() = default;
+
+    shared_flat_list(const shared_flat_list& other) = delete;
+    shared_flat_list& operator=(const shared_flat_list& other) = delete;
+    shared_flat_list(shared_flat_list&& other) = delete;
+    shared_flat_list& operator=(shared_flat_list&& other) = delete;
+
+    ~shared_flat_list() noexcept = default;
+
+    bool empty() const noexcept
+    {
+        return node == nullptr;
+    }
+
+    iterator begin() noexcept
+    {
+        return iterator(node);
+    }
+
+    iterator end() noexcept
+    {
+        return iterator(nullptr);
+    }
+
+    const_iterator begin() const noexcept
+    {
+        return const_iterator(node);
+    }
+
+    const_iterator end() const noexcept
+    {
+        return const_iterator(nullptr);
+    }
+
+    reference front() noexcept
+    {
+        irt_assert(!empty());
+
+        return node->value;
+    }
+
+    const_reference front() const noexcept
+    {
+        irt_assert(!empty());
+
+        return node->value;
+    }
+
+    template<typename... Args>
+    iterator emplace_front(allocator_type& allocator, Args&&... args) noexcept
+    {
+        node_type* new_node = allocator.alloc();
+
+        new (&new_node->value) T(std::forward<Args>(args)...);
+
+        new_node->next = node;
+        node = new_node;
+
+        return begin();
+    }
+
+    template<typename... Args>
+    iterator emplace_after(allocator_type& allocator, iterator it,
+                           Args&&... args) noexcept
+    {
+        node_type* new_node = allocator.alloc();
+        new (&new_node->value) T(std::forward<Args>(args)...);
+
+        if (it->node == nullptr)
+            return emplace_front(std::forward<Args>(args)...);
+
+        new_node->next = it->node->next;
+        it->node->next = new_node;
+
+        return iterator(new_node);
+    }
+
+    template<typename... Args>
+    iterator try_emplace_front(allocator_type& allocator, Args&&... args) noexcept
+    {
+        auto [success, new_node] = allocator.try_alloc();
+
+        if (!success)
+            return end();
+
+        new (&new_node->value) T(std::forward<Args>(args)...);
+
+        new_node->next = node;
+        node = new_node;
+
+        return begin();
+    }
+
+    template<typename... Args>
+    iterator try_emplace_after(allocator_type& allocator, iterator it,
+                               Args&&... args) noexcept
+    {
+        auto [success, new_node] = allocator.try_alloc();
+
+        if (!success)
+            return end();
+
+        new (&new_node->value) T(std::forward<Args>(args)...);
+
+        if (it->node == nullptr)
+            return emplace_front(std::forward<Args>(args)...);
+
+        new_node->next = it->node->next;
+        it->node->next = new_node;
+
+        return iterator(new_node);
+    }
+
+    void pop_front(allocator_type& allocator) noexcept
+    {
+        if (node == nullptr)
+            return;
+
+        node_type* to_delete = node;
+        node = node->next;
+
+        if constexpr (!std::is_trivial_v<T>)
+            to_delete->value.~T();
+
+        allocator.free(to_delete);
+    }
+
+    iterator erase_after(allocator_type& allocator, iterator it) noexcept
+    {
+        irt_assert(allocator);
+
+        if (it.node == nullptr)
+            return end();
+
+        node_type* to_delete = it.node->next;
+        if (to_delete == nullptr)
+            return end();
+
+        node_type* next = to_delete->next;
+        it.node->next = next;
+
+        if constexpr (!std::is_trivial_v<T>)
+            to_delete->value.~T();
+
+        allocator.free(to_delete);
+
+        return iterator(next);
+    }
+};
+
+
+template<typename T>
 class flat_list
 {
 public:
