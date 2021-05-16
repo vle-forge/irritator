@@ -315,6 +315,7 @@ main()
         fmt::print("accumulator {}\n", sizeof(irt::accumulator_2));
         fmt::print("flow {}\n", sizeof(irt::flow));
         fmt::print("model {}\n", sizeof(irt::model));
+        fmt::print("port {}\n", sizeof(irt::port));
     };
 
     "model_constepxr"_test = [] {

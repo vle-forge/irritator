@@ -974,6 +974,17 @@ public:
 
     ~shared_flat_list() noexcept = default;
 
+    void clear(allocator_type& allocator) noexcept
+    {
+        node_type* prev = node;
+
+        while (node != nullptr) {
+            node = node->next;
+            allocator.free(prev);
+            prev = node;
+        }
+    }
+
     bool empty() const noexcept
     {
         return node == nullptr;
@@ -1027,7 +1038,8 @@ public:
     }
 
     template<typename... Args>
-    iterator emplace_after(allocator_type& allocator, iterator it,
+    iterator emplace_after(allocator_type& allocator,
+                           iterator it,
                            Args&&... args) noexcept
     {
         node_type* new_node = allocator.alloc();
@@ -1043,7 +1055,8 @@ public:
     }
 
     template<typename... Args>
-    iterator try_emplace_front(allocator_type& allocator, Args&&... args) noexcept
+    iterator try_emplace_front(allocator_type& allocator,
+                               Args&&... args) noexcept
     {
         auto [success, new_node] = allocator.try_alloc();
 
@@ -1059,7 +1072,8 @@ public:
     }
 
     template<typename... Args>
-    iterator try_emplace_after(allocator_type& allocator, iterator it,
+    iterator try_emplace_after(allocator_type& allocator,
+                               iterator it,
                                Args&&... args) noexcept
     {
         auto [success, new_node] = allocator.try_alloc();
@@ -1094,8 +1108,6 @@ public:
 
     iterator erase_after(allocator_type& allocator, iterator it) noexcept
     {
-        irt_assert(allocator);
-
         if (it.node == nullptr)
             return end();
 
@@ -1114,7 +1126,6 @@ public:
         return iterator(next);
     }
 };
-
 
 template<typename T>
 class flat_list
@@ -2866,8 +2877,8 @@ struct node
     node() = default;
 
     node(const model_id model_, const int port_index_) noexcept
-        : model(model_)
-        , port_index(port_index_)
+      : model(model_)
+      , port_index(port_index_)
     {}
 
     model_id model = model_id{ 0 };
@@ -2876,7 +2887,7 @@ struct node
 
 struct port
 {
-    flat_list<node> connections;
+    shared_flat_list<node> connections;
     flat_list<message> messages;
 };
 
@@ -5487,7 +5498,7 @@ struct model
     observer_id obs_id = observer_id{ 0 };
     dynamics_type type{ dynamics_type::none };
 
-    std::byte dyn[344];
+    std::byte dyn[288];
 };
 
 // static_assert(sizeof(model) == 344 + 8 + 8 + 8 + 8 + 4);
@@ -5763,8 +5774,7 @@ struct simulation
 {
     flat_list<model_id>::allocator_type model_list_allocator;
     flat_list<message>::allocator_type message_list_allocator;
-    flat_list<node>::allocator_type input_port_list_allocator;
-    flat_list<node>::allocator_type output_port_list_allocator;
+    shared_flat_list<node>::allocator_type node_list_allocator;
     flat_list<port*>::allocator_type emitting_output_port_allocator;
     flat_double_list<record>::allocator_type flat_double_list_shared_allocator;
 
@@ -5778,8 +5788,6 @@ struct simulation
 
     time begin = time_domain<time>::zero;
     time end = time_domain<time>::infinity;
-
-
 
     template<typename Dynamics>
     constexpr model_id get_id(const Dynamics& dyn) const
@@ -6176,9 +6184,7 @@ public:
 
         irt_return_if_bad(model_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(message_list_allocator.init(messages_capacity * ten));
-        irt_return_if_bad(input_port_list_allocator.init(model_capacity * ten));
-        irt_return_if_bad(
-          output_port_list_allocator.init(model_capacity * ten));
+        irt_return_if_bad(node_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
 
         irt_return_if_bad(sched.init(model_capacity));
@@ -6213,19 +6219,21 @@ public:
     {
         sched.clear();
 
-        model *mdl = nullptr;
+        model* mdl = nullptr;
         while (models.next(mdl)) {
-            dispatch(*mdl, []<typename Dynamics>([[maybe_unused]] Dynamics& dyn) -> void {
-                if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                    for (sz i = 0; i < std::size(dyn.x); ++i)
-                        dyn.x[i].messages.clear();
-                }
+            dispatch(
+              *mdl,
+              []<typename Dynamics>([[maybe_unused]] Dynamics& dyn) -> void {
+                  if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                      for (sz i = 0; i < std::size(dyn.x); ++i)
+                          dyn.x[i].messages.clear();
+                  }
 
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    for (sz i = 0; i < std::size(dyn.y); ++i)
-                        dyn.y[i].messages.clear();
-                }
-            });
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                      for (sz i = 0; i < std::size(dyn.y); ++i)
+                          dyn.y[i].messages.clear();
+                  }
+              });
         }
     }
 
@@ -6238,8 +6246,7 @@ public:
 
         model_list_allocator.reset();
         message_list_allocator.reset();
-        input_port_list_allocator.reset();
-        output_port_list_allocator.reset();
+        node_list_allocator.reset();
 
         emitting_output_port_allocator.reset();
 
@@ -6261,7 +6268,8 @@ public:
         irt_assert(!models.full());
 
         auto& mdl = models.alloc();
-        mdl.type = dynamics_typeof<Dynamics>();;
+        mdl.type = dynamics_typeof<Dynamics>();
+
         mdl.handle = nullptr;
 
         new (&mdl.dyn) Dynamics{};
@@ -6272,16 +6280,14 @@ public:
         if constexpr (std::is_same_v<Dynamics, quantifier>)
             dyn.archive.set_allocator(&flat_double_list_shared_allocator);
 
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-                dyn.x[i].connections.set_allocator(&output_port_list_allocator);
                 dyn.x[i].messages.set_allocator(&message_list_allocator);
             }
         }
 
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
             for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                dyn.y[i].connections.set_allocator(&input_port_list_allocator);
                 dyn.y[i].messages.set_allocator(&message_list_allocator);
             }
         }
@@ -6311,16 +6317,12 @@ public:
 
             if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
                 for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-                    dyn.x[i].connections.set_allocator(
-                      &output_port_list_allocator);
                     dyn.x[i].messages.set_allocator(&message_list_allocator);
                 }
             }
 
             if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                 for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                    dyn.y[i].connections.set_allocator(
-                      &input_port_list_allocator);
                     dyn.y[i].messages.set_allocator(&message_list_allocator);
                 }
             }
@@ -6364,14 +6366,17 @@ public:
 
             for (int i = 0, e = (int)std::size(dyn.y); i != e; ++i) {
                 while (!dyn.y[i].connections.empty()) {
-                    auto* mdl_dst = models.try_to_get(dyn.y[i].connections.front().model);
+                    auto* mdl_dst =
+                      models.try_to_get(dyn.y[i].connections.front().model);
                     if (mdl_dst) {
-                        disconnect(mdl_src, i, *mdl_dst,
-                                   dyn.y[i].connections.front().port_index); 
+                        disconnect(mdl_src,
+                                   i,
+                                   *mdl_dst,
+                                   dyn.y[i].connections.front().port_index);
                     }
                 }
 
-                dyn.y[i].connections.clear();
+                dyn.y[i].connections.clear(node_list_allocator);
                 dyn.y[i].messages.clear();
             }
         }
@@ -6381,14 +6386,17 @@ public:
 
             for (int i = 0, e = (int)std::size(dyn.x); i != e; ++i) {
                 while (!dyn.x[i].connections.empty()) {
-                    auto* mdl_src = models.try_to_get(dyn.x[i].connections.front().model);
+                    auto* mdl_src =
+                      models.try_to_get(dyn.x[i].connections.front().model);
                     if (mdl_src) {
-                        disconnect(*mdl_src, dyn.x[i].connections.front().port_index,
-                                   mdl_dst, i);
+                        disconnect(*mdl_src,
+                                   dyn.x[i].connections.front().port_index,
+                                   mdl_dst,
+                                   i);
                     }
                 }
 
-                dyn.x[i].connections.clear();
+                dyn.x[i].connections.clear(node_list_allocator);
                 dyn.x[i].messages.clear();
             }
         }
@@ -6477,8 +6485,7 @@ public:
 
     bool can_connect(size_t number) const noexcept
     {
-        return output_port_list_allocator.can_alloc(number) &&
-               input_port_list_allocator.can_alloc(number);
+        return node_list_allocator.can_alloc(number);
     }
 
     status get_input_port(model& src, int port_src, port*& p)
@@ -6527,23 +6534,28 @@ public:
 
         while (it != et) {
             irt_return_if_fail(
-                !(it->model == model_dst_id && it->port_index == port_dst),
-                status::model_connect_already_exist);
+              !(it->model == model_dst_id && it->port_index == port_dst),
+              status::model_connect_already_exist);
 
             ++it;
         };
 
         irt_return_if_fail(is_ports_compatible(src, port_src, dst, port_dst),
-                status::model_connect_bad_dynamics);
+                           status::model_connect_bad_dynamics);
 
-        src_port->connections.emplace_front(model_dst_id, port_dst);
-        dst_port->connections.emplace_front(model_src_id, port_src);
+        src_port->connections.emplace_front(
+          node_list_allocator, model_dst_id, port_dst);
+        dst_port->connections.emplace_front(
+          node_list_allocator, model_src_id, port_src);
 
         return status::success;
     }
 
     template<typename DynamicsSrc, typename DynamicsDst>
-    status connect(DynamicsSrc& src, int port_src, DynamicsDst& dst, int port_dst) noexcept
+    status connect(DynamicsSrc& src,
+                   int port_src,
+                   DynamicsDst& dst,
+                   int port_dst) noexcept
     {
         model& src_model = get_model(src);
         model& dst_model = get_model(dst);
@@ -6555,17 +6567,20 @@ public:
 
         while (it != et) {
             irt_return_if_fail(
-                !(it->model == model_dst_id && it->port_index == port_dst),
-                status::model_connect_already_exist);
+              !(it->model == model_dst_id && it->port_index == port_dst),
+              status::model_connect_already_exist);
 
             ++it;
         }
 
-        irt_return_if_fail(is_ports_compatible(src_model, port_src, dst_model, port_dst),
-                status::model_connect_bad_dynamics);
+        irt_return_if_fail(
+          is_ports_compatible(src_model, port_src, dst_model, port_dst),
+          status::model_connect_bad_dynamics);
 
-        src.y[port_src].connections.emplace_front(model_dst_id, port_dst);
-        dst.x[port_dst].connections.emplace_front(model_src_id, port_src);
+        src.y[port_src].connections.emplace_front(
+          node_list_allocator, model_dst_id, port_dst);
+        dst.x[port_dst].connections.emplace_front(
+          node_list_allocator, model_src_id, port_src);
 
         return status::success;
     }
@@ -6586,13 +6601,14 @@ public:
             auto it = std::begin(src_port->connections);
 
             if (it->model == models.get_id(dst) && it->port_index == port_dst) {
-                src_port->connections.pop_front();
+                src_port->connections.pop_front(node_list_allocator);
             } else {
                 auto prev = it++;
                 while (it != end) {
                     if (it->model == models.get_id(dst) &&
                         it->port_index == port_dst) {
-                        src_port->connections.erase_after(prev);
+                        src_port->connections.erase_after(node_list_allocator,
+                                                          prev);
                         break;
                     }
                     prev = it++;
@@ -6605,13 +6621,14 @@ public:
             auto it = std::begin(dst_port->connections);
 
             if (it->model == models.get_id(src) && it->port_index == port_src) {
-                dst_port->connections.pop_front();
+                dst_port->connections.pop_front(node_list_allocator);
             } else {
                 auto prev = it++;
                 while (it != end) {
                     if (it->model == models.get_id(src) &&
                         it->port_index == port_src) {
-                        dst_port->connections.erase_after(prev);
+                        dst_port->connections.erase_after(node_list_allocator,
+                                                          prev);
                         break;
                     }
                     prev = it++;
