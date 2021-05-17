@@ -11,7 +11,7 @@
 #include <cstdio>
 
 static void
-dot_graph_save(const irt::simulation& sim, std::FILE* os)
+dot_graph_save(const irt::simulation& /*sim*/, std::FILE* /*os*/)
 {
     using namespace boost::ut;
 
@@ -166,8 +166,8 @@ make_neuron(irt::simulation* sim) noexcept
 
 struct synapse
 make_synapse(irt::simulation* sim,
-             long unsigned int source,
-             long unsigned int target,
+             long unsigned int /*source*/,
+             long unsigned int /*target*/,
              irt::model& presynaptic_model,
              int presynaptic_port,
              irt::model& postsynaptic_model,
@@ -244,8 +244,10 @@ make_synapse(irt::simulation* sim,
     expect(sim->connect(int_pre, 0, sum_pre, 0) == irt::status::success);
     expect(sim->connect(const_syn, 0, sum_pre, 1) == irt::status::success);
     expect(sim->connect(sum_pre, 0, cross_pre, 1) == irt::status::success);
-    expect(sim->connect(presynaptic_model, presynaptic_port, irt::get_model(cross_pre), 0) ==
-           irt::status::success);
+    expect(sim->connect(presynaptic_model,
+                        presynaptic_port,
+                        irt::get_model(cross_pre),
+                        0) == irt::status::success);
 
     expect(sim->connect(quant_post, 0, int_post, 0) == irt::status::success);
     expect(sim->connect(mult_post, 0, int_post, 1) == irt::status::success);
@@ -257,15 +259,19 @@ make_synapse(irt::simulation* sim,
     expect(sim->connect(int_post, 0, sum_post, 0) == irt::status::success);
     expect(sim->connect(const_syn, 0, sum_post, 1) == irt::status::success);
     expect(sim->connect(sum_post, 0, cross_post, 1) == irt::status::success);
-    expect(sim->connect(postsynaptic_model, postsynaptic_port, irt::get_model(cross_post), 0) ==
-           irt::status::success);
+    expect(sim->connect(postsynaptic_model,
+                        postsynaptic_port,
+                        irt::get_model(cross_post),
+                        0) == irt::status::success);
 
-    expect(
-      sim->connect(presynaptic_model, presynaptic_port, irt::get_model(accumulator_syn), 0) ==
-      irt::status::success);
-    expect(
-      sim->connect(postsynaptic_model, postsynaptic_port, irt::get_model(accumulator_syn), 1) ==
-      irt::status::success);
+    expect(sim->connect(presynaptic_model,
+                        presynaptic_port,
+                        irt::get_model(accumulator_syn),
+                        0) == irt::status::success);
+    expect(sim->connect(postsynaptic_model,
+                        postsynaptic_port,
+                        irt::get_model(accumulator_syn),
+                        1) == irt::status::success);
     expect(sim->connect(cross_post, 0, accumulator_syn, 2) ==
            irt::status::success);
     expect(sim->connect(cross_pre, 0, accumulator_syn, 3) ==
@@ -296,7 +302,8 @@ main()
 
         expect(irt::is_success(sim.init(10000lu, 10000lu)));
 
-        expect(sim.can_alloc(N + 2u * N * N + 2u * N * N + 4u * N * N + N + 2u * N * N));
+        expect(sim.can_alloc(N + 2u * N * N + 2u * N * N + 4u * N * N + N +
+                             2u * N * N));
 
         std::vector<struct neuron> neurons;
         for (long unsigned int i = 0; i < N; i++) {
