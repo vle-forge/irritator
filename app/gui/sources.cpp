@@ -98,7 +98,8 @@ generate(std::ostream& os,
             }
 
             for (std::size_t sz = 0; sz < size; ++sz) {
-                status = sz * 100.0 / static_cast<double>(size);
+                status =
+                  static_cast<double>(sz) * 100.0 / static_cast<double>(size);
                 if (!(os << dist(gen) << '\n')) {
                     status = -2.0;
                     return;
@@ -113,7 +114,8 @@ generate(std::ostream& os,
             }
 
             for (std::size_t sz = 0; sz < size; ++sz) {
-                status = sz * 100.0 / static_cast<double>(size);
+                status =
+                  static_cast<double>(sz) * 100.0 / static_cast<double>(size);
                 const double value = dist(gen);
                 os.write(reinterpret_cast<const char*>(&value), sizeof(value));
             }
