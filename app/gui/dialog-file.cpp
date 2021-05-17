@@ -83,10 +83,12 @@ std::optional<std::filesystem::path>
 get_executable_directory()
 {
     std::vector<char> buf(PATH_MAX, '\0');
-    const auto size = readlink("/proc/self/exe", buf.data(), PATH_MAX);
+    const auto ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
 
-    if (size <= 0)
+    if (ssize <= 0)
         return std::nullopt;
+
+    const auto size = static_cast<size_t>(ssize);
 
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
