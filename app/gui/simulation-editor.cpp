@@ -61,7 +61,7 @@ plot_output::operator()(const irt::observer& obs,
         return;
     }
 
-    while (!xs.empty() && xs.back() == tl)
+    while (!xs.empty() && static_cast<double>(xs.back()) == tl)
         pop_data(xs, ys);
 
     switch (type) {
