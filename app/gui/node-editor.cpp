@@ -180,7 +180,7 @@ editor::group(const ImVector<int>& nodes) noexcept
        cluster, we try to detect if the corresponding model is or is not in the
        same cluster. */
 
-    for (const auto &child : top.children) {
+    for (const auto& child : top.children) {
         if (child.first.index() == 0) {
             const auto child_id = std::get<model_id>(child.first);
 
@@ -545,7 +545,7 @@ struct copier
             auto ret = sim.dispatch(
               *mdl,
               [this, &sim, mdl, &mdl_id_dst]<typename Dynamics>(
-                Dynamics& dyn) -> status {
+                Dynamics& /*dyn*/) -> status {
                   irt_return_if_fail(sim.models.can_alloc(1),
                                      status::dynamics_not_enough_memory);
 
@@ -2124,13 +2124,12 @@ show_tooltip(editor& ed, const model& mdl, const model_id id)
                        mdl.tl,
                        mdl.tn);
 
-        auto ret = ed.sim.dispatch(
-          mdl, [&]<typename Dynamics>(Dynamics & dyn) {
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                  return make_input_tooltip(dyn, ed.tooltip);
+        auto ret = ed.sim.dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                return make_input_tooltip(dyn, ed.tooltip);
 
-              return status::success;
-          });
+            return status::success;
+        });
 
         if (is_bad(ret))
             ed.tooltip += "error\n";

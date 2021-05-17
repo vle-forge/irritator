@@ -184,7 +184,7 @@ file_discrete_output::operator()(const irt::observer& obs,
 void
 file_output::operator()(const irt::observer& obs,
                         const irt::dynamics_type type,
-                        const irt::time tl,
+                        const irt::time /*tl*/,
                         const irt::time t,
                         const irt::observer::status s)
 {

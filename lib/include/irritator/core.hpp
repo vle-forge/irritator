@@ -2889,6 +2889,19 @@ struct port
 {
     shared_flat_list<node> connections;
     flat_list<message> messages;
+    // message* output = nullptr;
+
+    // port& operator=(const double v) noexcept
+    // {
+    //     output[0] = v;
+    //     return *this;
+    // }
+
+    // port& operator=(const std::initializer_list<double>& v) noexcept
+    // {
+    //     std::copy_n(std::data(v), std::size(v), &output->real[0]);
+    //     return *this;
+    // }
 };
 
 struct none
