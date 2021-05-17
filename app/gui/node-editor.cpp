@@ -2075,7 +2075,7 @@ editor::show_model_dynamics(model& mdl) noexcept
 
 template<typename Dynamics>
 static status
-make_input_tooltip(editor& ed, Dynamics& dyn, std::string& out)
+make_input_tooltip(Dynamics& dyn, std::string& out)
 {
     if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
         for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
@@ -2124,12 +2124,13 @@ show_tooltip(editor& ed, const model& mdl, const model_id id)
                        mdl.tl,
                        mdl.tn);
 
-        auto ret = ed.sim.dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                return make_input_tooltip(ed, dyn, ed.tooltip);
+        auto ret = ed.sim.dispatch(
+          mdl, [&]<typename Dynamics>(Dynamics & dyn) {
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                  return make_input_tooltip(dyn, ed.tooltip);
 
-            return status::success;
-        });
+              return status::success;
+          });
 
         if (is_bad(ret))
             ed.tooltip += "error\n";
