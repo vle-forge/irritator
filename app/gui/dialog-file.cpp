@@ -51,10 +51,10 @@ get_home_directory()
 
     std::vector<char> buf(size, '\0');
     struct passwd pwd;
-    struct passwd* result;
+    struct passwd* result = nullptr;
 
     const auto s = getpwuid_r(getpid(), &pwd, buf.data(), size, &result);
-    if (!result)
+    if (s || !result)
         return std::nullopt;
 
     return std::filesystem::path{ std::string_view{ buf.data() } };
