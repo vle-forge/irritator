@@ -597,6 +597,18 @@ main()
             --it;
             expect(*it == 7);
         }
+
+        lst.emplace(lst.begin(), 10);
+        expect(*lst.begin() == 10);
+
+        {
+            auto it = lst.begin();
+            ++it;
+
+            it = lst.emplace(it, 11);
+            expect(*it == 11);
+            expect(*lst.begin() == 10);
+        }
     };
 
     "data_array_api"_test = [] {

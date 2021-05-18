@@ -1604,6 +1604,8 @@ public:
             std::swap(list, other.list);
             std::swap(node, other.node);
         }
+
+        friend class flat_double_list<T>;
     };
 
     class const_iterator
@@ -1694,6 +1696,8 @@ public:
             std::swap(list, other.list);
             std::swap(node, other.node);
         }
+
+        friend class flat_double_list<T>;
     };
 
 private:
@@ -1812,6 +1816,33 @@ public:
     reference back() const noexcept
     {
         return m_back->value;
+    }
+
+    /**
+     * @brief Inserts a new element into the container directly before pos.
+     * @tparam ...Args 
+     * @param pos 
+     * @param ...args 
+     * @return 
+    */
+    template<typename... Args>
+    iterator emplace(iterator pos, Args&&... args) noexcept
+    {
+        if (!pos.node)
+            return emplace_back(std::forward<Args>(args)...);
+
+        if (!pos.node->prev)
+            return emplace_front(std::forward<Args>(args)...);
+            
+        node_type* new_node = m_allocator->alloc();
+        new (&new_node->value) T(std::forward<Args>(args)...);
+        ++m_size;
+
+        new_node->prev = pos.node->prev;
+        new_node->next = pos.node;
+        pos.node->prev->next = new_node;
+        pos.node->prev = new_node;
+        return iterator(this, new_node);
     }
 
     template<typename... Args>
