@@ -173,22 +173,25 @@ enum class status
     model_connect_input_port_unknown,
     model_connect_already_exist,
     model_connect_bad_dynamics,
-
-    model_buffer_null_ta_source,
-    model_buffer_empty_ta_source,
-
+    model_queue_bad_ta,
+    model_queue_empty_allocator,
+    model_queue_full,
+    model_dynamic_queue_source_is_null,
+    model_dynamic_queue_empty_allocator,
+    model_dynamic_queue_full,
+    model_priority_queue_source_is_null,
+    model_priority_queue_empty_allocator,
+    model_priority_queue_full,
     model_integrator_dq_error,
     model_integrator_X_error,
     model_integrator_internal_error,
     model_integrator_output_error,
     model_integrator_running_without_x_dot,
     model_integrator_ta_with_bad_x_dot,
-
     model_generator_null_ta_source,
     model_generator_empty_ta_source,
     model_generator_null_value_source,
     model_generator_empty_value_source,
-
     model_quantifier_bad_quantum_parameter,
     model_quantifier_bad_archive_length_parameter,
     model_quantifier_shifting_value_neg,
@@ -1851,11 +1854,11 @@ public:
 
     /**
      * @brief Inserts a new element into the container directly before pos.
-     * @tparam ...Args 
-     * @param pos 
-     * @param ...args 
-     * @return 
-    */
+     * @tparam ...Args
+     * @param pos
+     * @param ...args
+     * @return
+     */
     template<typename... Args>
     iterator emplace(iterator pos, Args&&... args) noexcept
     {
@@ -1864,7 +1867,7 @@ public:
 
         if (!pos.node->prev)
             return emplace_front(std::forward<Args>(args)...);
-            
+
         node_type* new_node = m_allocator->alloc();
         new (&new_node->value) T(std::forward<Args>(args)...);
         ++m_size;
@@ -2830,7 +2833,11 @@ enum class dynamics_type : i32
     mult_4,
 
     counter,
-    buffer,
+
+    queue,
+    dynamic_queue,
+    priority_queue,
+
     generator,
     constant,
     cross,
@@ -4911,6 +4918,20 @@ struct external_source
 
     external_source() noexcept = default;
 
+    bool init() noexcept
+    {
+        data = nullptr;
+        index = 0;
+        size = 0;
+        id = 0;
+        type = 0;
+
+        if (expand.empty())
+            return false;
+
+        return expand(*this);
+    }
+
     bool next() noexcept
     {
         irt_assert(data);
@@ -4925,59 +4946,6 @@ struct external_source
         }
 
         return true;
-    }
-};
-
-struct buffer
-{
-    port x[1];
-    port y[1];
-    time sigma;
-    message msg_list;
-
-    external_source default_ta_source;
-
-    double default_offset = 0.0;
-    double default_value = 0.0;
-
-    status initialize() noexcept
-    {
-        if (!default_ta_source.data)
-            irt_bad_return(status::model_buffer_null_ta_source);
-
-        return status::success;
-    }
-
-    status transition(time /*t*/, time /*e*/, time r) noexcept
-    {
-        for (const auto& msg : x[0].messages)
-            msg_list = msg;
-
-        if (time_domain<time>::is_zero(r)) {
-            if (!default_ta_source.data)
-                irt_bad_return(status::model_buffer_null_ta_source);
-
-            if (!default_ta_source.next())
-                irt_bad_return(status::model_buffer_empty_ta_source);
-
-            sigma = *default_ta_source.data;
-        } else {
-            sigma = r;
-        }
-
-        return status::success;
-    }
-
-    status lambda() noexcept
-    {
-        y[0].messages.emplace_front(msg_list);
-
-        return status::success;
-    }
-
-    message observation(const time /*e*/) const noexcept
-    {
-        return msg_list;
     }
 };
 
@@ -5564,6 +5532,220 @@ using mult_4 = mult<4>;
 
 using accumulator_2 = accumulator<2>;
 
+struct queue
+{
+    port x[1];
+    port y[1];
+    time sigma;
+    flat_double_list<dated_message> queue;
+
+    double default_ta = 1.0;
+
+    status initialize() noexcept
+    {
+        if (default_ta <= 0)
+            irt_bad_return(status::model_queue_bad_ta);
+
+        if (!queue.get_allocator())
+            irt_bad_return(status::model_queue_empty_allocator);
+
+        sigma = time_domain<time>::infinity;
+        queue.clear();
+
+        return status::success;
+    }
+
+    status transition(time t, time /*e*/, time r) noexcept
+    {
+        while (!queue.empty() && queue.front().real[0] <= t)
+            queue.pop_front();
+
+        for (const auto& msg : x[0].messages) {
+            if (!queue.get_allocator()->can_alloc(1u))
+                irt_bad_return(status::model_queue_full);
+
+            queue.emplace_back(t + default_ta, msg[0], msg[1], msg[2], msg[3]);
+        }
+
+        if (!queue.empty()) {
+            sigma = queue.front().real[0] - t;
+            sigma = sigma <= 0. ? 0. : sigma;
+        } else {
+            sigma = time_domain<time>::infinity;
+        }
+
+        return status::success;
+    }
+
+    status lambda() noexcept
+    {
+        if (!queue.empty()) {
+            auto it = queue.begin();
+            auto end = queue.end();
+            const auto t = it->real[0];
+
+            for (; it != end && it->real[0] <= t; ++it)
+                y[0].messages.emplace_front(
+                  it->real[1], it->real[2], it->real[3], it->real[4]);
+        }
+
+        return status::success;
+    }
+};
+
+struct dynamic_queue
+{
+    port x[1];
+    port y[1];
+    time sigma;
+    flat_double_list<dated_message> queue;
+
+    external_source default_ta_source;
+
+    status initialize() noexcept
+    {
+        if (!default_ta_source.init())
+            irt_bad_return(status::model_dynamic_queue_source_is_null);
+
+        if (!queue.get_allocator())
+            irt_bad_return(status::model_dynamic_queue_empty_allocator);
+
+        sigma = time_domain<time>::infinity;
+        queue.clear();
+
+        return status::success;
+    }
+
+    status transition(time t, time /*e*/, time r) noexcept
+    {
+        while (!queue.empty() && queue.front().real[0] <= t)
+            queue.pop_front();
+
+        for (const auto& msg : x[0].messages) {
+            if (!queue.get_allocator()->can_alloc(1u))
+                irt_bad_return(status::model_dynamic_queue_full);
+
+            queue.emplace_back(
+              *default_ta_source.data + t, msg[0], msg[1], msg[2], msg[3]);
+
+            if (!default_ta_source.next())
+                irt_bad_return(status::model_dynamic_queue_source_is_null);
+        }
+
+        if (!queue.empty()) {
+            sigma = queue.front().real[0] - t;
+            sigma = sigma <= 0. ? 0. : sigma;
+        } else {
+            sigma = time_domain<time>::infinity;
+        }
+
+        return status::success;
+    }
+
+    status lambda() noexcept
+    {
+        if (!queue.empty()) {
+            auto it = queue.begin();
+            auto end = queue.end();
+            const auto t = it->real[0];
+
+            for (; it != end && it->real[0] <= t; ++it)
+                y[0].messages.emplace_front(
+                  it->real[1], it->real[2], it->real[3], it->real[4]);
+        }
+
+        return status::success;
+    }
+};
+
+struct priority_queue
+{
+    port x[1];
+    port y[1];
+    time sigma;
+    flat_double_list<dated_message> queue;
+
+private:
+    status try_to_insert(const time t, const message& msg) noexcept
+    {
+        if (!queue.get_allocator()->can_alloc(1u))
+            irt_bad_return(status::model_priority_queue_source_is_null);
+
+        if (queue.empty() || queue.begin()->real[0] > t) {
+            queue.emplace_front(t, msg[0], msg[1], msg[2], msg[3]);
+        } else {
+            auto it = queue.begin();
+            auto end = queue.end();
+            ++it;
+
+            for (; it != end; ++it) {
+                if (it->real[0] > t) {
+                    queue.emplace(it, t, msg[0], msg[1], msg[2], msg[3]);
+                    return status::success;
+                }
+            }
+        }
+
+        return status::success;
+    }
+
+public:
+    external_source default_ta_source;
+
+    status initialize() noexcept
+    {
+        if (!default_ta_source.init())
+            irt_bad_return(status::model_priority_queue_source_is_null);
+
+        if (!queue.get_allocator())
+            irt_bad_return(status::model_priority_queue_empty_allocator);
+
+        sigma = time_domain<time>::infinity;
+        queue.clear();
+
+        return status::success;
+    }
+
+    status transition(time t, time /*e*/, time r) noexcept
+    {
+        while (!queue.empty() && queue.front().real[0] <= t)
+            queue.pop_front();
+
+        for (const auto& msg : x[0].messages) {
+            if (auto ret = try_to_insert(*default_ta_source.data + t, msg);
+                is_bad(ret))
+                irt_bad_return(status::model_priority_queue_full);
+
+            if (!default_ta_source.next())
+                irt_bad_return(status::model_priority_queue_source_is_null);
+        }
+
+        if (!queue.empty()) {
+            sigma = queue.front().real[0] - t;
+            sigma = sigma <= 0. ? 0. : sigma;
+        } else {
+            sigma = time_domain<time>::infinity;
+        }
+
+        return status::success;
+    }
+
+    status lambda() noexcept
+    {
+        if (!queue.empty()) {
+            auto it = queue.begin();
+            auto end = queue.end();
+            const auto t = it->real[0];
+
+            for (; it != end && it->real[0] <= t; ++it)
+                y[0].messages.emplace_front(
+                  it->real[1], it->real[2], it->real[3], it->real[4]);
+        }
+
+        return status::success;
+    }
+};
+
 constexpr sz
 max(sz a)
 {
@@ -5623,7 +5805,9 @@ max_size_in_bytes() noexcept
                sizeof(mult_3),
                sizeof(mult_4),
                sizeof(counter),
-               sizeof(buffer),
+               sizeof(queue),
+               sizeof(dynamic_queue),
+               sizeof(priority_queue),
                sizeof(generator),
                sizeof(constant),
                sizeof(cross),
@@ -5841,7 +6025,6 @@ dynamics_typeof() noexcept
         return dynamics_type::qss3_wsum_3;
     if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
         return dynamics_type::qss3_wsum_4;
-
     if constexpr (std::is_same_v<Dynamics, integrator>)
         return dynamics_type::integrator;
     if constexpr (std::is_same_v<Dynamics, quantifier>)
@@ -5858,11 +6041,14 @@ dynamics_typeof() noexcept
         return dynamics_type::mult_3;
     if constexpr (std::is_same_v<Dynamics, mult_4>)
         return dynamics_type::mult_4;
-
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
-    if constexpr (std::is_same_v<Dynamics, buffer>)
-        return dynamics_type::buffer;
+    if constexpr (std::is_same_v<Dynamics, queue>)
+        return dynamics_type::queue;
+    if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
+        return dynamics_type::dynamic_queue;
+    if constexpr (std::is_same_v<Dynamics, priority_queue>)
+        return dynamics_type::priority_queue;
     if constexpr (std::is_same_v<Dynamics, generator>)
         return dynamics_type::generator;
     if constexpr (std::is_same_v<Dynamics, constant>)
@@ -5917,6 +6103,7 @@ struct simulation
     flat_list<message>::allocator_type message_list_allocator;
     shared_flat_list<node>::allocator_type node_list_allocator;
     flat_list<port*>::allocator_type emitting_output_port_allocator;
+    flat_double_list<dated_message>::allocator_type dated_message_allocator;
     flat_double_list<record>::allocator_type flat_double_list_shared_allocator;
 
     data_array<model, model_id> models;
@@ -6041,8 +6228,12 @@ struct simulation
             return f(*reinterpret_cast<mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
             return f(*reinterpret_cast<counter*>(&mdl.dyn), args...);
-        case dynamics_type::buffer:
-            return f(*reinterpret_cast<buffer*>(&mdl.dyn), args...);
+        case dynamics_type::queue:
+            return f(*reinterpret_cast<queue*>(&mdl.dyn), args...);
+        case dynamics_type::dynamic_queue:
+            return f(*reinterpret_cast<dynamic_queue*>(&mdl.dyn), args...);
+        case dynamics_type::priority_queue:
+            return f(*reinterpret_cast<priority_queue*>(&mdl.dyn), args...);
         case dynamics_type::generator:
             return f(*reinterpret_cast<generator*>(&mdl.dyn), args...);
         case dynamics_type::constant:
@@ -6162,8 +6353,14 @@ struct simulation
             return f(*reinterpret_cast<const mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
             return f(*reinterpret_cast<const counter*>(&mdl.dyn), args...);
-        case dynamics_type::buffer:
-            return f(*reinterpret_cast<const buffer*>(&mdl.dyn), args...);
+        case dynamics_type::queue:
+            return f(*reinterpret_cast<const queue*>(&mdl.dyn), args...);
+        case dynamics_type::dynamic_queue:
+            return f(*reinterpret_cast<const dynamic_queue*>(&mdl.dyn),
+                     args...);
+        case dynamics_type::priority_queue:
+            return f(*reinterpret_cast<const priority_queue*>(&mdl.dyn),
+                     args...);
         case dynamics_type::generator:
             return f(*reinterpret_cast<const generator*>(&mdl.dyn), args...);
         case dynamics_type::constant:
@@ -6326,6 +6523,7 @@ public:
         irt_return_if_bad(model_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(message_list_allocator.init(messages_capacity * ten));
         irt_return_if_bad(node_list_allocator.init(model_capacity * ten));
+        irt_return_if_bad(dated_message_allocator.init(model_capacity * ten));
         irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
 
         irt_return_if_bad(sched.init(model_capacity));
@@ -6388,6 +6586,7 @@ public:
         model_list_allocator.reset();
         message_list_allocator.reset();
         node_list_allocator.reset();
+        dated_message_allocator.reset();
 
         emitting_output_port_allocator.reset();
 
@@ -6606,7 +6805,9 @@ public:
         case dynamics_type::mult_3:
         case dynamics_type::mult_4:
         case dynamics_type::counter:
-        case dynamics_type::buffer:
+        case dynamics_type::queue:
+        case dynamics_type::dynamic_queue:
+        case dynamics_type::priority_queue:
         case dynamics_type::generator:
         case dynamics_type::constant:
         case dynamics_type::cross:
@@ -6841,11 +7042,13 @@ public:
     template<typename Dynamics>
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     {
+        if constexpr (std::is_same_v<Dynamics, queue> ||
+                      std::is_same_v<Dynamics, dynamic_queue> ||
+                      std::is_same_v<Dynamics, priority_queue>)
+            dyn.queue.set_allocator(&dated_message_allocator);
+
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
             irt_return_if_bad(dyn.initialize());
-
-        // if constexpr (is_detected_v<has_sim_attribute_t, Dynamics>)
-        //    dyn.sim = this;
 
         mdl.tl = t;
         mdl.tn = t + dyn.sigma;

@@ -1590,9 +1590,39 @@ show_dynamics_values(const counter& dyn)
 }
 
 static void
-show_dynamics_values(const buffer& dyn)
+show_dynamics_values(const queue& dyn)
 {
-    ImGui::Text("next %.3f", dyn.sigma);
+    if (dyn.queue.empty()) {
+        ImGui::Text("empty");
+    } else {
+        ImGui::Text("size %" PRId64, dyn.queue.size());
+        ImGui::Text("next ta %.3f", dyn.queue.begin()->real[0]);
+        ImGui::Text("next value %.3f", dyn.queue.begin()->real[1]);
+    }
+}
+
+static void
+show_dynamics_values(const dynamic_queue& dyn)
+{
+    if (dyn.queue.empty()) {
+        ImGui::Text("empty");
+    } else {
+        ImGui::Text("size %" PRId64, dyn.queue.size());
+        ImGui::Text("next ta %.3f", dyn.queue.begin()->real[0]);
+        ImGui::Text("next value %.3f", dyn.queue.begin()->real[1]);
+    }
+}
+
+static void
+show_dynamics_values(const priority_queue& dyn)
+{
+    if (dyn.queue.empty()) {
+        ImGui::Text("empty");
+    } else {
+        ImGui::Text("size %" PRId64, dyn.queue.size());
+        ImGui::Text("next ta %.3f", dyn.queue.begin()->real[0]);
+        ImGui::Text("next value %.3f", dyn.queue.begin()->real[1]);
+    }
 }
 
 static void
@@ -1902,27 +1932,47 @@ show_dynamics_inputs(counter& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(buffer& dyn)
+show_dynamics_inputs(queue& dyn)
 {
-    ImGui::InputDouble("value", &dyn.default_value);
-    ImGui::InputDouble("offset", &dyn.default_offset);
+    ImGui::InputDouble("time", &dyn.default_ta);
+}
 
-    {
-        const char* title = "Select time sources";
-        if (ImGui::Button("Times"))
-            ImGui::OpenPopup(title);
-        ImGui::SameLine();
+static void
+show_dynamics_inputs(dynamic_queue& dyn)
+{
+    const char* title = "Select time sources";
+    if (ImGui::Button("Times"))
+        ImGui::OpenPopup(title);
+    ImGui::SameLine();
 
-        if (dyn.default_ta_source.data == nullptr) {
-            ImGui::TextUnformatted("<None>");
-        } else {
-            ImGui::Text("%" PRIu32 "-%" PRIu32,
-                        dyn.default_ta_source.type,
-                        dyn.default_ta_source.id);
-        }
-
-        app.srcs.show_menu(title, dyn.default_ta_source);
+    if (dyn.default_ta_source.data == nullptr) {
+        ImGui::TextUnformatted("<None>");
+    } else {
+        ImGui::Text("%" PRIu32 "-%" PRIu32,
+                    dyn.default_ta_source.type,
+                    dyn.default_ta_source.id);
     }
+
+    app.srcs.show_menu(title, dyn.default_ta_source);
+}
+
+static void
+show_dynamics_inputs(priority_queue& dyn)
+{
+    const char* title = "Select time sources";
+    if (ImGui::Button("Times"))
+        ImGui::OpenPopup(title);
+    ImGui::SameLine();
+
+    if (dyn.default_ta_source.data == nullptr) {
+        ImGui::TextUnformatted("<None>");
+    } else {
+        ImGui::Text("%" PRIu32 "-%" PRIu32,
+                    dyn.default_ta_source.type,
+                    dyn.default_ta_source.id);
+    }
+
+    app.srcs.show_menu(title, dyn.default_ta_source);
 }
 
 static void
@@ -2635,7 +2685,9 @@ editor::show_editor() noexcept
         }
 
         add_popup_menuitem(*this, dynamics_type::counter, &new_model);
-        add_popup_menuitem(*this, dynamics_type::buffer, &new_model);
+        add_popup_menuitem(*this, dynamics_type::queue, &new_model);
+        add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
+        add_popup_menuitem(*this, dynamics_type::priority_queue, &new_model);
         add_popup_menuitem(*this, dynamics_type::generator, &new_model);
         add_popup_menuitem(*this, dynamics_type::constant, &new_model);
         add_popup_menuitem(*this, dynamics_type::time_func, &new_model);

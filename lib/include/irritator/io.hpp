@@ -58,7 +58,9 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "mult_3",
                                                     "mult_4",
                                                     "counter",
-                                                    "buffer",
+                                                    "queue",
+                                                    "dynamic_queue",
+                                                    "priority_queue",
                                                     "generator",
                                                     "constant",
                                                     "cross",
@@ -134,7 +136,9 @@ get_input_port_names() noexcept
 
     if constexpr (std::is_same_v<Dynamics, quantifier> ||
                   std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, buffer> ||
+                  std::is_same_v<Dynamics, queue> ||
+                  std::is_same_v<Dynamics, dynamic_queue> ||
+                  std::is_same_v<Dynamics, priority_queue> ||
                   std::is_same_v<Dynamics, qss1_power> ||
                   std::is_same_v<Dynamics, qss2_power> ||
                   std::is_same_v<Dynamics, qss3_power> ||
@@ -211,7 +215,9 @@ get_input_port_names(const dynamics_type type) noexcept
 
     case dynamics_type::quantifier:
     case dynamics_type::counter:
-    case dynamics_type::buffer:
+    case dynamics_type::queue:
+    case dynamics_type::dynamic_queue:
+    case dynamics_type::priority_queue:
     case dynamics_type::qss1_power:
     case dynamics_type::qss2_power:
     case dynamics_type::qss3_power:
@@ -290,8 +296,9 @@ get_output_port_names() noexcept
                   std::is_same_v<Dynamics, mult_3> ||
                   std::is_same_v<Dynamics, mult_4> ||
                   std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, buffer> ||
-                  std::is_same_v<Dynamics, buffer> ||
+                  std::is_same_v<Dynamics, queue> ||
+                  std::is_same_v<Dynamics, dynamic_queue> ||
+                  std::is_same_v<Dynamics, priority_queue> ||
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
@@ -356,7 +363,9 @@ get_output_port_names(const dynamics_type type) noexcept
     case dynamics_type::mult_3:
     case dynamics_type::mult_4:
     case dynamics_type::counter:
-    case dynamics_type::buffer:
+    case dynamics_type::queue:
+    case dynamics_type::dynamic_queue:
+    case dynamics_type::priority_queue:
     case dynamics_type::generator:
     case dynamics_type::constant:
     case dynamics_type::time_func:
@@ -627,10 +636,10 @@ private:
             { "adder_2", dynamics_type::adder_2 },
             { "adder_3", dynamics_type::adder_3 },
             { "adder_4", dynamics_type::adder_4 },
-            { "buffer", dynamics_type::buffer },
             { "constant", dynamics_type::constant },
             { "counter", dynamics_type::counter },
             { "cross", dynamics_type::cross },
+            { "dynamic_queue", dynamics_type::dynamic_queue },
             { "flow", dynamics_type::flow },
             { "generator", dynamics_type::generator },
             { "integrator", dynamics_type::integrator },
@@ -638,6 +647,7 @@ private:
             { "mult_3", dynamics_type::mult_3 },
             { "mult_4", dynamics_type::mult_4 },
             { "none", dynamics_type::none },
+            { "priority_queue", dynamics_type::priority_queue },
             { "qss1_cross", dynamics_type::qss1_cross },
             { "qss1_integrator", dynamics_type::qss1_integrator },
             { "qss1_multiplier", dynamics_type::qss1_multiplier },
@@ -672,6 +682,7 @@ private:
             { "qss3_wsum_3", dynamics_type::qss3_wsum_3 },
             { "qss3_wsum_4", dynamics_type::qss3_wsum_4 },
             { "quantifier", dynamics_type::quantifier },
+            { "queue", dynamics_type::queue },
             { "time_func", dynamics_type::time_func }
         };
 
@@ -967,9 +978,19 @@ private:
         return true;
     }
 
-    bool read(buffer& dyn) noexcept
+    bool read(queue& dyn) noexcept
     {
-        return !!(is >> dyn.default_value >> dyn.default_offset);
+        return !!(is >> dyn.default_ta);
+    }
+
+    bool read(dynamic_queue& dyn) noexcept
+    {
+        return !!(is); /* @todo missing default_ta_source */
+    }
+
+    bool read(priority_queue& dyn) noexcept
+    {
+        return !!(is); /* @todo missing default_ta_source */
     }
 
     bool read(generator& dyn) noexcept
@@ -1084,40 +1105,40 @@ struct writer
             os << id << ' ';
             map[id] = mdl_id;
 
-            sim.dispatch(*mdl, [this, mdl](auto& dyn) -> void {
-                this->write(dyn);
-            });
+            sim.dispatch(*mdl,
+                         [this, mdl](auto& dyn) -> void { this->write(dyn); });
 
             ++id;
         }
 
         mdl = nullptr;
         while (sim.models.next(mdl)) {
-            sim.dispatch(*mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                        for (const auto& elem : dyn.y[i].connections) {
-                            auto* dst = sim.models.try_to_get(elem.model);
-                            if (dst) {
-                                auto it_out = std::find(map.begin(), map.end(), sim.models.get_id(*mdl));
-                                auto it_in = std::find(map.begin(), map.end(), elem.model);
+            sim.dispatch(
+              *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                      for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+                          for (const auto& elem : dyn.y[i].connections) {
+                              auto* dst = sim.models.try_to_get(elem.model);
+                              if (dst) {
+                                  auto it_out =
+                                    std::find(map.begin(),
+                                              map.end(),
+                                              sim.models.get_id(*mdl));
+                                  auto it_in = std::find(
+                                    map.begin(), map.end(), elem.model);
 
-                                irt_assert(it_out != map.end());
-                                irt_assert(it_in != map.end());
+                                  irt_assert(it_out != map.end());
+                                  irt_assert(it_in != map.end());
 
-                                os << std::distance(map.begin(), it_out)
-                                    << ' '
-                                    << i 
-                                    << ' '
-                                    << std::distance(map.begin(), it_in)
-                                    << ' '
-                                    << elem.port_index
-                                    << '\n';
-                            }
-                        }
-                    }
-                }
-            });
+                                  os << std::distance(map.begin(), it_out)
+                                     << ' ' << i << ' '
+                                     << std::distance(map.begin(), it_in) << ' '
+                                     << elem.port_index << '\n';
+                              }
+                          }
+                      }
+                  }
+              });
         }
 
         return status::success;
@@ -1338,15 +1359,24 @@ private:
         os << "counter\n";
     }
 
-    void write(const buffer& dyn) noexcept
+    void write(const queue& dyn) noexcept
     {
-        os << "buffer " << dyn.default_value << ' ' << dyn.default_offset
-           << '\n';
+        os << "queue " << dyn.default_ta << '\n';
+    }
+
+    void write(const dynamic_queue& dyn) noexcept
+    {
+        os << "dynamic_queue " << '\n'; /* @todo missing default_ta_source */
+    }
+
+    void write(const priority_queue& dyn) noexcept
+    {
+        os << "priority_queue " << '\n'; /* @todo missing default_ta_source */
     }
 
     void write(const generator& dyn) noexcept
     {
-    os << "generator " << ' ' << dyn.default_offset << '\n';
+        os << "generator " << ' ' << dyn.default_offset << '\n';
     }
 
     void write(const constant& dyn) noexcept
@@ -1412,7 +1442,7 @@ private:
     void write(const time_func& dyn) noexcept
     {
         os << "time_func "
-            << (dyn.default_f == &time_function ? "time\n" : "square\n");
+           << (dyn.default_f == &time_function ? "time\n" : "square\n");
     }
 
     void write(const flow& dyn) noexcept
@@ -1428,7 +1458,7 @@ private:
 
 public:
     dot_writer(std::ostream& os_)
-        : os(os_)
+      : os(os_)
     {}
 
     void operator()(const simulation& sim) noexcept
@@ -1437,28 +1467,24 @@ public:
 
         irt::model* mdl = nullptr;
         while (sim.models.next(mdl)) {
-            sim.dispatch(*mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics & dyn)
-            {
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                        for (const auto& elem : dyn.y[i].connections) {
-                            auto* dst = sim.models.try_to_get(elem.model);
-                            if (dst) {
-                                auto src_id = sim.models.get_id(*mdl);
+            sim.dispatch(
+              *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                      for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+                          for (const auto& elem : dyn.y[i].connections) {
+                              auto* dst = sim.models.try_to_get(elem.model);
+                              if (dst) {
+                                  auto src_id = sim.models.get_id(*mdl);
 
-                                os << irt::get_key(src_id)
-                                   << " -> "
-                                   << irt::get_key(elem.model)
-                                   << " [label=\""
-                                   << i
-                                   << " - "
-                                   << elem.port_index
-                                   << "\"];\n";
-                            }
-                        }
-                    }
-                }
-            });
+                                  os << irt::get_key(src_id) << " -> "
+                                     << irt::get_key(elem.model) << " [label=\""
+                                     << i << " - " << elem.port_index
+                                     << "\"];\n";
+                              }
+                          }
+                      }
+                  }
+              });
         }
     }
 };

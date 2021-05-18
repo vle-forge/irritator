@@ -161,7 +161,8 @@ make_input_node_id(const irt::model_id mdl, const int port) noexcept
 inline int
 make_output_node_id(const irt::model_id mdl, const int port) noexcept
 {
-    fmt::print("make_output_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
+    fmt::print(
+      "make_output_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
     irt_assert(port >= 0 && port < 8);
 
     irt::u32 index = irt::get_index(mdl);
@@ -307,7 +308,9 @@ main()
         fmt::print("mult_3 {}\n", sizeof(irt::mult_3));
         fmt::print("mult_4 {}\n", sizeof(irt::mult_4));
         fmt::print("counter {}\n", sizeof(irt::counter));
-        fmt::print("buffer {}\n", sizeof(irt::buffer));
+        fmt::print("queue {}\n", sizeof(irt::queue));
+        fmt::print("dynamic_queue {}\n", sizeof(irt::dynamic_queue));
+        fmt::print("priority_queue {}\n", sizeof(irt::priority_queue));
         fmt::print("generator {}\n", sizeof(irt::generator));
         fmt::print("constant {}\n", sizeof(irt::constant));
         fmt::print("cross {}\n", sizeof(irt::cross));
