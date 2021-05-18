@@ -17,7 +17,7 @@ MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 SpacesInSquareBrackets: false
 AlwaysBreakTemplateDeclarations: true
-BreakBeforeConceptDeclarations: true
-IndentRequires: false
-BeforeLambdaBody: false
+# BreakBeforeConceptDeclarations: true
+# IndentRequires: false
+# BeforeLambdaBody: false
 SpacesInSquareBrackets: false
