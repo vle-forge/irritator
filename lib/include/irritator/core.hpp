@@ -4906,17 +4906,26 @@ struct counter
     }
 };
 
+struct external_source;
+
+struct constant_external_source
+{
+    bool operator()(external_source& src) noexcept;
+
+    double value = 0.0;
+};
+
+inline static constant_external_source default_external_source;
+
 struct external_source
 {
+    function_ref<bool(external_source& src)> expand = default_external_source;
     double* data = nullptr; // @todo use a std::span<double> instead
     sz index = 0;           // of data and size.
+    double value = 0.0;
     sz size = 0;
     u32 id = 0;
     u32 type = 0;
-
-    function_ref<bool(external_source& src)> expand;
-
-    external_source() noexcept = default;
 
     bool init() noexcept
     {
@@ -4948,6 +4957,18 @@ struct external_source
         return true;
     }
 };
+
+inline bool
+constant_external_source::operator()(external_source& src) noexcept
+{
+    src.data = &value;
+    src.index = 0;
+    src.size = 1;
+    src.id = 0;
+    src.type = 0;
+
+    return true;
+}
 
 struct generator
 {
