@@ -643,26 +643,14 @@ struct message
       : real{ 0., 0., 0., 0. }
     {}
 
-    constexpr message(const double v) noexcept
-      : real{ v, 0., 0., 0. }
-    {}
-
-    constexpr message(const double v1, const double v2) noexcept
-      : real{ v1, v2, 0., 0. }
-    {}
-
-    constexpr message(const double v1,
-                      const double v2,
-                      const double v3) noexcept
-      : real{ v1, v2, v3, 0. }
-    {}
-
-    constexpr message(const double v1,
-                      const double v2,
-                      const double v3,
-                      const double v4) noexcept
-      : real{ v1, v2, v3, v4 }
-    {}
+    template<typename... Args>
+    constexpr message(Args&&... args)
+      : real{ std::forward<Args>(args)... }
+    {
+        auto size = sizeof...(args);
+        for (; size != std::size(real); ++size)
+            real[size] = 0.;
+    }
 
     constexpr double operator[](const difference_type i) const noexcept
     {
@@ -676,10 +664,53 @@ struct message
 
     constexpr void reset() noexcept
     {
-        real[0] = 0.;
-        real[1] = 0.;
-        real[2] = 0.;
-        real[3] = 0.;
+        std::fill_n(std::data(real), std::size(real), 0.);
+    }
+};
+
+struct dated_message
+{
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
+
+    double real[5];
+
+    constexpr dated_message() noexcept
+      : real{ 0., 0., 0., 0., 0. }
+    {}
+
+    template<typename... Args>
+    constexpr dated_message(Args&&... args)
+      : real{ std::forward<Args>(args)... }
+    {
+        auto size = sizeof...(args);
+        for (; size != std::size(real); ++size)
+            real[size] = 0.;
+    }
+
+    constexpr double operator[](const difference_type i) const noexcept
+    {
+        return real[i];
+    }
+
+    constexpr double& operator[](const difference_type i) noexcept
+    {
+        return real[i];
+    }
+
+    constexpr void reset() noexcept
+    {
+        std::fill_n(std::data(real), std::size(real), 0.);
+    }
+
+    inline bool operator<(const dated_message& rhs) const noexcept
+    {
+        return real[0] < rhs.real[0];
+    }
+
+    inline bool operator==(const dated_message& rhs) const noexcept
+    {
+        return real[0] == rhs.real[0];
     }
 };
 
