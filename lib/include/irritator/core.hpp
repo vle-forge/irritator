@@ -138,6 +138,33 @@ to_unsigned(Integer value)
     return static_cast<typename std::make_unsigned<Integer>::type>(value);
 }
 
+template<class C>
+constexpr int
+length(const C& c) noexcept
+{
+    return static_cast<int>(c.size());
+}
+
+template<class T, size_t N>
+constexpr int
+length(const T (&array)[N]) noexcept
+{
+    (void)array;
+
+    return static_cast<int>(N);
+}
+
+template<typename Identifier>
+constexpr Identifier
+undefined() noexcept
+{
+    static_assert(
+      std::is_enum<Identifier>::value,
+      "Identifier must be a enumeration: enum class id : unsigned {};");
+
+    return static_cast<Identifier>(0);
+}
+
 /*****************************************************************************
  *
  * Return status of many function

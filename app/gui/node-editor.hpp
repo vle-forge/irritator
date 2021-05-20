@@ -93,33 +93,6 @@ status_string(const status s) noexcept
     return str[static_cast<int>(s)];
 }
 
-template<class C>
-constexpr int
-length(const C& c) noexcept
-{
-    return static_cast<int>(c.size());
-}
-
-template<class T, size_t N>
-constexpr int
-length(const T (&array)[N]) noexcept
-{
-    (void)array;
-
-    return static_cast<int>(N);
-}
-
-template<typename Identifier>
-constexpr Identifier
-undefined() noexcept
-{
-    static_assert(
-      std::is_enum<Identifier>::value,
-      "Identifier must be a enumeration: enum class id : unsigned {};");
-
-    return static_cast<Identifier>(0);
-}
-
 enum class editor_id : u64;
 enum class cluster_id : u64;
 
