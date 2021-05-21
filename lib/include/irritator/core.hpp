@@ -165,6 +165,28 @@ undefined() noexcept
     return static_cast<Identifier>(0);
 }
 
+template<typename Identifier>
+constexpr bool
+is_undefined(Identifier id) noexcept
+{
+    static_assert(
+      std::is_enum<Identifier>::value,
+      "Identifier must be a enumeration: enum class id : unsigned {};");
+
+    return id == undefined<Identifier>();
+}
+
+template<typename Identifier>
+constexpr bool
+is_defined(Identifier id) noexcept
+{
+    static_assert(
+      std::is_enum<Identifier>::value,
+      "Identifier must be a enumeration: enum class id : unsigned {};");
+
+    return id != undefined<Identifier>();
+}
+
 /*****************************************************************************
  *
  * Return status of many function
