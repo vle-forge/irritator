@@ -226,6 +226,64 @@ is_defined(Identifier id) noexcept
     return id != undefined<Identifier>();
 }
 
+/**
+ * @brief Enummeration to integral
+ */
+template<class Enum, class Integer = typename std::underlying_type<Enum>::type>
+constexpr Integer
+ordinal(Enum e) noexcept
+{
+    static_assert(std::is_enum<Enum>::value,
+                  "Identifier must be a enumeration");
+    return static_cast<Integer>(e);
+}
+
+/**
+ * @brief Integral to enumeration
+ */
+template<class Enum, class Integer = typename std::underlying_type<Enum>::type>
+constexpr Enum
+enum_cast(Integer i) noexcept
+{
+    static_assert(std::is_enum<Enum>::value,
+                  "Identifier must be a enumeration");
+    return static_cast<Enum>(i);
+}
+
+/**
+ * @brief returns an iterator to the result or end if not found
+ *
+ * Binary search function which returns an iterator to the result or end if
+ * not found using the lower_bound standard function.
+ */
+template<typename Iterator, typename T>
+Iterator
+binary_find(Iterator begin, Iterator end, const T& value)
+{
+    Iterator i = std::lower_bound(begin, end, value);
+    if (i != end && !(value < *i))
+        return i;
+    else
+        return end;
+}
+
+/**
+ * @brief returns an iterator to the result or end if not found
+ *
+ * Binary search function which returns an iterator to the result or end if
+ * not found using the lower_bound standard function.
+ */
+template<typename Iterator, typename T, typename Compare>
+Iterator
+binary_find(Iterator begin, Iterator end, const T& value, Compare comp)
+{
+    Iterator i = std::lower_bound(begin, end, value, comp);
+    if (i != end && !comp(*i, value))
+        return i;
+    else
+        return end;
+}
+
 /*****************************************************************************
  *
  * Return status of many function
