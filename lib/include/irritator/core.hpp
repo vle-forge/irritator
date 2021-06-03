@@ -2594,9 +2594,9 @@ public:
         return m_max_size;
     }
 
-    constexpr bool can_alloc(std::size_t place) const noexcept
+    constexpr bool can_alloc(const sz nb) const noexcept
     {
-        return m_capacity - m_max_size >= place;
+        return m_capacity - m_max_size >= nb;
     }
 
     constexpr bool can_alloc() const noexcept
@@ -5297,7 +5297,6 @@ struct accumulator
 
     status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
-
         for (size_t i = 0; i != PortNumber; ++i)
             for (const auto& msg : x[i + PortNumber].messages)
                 numbers[i] = msg[0];
