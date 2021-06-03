@@ -130,6 +130,45 @@ using u32 = uint32_t;
 using u64 = uint64_t;
 using sz = size_t;
 
+inline u16
+make_halfword(u8 a, u8 b) noexcept
+{
+    return static_cast<u16>((a << 8) | b);
+}
+
+inline void
+unpack_halfword(u16 halfword, u8* a, u8* b) noexcept
+{
+    *a = static_cast<u8>((halfword >> 8) & 0xff);
+    *b = static_cast<u8>(halfword & 0xff);
+}
+
+inline u32
+make_word(u16 a, u16 b) noexcept
+{
+    return (static_cast<u32>(a) << 16) | static_cast<u32>(b);
+}
+
+inline void
+unpack_word(u32 word, u16* a, u16* b) noexcept
+{
+    *a = static_cast<u16>((word >> 16) & 0xffff);
+    *b = static_cast<u16>(word & 0xffff);
+}
+
+inline u64
+make_doubleword(u32 a, u32 b) noexcept
+{
+    return (static_cast<u64>(a) << 32) | static_cast<u64>(b);
+}
+
+inline void
+unpack_doubleword(u64 doubleword, u32* a, u32* b) noexcept
+{
+    *a = static_cast<u32>((doubleword >> 32) & 0xffffffff);
+    *b = static_cast<u32>(doubleword & 0xffffffff);
+}
+
 template<typename Integer>
 constexpr typename std::make_unsigned<Integer>::type
 to_unsigned(Integer value)
