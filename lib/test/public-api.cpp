@@ -81,6 +81,21 @@ struct function_ref_class
     }
 };
 
+struct function_ref_multiple_operator
+{
+    int i;
+
+    void operator()(bool)
+    {
+        i = 1;
+    }
+
+    void operator()(double)
+    {
+        i++;
+    }
+};
+
 static void empty_fun(irt::model_id /*id*/) noexcept
 {}
 
@@ -465,6 +480,18 @@ main()
             irt::function_ref<void()> fr = x;
             fr();
             expect(i == 42);
+        }
+
+        {
+            function_ref_multiple_operator ops;
+            ops.i = 0;
+            irt::function_ref<void(bool)> b1(ops);
+            irt::function_ref<void(double)> b2(ops);
+
+            b1(true);
+            b2(0.0);
+
+            expect(ops.i == 2);
         }
     };
 
