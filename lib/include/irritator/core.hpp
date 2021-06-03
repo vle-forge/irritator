@@ -2981,8 +2981,8 @@ struct source
  * @brief Call in the initialize function of the models.
  * @param sim The simulation.
  * @param src The sources.
- * @return 
-*/
+ * @return
+ */
 inline status
 initialize_source(simulation& sim, source& src) noexcept;
 
@@ -5154,7 +5154,7 @@ struct generator
         } else {
             if (is_bad(update_source(*sim, default_source_ta, sigma)))
                 sigma = time_domain<time>::infinity;
-            
+
             if (is_bad(update_source(*sim, default_source_value, value)))
                 value = 0.0;
         }
@@ -5804,7 +5804,6 @@ struct dynamic_queue
             } else {
                 if (is_success(update_source(*sim, default_source_ta, ta)))
                     queue.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
-
             }
         }
 
@@ -7330,6 +7329,18 @@ public:
             obs.msg = dyn.observation(t - mdl.tl);
             obs.cb(obs, mdl.type, mdl.tl, t, observer::status::finalize);
         }
+
+        if constexpr (std::is_same_v<Dynamics, dynamic_queue> ||
+                      std::is_same_v<Dynamics, priority_queue>)
+            source_dispatch(dyn.default_source_ta,
+                            source::operation_type::finalize);
+
+        if constexpr (std::is_same_v<Dynamics, generator>) {
+            source_dispatch(dyn.default_source_ta,
+                            source::operation_type::finalize);
+            source_dispatch(dyn.default_source_value,
+                            source::operation_type::finalize);
+        }
     }
 
     /**
@@ -7376,12 +7387,6 @@ update_source(simulation& sim, source& src, double& val) noexcept
         return ret;
 
     return src.next(val) ? status::success : status::source_empty;
-}
-
-inline status
-finalize_source(simulation& sim, source& src) noexcept
-{
-    return sim.source_dispatch(src, source::operation_type::finalize);
 }
 
 } // namespace irt
