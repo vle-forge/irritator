@@ -21,3 +21,4 @@ AlwaysBreakTemplateDeclarations: true
 # IndentRequires: false
 # BeforeLambdaBody: false
 SpacesInSquareBrackets: false
+AllowShortEnumsOnASingleLine: true
