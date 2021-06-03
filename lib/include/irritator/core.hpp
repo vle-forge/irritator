@@ -312,6 +312,8 @@ enum class status
     vector_init_capacity_zero,
     vector_init_capacity_too_big,
     vector_init_not_enough_memory,
+    source_unknown,
+    source_empty,
     dynamics_unknown_id,
     dynamics_unknown_port_id,
     dynamics_not_enough_memory,
@@ -348,6 +350,8 @@ enum class status
     gui_not_enough_memory,
     io_not_enough_memory,
     io_file_format_error,
+    io_file_format_source_number_error,
+    io_file_source_full,
     io_file_format_model_error,
     io_file_format_model_number_error,
     io_file_format_model_unknown,
@@ -2923,6 +2927,71 @@ private:
     }
 };
 
+struct simulation;
+
+/*****************************************************************************
+ *
+ * @c source and @c source_id are data from files or random generators.
+ *
+ ****************************************************************************/
+
+struct source
+{
+    enum class operation_type
+    {
+        initialize, // Use to initialize the buffer at simulation init step.
+        update,     // Use to update the buffer when all values are read.
+        finalize    // Use to clear the buffer at simulation finalize step.
+    };
+
+    double* buffer = nullptr;
+    u64 id = 0;    // The identifier of the external source (see operation())
+    int type = -1; // The type of the external source (see operation())
+    int size = 0;
+    int index = 0;
+
+    void reset() noexcept
+    {
+        buffer = nullptr;
+        size = 0;
+        index = 0;
+        type = -1;
+        id = 0;
+    }
+
+    void clear() noexcept
+    {
+        buffer = nullptr;
+        size = 0;
+        index = 0;
+    }
+
+    bool next(double& value) noexcept
+    {
+        if (index >= size)
+            return false;
+
+        value = buffer[index++];
+
+        return true;
+    }
+};
+
+/**
+ * @brief Call in the initialize function of the models.
+ * @param sim The simulation.
+ * @param src The sources.
+ * @return 
+*/
+inline status
+initialize_source(simulation& sim, source& src) noexcept;
+
+inline status
+update_source(simulation& sim, source& src, double& val) noexcept;
+
+inline status
+finalize_source(simulation& sim, source& src) noexcept;
+
 /*****************************************************************************
  *
  * DEVS Model / Simulation entities
@@ -3084,8 +3153,6 @@ using has_init_port_t = decltype(&T::init);
 
 template<typename T>
 using has_sim_attribute_t = decltype(&T::sim);
-
-struct simulation;
 
 struct node
 {
@@ -5052,122 +5119,59 @@ struct counter
     }
 };
 
-struct external_source;
-
-struct constant_external_source
-{
-    bool operator()(external_source& src) noexcept;
-
-    double value = 0.0;
-};
-
-inline static constant_external_source default_external_source;
-
-struct external_source
-{
-    function_ref<bool(external_source& src)> expand = default_external_source;
-    double* data = nullptr; // @todo use a std::span<double> instead
-    sz index = 0;           // of data and size.
-    double value = 0.0;
-    sz size = 0;
-    u32 id = 0;
-    u32 type = 0;
-
-    bool init() noexcept
-    {
-        data = nullptr;
-        index = 0;
-        size = 0;
-        id = 0;
-        type = 0;
-
-        if (expand.empty())
-            return false;
-
-        return expand(*this);
-    }
-
-    bool next() noexcept
-    {
-        irt_assert(data);
-
-        if (index >= size) {
-            if (expand.empty() || !expand(*this))
-                return false;
-
-            index = 0;
-        } else {
-            ++index;
-        }
-
-        return true;
-    }
-};
-
-inline bool
-constant_external_source::operator()(external_source& src) noexcept
-{
-    src.data = &value;
-    src.index = 0;
-    src.size = 1;
-    src.id = 0;
-    src.type = 0;
-
-    return true;
-}
-
 struct generator
 {
     port y[1];
     time sigma;
+    double value;
 
-    external_source default_ta_source;
-    external_source default_value_source;
-
-    double default_offset = 1.0;
+    simulation* sim = nullptr;
+    double default_offset = 0.0;
+    source default_source_ta;
+    source default_source_value;
+    bool stop_on_error = false;
 
     status initialize() noexcept
     {
         sigma = default_offset;
 
-        if (!default_ta_source.data)
-            irt_bad_return(status::model_generator_empty_ta_source);
-
-        if (!default_value_source.data)
-            irt_bad_return(status::model_generator_empty_value_source);
+        if (stop_on_error) {
+            irt_return_if_bad(initialize_source(*sim, default_source_ta));
+            irt_return_if_bad(initialize_source(*sim, default_source_value));
+        } else {
+            (void)initialize_source(*sim, default_source_ta);
+            (void)initialize_source(*sim, default_source_value);
+        }
 
         return status::success;
     }
 
     status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
-        if (!default_ta_source.data)
-            irt_bad_return(status::model_generator_null_ta_source);
-
-        if (!default_ta_source.next())
-            irt_bad_return(status::model_generator_empty_ta_source);
-
-        if (!default_value_source.data)
-            irt_bad_return(status::model_generator_null_value_source);
-
-        if (!default_value_source.next())
-            irt_bad_return(status::model_generator_empty_value_source);
-
-        sigma = *default_ta_source.data;
+        if (stop_on_error) {
+            irt_return_if_bad(update_source(*sim, default_source_ta, sigma));
+            irt_return_if_bad(update_source(*sim, default_source_value, value));
+        } else {
+            if (is_bad(update_source(*sim, default_source_ta, sigma)))
+                sigma = time_domain<time>::infinity;
+            
+            if (is_bad(update_source(*sim, default_source_value, value)))
+                value = 0.0;
+        }
 
         return status::success;
     }
 
     status lambda() noexcept
     {
-        y[0].messages.emplace_front(*default_value_source.data);
+        y[0].messages.emplace_front(value);
 
         return status::success;
     }
 
     message observation(const time /*e*/) const noexcept
     {
-        return { *default_value_source.data };
+        return { value };
     }
 };
 
@@ -5722,7 +5726,7 @@ struct queue
         return status::success;
     }
 
-    status transition(time t, time /*e*/, time r) noexcept
+    status transition(time t, time /*e*/, time /*r*/) noexcept
     {
         while (!queue.empty() && queue.front().real[0] <= t)
             queue.pop_front();
@@ -5767,23 +5771,24 @@ struct dynamic_queue
     time sigma;
     flat_double_list<dated_message> queue;
 
-    external_source default_ta_source;
+    simulation* sim = nullptr;
+    source default_source_ta;
+    bool stop_on_error = false;
 
     status initialize() noexcept
     {
-        if (!default_ta_source.init())
-            irt_bad_return(status::model_dynamic_queue_source_is_null);
-
-        if (!queue.get_allocator())
-            irt_bad_return(status::model_dynamic_queue_empty_allocator);
-
         sigma = time_domain<time>::infinity;
         queue.clear();
+
+        if (stop_on_error)
+            irt_return_if_bad(initialize_source(*sim, default_source_ta));
+        else
+            (void)initialize_source(*sim, default_source_ta);
 
         return status::success;
     }
 
-    status transition(time t, time /*e*/, time r) noexcept
+    status transition(time t, time /*e*/, time /*r*/) noexcept
     {
         while (!queue.empty() && queue.front().real[0] <= t)
             queue.pop_front();
@@ -5792,11 +5797,15 @@ struct dynamic_queue
             if (!queue.get_allocator()->can_alloc(1u))
                 irt_bad_return(status::model_dynamic_queue_full);
 
-            queue.emplace_back(
-              *default_ta_source.data + t, msg[0], msg[1], msg[2], msg[3]);
+            double ta;
+            if (stop_on_error) {
+                irt_return_if_bad(update_source(*sim, default_source_ta, ta));
+                queue.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
+            } else {
+                if (is_success(update_source(*sim, default_source_ta, ta)))
+                    queue.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
 
-            if (!default_ta_source.next())
-                irt_bad_return(status::model_dynamic_queue_source_is_null);
+            }
         }
 
         if (!queue.empty()) {
@@ -5831,6 +5840,11 @@ struct priority_queue
     port y[1];
     time sigma;
     flat_double_list<dated_message> queue;
+    double default_ta = 1.0;
+
+    simulation* sim = nullptr;
+    source default_source_ta;
+    bool stop_on_error = false;
 
 private:
     status try_to_insert(const time t, const message& msg) noexcept
@@ -5857,15 +5871,15 @@ private:
     }
 
 public:
-    external_source default_ta_source;
-
     status initialize() noexcept
     {
-        if (!default_ta_source.init())
-            irt_bad_return(status::model_priority_queue_source_is_null);
-
         if (!queue.get_allocator())
             irt_bad_return(status::model_priority_queue_empty_allocator);
+
+        if (stop_on_error)
+            irt_return_if_bad(initialize_source(*sim, default_source_ta));
+        else
+            (void)initialize_source(*sim, default_source_ta);
 
         sigma = time_domain<time>::infinity;
         queue.clear();
@@ -5873,18 +5887,26 @@ public:
         return status::success;
     }
 
-    status transition(time t, time /*e*/, time r) noexcept
+    status transition(time t, time /*e*/, time /*r*/) noexcept
     {
         while (!queue.empty() && queue.front().real[0] <= t)
             queue.pop_front();
 
         for (const auto& msg : x[0].messages) {
-            if (auto ret = try_to_insert(*default_ta_source.data + t, msg);
-                is_bad(ret))
-                irt_bad_return(status::model_priority_queue_full);
+            double value;
 
-            if (!default_ta_source.next())
-                irt_bad_return(status::model_priority_queue_source_is_null);
+            if (stop_on_error) {
+                irt_return_if_bad(
+                  update_source(*sim, default_source_ta, value));
+
+                if (auto ret = try_to_insert(value + t, msg); is_bad(ret))
+                    irt_bad_return(status::model_priority_queue_full);
+            } else {
+                if (is_success(update_source(*sim, default_source_ta, value))) {
+                    if (auto ret = try_to_insert(value + t, msg); is_bad(ret))
+                        irt_bad_return(status::model_priority_queue_full);
+                }
+            }
         }
 
         if (!queue.empty()) {
@@ -6274,12 +6296,17 @@ struct simulation
     flat_double_list<record>::allocator_type flat_double_list_shared_allocator;
 
     data_array<model, model_id> models;
-
     data_array<message, message_id> messages;
-
     data_array<observer, observer_id> observers;
 
     scheduller sched;
+
+    /**
+     * @brief Use initialize, generate or finalize data from a source.
+     *
+     * See the @c external_source class for an implementation.
+     */
+    function_ref<status(source&, const source::operation_type)> source_dispatch;
 
     time begin = time_domain<time>::zero;
     time end = time_domain<time>::infinity;
@@ -6698,7 +6725,6 @@ public:
         irt_return_if_bad(models.init(model_capacity));
         irt_return_if_bad(messages.init(messages_capacity));
         irt_return_if_bad(observers.init(model_capacity));
-
         irt_return_if_bad(
           flat_double_list_shared_allocator.init(model_capacity * ten));
 
@@ -7214,6 +7240,11 @@ public:
                       std::is_same_v<Dynamics, priority_queue>)
             dyn.queue.set_allocator(&dated_message_allocator);
 
+        if constexpr (std::is_same_v<Dynamics, generator> ||
+                      std::is_same_v<Dynamics, dynamic_queue> ||
+                      std::is_same_v<Dynamics, priority_queue>)
+            dyn.sim = this;
+
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
             irt_return_if_bad(dyn.initialize());
 
@@ -7327,6 +7358,31 @@ public:
         }
     }
 };
+
+inline status
+initialize_source(simulation& sim, source& src) noexcept
+{
+    return sim.source_dispatch(src, source::operation_type::initialize);
+}
+
+inline status
+update_source(simulation& sim, source& src, double& val) noexcept
+{
+    if (src.next(val))
+        return status::success;
+
+    if (auto ret = sim.source_dispatch(src, source::operation_type::update);
+        is_bad(ret))
+        return ret;
+
+    return src.next(val) ? status::success : status::source_empty;
+}
+
+inline status
+finalize_source(simulation& sim, source& src) noexcept
+{
+    return sim.source_dispatch(src, source::operation_type::finalize);
+}
 
 } // namespace irt
 

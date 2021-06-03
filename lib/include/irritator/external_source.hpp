@@ -1,4 +1,4 @@
-// Copyright (c) 2020 INRA Distributed under the Boost Software License,
+// Copyright (c) 2020-2021 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -7,195 +7,606 @@
 
 #include <irritator/core.hpp>
 
-#include <array>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <map>
+#include <random>
+#include <vector>
 
-namespace irt::source {
+namespace irt {
 
-struct constant
+enum class external_source_type
 {
-    double value;
+    binary_file,
+    constant,
+    random,
+    text_file
+};
 
-    bool init(external_source& src)
+enum class block_vector_policy
+{
+    not_reuse_free_list,
+    reuse_free_list
+};
+
+template<block_vector_policy P>
+struct block_vector_base
+{
+    double* buffer = nullptr;
+    sz size = 0;
+    sz max_size = 0;
+    sz capacity = 0;
+    sz block_size = 0;
+    sz free_head = static_cast<sz>(-1);
+
+    block_vector_base() = default;
+
+    block_vector_base(const block_vector_base&) = delete;
+    block_vector_base& operator=(const block_vector_base&) = delete;
+
+    ~block_vector_base() noexcept
     {
-        src.type = 0;
-        src.id = 0;
-        src.data = &value;
-        src.index = 0;
-
-        return true;
+        if (buffer)
+            g_free_fn(buffer);
     }
 
-    bool operator()(external_source& src)
+    bool empty() const noexcept
     {
-        src.index = 0;
-        return true;
+        return size == 0;
+    }
+
+    status init(sz block_size_, sz capacity_) noexcept
+    {
+        if (capacity_ == 0)
+            return status::block_allocator_bad_capacity;
+
+        if (capacity_ != capacity) {
+            if (buffer)
+                g_free_fn(buffer);
+
+            buffer = static_cast<double*>(g_alloc_fn(capacity_ * block_size_));
+            if (buffer == nullptr)
+                return status::block_allocator_not_enough_memory;
+        }
+
+        size = 0;
+        max_size = 0;
+        capacity = capacity_;
+        block_size = block_size_;
+        free_head = static_cast<sz>(-1);
+
+        return status::success;
+    }
+
+    bool can_alloc() const noexcept
+    {
+        if constexpr (P == block_vector_policy::reuse_free_list)
+            return free_head != static_cast<sz>(-1) || max_size < capacity;
+        else
+            return max_size < capacity;
+    }
+
+    double* alloc() noexcept
+    {
+        sz new_block;
+
+        if constexpr (P == block_vector_policy::reuse_free_list) {
+            if (free_head != static_cast<sz>(-1)) {
+                new_block = free_head;
+                free_head = static_cast<sz>(buffer[free_head * block_size]);
+            } else {
+                new_block = max_size * block_size;
+                ++max_size;
+            }
+        } else {
+            new_block = max_size * block_size;
+            ++max_size;
+        }
+
+        ++size;
+        return &buffer[new_block];
+    }
+
+    void free([[maybe_unused]] double* block) noexcept
+    {
+        if constexpr (P == block_vector_policy::reuse_free_list) {
+            auto ptr_diff = buffer - block;
+            auto block_index = ptr_diff / block_size;
+
+            block[0] = static_cast<double>(free_head);
+            free_head = static_cast<sz>(block_index);
+            --size;
+
+            if (size == 0) {
+                max_size = 0;
+                free_head = static_cast<sz>(-1);
+            }
+        }
     }
 };
 
-struct binary_file
+using limited_block_vector =
+  block_vector_base<block_vector_policy::not_reuse_free_list>;
+using block_vector = block_vector_base<block_vector_policy::reuse_free_list>;
+
+inline bool
+external_source_type_cast(int value, external_source_type* type) noexcept
 {
-    std::array<char, 1024 * 1024> buffer;
+    if (value < 0 || value > 3)
+        return false;
+
+    *type = enum_cast<external_source_type>(value);
+    return true;
+}
+
+static inline const char* external_source_str[] = { "binary_file",
+                                                    "constant",
+                                                    "random",
+                                                    "text_file" };
+
+enum class distribution_type
+{
+    bernouilli,
+    binomial,
+    cauchy,
+    chi_squared,
+    exponential,
+    exterme_value,
+    fisher_f,
+    gamma,
+    geometric,
+    lognormal,
+    negative_binomial,
+    normal,
+    poisson,
+    student_t,
+    uniform_int,
+    uniform_real,
+    weibull,
+};
+
+static inline const char* distribution_type_str[] = {
+    "bernouilli",        "binomial", "cauchy",  "chi_squared", "exponential",
+    "exterme_value",     "fisher_f", "gamma",   "geometric",   "lognormal",
+    "negative_binomial", "normal",   "poisson", "student_t",   "uniform_int",
+    "uniform_real",      "weibull"
+};
+
+struct constant_source
+{
+    small_string<23> name;
+    std::vector<double> buffer;
+
+    status init(sz block_size) noexcept
+    {
+        try {
+            buffer.reserve(block_size);
+            return status::success;
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::gui_not_enough_memory;
+        }
+    }
+
+    status start_or_restart() noexcept
+    {}
+
+    status update(source& src) noexcept
+    {
+        src.buffer = buffer.data();
+        src.size = static_cast<int>(buffer.size());
+        src.index = 0;
+
+        return status::success;
+    }
+
+    status finalize(source& src) noexcept
+    {
+        src.clear();
+
+        return status::success;
+    }
+
+    status operator()(source& src, source::operation_type op) noexcept
+    {
+        switch (op) {
+        case source::operation_type::initialize:
+            return update(src);
+        case source::operation_type::update:
+            return update(src);
+        case source::operation_type::finalize:
+            return finalize(src);
+        }
+
+        irt_unreachable();
+    }
+};
+
+struct binary_file_source
+{
+    small_string<23> name;
+    limited_block_vector buffer;
     std::filesystem::path file_path;
     std::ifstream ifs;
-    sz buffer_size = 0;
-    bool use_rewind = false;
+    sz size = 0; // Number of double read
 
-    binary_file() = default;
-
-    bool init(external_source& src)
+    status init(sz block_size, sz capacity) noexcept
     {
-        src.type = 1;
-        src.id = 0;
+        file_path.clear();
 
+        if (ifs.is_open())
+            ifs.close();
+
+        return buffer.init(block_size, capacity);
+    }
+
+    status start_or_restart() noexcept
+    {
         if (!ifs) {
             ifs.open(file_path);
 
             if (!ifs)
-                return false;
+                return status::source_empty;
+        } else {
+            ifs.seekg(0);
         }
 
-        if (!read(src))
-            return false;
-
-        return true;
+        return fill_buffer();
     }
 
-    bool operator()(external_source& src)
+    status update(source& src)
     {
-        if (!ifs.good() && !use_rewind)
-            return false;
+        if (!buffer.can_alloc()) {
+            if (src.buffer)
+                buffer.free(src.buffer);
 
-        if (!ifs.good())
-            ifs.seekg(0);
+            irt_return_if_bad(fill_buffer());
+        }
 
-        if (!read(src))
-            return false;
+        src.buffer = buffer.alloc();
+        src.size = static_cast<int>(buffer.block_size);
+        src.index = 0;
 
-        return true;
+        return status::success;
+    }
+
+    status finalize(source& src)
+    {
+        if (src.buffer)
+            buffer.free(src.buffer);
+
+        src.clear();
+
+        return status::success;
+    }
+
+    status operator()(source& src, source::operation_type op)
+    {
+        switch (op) {
+        case source::operation_type::initialize:
+            return update(src);
+        case source::operation_type::update:
+            return update(src);
+        case source::operation_type::finalize:
+            return finalize(src);
+        }
+
+        irt_unreachable();
     }
 
 private:
-    bool read(external_source& src)
+    status fill_buffer() noexcept
     {
-        ifs.read(buffer.data(), std::size(buffer));
-        buffer_size = ifs.gcount();
+        ifs.read(reinterpret_cast<char*>(buffer.buffer),
+                 buffer.capacity * buffer.block_size);
+        const auto read = ifs.gcount();
 
-        if (buffer_size % 8 != 0)
-            return false;
+        buffer.capacity = static_cast<sz>(read) / buffer.block_size;
+        if (buffer.capacity == 0)
+            return status::source_empty;
 
-        src.data = reinterpret_cast<double*>(buffer.data());
-        src.index = 0;
-        src.size = buffer_size / 8;
-
-        return true;
+        return status::success;
     }
 };
 
-struct text_file
+struct text_file_source
 {
-    std::array<double, 1024 * 1024 / 8> buffer;
+    small_string<23> name;
+    limited_block_vector buffer;
     std::filesystem::path file_path;
     std::ifstream ifs;
-    bool use_rewind = false;
 
-    text_file() = default;
-
-    bool init(external_source& src)
+    status init(sz block_size, sz capacity) noexcept
     {
-        src.type = 2;
-        src.id = 0;
+        return buffer.init(block_size, capacity);
+        file_path.clear();
 
+        if (ifs.is_open())
+            ifs.close();
+    }
+
+    status start_or_restart() noexcept
+    {
         if (!ifs) {
             ifs.open(file_path);
 
             if (!ifs)
-                return false;
+                return status::source_empty;
+        } else {
+            ifs.seekg(0);
         }
 
-        if (!read(src))
-            return false;
-
-        return true;
+        return fill_buffer();
     }
 
-    bool operator()(external_source& src)
+    status update(source& src)
     {
-        if (!ifs.good() && !use_rewind)
-            return false;
+        if (!buffer.can_alloc()) {
+            if (src.buffer)
+                buffer.free(src.buffer);
 
-        if (!ifs.good())
-            ifs.seekg(0);
+            irt_return_if_bad(fill_buffer());
+        }
 
-        if (!read(src))
-            return false;
+        src.buffer = buffer.alloc();
+        src.size = static_cast<int>(buffer.block_size);
+        src.index = 0;
 
-        return true;
+        return status::success;
+    }
+
+    status finalize(source& src)
+    {
+        if (src.buffer)
+            buffer.free(src.buffer);
+
+        src.clear();
+
+        return status::success;
+    }
+
+    status operator()(source& src, source::operation_type op)
+    {
+        switch (op) {
+        case source::operation_type::initialize:
+            return update(src);
+        case source::operation_type::update:
+            return update(src);
+        case source::operation_type::finalize:
+            return finalize(src);
+        }
+
+        irt_unreachable();
     }
 
 private:
-    bool read(external_source& src)
+    status fill_buffer() noexcept
     {
         size_t i = 0;
-
-        for (; i < std::size(buffer) && ifs.good(); ++i) {
-            if (!(ifs >> buffer[i]))
+        const size_t e = buffer.capacity * buffer.block_size;
+        for (; i < e && ifs.good(); ++i) {
+            if (!(ifs >> buffer.buffer[i]))
                 break;
         }
 
-        src.data = buffer.data();
-        src.index = 0;
-        src.size = i;
+        buffer.capacity = i / buffer.block_size;
+        if (buffer.capacity == 0)
+            return status::source_empty;
 
-        return true;
+        return status::success;
     }
 };
 
 struct random_source
 {
-    double* buffer = nullptr;
-    sz size = 0;
-    bool use_rewind;
-
-    random_source() = default;
-
-    ~random_source() noexcept
-    {
-        if (buffer)
-            g_free_fn(buffer);
-    }
+    small_string<23> name;
+    block_vector buffer;
+    distribution_type distribution = distribution_type::uniform_int;
+    double a, b, p, mean, lambda, alpha, beta, stddev, m, s, n;
+    int a32, b32, t32, k32;
 
     template<typename RandomGenerator, typename Distribution>
-    bool init(const sz size_, RandomGenerator& gen, Distribution& dist) noexcept
+    void generate(RandomGenerator& gen,
+                  Distribution dist,
+                  double* ptr,
+                  sz size) noexcept
     {
-        if (!size_)
-            return false;
-
-        if (buffer)
-            g_free_fn(buffer);
-
-        size = 0;
-        buffer = g_alloc_fn(sizeof(double) * size_);
-
-        if (buffer) {
-            std::generate_n(buffer, size, (*dist)(*gen));
-
-            size = size_;
-            return true;
-        }
-
-        return false;
+        for (sz i = 0; i < size; ++i)
+            ptr[i] = dist(gen);
     }
 
-    bool operator()(external_source& /*src*/)
+    template<typename RandomGenerator>
+    void generate(RandomGenerator& gen, double* ptr, sz size) noexcept
     {
-        if (!use_rewind)
-            return false;
+        switch (distribution) {
+        case distribution_type::uniform_int:
+            generate(gen, std::uniform_int_distribution(a32, b32), ptr, size);
+            break;
 
-        size = 0;
+        case distribution_type::uniform_real:
+            generate(gen, std::uniform_real_distribution(a, b), ptr, size);
+            break;
 
-        return true;
+        case distribution_type::bernouilli:
+            generate(gen, std::bernoulli_distribution(p), ptr, size);
+            break;
+
+        case distribution_type::binomial:
+            generate(gen, std::binomial_distribution(t32, p), ptr, size);
+            break;
+
+        case distribution_type::negative_binomial:
+            generate(
+              gen, std::negative_binomial_distribution(t32, p), ptr, size);
+            break;
+
+        case distribution_type::geometric:
+            generate(gen, std::geometric_distribution(p), ptr, size);
+            break;
+
+        case distribution_type::poisson:
+            generate(gen, std::poisson_distribution(mean), ptr, size);
+            break;
+
+        case distribution_type::exponential:
+            generate(gen, std::exponential_distribution(lambda), ptr, size);
+            break;
+
+        case distribution_type::gamma:
+            generate(gen, std::gamma_distribution(alpha, beta), ptr, size);
+            break;
+
+        case distribution_type::weibull:
+            generate(gen, std::weibull_distribution(a, b), ptr, size);
+            break;
+
+        case distribution_type::exterme_value:
+            generate(gen, std::extreme_value_distribution(a, b), ptr, size);
+            break;
+
+        case distribution_type::normal:
+            generate(gen, std::normal_distribution(mean, stddev), ptr, size);
+            break;
+
+        case distribution_type::lognormal:
+            generate(gen, std::lognormal_distribution(m, s), ptr, size);
+            break;
+
+        case distribution_type::chi_squared:
+            generate(gen, std::chi_squared_distribution(n), ptr, size);
+            break;
+
+        case distribution_type::cauchy:
+            generate(gen, std::cauchy_distribution(a, b), ptr, size);
+            break;
+
+        case distribution_type::fisher_f:
+            generate(gen, std::fisher_f_distribution(m, n), ptr, size);
+            break;
+
+        case distribution_type::student_t:
+            generate(gen, std::student_t_distribution(n), ptr, size);
+            break;
+        }
+    }
+
+    status init(sz block_size, sz capacity) noexcept
+    {
+        distribution = distribution_type::uniform_int;
+        a = 0;
+        b = 100;
+
+        return buffer.init(block_size, capacity);
+    }
+
+    status update(source& src) noexcept
+    {
+        if (src.buffer == nullptr) {
+            if (!buffer.can_alloc())
+                return status::source_empty;
+
+            src.buffer = buffer.alloc();
+            src.size = static_cast<int>(buffer.block_size);
+            src.index = 0;
+        }
+
+        std::mt19937_64 gen;
+        generate(gen, src.buffer, src.size);
+
+        return status::success;
+    }
+
+    status finalize(source& src)
+    {
+        if (src.buffer)
+            buffer.free(src.buffer);
+
+        src.clear();
+
+        return status::success;
+    }
+
+    status operator()(source& src, source::operation_type op)
+    {
+        switch (op) {
+        case source::operation_type::initialize:
+            return update(src);
+        case source::operation_type::update:
+            return update(src);
+        case source::operation_type::finalize:
+            return finalize(src);
+        }
+
+        irt_unreachable();
+    }
+};
+
+enum class constant_source_id : u64;
+enum class binary_file_source_id : u64;
+enum class text_file_source_id : u64;
+enum class random_source_id : u64;
+
+struct external_source
+{
+    data_array<constant_source, constant_source_id> constant_sources;
+    data_array<binary_file_source, binary_file_source_id> binary_file_sources;
+    data_array<text_file_source, text_file_source_id> text_file_sources;
+    data_array<random_source, random_source_id> random_sources;
+    std::mt19937_64 generator;
+    
+    // Chunk of memory used by a model.
+    sz block_size = 512;
+
+    // Number of models can be attached to an external source.
+    sz block_number = 1024; 
+
+    status init(const sz size) noexcept
+    {
+        irt_return_if_bad(constant_sources.init(size));
+        irt_return_if_bad(binary_file_sources.init(size));
+        irt_return_if_bad(text_file_sources.init(size));
+        irt_return_if_bad(random_sources.init(size));
+
+        return status::success;
+    }
+
+    status operator()(source& src, const source::operation_type op) noexcept
+    {
+        external_source_type type;
+        if (!external_source_type_cast(src.type, &type))
+            return status::source_unknown;
+
+        switch (type) {
+        case external_source_type::binary_file: {
+            const auto src_id = enum_cast<binary_file_source_id>(src.id);
+            if (auto* bin_src = binary_file_sources.try_to_get(src_id);
+                bin_src) {
+                return (*bin_src)(src, op);
+            }
+        } break;
+        case external_source_type::constant: {
+            const auto src_id = enum_cast<constant_source_id>(src.id);
+            if (auto* cst_src = constant_sources.try_to_get(src_id); cst_src) {
+                return (*cst_src)(src, op);
+            }
+        } break;
+
+        case external_source_type::random: {
+            const auto src_id = enum_cast<random_source_id>(src.id);
+            if (auto* rnd_src = random_sources.try_to_get(src_id); rnd_src) {
+                return (*rnd_src)(src, op);
+            }
+        } break;
+
+        case external_source_type::text_file: {
+            const auto src_id = enum_cast<text_file_source_id>(src.id);
+            if (auto* txt_src = text_file_sources.try_to_get(src_id); txt_src) {
+                return (*txt_src)(src, op);
+            }
+        } break;
+        }
+
+        irt_unreachable();
     }
 };
 
@@ -237,6 +648,6 @@ generate_random_file(std::ostream& os,
     return 0;
 }
 
-} // namespace irt::source
+} // namespace irt
 
 #endif

@@ -960,6 +960,7 @@ main()
 
         {
             irt::simulation sim;
+            irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 4096lu)));
 
             sim.alloc<irt::none>();
@@ -1005,6 +1006,9 @@ main()
             sim.alloc<irt::mult_3>();
             sim.alloc<irt::mult_4>();
             sim.alloc<irt::counter>();
+            sim.alloc<irt::queue>();
+            sim.alloc<irt::dynamic_queue>();
+            sim.alloc<irt::priority_queue>();
             sim.alloc<irt::generator>();
             sim.alloc<irt::constant>();
             sim.alloc<irt::cross>();
@@ -1015,7 +1019,7 @@ main()
             std::ostringstream os;
             irt::writer w(os);
 
-            expect(irt::is_success(w(sim)));
+            expect(irt::is_success(w(sim, srcs)));
             str = os.str();
         }
 
@@ -1026,12 +1030,14 @@ main()
             std::istringstream is(str);
 
             irt::simulation sim;
+            irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 32lu)));
+            expect(irt::is_success(srcs.init(64u)));
 
             irt::reader r(is);
-            expect(irt::is_success(r(sim)));
+            expect(irt::is_success(r(sim, srcs)));
 
-            expect(sim.models.size() == 49);
+            expect(sim.models.size() == 52);
         }
 
         {
@@ -1039,28 +1045,31 @@ main()
             int i = 0;
 
             irt::simulation sim;
+            irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
             irt::reader r(is);
-            expect(
-              irt::is_success(r(sim, [&i](irt::model_id /*id*/) { ++i; })));
-            expect(i == 49);
+            expect(irt::is_success(
+              r(sim, srcs, [&i](irt::model_id /*id*/) { ++i; })));
+            expect(i == 52);
 
-            expect(sim.models.size() == 49);
+            expect(sim.models.size() == 52);
         }
 
         {
-            std::string string_error{ "1\n0 qss1_integrator A B C\n" };
+            std::string string_error{ "0 0 0 0\n1\n0 qss1_integrator A B C\n" };
             std::istringstream is{ string_error };
             irt::simulation sim;
+            irt::external_source srcs;
+
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
             irt::is_fatal_breakpoint = false;
 
             irt::reader r(is);
-            expect(irt::is_bad(r(sim)));
-            expect(r.line_error == 2);
-            expect(r.column_error == 17);
+            expect(irt::is_bad(r(sim, srcs)));
+            expect(r.line_error() == 3);
+            expect(r.column_error() == 18);
             expect(r.model_error == 0);
             expect(r.connection_error == 0);
 
@@ -1131,43 +1140,37 @@ main()
     "generator_counter_simluation"_test = [] {
         fmt::print("generator_counter_simluation\n");
         irt::simulation sim;
+        irt::external_source srcs;
+        sim.source_dispatch = srcs;
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
+        expect(irt::is_success(srcs.init(4lu)));
         expect(sim.can_alloc(2));
+
+        expect(srcs.constant_sources.can_alloc(2u));
+        auto& cst_value = srcs.constant_sources.alloc();
+        expect(irt::is_success(cst_value.init(32)));
+        cst_value.buffer = { 1., 2., 3., 4., 5., 6., 7., 8., 9., 10. };
+
+        auto& cst_ta = srcs.constant_sources.alloc();
+        expect(irt::is_success(cst_ta.init(32)));
+        cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
 
         auto& gen = sim.alloc<irt::generator>();
         auto& cnt = sim.alloc<irt::counter>();
 
+        gen.default_source_value.id =
+          irt::ordinal(srcs.constant_sources.get_id(cst_value));
+        gen.default_source_value.type =
+          irt::ordinal(irt::external_source_type::constant);
+        gen.default_source_ta.id =
+          irt::ordinal(srcs.constant_sources.get_id(cst_ta));
+        gen.default_source_ta.type =
+          irt::ordinal(irt::external_source_type::constant);
+
         expect(sim.connect(gen, 0, cnt, 0) == irt::status::success);
 
-        expect(sim.begin == irt::time_domain<irt::time>::zero);
-        expect(sim.end == irt::time_domain<irt::time>::infinity);
-
-        double data[2] = { 0.0, 1.0 };
-
-        {
-            gen.default_value_source.data = &data[0];
-            gen.default_value_source.index = 0;
-            gen.default_value_source.size = 1;
-            gen.default_value_source.expand = [](auto& src) {
-                src.index = 0;
-                return true;
-            };
-        }
-
-        {
-            gen.default_ta_source.data = &data[1];
-            gen.default_ta_source.index = 0;
-            gen.default_ta_source.size = 1;
-            gen.default_ta_source.expand = [](auto& src) {
-                src.index = 0;
-                return true;
-            };
-        }
-
-        sim.end = 10.0;
-
-        irt::time t = sim.begin;
+        irt::time t = 0.0;
         expect(sim.initialize(t) == irt::status::success);
 
         irt::status st;
@@ -1175,10 +1178,9 @@ main()
         do {
             st = sim.run(t);
             expect(irt::is_success(st));
-            expect(cnt.number <= static_cast<irt::i64>(t));
-        } while (t < sim.end);
+        } while (t < 10.0);
 
-        expect(cnt.number == static_cast<irt::i64>(9));
+        expect(cnt.number == static_cast<irt::i64>(10));
     };
 
     "time_func"_test = [] {
@@ -2700,14 +2702,14 @@ main()
         std::default_random_engine gen(1234);
         std::poisson_distribution dist(4.0);
 
-        irt::source::generate_random_file(
-          ofs_b, gen, dist, 1024, irt::source::random_file_type::binary);
+        irt::generate_random_file(
+          ofs_b, gen, dist, 1024, irt::random_file_type::binary);
 
         auto str_b = ofs_b.str();
         expect(str_b.size() == 1024 * 8);
 
-        irt::source::generate_random_file(
-          ofs_t, gen, dist, 1024, irt::source::random_file_type::text);
+        irt::generate_random_file(
+          ofs_t, gen, dist, 1024, irt::random_file_type::text);
 
         auto str_t = ofs_b.str();
         expect(str_t.size() > 1024 * 2);

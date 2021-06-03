@@ -20,6 +20,25 @@
 
 namespace irt {
 
+// Helper to display a little (?) mark which shows a tooltip when hovered.
+// In your own code you may want to display an actual icon if you are using a
+// merged icon fonts (see docs/FONTS.md)
+inline void
+HelpMarker(const char* desc) noexcept
+{
+    try {
+        ImGui::TextDisabled("(?)");
+        if (ImGui::IsItemHovered()) {
+            ImGui::BeginTooltip();
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+            ImGui::TextUnformatted(desc);
+            ImGui::PopTextWrapPos();
+            ImGui::EndTooltip();
+        }
+    } catch (const std::exception& /*e*/) {
+    }
+}
+
 inline const char*
 status_string(const status s) noexcept
 {
@@ -44,6 +63,8 @@ status_string(const status s) noexcept
         "vector_init_capacity_zero",
         "vector_init_capacity_too_big",
         "vector_init_not_enough_memory",
+        "source_unknown_id",
+        "source_empty",
         "dynamics_unknown_id",
         "dynamics_unknown_port_id",
         "dynamics_not_enough_memory",
@@ -80,6 +101,8 @@ status_string(const status s) noexcept
         "gui_not_enough_memory",
         "io_not_enough_memory",
         "io_file_format_error",
+        "io_file_format_source_number_error",
+        "io_file_source_full",
         "io_file_format_model_error",
         "io_file_format_model_number_error",
         "io_file_format_model_unknown",
@@ -338,23 +361,6 @@ using observation_output = std::variant<std::monostate,
                                         file_output_id,
                                         file_discrete_output_id>;
 
-struct sources
-{
-    std::map<int, irt::source::constant> csts;
-    std::map<int, irt::source::binary_file> bins;
-    std::map<int, irt::source::text_file> texts;
-    int csts_next_id = 1;
-    int bins_next_id = 1;
-    int texts_next_id = 1;
-
-    irt::source::constant* new_constant() noexcept;
-    irt::source::binary_file* new_binary_file() noexcept;
-    irt::source::text_file* new_text_file() noexcept;
-
-    void show(bool* is_show);
-    void show_menu(const char* title, external_source& src);
-};
-
 struct editor
 {
     small_string<16> name;
@@ -518,9 +524,9 @@ struct editor
     {
         gport() noexcept = default;
 
-        gport(irt::model* model_, const int port_index_) noexcept 
-        : model(model_)
-        , port_index(port_index_)
+        gport(irt::model* model_, const int port_index_) noexcept
+          : model(model_)
+          , port_index(port_index_)
         {}
 
         irt::model* model = nullptr;
@@ -572,14 +578,16 @@ struct application
         void show(bool* is_open);
     } settings;
 
-    sources srcs;
+    external_source srcs;
+    void show_sources(bool* is_show);
+    void show_menu_sources(const char* title, source& src);
 
     bool show_log = true;
     bool show_simulation = true;
     bool show_demo = false;
     bool show_plot = true;
     bool show_settings = false;
-    bool show_sources = false;
+    bool show_sources_window = false;
 
     editor* alloc_editor();
     void free_editor(editor& ed);
