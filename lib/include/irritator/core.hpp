@@ -2599,6 +2599,11 @@ public:
         return m_capacity - m_max_size >= place;
     }
 
+    constexpr bool can_alloc() const noexcept
+    {
+        return m_capacity - m_max_size >= 1u;
+    }
+
     constexpr u32 max_size() const noexcept
     {
         return m_max_size;
@@ -6316,17 +6321,6 @@ struct simulation
         return models.get_id(get_model(dyn));
     }
 
-#if 0
-    template<typename Function>
-    constexpr void for_all(Function f) noexcept
-    {
-        model* mdl = nullptr;
-
-        while (models.next(mdl))
-            dispatch(*mdl, f);
-    }
-#endif
-
     template<typename Function, typename... Args>
     constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
     {
@@ -6572,142 +6566,6 @@ struct simulation
         irt_unreachable();
     }
 
-    // status get_output_port_index(const model& mdl,
-    //                             const port& port,
-    //                             int* index) const noexcept
-    //{
-    //    return dispatch(
-    //      mdl, [port, index]<typename Dynamics>(auto& dyn) -> status {
-    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-    //              for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-    //                  if (&dyn.y[i] == port) {
-    //                      *index = static_cast<int>(i);
-    //                      return status::success;
-    //                  }
-    //              }
-
-    //              return status::dynamics_unknown_port_id;
-    //          }
-    //      });
-    //}
-
-    // void for_all_input_port(const model& mdl,
-    //                        function_ref<void(input_port&, input_port_id)> f)
-    //{
-    //    dispatch(
-    //      mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-    //              if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
-    //                  for (size_t i = 0, e = std::size(dyn->x); i != e; ++i)
-    //                      if (auto* port = input_ports.try_to_get(dyn->x[i]);
-    //                          port)
-    //                          f(*port, dyn->x[i]);
-    //          }
-    //      });
-    //}
-
-    // void for_all_output_port(const model& mdl,
-    //                         function_ref<void(output_port&, port)> f)
-    //{
-    //    dispatch(
-    //      mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-    //              if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
-    //                  for (size_t i = 0, e = std::size(dyn->y); i != e; ++i)
-    //                      if (auto* port = output_ports.try_to_get(dyn->y[i]);
-    //                          port)
-    //                          f(*port, dyn->y[i]);
-    //          }
-    //      });
-    //}
-
-    // status get_input_port_index(const model& mdl,
-    //                            const port port,
-    //                            int* index) const noexcept
-    //{
-    //    return dispatch(
-    //      mdl.type,
-    //      [dyn_id = mdl.id, port, index]<typename T>(T& dyn_models) -> status
-    //      {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-    //              auto* dyn = dyn_models.try_to_get(dyn_id);
-    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
-
-    //              for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
-    //                  if (dyn->x[i] == port) {
-    //                      *index = static_cast<int>(i);
-    //                      return status::success;
-    //                  }
-    //              }
-    //          }
-
-    //          return status::dynamics_unknown_port_id;
-    //      });
-    //}
-
-    // status get_port(const model& mdl, int index, port* port) const noexcept
-    //{
-    //    return dispatch(
-    //      mdl.type,
-    //      [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status
-    //      {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-    //              auto* dyn = dyn_models.try_to_get(dyn_id);
-    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
-
-    //              irt_return_if_fail(0 <= index && static_cast<size_t>(index)
-    //              <
-    //                                                 std::size(dyn->y),
-    //                                 status::dynamics_unknown_port_id);
-
-    //              *port = dyn->y[index];
-    //              return status::success;
-    //          }
-
-    //          return status::dynamics_unknown_port_id;
-    //      });
-    //}
-
-    // status get_input_port_id(const model& mdl,
-    //                         int index,
-    //                         input_port_id* port) const noexcept
-    //{
-    //    return dispatch(
-    //      mdl.type,
-    //      [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status
-    //      {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-    //              auto* dyn = dyn_models.try_to_get(dyn_id);
-    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
-
-    //              irt_return_if_fail(0 <= index && static_cast<size_t>(index)
-    //              <
-    //                                                 std::size(dyn->x),
-    //                                 status::dynamics_unknown_port_id);
-
-    //              *port = dyn->x[index];
-    //              return status::success;
-    //          }
-
-    //          return status::dynamics_unknown_port_id;
-    //      });
-    //}
-
 public:
     status init(size_t model_capacity, size_t messages_capacity)
     {
@@ -6716,7 +6574,7 @@ public:
         irt_return_if_bad(model_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(message_list_allocator.init(messages_capacity * ten));
         irt_return_if_bad(node_list_allocator.init(model_capacity * ten));
-        irt_return_if_bad(dated_message_allocator.init(model_capacity * ten));
+        irt_return_if_bad(dated_message_allocator.init(model_capacity * ten * ten));
         irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
 
         irt_return_if_bad(sched.init(model_capacity));
@@ -6730,11 +6588,11 @@ public:
         return status::success;
     }
 
-    template<typename Dynamics>
-    constexpr bool can_alloc(size_t number) const noexcept
+    bool can_alloc() const noexcept
     {
-        return models.can_alloc(number);
+        return models.can_alloc();
     }
+
 
     bool can_alloc(size_t place) const noexcept
     {
