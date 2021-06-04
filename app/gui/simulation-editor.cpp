@@ -520,46 +520,49 @@ show_simulation_run_debug(window_logger& log_w, editor& ed)
 }
 
 void
-show_simulation_box(editor& ed, bool* show_simulation)
+application::show_simulation_window()
 {
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(250, 350), ImGuiCond_Once);
-    if (!ImGui::Begin("Simulation", show_simulation)) {
+    if (!ImGui::Begin("Simulation", &show_simulation)) {
         ImGui::End();
         return;
     }
 
-    ImGui::InputDouble("Begin", &ed.simulation_begin);
-    ImGui::InputDouble("End", &ed.simulation_end);
-    ImGui::Checkbox("Show values", &ed.simulation_show_value);
+    static editor_id current = undefined<editor_id>();
+    if (auto* ed = make_combo_editor_name(*this, current); ed) {
+        ImGui::InputDouble("Begin", &ed->simulation_begin);
+        ImGui::InputDouble("End", &ed->simulation_end);
+        ImGui::Checkbox("Show values", &ed->simulation_show_value);
 
-    if (ImGui::Button("Output files"))
-        ed.show_select_directory_dialog = true;
+        if (ImGui::Button("Output files"))
+            ed->show_select_directory_dialog = true;
 
-    ImGui::Text("output directory: ");
+        ImGui::Text("output directory: ");
 #if _WIN32
-    ImGui::Text("%s", ed.observation_directory.u8string().c_str());
+        ImGui::Text("%s", ed->observation_directory.u8string().c_str());
 #else
-    ImGui::Text("%s",
-                reinterpret_cast<const char*>(
-                  ed.observation_directory.u8string().c_str()));
+        ImGui::Text("%s",
+                    reinterpret_cast<const char*>(
+                      ed->observation_directory.u8string().c_str()));
 #endif
 
-    if (ImGui::CollapsingHeader("Simulation run one"))
-        show_simulation_run_once(log_w, ed);
+        if (ImGui::CollapsingHeader("Simulation run one"))
+            show_simulation_run_once(log_w, *ed);
 
-    if (ImGui::CollapsingHeader("Debug simulation"))
-        show_simulation_run_debug(log_w, ed);
+        if (ImGui::CollapsingHeader("Debug simulation"))
+            show_simulation_run_debug(log_w, *ed);
 
-    if (ed.st != editor_status::editing) {
-        ImGui::Text("Current: %g", ed.simulation_current);
+        if (ed->st != editor_status::editing) {
+            ImGui::Text("Current: %g", ed->simulation_current);
 
-        const double duration = ed.simulation_end - ed.simulation_begin;
-        const double elapsed = ed.simulation_current - ed.simulation_begin;
-        const double fraction = elapsed / duration;
-        ImGui::ProgressBar(static_cast<float>(fraction));
+            const double duration = ed->simulation_end - ed->simulation_begin;
+            const double elapsed =
+              ed->simulation_current - ed->simulation_begin;
+            const double fraction = elapsed / duration;
+            ImGui::ProgressBar(static_cast<float>(fraction));
+        }
     }
-
     ImGui::End();
 }
 

@@ -3186,17 +3186,17 @@ make_combo_editor_name(application& app, editor_id& current) noexcept
 }
 
 void
-show_plot_box(application& app, bool* show_plot)
+application::show_plot_window()
 {
     ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
-    if (!ImGui::Begin("Plot", show_plot)) {
+    if (!ImGui::Begin("Plot", &show_plot)) {
         ImGui::End();
         return;
     }
 
     static editor_id current = undefined<editor_id>();
-    if (auto* ed = make_combo_editor_name(app, current); ed) {
+    if (auto* ed = make_combo_editor_name(*this, current); ed) {
         if (ImPlot::BeginPlot("simulation", "t", "s")) {
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
 
@@ -3215,104 +3215,6 @@ show_plot_box(application& app, bool* show_plot)
     }
 
     ImGui::End();
-}
-
-void
-application_initialize()
-{
-    if (auto ret = app.editors.init(50u); is_bad(ret)) {
-        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
-    } else {
-        if (auto* ed = app.alloc_editor(); ed) {
-            ed->context = imnodes::EditorContextCreate();
-            ed->settings.compute_colors();
-        }
-    }
-}
-
-bool
-application_show()
-{
-    bool ret = true;
-
-    if (ImGui::BeginMainMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("New")) {
-                if (auto* ed = app.alloc_editor(); ed)
-                    ed->context = imnodes::EditorContextCreate();
-            }
-
-            ImGui::Separator();
-            if (ImGui::MenuItem("Quit"))
-                ret = false;
-
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Window")) {
-            editor* ed = nullptr;
-            while (app.editors.next(ed))
-                ImGui::MenuItem(ed->name.c_str(), nullptr, &ed->show);
-
-            ImGui::MenuItem("Simulation", nullptr, &app.show_simulation);
-            ImGui::MenuItem("Plot", nullptr, &app.show_plot);
-            ImGui::MenuItem("Sources", nullptr, &app.show_sources_window);
-            ImGui::MenuItem("Settings", nullptr, &app.show_settings);
-            ImGui::MenuItem("Log", nullptr, &app.show_log);
-
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Help")) {
-            ImGui::MenuItem("Demo window", nullptr, &app.show_demo);
-
-            ImGui::EndMenu();
-        }
-
-        ImGui::EndMainMenuBar();
-    }
-
-    editor* ed = nullptr;
-    while (app.editors.next(ed)) {
-        if (ed->show) {
-            if (!ed->show_editor()) {
-                editor* next = ed;
-                app.editors.next(next);
-                app.free_editor(*ed);
-            } else {
-                if (app.show_simulation)
-                    show_simulation_box(*ed, &app.show_simulation);
-
-                if (app.show_plot)
-                    show_plot_box(app, &app.show_plot);
-
-                if (ed->show_settings)
-                    ed->settings.show(&ed->show_settings);
-            }
-        }
-    }
-
-    if (app.show_log)
-        log_w.show(&app.show_log);
-
-    if (app.show_settings)
-        app.settings.show(&app.show_settings);
-
-    if (app.show_demo)
-        ImGui::ShowDemoWindow();
-
-    if (app.show_sources_window)
-        app.show_sources(&app.show_sources_window);
-
-    return ret;
-}
-
-void
-application_shutdown()
-{
-    editor* ed = nullptr;
-    while (app.editors.next(ed))
-        imnodes::EditorContextFree(ed->context);
 }
 
 } // namespace irt

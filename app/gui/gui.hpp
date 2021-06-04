@@ -10,6 +10,9 @@
 
 namespace irt {
 
+// Forward declarations
+struct simulation;
+
 void
 application_initialize();
 
@@ -18,6 +21,12 @@ application_show();
 
 void
 application_shutdown();
+
+void
+simulation_run_for(simulation& sim,
+                   const long long int duration_in_microseconds,
+                   const double end,
+                   double& current);
 
 /* Move into internal API */
 

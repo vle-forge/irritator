@@ -582,6 +582,9 @@ struct application
     void show_sources(bool* is_show);
     void show_menu_sources(const char* title, source& src);
 
+    void show_plot_window();
+    void show_simulation_window();
+
     bool show_log = true;
     bool show_simulation = true;
     bool show_demo = false;
