@@ -48,14 +48,6 @@ editor::settings_manager::compute_colors() noexcept
       ImGui::ColorConvertFloat4ToU32(gui_cluster_color * 1.5f);
 }
 
-template<size_t N, typename... Args>
-void
-format(small_string<N>& str, const char* fmt, const Args&... args)
-{
-    auto ret = fmt::format_to_n(str.begin(), N - 1, fmt, args...);
-    str.size(ret.size);
-}
-
 void
 editor::clear() noexcept
 {
@@ -3106,55 +3098,6 @@ editor::show_editor() noexcept
 }
 
 editor*
-application::alloc_editor()
-{
-    if (srcs.binary_file_sources.capacity() == 0) {
-        srcs.init(50);
-    }
-
-    if (!editors.can_alloc(1u)) {
-        log_w.log(2, "Too many open editor\n");
-        return nullptr;
-    }
-
-    auto& ed = editors.alloc();
-    if (auto ret = ed.initialize(get_index(editors.get_id(ed))); is_bad(ret)) {
-        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
-        editors.free(ed);
-        return nullptr;
-    }
-
-    log_w.log(5, "Open editor %s\n", ed.name.c_str());
-    return &ed;
-}
-
-void
-application::free_editor(editor& ed)
-{
-    log_w.log(5, "Close editor %s\n", ed.name.c_str());
-    editors.free(ed);
-}
-
-void
-application::settings_manager::show(bool* is_open)
-{
-    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
-    if (!ImGui::Begin("Settings", is_open)) {
-        ImGui::End();
-        return;
-    }
-
-    ImGui::Text("Home.......: %s", home_dir.u8string().c_str());
-    ImGui::Text("Executable.: %s", executable_dir.u8string().c_str());
-    ImGui::Text("Libraries..:");
-    for (sz i = 0u, e = libraries_dir.size(); i != e; ++i)
-        ImGui::Text("- %s", libraries_dir[i].c_str());
-
-    ImGui::End();
-}
-
-editor*
 make_combo_editor_name(application& app, editor_id& current) noexcept
 {
     editor* first = app.editors.try_to_get(current);
@@ -3185,36 +3128,5 @@ make_combo_editor_name(application& app, editor_id& current) noexcept
     return app.editors.try_to_get(current);
 }
 
-void
-application::show_plot_window()
-{
-    ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
-    if (!ImGui::Begin("Plot", &show_plot)) {
-        ImGui::End();
-        return;
-    }
-
-    static editor_id current = undefined<editor_id>();
-    if (auto* ed = make_combo_editor_name(*this, current); ed) {
-        if (ImPlot::BeginPlot("simulation", "t", "s")) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-
-            plot_output* out = nullptr;
-            while (ed->plot_outs.next(out)) {
-                if (!out->xs.empty() && !out->ys.empty())
-                    ImPlot::PlotLine(out->name.c_str(),
-                                     out->xs.data(),
-                                     out->ys.data(),
-                                     static_cast<int>(out->xs.size()));
-            }
-
-            ImPlot::PopStyleVar(1);
-            ImPlot::EndPlot();
-        }
-    }
-
-    ImGui::End();
-}
 
 } // namespace irt

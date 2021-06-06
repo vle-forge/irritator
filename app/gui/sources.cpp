@@ -15,14 +15,6 @@
 
 namespace irt {
 
-template<size_t N, typename... Args>
-void
-format(small_string<N>& str, const char* fmt, const Args&... args)
-{
-    auto ret = fmt::format_to_n(str.begin(), N - 1, fmt, args...);
-    str.size(ret.size);
-}
-
 static void
 show_random_distribution_text(const random_source& src) noexcept
 {
