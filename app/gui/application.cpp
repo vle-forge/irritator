@@ -30,7 +30,7 @@ application::init()
         } else {
             log_w.log(
               3,
-              "Fail to retrieve home directory. Use current directory instead");
+              "Fail to retrieve home directory. Use current directory instead\n");
             home_dir = std::filesystem::current_path();
         }
 
@@ -40,7 +40,7 @@ application::init()
             log_w.log(
               3,
               "Fail to retrieve executable directory. Use current directory "
-              "instead");
+              "instead\n");
             executable_dir = std::filesystem::current_path();
         }
 
@@ -50,7 +50,7 @@ application::init()
                   executable_dir.u8string().c_str());
         return true;
     } catch (const std::exception& /*e*/) {
-        log_w.log(2, "Fail to initialize application");
+        log_w.log(2, "Fail to initialize application\n");
         return false;
     }
 }

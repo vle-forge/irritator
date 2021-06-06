@@ -14,18 +14,24 @@ window_logger::clear() noexcept
     line_offsets.push_back(0);
 }
 
-static const char* log_prefix[] = { "[emergency]", "[alert]",   "[critical]",
-                                    "[error]",     "[warning]", "[notice]",
-                                    "[info]",      "[debug]" };
+const char*
+log_string(const log_status s) noexcept
+{
+    static const char* str[] = { "[emergency]", "[alert]",   "[critical]",
+                                 "[error]",     "[warning]", "[notice]",
+                                 "[info]",      "[debug]" };
+
+    return str[static_cast<int>(s)];
+}
 
 void
 window_logger::log(const int level, const char* fmt, ...)
 {
+    auto l = std::clamp(level, 0, 7);
     auto old_size = buffer.size();
-
     va_list args;
     va_start(args, fmt);
-    buffer.append(log_prefix[level]);
+    buffer.append(log_string(enum_cast<log_status>(l)));
     buffer.appendfv(fmt, args);
     va_end(args);
 
@@ -41,8 +47,8 @@ void
 window_logger::log(const int level, const char* fmt, va_list args)
 {
     auto old_size = buffer.size();
-
-    buffer.append(log_prefix[level]);
+    auto l = std::clamp(level, 0, 7);
+    buffer.append(log_string(enum_cast<log_status>(l)));
     buffer.appendfv(fmt, args);
 
     for (auto new_size = buffer.size(); old_size < new_size; ++old_size)

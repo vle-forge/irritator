@@ -21,12 +21,12 @@
 
 namespace irt {
 
+// Forward declaration
 struct application;
 struct cluster;
 struct editor;
 struct top_cluster;
 struct window_logger;
-
 struct plot_output;
 struct file_output;
 struct file_discrete_output;
@@ -45,6 +45,18 @@ using observation_output = std::variant<std::monostate,
                                         plot_output_id,
                                         file_output_id,
                                         file_discrete_output_id>;
+
+enum class log_status : int
+{
+    emergency,
+    alert,
+    critical,
+    error,
+    warning,
+    notice,
+    info,
+    debug
+};
 
 enum class editor_status
 {
@@ -425,6 +437,9 @@ struct window_logger
     void log(const int level, const char* fmt, va_list args) IM_FMTLIST(3);
     void show(bool* is_show);
 };
+
+const char*
+log_string(const log_status s) noexcept;
 
 struct application
 {
