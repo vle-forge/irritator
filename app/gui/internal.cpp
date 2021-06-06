@@ -4,10 +4,12 @@
 
 #include "internal.hpp"
 
+#include <imgui.h>
+
 namespace irt {
 
 void
-HelpMarker(const char* desc) noexcept;
+HelpMarker(const char* desc) noexcept
 {
     try {
         ImGui::TextDisabled("(?)");

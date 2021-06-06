@@ -7,8 +7,6 @@
 #include <irritator/external_source.hpp>
 #include <irritator/io.hpp>
 
-#include <boost/ut.hpp>
-
 #include <fmt/format.h>
 
 #include <iostream>
@@ -16,6 +14,8 @@
 #include <sstream>
 
 #include <cstdio>
+
+#include <boost/ut.hpp>
 
 struct file_output
 {

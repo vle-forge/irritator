@@ -9,8 +9,8 @@
 // void*. This define is set in the example .vcxproj file and need to be
 // replicated in your app or by adding it to your imconfig.h file.
 
+#include "application.hpp"
 #include "imnodes.hpp"
-#include "gui.hpp"
 
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
@@ -159,7 +159,19 @@ main(int, char**)
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     imnodes::CreateContext();
-    irt::application_initialize();
+    irt::application app;
+    if (!app.init()) {
+        imnodes::DestroyContext();
+
+        ImGui_ImplDX12_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+
+        CleanupDeviceD3D();
+        ::DestroyWindow(hwnd);
+        ::UnregisterClass(wc.lpszClassName, wc.hInstance);
+        return 0;
+    }
 
     // Main loop
     MSG msg;
@@ -185,7 +197,7 @@ main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        if (!irt::application_show())
+        if (!app.show())
             ::PostMessage(hwnd, WM_CLOSE, 0, 0);
 
         // 1. Show the big demo window (Most of the sample code is in
@@ -197,7 +209,6 @@ main(int, char**)
         // 2. Show a simple window that we create ourselves. We use a Begin/End
         // pair to created a named window.
 
-
         //{
         //    static float f = 0.0f;
         //    static int counter = 0;
@@ -206,10 +217,12 @@ main(int, char**)
         //                                   // world!" and append into it.
 
         //    ImGui::Text(
-        //      "This is some useful text."); // Display some text (you can use a
+        //      "This is some useful text."); // Display some text (you can use
+        //      a
         //                                    // format strings too)
         //    ImGui::Checkbox("Demo Window",
-        //                    &show_demo_window); // Edit bools storing our window
+        //                    &show_demo_window); // Edit bools storing our
+        //                    window
         //                                        // open/close state
         //    ImGui::Checkbox("Another Window", &show_another_window);
 
@@ -300,7 +313,7 @@ main(int, char**)
 
     WaitForLastSubmittedFrame();
 
-    irt::application_shutdown();
+    app.shutdown();
     imnodes::DestroyContext();
 
     // Cleanup

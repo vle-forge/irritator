@@ -8,8 +8,7 @@
 #include <windows.h>
 #endif
 
-#include "gui.hpp"
-#include "node-editor.hpp"
+#include "application.hpp"
 
 #include <fmt/format.h>
 

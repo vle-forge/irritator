@@ -4,23 +4,21 @@
 
 #include "application.hpp"
 #include "dialog.hpp"
-#include "node-editor.hpp"
-
-#include <irritator/core.hpp>
-
-#include <chrono>
+#include "internal.hpp"
 
 namespace irt {
 
-bool application::init()
+bool
+application::init()
 {
     if (auto ret = editors.init(50u); is_bad(ret)) {
         log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
-        std::fprintf(stderr, "Fail to initialize irritator: %s\n", status_string(ret));
+        std::fprintf(
+          stderr, "Fail to initialize irritator: %s\n", status_string(ret));
         return false;
     }
 
-    if (auto* ed = app.alloc_editor(); ed) {
+    if (auto* ed = alloc_editor(); ed) {
         ed->context = imnodes::EditorContextCreate();
         ed->settings.compute_colors();
     }
@@ -58,7 +56,7 @@ bool application::init()
 }
 
 bool
-void application::show()
+application::show()
 {
     bool ret = true;
 
@@ -83,7 +81,6 @@ void application::show()
 
             ImGui::MenuItem("Simulation", nullptr, &show_simulation);
             ImGui::MenuItem("Plot", nullptr, &show_plot);
-            ImGui::MenuItem("Sources", nullptr, &show_sources_window);
             ImGui::MenuItem("Settings", nullptr, &show_settings);
             ImGui::MenuItem("Log", nullptr, &show_log);
 
@@ -123,25 +120,17 @@ void application::show()
         log_w.show(&show_log);
 
     if (show_settings)
-        settings.show(&show_settings);
+        show_settings_window();
 
     if (show_demo)
         ImGui::ShowDemoWindow();
 
-    if (show_sources_window)
-        show_sources(&show_sources_window);
-
     return ret;
 }
-
 
 editor*
 application::alloc_editor()
 {
-    if (srcs.binary_file_sources.capacity() == 0) {
-        srcs.init(50);
-    }
-
     if (!editors.can_alloc(1u)) {
         log_w.log(2, "Too many open editor\n");
         return nullptr;
@@ -176,7 +165,7 @@ application::show_plot_window()
     }
 
     static editor_id current = undefined<editor_id>();
-    if (auto* ed = make_combo_editor_name(*this, current); ed) {
+    if (auto* ed = make_combo_editor_name(current); ed) {
         if (ImPlot::BeginPlot("simulation", "t", "s")) {
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
 
@@ -197,8 +186,8 @@ application::show_plot_window()
     ImGui::End();
 }
 
-
-void application::show_settings_window()
+void
+application::show_settings_window()
 {
     ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
@@ -210,7 +199,7 @@ void application::show_settings_window()
     ImGui::Text("Home.......: %s", home_dir.u8string().c_str());
     ImGui::Text("Executable.: %s", executable_dir.u8string().c_str());
 
-    ImGui::End();   
+    ImGui::End();
 }
 
 void
@@ -222,10 +211,10 @@ application::shutdown()
 }
 
 static status
-simulation_run_for(simulation& sim,
-                   long long int duration_in_microseconds,
-                   const double end,
-                   double& current) noexcept
+run_for(editor& ed,
+        long long int duration_in_microseconds,
+        const double end,
+        double& current) noexcept
 {
     namespace stdc = std::chrono;
 
@@ -233,8 +222,8 @@ simulation_run_for(simulation& sim,
     long long int duration_since_start;
 
     do {
-        if (sim.current_status = sim.run(current); is_bad(sim.current_status))
-           return ret;
+        if (auto ret = ed.sim.run(current); is_bad(ret))
+            return ret;
 
         auto end_at = stdc::high_resolution_clock::now();
         auto duration = end_at - start_at;
@@ -245,24 +234,63 @@ simulation_run_for(simulation& sim,
     return status::success;
 }
 
-void application::run_simulations()
+void
+application::run_simulations()
 {
     int running_simulation = 0;
 
     editor* ed = nullptr;
     while (editors.next(ed))
-        if (ed->st = editor_status::running)
+        if (match(ed->st,
+                  editor_status::running_debug,
+                  editor_status::running_thread,
+                  editor_status::running_thread_need_join))
             ++running_simulation;
 
     if (!running_simulation)
         return;
 
     auto duration = 10000 / running_simulation;
-    
+
     ed = nullptr;
     while (editors.next(ed))
-        if (ed->st = editor_status::running)
-            ed->sim_st = run_for(ed->sim, duration, ed->simulation_end, ed->simulation_current);
+        if (match(ed->st,
+                  editor_status::running_debug,
+                  editor_status::running_thread,
+                  editor_status::running_thread_need_join))
+            ed->sim_st = run_for(
+              *ed, duration, ed->simulation_end, ed->simulation_current);
+}
+
+editor*
+application::make_combo_editor_name(editor_id& current) noexcept
+{
+    editor* first = editors.try_to_get(current);
+    if (first == nullptr) {
+        if (!editors.next(first)) {
+            current = undefined<editor_id>();
+            return nullptr;
+        }
+    }
+
+    current = editors.get_id(first);
+
+    if (ImGui::BeginCombo("Name", first->name.c_str())) {
+        editor* ed = nullptr;
+        while (editors.next(ed)) {
+            const bool is_selected = current == editors.get_id(ed);
+
+            if (ImGui::Selectable(ed->name.c_str(), is_selected))
+                current = editors.get_id(ed);
+
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
+        }
+
+        ImGui::EndCombo();
+    }
+
+    return editors.try_to_get(current);
 }
 
 } // namespace irt

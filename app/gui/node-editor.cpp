@@ -7,10 +7,9 @@
 #define WINDOWS_LEAN_AND_MEAN
 #endif
 
-#include "node-editor.hpp"
-#include "gui.hpp"
-#include "imnodes.hpp"
-#include "implot.h"
+#include "application.hpp"
+#include "dialog.hpp"
+#include "internal.hpp"
 
 #include <cinttypes>
 #include <fstream>
@@ -27,6 +26,67 @@ static ImVec4
 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
+}
+
+inline int
+make_input_node_id(const irt::model_id mdl, const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    irt::u32 index = irt::get_index(mdl);
+    irt_assert(index < 268435456u);
+
+    irt::u32 port_index = static_cast<irt::u32>(port) << 28u;
+    index |= port_index;
+
+    return static_cast<int>(index);
+}
+
+inline int
+make_output_node_id(const irt::model_id mdl, const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    irt::u32 index = irt::get_index(mdl);
+    irt_assert(index < 268435456u);
+
+    irt::u32 port_index = static_cast<irt::u32>(8u + port) << 28u;
+
+    index |= port_index;
+
+    return static_cast<int>(index);
+}
+
+inline std::pair<irt::u32, irt::u32>
+get_model_input_port(const int node_id) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    irt::u32 port = real_node_id >> 28u;
+    irt_assert(port < 8u);
+
+    constexpr irt::u32 mask = ~(15u << 28u);
+    irt::u32 index = real_node_id & mask;
+
+    return std::make_pair(index, port);
+}
+
+inline std::pair<irt::u32, irt::u32>
+get_model_output_port(const int node_id) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    irt::u32 port = real_node_id >> 28u;
+
+    irt_assert(port >= 8u && port < 16u);
+    port -= 8u;
+    irt_assert(port < 8u);
+
+    constexpr irt::u32 mask = ~(15u << 28u);
+
+    irt::u32 index = real_node_id & mask;
+
+    return std::make_pair(index, port);
 }
 
 void
@@ -937,7 +997,8 @@ editor::initialize(u32 id) noexcept
     irt_return_if_bad(
       file_discrete_outs.init(to_unsigned(settings.kernel_model_cache)));
 
-    sim.source_dispatch = app.srcs;
+    irt_return_if_bad(srcs.init(50));
+    sim.source_dispatch = srcs;
 
     try {
         observation_outputs.resize(sim.models.capacity());
@@ -1707,7 +1768,7 @@ show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, none& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 {}
 
 static void
@@ -1720,51 +1781,51 @@ show_dynamics_values(simulation& /*sim*/, const flow& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_integrator& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_X);
     ImGui::InputDouble("reset", &dyn.default_dQ);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_integrator& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_X);
     ImGui::InputDouble("reset", &dyn.default_dQ);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_integrator& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss3_integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_X);
     ImGui::InputDouble("reset", &dyn.default_dQ);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_multiplier& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_multiplier& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_sum_2& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_sum_2& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_sum_3& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_sum_3& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_sum_4& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_sum_4& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_2& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_wsum_2& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_3& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_wsum_3& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1772,7 +1833,7 @@ show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_3& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_4& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_wsum_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1781,70 +1842,30 @@ show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_4& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_multiplier& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_multiplier& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_sum_2& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_sum_2& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_sum_3& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_sum_3& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_sum_4& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_sum_4& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_2& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_wsum_2& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_3& dyn)
-{
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-}
-
-static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_4& dyn)
-{
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
-}
-
-static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_multiplier& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_sum_2& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_sum_3& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_sum_4& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_2& dyn)
-{
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-}
-
-static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_3& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_wsum_3& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1852,7 +1873,7 @@ show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_3& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_4& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_wsum_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1861,28 +1882,68 @@ show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_4& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, integrator& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss3_multiplier& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_sum_2& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_sum_3& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_sum_4& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_wsum_2& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_wsum_3& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_wsum_4& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_current_value);
     ImGui::InputDouble("reset", &dyn.default_reset_value);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, quantifier& dyn)
+show_dynamics_inputs(editor& /*ed*/, quantifier& dyn)
 {
     ImGui::InputDouble("quantum", &dyn.default_step_size);
     ImGui::SliderInt("archive length", &dyn.default_past_length, 3, 100);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, adder_2& dyn)
+show_dynamics_inputs(editor& /*ed*/, adder_2& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, adder_3& dyn)
+show_dynamics_inputs(editor& /*ed*/, adder_3& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1890,7 +1951,7 @@ show_dynamics_inputs(simulation& /*sim*/, adder_3& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, adder_4& dyn)
+show_dynamics_inputs(editor& /*ed*/, adder_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1899,14 +1960,14 @@ show_dynamics_inputs(simulation& /*sim*/, adder_4& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, mult_2& dyn)
+show_dynamics_inputs(editor& /*ed*/, mult_2& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, mult_3& dyn)
+show_dynamics_inputs(editor& /*ed*/, mult_3& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1914,7 +1975,7 @@ show_dynamics_inputs(simulation& /*sim*/, mult_3& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, mult_4& dyn)
+show_dynamics_inputs(editor& /*ed*/, mult_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1923,11 +1984,11 @@ show_dynamics_inputs(simulation& /*sim*/, mult_4& dyn)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, counter& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, queue& dyn)
+show_dynamics_inputs(editor& /*ed*/, queue& dyn)
 {
     ImGui::InputDouble("delay", &dyn.default_ta);
     ImGui::SameLine();
@@ -1935,7 +1996,9 @@ show_dynamics_inputs(simulation& /*sim*/, queue& dyn)
 }
 
 static void
-show_external_sources_combo(const char* title, source& src)
+show_external_sources_combo(external_source& srcs,
+                            const char* title,
+                            source& src)
 {
     small_string<63> label("None");
 
@@ -1947,7 +2010,7 @@ show_external_sources_combo(const char* title, source& src)
         case external_source_type::binary_file: {
             const auto id = enum_cast<binary_file_source_id>(src.id);
             const auto index = get_index(id);
-            if (auto* es = app.srcs.binary_file_sources.try_to_get(id)) {
+            if (auto* es = srcs.binary_file_sources.try_to_get(id)) {
                 format(label,
                        "{}-{} {}",
                        ordinal(external_source_type::binary_file),
@@ -1960,7 +2023,7 @@ show_external_sources_combo(const char* title, source& src)
         case external_source_type::constant: {
             const auto id = enum_cast<constant_source_id>(src.id);
             const auto index = get_index(id);
-            if (auto* es = app.srcs.constant_sources.try_to_get(id)) {
+            if (auto* es = srcs.constant_sources.try_to_get(id)) {
                 format(label,
                        "{}-{} {}",
                        ordinal(external_source_type::constant),
@@ -1973,7 +2036,7 @@ show_external_sources_combo(const char* title, source& src)
         case external_source_type::random: {
             const auto id = enum_cast<random_source_id>(src.id);
             const auto index = get_index(id);
-            if (auto* es = app.srcs.random_sources.try_to_get(id)) {
+            if (auto* es = srcs.random_sources.try_to_get(id)) {
                 format(label,
                        "{}-{} {}",
                        ordinal(external_source_type::random),
@@ -1986,7 +2049,7 @@ show_external_sources_combo(const char* title, source& src)
         case external_source_type::text_file: {
             const auto id = enum_cast<text_file_source_id>(src.id);
             const auto index = get_index(id);
-            if (auto* es = app.srcs.text_file_sources.try_to_get(id)) {
+            if (auto* es = srcs.text_file_sources.try_to_get(id)) {
                 format(label,
                        "{}-{} {}",
                        ordinal(external_source_type::text_file),
@@ -2011,8 +2074,8 @@ show_external_sources_combo(const char* title, source& src)
 
         {
             constant_source* s = nullptr;
-            while (app.srcs.constant_sources.next(s)) {
-                const auto id = app.srcs.constant_sources.get_id(s);
+            while (srcs.constant_sources.next(s)) {
+                const auto id = srcs.constant_sources.get_id(s);
                 const auto index = get_index(id);
 
                 format(label,
@@ -2035,8 +2098,8 @@ show_external_sources_combo(const char* title, source& src)
 
         {
             binary_file_source* s = nullptr;
-            while (app.srcs.binary_file_sources.next(s)) {
-                const auto id = app.srcs.binary_file_sources.get_id(s);
+            while (srcs.binary_file_sources.next(s)) {
+                const auto id = srcs.binary_file_sources.get_id(s);
                 const auto index = get_index(id);
 
                 format(label,
@@ -2059,8 +2122,8 @@ show_external_sources_combo(const char* title, source& src)
 
         {
             random_source* s = nullptr;
-            while (app.srcs.random_sources.next(s)) {
-                const auto id = app.srcs.random_sources.get_id(s);
+            while (srcs.random_sources.next(s)) {
+                const auto id = srcs.random_sources.get_id(s);
                 const auto index = get_index(id);
 
                 format(label,
@@ -2083,8 +2146,8 @@ show_external_sources_combo(const char* title, source& src)
 
         {
             text_file_source* s = nullptr;
-            while (app.srcs.text_file_sources.next(s)) {
-                const auto id = app.srcs.text_file_sources.get_id(s);
+            while (srcs.text_file_sources.next(s)) {
+                const auto id = srcs.text_file_sources.get_id(s);
                 const auto index = get_index(id);
 
                 format(label,
@@ -2110,7 +2173,7 @@ show_external_sources_combo(const char* title, source& src)
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, dynamic_queue& dyn)
+show_dynamics_inputs(editor& ed, dynamic_queue& dyn)
 {
     ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
     ImGui::SameLine();
@@ -2118,11 +2181,11 @@ show_dynamics_inputs(simulation& /*sim*/, dynamic_queue& dyn)
       "Unchecked, the dynamic queue stops to send data if the source are "
       "empty or undefined. Checked, the simulation will stop.");
 
-    show_external_sources_combo("time", dyn.default_source_ta);
+    show_external_sources_combo(ed.srcs, "time", dyn.default_source_ta);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, priority_queue& dyn)
+show_dynamics_inputs(editor& ed, priority_queue& dyn)
 {
     ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
     ImGui::SameLine();
@@ -2130,11 +2193,11 @@ show_dynamics_inputs(simulation& /*sim*/, priority_queue& dyn)
       "Unchecked, the priority queue stops to send data if the source are "
       "empty or undefined. Checked, the simulation will stop.");
 
-    show_external_sources_combo("time", dyn.default_source_ta);
+    show_external_sources_combo(ed.srcs, "time", dyn.default_source_ta);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, generator& dyn)
+show_dynamics_inputs(editor& ed, generator& dyn)
 {
     ImGui::InputDouble("offset", &dyn.default_offset);
     ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
@@ -2142,83 +2205,83 @@ show_dynamics_inputs(simulation& /*sim*/, generator& dyn)
     HelpMarker("Unchecked, the generator stops to send data if the source are "
                "empty or undefined. Checked, the simulation will stop.");
 
-    show_external_sources_combo("source", dyn.default_source_value);
-    show_external_sources_combo("time", dyn.default_source_ta);
+    show_external_sources_combo(ed.srcs, "source", dyn.default_source_value);
+    show_external_sources_combo(ed.srcs, "time", dyn.default_source_ta);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, constant& dyn)
+show_dynamics_inputs(editor& /*ed*/, constant& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_value);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_cross& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_cross& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_cross& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss3_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_power& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_power& dyn)
 {
     ImGui::InputDouble("n", &dyn.default_n);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_power& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_power& dyn)
 {
     ImGui::InputDouble("n", &dyn.default_n);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_power& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss3_power& dyn)
 {
     ImGui::InputDouble("n", &dyn.default_n);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss1_square& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_square& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss2_square& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_square& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, qss3_square& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss3_square& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, cross& dyn)
+show_dynamics_inputs(editor& /*ed*/, cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
 }
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, accumulator_2& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, accumulator_2& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, flow& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, flow& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(simulation& /*sim*/, time_func& dyn)
+show_dynamics_inputs(editor& /*ed*/, time_func& dyn)
 {
     const char* items[] = { "time", "square" };
     ImGui::PushItemWidth(120.0f);
@@ -2247,7 +2310,7 @@ editor::show_model_dynamics(model& mdl) noexcept
             ImGui::PushItemWidth(120.0f);
 
             if (settings.show_dynamics_inputs_in_editor)
-                show_dynamics_inputs(sim, dyn);
+                show_dynamics_inputs(*this, dyn);
             ImGui::PopItemWidth();
             add_output_attribute(*this, dyn);
         });
@@ -2507,7 +2570,7 @@ editor::show_editor() noexcept
                           (const char*)path.u8string().c_str());
                 if (auto os = std::ofstream(path); os.is_open()) {
                     writer w(os);
-                    auto ret = w(sim, app.srcs);
+                    auto ret = w(sim, srcs);
                     if (is_success(ret))
                         log_w.log(5, "success\n");
                     else
@@ -2540,6 +2603,8 @@ editor::show_editor() noexcept
                 compute_automatic_layout();
             if (ImGui::MenuItem("Settings"))
                 show_settings = true;
+            if (ImGui::MenuItem("External sources"))
+                show_sources = true;
 
             ImGui::EndMenu();
         }
@@ -2692,7 +2757,7 @@ editor::show_editor() noexcept
               5, "Load file from %s: ", (const char*)path.u8string().c_str());
             if (auto is = std::ifstream(path); is.is_open()) {
                 reader r(is);
-                auto ret = r(sim, app.srcs, [this](model_id id) {
+                auto ret = r(sim, srcs, [this](model_id id) {
                     parent(id, undefined<cluster_id>());
 
                     imnodes::SetNodeEditorSpacePos(
@@ -2723,7 +2788,7 @@ editor::show_editor() noexcept
                           (const char*)path.u8string().c_str());
                 if (auto os = std::ofstream(path); os.is_open()) {
                     writer w(os);
-                    auto ret = w(sim, app.srcs);
+                    auto ret = w(sim, srcs);
                     if (is_success(ret))
                         log_w.log(5, "success\n");
                     else
@@ -3081,7 +3146,7 @@ editor::show_editor() noexcept
                     sim.dispatch(*mdl,
                                  [this]<typename Dynamics>(Dynamics& dyn) {
                                      ImGui::Spacing();
-                                     show_dynamics_inputs(this->sim, dyn);
+                                     show_dynamics_inputs(*this, dyn);
                                  });
 
                     ImGui::TreePop();
@@ -3094,39 +3159,10 @@ editor::show_editor() noexcept
 
     ImGui::End();
 
+    if (show_sources)
+        show_sources_window(&show_sources);
+
     return true;
 }
-
-editor*
-make_combo_editor_name(application& app, editor_id& current) noexcept
-{
-    editor* first = app.editors.try_to_get(current);
-    if (first == nullptr) {
-        if (!app.editors.next(first)) {
-            current = undefined<editor_id>();
-            return nullptr;
-        }
-    }
-
-    current = app.editors.get_id(first);
-
-    if (ImGui::BeginCombo("Name", first->name.c_str())) {
-        editor* ed = nullptr;
-        while (app.editors.next(ed)) {
-            const bool is_selected = current == app.editors.get_id(ed);
-
-            if (ImGui::Selectable(ed->name.c_str(), is_selected))
-                current = app.editors.get_id(ed);
-
-            if (is_selected)
-                ImGui::SetItemDefaultFocus();
-        }
-
-        ImGui::EndCombo();
-    }
-
-    return app.editors.try_to_get(current);
-}
-
 
 } // namespace irt

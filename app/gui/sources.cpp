@@ -2,10 +2,9 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "gui.hpp"
-#include "node-editor.hpp"
-
-#include <fmt/format.h>
+#include "application.hpp"
+#include "dialog.hpp"
+#include "internal.hpp"
 
 #include <future>
 #include <random>
@@ -269,8 +268,8 @@ show_random_distribution_input(random_source& src) noexcept
     }
 }
 
- void
- application::show_sources(bool* is_show)
+void
+editor::show_sources_window(bool* is_show)
 {
     ImGui::SetNextWindowPos(ImVec2(70, 450), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
@@ -288,8 +287,7 @@ show_random_distribution_input(random_source& src) noexcept
 
     if (ImGui::BeginTable("All sources",
                           5,
-                          ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg))
-                          {
+                          ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthStretch);
@@ -352,8 +350,7 @@ show_random_distribution_input(random_source& src) noexcept
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             format(
-              label, "{}-{}", ordinal(external_source_type::text_file),
-              index);
+              label, "{}-{}", ordinal(external_source_type::text_file), index);
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
@@ -440,8 +437,7 @@ show_random_distribution_input(random_source& src) noexcept
 
         ImGuiStyle& style = ImGui::GetStyle();
         const float width =
-          (ImGui::GetContentRegionAvail().x - 4.f * style.ItemSpacing.x)
-          / 5.f;
+          (ImGui::GetContentRegionAvail().x - 4.f * style.ItemSpacing.x) / 5.f;
         ImVec2 button_sz(width, 20);
 
         if (ImGui::Button("+constant", button_sz)) {
@@ -472,8 +468,8 @@ show_random_distribution_input(random_source& src) noexcept
             if (srcs.binary_file_sources.can_alloc(1u)) {
                 auto& new_src = srcs.binary_file_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    log_w.log(2,
-                              "Not enough memory to allocate binary text source");
+                    log_w.log(
+                      2, "Not enough memory to allocate binary text source");
                     srcs.binary_file_sources.free(new_src);
                 }
             }
@@ -484,8 +480,7 @@ show_random_distribution_input(random_source& src) noexcept
             if (srcs.random_sources.can_alloc(1u)) {
                 auto& new_src = srcs.random_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    log_w.log(2,
-                              "Not enough memory to allocate random source");
+                    log_w.log(2, "Not enough memory to allocate random source");
                     srcs.random_sources.free(new_src);
                 }
             }
@@ -617,8 +612,7 @@ show_random_distribution_input(random_source& src) noexcept
             const char8_t* filters[] = { u8".dat", nullptr };
 
             ImGui::OpenPopup(title);
-            if (load_file_dialog(binary_file_ptr->file_path, title, filters))
-            {
+            if (load_file_dialog(binary_file_ptr->file_path, title, filters)) {
                 show_file_dialog = false;
                 binary_file_ptr = nullptr;
             }
@@ -640,7 +634,7 @@ show_random_distribution_input(random_source& src) noexcept
 }
 
 void
-application::show_menu_sources(const char* title, source& src)
+editor::show_menu_sources(const char* title, source& src)
 {
     small_string<64> tmp;
 
