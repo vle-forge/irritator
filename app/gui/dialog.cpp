@@ -8,7 +8,9 @@
 #include <windows.h>
 #endif
 
-#include "application.hpp"
+#include "dialog.hpp"
+
+#include <imgui.h>
 
 #include <fmt/format.h>
 
