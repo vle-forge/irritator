@@ -24,13 +24,19 @@ application::init()
     }
 
     try {
+        simulation_duration.resize(editors.capacity(), 0);
+    } catch (const std::bad_alloc& /*e*/) {
+        return false;
+    }
+
+    try {
         if (auto home = get_home_directory(); home) {
             home_dir = home.value();
             home_dir /= "irritator";
         } else {
-            log_w.log(
-              3,
-              "Fail to retrieve home directory. Use current directory instead\n");
+            log_w.log(3,
+                      "Fail to retrieve home directory. Use current directory "
+                      "instead\n");
             home_dir = std::filesystem::current_path();
         }
 
@@ -210,56 +216,102 @@ application::shutdown()
         imnodes::EditorContextFree(ed->context);
 }
 
-static status
-run_for(editor& ed,
-        long long int duration_in_microseconds,
-        const double end,
-        double& current) noexcept
+static void
+run_for(editor& ed, long long int duration_in_microseconds) noexcept
 {
     namespace stdc = std::chrono;
 
     auto start_at = stdc::high_resolution_clock::now();
     long long int duration_since_start;
 
-    do {
-        if (auto ret = ed.sim.run(current); is_bad(ret))
-            return ret;
+    if (ed.simulation_bag_id < 0) {
+        ed.sim.clean();
+        ed.simulation_current = ed.simulation_begin;
+        ed.simulation_during_date = ed.simulation_begin;
+        ed.models_make_transition.resize(ed.sim.models.capacity(), false);
 
-        auto end_at = stdc::high_resolution_clock::now();
-        auto duration = end_at - start_at;
-        auto duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
-        duration_since_start = duration_cast.count();
-    } while (duration_since_start < duration_in_microseconds);
+        if (ed.sim_st = ed.sim.initialize(ed.simulation_current);
+            irt::is_bad(ed.sim_st)) {
+            log_w.log(3,
+                      "Simulation initialisation failure (%s)\n",
+                      irt::status_string(ed.sim_st));
+            return;
+        }
 
-    return status::success;
+        ed.simulation_next_time = ed.sim.sched.empty()
+                                    ? time_domain<time>::infinity
+                                    : ed.sim.sched.tn();
+        ed.simulation_bag_id = 0;
+    }
+
+    if (ed.st == editor_status::running) {
+        do {
+            ++ed.simulation_bag_id;
+            if (ed.sim_st = ed.sim.run(ed.simulation_current);
+                is_bad(ed.sim_st)) {
+                ed.st = editor_status::editing;
+                ed.sim.finalize(ed.simulation_end);
+                return;
+            }
+
+            if (ed.simulation_current >= ed.simulation_end) {
+                ed.st = editor_status::editing;
+                ed.sim.finalize(ed.simulation_end);
+                return;
+            }
+
+            auto end_at = stdc::high_resolution_clock::now();
+            auto duration = end_at - start_at;
+            auto duration_cast =
+              stdc::duration_cast<stdc::microseconds>(duration);
+            duration_since_start = duration_cast.count();
+        } while (duration_since_start < duration_in_microseconds);
+        return;
+    }
+
+    const int loop = ed.st == editor_status::running_1_step    ? 1
+                     : ed.st == editor_status::running_10_step ? 10
+                                                               : 100;
+
+    for (int i = 0; i < loop; ++i) {
+        ++ed.simulation_bag_id;
+        if (ed.sim_st = ed.sim.run(ed.simulation_current); is_bad(ed.sim_st)) {
+            ed.st = editor_status::editing;
+            ed.sim.finalize(ed.simulation_end);
+            return;
+        }
+
+        if (ed.simulation_current >= ed.simulation_end) {
+            ed.st = editor_status::editing;
+            ed.sim.finalize(ed.simulation_end);
+            return;
+        }
+    }
+
+    ed.st = editor_status::running_pause;
 }
 
 void
 application::run_simulations()
 {
-    int running_simulation = 0;
+    auto running_simulation = 0.f;
 
     editor* ed = nullptr;
     while (editors.next(ed))
-        if (match(ed->st,
-                  editor_status::running_debug,
-                  editor_status::running_thread,
-                  editor_status::running_thread_need_join))
+        if (ed->is_running())
             ++running_simulation;
 
     if (!running_simulation)
         return;
 
-    auto duration = 10000 / running_simulation;
+    const auto duration = 10000.f / running_simulation;
 
     ed = nullptr;
     while (editors.next(ed))
-        if (match(ed->st,
-                  editor_status::running_debug,
-                  editor_status::running_thread,
-                  editor_status::running_thread_need_join))
-            ed->sim_st = run_for(
-              *ed, duration, ed->simulation_end, ed->simulation_current);
+        if (ed->is_running())
+            run_for(
+              *ed,
+              static_cast<long long int>(duration * ed->synchronize_timestep));
 }
 
 editor*

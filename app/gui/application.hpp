@@ -11,7 +11,6 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
-#include <thread>
 #include <variant>
 #include <vector>
 
@@ -60,11 +59,14 @@ enum class log_status : int
 
 enum class editor_status
 {
-    editing,
-    initializing,
-    running_debug,
-    running_thread,
-    running_thread_need_join
+    editing,          // Default mode. No simulation run.
+    running,          //
+    running_1_step,   //
+    running_10_step,  //
+    running_100_step, //
+    running_pause,    //
+    running_stop,     //
+    finalizing        // cleanup internal simulation data.
 };
 
 struct plot_output
@@ -223,7 +225,6 @@ struct editor
     small_string<16> name;
     std::filesystem::path path;
     imnodes::EditorContext* context = nullptr;
-    bool initialized = false;
     bool show = true;
 
     simulation sim;
@@ -234,13 +235,22 @@ struct editor
     double simulation_current = 10.0;
     double simulation_next_time = 0.0;
     long simulation_bag_id = 0;
+    int step_by_step_bag = 0;
 
     double simulation_during_date;
     int simulation_during_bag;
 
-    std::thread simulation_thread;
     editor_status st = editor_status::editing;
     status sim_st = status::success;
+
+    bool is_running() const noexcept
+    {
+        return match(st,
+                     editor_status::running,
+                     editor_status::running_1_step,
+                     editor_status::running_10_step,
+                     editor_status::running_100_step);
+    }
 
     bool simulation_show_value = false;
     bool stop = false;
@@ -304,7 +314,7 @@ struct editor
 
     bool use_real_time;
     bool starting = true;
-    double synchronize_timestep;
+    float synchronize_timestep = 1.f;
 
     top_cluster top;
 
@@ -446,6 +456,7 @@ struct application
     data_array<editor, editor_id> editors;
     std::filesystem::path home_dir;
     std::filesystem::path executable_dir;
+    std::vector<long long int> simulation_duration;
 
     bool show_log = true;
     bool show_simulation = true;

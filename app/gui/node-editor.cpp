@@ -1022,8 +1022,6 @@ editor::initialize(u32 id) noexcept
 
     format(name, "Editor {}", id);
 
-    initialized = true;
-
     return status::success;
 }
 
@@ -2822,8 +2820,7 @@ editor::show_editor() noexcept
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
         int node_id;
-        if (imnodes::IsNodeHovered(&node_id) &&
-            st == editor_status::running_debug) {
+        if (imnodes::IsNodeHovered(&node_id) && is_running()) {
             const auto index = top.get_index(node_id);
             if (index != not_found || top.children[index].first.index() == 0) {
                 const auto id = std::get<model_id>(top.children[index].first);

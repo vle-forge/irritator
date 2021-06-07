@@ -248,275 +248,63 @@ file_output::operator()(const irt::observer& obs,
 }
 
 static void
-run_synchronized_simulation(window_logger& log_w,
-                            simulation& sim,
-                            double begin,
-                            double end,
-                            double synchronize_timestep,
-                            double& current,
-                            editor_status& st,
-                            status& sim_st,
-                            const bool& stop) noexcept
-{
-    current = begin;
-    st = editor_status::initializing;
-    if (sim_st = sim.initialize(current); irt::is_bad(sim_st)) {
-        log_w.log(3,
-                  "Simulation initialization failure (%s)\n",
-                  irt::status_string(sim_st));
-        st = editor_status::editing;
-        return;
-    }
-
-    st = editor_status::running_thread;
-    do {
-        const double old = current;
-
-        if (sim_st = sim.run(current); irt::is_bad(sim_st)) {
-            log_w.log(
-              3, "Simulation failure (%s)\n", irt::status_string(sim_st));
-            st = editor_status::editing;
-            return;
-        }
-
-        const auto duration = (current - old) / synchronize_timestep;
-        if (duration > 0.)
-            std::this_thread::sleep_for(
-              std::chrono::duration<double>(duration));
-    } while (current < end && !stop);
-
-    sim.finalize(end);
-
-    st = editor_status::running_thread_need_join;
-}
-
-static void
-run_simulation(window_logger& log_w,
-               simulation& sim,
-               double begin,
-               double end,
-               double& current,
-               editor_status& st,
-               status& sim_st,
-               const bool& stop) noexcept
-{
-    current = begin;
-    st = editor_status::initializing;
-    if (sim_st = sim.initialize(current); irt::is_bad(sim_st)) {
-        log_w.log(3,
-                  "Simulation initialization failure (%s)\n",
-                  irt::status_string(sim_st));
-        st = editor_status::editing;
-        return;
-    }
-
-    st = editor_status::running_thread;
-    do {
-        if (sim_st = sim.run(current); irt::is_bad(sim_st)) {
-            log_w.log(
-              3, "Simulation failure (%s)\n", irt::status_string(sim_st));
-            st = editor_status::editing;
-            return;
-        }
-    } while (current < end && !stop);
-
-    sim.finalize(end);
-
-    st = editor_status::running_thread_need_join;
-}
-
-static void
-show_simulation_run_once(window_logger& log_w, editor& ed)
-{
-    if (ed.st == editor_status::running_thread_need_join) {
-        if (ed.simulation_thread.joinable()) {
-            ed.simulation_thread.join();
-            ed.st = editor_status::editing;
-        }
-    } else if (ed.st == editor_status::editing ||
-               ed.st == editor_status::running_debug) {
-        ImGui::Checkbox("Time synchronization", &ed.use_real_time);
-
-        if (ed.use_real_time) {
-            ImGui::InputDouble("t/s", &ed.synchronize_timestep);
-
-            if (ed.synchronize_timestep > 0. && ImGui::Button("run")) {
-                // initialize_observation(log_w, ed);
-                ed.stop = false;
-
-                ed.simulation_thread =
-                  std::thread(&run_synchronized_simulation,
-                              std::ref(log_w),
-                              std::ref(ed.sim),
-                              ed.simulation_begin,
-                              ed.simulation_end,
-                              ed.synchronize_timestep,
-                              std::ref(ed.simulation_current),
-                              std::ref(ed.st),
-                              std::ref(ed.sim_st),
-                              std::cref(ed.stop));
-            }
-        } else {
-            if (ImGui::Button("run")) {
-                // initialize_observation(log_w, ed);
-                ed.stop = false;
-
-                ed.simulation_thread =
-                  std::thread(&run_simulation,
-                              std::ref(log_w),
-                              std::ref(ed.sim),
-                              ed.simulation_begin,
-                              ed.simulation_end,
-                              std::ref(ed.simulation_current),
-                              std::ref(ed.st),
-                              std::ref(ed.sim_st),
-                              std::cref(ed.stop));
-            }
-        }
-    }
-
-    if (ed.st == editor_status::running_thread) {
-        ImGui::SameLine();
-        if (ImGui::Button("Force stop"))
-            ed.stop = true;
-    }
-}
-
-static void
-simulation_init(window_logger& log_w, editor& ed)
-{
-    ed.sim.clean();
-
-    // initialize_observation(log_w, ed);
-
-    ed.simulation_current = ed.simulation_begin;
-    ed.simulation_during_date = ed.simulation_begin;
-    ed.st = editor_status::initializing;
-
-    ed.models_make_transition.resize(ed.sim.models.capacity(), false);
-
-    if (ed.sim_st = ed.sim.initialize(ed.simulation_current);
-        irt::is_bad(ed.sim_st)) {
-        log_w.log(3,
-                  "Simulation initialisation failure (%s)\n",
-                  irt::status_string(ed.sim_st));
-        ed.st = editor_status::editing;
-    } else {
-        ed.simulation_next_time = ed.sim.sched.empty()
-                                    ? time_domain<time>::infinity
-                                    : ed.sim.sched.tn();
-        ed.simulation_bag_id = 0;
-        ed.st = editor_status::running_debug;
-    }
-}
-
-static void
-show_simulation_run_debug(window_logger& log_w, editor& ed)
+show_simulation_run(window_logger& /*log_w*/, editor& ed)
 {
     ImGui::Text("Current time %g", ed.simulation_current);
     ImGui::Text("Current bag %ld", ed.simulation_bag_id);
     ImGui::Text("Next time %g", ed.simulation_next_time);
     ImGui::Text("Model %lu", (unsigned long)ed.sim.sched.size());
 
-    if (ImGui::Button("init."))
-        simulation_init(log_w, ed);
-
+    ImGui::SliderFloat("Speed",
+                       &ed.synchronize_timestep,
+                       0.00001f,
+                       1.0f,
+                       "%.6f",
+                       ImGuiSliderFlags_Logarithmic);
     ImGui::SameLine();
+    HelpMarker("1.0 means maximum speed to run simulation for all editors. "
+               "Smaller values slow down the simulation speed.");
 
-    if (ImGui::Button("Next bag")) {
-        if (ed.sim_st = ed.sim.run(ed.simulation_current); is_bad(ed.sim_st)) {
-            ed.st = editor_status::editing;
-            log_w.log(3,
-                      "Simulation next bag failure (%s)\n",
-                      irt::status_string(ed.sim_st));
-        }
-        ++ed.simulation_bag_id;
+    if (ImGui::Button("[]")) {
+        ed.sim.finalize(ed.simulation_current);
+        ed.simulation_current = ed.simulation_begin;
+        ed.simulation_bag_id = -1;
+        ed.simulation_during_date = ed.simulation_begin;
+        ed.st = editor_status::editing;
     }
-
     ImGui::SameLine();
-
-    if (ImGui::Button("Bag >> 10")) {
-        for (int i = 0; i < 10; ++i) {
-            if (ed.sim_st = ed.sim.run(ed.simulation_current);
-                is_bad(ed.sim_st)) {
-                ed.st = editor_status::editing;
-                log_w.log(3,
-                          "Simulation next bag failure (%s)\n",
-                          irt::status_string(ed.sim_st));
-                break;
-            }
-            ++ed.simulation_bag_id;
-        }
+    if (ImGui::Button("||")) {
+        if (ed.is_running())
+            ed.st = editor_status::running_pause;
+        else
+            ed.st = editor_status::running;
     }
-
     ImGui::SameLine();
-
-    if (ImGui::Button("Bag >> 100")) {
-        for (int i = 0; i < 100; ++i) {
-            if (ed.sim_st = ed.sim.run(ed.simulation_current);
-                is_bad(ed.sim_st)) {
-                ed.st = editor_status::editing;
-                log_w.log(3,
-                          "Simulation next bag failure (%s)\n",
-                          irt::status_string(ed.sim_st));
-                break;
-            }
-            ++ed.simulation_bag_id;
-        }
+    if (ImGui::Button(">")) {
+        if (ed.st == editor_status::editing)
+            ed.simulation_bag_id = -1;
+        ed.st = editor_status::running;
     }
-
-    ImGui::InputDouble("##date", &ed.simulation_during_date);
-
     ImGui::SameLine();
-
-    if (ImGui::Button("run##date")) {
-        const auto end = ed.simulation_current + ed.simulation_during_date;
-        while (ed.simulation_current < end) {
-            if (ed.sim_st = ed.sim.run(ed.simulation_current);
-                is_bad(ed.sim_st)) {
-                ed.st = editor_status::editing;
-                log_w.log(3,
-                          "Simulation next bag failure (%s)\n",
-                          irt::status_string(ed.sim_st));
-                break;
-            }
-            ++ed.simulation_bag_id;
-        }
+    if (ImGui::Button("+1")) {
+        if (ed.st == editor_status::editing)
+            ed.simulation_bag_id = -1;
+        ed.st = editor_status::running_1_step;
+        ed.step_by_step_bag = 0;
     }
-
-    ImGui::InputInt("##bag", &ed.simulation_during_bag);
-
     ImGui::SameLine();
-
-    if (ImGui::Button("run##bag")) {
-        for (int i = 0, e = ed.simulation_during_bag; i != e; ++i) {
-            if (ed.sim_st = ed.sim.run(ed.simulation_current);
-                is_bad(ed.sim_st)) {
-                ed.st = editor_status::editing;
-                log_w.log(3,
-                          "Simulation next bag failure (%s)\n",
-                          irt::status_string(ed.sim_st));
-                break;
-            }
-            ++ed.simulation_bag_id;
-        }
+    if (ImGui::Button("+10")) {
+        if (ed.st == editor_status::editing)
+            ed.simulation_bag_id = -1;
+        ed.st = editor_status::running_10_step;
+        ed.step_by_step_bag = 0;
     }
-
-    if (ed.st == editor_status::running_debug) {
-        ed.simulation_next_time = ed.sim.sched.empty()
-                                    ? time_domain<time>::infinity
-                                    : ed.sim.sched.tn();
-
-        const auto& l = ed.sim.sched.list_model_id();
-
-        std::fill_n(ed.models_make_transition.begin(),
-                    ed.models_make_transition.size(),
-                    false);
-
-        for (auto it = l.begin(), e = l.end(); it != e; ++it)
-            ed.models_make_transition[get_index(*it)] = true;
-    } else {
-        ed.simulation_next_time = time_domain<time>::infinity;
+    ImGui::SameLine();
+    if (ImGui::Button("+100")) {
+        if (ed.st == editor_status::editing)
+            ed.simulation_bag_id = -1;
+        ed.st = editor_status::running_100_step;
+        ed.step_by_step_bag = 0;
     }
 }
 
@@ -539,20 +327,26 @@ application::show_simulation_window()
         if (ImGui::Button("Output files"))
             ed->show_select_directory_dialog = true;
 
-        ImGui::Text("output directory: ");
+        ImGui::Text("output directory:");
 #if _WIN32
-        ImGui::Text("%s", ed->observation_directory.u8string().c_str());
+        ImGui::InputText(
+          "Path",
+          const_cast<char*>(ed->observation_directory.u8string().c_str()),
+          ed->observation_directory.u8string().size(),
+          ImGuiInputTextFlags_ReadOnly);
 #else
-        ImGui::Text("%s",
-                    reinterpret_cast<const char*>(
-                      ed->observation_directory.u8string().c_str()));
+        ImGui::InputText("Path",
+                         const_cast<char*>(reinterpret_cast<const char*>(
+                           ed->observation_directory.u8string().c_str())),
+                         ed->observation_directory.u8string().size(),
+                         ImGuiInputTextFlags_ReadOnly);
 #endif
 
-        if (ImGui::CollapsingHeader("Simulation run one"))
-            show_simulation_run_once(log_w, *ed);
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
 
-        if (ImGui::CollapsingHeader("Debug simulation"))
-            show_simulation_run_debug(log_w, *ed);
+        show_simulation_run(log_w, *ed);
 
         if (ed->st != editor_status::editing) {
             ImGui::Text("Current: %g", ed->simulation_current);
