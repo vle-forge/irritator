@@ -206,16 +206,16 @@ struct top_cluster
     }
 };
 
-inline int
+int
 make_input_node_id(const irt::model_id mdl, const int port) noexcept;
 
-inline int
+int
 make_output_node_id(const irt::model_id mdl, const int port) noexcept;
 
-inline std::pair<irt::u32, irt::u32>
+std::pair<irt::u32, irt::u32>
 get_model_input_port(const int node_id) noexcept;
 
-inline std::pair<irt::u32, irt::u32>
+std::pair<irt::u32, irt::u32>
 get_model_output_port(const int node_id) noexcept;
 
 struct editor
