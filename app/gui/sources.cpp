@@ -102,14 +102,12 @@ show_random_distribution_text(const random_source& src) noexcept
 static void
 show_random_distribution_input(random_source& src) noexcept
 {
-    static u64 size = 1024u * 1024u;
-
     int current_item = ordinal(src.distribution);
     int old_current = ordinal(src.distribution);
     ImGui::Combo("Distribution",
                  &current_item,
-                 irt::distribution_type_str,
-                 IM_ARRAYSIZE(irt::distribution_type_str));
+                 irt::distribution_type_string,
+                 IM_ARRAYSIZE(irt::distribution_type_string));
 
     src.distribution = enum_cast<distribution_type>(current_item);
 
