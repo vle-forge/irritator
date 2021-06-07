@@ -5186,12 +5186,13 @@ struct constant
     time sigma;
 
     double default_value = 0.0;
+    time default_offset = time_domain<time>::zero;
 
     double value = 0.0;
 
     status initialize() noexcept
     {
-        sigma = time_domain<time>::zero;
+        sigma = default_offset;
 
         value = default_value;
 
@@ -6573,7 +6574,8 @@ public:
         irt_return_if_bad(model_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(message_list_allocator.init(messages_capacity * ten));
         irt_return_if_bad(node_list_allocator.init(model_capacity * ten));
-        irt_return_if_bad(dated_message_allocator.init(model_capacity * ten * ten));
+        irt_return_if_bad(
+          dated_message_allocator.init(model_capacity * ten * ten));
         irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
 
         irt_return_if_bad(sched.init(model_capacity));
@@ -6591,7 +6593,6 @@ public:
     {
         return models.can_alloc();
     }
-
 
     bool can_alloc(size_t place) const noexcept
     {
