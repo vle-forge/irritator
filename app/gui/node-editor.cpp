@@ -2208,9 +2208,26 @@ show_dynamics_inputs(editor& ed, generator& dyn)
 }
 
 static void
-show_dynamics_inputs(editor& /*ed*/, constant& dyn)
+show_dynamics_inputs(editor& ed, constant& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_value);
+    ImGui::InputDouble("offset", &dyn.default_offset);
+
+    if (ed.is_running()) {
+        if (ImGui::Button("Send now")) {
+            dyn.value = dyn.default_value;
+            dyn.sigma = dyn.default_offset;
+
+            auto& mdl = get_model(dyn);
+            mdl.tl = ed.simulation_current;
+            mdl.tn = ed.simulation_current + dyn.sigma;
+            if (dyn.sigma && mdl.tn == ed.simulation_current)
+                mdl.tn = std::nextafter(ed.simulation_current,
+                                        ed.simulation_current + 1.);
+
+            ed.sim.sched.update(mdl, mdl.tn);
+        }
+    }
 }
 
 static void
