@@ -629,8 +629,7 @@ private:
             return status::io_file_format_error;
 
         auto& cst = srcs.constant_sources.alloc();
-        if (auto ret = cst.init(srcs.block_size);
-            is_bad(ret)) {
+        if (auto ret = cst.init(srcs.block_size); is_bad(ret)) {
             srcs.constant_sources.free(cst);
             return ret;
         }

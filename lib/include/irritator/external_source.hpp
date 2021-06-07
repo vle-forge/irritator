@@ -202,7 +202,9 @@ struct constant_source
     }
 
     status start_or_restart() noexcept
-    {}
+    {
+        return status::success;
+    }
 
     status update(source& src) noexcept
     {
@@ -566,12 +568,12 @@ struct external_source
     data_array<text_file_source, text_file_source_id> text_file_sources;
     data_array<random_source, random_source_id> random_sources;
     std::mt19937_64 generator;
-    
+
     // Chunk of memory used by a model.
     sz block_size = 512;
 
     // Number of models can be attached to an external source.
-    sz block_number = 1024; 
+    sz block_number = 1024;
 
     status init(const sz size) noexcept
     {
