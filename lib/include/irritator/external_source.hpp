@@ -140,10 +140,16 @@ external_source_type_cast(int value, external_source_type* type) noexcept
     return true;
 }
 
-static inline const char* external_source_str[] = { "binary_file",
-                                                    "constant",
-                                                    "random",
-                                                    "text_file" };
+static inline const char* external_source_type_string[] = { "binary_file",
+                                                            "constant",
+                                                            "random",
+                                                            "text_file" };
+
+inline const char*
+external_source_str(const external_source_type type) noexcept
+{
+    return external_source_type_string[static_cast<int>(type)];
+}
 
 enum class distribution_type
 {
@@ -166,12 +172,19 @@ enum class distribution_type
     weibull,
 };
 
-static inline const char* distribution_type_str[] = {
+static const char* distribution_type_string[] = {
     "bernouilli",        "binomial", "cauchy",  "chi_squared", "exponential",
     "exterme_value",     "fisher_f", "gamma",   "geometric",   "lognormal",
     "negative_binomial", "normal",   "poisson", "student_t",   "uniform_int",
     "uniform_real",      "weibull"
 };
+
+inline const char*
+distribution_str(const distribution_type type) noexcept
+{
+
+    return distribution_type_string[static_cast<int>(type)];
+}
 
 struct constant_source
 {

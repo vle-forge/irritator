@@ -318,7 +318,7 @@ editor::show_sources_window(bool* is_show)
             ImGui::TextUnformatted(cst_src->name.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
-              external_source_str[ordinal(external_source_type::constant)]);
+              external_source_str(external_source_type::constant));
             ImGui::TableNextColumn();
             ImGui::Text("%" PRIu64, cst_src->buffer.size());
             ImGui::TableNextColumn();
@@ -362,7 +362,7 @@ editor::show_sources_window(bool* is_show)
             ImGui::TextUnformatted(txt_src->name.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
-              external_source_str[ordinal(external_source_type::text_file)]);
+              external_source_str(external_source_type::text_file));
             ImGui::TableNextColumn();
             ImGui::Text("%" PRIu64, txt_src->buffer.size);
             ImGui::TableNextColumn();
@@ -394,7 +394,7 @@ editor::show_sources_window(bool* is_show)
             ImGui::TextUnformatted(bin_src->name.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
-              external_source_str[ordinal(external_source_type::binary_file)]);
+              external_source_str(external_source_type::binary_file));
             ImGui::TableNextColumn();
             ImGui::Text("%" PRIu64, bin_src->buffer.size);
             ImGui::TableNextColumn();
@@ -424,12 +424,11 @@ editor::show_sources_window(bool* is_show)
             ImGui::TextUnformatted(rnd_src->name.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
-              external_source_str[ordinal(external_source_type::random)]);
+              external_source_str(external_source_type::random));
             ImGui::TableNextColumn();
             ImGui::Text("%" PRIu64, rnd_src->buffer.size);
             ImGui::TableNextColumn();
-            ImGui::TextUnformatted(
-              distribution_type_str[ordinal(rnd_src->distribution)]);
+            ImGui::TextUnformatted(distribution_str(rnd_src->distribution));
         }
         ImGui::EndTable();
 

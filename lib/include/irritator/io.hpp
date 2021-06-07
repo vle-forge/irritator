@@ -662,18 +662,18 @@ private:
         if (!(is >> type_str))
             return status::io_file_format_error;
 
-        auto it = binary_find(std::begin(distribution_type_str),
-                              std::end(distribution_type_str),
+        auto it = binary_find(std::begin(distribution_type_string),
+                              std::end(distribution_type_string),
                               type_str,
                               [](const char* left, const char* right) {
                                   return std::strcmp(left, right) == 0;
                               });
 
-        if (it == std::end(distribution_type_str))
+        if (it == std::end(distribution_type_string))
             return status::io_file_format_error;
 
         const auto dist_id =
-          std::distance(std::begin(distribution_type_str), it);
+          std::distance(std::begin(distribution_type_string), it);
 
         auto& elem = srcs.random_sources.alloc();
         if (auto ret = elem.init(srcs.block_size, srcs.block_number);
@@ -1544,8 +1544,7 @@ struct writer
                 const auto id = srcs.random_sources.get_id(src);
                 const auto index = get_index(id);
 
-                os << index << ' '
-                   << distribution_type_str[ordinal(src->distribution)];
+                os << index << ' ' << distribution_str(src->distribution);
 
                 write(*src);
 
