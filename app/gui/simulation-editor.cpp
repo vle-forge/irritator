@@ -328,19 +328,11 @@ application::show_simulation_window()
             ed->show_select_directory_dialog = true;
 
         ImGui::Text("output directory:");
-#if _WIN32
-        ImGui::InputText(
-          "Path",
-          const_cast<char*>(ed->observation_directory.u8string().c_str()),
-          ed->observation_directory.u8string().size(),
-          ImGuiInputTextFlags_ReadOnly);
-#else
         ImGui::InputText("Path",
                          const_cast<char*>(reinterpret_cast<const char*>(
                            ed->observation_directory.u8string().c_str())),
                          ed->observation_directory.u8string().size(),
                          ImGuiInputTextFlags_ReadOnly);
-#endif
 
         ImGui::Spacing();
         ImGui::Separator();
