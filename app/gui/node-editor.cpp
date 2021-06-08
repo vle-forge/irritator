@@ -2298,12 +2298,17 @@ show_dynamics_inputs(editor& /*ed*/, flow& /*dyn*/)
 static void
 show_dynamics_inputs(editor& /*ed*/, time_func& dyn)
 {
-    const char* items[] = { "time", "square" };
+    static const char* items[] = { "time", "square", "sin" };
+
     ImGui::PushItemWidth(120.0f);
-    int item_current = dyn.default_f == &time_function ? 0 : 1;
+    int item_current = dyn.default_f == &time_function          ? 0
+                       : dyn.default_f == &square_time_function ? 1
+                                                                : 2;
+
     if (ImGui::Combo("function", &item_current, items, IM_ARRAYSIZE(items))) {
-        dyn.default_f =
-          item_current == 0 ? &time_function : square_time_function;
+        dyn.default_f = item_current == 0   ? &time_function
+                        : item_current == 1 ? &square_time_function
+                                            : sin_time_function;
     }
     ImGui::PopItemWidth();
 }

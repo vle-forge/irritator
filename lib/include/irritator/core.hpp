@@ -5643,9 +5643,18 @@ using qss3_cross = abstract_cross<3>;
 inline double
 sin_time_function(double t) noexcept
 {
-    const double f0 = 0.1;
-    const double pi = std::acos(-1);
-    return std::sin(2 * pi * f0 * t);
+    constexpr double f0 = 0.1;
+
+#if irt_have_numbers == 1
+    constexpr double pi = std::numbers::pi_v<double>;
+#else
+    // std::acos(-1) is not a constexpr in MVSC 2019
+    constexpr double pi = 3.141592653589793238462643383279502884;
+#endif
+
+    constexpr const double mult = 2.0 * pi * f0;
+
+    return std::sin(mult * t);
 }
 
 inline double

@@ -1471,7 +1471,9 @@ private:
         if (!(is >> temp_1))
             return false;
 
-        if (std::strcmp(temp_1, "square") == 0)
+        if (std::strcmp(temp_1, "sin") == 0)
+            dyn.default_f = &sin_time_function;
+        else if (std::strcmp(temp_1, "square") == 0)
             dyn.default_f = &square_time_function;
         else
             dyn.default_f = &time_function;
