@@ -12,7 +12,7 @@
 #include "application.hpp"
 #include "internal.hpp"
 
-#include "imnodes.hpp"
+#include "imnodes.h"
 #include "implot.h"
 
 #include <chrono>

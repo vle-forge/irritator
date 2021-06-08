@@ -18,9 +18,9 @@ application::init()
         return false;
     }
 
-    if (auto* ed = alloc_editor(); ed) {
-        ed->context = imnodes::EditorContextCreate();
-        ed->settings.compute_colors();
+    if (auto* ed = alloc_editor(); !ed) {
+        std::fprintf(stderr, "Fail to initialize editor\n");
+        return false;
     }
 
     try {
@@ -70,7 +70,7 @@ application::show()
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("New")) {
                 if (auto* ed = alloc_editor(); ed)
-                    ed->context = imnodes::EditorContextCreate();
+                    ed->context = ImNodes::EditorContextCreate();
             }
 
             ImGui::Separator();
@@ -213,7 +213,7 @@ application::shutdown()
 {
     editor* ed = nullptr;
     while (editors.next(ed))
-        imnodes::EditorContextFree(ed->context);
+        ImNodes::EditorContextFree(ed->context);
 }
 
 static void

@@ -89,6 +89,23 @@ get_model_output_port(const int node_id) noexcept
     return std::make_pair(index, port);
 }
 
+editor::editor() noexcept
+{
+    context = ImNodes::EditorContextCreate();
+    ImNodes::PushAttributeFlag(
+      ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
+    ImNodesIO& io = ImNodes::GetIO();
+    io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
+
+    settings.compute_colors();
+}
+
+editor::~editor() noexcept
+{
+    ImNodes::PopAttributeFlag();
+    ImNodes::EditorContextFree(context);
+}
+
 void
 editor::settings_manager::compute_colors() noexcept
 {
@@ -790,7 +807,7 @@ editor::compute_grid_layout() noexcept
         remaining -= column;
     }
 
-    const auto panning = imnodes::EditorContextGetPanning();
+    const auto panning = ImNodes::EditorContextGetPanning();
     auto new_pos = panning;
 
     int elem = 0;
@@ -801,7 +818,7 @@ editor::compute_grid_layout() noexcept
         for (int j = 0; j < line; ++j) {
             new_pos.x = panning.x +
                         static_cast<float>(j) * settings.grid_layout_x_distance;
-            imnodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
+            ImNodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
             positions[elem].x = new_pos.x;
             positions[elem].y = new_pos.y;
             ++elem;
@@ -814,13 +831,13 @@ editor::compute_grid_layout() noexcept
     for (int j = 0; j < remaining; ++j) {
         new_pos.x =
           panning.x + static_cast<float>(j) * settings.grid_layout_x_distance;
-        imnodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
+        ImNodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
         positions[elem].x = new_pos.x;
         positions[elem].y = new_pos.y;
         ++elem;
     }
 
-    imnodes::EditorContextResetPanning(positions[0]);
+    ImNodes::EditorContextResetPanning(positions[0]);
 }
 
 void
@@ -924,11 +941,11 @@ editor::compute_automatic_layout() noexcept
             positions[v].x += displacements[v].x;
             positions[v].y += displacements[v].y;
 
-            imnodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
+            ImNodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
         }
     }
 
-    imnodes::EditorContextResetPanning(positions[0]);
+    ImNodes::EditorContextResetPanning(positions[0]);
 }
 
 status
@@ -1239,7 +1256,7 @@ show_connection(editor& ed, const model& mdl, int port, int connection_id)
                   if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
                       mdl_dst) {
                       int in = make_input_node_id(c.model, c.port_index);
-                      imnodes::Link(connection_id++, out, in);
+                      ImNodes::Link(connection_id++, out, in);
                   }
               }
           }
@@ -1262,7 +1279,7 @@ show_connection(editor& ed, const model& mdl, int connection_id)
                       if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
                           mdl_dst) {
                           int in = make_input_node_id(c.model, c.port_index);
-                          imnodes::Link(connection_id++, out, in);
+                          ImNodes::Link(connection_id++, out, in);
                       }
                   }
               }
@@ -1309,10 +1326,10 @@ editor::show_model_cluster(cluster& mdl) noexcept
         while (it != end) {
             const auto node = get_in(*it);
             if (node.model) {
-                imnodes::BeginInputAttribute(*it,
-                                             imnodes::PinShape_TriangleFilled);
+                ImNodes::BeginInputAttribute(*it,
+                                             ImNodesPinShape_TriangleFilled);
                 ImGui::TextUnformatted("");
-                imnodes::EndInputAttribute();
+                ImNodes::EndInputAttribute();
                 ++it;
             } else {
                 it = mdl.input_ports.erase(it);
@@ -1328,10 +1345,10 @@ editor::show_model_cluster(cluster& mdl) noexcept
             const auto node = get_out(*it);
 
             if (node.model) {
-                imnodes::BeginOutputAttribute(*it,
-                                              imnodes::PinShape_TriangleFilled);
+                ImNodes::BeginOutputAttribute(*it,
+                                              ImNodesPinShape_TriangleFilled);
                 ImGui::TextUnformatted("");
-                imnodes::EndOutputAttribute();
+                ImNodes::EndOutputAttribute();
                 ++it;
             } else {
                 it = mdl.output_ports.erase(it);
@@ -1354,10 +1371,10 @@ add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
 
             assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
 
-            imnodes::BeginInputAttribute(make_input_node_id(mdl_id, (int)i),
-                                         imnodes::PinShape_TriangleFilled);
+            ImNodes::BeginInputAttribute(make_input_node_id(mdl_id, (int)i),
+                                         ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
-            imnodes::EndInputAttribute();
+            ImNodes::EndInputAttribute();
         }
     }
 }
@@ -1377,10 +1394,10 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
 
             assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
 
-            imnodes::BeginOutputAttribute(make_output_node_id(mdl_id, (int)i),
-                                          imnodes::PinShape_TriangleFilled);
+            ImNodes::BeginOutputAttribute(make_output_node_id(mdl_id, (int)i),
+                                          ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
-            imnodes::EndOutputAttribute();
+            ImNodes::EndOutputAttribute();
         }
     }
 }
@@ -2421,31 +2438,30 @@ editor::show_top() noexcept
                 if (st != editor_status::editing &&
                     models_make_transition[get_index(id)]) {
 
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBar,
+                    ImNodes::PushColorStyle(
+                      ImNodesCol_TitleBar,
                       ImGui::ColorConvertFloat4ToU32(
                         settings.gui_model_transition_color));
 
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBarHovered,
+                    ImNodes::PushColorStyle(
+                      ImNodesCol_TitleBarHovered,
                       settings.gui_hovered_model_transition_color);
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBarSelected,
+                    ImNodes::PushColorStyle(
+                      ImNodesCol_TitleBarSelected,
                       settings.gui_selected_model_transition_color);
                 } else {
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBar,
+                    ImNodes::PushColorStyle(
+                      ImNodesCol_TitleBar,
                       ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
 
-                    imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
+                    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                                             settings.gui_hovered_model_color);
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBarSelected,
-                      settings.gui_selected_model_color);
+                    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                            settings.gui_selected_model_color);
                 }
 
-                imnodes::BeginNode(top.children[i].second);
-                imnodes::BeginNodeTitleBar();
+                ImNodes::BeginNode(top.children[i].second);
+                ImNodes::BeginNodeTitleBar();
                 // ImGui::TextUnformatted(mdl->name.c_str());
                 // ImGui::OpenPopupOnItemClick("Rename model", 1);
 
@@ -2464,26 +2480,26 @@ editor::show_top() noexcept
                 ImGui::Text("%s",
                             dynamics_type_names[static_cast<int>(mdl->type)]);
 
-                imnodes::EndNodeTitleBar();
+                ImNodes::EndNodeTitleBar();
                 show_model_dynamics(*mdl);
-                imnodes::EndNode();
+                ImNodes::EndNode();
 
-                imnodes::PopColorStyle();
-                imnodes::PopColorStyle();
+                ImNodes::PopColorStyle();
+                ImNodes::PopColorStyle();
             }
         } else {
             const auto id = std::get<cluster_id>(top.children[i].first);
             if (auto* gp = clusters.try_to_get(id); gp) {
-                imnodes::PushColorStyle(
-                  imnodes::ColorStyle_TitleBar,
+                ImNodes::PushColorStyle(
+                  ImNodesCol_TitleBar,
                   ImGui::ColorConvertFloat4ToU32(settings.gui_cluster_color));
-                imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
+                ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                                         settings.gui_hovered_cluster_color);
-                imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarSelected,
+                ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
                                         settings.gui_selected_cluster_color);
 
-                imnodes::BeginNode(top.children[i].second);
-                imnodes::BeginNodeTitleBar();
+                ImNodes::BeginNode(top.children[i].second);
+                ImNodes::BeginNodeTitleBar();
                 ImGui::TextUnformatted(gp->name.c_str());
                 ImGui::OpenPopupOnItemClick("Rename group", 1);
 
@@ -2497,12 +2513,12 @@ editor::show_top() noexcept
                     ImGui::EndPopup();
                 }
 
-                imnodes::EndNodeTitleBar();
+                ImNodes::EndNodeTitleBar();
                 show_model_cluster(*gp);
-                imnodes::EndNode();
+                ImNodes::EndNode();
 
-                imnodes::PopColorStyle();
-                imnodes::PopColorStyle();
+                ImNodes::PopColorStyle();
+                ImNodes::PopColorStyle();
             }
         }
     }
@@ -2567,7 +2583,7 @@ add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
 bool
 editor::show_editor() noexcept
 {
-    imnodes::EditorContextSet(context);
+    ImNodes::EditorContextSet(context);
 
     ImGuiWindowFlags windows_flags = 0;
     windows_flags |= ImGuiWindowFlags_MenuBar;
@@ -2780,8 +2796,8 @@ editor::show_editor() noexcept
                 auto ret = r(sim, srcs, [this](model_id id) {
                     parent(id, undefined<cluster_id>());
 
-                    imnodes::SetNodeEditorSpacePos(
-                      top.emplace_back(id), imnodes::EditorContextGetPanning());
+                    ImNodes::SetNodeEditorSpacePos(
+                      top.emplace_back(id), ImNodes::EditorContextGetPanning());
                 });
 
                 if (is_success(ret))
@@ -2832,17 +2848,17 @@ editor::show_editor() noexcept
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
 
-        imnodes::BeginNodeEditor();
+        ImNodes::BeginNodeEditor();
 
         show_top();
         show_connections();
 
-        imnodes::EndNodeEditor();
+        ImNodes::EndNodeEditor();
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
         int node_id;
-        if (imnodes::IsNodeHovered(&node_id) && is_running()) {
+        if (ImNodes::IsNodeHovered(&node_id) && is_running()) {
             const auto index = top.get_index(node_id);
             if (index != not_found || top.children[index].first.index() == 0) {
                 const auto id = std::get<model_id>(top.children[index].first);
@@ -2918,14 +2934,14 @@ editor::show_editor() noexcept
 
             if (new_model != undefined<model_id>()) {
                 parent(new_model, undefined<cluster_id>());
-                imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
+                ImNodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
                                                click_pos);
             }
         }
 
         {
             int start = 0, end = 0;
-            if (imnodes::IsLinkCreated(&start, &end)) {
+            if (ImNodes::IsLinkCreated(&start, &end)) {
                 const gport out = get_out(start);
                 const gport in = get_in(end);
 
@@ -2942,8 +2958,8 @@ editor::show_editor() noexcept
 
         ImGui::PopStyleVar();
 
-        const int num_selected_links = imnodes::NumSelectedLinks();
-        const int num_selected_nodes = imnodes::NumSelectedNodes();
+        const int num_selected_links = ImNodes::NumSelectedLinks();
+        const int num_selected_nodes = ImNodes::NumSelectedNodes();
         static ImVector<int> selected_nodes;
         static ImVector<int> selected_links;
 
@@ -2951,21 +2967,21 @@ editor::show_editor() noexcept
             selected_nodes.resize(num_selected_nodes, -1);
 
             if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
-                imnodes::GetSelectedNodes(selected_nodes.begin());
+                ImNodes::GetSelectedNodes(selected_nodes.begin());
                 log_w.log(7, "%d model(s) to delete\n", num_selected_nodes);
                 free_children(selected_nodes);
             } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('D')) {
-                imnodes::GetSelectedNodes(selected_nodes.begin());
+                ImNodes::GetSelectedNodes(selected_nodes.begin());
                 log_w.log(
                   7, "%d model(s)/group(s) to copy\n", num_selected_nodes);
                 copy(selected_nodes);
             } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('G')) {
                 if (num_selected_nodes > 1) {
-                    imnodes::GetSelectedNodes(selected_nodes.begin());
+                    ImNodes::GetSelectedNodes(selected_nodes.begin());
                     log_w.log(7, "%d model(s) to group\n", num_selected_nodes);
                     group(selected_nodes);
                 } else if (num_selected_nodes == 1) {
-                    imnodes::GetSelectedNodes(selected_nodes.begin());
+                    ImNodes::GetSelectedNodes(selected_nodes.begin());
                     log_w.log(7, "group to ungroup\n");
                     ungroup(selected_nodes[0]);
                 }
@@ -2976,7 +2992,7 @@ editor::show_editor() noexcept
 
             if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
                 std::fill_n(selected_links.begin(), selected_links.size(), -1);
-                imnodes::GetSelectedLinks(selected_links.begin());
+                ImNodes::GetSelectedLinks(selected_links.begin());
                 std::sort(selected_links.begin(),
                           selected_links.end(),
                           std::less<int>());
@@ -3043,7 +3059,7 @@ editor::show_editor() noexcept
                                       ImGuiTreeNodeFlags_DefaultOpen) &&
             num_selected_nodes) {
             selected_nodes.resize(num_selected_nodes, -1);
-            imnodes::GetSelectedNodes(selected_nodes.begin());
+            ImNodes::GetSelectedNodes(selected_nodes.begin());
 
             static std::vector<std::string> names;
             names.clear();

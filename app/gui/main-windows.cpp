@@ -10,7 +10,7 @@
 // replicated in your app or by adding it to your imconfig.h file.
 
 #include "application.hpp"
-#include "imnodes.hpp"
+#include "ImNodes.h"
 
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
@@ -158,10 +158,10 @@ main(int, char**)
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    imnodes::CreateContext();
+    ImNodes::CreateContext();
     irt::application app;
     if (!app.init()) {
-        imnodes::DestroyContext();
+        ImNodes::DestroyContext();
 
         ImGui_ImplDX12_Shutdown();
         ImGui_ImplWin32_Shutdown();
@@ -316,7 +316,7 @@ main(int, char**)
     WaitForLastSubmittedFrame();
 
     app.shutdown();
-    imnodes::DestroyContext();
+    ImNodes::DestroyContext();
 
     // Cleanup
     ImGui_ImplDX12_Shutdown();

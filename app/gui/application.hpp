@@ -14,7 +14,7 @@
 #include <variant>
 #include <vector>
 
-#include "imnodes.hpp"
+#include "imnodes.h"
 #include "implot.h"
 #include <imgui.h>
 
@@ -224,7 +224,7 @@ struct editor
 {
     small_string<16> name;
     std::filesystem::path path;
-    imnodes::EditorContext* context = nullptr;
+    ImNodesEditorContext* context = nullptr;
     bool show = true;
 
     simulation sim;
@@ -242,6 +242,9 @@ struct editor
 
     editor_status st = editor_status::editing;
     status sim_st = status::success;
+
+    editor() noexcept;
+    ~editor() noexcept;
 
     bool is_running() const noexcept
     {
