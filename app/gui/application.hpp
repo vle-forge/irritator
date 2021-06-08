@@ -226,6 +226,7 @@ struct editor
     std::filesystem::path path;
     ImNodesEditorContext* context = nullptr;
     bool show = true;
+    bool show_minimap = true;
 
     simulation sim;
     external_source srcs;

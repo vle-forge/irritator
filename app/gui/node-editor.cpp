@@ -102,8 +102,11 @@ editor::editor() noexcept
 
 editor::~editor() noexcept
 {
-    ImNodes::PopAttributeFlag();
-    ImNodes::EditorContextFree(context);
+    if (context) {
+        ImNodes::EditorContextSet(context);
+        ImNodes::PopAttributeFlag();
+        ImNodes::EditorContextFree(context);
+    }
 }
 
 void
@@ -2628,19 +2631,23 @@ editor::show_editor() noexcept
         }
 
         if (ImGui::BeginMenu("Edition")) {
+            ImGui::MenuItem("Show minimap", nullptr, &show_minimap);
             ImGui::MenuItem("Show parameter in models",
                             nullptr,
                             &settings.show_dynamics_inputs_in_editor);
+            ImGui::Separator();
             if (ImGui::MenuItem("Clear"))
                 clear();
+            ImGui::Separator();
             if (ImGui::MenuItem("Grid Reorder"))
                 compute_grid_layout();
             if (ImGui::MenuItem("Automatic Layout"))
                 compute_automatic_layout();
-            if (ImGui::MenuItem("Settings"))
-                show_settings = true;
+            ImGui::Separator();
             if (ImGui::MenuItem("External sources"))
                 show_sources = true;
+            if (ImGui::MenuItem("Settings"))
+                show_settings = true;
 
             ImGui::EndMenu();
         }
@@ -2852,6 +2859,9 @@ editor::show_editor() noexcept
 
         show_top();
         show_connections();
+
+        if (show_minimap)
+            ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
 
         ImNodes::EndNodeEditor();
 

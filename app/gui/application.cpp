@@ -211,9 +211,8 @@ application::show_settings_window()
 void
 application::shutdown()
 {
-    editor* ed = nullptr;
-    while (editors.next(ed))
-        ImNodes::EditorContextFree(ed->context);
+    editors.clear();
+    log_w.clear();
 }
 
 static void
