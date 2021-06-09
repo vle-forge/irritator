@@ -2800,11 +2800,14 @@ editor::show_editor() noexcept
               5, "Load file from %s: ", (const char*)path.u8string().c_str());
             if (auto is = std::ifstream(path); is.is_open()) {
                 reader r(is);
-                auto ret = r(sim, srcs, [this](model_id id) {
+                auto ret = r(sim, srcs, [&r, this](model_id id) {
                     parent(id, undefined<cluster_id>());
 
-                    ImNodes::SetNodeEditorSpacePos(
-                      top.emplace_back(id), ImNodes::EditorContextGetPanning());
+                    const auto index = get_index(id);
+                    const auto new_id = top.emplace_back(id);
+                    const auto pos = r.get_position(index);
+
+                    ImNodes::SetNodeEditorSpacePos(new_id, ImVec2(pos.x, pos.y));
                 });
 
                 if (is_success(ret))
@@ -2831,7 +2834,14 @@ editor::show_editor() noexcept
                           (const char*)path.u8string().c_str());
                 if (auto os = std::ofstream(path); os.is_open()) {
                     writer w(os);
-                    auto ret = w(sim, srcs);
+
+                    auto ret = w(sim, srcs, [](model_id mdl_id, float& x, float& y) {
+                        const auto index = irt::get_index(mdl_id);
+                        const auto pos = ImNodes::GetNodeEditorSpacePos(static_cast<int>(index));
+                        x = pos.x;
+                        y = pos.y;
+                        });
+
                     if (is_success(ret))
                         log_w.log(5, "success\n");
                     else
