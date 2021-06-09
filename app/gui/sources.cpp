@@ -2,10 +2,9 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "gui.hpp"
-#include "node-editor.hpp"
-
-#include <fmt/format.h>
+#include "application.hpp"
+#include "dialog.hpp"
+#include "internal.hpp"
 
 #include <future>
 #include <random>
@@ -15,723 +14,592 @@
 
 namespace irt {
 
-irt::source::constant*
-sources::new_constant() noexcept
-{
-    try {
-        auto& elem = csts[csts_next_id++];
-        return &elem;
-    } catch (const std::exception& /*e/*/) {
-        return nullptr;
-    }
-}
-
-irt::source::binary_file*
-sources::new_binary_file() noexcept
-{
-    try {
-        auto& elem = bins[bins_next_id++];
-        return &elem;
-    } catch (const std::exception& /*e/*/) {
-        return nullptr;
-    }
-}
-
-irt::source::text_file*
-sources::new_text_file() noexcept
-{
-    try {
-        auto& elem = texts[texts_next_id++];
-        return &elem;
-    } catch (const std::exception& /*e/*/) {
-        return nullptr;
-    }
-}
-
-enum class distribution
-{
-    uniform_int,
-    uniform_real,
-    bernouilli,
-    binomial,
-    negative_binomial,
-    geometric,
-    poisson,
-    exponential,
-    gamma,
-    weibull,
-    exterme_value,
-    normal,
-    lognormal,
-    chi_squared,
-    cauchy,
-    fisher_f,
-    student_t
-};
-
-static constexpr const char* items[] = {
-    "uniform-int", "uniform-real",      "bernouilli",
-    "binomial",    "negative-binomial", "geometric",
-    "poisson",     "exponential",       "gamma",
-    "weibull",     "exterme-value",     "normal",
-    "lognormal",   "chi-squared",       "cauchy",
-    "fisher-f",    "student-t"
-};
-
-template<typename RandomGenerator, typename Distribution>
 static void
-generate(std::ostream& os,
-         RandomGenerator& gen,
-         Distribution dist,
-         const std::size_t size,
-         const source::random_file_type type,
-         double& status) noexcept
+show_random_distribution_text(const random_source& src) noexcept
 {
-    try {
-        status = 0.0;
+    switch (src.distribution) {
+    case distribution_type::uniform_int:
+        ImGui::Text("a: %d", src.a32);
+        ImGui::Text("b: %d", src.b32);
+        break;
 
-        switch (type) {
-        case source::random_file_type::text: {
-            if (!os) {
-                status = -1.0;
-                return;
-            }
+    case distribution_type::uniform_real:
+        ImGui::Text("a: %f", src.a);
+        ImGui::Text("b: %f", src.b);
+        break;
 
-            for (std::size_t sz = 0; sz < size; ++sz) {
-                status =
-                  static_cast<double>(sz) * 100.0 / static_cast<double>(size);
-                if (!(os << dist(gen) << '\n')) {
-                    status = -2.0;
-                    return;
-                }
-            }
-        } break;
+    case distribution_type::bernouilli:
+        ImGui::Text("p: %f", src.p);
+        break;
 
-        case source::random_file_type::binary: {
-            if (!os) {
-                status = -1.0;
-                return;
-            }
+    case distribution_type::binomial:
+        ImGui::Text("p: %f", src.p);
+        ImGui::Text("t: %d", src.t32);
+        break;
 
-            for (std::size_t sz = 0; sz < size; ++sz) {
-                status =
-                  static_cast<double>(sz) * 100.0 / static_cast<double>(size);
-                const double value = dist(gen);
-                os.write(reinterpret_cast<const char*>(&value), sizeof(value));
-            }
-        } break;
-        }
-        status = 100.0;
+    case distribution_type::negative_binomial:
+        ImGui::Text("p: %f", src.p);
+        ImGui::Text("t: %d", src.k32);
+        break;
 
-    } catch (std::exception& /*e*/) {
-        status = -3.0;
-    }
-}
+    case distribution_type::geometric:
+        ImGui::Text("p: %f", src.p);
+        break;
 
-struct distribution_manager
-{
-    std::thread job;
-    std::ofstream os;
-    double a, b, p, mean, lambda, alpha, beta, stddev, m, s, n;
-    int a32, b32, t32, k32;
-    distribution type = distribution::uniform_int;
-    bool is_running;
-    double status;
+    case distribution_type::poisson:
+        ImGui::Text("mean: %f", src.mean);
+        break;
 
-    void start(std::mt19937_64& gen,
-               sz size,
-               irt::source::random_file_type file_type)
-    {
-        is_running = true;
+    case distribution_type::exponential:
+        ImGui::Text("lambda: %f", src.lambda);
+        break;
 
-        switch (type) {
-        case distribution::uniform_int:
-            job = std::thread(
-              generate<std::mt19937_64, std::uniform_int_distribution<int>>,
-              std::ref(os),
-              std::ref(gen),
-              std::uniform_int_distribution(a32, b32),
-              size,
-              file_type,
-              std::ref(status));
-            break;
+    case distribution_type::gamma:
+        ImGui::Text("alpha: %f", src.alpha);
+        ImGui::Text("beta: %f", src.beta);
+        break;
 
-        case distribution::uniform_real:
-            job = std::thread(
-              generate<std::mt19937_64, std::uniform_real_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::uniform_real_distribution(a, b),
-              size,
-              file_type,
-              std::ref(status));
-            break;
+    case distribution_type::weibull:
+        ImGui::Text("a: %f", src.a);
+        ImGui::Text("b: %f", src.b);
+        break;
 
-        case distribution::bernouilli:
-            job = std::thread(
-              generate<std::mt19937_64, std::bernoulli_distribution>,
-              std::ref(os),
-              std::ref(gen),
-              std::bernoulli_distribution(p),
-              size,
-              file_type,
-              std::ref(status));
-            break;
+    case distribution_type::exterme_value:
+        ImGui::Text("a: %f", src.a);
+        ImGui::Text("b: %f", src.b);
+        break;
 
-        case distribution::binomial:
-            job = std::thread(
-              generate<std::mt19937_64, std::binomial_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::binomial_distribution(t32, p),
-              size,
-              file_type,
-              std::ref(status));
-            break;
+    case distribution_type::normal:
+        ImGui::Text("mean: %f", src.mean);
+        ImGui::Text("stddev: %f", src.stddev);
+        break;
 
-        case distribution::negative_binomial:
-            job = std::thread(
-              generate<std::mt19937_64, std::negative_binomial_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::negative_binomial_distribution(t32, p),
-              size,
-              file_type,
-              std::ref(status));
-            break;
+    case distribution_type::lognormal:
+        ImGui::Text("m: %f", src.m);
+        ImGui::Text("s: %f", src.s);
+        break;
 
-        case distribution::geometric:
-            job = std::thread(
-              generate<std::mt19937_64, std::geometric_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::geometric_distribution(p),
-              size,
-              file_type,
-              std::ref(status));
-            break;
+    case distribution_type::chi_squared:
+        ImGui::Text("n: %f", src.n);
+        break;
 
-        case distribution::poisson:
-            job = std::thread(
-              generate<std::mt19937_64, std::poisson_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::poisson_distribution(mean),
-              size,
-              file_type,
-              std::ref(status));
-            break;
+    case distribution_type::cauchy:
+        ImGui::Text("a: %f", src.a);
+        ImGui::Text("b: %f", src.b);
+        break;
 
-        case distribution::exponential:
-            job = std::thread(
-              generate<std::mt19937_64, std::exponential_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::exponential_distribution(lambda),
-              size,
-              file_type,
-              std::ref(status));
-            break;
+    case distribution_type::fisher_f:
+        ImGui::Text("m: %f", src.m);
+        ImGui::Text("s: %f", src.n);
+        break;
 
-        case distribution::gamma:
-            job =
-              std::thread(generate<std::mt19937_64, std::gamma_distribution<>>,
-                          std::ref(os),
-                          std::ref(gen),
-                          std::gamma_distribution(alpha, beta),
-                          size,
-                          file_type,
-                          std::ref(status));
-            break;
-
-        case distribution::weibull:
-            job = std::thread(
-              generate<std::mt19937_64, std::weibull_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::weibull_distribution(a, b),
-              size,
-              file_type,
-              std::ref(status));
-            break;
-
-        case distribution::exterme_value:
-            job = std::thread(
-              generate<std::mt19937_64, std::extreme_value_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::extreme_value_distribution(a, b),
-              size,
-              file_type,
-              std::ref(status));
-            break;
-
-        case distribution::normal:
-            job =
-              std::thread(generate<std::mt19937_64, std::normal_distribution<>>,
-                          std::ref(os),
-                          std::ref(gen),
-                          std::normal_distribution(mean, stddev),
-                          size,
-                          file_type,
-                          std::ref(status));
-            break;
-
-        case distribution::lognormal:
-            job = std::thread(
-              generate<std::mt19937_64, std::lognormal_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::lognormal_distribution(m, s),
-              size,
-              file_type,
-              std::ref(status));
-            break;
-
-        case distribution::chi_squared:
-            job = std::thread(
-              generate<std::mt19937_64, std::chi_squared_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::chi_squared_distribution(n),
-              size,
-              file_type,
-              std::ref(status));
-            break;
-
-        case distribution::cauchy:
-            job =
-              std::thread(generate<std::mt19937_64, std::cauchy_distribution<>>,
-                          std::ref(os),
-                          std::ref(gen),
-                          std::cauchy_distribution(a, b),
-                          size,
-                          file_type,
-                          std::ref(status));
-            break;
-
-        case distribution::fisher_f:
-            job = std::thread(
-              generate<std::mt19937_64, std::fisher_f_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::fisher_f_distribution(m, n),
-              size,
-              file_type,
-              std::ref(status));
-            break;
-
-        case distribution::student_t:
-            job = std::thread(
-              generate<std::mt19937_64, std::student_t_distribution<>>,
-              std::ref(os),
-              std::ref(gen),
-              std::student_t_distribution(n),
-              size,
-              file_type,
-              std::ref(status));
-            break;
-
-        default:
-            irt_unreachable();
-        }
-    }
-};
-
-static void
-show_random()
-{
-    static distribution_manager dm;
-    static int current_item = -1;
-    static u64 size = 1024 * 1024;
-    static bool show_file_dialog = false;
-    static bool use_binary = true;
-
-    if (ImGui::CollapsingHeader("Random file source generator")) {
-        ImGui::InputScalar("length", ImGuiDataType_U64, &size);
-        ImGui::Checkbox("binary file", &use_binary);
-
-        int old_current = current_item;
-        ImGui::Combo("Distribution", &current_item, items, IM_ARRAYSIZE(items));
-
-        dm.type = static_cast<distribution>(current_item);
-        switch (dm.type) {
-        case distribution::uniform_int:
-            if (old_current != current_item) {
-                dm.a32 = 0;
-                dm.b32 = 100;
-            }
-            ImGui::InputInt("a", &dm.a32);
-            ImGui::InputInt("b", &dm.b32);
-            break;
-
-        case distribution::uniform_real:
-            if (old_current != current_item) {
-                dm.a = 0.0;
-                dm.b = 1.0;
-            }
-            ImGui::InputDouble("a", &dm.a);
-            ImGui::InputDouble("b", &dm.b);
-            break;
-
-        case distribution::bernouilli:
-            if (old_current != current_item) {
-                dm.p = 0.5;
-            }
-            ImGui::InputDouble("p", &dm.p);
-            break;
-
-        case distribution::binomial:
-            if (old_current != current_item) {
-                dm.p = 0.5;
-                dm.t32 = 1;
-            }
-            ImGui::InputDouble("p", &dm.p);
-            ImGui::InputInt("t", &dm.t32);
-            break;
-
-        case distribution::negative_binomial:
-            if (old_current != current_item) {
-                dm.p = 0.5;
-                dm.t32 = 1;
-            }
-            ImGui::InputDouble("p", &dm.p);
-            ImGui::InputInt("t", &dm.k32);
-            break;
-
-        case distribution::geometric:
-            if (old_current != current_item) {
-                dm.p = 0.5;
-            }
-            ImGui::InputDouble("p", &dm.p);
-            break;
-
-        case distribution::poisson:
-            if (old_current != current_item) {
-                dm.mean = 0.5;
-            }
-            ImGui::InputDouble("mean", &dm.mean);
-            break;
-
-        case distribution::exponential:
-            if (old_current != current_item) {
-                dm.lambda = 1.0;
-            }
-            ImGui::InputDouble("lambda", &dm.lambda);
-            break;
-
-        case distribution::gamma:
-            if (old_current != current_item) {
-                dm.alpha = 1.0;
-                dm.beta = 1.0;
-            }
-            ImGui::InputDouble("alpha", &dm.alpha);
-            ImGui::InputDouble("beta", &dm.beta);
-            break;
-
-        case distribution::weibull:
-            if (old_current != current_item) {
-                dm.a = 1.0;
-                dm.b = 1.0;
-            }
-            ImGui::InputDouble("a", &dm.a);
-            ImGui::InputDouble("b", &dm.b);
-            break;
-
-        case distribution::exterme_value:
-            if (old_current != current_item) {
-                dm.a = 1.0;
-                dm.b = 0.0;
-            }
-            ImGui::InputDouble("a", &dm.a);
-            ImGui::InputDouble("b", &dm.b);
-            break;
-
-        case distribution::normal:
-            if (old_current != current_item) {
-                dm.mean = 0.0;
-                dm.stddev = 1.0;
-            }
-            ImGui::InputDouble("mean", &dm.mean);
-            ImGui::InputDouble("stddev", &dm.stddev);
-            break;
-
-        case distribution::lognormal:
-            if (old_current != current_item) {
-                dm.m = 0.0;
-                dm.s = 1.0;
-            }
-            ImGui::InputDouble("m", &dm.m);
-            ImGui::InputDouble("s", &dm.s);
-            break;
-
-        case distribution::chi_squared:
-            if (old_current != current_item) {
-                dm.n = 1.0;
-            }
-            ImGui::InputDouble("n", &dm.n);
-            break;
-
-        case distribution::cauchy:
-            if (old_current != current_item) {
-                dm.a = 1.0;
-                dm.b = 0.0;
-            }
-            ImGui::InputDouble("a", &dm.a);
-            ImGui::InputDouble("b", &dm.b);
-            break;
-
-        case distribution::fisher_f:
-            if (old_current != current_item) {
-                dm.m = 1.0;
-                dm.n = 1.0;
-            }
-            ImGui::InputDouble("m", &dm.m);
-            ImGui::InputDouble("s", &dm.n);
-            break;
-
-        case distribution::student_t:
-            if (old_current != current_item) {
-                dm.n = 1.0;
-            }
-            ImGui::InputDouble("n", &dm.n);
-            break;
-        }
-
-        std::mt19937_64 dist(1024);
-
-        if (dm.is_running) {
-            ImGui::Text("File generation in progress %.2f", dm.status);
-
-            if (dm.status < 0.0 || dm.status >= 100.0) {
-                dm.job.join();
-                dm.status = 0.0;
-                dm.is_running = false;
-                dm.os.close();
-            }
-        } else if (current_item >= 0) {
-            if (ImGui::Button("Generate"))
-                show_file_dialog = true;
-
-            if (show_file_dialog) {
-                const char* title = "Select file path to save";
-                const char8_t* filters[] = { u8".dat", nullptr };
-
-                ImGui::OpenPopup(title);
-                std::filesystem::path path;
-                if (save_file_dialog(path, title, filters)) {
-                    show_file_dialog = false;
-
-                    log_w.log(5,
-                              "Save random generated file to %s\n",
-                              (const char*)path.u8string().c_str());
-
-                    if (dm.os = std::ofstream(path); dm.os.is_open())
-                        dm.start(dist,
-                                 size,
-                                 use_binary
-                                   ? irt::source::random_file_type::binary
-                                   : irt::source::random_file_type::text);
-                }
-            }
-        }
+    case distribution_type::student_t:
+        ImGui::Text("n: %f", src.n);
+        break;
     }
 }
 
 static void
-size_in_bytes(const sources& src) noexcept
+show_random_distribution_input(random_source& src) noexcept
 {
-    constexpr sz K = 1024u;
-    constexpr sz M = K * 1024u;
-    constexpr sz G = M * 1024u;
+    int current_item = ordinal(src.distribution);
+    int old_current = ordinal(src.distribution);
+    ImGui::Combo("Distribution",
+                 &current_item,
+                 irt::distribution_type_string,
+                 IM_ARRAYSIZE(irt::distribution_type_string));
 
-    const sz c = src.csts.size() * sizeof(irt::source::constant) +
-                 src.bins.size() * sizeof(irt::source::binary_file) +
-                 src.texts.size() * sizeof(irt::source::text_file);
+    src.distribution = enum_cast<distribution_type>(current_item);
 
-    if (c / G > 0)
-        ImGui::Text("Memory usage: %f Gb", ((double)c / (double)G));
-    else if (c / M > 0)
-        ImGui::Text("Memory usage: %f Mb", ((double)c / (double)M));
-    else
-        ImGui::Text("Memory usage: %f Kb", ((double)c / (double)K));
+    switch (src.distribution) {
+    case distribution_type::uniform_int: {
+        if (old_current != current_item) {
+            src.a32 = 0;
+            src.b32 = 100;
+        }
+
+        int a = src.a32;
+        int b = src.b32;
+
+        if (ImGui::InputInt("a", &a)) {
+            if (a < b)
+                src.a32 = a;
+        }
+
+        if (ImGui::InputInt("b", &b)) {
+            if (a < b)
+                src.b32 = b;
+        }
+    } break;
+
+    case distribution_type::uniform_real:
+        if (old_current != current_item) {
+            src.a = 0.0;
+            src.b = 1.0;
+        }
+        ImGui::InputDouble("a", &src.a);
+        ImGui::InputDouble("b", &src.b); // a < b
+        break;
+
+    case distribution_type::bernouilli:
+        if (old_current != current_item) {
+            src.p = 0.5;
+        }
+        ImGui::InputDouble("p", &src.p);
+        break;
+
+    case distribution_type::binomial:
+        if (old_current != current_item) {
+            src.p = 0.5;
+            src.t32 = 1;
+        }
+        ImGui::InputDouble("p", &src.p);
+        ImGui::InputInt("t", &src.t32);
+        break;
+
+    case distribution_type::negative_binomial:
+        if (old_current != current_item) {
+            src.p = 0.5;
+            src.t32 = 1;
+        }
+        ImGui::InputDouble("p", &src.p);
+        ImGui::InputInt("t", &src.k32);
+        break;
+
+    case distribution_type::geometric:
+        if (old_current != current_item) {
+            src.p = 0.5;
+        }
+        ImGui::InputDouble("p", &src.p);
+        break;
+
+    case distribution_type::poisson:
+        if (old_current != current_item) {
+            src.mean = 0.5;
+        }
+        ImGui::InputDouble("mean", &src.mean);
+        break;
+
+    case distribution_type::exponential:
+        if (old_current != current_item) {
+            src.lambda = 1.0;
+        }
+        ImGui::InputDouble("lambda", &src.lambda);
+        break;
+
+    case distribution_type::gamma:
+        if (old_current != current_item) {
+            src.alpha = 1.0;
+            src.beta = 1.0;
+        }
+        ImGui::InputDouble("alpha", &src.alpha);
+        ImGui::InputDouble("beta", &src.beta);
+        break;
+
+    case distribution_type::weibull:
+        if (old_current != current_item) {
+            src.a = 1.0;
+            src.b = 1.0;
+        }
+        ImGui::InputDouble("a", &src.a);
+        ImGui::InputDouble("b", &src.b);
+        break;
+
+    case distribution_type::exterme_value:
+        if (old_current != current_item) {
+            src.a = 1.0;
+            src.b = 0.0;
+        }
+        ImGui::InputDouble("a", &src.a);
+        ImGui::InputDouble("b", &src.b);
+        break;
+
+    case distribution_type::normal:
+        if (old_current != current_item) {
+            src.mean = 0.0;
+            src.stddev = 1.0;
+        }
+        ImGui::InputDouble("mean", &src.mean);
+        ImGui::InputDouble("stddev", &src.stddev);
+        break;
+
+    case distribution_type::lognormal:
+        if (old_current != current_item) {
+            src.m = 0.0;
+            src.s = 1.0;
+        }
+        ImGui::InputDouble("m", &src.m);
+        ImGui::InputDouble("s", &src.s);
+        break;
+
+    case distribution_type::chi_squared:
+        if (old_current != current_item) {
+            src.n = 1.0;
+        }
+        ImGui::InputDouble("n", &src.n);
+        break;
+
+    case distribution_type::cauchy:
+        if (old_current != current_item) {
+            src.a = 1.0;
+            src.b = 0.0;
+        }
+        ImGui::InputDouble("a", &src.a);
+        ImGui::InputDouble("b", &src.b);
+        break;
+
+    case distribution_type::fisher_f:
+        if (old_current != current_item) {
+            src.m = 1.0;
+            src.n = 1.0;
+        }
+        ImGui::InputDouble("m", &src.m);
+        ImGui::InputDouble("s", &src.n);
+        break;
+
+    case distribution_type::student_t:
+        if (old_current != current_item) {
+            src.n = 1.0;
+        }
+        ImGui::InputDouble("n", &src.n);
+        break;
+    }
 }
 
 void
-sources::show(bool* is_show)
+editor::show_sources_window(bool* is_show)
 {
     ImGui::SetNextWindowPos(ImVec2(70, 450), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
-
-    static bool show_file_dialog = false;
-    static irt::source::binary_file* binary_file_ptr = nullptr;
-    static irt::source::text_file* text_file_ptr = nullptr;
 
     if (!ImGui::Begin("External sources", is_show)) {
         ImGui::End();
         return;
     }
 
-    show_random();
+    static bool show_file_dialog = false;
+    static irt::constant_source* constant_ptr = nullptr;
+    static irt::binary_file_source* binary_file_ptr = nullptr;
+    static irt::text_file_source* text_file_ptr = nullptr;
+    static irt::random_source* random_source_ptr = nullptr;
 
-    static ImGuiTableFlags flags =
-      ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
-      ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-      ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable;
+    if (ImGui::BeginTable("All sources",
+                          5,
+                          ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg)) {
+        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableHeadersRow();
 
-    if (ImGui::CollapsingHeader("List of constant sources")) {
-        if (ImGui::BeginTable("Constant sources", 2, flags)) {
-            ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("value",
-                                    ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableHeadersRow();
-            small_string<16> label;
-            static ImVector<int> selection;
+        small_string<32> label;
 
-            for (auto& elem : csts) {
-                const bool item_is_selected = selection.contains(elem.first);
+        constant_source* cst_src = nullptr;
+        while (srcs.constant_sources.next(cst_src)) {
+            const auto id = srcs.constant_sources.get_id(cst_src);
+            const auto index = get_index(id);
+            const bool item_is_selected = cst_src == constant_ptr;
 
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            format(
+              label, "{}-{}", ordinal(external_source_type::constant), index);
+            if (ImGui::Selectable(label.c_str(),
+                                  item_is_selected,
+                                  ImGuiSelectableFlags_SpanAllColumns)) {
+                constant_ptr = cst_src;
+                binary_file_ptr = nullptr;
+                text_file_ptr = nullptr;
+                random_source_ptr = nullptr;
+            }
 
-                fmt::format_to_n(
-                  label.begin(), label.capacity(), "{}", elem.first);
-                if (ImGui::Selectable(label.c_str(),
-                                      item_is_selected,
-                                      ImGuiSelectableFlags_AllowItemOverlap |
-                                        ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (ImGui::GetIO().KeyCtrl) {
-                        if (item_is_selected)
-                            selection.find_erase_unsorted(elem.first);
-                        else
-                            selection.push_back(elem.first);
-                    } else {
-                        selection.clear();
-                        selection.push_back(elem.first);
-                    }
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(cst_src->name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(
+              external_source_str(external_source_type::constant));
+            ImGui::TableNextColumn();
+            ImGui::Text("%" PRIu64, cst_src->buffer.size());
+            ImGui::TableNextColumn();
+            if (cst_src->buffer.empty()) {
+                ImGui::TextUnformatted("-");
+            } else {
+                size_t min = std::min(cst_src->buffer.size(), size_t(3));
+                if (min == 1u)
+                    ImGui::Text("%f", cst_src->buffer[0]);
+                else if (min == 2u)
+                    ImGui::Text(
+                      "%f %f", cst_src->buffer[0], cst_src->buffer[1]);
+                else
+                    ImGui::Text("%f %f %f ...",
+                                cst_src->buffer[0],
+                                cst_src->buffer[1],
+                                cst_src->buffer[2]);
+            }
+        }
+
+        text_file_source* txt_src = nullptr;
+        while (srcs.text_file_sources.next(txt_src)) {
+            const auto id = srcs.text_file_sources.get_id(txt_src);
+            const auto index = get_index(id);
+            const bool item_is_selected = txt_src == text_file_ptr;
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            format(
+              label, "{}-{}", ordinal(external_source_type::text_file), index);
+            if (ImGui::Selectable(label.c_str(),
+                                  item_is_selected,
+                                  ImGuiSelectableFlags_SpanAllColumns)) {
+                constant_ptr = nullptr;
+                binary_file_ptr = nullptr;
+                text_file_ptr = txt_src;
+                random_source_ptr = nullptr;
+            }
+
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(txt_src->name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(
+              external_source_str(external_source_type::text_file));
+            ImGui::TableNextColumn();
+            ImGui::Text("%" PRIu64, txt_src->buffer.size);
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", txt_src->file_path.string().c_str());
+        }
+
+        binary_file_source* bin_src = nullptr;
+        while (srcs.binary_file_sources.next(bin_src)) {
+            const auto id = srcs.binary_file_sources.get_id(bin_src);
+            const auto index = get_index(id);
+            const bool item_is_selected = bin_src == binary_file_ptr;
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            format(label,
+                   "{}-{}",
+                   ordinal(external_source_type::binary_file),
+                   index);
+            if (ImGui::Selectable(label.c_str(),
+                                  item_is_selected,
+                                  ImGuiSelectableFlags_SpanAllColumns)) {
+                constant_ptr = nullptr;
+                binary_file_ptr = bin_src;
+                text_file_ptr = nullptr;
+                random_source_ptr = nullptr;
+            }
+
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(bin_src->name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(
+              external_source_str(external_source_type::binary_file));
+            ImGui::TableNextColumn();
+            ImGui::Text("%" PRIu64, bin_src->buffer.size);
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", bin_src->file_path.string().c_str());
+        }
+
+        random_source* rnd_src = nullptr;
+        while (srcs.random_sources.next(rnd_src)) {
+            const auto id = srcs.random_sources.get_id(rnd_src);
+            const auto index = get_index(id);
+            const bool item_is_selected = rnd_src == random_source_ptr;
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            format(
+              label, "{}-{}", ordinal(external_source_type::random), index);
+            if (ImGui::Selectable(label.c_str(),
+                                  item_is_selected,
+                                  ImGuiSelectableFlags_SpanAllColumns)) {
+                constant_ptr = nullptr;
+                binary_file_ptr = nullptr;
+                text_file_ptr = nullptr;
+                random_source_ptr = rnd_src;
+            }
+
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(rnd_src->name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(
+              external_source_str(external_source_type::random));
+            ImGui::TableNextColumn();
+            ImGui::Text("%" PRIu64, rnd_src->buffer.size);
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(distribution_str(rnd_src->distribution));
+        }
+        ImGui::EndTable();
+
+        ImGuiStyle& style = ImGui::GetStyle();
+        const float width =
+          (ImGui::GetContentRegionAvail().x - 4.f * style.ItemSpacing.x) / 5.f;
+        ImVec2 button_sz(width, 20);
+
+        if (ImGui::Button("+constant", button_sz)) {
+            if (srcs.constant_sources.can_alloc(1u)) {
+                auto& new_src = srcs.constant_sources.alloc();
+                if (is_bad(new_src.init(srcs.block_size))) {
+                    log_w.log(2,
+                              "Not enough memory to allocate constant source");
+                    srcs.constant_sources.free(new_src);
                 }
-                ImGui::TableNextColumn();
-                ImGui::PushID(elem.first);
-                ImGui::InputDouble("##cell", &elem.second.value);
-                ImGui::PopID();
             }
+        }
 
-            ImGui::EndTable();
-
-            if (ImGui::Button("New constant source"))
-                new_constant();
-
-            ImGui::SameLine();
-            if (ImGui::Button("Delete##constant")) {
-                for (int i = 0, e = selection.size(); i != e; ++i)
-                    csts.erase(selection[i]);
-
-                selection.clear();
+        ImGui::SameLine();
+        if (ImGui::Button("+text file", button_sz)) {
+            if (srcs.text_file_sources.can_alloc(1u)) {
+                auto& new_src = srcs.text_file_sources.alloc();
+                if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
+                    log_w.log(2,
+                              "Not enough memory to allocate text file source");
+                    srcs.text_file_sources.free(new_src);
+                }
             }
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("+binary file", button_sz)) {
+            if (srcs.binary_file_sources.can_alloc(1u)) {
+                auto& new_src = srcs.binary_file_sources.alloc();
+                if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
+                    log_w.log(
+                      2, "Not enough memory to allocate binary text source");
+                    srcs.binary_file_sources.free(new_src);
+                }
+            }
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("+random", button_sz)) {
+            if (srcs.random_sources.can_alloc(1u)) {
+                auto& new_src = srcs.random_sources.alloc();
+                if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
+                    log_w.log(2, "Not enough memory to allocate random source");
+                    srcs.random_sources.free(new_src);
+                }
+            }
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("delete", button_sz)) {
+            if (constant_ptr)
+                srcs.constant_sources.free(*constant_ptr);
+            if (text_file_ptr)
+                srcs.text_file_sources.free(*text_file_ptr);
+            if (binary_file_ptr)
+                srcs.binary_file_sources.free(*binary_file_ptr);
+            if (random_source_ptr)
+                srcs.random_sources.free(*random_source_ptr);
+
+            constant_ptr = nullptr;
+            text_file_ptr = nullptr;
+            binary_file_ptr = nullptr;
+            random_source_ptr = nullptr;
         }
     }
 
-    if (ImGui::CollapsingHeader("List of binary file sources")) {
-        if (ImGui::BeginTable("Binary files sources", 2, flags)) {
-            ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("path", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableHeadersRow();
-            small_string<16> label;
-            static ImVector<int> selection;
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
 
-            for (auto& elem : bins) {
-                const bool item_is_selected = selection.contains(elem.first);
+    if (ImGui::CollapsingHeader("Source editor",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (constant_ptr) {
+            const auto id = srcs.constant_sources.get_id(constant_ptr);
+            auto index = get_index(id);
 
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+            static u32 new_size = 1;
+            new_size = static_cast<u32>(constant_ptr->buffer.size());
 
-                fmt::format_to_n(
-                  label.begin(), label.capacity(), "{}", elem.first);
-                if (ImGui::Selectable(label.c_str(),
-                                      item_is_selected,
-                                      ImGuiSelectableFlags_AllowItemOverlap |
-                                        ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (ImGui::GetIO().KeyCtrl) {
-                        if (item_is_selected)
-                            selection.find_erase_unsorted(elem.first);
-                        else
-                            selection.push_back(elem.first);
-                    } else {
-                        selection.clear();
-                        selection.push_back(elem.first);
-                    }
-                }
-                ImGui::TableNextColumn();
-                ImGui::PushID(elem.first);
-                ImGui::Text(elem.second.file_path.string().c_str());
+            ImGui::InputScalar("id",
+                               ImGuiDataType_U32,
+                               reinterpret_cast<void*>(&index),
+                               nullptr,
+                               nullptr,
+                               nullptr,
+                               ImGuiInputTextFlags_ReadOnly);
+
+            ImGui::InputText("name",
+                             constant_ptr->name.begin(),
+                             constant_ptr->name.capacity());
+
+            if (ImGui::InputScalar("length", ImGuiDataType_U32, &new_size) &&
+                new_size != constant_ptr->buffer.size() &&
+                new_size < std::numeric_limits<u32>::max()) {
+                constant_ptr->buffer.resize(new_size);
+            }
+
+            for (u32 i = 0; i < new_size; ++i) {
+                ImGui::PushID(static_cast<int>(i));
+                ImGui::InputDouble("##name", &constant_ptr->buffer[i]);
                 ImGui::PopID();
-            }
-            ImGui::EndTable();
-
-            if (ImGui::Button("New binary source")) {
-                binary_file_ptr = new_binary_file();
-                show_file_dialog = true;
-            }
-
-            ImGui::SameLine();
-            if (ImGui::Button("Delete##binary")) {
-                for (int i = 0, e = selection.size(); i != e; ++i)
-                    bins.erase(selection[i]);
-
-                selection.clear();
             }
         }
-    }
 
-    if (ImGui::CollapsingHeader("List of text file sources")) {
-        if (ImGui::BeginTable("Text files sources", 2, flags)) {
-            ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("path", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableHeadersRow();
-            small_string<16> label;
-            static ImVector<int> selection;
+        if (text_file_ptr) {
+            const auto id = srcs.text_file_sources.get_id(text_file_ptr);
+            auto index = get_index(id);
 
-            for (auto& elem : texts) {
-                const bool item_is_selected = selection.contains(elem.first);
+            ImGui::InputScalar("id",
+                               ImGuiDataType_U32,
+                               reinterpret_cast<void*>(&index),
+                               nullptr,
+                               nullptr,
+                               nullptr,
+                               ImGuiInputTextFlags_ReadOnly);
 
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+            ImGui::InputText("name",
+                             text_file_ptr->name.begin(),
+                             text_file_ptr->name.capacity());
 
-                fmt::format_to_n(
-                  label.begin(), label.capacity(), "{}", elem.first);
-                if (ImGui::Selectable(label.c_str(),
-                                      item_is_selected,
-                                      ImGuiSelectableFlags_AllowItemOverlap |
-                                        ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (ImGui::GetIO().KeyCtrl) {
-                        if (item_is_selected)
-                            selection.find_erase_unsorted(elem.first);
-                        else
-                            selection.push_back(elem.first);
-                    } else {
-                        selection.clear();
-                        selection.push_back(elem.first);
-                    }
-                }
-                ImGui::TableNextColumn();
-                ImGui::Text(elem.second.file_path.string().c_str());
-                ImGui::PushID(elem.first);
-                ImGui::PopID();
-            }
-            ImGui::EndTable();
-
-            if (ImGui::Button("New text source")) {
-                text_file_ptr = new_text_file();
+            ImGui::Text("%s", text_file_ptr->file_path.string().c_str());
+            if (ImGui::Button("...")) {
                 show_file_dialog = true;
             }
+        }
 
-            ImGui::SameLine();
-            if (ImGui::Button("Delete##text")) {
-                for (int i = 0, e = selection.size(); i != e; ++i)
-                    texts.erase(selection[i]);
+        if (binary_file_ptr) {
+            const auto id = srcs.binary_file_sources.get_id(binary_file_ptr);
+            auto index = get_index(id);
 
-                selection.clear();
+            ImGui::InputScalar("id",
+                               ImGuiDataType_U32,
+                               reinterpret_cast<void*>(&index),
+                               nullptr,
+                               nullptr,
+                               nullptr,
+                               ImGuiInputTextFlags_ReadOnly);
+
+            ImGui::InputText("name",
+                             binary_file_ptr->name.begin(),
+                             binary_file_ptr->name.capacity());
+
+            ImGui::Text("%s", binary_file_ptr->file_path.string().c_str());
+            if (ImGui::Button("...")) {
+                show_file_dialog = true;
             }
+        }
+
+        if (random_source_ptr) {
+            const auto id = srcs.random_sources.get_id(random_source_ptr);
+            auto index = get_index(id);
+
+            ImGui::InputScalar("id",
+                               ImGuiDataType_U32,
+                               reinterpret_cast<void*>(&index),
+                               nullptr,
+                               nullptr,
+                               nullptr,
+                               ImGuiInputTextFlags_ReadOnly);
+
+            ImGui::InputText("name",
+                             random_source_ptr->name.begin(),
+                             random_source_ptr->name.capacity());
+
+            show_random_distribution_input(*random_source_ptr);
         }
     }
 
@@ -759,72 +627,116 @@ sources::show(bool* is_show)
         }
     }
 
-    size_in_bytes(*this);
-
     ImGui::End();
 }
 
 void
-sources::show_menu(const char* title, external_source& src)
+editor::show_menu_sources(const char* title, source& src)
 {
-    small_string<16> tmp;
-    std::pair<const int, source::constant>* constant_ptr = nullptr;
-    std::pair<const int, source::binary_file>* binary_file_ptr = nullptr;
-    std::pair<const int, source::text_file>* text_file_ptr = nullptr;
+    small_string<64> tmp;
+
+    constant_source* constant_ptr = nullptr;
+    binary_file_source* binary_file_ptr = nullptr;
+    text_file_source* text_file_ptr = nullptr;
+    random_source* random_ptr = nullptr;
 
     if (ImGui::BeginPopup(title)) {
-        if (!csts.empty() && ImGui::BeginMenu("Constant")) {
-            for (auto& elem : csts) {
-                fmt::format_to_n(tmp.begin(), tmp.capacity(), "{}", elem.first);
+        if (ImGui::BeginMenu("Constant")) {
+            constant_source* s = nullptr;
+            while (srcs.constant_sources.next(s)) {
+                const auto id = srcs.constant_sources.get_id(s);
+                const auto index = get_index(id);
+
+                format(tmp,
+                       "{}-{}-{}",
+                       ordinal(external_source_type::constant),
+                       index,
+                       s->name.c_str());
                 if (ImGui::MenuItem(tmp.c_str())) {
-                    constant_ptr = &elem;
+                    constant_ptr = s;
                     break;
                 }
             }
             ImGui::EndMenu();
         }
 
-        if (!bins.empty() && ImGui::BeginMenu("Binary files")) {
-            for (auto& elem : bins) {
-                fmt::format_to_n(tmp.begin(), tmp.capacity(), "{}", elem.first);
+        if (ImGui::BeginMenu("Binary files")) {
+            binary_file_source* s = nullptr;
+            while (srcs.binary_file_sources.next(s)) {
+                const auto id = srcs.binary_file_sources.get_id(s);
+                const auto index = get_index(id);
+
+                format(tmp,
+                       "{}-{}-{}",
+                       ordinal(external_source_type::binary_file),
+                       index,
+                       s->name.c_str());
                 if (ImGui::MenuItem(tmp.c_str())) {
-                    binary_file_ptr = &elem;
+                    binary_file_ptr = s;
                     break;
                 }
             }
             ImGui::EndMenu();
         }
 
-        if (!texts.empty() && ImGui::BeginMenu("Text files")) {
-            for (auto& elem : texts) {
-                fmt::format_to_n(tmp.begin(), tmp.capacity(), "{}", elem.first);
+        if (ImGui::BeginMenu("Text files")) {
+            text_file_source* s = nullptr;
+            while (srcs.text_file_sources.next(s)) {
+                const auto id = srcs.text_file_sources.get_id(s);
+                const auto index = get_index(id);
+
+                format(tmp,
+                       "{}-{}-{}",
+                       ordinal(external_source_type::text_file),
+                       index,
+                       s->name.c_str());
                 if (ImGui::MenuItem(tmp.c_str())) {
-                    text_file_ptr = &elem;
+                    text_file_ptr = s;
                     break;
                 }
             }
             ImGui::EndMenu();
         }
 
-        if (constant_ptr != nullptr) {
-            constant_ptr->second.init(src);
-            src.id = constant_ptr->first;
-            constant_ptr = nullptr;
-        }
+        if (ImGui::BeginMenu("Random")) {
+            random_source* s = nullptr;
+            while (srcs.random_sources.next(s)) {
+                const auto id = srcs.random_sources.get_id(s);
+                const auto index = get_index(id);
 
-        if (binary_file_ptr != nullptr) {
-            binary_file_ptr->second.init(src);
-            src.id = binary_file_ptr->first;
-            binary_file_ptr = nullptr;
+                format(tmp,
+                       "{}-{}-{}",
+                       ordinal(external_source_type::binary_file),
+                       index,
+                       s->name.c_str());
+                if (ImGui::MenuItem(tmp.c_str())) {
+                    random_ptr = s;
+                    break;
+                }
+            }
+            ImGui::EndMenu();
         }
-
-        if (text_file_ptr != nullptr) {
-            text_file_ptr->second.init(src);
-            src.id = text_file_ptr->first;
-            text_file_ptr = nullptr;
-        }
-
         ImGui::EndPopup();
+    }
+
+    if (constant_ptr) {
+        src.reset();
+        (*constant_ptr)(src, source::operation_type::initialize);
+    }
+
+    if (binary_file_ptr) {
+        src.reset();
+        (*binary_file_ptr)(src, source::operation_type::initialize);
+    }
+
+    if (text_file_ptr) {
+        src.reset();
+        (*text_file_ptr)(src, source::operation_type::initialize);
+    }
+
+    if (random_ptr) {
+        src.reset();
+        (*random_ptr)(src, source::operation_type::initialize);
     }
 }
 

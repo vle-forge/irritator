@@ -4,11 +4,11 @@
 
 #include <irritator/core.hpp>
 
-#include <boost/ut.hpp>
-
 #include <fmt/format.h>
 
 #include <cstdio>
+
+#include <boost/ut.hpp>
 
 static void
 dot_graph_save(const irt::simulation& /*sim*/, std::FILE* /*os*/)

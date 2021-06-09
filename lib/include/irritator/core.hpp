@@ -130,6 +130,45 @@ using u32 = uint32_t;
 using u64 = uint64_t;
 using sz = size_t;
 
+inline u16
+make_halfword(u8 a, u8 b) noexcept
+{
+    return static_cast<u16>((a << 8) | b);
+}
+
+inline void
+unpack_halfword(u16 halfword, u8* a, u8* b) noexcept
+{
+    *a = static_cast<u8>((halfword >> 8) & 0xff);
+    *b = static_cast<u8>(halfword & 0xff);
+}
+
+inline u32
+make_word(u16 a, u16 b) noexcept
+{
+    return (static_cast<u32>(a) << 16) | static_cast<u32>(b);
+}
+
+inline void
+unpack_word(u32 word, u16* a, u16* b) noexcept
+{
+    *a = static_cast<u16>((word >> 16) & 0xffff);
+    *b = static_cast<u16>(word & 0xffff);
+}
+
+inline u64
+make_doubleword(u32 a, u32 b) noexcept
+{
+    return (static_cast<u64>(a) << 32) | static_cast<u64>(b);
+}
+
+inline void
+unpack_doubleword(u64 doubleword, u32* a, u32* b) noexcept
+{
+    *a = static_cast<u32>((doubleword >> 32) & 0xffffffff);
+    *b = static_cast<u32>(doubleword & 0xffffffff);
+}
+
 template<typename Integer>
 constexpr typename std::make_unsigned<Integer>::type
 to_unsigned(Integer value)
@@ -165,6 +204,86 @@ undefined() noexcept
     return static_cast<Identifier>(0);
 }
 
+template<typename Identifier>
+constexpr bool
+is_undefined(Identifier id) noexcept
+{
+    static_assert(
+      std::is_enum<Identifier>::value,
+      "Identifier must be a enumeration: enum class id : unsigned {};");
+
+    return id == undefined<Identifier>();
+}
+
+template<typename Identifier>
+constexpr bool
+is_defined(Identifier id) noexcept
+{
+    static_assert(
+      std::is_enum<Identifier>::value,
+      "Identifier must be a enumeration: enum class id : unsigned {};");
+
+    return id != undefined<Identifier>();
+}
+
+/**
+ * @brief Enummeration to integral
+ */
+template<class Enum, class Integer = typename std::underlying_type<Enum>::type>
+constexpr Integer
+ordinal(Enum e) noexcept
+{
+    static_assert(std::is_enum<Enum>::value,
+                  "Identifier must be a enumeration");
+    return static_cast<Integer>(e);
+}
+
+/**
+ * @brief Integral to enumeration
+ */
+template<class Enum, class Integer = typename std::underlying_type<Enum>::type>
+constexpr Enum
+enum_cast(Integer i) noexcept
+{
+    static_assert(std::is_enum<Enum>::value,
+                  "Identifier must be a enumeration");
+    return static_cast<Enum>(i);
+}
+
+/**
+ * @brief returns an iterator to the result or end if not found
+ *
+ * Binary search function which returns an iterator to the result or end if
+ * not found using the lower_bound standard function.
+ */
+template<typename Iterator, typename T>
+Iterator
+binary_find(Iterator begin, Iterator end, const T& value)
+{
+    Iterator i = std::lower_bound(begin, end, value);
+    if (i != end && !(value < *i))
+        return i;
+    else
+        return end;
+}
+
+/**
+ * @brief returns an iterator to the result or end if not found
+ *
+ * Binary search function which returns an iterator to the result or end if
+ * not found using the lower_bound standard function.
+ */
+template<typename Iterator, typename T, typename Compare>
+Iterator
+binary_find(Iterator begin, Iterator end, const T& value, Compare comp)
+{
+    Iterator i = std::lower_bound(begin, end, value, comp);
+    if (i != end && !comp(*i, value))
+        return i;
+    else
+        return end;
+}
+
 /*****************************************************************************
  *
  * Return status of many function
@@ -193,6 +312,8 @@ enum class status
     vector_init_capacity_zero,
     vector_init_capacity_too_big,
     vector_init_not_enough_memory,
+    source_unknown,
+    source_empty,
     dynamics_unknown_id,
     dynamics_unknown_port_id,
     dynamics_not_enough_memory,
@@ -229,6 +350,8 @@ enum class status
     gui_not_enough_memory,
     io_not_enough_memory,
     io_file_format_error,
+    io_file_format_source_number_error,
+    io_file_source_full,
     io_file_format_model_error,
     io_file_format_model_number_error,
     io_file_format_model_unknown,
@@ -2471,9 +2594,14 @@ public:
         return m_max_size;
     }
 
-    constexpr bool can_alloc(std::size_t place) const noexcept
+    constexpr bool can_alloc(const sz nb) const noexcept
     {
-        return m_capacity - m_max_size >= place;
+        return m_capacity - m_max_size >= nb;
+    }
+
+    constexpr bool can_alloc() const noexcept
+    {
+        return m_capacity - m_max_size >= 1u;
     }
 
     constexpr u32 max_size() const noexcept
@@ -2804,6 +2932,71 @@ private:
     }
 };
 
+struct simulation;
+
+/*****************************************************************************
+ *
+ * @c source and @c source_id are data from files or random generators.
+ *
+ ****************************************************************************/
+
+struct source
+{
+    enum class operation_type
+    {
+        initialize, // Use to initialize the buffer at simulation init step.
+        update,     // Use to update the buffer when all values are read.
+        finalize    // Use to clear the buffer at simulation finalize step.
+    };
+
+    double* buffer = nullptr;
+    u64 id = 0;    // The identifier of the external source (see operation())
+    int type = -1; // The type of the external source (see operation())
+    int size = 0;
+    int index = 0;
+
+    void reset() noexcept
+    {
+        buffer = nullptr;
+        size = 0;
+        index = 0;
+        type = -1;
+        id = 0;
+    }
+
+    void clear() noexcept
+    {
+        buffer = nullptr;
+        size = 0;
+        index = 0;
+    }
+
+    bool next(double& value) noexcept
+    {
+        if (index >= size)
+            return false;
+
+        value = buffer[index++];
+
+        return true;
+    }
+};
+
+/**
+ * @brief Call in the initialize function of the models.
+ * @param sim The simulation.
+ * @param src The sources.
+ * @return
+ */
+inline status
+initialize_source(simulation& sim, source& src) noexcept;
+
+inline status
+update_source(simulation& sim, source& src, double& val) noexcept;
+
+inline status
+finalize_source(simulation& sim, source& src) noexcept;
+
 /*****************************************************************************
  *
  * DEVS Model / Simulation entities
@@ -2965,8 +3158,6 @@ using has_init_port_t = decltype(&T::init);
 
 template<typename T>
 using has_sim_attribute_t = decltype(&T::sim);
-
-struct simulation;
 
 struct node
 {
@@ -4933,122 +5124,59 @@ struct counter
     }
 };
 
-struct external_source;
-
-struct constant_external_source
-{
-    bool operator()(external_source& src) noexcept;
-
-    double value = 0.0;
-};
-
-inline static constant_external_source default_external_source;
-
-struct external_source
-{
-    function_ref<bool(external_source& src)> expand = default_external_source;
-    double* data = nullptr; // @todo use a std::span<double> instead
-    sz index = 0;           // of data and size.
-    double value = 0.0;
-    sz size = 0;
-    u32 id = 0;
-    u32 type = 0;
-
-    bool init() noexcept
-    {
-        data = nullptr;
-        index = 0;
-        size = 0;
-        id = 0;
-        type = 0;
-
-        if (expand.empty())
-            return false;
-
-        return expand(*this);
-    }
-
-    bool next() noexcept
-    {
-        irt_assert(data);
-
-        if (index >= size) {
-            if (expand.empty() || !expand(*this))
-                return false;
-
-            index = 0;
-        } else {
-            ++index;
-        }
-
-        return true;
-    }
-};
-
-inline bool
-constant_external_source::operator()(external_source& src) noexcept
-{
-    src.data = &value;
-    src.index = 0;
-    src.size = 1;
-    src.id = 0;
-    src.type = 0;
-
-    return true;
-}
-
 struct generator
 {
     port y[1];
     time sigma;
+    double value;
 
-    external_source default_ta_source;
-    external_source default_value_source;
-
-    double default_offset = 1.0;
+    simulation* sim = nullptr;
+    double default_offset = 0.0;
+    source default_source_ta;
+    source default_source_value;
+    bool stop_on_error = false;
 
     status initialize() noexcept
     {
         sigma = default_offset;
 
-        if (!default_ta_source.data)
-            irt_bad_return(status::model_generator_empty_ta_source);
-
-        if (!default_value_source.data)
-            irt_bad_return(status::model_generator_empty_value_source);
+        if (stop_on_error) {
+            irt_return_if_bad(initialize_source(*sim, default_source_ta));
+            irt_return_if_bad(initialize_source(*sim, default_source_value));
+        } else {
+            (void)initialize_source(*sim, default_source_ta);
+            (void)initialize_source(*sim, default_source_value);
+        }
 
         return status::success;
     }
 
     status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
-        if (!default_ta_source.data)
-            irt_bad_return(status::model_generator_null_ta_source);
+        if (stop_on_error) {
+            irt_return_if_bad(update_source(*sim, default_source_ta, sigma));
+            irt_return_if_bad(update_source(*sim, default_source_value, value));
+        } else {
+            if (is_bad(update_source(*sim, default_source_ta, sigma)))
+                sigma = time_domain<time>::infinity;
 
-        if (!default_ta_source.next())
-            irt_bad_return(status::model_generator_empty_ta_source);
-
-        if (!default_value_source.data)
-            irt_bad_return(status::model_generator_null_value_source);
-
-        if (!default_value_source.next())
-            irt_bad_return(status::model_generator_empty_value_source);
-
-        sigma = *default_ta_source.data;
+            if (is_bad(update_source(*sim, default_source_value, value)))
+                value = 0.0;
+        }
 
         return status::success;
     }
 
     status lambda() noexcept
     {
-        y[0].messages.emplace_front(*default_value_source.data);
+        y[0].messages.emplace_front(value);
 
         return status::success;
     }
 
     message observation(const time /*e*/) const noexcept
     {
-        return { *default_value_source.data };
+        return { value };
     }
 };
 
@@ -5058,12 +5186,13 @@ struct constant
     time sigma;
 
     double default_value = 0.0;
+    time default_offset = time_domain<time>::zero;
 
     double value = 0.0;
 
     status initialize() noexcept
     {
-        sigma = time_domain<time>::zero;
+        sigma = default_offset;
 
         value = default_value;
 
@@ -5169,7 +5298,6 @@ struct accumulator
 
     status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
     {
-
         for (size_t i = 0; i != PortNumber; ++i)
             for (const auto& msg : x[i + PortNumber].messages)
                 numbers[i] = msg[0];
@@ -5515,9 +5643,18 @@ using qss3_cross = abstract_cross<3>;
 inline double
 sin_time_function(double t) noexcept
 {
-    const double f0 = 0.1;
-    const double pi = std::acos(-1);
-    return std::sin(2 * pi * f0 * t);
+    constexpr double f0 = 0.1;
+
+#if irt_have_numbers == 1
+    constexpr double pi = std::numbers::pi_v<double>;
+#else
+    // std::acos(-1) is not a constexpr in MVSC 2019
+    constexpr double pi = 3.141592653589793238462643383279502884;
+#endif
+
+    constexpr const double mult = 2.0 * pi * f0;
+
+    return std::sin(mult * t);
 }
 
 inline double
@@ -5603,7 +5740,7 @@ struct queue
         return status::success;
     }
 
-    status transition(time t, time /*e*/, time r) noexcept
+    status transition(time t, time /*e*/, time /*r*/) noexcept
     {
         while (!queue.empty() && queue.front().real[0] <= t)
             queue.pop_front();
@@ -5648,23 +5785,24 @@ struct dynamic_queue
     time sigma;
     flat_double_list<dated_message> queue;
 
-    external_source default_ta_source;
+    simulation* sim = nullptr;
+    source default_source_ta;
+    bool stop_on_error = false;
 
     status initialize() noexcept
     {
-        if (!default_ta_source.init())
-            irt_bad_return(status::model_dynamic_queue_source_is_null);
-
-        if (!queue.get_allocator())
-            irt_bad_return(status::model_dynamic_queue_empty_allocator);
-
         sigma = time_domain<time>::infinity;
         queue.clear();
+
+        if (stop_on_error)
+            irt_return_if_bad(initialize_source(*sim, default_source_ta));
+        else
+            (void)initialize_source(*sim, default_source_ta);
 
         return status::success;
     }
 
-    status transition(time t, time /*e*/, time r) noexcept
+    status transition(time t, time /*e*/, time /*r*/) noexcept
     {
         while (!queue.empty() && queue.front().real[0] <= t)
             queue.pop_front();
@@ -5673,11 +5811,14 @@ struct dynamic_queue
             if (!queue.get_allocator()->can_alloc(1u))
                 irt_bad_return(status::model_dynamic_queue_full);
 
-            queue.emplace_back(
-              *default_ta_source.data + t, msg[0], msg[1], msg[2], msg[3]);
-
-            if (!default_ta_source.next())
-                irt_bad_return(status::model_dynamic_queue_source_is_null);
+            double ta;
+            if (stop_on_error) {
+                irt_return_if_bad(update_source(*sim, default_source_ta, ta));
+                queue.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
+            } else {
+                if (is_success(update_source(*sim, default_source_ta, ta)))
+                    queue.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
+            }
         }
 
         if (!queue.empty()) {
@@ -5712,6 +5853,11 @@ struct priority_queue
     port y[1];
     time sigma;
     flat_double_list<dated_message> queue;
+    double default_ta = 1.0;
+
+    simulation* sim = nullptr;
+    source default_source_ta;
+    bool stop_on_error = false;
 
 private:
     status try_to_insert(const time t, const message& msg) noexcept
@@ -5738,15 +5884,15 @@ private:
     }
 
 public:
-    external_source default_ta_source;
-
     status initialize() noexcept
     {
-        if (!default_ta_source.init())
-            irt_bad_return(status::model_priority_queue_source_is_null);
-
         if (!queue.get_allocator())
             irt_bad_return(status::model_priority_queue_empty_allocator);
+
+        if (stop_on_error)
+            irt_return_if_bad(initialize_source(*sim, default_source_ta));
+        else
+            (void)initialize_source(*sim, default_source_ta);
 
         sigma = time_domain<time>::infinity;
         queue.clear();
@@ -5754,18 +5900,26 @@ public:
         return status::success;
     }
 
-    status transition(time t, time /*e*/, time r) noexcept
+    status transition(time t, time /*e*/, time /*r*/) noexcept
     {
         while (!queue.empty() && queue.front().real[0] <= t)
             queue.pop_front();
 
         for (const auto& msg : x[0].messages) {
-            if (auto ret = try_to_insert(*default_ta_source.data + t, msg);
-                is_bad(ret))
-                irt_bad_return(status::model_priority_queue_full);
+            double value;
 
-            if (!default_ta_source.next())
-                irt_bad_return(status::model_priority_queue_source_is_null);
+            if (stop_on_error) {
+                irt_return_if_bad(
+                  update_source(*sim, default_source_ta, value));
+
+                if (auto ret = try_to_insert(value + t, msg); is_bad(ret))
+                    irt_bad_return(status::model_priority_queue_full);
+            } else {
+                if (is_success(update_source(*sim, default_source_ta, value))) {
+                    if (auto ret = try_to_insert(value + t, msg); is_bad(ret))
+                        irt_bad_return(status::model_priority_queue_full);
+                }
+            }
         }
 
         if (!queue.empty()) {
@@ -6155,12 +6309,17 @@ struct simulation
     flat_double_list<record>::allocator_type flat_double_list_shared_allocator;
 
     data_array<model, model_id> models;
-
     data_array<message, message_id> messages;
-
     data_array<observer, observer_id> observers;
 
     scheduller sched;
+
+    /**
+     * @brief Use initialize, generate or finalize data from a source.
+     *
+     * See the @c external_source class for an implementation.
+     */
+    function_ref<status(source&, const source::operation_type)> source_dispatch;
 
     time begin = time_domain<time>::zero;
     time end = time_domain<time>::infinity;
@@ -6170,17 +6329,6 @@ struct simulation
     {
         return models.get_id(get_model(dyn));
     }
-
-#if 0
-    template<typename Function>
-    constexpr void for_all(Function f) noexcept
-    {
-        model* mdl = nullptr;
-
-        while (models.next(mdl))
-            dispatch(*mdl, f);
-    }
-#endif
 
     template<typename Function, typename... Args>
     constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
@@ -6427,142 +6575,6 @@ struct simulation
         irt_unreachable();
     }
 
-    // status get_output_port_index(const model& mdl,
-    //                             const port& port,
-    //                             int* index) const noexcept
-    //{
-    //    return dispatch(
-    //      mdl, [port, index]<typename Dynamics>(auto& dyn) -> status {
-    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-    //              for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-    //                  if (&dyn.y[i] == port) {
-    //                      *index = static_cast<int>(i);
-    //                      return status::success;
-    //                  }
-    //              }
-
-    //              return status::dynamics_unknown_port_id;
-    //          }
-    //      });
-    //}
-
-    // void for_all_input_port(const model& mdl,
-    //                        function_ref<void(input_port&, input_port_id)> f)
-    //{
-    //    dispatch(
-    //      mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-    //              if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
-    //                  for (size_t i = 0, e = std::size(dyn->x); i != e; ++i)
-    //                      if (auto* port = input_ports.try_to_get(dyn->x[i]);
-    //                          port)
-    //                          f(*port, dyn->x[i]);
-    //          }
-    //      });
-    //}
-
-    // void for_all_output_port(const model& mdl,
-    //                         function_ref<void(output_port&, port)> f)
-    //{
-    //    dispatch(
-    //      mdl.type, [this, &f, dyn_id = mdl.id]<typename T>(T& dyn_models) {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-    //              if (auto* dyn = dyn_models.try_to_get(dyn_id); dyn)
-    //                  for (size_t i = 0, e = std::size(dyn->y); i != e; ++i)
-    //                      if (auto* port = output_ports.try_to_get(dyn->y[i]);
-    //                          port)
-    //                          f(*port, dyn->y[i]);
-    //          }
-    //      });
-    //}
-
-    // status get_input_port_index(const model& mdl,
-    //                            const port port,
-    //                            int* index) const noexcept
-    //{
-    //    return dispatch(
-    //      mdl.type,
-    //      [dyn_id = mdl.id, port, index]<typename T>(T& dyn_models) -> status
-    //      {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-    //              auto* dyn = dyn_models.try_to_get(dyn_id);
-    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
-
-    //              for (size_t i = 0, e = std::size(dyn->x); i != e; ++i) {
-    //                  if (dyn->x[i] == port) {
-    //                      *index = static_cast<int>(i);
-    //                      return status::success;
-    //                  }
-    //              }
-    //          }
-
-    //          return status::dynamics_unknown_port_id;
-    //      });
-    //}
-
-    // status get_port(const model& mdl, int index, port* port) const noexcept
-    //{
-    //    return dispatch(
-    //      mdl.type,
-    //      [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status
-    //      {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-    //              auto* dyn = dyn_models.try_to_get(dyn_id);
-    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
-
-    //              irt_return_if_fail(0 <= index && static_cast<size_t>(index)
-    //              <
-    //                                                 std::size(dyn->y),
-    //                                 status::dynamics_unknown_port_id);
-
-    //              *port = dyn->y[index];
-    //              return status::success;
-    //          }
-
-    //          return status::dynamics_unknown_port_id;
-    //      });
-    //}
-
-    // status get_input_port_id(const model& mdl,
-    //                         int index,
-    //                         input_port_id* port) const noexcept
-    //{
-    //    return dispatch(
-    //      mdl.type,
-    //      [dyn_id = mdl.id, index, port]<typename T>(T& dyn_models) -> status
-    //      {
-    //          using TT = T;
-    //          using Dynamics = typename TT::value_type;
-
-    //          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-    //              auto* dyn = dyn_models.try_to_get(dyn_id);
-    //              irt_return_if_fail(dyn, status::dynamics_unknown_id);
-
-    //              irt_return_if_fail(0 <= index && static_cast<size_t>(index)
-    //              <
-    //                                                 std::size(dyn->x),
-    //                                 status::dynamics_unknown_port_id);
-
-    //              *port = dyn->x[index];
-    //              return status::success;
-    //          }
-
-    //          return status::dynamics_unknown_port_id;
-    //      });
-    //}
-
 public:
     status init(size_t model_capacity, size_t messages_capacity)
     {
@@ -6571,7 +6583,8 @@ public:
         irt_return_if_bad(model_list_allocator.init(model_capacity * ten));
         irt_return_if_bad(message_list_allocator.init(messages_capacity * ten));
         irt_return_if_bad(node_list_allocator.init(model_capacity * ten));
-        irt_return_if_bad(dated_message_allocator.init(model_capacity * ten));
+        irt_return_if_bad(
+          dated_message_allocator.init(model_capacity * ten * ten));
         irt_return_if_bad(emitting_output_port_allocator.init(model_capacity));
 
         irt_return_if_bad(sched.init(model_capacity));
@@ -6579,17 +6592,15 @@ public:
         irt_return_if_bad(models.init(model_capacity));
         irt_return_if_bad(messages.init(messages_capacity));
         irt_return_if_bad(observers.init(model_capacity));
-
         irt_return_if_bad(
           flat_double_list_shared_allocator.init(model_capacity * ten));
 
         return status::success;
     }
 
-    template<typename Dynamics>
-    constexpr bool can_alloc(size_t number) const noexcept
+    bool can_alloc() const noexcept
     {
-        return models.can_alloc(number);
+        return models.can_alloc();
     }
 
     bool can_alloc(size_t place) const noexcept
@@ -7095,6 +7106,11 @@ public:
                       std::is_same_v<Dynamics, priority_queue>)
             dyn.queue.set_allocator(&dated_message_allocator);
 
+        if constexpr (std::is_same_v<Dynamics, generator> ||
+                      std::is_same_v<Dynamics, dynamic_queue> ||
+                      std::is_same_v<Dynamics, priority_queue>)
+            dyn.sim = this;
+
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
             irt_return_if_bad(dyn.initialize());
 
@@ -7180,6 +7196,18 @@ public:
             obs.msg = dyn.observation(t - mdl.tl);
             obs.cb(obs, mdl.type, mdl.tl, t, observer::status::finalize);
         }
+
+        if constexpr (std::is_same_v<Dynamics, dynamic_queue> ||
+                      std::is_same_v<Dynamics, priority_queue>)
+            source_dispatch(dyn.default_source_ta,
+                            source::operation_type::finalize);
+
+        if constexpr (std::is_same_v<Dynamics, generator>) {
+            source_dispatch(dyn.default_source_ta,
+                            source::operation_type::finalize);
+            source_dispatch(dyn.default_source_value,
+                            source::operation_type::finalize);
+        }
     }
 
     /**
@@ -7208,6 +7236,25 @@ public:
         }
     }
 };
+
+inline status
+initialize_source(simulation& sim, source& src) noexcept
+{
+    return sim.source_dispatch(src, source::operation_type::initialize);
+}
+
+inline status
+update_source(simulation& sim, source& src, double& val) noexcept
+{
+    if (src.next(val))
+        return status::success;
+
+    if (auto ret = sim.source_dispatch(src, source::operation_type::update);
+        is_bad(ret))
+        return ret;
+
+    return src.next(val) ? status::success : status::source_empty;
+}
 
 } // namespace irt
 

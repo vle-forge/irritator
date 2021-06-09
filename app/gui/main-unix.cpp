@@ -2,12 +2,12 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "application.hpp"
+#include "imnodes.h"
+
 #include "imgui.h"
-#include "imnodes.hpp"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-
-#include "gui.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -36,7 +36,7 @@
 // legacy_stdio_definitions.lib, which we do using this pragma. Your own
 // project should not be affected, as you are likely to link with a newer
 // binary of GLFW that is adequate for your version of Visual Studio.
-#if defined(_MSC_VER) && (_MSC_VER >= 1900) &&                                \
+#if defined(_MSC_VER) && (_MSC_VER >= 1900) &&                                 \
   !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
@@ -79,8 +79,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 #endif
 
     // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(
-      1280, 720, "irritator", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "irritator", NULL, NULL);
     if (window == NULL)
         return 1;
     glfwMakeContextCurrent(window);
@@ -94,9 +93,8 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
     bool err = gladLoadGL() == 0;
 #else
-    bool err =
-      false; // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader
-             // is likely to requires some form of initialization.
+    bool err = false; // If you use IMGUI_IMPL_OPENGL_LOADER_CUSTOM, your loader
+                      // is likely to requires some form of initialization.
 #endif
     if (err) {
         fprintf(stderr, "Failed to initialize OpenGL loader!\n");
@@ -119,8 +117,19 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
-    imnodes::CreateContext();
-    irt::application_initialize();
+    ImNodes::CreateContext();
+    irt::application app;
+
+    if (!app.init()) {
+        ImNodes::DestroyContext();
+
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+
+        glfwDestroyWindow(window);
+        glfwTerminate();
+    }
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can
@@ -147,12 +156,14 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f,
     // NULL, io.Fonts->GetGlyphRangesJapanese()); IM_ASSERT(font != NULL);
 
-    //bool show_demo_window = true;
-    //bool show_another_window = false;
+    // bool show_demo_window = true;
+    // bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
+        app.run_simulations();
+
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags
         // to tell if dear imgui wants to use your inputs.
@@ -169,7 +180,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        if (!irt::application_show())
+        if (!app.show())
             glfwSetWindowShouldClose(window, GLFW_TRUE);
 
         // Rendering
@@ -189,8 +200,8 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     // Cleanup
 
-    irt::application_shutdown();
-    imnodes::DestroyContext();
+    app.shutdown();
+    ImNodes::DestroyContext();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -201,4 +212,3 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     return 0;
 }
-

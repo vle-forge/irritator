@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_IO_2020
 
 #include <irritator/core.hpp>
+#include <irritator/external_source.hpp>
 
 #include <algorithm>
 #include <istream>
@@ -485,7 +486,42 @@ private:
     streambuf buf;
     std::istream is;
 
+    struct mapping
+    {
+        mapping(int index_, u64 value_)
+          : index(index_)
+          , value(value_)
+        {}
+
+        int index = 0;
+        u64 value = 0u;
+
+        bool operator<(const mapping& other) const noexcept
+        {
+            return index < other.index;
+        }
+    };
+
+    struct position
+    {
+        position() noexcept = default;
+
+        position(const float x_, const float y_) noexcept
+            : x(x_)
+            , y(y_)
+        {}
+
+        float x, y;
+    };
+
     std::vector<model_id> map;
+    std::vector<position> positions; /* Stores positions of the models. */
+    std::vector<mapping> constant_mapping;
+    std::vector<mapping> binary_file_mapping;
+    std::vector<mapping> random_mapping;
+    std::vector<mapping> text_file_mapping;
+
+    int source_number = 0;
     int model_number = 0;
 
     char temp_1[32];
@@ -501,13 +537,29 @@ public:
 
     int model_error = 0;
     int connection_error = 0;
-    int line_error = 0;
-    int column_error = 0;
 
-    status operator()(simulation& sim) noexcept
+    int line_error() const noexcept
     {
-        irt_return_if_bad(do_read_model_number());
+        return buf.m_line_number;
+    }
 
+    int column_error() const noexcept
+    {
+        return buf.m_column;
+    }
+
+    position get_position(const sz index) const noexcept
+    {
+        return index < positions.size() ?
+            positions[index] :
+            position{ 0.f, 0.f };
+    }
+
+    status operator()(simulation& sim, external_source& srcs) noexcept
+    {
+        irt_return_if_bad(do_read_data_source(srcs));
+
+        irt_return_if_bad(do_read_model_number());
         for (int i = 0; i != model_number; ++i, ++model_error) {
             int id;
             irt_return_if_bad(do_read_model(sim, &id));
@@ -519,10 +571,12 @@ public:
     }
 
     status operator()(simulation& sim,
+                      external_source& srcs,
                       function_ref<void(const model_id)> f) noexcept
     {
-        irt_return_if_bad(do_read_model_number());
+        irt_return_if_bad(do_read_data_source(srcs));
 
+        irt_return_if_bad(do_read_model_number());
         for (int i = 0; i != model_number; ++i, ++model_error) {
             int id;
             irt_return_if_bad(do_read_model(sim, &id));
@@ -535,17 +589,285 @@ public:
     }
 
 private:
-    void update_error_report() noexcept
+    status do_read_binary_file_source(external_source& srcs) noexcept
     {
-        line_error = buf.m_line_number;
-        column_error = buf.m_column;
+        u32 id;
+
+        if (!(is >> id))
+            return status::io_file_format_error;
+
+        auto& elem = srcs.binary_file_sources.alloc();
+        if (auto ret = elem.init(srcs.block_size, srcs.block_number);
+            is_bad(ret)) {
+            srcs.binary_file_sources.free(elem);
+            return ret;
+        }
+
+        auto elem_id = srcs.binary_file_sources.get_id(elem);
+
+        std::string file_path;
+        if (!(is >> std::quoted(file_path)))
+            return status::io_file_format_error;
+
+        elem.file_path = file_path;
+        binary_file_mapping.emplace_back(id, ordinal(elem_id));
+
+        return status::success;
+    }
+
+    status do_read_text_file_source(external_source& srcs) noexcept
+    {
+        u32 id;
+
+        if (!(is >> id))
+            return status::io_file_format_error;
+
+        auto& elem = srcs.text_file_sources.alloc();
+        if (auto ret = elem.init(srcs.block_size, srcs.block_number);
+            is_bad(ret)) {
+            srcs.text_file_sources.free(elem);
+            return ret;
+        }
+
+        auto elem_id = srcs.text_file_sources.get_id(elem);
+
+        std::string file_path;
+        if (!(is >> std::quoted(file_path)))
+            return status::io_file_format_error;
+
+        elem.file_path = file_path;
+        text_file_mapping.emplace_back(id, ordinal(elem_id));
+
+        return status::success;
+    }
+
+    status do_read_constant_source(external_source& srcs) noexcept
+    {
+        u32 id;
+        sz size;
+
+        if (!(is >> id >> size))
+            return status::io_file_format_error;
+
+        auto& cst = srcs.constant_sources.alloc();
+        if (auto ret = cst.init(srcs.block_size); is_bad(ret)) {
+            srcs.constant_sources.free(cst);
+            return ret;
+        }
+
+        auto cst_id = srcs.constant_sources.get_id(cst);
+
+        try {
+            constant_mapping.emplace_back(id, ordinal(cst_id));
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::io_not_enough_memory;
+        }
+
+        for (size_t i = 0; i < size; ++i) {
+            if (!(is >> cst.buffer[i]))
+                return status::io_file_format_error;
+        }
+
+        return status::success;
+    }
+
+    status do_read_random_source(external_source& srcs) noexcept
+    {
+        u32 id;
+
+        if (!(is >> id))
+            return status::io_file_format_error;
+
+        char type_str[30];
+        if (!(is >> type_str))
+            return status::io_file_format_error;
+
+        auto it = binary_find(std::begin(distribution_type_string),
+                              std::end(distribution_type_string),
+                              type_str,
+                              [](const char* left, const char* right) {
+                                  return std::strcmp(left, right) == 0;
+                              });
+
+        if (it == std::end(distribution_type_string))
+            return status::io_file_format_error;
+
+        const auto dist_id =
+          std::distance(std::begin(distribution_type_string), it);
+
+        auto& elem = srcs.random_sources.alloc();
+        if (auto ret = elem.init(srcs.block_size, srcs.block_number);
+            is_bad(ret)) {
+            srcs.random_sources.free(elem);
+            return ret;
+        }
+
+        auto elem_id = srcs.random_sources.get_id(elem);
+
+        try {
+            random_mapping.emplace_back(id, ordinal(elem_id));
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::io_not_enough_memory;
+        }
+
+        elem.distribution = enum_cast<distribution_type>(dist_id);
+
+        switch (elem.distribution) {
+        case distribution_type::uniform_int:
+            if (!(is >> elem.a32 >> elem.b32))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::uniform_real:
+            if (!(is >> elem.a >> elem.b))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::bernouilli:
+            if (!(is >> elem.p))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::binomial:
+            if (!(is >> elem.t32 >> elem.p))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::negative_binomial:
+            if (!(is >> elem.t32 >> elem.p))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::geometric:
+            if (!(is >> elem.p))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::poisson:
+            if (!(is >> elem.mean))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::exponential:
+            if (!(is >> elem.lambda))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::gamma:
+            if (!(is >> elem.alpha >> elem.beta))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::weibull:
+            if (!(is >> elem.a >> elem.b))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::exterme_value:
+            if (!(is >> elem.a >> elem.b))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::normal:
+            if (!(is >> elem.mean >> elem.stddev))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::lognormal:
+            if (!(is >> elem.m >> elem.s))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::chi_squared:
+            if (!(is >> elem.n))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::cauchy:
+            if (!(is >> elem.a >> elem.b))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::fisher_f:
+            if (!(is >> elem.m >> elem.n))
+                return status::io_file_format_error;
+            break;
+
+        case distribution_type::student_t:
+            if (!(is >> elem.n))
+                return status::io_file_format_error;
+            break;
+        }
+
+        return status::success;
+    }
+
+    status do_read_data_source(external_source& srcs) noexcept
+    {
+        size_t number;
+
+        /* Read the constant sources */
+        if (!(is >> number))
+            return status::io_file_format_source_number_error;
+
+        if (number > 0u) {
+            if (!srcs.constant_sources.can_alloc(number))
+                return status::io_file_source_full;
+
+            for (sz i = 0; i < number; ++i)
+                irt_return_if_bad(do_read_constant_source(srcs));
+        }
+
+        /* Read the binary sources */
+        if (!(is >> number))
+            return status::io_file_format_error;
+
+        if (number > 0u) {
+            if (!srcs.binary_file_sources.can_alloc(number))
+                return status::io_file_source_full;
+
+            for (sz i = 0; i < number; ++i)
+                irt_return_if_bad(do_read_binary_file_source(srcs));
+        }
+
+        /* Read the text file sources */
+        if (!(is >> number))
+            return status::io_file_format_error;
+
+        if (number > 0u) {
+            if (!srcs.text_file_sources.can_alloc(number))
+                return status::io_file_source_full;
+
+            for (sz i = 0; i < number; ++i)
+                irt_return_if_bad(do_read_text_file_source(srcs));
+        }
+
+        /* Read the random sources */
+        if (!(is >> number))
+            return status::io_file_format_error;
+
+        if (number > 0u) {
+            if (!srcs.random_sources.can_alloc(number))
+                return status::io_file_source_full;
+
+            for (sz i = 0; i < number; ++i) {
+                irt_return_if_bad(do_read_random_source(srcs));
+            }
+        }
+
+        std::sort(std::begin(constant_mapping), std::end(constant_mapping));
+        std::sort(std::begin(binary_file_mapping),
+                  std::end(binary_file_mapping));
+        std::sort(std::begin(text_file_mapping), std::end(text_file_mapping));
+        std::sort(std::begin(random_mapping), std::end(random_mapping));
+
+        return status::success;
     }
 
     status do_read_model_number() noexcept
     {
         model_number = 0;
 
-        update_error_report();
         irt_return_if_fail((is >> model_number), status::io_file_format_error);
 
         irt_return_if_fail(model_number > 0,
@@ -553,6 +875,7 @@ private:
 
         try {
             map.resize(model_number, model_id{ 0 });
+            positions.resize(model_number);
         } catch (const std::bad_alloc& /*e*/) {
             return status::io_not_enough_memory;
         }
@@ -562,12 +885,15 @@ private:
 
     status do_read_model(simulation& sim, int* id) noexcept
     {
-        update_error_report();
-        irt_return_if_fail((is >> *id >> temp_1),
-                           status::io_file_format_model_error);
+        irt_return_if_fail((is >> *id), status::io_file_format_model_error);
 
         irt_return_if_fail(0 <= *id && *id < model_number,
                            status::io_file_format_model_error);
+
+        irt_return_if_fail((is >> positions[*id].x >> positions[*id].y),
+                           status::io_file_format_model_error);
+
+        irt_return_if_fail((is >> temp_1), status::io_file_format_model_error);
 
         irt_return_if_bad(do_read_dynamics(sim, *id, temp_1));
 
@@ -579,7 +905,6 @@ private:
         while (is) {
             int mdl_src_id, port_src_index, mdl_dst_id, port_dst_index;
 
-            update_error_report();
             if (!(is >> mdl_src_id >> port_src_index >> mdl_dst_id >>
                   port_dst_index)) {
                 if (is.eof())
@@ -714,11 +1039,10 @@ private:
                            status::io_file_format_dynamics_unknown);
 
         auto& mdl = sim.alloc(type);
-        update_error_report();
 
-        auto ret =
-          sim.dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
-              irt_return_if_fail(this->read(dyn),
+        auto ret = sim.dispatch(
+          mdl, [this, &sim]<typename Dynamics>(Dynamics& dyn) -> status {
+              irt_return_if_fail(this->read(sim, dyn),
                                  status::io_file_format_dynamics_init_error);
 
               return status::success;
@@ -731,12 +1055,12 @@ private:
         return status::success;
     }
 
-    bool read(none& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, none& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss1_integrator& dyn) noexcept
+    bool read(simulation& /*sim*/, qss1_integrator& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_X));
         double& x2 = *(const_cast<double*>(&dyn.default_dQ));
@@ -744,7 +1068,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(qss2_integrator& dyn) noexcept
+    bool read(simulation& /*sim*/, qss2_integrator& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_X));
         double& x2 = *(const_cast<double*>(&dyn.default_dQ));
@@ -752,7 +1076,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(qss3_integrator& dyn) noexcept
+    bool read(simulation& /*sim*/, qss3_integrator& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_X));
         double& x2 = *(const_cast<double*>(&dyn.default_dQ));
@@ -760,27 +1084,27 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(qss1_multiplier& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss1_multiplier& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss1_sum_2& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss1_sum_2& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss1_sum_3& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss1_sum_3& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss1_sum_4& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss1_sum_4& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss1_wsum_2& dyn) noexcept
+    bool read(simulation& /*sim*/, qss1_wsum_2& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -788,7 +1112,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(qss1_wsum_3& dyn) noexcept
+    bool read(simulation& /*sim*/, qss1_wsum_3& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -797,7 +1121,7 @@ private:
         return !!(is >> x1 >> x2 >> x3);
     }
 
-    bool read(qss1_wsum_4& dyn) noexcept
+    bool read(simulation& /*sim*/, qss1_wsum_4& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -807,27 +1131,27 @@ private:
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }
 
-    bool read(qss2_multiplier& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss2_multiplier& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss2_sum_2& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss2_sum_2& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss2_sum_3& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss2_sum_3& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss2_sum_4& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss2_sum_4& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss2_wsum_2& dyn) noexcept
+    bool read(simulation& /*sim*/, qss2_wsum_2& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -835,7 +1159,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(qss2_wsum_3& dyn) noexcept
+    bool read(simulation& /*sim*/, qss2_wsum_3& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -844,7 +1168,7 @@ private:
         return !!(is >> x1 >> x2 >> x3);
     }
 
-    bool read(qss2_wsum_4& dyn) noexcept
+    bool read(simulation& /*sim*/, qss2_wsum_4& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -854,27 +1178,27 @@ private:
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }
 
-    bool read(qss3_multiplier& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss3_multiplier& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss3_sum_2& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss3_sum_2& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss3_sum_3& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss3_sum_3& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss3_sum_4& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss3_sum_4& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss3_wsum_2& dyn) noexcept
+    bool read(simulation& /*sim*/, qss3_wsum_2& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -882,7 +1206,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(qss3_wsum_3& dyn) noexcept
+    bool read(simulation& /*sim*/, qss3_wsum_3& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -891,7 +1215,7 @@ private:
         return !!(is >> x1 >> x2 >> x3);
     }
 
-    bool read(qss3_wsum_4& dyn) noexcept
+    bool read(simulation& /*sim*/, qss3_wsum_4& dyn) noexcept
     {
         double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
         double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
@@ -901,12 +1225,12 @@ private:
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }
 
-    bool read(integrator& dyn) noexcept
+    bool read(simulation& /*sim*/, integrator& dyn) noexcept
     {
         return !!(is >> dyn.default_current_value >> dyn.default_reset_value);
     }
 
-    bool read(quantifier& dyn) noexcept
+    bool read(simulation& /*sim*/, quantifier& dyn) noexcept
     {
         if (!(is >> dyn.default_step_size >> dyn.default_past_length >>
               temp_1 >> temp_2))
@@ -931,20 +1255,20 @@ private:
         return true;
     }
 
-    bool read(adder_2& dyn) noexcept
+    bool read(simulation& /*sim*/, adder_2& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_input_coeffs[0] >> dyn.default_input_coeffs[1]);
     }
 
-    bool read(adder_3& dyn) noexcept
+    bool read(simulation& /*sim*/, adder_3& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_values[2] >> dyn.default_input_coeffs[0] >>
                   dyn.default_input_coeffs[1] >> dyn.default_input_coeffs[2]);
     }
 
-    bool read(adder_4& dyn) noexcept
+    bool read(simulation& /*sim*/, adder_4& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_values[2] >> dyn.default_values[3] >>
@@ -952,20 +1276,20 @@ private:
                   dyn.default_input_coeffs[2] >> dyn.default_input_coeffs[3]);
     }
 
-    bool read(mult_2& dyn) noexcept
+    bool read(simulation& /*sim*/, mult_2& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_input_coeffs[0] >> dyn.default_input_coeffs[1]);
     }
 
-    bool read(mult_3& dyn) noexcept
+    bool read(simulation& /*sim*/, mult_3& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_values[2] >> dyn.default_input_coeffs[0] >>
                   dyn.default_input_coeffs[1] >> dyn.default_input_coeffs[2]);
     }
 
-    bool read(mult_4& dyn) noexcept
+    bool read(simulation& /*sim*/, mult_4& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_values[2] >> dyn.default_values[3] >>
@@ -973,97 +1297,209 @@ private:
                   dyn.default_input_coeffs[2] >> dyn.default_input_coeffs[3]);
     }
 
-    bool read(counter& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, counter& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(queue& dyn) noexcept
+    bool read(simulation& /*sim*/, queue& dyn) noexcept
     {
         return !!(is >> dyn.default_ta);
     }
 
-    bool read(dynamic_queue& dyn) noexcept
+    bool read_source(simulation& /*sim*/,
+                     source& src,
+                     int index,
+                     external_source_type type)
     {
-        return !!(is); /* @todo missing default_ta_source */
+        switch (type) {
+        case external_source_type::binary_file: {
+            auto it = binary_find(
+              binary_file_mapping.begin(),
+              binary_file_mapping.end(),
+              index,
+              [](const auto elem, int i) { return i == elem.index; });
+
+            if (it == binary_file_mapping.end())
+                return false;
+
+            src.type = ordinal(type);
+            src.id = it->value;
+            return true;
+        };
+
+        case external_source_type::constant: {
+            auto it = binary_find(
+              constant_mapping.begin(),
+              constant_mapping.end(),
+              index,
+              [](const auto elem, int i) { return i == elem.index; });
+            if (it == constant_mapping.end())
+                return false;
+
+            src.type = ordinal(type);
+            src.id = it->value;
+            return true;
+        };
+
+        case external_source_type::text_file: {
+            auto it = binary_find(
+              text_file_mapping.begin(),
+              text_file_mapping.end(),
+              index,
+              [](const auto elem, int i) { return i == elem.index; });
+            if (it == text_file_mapping.end())
+                return false;
+
+            src.type = ordinal(type);
+            src.id = it->value;
+            return true;
+        };
+
+        case external_source_type::random: {
+            auto it = binary_find(
+              random_mapping.begin(),
+              random_mapping.end(),
+              index,
+              [](const auto elem, int i) { return i == elem.index; });
+            if (it == random_mapping.end())
+                return false;
+
+            src.type = ordinal(type);
+            src.id = it->value;
+            return true;
+        };
+        }
+
+        irt_unreachable();
     }
 
-    bool read(priority_queue& dyn) noexcept
+    bool read(simulation& sim, dynamic_queue& dyn) noexcept
     {
-        return !!(is); /* @todo missing default_ta_source */
+        int index;
+        int type;
+
+        if (!(is >> index >> type))
+            return false;
+
+        external_source_type source_type;
+        if (external_source_type_cast(type, &source_type)) {
+            if (!read_source(sim, dyn.default_source_ta, index, source_type))
+                return false;
+        }
+
+        return true;
     }
 
-    bool read(generator& dyn) noexcept
+    bool read(simulation& sim, priority_queue& dyn) noexcept
     {
-        return !!(is >> dyn.default_offset);
+        int index;
+        int type;
+
+        if (!(is >> index >> type))
+            return false;
+
+        external_source_type source_type;
+        if (external_source_type_cast(type, &source_type)) {
+            if (!read_source(sim, dyn.default_source_ta, index, source_type))
+                return false;
+        }
+
+        return true;
     }
 
-    bool read(constant& dyn) noexcept
+    bool read(simulation& sim, generator& dyn) noexcept
+    {
+        int index[2];
+        int type[2];
+
+        if (!(is >> dyn.default_offset >> index[0] >> type[0] >> index[1] >>
+              type[1]))
+            return false;
+
+        external_source_type source_type;
+        if (external_source_type_cast(type[0], &source_type)) {
+            if (!read_source(sim, dyn.default_source_ta, index[0], source_type))
+                return false;
+        }
+
+        if (external_source_type_cast(type[1], &source_type)) {
+            if (!read_source(
+                  sim, dyn.default_source_value, index[1], source_type))
+                return false;
+        }
+
+        return true;
+    }
+
+    bool read(simulation& /*sim*/, constant& dyn) noexcept
     {
         return !!(is >> dyn.default_value);
     }
 
-    bool read(qss1_cross& dyn) noexcept
+    bool read(simulation& /*sim*/, qss1_cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
     }
 
-    bool read(qss2_cross& dyn) noexcept
+    bool read(simulation& /*sim*/, qss2_cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
     }
 
-    bool read(qss3_cross& dyn) noexcept
+    bool read(simulation& /*sim*/, qss3_cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
     }
 
-    bool read(qss1_power& dyn) noexcept
+    bool read(simulation& /*sim*/, qss1_power& dyn) noexcept
     {
         return !!(is >> dyn.default_n);
     }
 
-    bool read(qss2_power& dyn) noexcept
+    bool read(simulation& /*sim*/, qss2_power& dyn) noexcept
     {
         return !!(is >> dyn.default_n);
     }
 
-    bool read(qss3_power& dyn) noexcept
+    bool read(simulation& /*sim*/, qss3_power& dyn) noexcept
     {
         return !!(is >> dyn.default_n);
     }
 
-    bool read(qss1_square& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss1_square& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss2_square& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss2_square& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(qss3_square& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, qss3_square& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(cross& dyn) noexcept
+    bool read(simulation& /*sim*/, cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
     }
 
-    bool read(accumulator_2& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, accumulator_2& /*dyn*/) noexcept
     {
         return true;
     }
 
-    bool read(time_func& dyn) noexcept
+    bool read(simulation& /*sim*/, time_func& dyn) noexcept
     {
         if (!(is >> temp_1))
             return false;
 
-        if (std::strcmp(temp_1, "square") == 0)
+        if (std::strcmp(temp_1, "sin") == 0)
+            dyn.default_f = &sin_time_function;
+        else if (std::strcmp(temp_1, "square") == 0)
             dyn.default_f = &square_time_function;
         else
             dyn.default_f = &time_function;
@@ -1071,7 +1507,7 @@ private:
         return true;
     }
 
-    bool read(flow& dyn) noexcept
+    bool read(simulation& /*sim*/, flow& dyn) noexcept
     {
         return !!(is >> dyn.default_samplerate);
     }
@@ -1080,38 +1516,85 @@ private:
 struct writer
 {
     std::ostream& os;
-
     std::vector<model_id> map;
 
     writer(std::ostream& os_) noexcept
       : os(os_)
     {}
 
-    status operator()(const simulation& sim) noexcept
+    void write_constant_sources(
+      const data_array<constant_source, constant_source_id>& srcs)
     {
-        os << sim.models.size() << '\n';
+        os << srcs.size() << '\n';
+        if (srcs.size() > 0u) {
+            constant_source* src = nullptr;
+            while (srcs.next(src)) {
+                const auto id = srcs.get_id(src);
+                const auto index = get_index(id);
+                os << index << ' ' << src->buffer.size();
 
-        try {
-            map.resize(sim.models.size(), model_id{ 0 });
-        } catch (const std::bad_alloc& /*e*/) {
-            return status::io_not_enough_memory;
+                for (const auto elem : src->buffer)
+                    os << ' ' << elem;
+
+                os << '\n';
+            }
         }
+    }
 
+    void write_binary_file_sources(
+      const data_array<binary_file_source, binary_file_source_id>& srcs)
+    {
+        os << srcs.size() << '\n';
+        if (srcs.size() > 0u) {
+            binary_file_source* src = nullptr;
+            while (srcs.next(src)) {
+                const auto id = srcs.get_id(src);
+                const auto index = get_index(id);
+
+                os << index << ' ' << std::quoted(src->file_path.string())
+                   << '\n';
+            }
+        }
+    }
+
+    void write_text_file_sources(
+      const data_array<text_file_source, text_file_source_id>& srcs)
+    {
+        os << srcs.size() << '\n';
+        if (srcs.size() > 0u) {
+            text_file_source* src = nullptr;
+            while (srcs.next(src)) {
+                const auto id = srcs.get_id(src);
+                const auto index = get_index(id);
+
+                os << index << ' ' << std::quoted(src->file_path.string())
+                   << '\n';
+            }
+        }
+    }
+
+    void write_random_sources(
+      const data_array<random_source, random_source_id>& srcs)
+    {
+        os << srcs.size() << '\n';
+        if (srcs.size() > 0u) {
+            random_source* src = nullptr;
+            while (srcs.next(src)) {
+                const auto id = srcs.get_id(src);
+                const auto index = get_index(id);
+
+                os << index << ' ' << distribution_str(src->distribution);
+
+                write(*src);
+
+                os << '\n';
+            }
+        }
+    }
+
+    void write_connections(const simulation& sim)
+    {
         model* mdl = nullptr;
-        int id = 0;
-        while (sim.models.next(mdl)) {
-            const auto mdl_id = sim.models.get_id(mdl);
-
-            os << id << ' ';
-            map[id] = mdl_id;
-
-            sim.dispatch(*mdl,
-                         [this, mdl](auto& dyn) -> void { this->write(dyn); });
-
-            ++id;
-        }
-
-        mdl = nullptr;
         while (sim.models.next(mdl)) {
             sim.dispatch(
               *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
@@ -1140,161 +1623,317 @@ struct writer
                   }
               });
         }
+    }
+
+    void write_model(const simulation& sim)
+    {
+        model* mdl = nullptr;
+        int id = 0;
+        while (sim.models.next(mdl)) {
+            const auto mdl_id = sim.models.get_id(mdl);
+            map[id] = mdl_id;
+
+            os << id << " 0.0 0.0 ";
+
+            sim.dispatch(
+              *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
+
+            ++id;
+        }
+    }
+
+    void write_model(const simulation& sim,
+                     function_ref<void(model_id, float& x, float& y)> get_pos)
+    {
+        model* mdl = nullptr;
+        int id = 0;
+
+        while (sim.models.next(mdl)) {
+            const auto mdl_id = sim.models.get_id(mdl);
+            map[id] = mdl_id;
+
+            float x = 0., y = 0.;
+            get_pos(mdl_id, x, y);
+            os << id << ' ' << x << ' ' << y << ' ';
+
+            sim.dispatch(
+              *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
+
+            ++id;
+        }
+    }
+
+    status operator()(const simulation& sim,
+                      const external_source& srcs) noexcept
+    {
+        write_constant_sources(srcs.constant_sources);
+        write_binary_file_sources(srcs.binary_file_sources);
+        write_text_file_sources(srcs.text_file_sources);
+        write_random_sources(srcs.random_sources);
+
+        try {
+            map.resize(sim.models.size(), undefined<model_id>());
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::io_not_enough_memory;
+        }
+
+        os << sim.models.size() << '\n';
+        write_model(sim);
+        write_connections(sim);
+
+        return status::success;
+    }
+
+    status operator()(
+      const simulation& sim,
+      const external_source& srcs,
+      function_ref<void(model_id, float&, float&)> get_pos) noexcept
+    {
+        write_constant_sources(srcs.constant_sources);
+        write_binary_file_sources(srcs.binary_file_sources);
+        write_text_file_sources(srcs.text_file_sources);
+        write_random_sources(srcs.random_sources);
+
+        try {
+            map.resize(sim.models.size(), undefined<model_id>());
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::io_not_enough_memory;
+        }
+
+        os << sim.models.size() << '\n';
+        write_model(sim, get_pos);
+        write_connections(sim);
 
         return status::success;
     }
 
 private:
-    void write(const none& /*dyn*/) noexcept
+    void write(const random_source& src) noexcept
+    {
+        switch (src.distribution) {
+        case distribution_type::uniform_int:
+            os << src.a32 << ' ' << src.b32;
+            break;
+
+        case distribution_type::uniform_real:
+            os << src.a << ' ' << src.b;
+            break;
+
+        case distribution_type::bernouilli:
+            os << src.p;
+            break;
+
+        case distribution_type::binomial:
+            os << src.t32 << ' ' << src.p;
+            break;
+
+        case distribution_type::negative_binomial:
+            os << src.t32 << ' ' << src.p;
+            break;
+
+        case distribution_type::geometric:
+            os << src.p;
+            break;
+
+        case distribution_type::poisson:
+            os << src.mean;
+            break;
+
+        case distribution_type::exponential:
+            os << src.lambda;
+            break;
+
+        case distribution_type::gamma:
+            os << src.alpha << ' ' << src.beta;
+            break;
+
+        case distribution_type::weibull:
+            os << src.a << ' ' << src.b;
+            break;
+
+        case distribution_type::exterme_value:
+            os << src.a << ' ' << src.b;
+            break;
+
+        case distribution_type::normal:
+            os << src.mean << ' ' << src.stddev;
+            break;
+
+        case distribution_type::lognormal:
+            os << src.m << ' ' << src.s;
+            break;
+
+        case distribution_type::chi_squared:
+            os << src.n;
+            break;
+
+        case distribution_type::cauchy:
+            os << src.a << ' ' << src.b;
+            break;
+
+        case distribution_type::fisher_f:
+            os << src.m << ' ' << src.n;
+            break;
+
+        case distribution_type::student_t:
+            os << src.n;
+            break;
+        }
+    }
+
+    void write(const simulation& /*sim*/, const none& /*dyn*/) noexcept
     {
         os << "none\n";
     }
 
-    void write(const qss1_integrator& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss1_integrator& dyn) noexcept
     {
         os << "qss1_integrator " << dyn.default_X << ' ' << dyn.default_dQ
            << '\n';
     }
 
-    void write(const qss2_integrator& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss2_integrator& dyn) noexcept
     {
         os << "qss2_integrator " << dyn.default_X << ' ' << dyn.default_dQ
            << '\n';
     }
 
-    void write(const qss3_integrator& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss3_integrator& dyn) noexcept
     {
         os << "qss3_integrator " << dyn.default_X << ' ' << dyn.default_dQ
            << '\n';
     }
 
-    void write(const qss1_multiplier& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/,
+               const qss1_multiplier& /*dyn*/) noexcept
     {
         os << "qss1_multiplier\n";
     }
 
-    void write(const qss1_sum_2& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss1_sum_2& /*dyn*/) noexcept
     {
         os << "qss1_sum_2\n";
     }
 
-    void write(const qss1_sum_3& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss1_sum_3& /*dyn*/) noexcept
     {
         os << "qss1_sum_3\n";
     }
 
-    void write(const qss1_sum_4& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss1_sum_4& /*dyn*/) noexcept
     {
         os << "qss1_sum_4\n";
     }
 
-    void write(const qss1_wsum_2& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss1_wsum_2& dyn) noexcept
     {
         os << "qss1_wsum_2 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const qss1_wsum_3& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss1_wsum_3& dyn) noexcept
     {
         os << "qss1_wsum_3 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << '\n';
     }
 
-    void write(const qss1_wsum_4& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss1_wsum_4& dyn) noexcept
     {
         os << "qss1_wsum_4 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const qss2_multiplier& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/,
+               const qss2_multiplier& /*dyn*/) noexcept
     {
         os << "qss2_multiplier\n";
     }
 
-    void write(const qss2_sum_2& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss2_sum_2& /*dyn*/) noexcept
     {
         os << "qss2_sum_2\n";
     }
 
-    void write(const qss2_sum_3& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss2_sum_3& /*dyn*/) noexcept
     {
         os << "qss2_sum_3\n";
     }
 
-    void write(const qss2_sum_4& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss2_sum_4& /*dyn*/) noexcept
     {
         os << "qss2_sum_4\n";
     }
 
-    void write(const qss2_wsum_2& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss2_wsum_2& dyn) noexcept
     {
         os << "qss2_wsum_2 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const qss2_wsum_3& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss2_wsum_3& dyn) noexcept
     {
         os << "qss2_wsum_3 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << '\n';
     }
 
-    void write(const qss2_wsum_4& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss2_wsum_4& dyn) noexcept
     {
         os << "qss2_wsum_4 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const qss3_multiplier& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/,
+               const qss3_multiplier& /*dyn*/) noexcept
     {
         os << "qss3_multiplier\n";
     }
 
-    void write(const qss3_sum_2& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss3_sum_2& /*dyn*/) noexcept
     {
         os << "qss3_sum_2\n";
     }
 
-    void write(const qss3_sum_3& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss3_sum_3& /*dyn*/) noexcept
     {
         os << "qss3_sum_3\n";
     }
 
-    void write(const qss3_sum_4& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss3_sum_4& /*dyn*/) noexcept
     {
         os << "qss3_sum_4\n";
     }
 
-    void write(const qss3_wsum_2& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss3_wsum_2& dyn) noexcept
     {
         os << "qss3_wsum_2 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const qss3_wsum_3& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss3_wsum_3& dyn) noexcept
     {
         os << "qss3_wsum_3 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << '\n';
     }
 
-    void write(const qss3_wsum_4& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss3_wsum_4& dyn) noexcept
     {
         os << "qss3_wsum_4 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const integrator& dyn) noexcept
+    void write(const simulation& /*sim*/, const integrator& dyn) noexcept
     {
         os << "integrator " << dyn.default_current_value << ' '
            << dyn.default_reset_value << '\n';
     }
 
-    void write(const quantifier& dyn) noexcept
+    void write(const simulation& /*sim*/, const quantifier& dyn) noexcept
     {
         os << "quantifier " << dyn.default_step_size << ' '
            << dyn.default_past_length << ' '
@@ -1306,14 +1945,14 @@ private:
            << (dyn.default_zero_init_offset == true ? "true\n" : "false\n");
     }
 
-    void write(const adder_2& dyn) noexcept
+    void write(const simulation& /*sim*/, const adder_2& dyn) noexcept
     {
         os << "adder_2 " << dyn.default_values[0] << ' '
            << dyn.default_values[1] << ' ' << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const adder_3& dyn) noexcept
+    void write(const simulation& /*sim*/, const adder_3& dyn) noexcept
     {
         os << "adder_3 " << dyn.default_values[0] << ' '
            << dyn.default_values[1] << ' ' << dyn.default_values[2] << ' '
@@ -1321,7 +1960,7 @@ private:
            << ' ' << dyn.default_input_coeffs[2] << '\n';
     }
 
-    void write(const adder_4& dyn) noexcept
+    void write(const simulation& /*sim*/, const adder_4& dyn) noexcept
     {
         os << "adder_4 " << dyn.default_values[0] << ' '
            << dyn.default_values[1] << ' ' << dyn.default_values[2] << ' '
@@ -1330,14 +1969,14 @@ private:
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const mult_2& dyn) noexcept
+    void write(const simulation& /*sim*/, const mult_2& dyn) noexcept
     {
         os << "mult_2 " << dyn.default_values[0] << ' ' << dyn.default_values[1]
            << ' ' << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const mult_3& dyn) noexcept
+    void write(const simulation& /*sim*/, const mult_3& dyn) noexcept
     {
         os << "mult_3 " << dyn.default_values[0] << ' ' << dyn.default_values[1]
            << ' ' << dyn.default_values[2] << ' ' << dyn.default_input_coeffs[0]
@@ -1345,7 +1984,7 @@ private:
            << dyn.default_input_coeffs[2] << '\n';
     }
 
-    void write(const mult_4& dyn) noexcept
+    void write(const simulation& /*sim*/, const mult_4& dyn) noexcept
     {
         os << "mult_4 " << dyn.default_values[0] << ' ' << dyn.default_values[1]
            << ' ' << dyn.default_values[2] << ' ' << dyn.default_values[3]
@@ -1354,98 +1993,114 @@ private:
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const counter& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const counter& /*dyn*/) noexcept
     {
         os << "counter\n";
     }
 
-    void write(const queue& dyn) noexcept
+    void write(const source& src) noexcept
+    {
+        u32 a, b;
+        unpack_doubleword(src.id, &a, &b);
+        os << b << ' ' << src.type;
+    }
+
+    void write(const simulation& /*sim*/, const queue& dyn) noexcept
     {
         os << "queue " << dyn.default_ta << '\n';
     }
 
-    void write(const dynamic_queue& dyn) noexcept
+    void write(const simulation& /*sim*/, const dynamic_queue& dyn) noexcept
     {
-        os << "dynamic_queue " << '\n'; /* @todo missing default_ta_source */
+        os << "dynamic_queue ";
+        write(dyn.default_source_ta);
+        os << '\n';
     }
 
-    void write(const priority_queue& dyn) noexcept
+    void write(const simulation& /*sim*/, const priority_queue& dyn) noexcept
     {
-        os << "priority_queue " << '\n'; /* @todo missing default_ta_source */
+        os << "priority_queue ";
+        write(dyn.default_source_ta);
+        os << '\n';
     }
 
-    void write(const generator& dyn) noexcept
+    void write(const simulation& /*sim*/, const generator& dyn) noexcept
     {
-        os << "generator " << ' ' << dyn.default_offset << '\n';
+        os << "generator " << dyn.default_offset << ' ';
+
+        write(dyn.default_source_ta);
+        os << ' ';
+        write(dyn.default_source_value);
+        os << '\n';
     }
 
-    void write(const constant& dyn) noexcept
+    void write(const simulation& /*sim*/, const constant& dyn) noexcept
     {
         os << "constant " << dyn.default_value << '\n';
     }
 
-    void write(const qss1_cross& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss1_cross& dyn) noexcept
     {
         os << "qss1_cross " << dyn.default_threshold << '\n';
     }
 
-    void write(const qss2_cross& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss2_cross& dyn) noexcept
     {
         os << "qss2_cross " << dyn.default_threshold << '\n';
     }
 
-    void write(const qss3_cross& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss3_cross& dyn) noexcept
     {
         os << "qss3_cross " << dyn.default_threshold << '\n';
     }
 
-    void write(const qss1_power& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss1_power& dyn) noexcept
     {
         os << "qss1_power " << dyn.default_n << '\n';
     }
 
-    void write(const qss2_power& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss2_power& dyn) noexcept
     {
         os << "qss2_power " << dyn.default_n << '\n';
     }
 
-    void write(const qss3_power& dyn) noexcept
+    void write(const simulation& /*sim*/, const qss3_power& dyn) noexcept
     {
         os << "qss3_power " << dyn.default_n << '\n';
     }
 
-    void write(const qss1_square& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss1_square& /*dyn*/) noexcept
     {
         os << "qss1_square\n";
     }
 
-    void write(const qss2_square& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss2_square& /*dyn*/) noexcept
     {
         os << "qss2_square\n";
     }
 
-    void write(const qss3_square& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const qss3_square& /*dyn*/) noexcept
     {
         os << "qss3_square\n";
     }
 
-    void write(const cross& dyn) noexcept
+    void write(const simulation& /*sim*/, const cross& dyn) noexcept
     {
         os << "cross " << dyn.default_threshold << '\n';
     }
 
-    void write(const accumulator_2& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const accumulator_2& /*dyn*/) noexcept
     {
         os << "accumulator_2\n";
     }
 
-    void write(const time_func& dyn) noexcept
+    void write(const simulation& /*sim*/, const time_func& dyn) noexcept
     {
         os << "time_func "
            << (dyn.default_f == &time_function ? "time\n" : "square\n");
     }
 
-    void write(const flow& dyn) noexcept
+    void write(const simulation& /*sim*/, const flow& dyn) noexcept
     {
         os << "flow " << dyn.default_samplerate << '\n';
     }

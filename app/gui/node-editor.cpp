@@ -7,10 +7,9 @@
 #define WINDOWS_LEAN_AND_MEAN
 #endif
 
-#include "node-editor.hpp"
-#include "gui.hpp"
-#include "imnodes.hpp"
-#include "implot.h"
+#include "application.hpp"
+#include "dialog.hpp"
+#include "internal.hpp"
 
 #include <cinttypes>
 #include <fstream>
@@ -27,6 +26,87 @@ static ImVec4
 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
+}
+
+inline int
+make_input_node_id(const irt::model_id mdl, const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    irt::u32 index = irt::get_index(mdl);
+    irt_assert(index < 268435456u);
+
+    irt::u32 port_index = static_cast<irt::u32>(port) << 28u;
+    index |= port_index;
+
+    return static_cast<int>(index);
+}
+
+inline int
+make_output_node_id(const irt::model_id mdl, const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    irt::u32 index = irt::get_index(mdl);
+    irt_assert(index < 268435456u);
+
+    irt::u32 port_index = static_cast<irt::u32>(8u + port) << 28u;
+
+    index |= port_index;
+
+    return static_cast<int>(index);
+}
+
+inline std::pair<irt::u32, irt::u32>
+get_model_input_port(const int node_id) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    irt::u32 port = real_node_id >> 28u;
+    irt_assert(port < 8u);
+
+    constexpr irt::u32 mask = ~(15u << 28u);
+    irt::u32 index = real_node_id & mask;
+
+    return std::make_pair(index, port);
+}
+
+inline std::pair<irt::u32, irt::u32>
+get_model_output_port(const int node_id) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    irt::u32 port = real_node_id >> 28u;
+
+    irt_assert(port >= 8u && port < 16u);
+    port -= 8u;
+    irt_assert(port < 8u);
+
+    constexpr irt::u32 mask = ~(15u << 28u);
+
+    irt::u32 index = real_node_id & mask;
+
+    return std::make_pair(index, port);
+}
+
+editor::editor() noexcept
+{
+    context = ImNodes::EditorContextCreate();
+    ImNodes::PushAttributeFlag(
+      ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
+    ImNodesIO& io = ImNodes::GetIO();
+    io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
+
+    settings.compute_colors();
+}
+
+editor::~editor() noexcept
+{
+    if (context) {
+        ImNodes::EditorContextSet(context);
+        ImNodes::PopAttributeFlag();
+        ImNodes::EditorContextFree(context);
+    }
 }
 
 void
@@ -46,14 +126,6 @@ editor::settings_manager::compute_colors() noexcept
       ImGui::ColorConvertFloat4ToU32(gui_cluster_color * 1.25f);
     gui_selected_cluster_color =
       ImGui::ColorConvertFloat4ToU32(gui_cluster_color * 1.5f);
-}
-
-template<size_t N, typename... Args>
-void
-format(small_string<N>& str, const char* fmt, const Args&... args)
-{
-    auto ret = fmt::format_to_n(str.begin(), N - 1, fmt, args...);
-    str.size(ret.size);
 }
 
 void
@@ -738,7 +810,7 @@ editor::compute_grid_layout() noexcept
         remaining -= column;
     }
 
-    const auto panning = imnodes::EditorContextGetPanning();
+    const auto panning = ImNodes::EditorContextGetPanning();
     auto new_pos = panning;
 
     int elem = 0;
@@ -749,7 +821,7 @@ editor::compute_grid_layout() noexcept
         for (int j = 0; j < line; ++j) {
             new_pos.x = panning.x +
                         static_cast<float>(j) * settings.grid_layout_x_distance;
-            imnodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
+            ImNodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
             positions[elem].x = new_pos.x;
             positions[elem].y = new_pos.y;
             ++elem;
@@ -762,13 +834,13 @@ editor::compute_grid_layout() noexcept
     for (int j = 0; j < remaining; ++j) {
         new_pos.x =
           panning.x + static_cast<float>(j) * settings.grid_layout_x_distance;
-        imnodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
+        ImNodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
         positions[elem].x = new_pos.x;
         positions[elem].y = new_pos.y;
         ++elem;
     }
 
-    imnodes::EditorContextResetPanning(positions[0]);
+    ImNodes::EditorContextResetPanning(positions[0]);
 }
 
 void
@@ -872,11 +944,11 @@ editor::compute_automatic_layout() noexcept
             positions[v].x += displacements[v].x;
             positions[v].y += displacements[v].y;
 
-            imnodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
+            ImNodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
         }
     }
 
-    imnodes::EditorContextResetPanning(positions[0]);
+    ImNodes::EditorContextResetPanning(positions[0]);
 }
 
 status
@@ -945,6 +1017,9 @@ editor::initialize(u32 id) noexcept
     irt_return_if_bad(
       file_discrete_outs.init(to_unsigned(settings.kernel_model_cache)));
 
+    irt_return_if_bad(srcs.init(50));
+    sim.source_dispatch = srcs;
+
     try {
         observation_outputs.resize(sim.models.capacity());
         models_mapper.resize(sim.models.capacity(), undefined<cluster_id>());
@@ -966,8 +1041,6 @@ editor::initialize(u32 id) noexcept
     synchronize_timestep = 0.;
 
     format(name, "Editor {}", id);
-
-    initialized = true;
 
     return status::success;
 }
@@ -1186,7 +1259,7 @@ show_connection(editor& ed, const model& mdl, int port, int connection_id)
                   if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
                       mdl_dst) {
                       int in = make_input_node_id(c.model, c.port_index);
-                      imnodes::Link(connection_id++, out, in);
+                      ImNodes::Link(connection_id++, out, in);
                   }
               }
           }
@@ -1209,7 +1282,7 @@ show_connection(editor& ed, const model& mdl, int connection_id)
                       if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
                           mdl_dst) {
                           int in = make_input_node_id(c.model, c.port_index);
-                          imnodes::Link(connection_id++, out, in);
+                          ImNodes::Link(connection_id++, out, in);
                       }
                   }
               }
@@ -1256,10 +1329,10 @@ editor::show_model_cluster(cluster& mdl) noexcept
         while (it != end) {
             const auto node = get_in(*it);
             if (node.model) {
-                imnodes::BeginInputAttribute(*it,
-                                             imnodes::PinShape_TriangleFilled);
+                ImNodes::BeginInputAttribute(*it,
+                                             ImNodesPinShape_TriangleFilled);
                 ImGui::TextUnformatted("");
-                imnodes::EndInputAttribute();
+                ImNodes::EndInputAttribute();
                 ++it;
             } else {
                 it = mdl.input_ports.erase(it);
@@ -1275,10 +1348,10 @@ editor::show_model_cluster(cluster& mdl) noexcept
             const auto node = get_out(*it);
 
             if (node.model) {
-                imnodes::BeginOutputAttribute(*it,
-                                              imnodes::PinShape_TriangleFilled);
+                ImNodes::BeginOutputAttribute(*it,
+                                              ImNodesPinShape_TriangleFilled);
                 ImGui::TextUnformatted("");
-                imnodes::EndOutputAttribute();
+                ImNodes::EndOutputAttribute();
                 ++it;
             } else {
                 it = mdl.output_ports.erase(it);
@@ -1301,10 +1374,10 @@ add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
 
             assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
 
-            imnodes::BeginInputAttribute(make_input_node_id(mdl_id, (int)i),
-                                         imnodes::PinShape_TriangleFilled);
+            ImNodes::BeginInputAttribute(make_input_node_id(mdl_id, (int)i),
+                                         ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
-            imnodes::EndInputAttribute();
+            ImNodes::EndInputAttribute();
         }
     }
 }
@@ -1324,48 +1397,48 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
 
             assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
 
-            imnodes::BeginOutputAttribute(make_output_node_id(mdl_id, (int)i),
-                                          imnodes::PinShape_TriangleFilled);
+            ImNodes::BeginOutputAttribute(make_output_node_id(mdl_id, (int)i),
+                                          ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
-            imnodes::EndOutputAttribute();
+            ImNodes::EndOutputAttribute();
         }
     }
 }
 
 static void
-show_dynamics_values(const none& /*dyn*/)
+show_dynamics_values(simulation& /*sim*/, const none& /*dyn*/)
 {}
 
 static void
-show_dynamics_values(const qss1_integrator& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_integrator& dyn)
 {
     ImGui::Text("X %.3f", dyn.X);
     ImGui::Text("dQ %.3f", dyn.default_dQ);
 }
 
 static void
-show_dynamics_values(const qss2_integrator& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_integrator& dyn)
 {
     ImGui::Text("X %.3f", dyn.X);
     ImGui::Text("dQ %.3f", dyn.default_dQ);
 }
 
 static void
-show_dynamics_values(const qss3_integrator& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_integrator& dyn)
 {
     ImGui::Text("X %.3f", dyn.X);
     ImGui::Text("dQ %.3f", dyn.default_dQ);
 }
 
 static void
-show_dynamics_values(const qss1_sum_2& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_sum_2& dyn)
 {
     ImGui::Text("%.3f", dyn.values[0]);
     ImGui::Text("%.3f", dyn.values[1]);
 }
 
 static void
-show_dynamics_values(const qss1_sum_3& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_sum_3& dyn)
 {
     ImGui::Text("%.3f", dyn.values[0]);
     ImGui::Text("%.3f", dyn.values[1]);
@@ -1373,7 +1446,7 @@ show_dynamics_values(const qss1_sum_3& dyn)
 }
 
 static void
-show_dynamics_values(const qss1_sum_4& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_sum_4& dyn)
 {
     ImGui::Text("%.3f", dyn.values[0]);
     ImGui::Text("%.3f", dyn.values[1]);
@@ -1382,21 +1455,21 @@ show_dynamics_values(const qss1_sum_4& dyn)
 }
 
 static void
-show_dynamics_values(const qss1_multiplier& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_multiplier& dyn)
 {
     ImGui::Text("%.3f", dyn.values[0]);
     ImGui::Text("%.3f", dyn.values[1]);
 }
 
 static void
-show_dynamics_values(const qss1_wsum_2& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_wsum_2& dyn)
 {
     ImGui::Text("%.3f", dyn.values[0]);
     ImGui::Text("%.3f", dyn.values[1]);
 }
 
 static void
-show_dynamics_values(const qss1_wsum_3& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_wsum_3& dyn)
 {
     ImGui::Text("%.3f", dyn.values[0]);
     ImGui::Text("%.3f", dyn.values[1]);
@@ -1404,7 +1477,7 @@ show_dynamics_values(const qss1_wsum_3& dyn)
 }
 
 static void
-show_dynamics_values(const qss1_wsum_4& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_wsum_4& dyn)
 {
     ImGui::Text("%.3f", dyn.values[0]);
     ImGui::Text("%.3f", dyn.values[1]);
@@ -1413,14 +1486,14 @@ show_dynamics_values(const qss1_wsum_4& dyn)
 }
 
 static void
-show_dynamics_values(const qss2_sum_2& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_sum_2& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
 }
 
 static void
-show_dynamics_values(const qss2_sum_3& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_sum_3& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[3]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[4]);
@@ -1428,7 +1501,7 @@ show_dynamics_values(const qss2_sum_3& dyn)
 }
 
 static void
-show_dynamics_values(const qss2_sum_4& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_sum_4& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[4]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[5]);
@@ -1437,21 +1510,21 @@ show_dynamics_values(const qss2_sum_4& dyn)
 }
 
 static void
-show_dynamics_values(const qss2_multiplier& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_multiplier& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
 }
 
 static void
-show_dynamics_values(const qss2_wsum_2& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_wsum_2& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
 }
 
 static void
-show_dynamics_values(const qss2_wsum_3& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_wsum_3& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[3]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[4]);
@@ -1459,7 +1532,7 @@ show_dynamics_values(const qss2_wsum_3& dyn)
 }
 
 static void
-show_dynamics_values(const qss2_wsum_4& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_wsum_4& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[4]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[5]);
@@ -1468,14 +1541,14 @@ show_dynamics_values(const qss2_wsum_4& dyn)
 }
 
 static void
-show_dynamics_values(const qss3_sum_2& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_sum_2& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
 }
 
 static void
-show_dynamics_values(const qss3_sum_3& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_sum_3& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[3]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[4]);
@@ -1483,7 +1556,7 @@ show_dynamics_values(const qss3_sum_3& dyn)
 }
 
 static void
-show_dynamics_values(const qss3_sum_4& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_sum_4& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[4]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[5]);
@@ -1492,21 +1565,21 @@ show_dynamics_values(const qss3_sum_4& dyn)
 }
 
 static void
-show_dynamics_values(const qss3_multiplier& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_multiplier& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
 }
 
 static void
-show_dynamics_values(const qss3_wsum_2& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_wsum_2& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[2]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[3]);
 }
 
 static void
-show_dynamics_values(const qss3_wsum_3& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_wsum_3& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[3]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[4]);
@@ -1514,7 +1587,7 @@ show_dynamics_values(const qss3_wsum_3& dyn)
 }
 
 static void
-show_dynamics_values(const qss3_wsum_4& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_wsum_4& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.values[0], dyn.values[4]);
     ImGui::Text("%.3f %.3f", dyn.values[1], dyn.values[5]);
@@ -1523,51 +1596,27 @@ show_dynamics_values(const qss3_wsum_4& dyn)
 }
 
 static void
-show_dynamics_values(const integrator& dyn)
+show_dynamics_values(simulation& /*sim*/, const integrator& dyn)
 {
     ImGui::Text("value %.3f", dyn.current_value);
 }
 
 static void
-show_dynamics_values(const quantifier& dyn)
+show_dynamics_values(simulation& /*sim*/, const quantifier& dyn)
 {
     ImGui::Text("up threshold %.3f", dyn.m_upthreshold);
     ImGui::Text("down threshold %.3f", dyn.m_downthreshold);
 }
 
 static void
-show_dynamics_values(const adder_2& dyn)
+show_dynamics_values(simulation& /*sim*/, const adder_2& dyn)
 {
     ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
     ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
 }
 
 static void
-show_dynamics_values(const adder_3& dyn)
-{
-    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-    ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
-}
-
-static void
-show_dynamics_values(const adder_4& dyn)
-{
-    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-    ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
-    ImGui::Text("%.3f * %.3f", dyn.values[3], dyn.input_coeffs[3]);
-}
-
-static void
-show_dynamics_values(const mult_2& dyn)
-{
-    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
-}
-
-static void
-show_dynamics_values(const mult_3& dyn)
+show_dynamics_values(simulation& /*sim*/, const adder_3& dyn)
 {
     ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
     ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
@@ -1575,7 +1624,7 @@ show_dynamics_values(const mult_3& dyn)
 }
 
 static void
-show_dynamics_values(const mult_4& dyn)
+show_dynamics_values(simulation& /*sim*/, const adder_4& dyn)
 {
     ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
     ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
@@ -1584,13 +1633,37 @@ show_dynamics_values(const mult_4& dyn)
 }
 
 static void
-show_dynamics_values(const counter& dyn)
+show_dynamics_values(simulation& /*sim*/, const mult_2& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+}
+
+static void
+show_dynamics_values(simulation& /*sim*/, const mult_3& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+    ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+}
+
+static void
+show_dynamics_values(simulation& /*sim*/, const mult_4& dyn)
+{
+    ImGui::Text("%.3f * %.3f", dyn.values[0], dyn.input_coeffs[0]);
+    ImGui::Text("%.3f * %.3f", dyn.values[1], dyn.input_coeffs[1]);
+    ImGui::Text("%.3f * %.3f", dyn.values[2], dyn.input_coeffs[2]);
+    ImGui::Text("%.3f * %.3f", dyn.values[3], dyn.input_coeffs[3]);
+}
+
+static void
+show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 {
     ImGui::Text("number %ld", static_cast<long>(dyn.number));
 }
 
 static void
-show_dynamics_values(const queue& dyn)
+show_dynamics_values(simulation& /*sim*/, const queue& dyn)
 {
     if (dyn.queue.empty()) {
         ImGui::Text("empty");
@@ -1602,7 +1675,7 @@ show_dynamics_values(const queue& dyn)
 }
 
 static void
-show_dynamics_values(const dynamic_queue& dyn)
+show_dynamics_values(simulation& /*sim*/, const dynamic_queue& dyn)
 {
     if (dyn.queue.empty()) {
         ImGui::Text("empty");
@@ -1614,7 +1687,7 @@ show_dynamics_values(const dynamic_queue& dyn)
 }
 
 static void
-show_dynamics_values(const priority_queue& dyn)
+show_dynamics_values(simulation& /*sim*/, const priority_queue& dyn)
 {
     if (dyn.queue.empty()) {
         ImGui::Text("empty");
@@ -1626,20 +1699,21 @@ show_dynamics_values(const priority_queue& dyn)
 }
 
 static void
-show_dynamics_values(const generator& dyn)
+show_dynamics_values(simulation& /*sim*/, const generator& dyn)
 {
     ImGui::Text("next %.3f", dyn.sigma);
 }
 
 static void
-show_dynamics_values(const constant& dyn)
+show_dynamics_values(simulation& /*sim*/, const constant& dyn)
 {
+    ImGui::Text("next %.3f", dyn.sigma);
     ImGui::Text("value %.3f", dyn.value);
 }
 
 template<int QssLevel>
 static void
-show_dynamics_values(const abstract_cross<QssLevel>& dyn)
+show_dynamics_values(simulation& /*sim*/, const abstract_cross<QssLevel>& dyn)
 {
     ImGui::Text("threshold: %.3f", dyn.threshold);
     ImGui::Text("value: %.3f", dyn.value[0]);
@@ -1653,43 +1727,43 @@ show_dynamics_values(const abstract_cross<QssLevel>& dyn)
 }
 
 static void
-show_dynamics_values(const qss1_power& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_power& dyn)
 {
     ImGui::Text("%.3f", dyn.value[0]);
 }
 
 static void
-show_dynamics_values(const qss2_power& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_power& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.value[0], dyn.value[1]);
 }
 
 static void
-show_dynamics_values(const qss3_power& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_power& dyn)
 {
     ImGui::Text("%.3f %.3f %.3f", dyn.value[0], dyn.value[1], dyn.value[2]);
 }
 
 static void
-show_dynamics_values(const qss1_square& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss1_square& dyn)
 {
     ImGui::Text("%.3f", dyn.value[0]);
 }
 
 static void
-show_dynamics_values(const qss2_square& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss2_square& dyn)
 {
     ImGui::Text("%.3f %.3f", dyn.value[0], dyn.value[1]);
 }
 
 static void
-show_dynamics_values(const qss3_square& dyn)
+show_dynamics_values(simulation& /*sim*/, const qss3_square& dyn)
 {
     ImGui::Text("%.3f %.3f %.3f", dyn.value[0], dyn.value[1], dyn.value[2]);
 }
 
 static void
-show_dynamics_values(const cross& dyn)
+show_dynamics_values(simulation& /*sim*/, const cross& dyn)
 {
     ImGui::Text("threshold: %.3f", dyn.threshold);
     ImGui::Text("value: %.3f", dyn.value);
@@ -1698,7 +1772,7 @@ show_dynamics_values(const cross& dyn)
 }
 
 static void
-show_dynamics_values(const accumulator_2& dyn)
+show_dynamics_values(simulation& /*sim*/, const accumulator_2& dyn)
 {
     ImGui::Text("number %.3f", dyn.number);
     ImGui::Text("- 0: %.3f", dyn.numbers[0]);
@@ -1706,17 +1780,17 @@ show_dynamics_values(const accumulator_2& dyn)
 }
 
 static void
-show_dynamics_values(const time_func& dyn)
+show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
 {
     ImGui::Text("value %.3f", dyn.value);
 }
 
 static void
-show_dynamics_inputs(none& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 {}
 
 static void
-show_dynamics_values(const flow& dyn)
+show_dynamics_values(simulation& /*sim*/, const flow& dyn)
 {
     if (dyn.i < dyn.default_size)
         ImGui::Text("value %.3f", dyn.default_data[dyn.i]);
@@ -1725,51 +1799,51 @@ show_dynamics_values(const flow& dyn)
 }
 
 static void
-show_dynamics_inputs(qss1_integrator& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_X);
     ImGui::InputDouble("reset", &dyn.default_dQ);
 }
 
 static void
-show_dynamics_inputs(qss2_integrator& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_X);
     ImGui::InputDouble("reset", &dyn.default_dQ);
 }
 
 static void
-show_dynamics_inputs(qss3_integrator& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss3_integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_X);
     ImGui::InputDouble("reset", &dyn.default_dQ);
 }
 
 static void
-show_dynamics_inputs(qss1_multiplier& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_multiplier& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss1_sum_2& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_sum_2& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss1_sum_3& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_sum_3& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss1_sum_4& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_sum_4& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss1_wsum_2& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_wsum_2& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
-show_dynamics_inputs(qss1_wsum_3& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_wsum_3& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1777,7 +1851,7 @@ show_dynamics_inputs(qss1_wsum_3& dyn)
 }
 
 static void
-show_dynamics_inputs(qss1_wsum_4& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_wsum_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1786,70 +1860,30 @@ show_dynamics_inputs(qss1_wsum_4& dyn)
 }
 
 static void
-show_dynamics_inputs(qss2_multiplier& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_multiplier& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss2_sum_2& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_sum_2& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss2_sum_3& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_sum_3& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss2_sum_4& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_sum_4& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss2_wsum_2& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_wsum_2& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
-show_dynamics_inputs(qss2_wsum_3& dyn)
-{
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-}
-
-static void
-show_dynamics_inputs(qss2_wsum_4& dyn)
-{
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
-}
-
-static void
-show_dynamics_inputs(qss3_multiplier& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(qss3_sum_2& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(qss3_sum_3& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(qss3_sum_4& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(qss3_wsum_2& dyn)
-{
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-}
-
-static void
-show_dynamics_inputs(qss3_wsum_3& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_wsum_3& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1857,7 +1891,7 @@ show_dynamics_inputs(qss3_wsum_3& dyn)
 }
 
 static void
-show_dynamics_inputs(qss3_wsum_4& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_wsum_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1866,28 +1900,68 @@ show_dynamics_inputs(qss3_wsum_4& dyn)
 }
 
 static void
-show_dynamics_inputs(integrator& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss3_multiplier& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_sum_2& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_sum_3& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_sum_4& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_wsum_2& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_wsum_3& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, qss3_wsum_4& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, integrator& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_current_value);
     ImGui::InputDouble("reset", &dyn.default_reset_value);
 }
 
 static void
-show_dynamics_inputs(quantifier& dyn)
+show_dynamics_inputs(editor& /*ed*/, quantifier& dyn)
 {
     ImGui::InputDouble("quantum", &dyn.default_step_size);
     ImGui::SliderInt("archive length", &dyn.default_past_length, 3, 100);
 }
 
 static void
-show_dynamics_inputs(adder_2& dyn)
+show_dynamics_inputs(editor& /*ed*/, adder_2& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
-show_dynamics_inputs(adder_3& dyn)
+show_dynamics_inputs(editor& /*ed*/, adder_3& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1895,7 +1969,7 @@ show_dynamics_inputs(adder_3& dyn)
 }
 
 static void
-show_dynamics_inputs(adder_4& dyn)
+show_dynamics_inputs(editor& /*ed*/, adder_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1904,14 +1978,14 @@ show_dynamics_inputs(adder_4& dyn)
 }
 
 static void
-show_dynamics_inputs(mult_2& dyn)
+show_dynamics_inputs(editor& /*ed*/, mult_2& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
-show_dynamics_inputs(mult_3& dyn)
+show_dynamics_inputs(editor& /*ed*/, mult_3& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1919,7 +1993,7 @@ show_dynamics_inputs(mult_3& dyn)
 }
 
 static void
-show_dynamics_inputs(mult_4& dyn)
+show_dynamics_inputs(editor& /*ed*/, mult_4& dyn)
 {
     ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
@@ -1928,173 +2002,333 @@ show_dynamics_inputs(mult_4& dyn)
 }
 
 static void
-show_dynamics_inputs(counter& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(queue& dyn)
+show_dynamics_inputs(editor& /*ed*/, queue& dyn)
 {
-    ImGui::InputDouble("time", &dyn.default_ta);
+    ImGui::InputDouble("delay", &dyn.default_ta);
+    ImGui::SameLine();
+    HelpMarker("Delay to resent the first input receives (FIFO queue)");
 }
 
 static void
-show_dynamics_inputs(dynamic_queue& dyn)
+show_external_sources_combo(external_source& srcs,
+                            const char* title,
+                            source& src)
 {
-    const char* title = "Select time sources";
-    if (ImGui::Button("Times"))
-        ImGui::OpenPopup(title);
-    ImGui::SameLine();
+    small_string<63> label("None");
 
-    if (dyn.default_ta_source.data == nullptr) {
-        ImGui::TextUnformatted("<None>");
+    external_source_type type;
+    if (!(external_source_type_cast(src.type, &type))) {
+        src.reset();
     } else {
-        ImGui::Text("%" PRIu32 "-%" PRIu32,
-                    dyn.default_ta_source.type,
-                    dyn.default_ta_source.id);
+        switch (type) {
+        case external_source_type::binary_file: {
+            const auto id = enum_cast<binary_file_source_id>(src.id);
+            const auto index = get_index(id);
+            if (auto* es = srcs.binary_file_sources.try_to_get(id)) {
+                format(label,
+                       "{}-{} {}",
+                       ordinal(external_source_type::binary_file),
+                       index,
+                       es->name.c_str());
+            } else {
+                src.reset();
+            }
+        } break;
+        case external_source_type::constant: {
+            const auto id = enum_cast<constant_source_id>(src.id);
+            const auto index = get_index(id);
+            if (auto* es = srcs.constant_sources.try_to_get(id)) {
+                format(label,
+                       "{}-{} {}",
+                       ordinal(external_source_type::constant),
+                       index,
+                       es->name.c_str());
+            } else {
+                src.reset();
+            }
+        } break;
+        case external_source_type::random: {
+            const auto id = enum_cast<random_source_id>(src.id);
+            const auto index = get_index(id);
+            if (auto* es = srcs.random_sources.try_to_get(id)) {
+                format(label,
+                       "{}-{} {}",
+                       ordinal(external_source_type::random),
+                       index,
+                       es->name.c_str());
+            } else {
+                src.reset();
+            }
+        } break;
+        case external_source_type::text_file: {
+            const auto id = enum_cast<text_file_source_id>(src.id);
+            const auto index = get_index(id);
+            if (auto* es = srcs.text_file_sources.try_to_get(id)) {
+                format(label,
+                       "{}-{} {}",
+                       ordinal(external_source_type::text_file),
+                       index,
+                       es->name.c_str());
+            } else {
+                src.reset();
+            }
+        } break;
+        default:
+            irt_unreachable();
+        }
     }
 
-    app.srcs.show_menu(title, dyn.default_ta_source);
-}
+    if (ImGui::BeginCombo(title, label.c_str())) {
+        {
+            bool is_selected = src.type == -1;
+            if (ImGui::Selectable("None", is_selected)) {
+                src.reset();
+            }
+        }
 
-static void
-show_dynamics_inputs(priority_queue& dyn)
-{
-    const char* title = "Select time sources";
-    if (ImGui::Button("Times"))
-        ImGui::OpenPopup(title);
-    ImGui::SameLine();
+        {
+            constant_source* s = nullptr;
+            while (srcs.constant_sources.next(s)) {
+                const auto id = srcs.constant_sources.get_id(s);
+                const auto index = get_index(id);
 
-    if (dyn.default_ta_source.data == nullptr) {
-        ImGui::TextUnformatted("<None>");
-    } else {
-        ImGui::Text("%" PRIu32 "-%" PRIu32,
-                    dyn.default_ta_source.type,
-                    dyn.default_ta_source.id);
+                format(label,
+                       "{}-{} {}",
+                       ordinal(external_source_type::constant),
+                       index,
+                       s->name.c_str());
+
+                bool is_selected =
+                  src.type == ordinal(external_source_type::constant) &&
+                  src.id == ordinal(id);
+                if (ImGui::Selectable(label.c_str(), is_selected)) {
+                    src.type = ordinal(external_source_type::constant);
+                    src.id = ordinal(id);
+                    ImGui::EndCombo();
+                    return;
+                }
+            }
+        }
+
+        {
+            binary_file_source* s = nullptr;
+            while (srcs.binary_file_sources.next(s)) {
+                const auto id = srcs.binary_file_sources.get_id(s);
+                const auto index = get_index(id);
+
+                format(label,
+                       "{}-{} {}",
+                       ordinal(external_source_type::binary_file),
+                       index,
+                       s->name.c_str());
+
+                bool is_selected =
+                  src.type == ordinal(external_source_type::binary_file) &&
+                  src.id == ordinal(id);
+                if (ImGui::Selectable(label.c_str(), is_selected)) {
+                    src.type = ordinal(external_source_type::binary_file);
+                    src.id = ordinal(id);
+                    ImGui::EndCombo();
+                    return;
+                }
+            }
+        }
+
+        {
+            random_source* s = nullptr;
+            while (srcs.random_sources.next(s)) {
+                const auto id = srcs.random_sources.get_id(s);
+                const auto index = get_index(id);
+
+                format(label,
+                       "{}-{} {}",
+                       ordinal(external_source_type::random),
+                       index,
+                       s->name.c_str());
+
+                bool is_selected =
+                  src.type == ordinal(external_source_type::random) &&
+                  src.id == ordinal(id);
+                if (ImGui::Selectable(label.c_str(), is_selected)) {
+                    src.type = ordinal(external_source_type::random);
+                    src.id = ordinal(id);
+                    ImGui::EndCombo();
+                    return;
+                }
+            }
+        }
+
+        {
+            text_file_source* s = nullptr;
+            while (srcs.text_file_sources.next(s)) {
+                const auto id = srcs.text_file_sources.get_id(s);
+                const auto index = get_index(id);
+
+                format(label,
+                       "{}-{} {}",
+                       ordinal(external_source_type::text_file),
+                       index,
+                       s->name.c_str());
+
+                bool is_selected =
+                  src.type == ordinal(external_source_type::text_file) &&
+                  src.id == ordinal(id);
+                if (ImGui::Selectable(label.c_str(), is_selected)) {
+                    src.type = ordinal(external_source_type::text_file);
+                    src.id = ordinal(id);
+                    ImGui::EndCombo();
+                    return;
+                }
+            }
+        }
+
+        ImGui::EndCombo();
     }
-
-    app.srcs.show_menu(title, dyn.default_ta_source);
 }
 
 static void
-show_dynamics_inputs(generator& dyn)
+show_dynamics_inputs(editor& ed, dynamic_queue& dyn)
+{
+    ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
+    ImGui::SameLine();
+    HelpMarker(
+      "Unchecked, the dynamic queue stops to send data if the source are "
+      "empty or undefined. Checked, the simulation will stop.");
+
+    show_external_sources_combo(ed.srcs, "time", dyn.default_source_ta);
+}
+
+static void
+show_dynamics_inputs(editor& ed, priority_queue& dyn)
+{
+    ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
+    ImGui::SameLine();
+    HelpMarker(
+      "Unchecked, the priority queue stops to send data if the source are "
+      "empty or undefined. Checked, the simulation will stop.");
+
+    show_external_sources_combo(ed.srcs, "time", dyn.default_source_ta);
+}
+
+static void
+show_dynamics_inputs(editor& ed, generator& dyn)
 {
     ImGui::InputDouble("offset", &dyn.default_offset);
+    ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
+    ImGui::SameLine();
+    HelpMarker("Unchecked, the generator stops to send data if the source are "
+               "empty or undefined. Checked, the simulation will stop.");
 
-    {
-        const char* title = "Select values sources";
-        if (ImGui::Button("Values"))
-            ImGui::OpenPopup(title);
-        ImGui::SameLine();
-
-        if (dyn.default_value_source.data == nullptr) {
-            ImGui::TextUnformatted("<None>");
-        } else {
-            ImGui::Text("%" PRIu32 "-%" PRIu32,
-                        dyn.default_value_source.type,
-                        dyn.default_value_source.id);
-        }
-
-        app.srcs.show_menu(title, dyn.default_value_source);
-    }
-
-    {
-        const char* title = "Select time sources";
-        if (ImGui::Button("Times"))
-            ImGui::OpenPopup(title);
-        ImGui::SameLine();
-
-        if (dyn.default_ta_source.data == nullptr) {
-            ImGui::TextUnformatted("<None>");
-        } else {
-            ImGui::Text("%" PRIu32 "-%" PRIu32,
-                        dyn.default_ta_source.type,
-                        dyn.default_ta_source.id);
-        }
-
-        app.srcs.show_menu(title, dyn.default_ta_source);
-    }
+    show_external_sources_combo(ed.srcs, "source", dyn.default_source_value);
+    show_external_sources_combo(ed.srcs, "time", dyn.default_source_ta);
 }
 
 static void
-show_dynamics_inputs(constant& dyn)
+show_dynamics_inputs(editor& ed, constant& dyn)
 {
     ImGui::InputDouble("value", &dyn.default_value);
+    ImGui::InputDouble("offset", &dyn.default_offset);
+
+    if (ed.is_running()) {
+        if (ImGui::Button("Send now")) {
+            dyn.value = dyn.default_value;
+            dyn.sigma = dyn.default_offset;
+
+            auto& mdl = get_model(dyn);
+            mdl.tl = ed.simulation_current;
+            mdl.tn = ed.simulation_current + dyn.sigma;
+            if (dyn.sigma && mdl.tn == ed.simulation_current)
+                mdl.tn = std::nextafter(ed.simulation_current,
+                                        ed.simulation_current + 1.);
+
+            ed.sim.sched.update(mdl, mdl.tn);
+        }
+    }
 }
 
 static void
-show_dynamics_inputs(qss1_cross& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
-show_dynamics_inputs(qss2_cross& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
-show_dynamics_inputs(qss3_cross& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss3_cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
-show_dynamics_inputs(qss1_power& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss1_power& dyn)
 {
     ImGui::InputDouble("n", &dyn.default_n);
 }
 
 static void
-show_dynamics_inputs(qss2_power& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss2_power& dyn)
 {
     ImGui::InputDouble("n", &dyn.default_n);
 }
 
 static void
-show_dynamics_inputs(qss3_power& dyn)
+show_dynamics_inputs(editor& /*ed*/, qss3_power& dyn)
 {
     ImGui::InputDouble("n", &dyn.default_n);
 }
 
 static void
-show_dynamics_inputs(qss1_square& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss1_square& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss2_square& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss2_square& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(qss3_square& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, qss3_square& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(cross& dyn)
+show_dynamics_inputs(editor& /*ed*/, cross& dyn)
 {
     ImGui::InputDouble("threshold", &dyn.default_threshold);
 }
 
 static void
-show_dynamics_inputs(accumulator_2& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, accumulator_2& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(flow& /*dyn*/)
+show_dynamics_inputs(editor& /*ed*/, flow& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(time_func& dyn)
+show_dynamics_inputs(editor& /*ed*/, time_func& dyn)
 {
-    const char* items[] = { "time", "square" };
+    static const char* items[] = { "time", "square", "sin" };
+
     ImGui::PushItemWidth(120.0f);
-    int item_current = dyn.default_f == &time_function ? 0 : 1;
+    int item_current = dyn.default_f == &time_function          ? 0
+                       : dyn.default_f == &square_time_function ? 1
+                                                                : 2;
+
     if (ImGui::Combo("function", &item_current, items, IM_ARRAYSIZE(items))) {
-        dyn.default_f =
-          item_current == 0 ? &time_function : square_time_function;
+        dyn.default_f = item_current == 0   ? &time_function
+                        : item_current == 1 ? &square_time_function
+                                            : sin_time_function;
     }
     ImGui::PopItemWidth();
 }
@@ -2106,7 +2340,7 @@ editor::show_model_dynamics(model& mdl) noexcept
         sim.dispatch(mdl, [&](const auto& dyn) {
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
-            show_dynamics_values(dyn);
+            show_dynamics_values(sim, dyn);
             ImGui::PopItemWidth();
             add_output_attribute(*this, dyn);
         });
@@ -2116,7 +2350,7 @@ editor::show_model_dynamics(model& mdl) noexcept
             ImGui::PushItemWidth(120.0f);
 
             if (settings.show_dynamics_inputs_in_editor)
-                show_dynamics_inputs(dyn);
+                show_dynamics_inputs(*this, dyn);
             ImGui::PopItemWidth();
             add_output_attribute(*this, dyn);
         });
@@ -2207,31 +2441,30 @@ editor::show_top() noexcept
                 if (st != editor_status::editing &&
                     models_make_transition[get_index(id)]) {
 
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBar,
+                    ImNodes::PushColorStyle(
+                      ImNodesCol_TitleBar,
                       ImGui::ColorConvertFloat4ToU32(
                         settings.gui_model_transition_color));
 
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBarHovered,
+                    ImNodes::PushColorStyle(
+                      ImNodesCol_TitleBarHovered,
                       settings.gui_hovered_model_transition_color);
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBarSelected,
+                    ImNodes::PushColorStyle(
+                      ImNodesCol_TitleBarSelected,
                       settings.gui_selected_model_transition_color);
                 } else {
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBar,
+                    ImNodes::PushColorStyle(
+                      ImNodesCol_TitleBar,
                       ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
 
-                    imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
+                    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                                             settings.gui_hovered_model_color);
-                    imnodes::PushColorStyle(
-                      imnodes::ColorStyle_TitleBarSelected,
-                      settings.gui_selected_model_color);
+                    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                            settings.gui_selected_model_color);
                 }
 
-                imnodes::BeginNode(top.children[i].second);
-                imnodes::BeginNodeTitleBar();
+                ImNodes::BeginNode(top.children[i].second);
+                ImNodes::BeginNodeTitleBar();
                 // ImGui::TextUnformatted(mdl->name.c_str());
                 // ImGui::OpenPopupOnItemClick("Rename model", 1);
 
@@ -2250,26 +2483,26 @@ editor::show_top() noexcept
                 ImGui::Text("%s",
                             dynamics_type_names[static_cast<int>(mdl->type)]);
 
-                imnodes::EndNodeTitleBar();
+                ImNodes::EndNodeTitleBar();
                 show_model_dynamics(*mdl);
-                imnodes::EndNode();
+                ImNodes::EndNode();
 
-                imnodes::PopColorStyle();
-                imnodes::PopColorStyle();
+                ImNodes::PopColorStyle();
+                ImNodes::PopColorStyle();
             }
         } else {
             const auto id = std::get<cluster_id>(top.children[i].first);
             if (auto* gp = clusters.try_to_get(id); gp) {
-                imnodes::PushColorStyle(
-                  imnodes::ColorStyle_TitleBar,
+                ImNodes::PushColorStyle(
+                  ImNodesCol_TitleBar,
                   ImGui::ColorConvertFloat4ToU32(settings.gui_cluster_color));
-                imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarHovered,
+                ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                                         settings.gui_hovered_cluster_color);
-                imnodes::PushColorStyle(imnodes::ColorStyle_TitleBarSelected,
+                ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
                                         settings.gui_selected_cluster_color);
 
-                imnodes::BeginNode(top.children[i].second);
-                imnodes::BeginNodeTitleBar();
+                ImNodes::BeginNode(top.children[i].second);
+                ImNodes::BeginNodeTitleBar();
                 ImGui::TextUnformatted(gp->name.c_str());
                 ImGui::OpenPopupOnItemClick("Rename group", 1);
 
@@ -2283,12 +2516,12 @@ editor::show_top() noexcept
                     ImGui::EndPopup();
                 }
 
-                imnodes::EndNodeTitleBar();
+                ImNodes::EndNodeTitleBar();
                 show_model_cluster(*gp);
-                imnodes::EndNode();
+                ImNodes::EndNode();
 
-                imnodes::PopColorStyle();
-                imnodes::PopColorStyle();
+                ImNodes::PopColorStyle();
+                ImNodes::PopColorStyle();
             }
         }
     }
@@ -2353,7 +2586,7 @@ add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
 bool
 editor::show_editor() noexcept
 {
-    imnodes::EditorContextSet(context);
+    ImNodes::EditorContextSet(context);
 
     ImGuiWindowFlags windows_flags = 0;
     windows_flags |= ImGuiWindowFlags_MenuBar;
@@ -2376,7 +2609,7 @@ editor::show_editor() noexcept
                           (const char*)path.u8string().c_str());
                 if (auto os = std::ofstream(path); os.is_open()) {
                     writer w(os);
-                    auto ret = w(sim);
+                    auto ret = w(sim, srcs);
                     if (is_success(ret))
                         log_w.log(5, "success\n");
                     else
@@ -2398,15 +2631,21 @@ editor::show_editor() noexcept
         }
 
         if (ImGui::BeginMenu("Edition")) {
+            ImGui::MenuItem("Show minimap", nullptr, &show_minimap);
             ImGui::MenuItem("Show parameter in models",
                             nullptr,
                             &settings.show_dynamics_inputs_in_editor);
+            ImGui::Separator();
             if (ImGui::MenuItem("Clear"))
                 clear();
+            ImGui::Separator();
             if (ImGui::MenuItem("Grid Reorder"))
                 compute_grid_layout();
             if (ImGui::MenuItem("Automatic Layout"))
                 compute_automatic_layout();
+            ImGui::Separator();
+            if (ImGui::MenuItem("External sources"))
+                show_sources = true;
             if (ImGui::MenuItem("Settings"))
                 show_settings = true;
 
@@ -2583,11 +2822,14 @@ editor::show_editor() noexcept
               5, "Load file from %s: ", (const char*)path.u8string().c_str());
             if (auto is = std::ifstream(path); is.is_open()) {
                 reader r(is);
-                auto ret = r(sim, [this](model_id id) {
+                auto ret = r(sim, srcs, [&r, this](model_id id) {
                     parent(id, undefined<cluster_id>());
 
-                    imnodes::SetNodeEditorSpacePos(
-                      top.emplace_back(id), imnodes::EditorContextGetPanning());
+                    const auto index = get_index(id);
+                    const auto new_id = top.emplace_back(id);
+                    const auto pos = r.get_position(index);
+
+                    ImNodes::SetNodeEditorSpacePos(new_id, ImVec2(pos.x, pos.y));
                 });
 
                 if (is_success(ret))
@@ -2614,7 +2856,14 @@ editor::show_editor() noexcept
                           (const char*)path.u8string().c_str());
                 if (auto os = std::ofstream(path); os.is_open()) {
                     writer w(os);
-                    auto ret = w(sim);
+
+                    auto ret = w(sim, srcs, [](model_id mdl_id, float& x, float& y) {
+                        const auto index = irt::get_index(mdl_id);
+                        const auto pos = ImNodes::GetNodeEditorSpacePos(static_cast<int>(index));
+                        x = pos.x;
+                        y = pos.y;
+                        });
+
                     if (is_success(ret))
                         log_w.log(5, "success\n");
                     else
@@ -2628,550 +2877,375 @@ editor::show_editor() noexcept
                 "D -- duplicate selected nodes / "
                 "G -- group model");
 
-    ImGui::Columns(2, "Edit");
-    if (starting) {
-        ImGui::SetColumnWidth(0, 580.f);
-        starting = false;
-    }
+    constexpr ImGuiTableFlags flags =
+      ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_Resizable |
+      ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
+      ImGuiTableFlags_ContextMenuInBody | ImGuiTableFlags_Resizable |
+      ImGuiTableFlags_BordersV;
 
-    ImGui::Separator();
+    if (ImGui::BeginTable("Editor", 2, flags)) {
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
 
-    imnodes::BeginNodeEditor();
+        ImNodes::BeginNodeEditor();
 
-    show_top();
-    show_connections();
+        show_top();
+        show_connections();
 
-    imnodes::EndNodeEditor();
+        const bool open_popup =
+          ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+          ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+        if (!ImGui::IsAnyItemHovered() && open_popup)
+            ImGui::OpenPopup("Context menu");
 
-    int node_id;
-    if (imnodes::IsNodeHovered(&node_id) &&
-        st == editor_status::running_debug) {
-        const auto index = top.get_index(node_id);
-        if (index != not_found || top.children[index].first.index() == 0) {
-            const auto id = std::get<model_id>(top.children[index].first);
-            if (auto* mdl = sim.models.try_to_get(id); mdl)
-                show_tooltip(*this, *mdl, id);
-        }
-    } else
-        tooltip.clear();
+        if (ImGui::BeginPopup("Context menu")) {
+            model_id new_model = undefined<model_id>();
+            const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
-    if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1))
-        ImGui::OpenPopup("Context menu");
+            if (ImGui::BeginMenu("QSS1")) {
+                auto i = static_cast<int>(dynamics_type::qss1_integrator);
+                const auto e = static_cast<int>(dynamics_type::qss1_wsum_4);
+                for (; i != e; ++i)
+                    add_popup_menuitem(
+                      *this, static_cast<dynamics_type>(i), &new_model);
+                ImGui::EndMenu();
+            }
 
-    if (ImGui::BeginPopup("Context menu")) {
-        model_id new_model = undefined<model_id>();
-        ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+            if (ImGui::BeginMenu("QSS2")) {
+                auto i = static_cast<int>(dynamics_type::qss2_integrator);
+                const auto e = static_cast<int>(dynamics_type::qss2_wsum_4);
 
-        if (ImGui::BeginMenu("QSS1")) {
-            auto i = static_cast<int>(dynamics_type::qss1_integrator);
-            const auto e = static_cast<int>(dynamics_type::qss1_wsum_4);
-            for (; i != e; ++i)
+                for (; i != e; ++i)
+                    add_popup_menuitem(
+                      *this, static_cast<dynamics_type>(i), &new_model);
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("QSS3")) {
+                auto i = static_cast<int>(dynamics_type::qss3_integrator);
+                const auto e = static_cast<int>(dynamics_type::qss3_wsum_4);
+
+                for (; i != e; ++i)
+                    add_popup_menuitem(
+                      *this, static_cast<dynamics_type>(i), &new_model);
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("AQSS (experimental)")) {
                 add_popup_menuitem(
-                  *this, static_cast<dynamics_type>(i), &new_model);
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("QSS2")) {
-            auto i = static_cast<int>(dynamics_type::qss2_integrator);
-            const auto e = static_cast<int>(dynamics_type::qss2_wsum_4);
-
-            for (; i != e; ++i)
+                  *this, dynamics_type::integrator, &new_model);
                 add_popup_menuitem(
-                  *this, static_cast<dynamics_type>(i), &new_model);
-            ImGui::EndMenu();
-        }
+                  *this, dynamics_type::quantifier, &new_model);
+                add_popup_menuitem(*this, dynamics_type::adder_2, &new_model);
+                add_popup_menuitem(*this, dynamics_type::adder_3, &new_model);
+                add_popup_menuitem(*this, dynamics_type::adder_4, &new_model);
+                add_popup_menuitem(*this, dynamics_type::mult_2, &new_model);
+                add_popup_menuitem(*this, dynamics_type::mult_3, &new_model);
+                add_popup_menuitem(*this, dynamics_type::mult_4, &new_model);
+                add_popup_menuitem(*this, dynamics_type::cross, &new_model);
+                ImGui::EndMenu();
+            }
 
-        if (ImGui::BeginMenu("QSS3")) {
-            auto i = static_cast<int>(dynamics_type::qss3_integrator);
-            const auto e = static_cast<int>(dynamics_type::qss3_wsum_4);
+            add_popup_menuitem(*this, dynamics_type::counter, &new_model);
+            add_popup_menuitem(*this, dynamics_type::queue, &new_model);
+            add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
+            add_popup_menuitem(
+              *this, dynamics_type::priority_queue, &new_model);
+            add_popup_menuitem(*this, dynamics_type::generator, &new_model);
+            add_popup_menuitem(*this, dynamics_type::constant, &new_model);
+            add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
+            add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
-            for (; i != e; ++i)
-                add_popup_menuitem(
-                  *this, static_cast<dynamics_type>(i), &new_model);
-            ImGui::EndMenu();
-        }
+            ImGui::EndPopup();
 
-        if (ImGui::BeginMenu("AQSS (experimental)")) {
-            add_popup_menuitem(*this, dynamics_type::integrator, &new_model);
-            add_popup_menuitem(*this, dynamics_type::quantifier, &new_model);
-            add_popup_menuitem(*this, dynamics_type::adder_2, &new_model);
-            add_popup_menuitem(*this, dynamics_type::adder_3, &new_model);
-            add_popup_menuitem(*this, dynamics_type::adder_4, &new_model);
-            add_popup_menuitem(*this, dynamics_type::mult_2, &new_model);
-            add_popup_menuitem(*this, dynamics_type::mult_3, &new_model);
-            add_popup_menuitem(*this, dynamics_type::mult_4, &new_model);
-            add_popup_menuitem(*this, dynamics_type::cross, &new_model);
-            ImGui::EndMenu();
-        }
-
-        add_popup_menuitem(*this, dynamics_type::counter, &new_model);
-        add_popup_menuitem(*this, dynamics_type::queue, &new_model);
-        add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
-        add_popup_menuitem(*this, dynamics_type::priority_queue, &new_model);
-        add_popup_menuitem(*this, dynamics_type::generator, &new_model);
-        add_popup_menuitem(*this, dynamics_type::constant, &new_model);
-        add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
-        add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
-        add_popup_menuitem(*this, dynamics_type::flow, &new_model);
-
-        ImGui::EndPopup();
-
-        if (new_model != undefined<model_id>()) {
-            parent(new_model, undefined<cluster_id>());
-            imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
-                                           click_pos);
-        }
-    }
-
-    {
-        int start = 0, end = 0;
-        if (imnodes::IsLinkCreated(&start, &end)) {
-            const gport out = get_out(start);
-            const gport in = get_in(end);
-
-            if (out.model && in.model && sim.can_connect(1)) {
-                if (auto status = sim.connect(
-                      *out.model, out.port_index, *in.model, in.port_index);
-                    is_bad(status))
-                    log_w.log(6,
-                              "Fail to connect these models: %s\n",
-                              status_string(status));
+            if (new_model != undefined<model_id>()) {
+                parent(new_model, undefined<cluster_id>());
+                ImNodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
+                                               click_pos);
             }
         }
-    }
+        ImGui::PopStyleVar();
 
-    ImGui::PopStyleVar();
+        if (show_minimap)
+            ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
 
-    const int num_selected_links = imnodes::NumSelectedLinks();
-    const int num_selected_nodes = imnodes::NumSelectedNodes();
-    static ImVector<int> selected_nodes;
-    static ImVector<int> selected_links;
+        ImNodes::EndNodeEditor();
 
-    if (num_selected_nodes > 0) {
-        selected_nodes.resize(num_selected_nodes, -1);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
-        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
-            imnodes::GetSelectedNodes(selected_nodes.begin());
-            log_w.log(7, "%d model(s) to delete\n", num_selected_nodes);
-            free_children(selected_nodes);
-        } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('D')) {
-            imnodes::GetSelectedNodes(selected_nodes.begin());
-            log_w.log(7, "%d model(s)/group(s) to copy\n", num_selected_nodes);
-            copy(selected_nodes);
-        } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('G')) {
-            if (num_selected_nodes > 1) {
-                imnodes::GetSelectedNodes(selected_nodes.begin());
-                log_w.log(7, "%d model(s) to group\n", num_selected_nodes);
-                group(selected_nodes);
-            } else if (num_selected_nodes == 1) {
-                imnodes::GetSelectedNodes(selected_nodes.begin());
-                log_w.log(7, "group to ungroup\n");
-                ungroup(selected_nodes[0]);
+        int node_id;
+        if (ImNodes::IsNodeHovered(&node_id) && is_running()) {
+            const auto index = top.get_index(node_id);
+            if (index != not_found || top.children[index].first.index() == 0) {
+                const auto id = std::get<model_id>(top.children[index].first);
+                if (auto* mdl = sim.models.try_to_get(id); mdl)
+                    show_tooltip(*this, *mdl, id);
+            }
+        } else
+            tooltip.clear();
+
+        {
+            int start = 0, end = 0;
+            if (ImNodes::IsLinkCreated(&start, &end)) {
+                const gport out = get_out(start);
+                const gport in = get_in(end);
+
+                if (out.model && in.model && sim.can_connect(1)) {
+                    if (auto status = sim.connect(
+                          *out.model, out.port_index, *in.model, in.port_index);
+                        is_bad(status))
+                        log_w.log(6,
+                                  "Fail to connect these models: %s\n",
+                                  status_string(status));
+                }
             }
         }
-        selected_nodes.resize(0);
-    } else if (num_selected_links > 0) {
-        selected_links.resize(static_cast<size_t>(num_selected_links));
 
-        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
-            std::fill_n(selected_links.begin(), selected_links.size(), -1);
-            imnodes::GetSelectedLinks(selected_links.begin());
-            std::sort(
-              selected_links.begin(), selected_links.end(), std::less<int>());
+        ImGui::PopStyleVar();
 
-            int i = 0;
-            int link_id_to_delete = selected_links[0];
-            int current_link_id = 0;
+        const int num_selected_links = ImNodes::NumSelectedLinks();
+        const int num_selected_nodes = ImNodes::NumSelectedNodes();
+        static ImVector<int> selected_nodes;
+        static ImVector<int> selected_links;
 
-            log_w.log(7, "%d connection(s) to delete\n", num_selected_links);
+        if (num_selected_nodes > 0) {
+            selected_nodes.resize(num_selected_nodes, -1);
 
-            auto selected_links_ptr = selected_links.Data;
-            auto selected_links_size = selected_links.Size;
+            if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
+                ImNodes::GetSelectedNodes(selected_nodes.begin());
+                log_w.log(7, "%d model(s) to delete\n", num_selected_nodes);
+                free_children(selected_nodes);
+            } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('D')) {
+                ImNodes::GetSelectedNodes(selected_nodes.begin());
+                log_w.log(
+                  7, "%d model(s)/group(s) to copy\n", num_selected_nodes);
+                copy(selected_nodes);
+            } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('G')) {
+                if (num_selected_nodes > 1) {
+                    ImNodes::GetSelectedNodes(selected_nodes.begin());
+                    log_w.log(7, "%d model(s) to group\n", num_selected_nodes);
+                    group(selected_nodes);
+                } else if (num_selected_nodes == 1) {
+                    ImNodes::GetSelectedNodes(selected_nodes.begin());
+                    log_w.log(7, "group to ungroup\n");
+                    ungroup(selected_nodes[0]);
+                }
+            }
+            selected_nodes.resize(0);
+        } else if (num_selected_links > 0) {
+            selected_links.resize(static_cast<size_t>(num_selected_links));
 
-            model* mdl = nullptr;
-            while (sim.models.next(mdl) && link_id_to_delete != -1) {
-                sim.dispatch(
-                  *mdl,
-                  [this,
-                   &mdl,
-                   &i,
-                   &current_link_id,
-                   selected_links_ptr,
-                   selected_links_size,
-                   &link_id_to_delete]<typename Dynamics>(Dynamics& dyn) {
-                      if constexpr (is_detected_v<has_output_port_t,
-                                                  Dynamics>) {
-                          for (sz j = 0, e = std::size(dyn.y); j != e; ++j) {
-                              for (const auto& elem : dyn.y[j].connections) {
-                                  if (current_link_id == link_id_to_delete) {
-                                      this->sim.disconnect(
-                                        *mdl,
-                                        (int)j,
-                                        this->sim.models.get(elem.model),
-                                        elem.port_index);
+            if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
+                std::fill_n(selected_links.begin(), selected_links.size(), -1);
+                ImNodes::GetSelectedLinks(selected_links.begin());
+                std::sort(selected_links.begin(),
+                          selected_links.end(),
+                          std::less<int>());
 
-                                      ++i;
+                int i = 0;
+                int link_id_to_delete = selected_links[0];
+                int current_link_id = 0;
 
-                                      if (i != selected_links_size)
-                                          link_id_to_delete =
-                                            selected_links_ptr[i];
-                                      else
-                                          link_id_to_delete = -1;
+                log_w.log(
+                  7, "%d connection(s) to delete\n", num_selected_links);
+
+                auto selected_links_ptr = selected_links.Data;
+                auto selected_links_size = selected_links.Size;
+
+                model* mdl = nullptr;
+                while (sim.models.next(mdl) && link_id_to_delete != -1) {
+                    sim.dispatch(
+                      *mdl,
+                      [this,
+                       &mdl,
+                       &i,
+                       &current_link_id,
+                       selected_links_ptr,
+                       selected_links_size,
+                       &link_id_to_delete]<typename Dynamics>(Dynamics& dyn) {
+                          if constexpr (is_detected_v<has_output_port_t,
+                                                      Dynamics>) {
+                              for (sz j = 0, e = std::size(dyn.y); j != e;
+                                   ++j) {
+                                  for (const auto& elem :
+                                       dyn.y[j].connections) {
+                                      if (current_link_id ==
+                                          link_id_to_delete) {
+                                          this->sim.disconnect(
+                                            *mdl,
+                                            (int)j,
+                                            this->sim.models.get(elem.model),
+                                            elem.port_index);
+
+                                          ++i;
+
+                                          if (i != selected_links_size)
+                                              link_id_to_delete =
+                                                selected_links_ptr[i];
+                                          else
+                                              link_id_to_delete = -1;
+                                      }
+
+                                      ++current_link_id;
                                   }
-
-                                  ++current_link_id;
                               }
                           }
-                      }
-                  });
-            }
-        }
-
-        selected_links.resize(0);
-    }
-
-    ImGui::NextColumn();
-
-    if (ImGui::CollapsingHeader("Selected Models",
-                                ImGuiTreeNodeFlags_CollapsingHeader |
-                                  ImGuiTreeNodeFlags_DefaultOpen) &&
-        num_selected_nodes) {
-        selected_nodes.resize(num_selected_nodes, -1);
-        imnodes::GetSelectedNodes(selected_nodes.begin());
-
-        static std::vector<std::string> names;
-        names.clear();
-        names.resize(selected_nodes.size());
-
-        for (int i = 0, e = selected_nodes.size(); i != e; ++i)
-            names[i] = fmt::format("{}", selected_nodes[i]);
-
-        for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
-            const auto index = top.get_index(selected_nodes[i]);
-
-            if (index == not_found)
-                continue;
-
-            const auto& child = top.children[index];
-            if (child.first.index())
-                continue;
-
-            const auto id = std::get<model_id>(child.first);
-            model* mdl = sim.models.try_to_get(id);
-            if (!mdl)
-                continue;
-
-            if (ImGui::TreeNodeEx(names[i].c_str(),
-                                  ImGuiTreeNodeFlags_DefaultOpen)) {
-                const auto index = get_index(id);
-                auto out = observation_outputs[index];
-                auto old_choose = static_cast<int>(out.index());
-                auto choose = old_choose;
-
-                ImGui::Text("%s",
-                            dynamics_type_names[static_cast<int>(mdl->type)]);
-
-                const char* items[] = { "none", "plot", "file", "file dt " };
-                ImGui::Combo("type", &choose, items, IM_ARRAYSIZE(items));
-
-                if (choose == 1) {
-                    if (old_choose == 2 || old_choose == 3) {
-                        sim.observers.free(mdl->obs_id);
-                        observation_outputs_free(index);
-                    }
-
-                    plot_output* plot;
-                    if (old_choose != 1) {
-                        plot_output& tf = plot_outs.alloc(names[i].c_str());
-                        plot = &tf;
-                        tf.ed = this;
-                        observation_outputs[index] = plot_outs.get_id(tf);
-                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
-                        sim.observe(*mdl, o);
-                    } else {
-                        plot =
-                          plot_outs.try_to_get(std::get<plot_output_id>(out));
-                        irt_assert(plot);
-                    }
-
-                    ImGui::InputText(
-                      "name##plot", plot->name.begin(), plot->name.capacity());
-                    ImGui::InputDouble(
-                      "dt##plot", &plot->time_step, 0.001, 1.0, "%.8f");
-                } else if (choose == 2) {
-                    if (old_choose == 1 || old_choose == 3) {
-                        sim.observers.free(mdl->obs_id);
-                        observation_outputs_free(index);
-                    }
-
-                    file_output* file;
-                    if (old_choose != 2) {
-                        file_output& tf = file_outs.alloc(names[i].c_str());
-                        file = &tf;
-                        tf.ed = this;
-                        observation_outputs[index] = file_outs.get_id(tf);
-                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
-                        sim.observe(*mdl, o);
-                    } else {
-                        file =
-                          file_outs.try_to_get(std::get<file_output_id>(out));
-                        irt_assert(file);
-                    }
-
-                    ImGui::InputText(
-                      "name##file", file->name.begin(), file->name.capacity());
-                } else if (choose == 3) {
-                    if (old_choose == 1 || old_choose == 2) {
-                        sim.observers.free(mdl->obs_id);
-                        observation_outputs_free(index);
-                    }
-
-                    file_discrete_output* file;
-                    if (old_choose != 3) {
-                        file_discrete_output& tf =
-                          file_discrete_outs.alloc(names[i].c_str());
-                        file = &tf;
-                        tf.ed = this;
-                        observation_outputs[index] =
-                          file_discrete_outs.get_id(tf);
-                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
-                        sim.observe(*mdl, o);
-                    } else {
-                        file = file_discrete_outs.try_to_get(
-                          std::get<file_discrete_output_id>(out));
-                        irt_assert(file);
-                    }
-
-                    ImGui::InputText("name##filedt",
-                                     file->name.begin(),
-                                     file->name.capacity());
-                    ImGui::InputDouble(
-                      "dt##filedt", &file->time_step, 0.001, 1.0, "%.8f");
-                } else if (old_choose != choose) {
-                    sim.observers.free(mdl->obs_id);
-                    observation_outputs_free(index);
+                      });
                 }
+            }
 
-                sim.dispatch(*mdl, []<typename Dynamics>(Dynamics& dyn) {
-                    show_dynamics_inputs(dyn);
-                });
+            selected_links.resize(0);
+        }
 
-                ImGui::TreePop();
+        ImGui::TableSetColumnIndex(1);
+
+        if (ImGui::CollapsingHeader("Selected Models",
+                                    ImGuiTreeNodeFlags_CollapsingHeader |
+                                      ImGuiTreeNodeFlags_DefaultOpen) &&
+            num_selected_nodes) {
+            selected_nodes.resize(num_selected_nodes, -1);
+            ImNodes::GetSelectedNodes(selected_nodes.begin());
+
+            static std::vector<std::string> names;
+            names.clear();
+            names.resize(selected_nodes.size());
+
+            for (int i = 0, e = selected_nodes.size(); i != e; ++i)
+                names[i] = fmt::format("{}", selected_nodes[i]);
+
+            for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
+                const auto index = top.get_index(selected_nodes[i]);
+
+                if (index == not_found)
+                    continue;
+
+                const auto& child = top.children[index];
+                if (child.first.index())
+                    continue;
+
+                const auto id = std::get<model_id>(child.first);
+                model* mdl = sim.models.try_to_get(id);
+                if (!mdl)
+                    continue;
+
+                if (ImGui::TreeNodeEx(names[i].c_str(),
+                                      ImGuiTreeNodeFlags_DefaultOpen)) {
+                    const auto index = get_index(id);
+                    auto out = observation_outputs[index];
+                    auto old_choose = static_cast<int>(out.index());
+                    auto choose = old_choose;
+
+                    ImGui::Text(
+                      "%s", dynamics_type_names[static_cast<int>(mdl->type)]);
+
+                    const char* items[] = {
+                        "none", "plot", "file", "file dt "
+                    };
+                    ImGui::Combo("type", &choose, items, IM_ARRAYSIZE(items));
+
+                    if (choose == 1) {
+                        if (old_choose == 2 || old_choose == 3) {
+                            sim.observers.free(mdl->obs_id);
+                            observation_outputs_free(index);
+                        }
+
+                        plot_output* plot;
+                        if (old_choose != 1) {
+                            plot_output& tf = plot_outs.alloc(names[i].c_str());
+                            plot = &tf;
+                            tf.ed = this;
+                            observation_outputs[index] = plot_outs.get_id(tf);
+                            auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                            sim.observe(*mdl, o);
+                        } else {
+                            plot = plot_outs.try_to_get(
+                              std::get<plot_output_id>(out));
+                            irt_assert(plot);
+                        }
+
+                        ImGui::InputText("name##plot",
+                                         plot->name.begin(),
+                                         plot->name.capacity());
+                        ImGui::InputDouble(
+                          "dt##plot", &plot->time_step, 0.001, 1.0, "%.8f");
+                    } else if (choose == 2) {
+                        if (old_choose == 1 || old_choose == 3) {
+                            sim.observers.free(mdl->obs_id);
+                            observation_outputs_free(index);
+                        }
+
+                        file_output* file;
+                        if (old_choose != 2) {
+                            file_output& tf = file_outs.alloc(names[i].c_str());
+                            file = &tf;
+                            tf.ed = this;
+                            observation_outputs[index] = file_outs.get_id(tf);
+                            auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                            sim.observe(*mdl, o);
+                        } else {
+                            file = file_outs.try_to_get(
+                              std::get<file_output_id>(out));
+                            irt_assert(file);
+                        }
+
+                        ImGui::InputText("name##file",
+                                         file->name.begin(),
+                                         file->name.capacity());
+                    } else if (choose == 3) {
+                        if (old_choose == 1 || old_choose == 2) {
+                            sim.observers.free(mdl->obs_id);
+                            observation_outputs_free(index);
+                        }
+
+                        file_discrete_output* file;
+                        if (old_choose != 3) {
+                            file_discrete_output& tf =
+                              file_discrete_outs.alloc(names[i].c_str());
+                            file = &tf;
+                            tf.ed = this;
+                            observation_outputs[index] =
+                              file_discrete_outs.get_id(tf);
+                            auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                            sim.observe(*mdl, o);
+                        } else {
+                            file = file_discrete_outs.try_to_get(
+                              std::get<file_discrete_output_id>(out));
+                            irt_assert(file);
+                        }
+
+                        ImGui::InputText("name##filedt",
+                                         file->name.begin(),
+                                         file->name.capacity());
+                        ImGui::InputDouble(
+                          "dt##filedt", &file->time_step, 0.001, 1.0, "%.8f");
+                    } else if (old_choose != choose) {
+                        sim.observers.free(mdl->obs_id);
+                        observation_outputs_free(index);
+                    }
+
+                    sim.dispatch(*mdl,
+                                 [this]<typename Dynamics>(Dynamics& dyn) {
+                                     ImGui::Spacing();
+                                     show_dynamics_inputs(*this, dyn);
+                                 });
+
+                    ImGui::TreePop();
+                }
             }
         }
+
+        ImGui::EndTable();
     }
 
     ImGui::End();
+
+    if (show_sources)
+        show_sources_window(&show_sources);
 
     return true;
-}
-
-editor*
-application::alloc_editor()
-{
-    if (!editors.can_alloc(1u)) {
-        log_w.log(2, "Too many open editor\n");
-        return nullptr;
-    }
-
-    auto& ed = editors.alloc();
-    if (auto ret = ed.initialize(get_index(editors.get_id(ed))); is_bad(ret)) {
-        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
-        editors.free(ed);
-        return nullptr;
-    }
-
-    log_w.log(5, "Open editor %s\n", ed.name.c_str());
-    return &ed;
-}
-
-void
-application::free_editor(editor& ed)
-{
-    log_w.log(5, "Close editor %s\n", ed.name.c_str());
-    editors.free(ed);
-}
-
-void
-application::settings_manager::show(bool* is_open)
-{
-    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
-    if (!ImGui::Begin("Settings", is_open)) {
-        ImGui::End();
-        return;
-    }
-
-    ImGui::Text("Home.......: %s", home_dir.u8string().c_str());
-    ImGui::Text("Executable.: %s", executable_dir.u8string().c_str());
-    ImGui::Text("Libraries..:");
-    for (sz i = 0u, e = libraries_dir.size(); i != e; ++i)
-        ImGui::Text("- %s", libraries_dir[i].c_str());
-
-    ImGui::End();
-}
-
-editor*
-make_combo_editor_name(application& app, editor_id& current) noexcept
-{
-    editor* first = app.editors.try_to_get(current);
-    if (first == nullptr) {
-        if (!app.editors.next(first)) {
-            current = undefined<editor_id>();
-            return nullptr;
-        }
-    }
-
-    current = app.editors.get_id(first);
-
-    if (ImGui::BeginCombo("Name", first->name.c_str())) {
-        editor* ed = nullptr;
-        while (app.editors.next(ed)) {
-            const bool is_selected = current == app.editors.get_id(ed);
-
-            if (ImGui::Selectable(ed->name.c_str(), is_selected))
-                current = app.editors.get_id(ed);
-
-            if (is_selected)
-                ImGui::SetItemDefaultFocus();
-        }
-
-        ImGui::EndCombo();
-    }
-
-    return app.editors.try_to_get(current);
-}
-
-void
-show_plot_box(application& app, bool* show_plot)
-{
-    ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
-    if (!ImGui::Begin("Plot", show_plot)) {
-        ImGui::End();
-        return;
-    }
-
-    static editor_id current = undefined<editor_id>();
-    if (auto* ed = make_combo_editor_name(app, current); ed) {
-        if (ImPlot::BeginPlot("simulation", "t", "s")) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-
-            plot_output* out = nullptr;
-            while (ed->plot_outs.next(out)) {
-                if (!out->xs.empty() && !out->ys.empty())
-                    ImPlot::PlotLine(out->name.c_str(),
-                                     out->xs.data(),
-                                     out->ys.data(),
-                                     static_cast<int>(out->xs.size()));
-            }
-
-            ImPlot::PopStyleVar(1);
-            ImPlot::EndPlot();
-        }
-    }
-
-    ImGui::End();
-}
-
-void
-application_initialize()
-{
-    if (auto ret = app.editors.init(50u); is_bad(ret)) {
-        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
-    } else {
-        if (auto* ed = app.alloc_editor(); ed) {
-            ed->context = imnodes::EditorContextCreate();
-            ed->settings.compute_colors();
-        }
-    }
-}
-
-bool
-application_show()
-{
-    bool ret = true;
-
-    if (ImGui::BeginMainMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("New")) {
-                if (auto* ed = app.alloc_editor(); ed)
-                    ed->context = imnodes::EditorContextCreate();
-            }
-
-            ImGui::Separator();
-            if (ImGui::MenuItem("Quit"))
-                ret = false;
-
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Window")) {
-            editor* ed = nullptr;
-            while (app.editors.next(ed))
-                ImGui::MenuItem(ed->name.c_str(), nullptr, &ed->show);
-
-            ImGui::MenuItem("Simulation", nullptr, &app.show_simulation);
-            ImGui::MenuItem("Plot", nullptr, &app.show_plot);
-            ImGui::MenuItem("Sources", nullptr, &app.show_sources);
-            ImGui::MenuItem("Settings", nullptr, &app.show_settings);
-            ImGui::MenuItem("Log", nullptr, &app.show_log);
-
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Help")) {
-            ImGui::MenuItem("Demo window", nullptr, &app.show_demo);
-
-            ImGui::EndMenu();
-        }
-
-        ImGui::EndMainMenuBar();
-    }
-
-    editor* ed = nullptr;
-    while (app.editors.next(ed)) {
-        if (ed->show) {
-            if (!ed->show_editor()) {
-                editor* next = ed;
-                app.editors.next(next);
-                app.free_editor(*ed);
-            } else {
-                if (app.show_simulation)
-                    show_simulation_box(*ed, &app.show_simulation);
-
-                if (app.show_plot)
-                    show_plot_box(app, &app.show_plot);
-
-                if (ed->show_settings)
-                    ed->settings.show(&ed->show_settings);
-            }
-        }
-    }
-
-    if (app.show_log)
-        log_w.show(&app.show_log);
-
-    if (app.show_settings)
-        app.settings.show(&app.show_settings);
-
-    if (app.show_demo)
-        ImGui::ShowDemoWindow();
-
-    if (app.show_sources)
-        app.srcs.show(&app.show_sources);
-
-    return ret;
-}
-
-void
-application_shutdown()
-{
-    editor* ed = nullptr;
-    while (app.editors.next(ed))
-        imnodes::EditorContextFree(ed->context);
 }
 
 } // namespace irt
