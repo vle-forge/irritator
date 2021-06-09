@@ -2860,30 +2860,17 @@ editor::show_editor() noexcept
         show_top();
         show_connections();
 
-        if (show_minimap)
-            ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
-
-        ImNodes::EndNodeEditor();
+        const bool open_popup =
+          ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+          ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
-
-        int node_id;
-        if (ImNodes::IsNodeHovered(&node_id) && is_running()) {
-            const auto index = top.get_index(node_id);
-            if (index != not_found || top.children[index].first.index() == 0) {
-                const auto id = std::get<model_id>(top.children[index].first);
-                if (auto* mdl = sim.models.try_to_get(id); mdl)
-                    show_tooltip(*this, *mdl, id);
-            }
-        } else
-            tooltip.clear();
-
-        if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1))
+        if (!ImGui::IsAnyItemHovered() && open_popup)
             ImGui::OpenPopup("Context menu");
 
         if (ImGui::BeginPopup("Context menu")) {
             model_id new_model = undefined<model_id>();
-            ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+            const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
             if (ImGui::BeginMenu("QSS1")) {
                 auto i = static_cast<int>(dynamics_type::qss1_integrator);
@@ -2948,6 +2935,25 @@ editor::show_editor() noexcept
                                                click_pos);
             }
         }
+        ImGui::PopStyleVar();
+
+        if (show_minimap)
+            ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
+
+        ImNodes::EndNodeEditor();
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+
+        int node_id;
+        if (ImNodes::IsNodeHovered(&node_id) && is_running()) {
+            const auto index = top.get_index(node_id);
+            if (index != not_found || top.children[index].first.index() == 0) {
+                const auto id = std::get<model_id>(top.children[index].first);
+                if (auto* mdl = sim.models.try_to_get(id); mdl)
+                    show_tooltip(*this, *mdl, id);
+            }
+        } else
+            tooltip.clear();
 
         {
             int start = 0, end = 0;
