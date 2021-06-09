@@ -502,11 +502,25 @@ private:
         }
     };
 
+    struct position
+    {
+        position() noexcept = default;
+
+        position(const float x_, const float y_) noexcept
+            : x(x_)
+            , y(y_)
+        {}
+
+        float x, y;
+    };
+
     std::vector<model_id> map;
+    std::vector<position> positions; /* Stores positions of the models. */
     std::vector<mapping> constant_mapping;
     std::vector<mapping> binary_file_mapping;
     std::vector<mapping> random_mapping;
     std::vector<mapping> text_file_mapping;
+
     int source_number = 0;
     int model_number = 0;
 
@@ -532,6 +546,13 @@ public:
     int column_error() const noexcept
     {
         return buf.m_column;
+    }
+
+    position get_position(const sz index) const noexcept
+    {
+        return index < positions.size() ?
+            positions[index] :
+            position{ 0.f, 0.f };
     }
 
     status operator()(simulation& sim, external_source& srcs) noexcept
@@ -854,6 +875,7 @@ private:
 
         try {
             map.resize(model_number, model_id{ 0 });
+            positions.resize(model_number);
         } catch (const std::bad_alloc& /*e*/) {
             return status::io_not_enough_memory;
         }
@@ -863,11 +885,15 @@ private:
 
     status do_read_model(simulation& sim, int* id) noexcept
     {
-        irt_return_if_fail((is >> *id >> temp_1),
-                           status::io_file_format_model_error);
+        irt_return_if_fail((is >> *id), status::io_file_format_model_error);
 
         irt_return_if_fail(0 <= *id && *id < model_number,
                            status::io_file_format_model_error);
+
+        irt_return_if_fail((is >> positions[*id].x >> positions[*id].y),
+                           status::io_file_format_model_error);
+
+        irt_return_if_fail((is >> temp_1), status::io_file_format_model_error);
 
         irt_return_if_bad(do_read_dynamics(sim, *id, temp_1));
 
@@ -1496,14 +1522,14 @@ struct writer
       : os(os_)
     {}
 
-    status operator()(const simulation& sim,
-                      const external_source& srcs) noexcept
+    void write_constant_sources(
+      const data_array<constant_source, constant_source_id>& srcs)
     {
-        os << srcs.constant_sources.size() << '\n';
-        if (srcs.constant_sources.size() > 0u) {
+        os << srcs.size() << '\n';
+        if (srcs.size() > 0u) {
             constant_source* src = nullptr;
-            while (srcs.constant_sources.next(src)) {
-                const auto id = srcs.constant_sources.get_id(src);
+            while (srcs.next(src)) {
+                const auto id = srcs.get_id(src);
                 const auto index = get_index(id);
                 os << index << ' ' << src->buffer.size();
 
@@ -1513,36 +1539,48 @@ struct writer
                 os << '\n';
             }
         }
+    }
 
-        os << srcs.binary_file_sources.size() << '\n';
-        if (srcs.binary_file_sources.size() > 0u) {
+    void write_binary_file_sources(
+      const data_array<binary_file_source, binary_file_source_id>& srcs)
+    {
+        os << srcs.size() << '\n';
+        if (srcs.size() > 0u) {
             binary_file_source* src = nullptr;
-            while (srcs.binary_file_sources.next(src)) {
-                const auto id = srcs.binary_file_sources.get_id(src);
+            while (srcs.next(src)) {
+                const auto id = srcs.get_id(src);
                 const auto index = get_index(id);
 
                 os << index << ' ' << std::quoted(src->file_path.string())
                    << '\n';
             }
         }
+    }
 
-        os << srcs.text_file_sources.size() << '\n';
-        if (srcs.text_file_sources.size() > 0u) {
+    void write_text_file_sources(
+      const data_array<text_file_source, text_file_source_id>& srcs)
+    {
+        os << srcs.size() << '\n';
+        if (srcs.size() > 0u) {
             text_file_source* src = nullptr;
-            while (srcs.text_file_sources.next(src)) {
-                const auto id = srcs.text_file_sources.get_id(src);
+            while (srcs.next(src)) {
+                const auto id = srcs.get_id(src);
                 const auto index = get_index(id);
 
                 os << index << ' ' << std::quoted(src->file_path.string())
                    << '\n';
             }
         }
+    }
 
-        os << srcs.random_sources.size() << '\n';
-        if (srcs.random_sources.size() > 0u) {
+    void write_random_sources(
+      const data_array<random_source, random_source_id>& srcs)
+    {
+        os << srcs.size() << '\n';
+        if (srcs.size() > 0u) {
             random_source* src = nullptr;
-            while (srcs.random_sources.next(src)) {
-                const auto id = srcs.random_sources.get_id(src);
+            while (srcs.next(src)) {
+                const auto id = srcs.get_id(src);
                 const auto index = get_index(id);
 
                 os << index << ' ' << distribution_str(src->distribution);
@@ -1552,30 +1590,11 @@ struct writer
                 os << '\n';
             }
         }
+    }
 
-        os << sim.models.size() << '\n';
-
-        try {
-            map.resize(sim.models.size(), model_id{ 0 });
-        } catch (const std::bad_alloc& /*e*/) {
-            return status::io_not_enough_memory;
-        }
-
+    void write_connections(const simulation& sim)
+    {
         model* mdl = nullptr;
-        int id = 0;
-        while (sim.models.next(mdl)) {
-            const auto mdl_id = sim.models.get_id(mdl);
-
-            os << id << ' ';
-            map[id] = mdl_id;
-
-            sim.dispatch(
-              *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
-
-            ++id;
-        }
-
-        mdl = nullptr;
         while (sim.models.next(mdl)) {
             sim.dispatch(
               *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
@@ -1604,6 +1623,86 @@ struct writer
                   }
               });
         }
+    }
+
+    void write_model(const simulation& sim)
+    {
+        model* mdl = nullptr;
+        int id = 0;
+        while (sim.models.next(mdl)) {
+            const auto mdl_id = sim.models.get_id(mdl);
+            map[id] = mdl_id;
+
+            os << id << " 0.0 0.0 ";
+
+            sim.dispatch(
+              *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
+
+            ++id;
+        }
+    }
+
+    void write_model(const simulation& sim,
+                     function_ref<void(model_id, float& x, float& y)> get_pos)
+    {
+        model* mdl = nullptr;
+        int id = 0;
+
+        while (sim.models.next(mdl)) {
+            const auto mdl_id = sim.models.get_id(mdl);
+            map[id] = mdl_id;
+
+            float x = 0., y = 0.;
+            get_pos(mdl_id, x, y);
+            os << id << ' ' << x << ' ' << y << ' ';
+
+            sim.dispatch(
+              *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
+
+            ++id;
+        }
+    }
+
+    status operator()(const simulation& sim,
+                      const external_source& srcs) noexcept
+    {
+        write_constant_sources(srcs.constant_sources);
+        write_binary_file_sources(srcs.binary_file_sources);
+        write_text_file_sources(srcs.text_file_sources);
+        write_random_sources(srcs.random_sources);
+
+        try {
+            map.resize(sim.models.size(), undefined<model_id>());
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::io_not_enough_memory;
+        }
+
+        os << sim.models.size() << '\n';
+        write_model(sim);
+        write_connections(sim);
+
+        return status::success;
+    }
+
+    status operator()(
+      const simulation& sim,
+      const external_source& srcs,
+      function_ref<void(model_id, float&, float&)> get_pos) noexcept
+    {
+        write_constant_sources(srcs.constant_sources);
+        write_binary_file_sources(srcs.binary_file_sources);
+        write_text_file_sources(srcs.text_file_sources);
+        write_random_sources(srcs.random_sources);
+
+        try {
+            map.resize(sim.models.size(), undefined<model_id>());
+        } catch (const std::bad_alloc& /*e*/) {
+            return status::io_not_enough_memory;
+        }
+
+        os << sim.models.size() << '\n';
+        write_model(sim, get_pos);
+        write_connections(sim);
 
         return status::success;
     }

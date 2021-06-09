@@ -954,7 +954,7 @@ main()
         expect(ret_2 == 579.0);
     };
 
-    "input_output"_test = [] {
+    "input-output"_test = [] {
         std::string str;
         str.reserve(4096u);
 
@@ -1057,7 +1057,7 @@ main()
         }
 
         {
-            std::string string_error{ "0 0 0 0\n1\n0 qss1_integrator A B C\n" };
+            std::string string_error{ "0 0 0 0\n1\n0 5 6 qss1_integrator A B C\n" };
             std::istringstream is{ string_error };
             irt::simulation sim;
             irt::external_source srcs;
@@ -1069,9 +1069,12 @@ main()
             irt::reader r(is);
             expect(irt::is_bad(r(sim, srcs)));
             expect(r.line_error() == 3);
-            expect(r.column_error() == 18);
+            expect(r.column_error() == 22);
             expect(r.model_error == 0);
             expect(r.connection_error == 0);
+
+            expect(r.get_position(0).x == 5.f);
+            expect(r.get_position(0).y == 6.f);
 
             irt::is_fatal_breakpoint = true;
         }
