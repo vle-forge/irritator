@@ -801,7 +801,7 @@ struct message
       : real{ std::forward<Args>(args)... }
     {
         auto size = sizeof...(args);
-        for (; size != std::size(real); ++size)
+        for (; size < std::size(real); ++size)
             real[size] = 0.;
     }
 
