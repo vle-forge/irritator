@@ -3,12 +3,11 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
-#include "imnodes.hpp"
+#include "imnodes.h"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "imnodes.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -118,11 +117,11 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // Setup Platform/Renderer bindings
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
-    imnodes::CreateContext();
+    ImNodes::CreateContext();
     irt::application app;
 
     if (!app.init()) {
-        imnodes::DestroyContext();
+        ImNodes::DestroyContext();
 
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
@@ -202,7 +201,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // Cleanup
 
     app.shutdown();
-    imnodes::DestroyContext();
+    ImNodes::DestroyContext();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
