@@ -88,20 +88,21 @@ Simple file
 
 [source]
 ''''
-4							 # 4 models will be allocated
-0 A generator 2 0.0 100.0 0  # Model 'A' is a generator with one double real message
-1 B generator 2 0.0 100.0 0  # Model 'B' is a generator with one double real message
-2 Add adder_2 2 1.0 1.0 0    # Model 'Add' is a adder_2 with one double real message
-3 C counter 1 0.0 0			 # Model 'C' is a counter with one real message
-3							 # 3 internal connections
-0 0 2 0                      # Model 'A' output port '0' connected to model 'Add' input port '0'
-1 0 2 1                      # Model 'A' output port '0' connected to model 'Add' input port '0'
-2 0 3 0                      # Model 'Add' output port '0' connected to model 'C' input port '0'
-0							 # 0 input connection
-1							 # 1 output connection
-C 0	0						 # Model 'C' output port '0' connected to coupled model port '0'
+2                                    # Number of constant source generator
+0 10 1 2 3 4 5 6 7 8 9 10            # The first constant generator with id: 0 have ten values
+1 5 0 0 1 1 2                        # The second constant generator with id: 1 have five values
+0                                    # Number of binary file source generator
+1                                    # Number of text file source generator
+0 "data/big-random-data.dat"         # The only text file generator with id: 0 with a relative file (relative to the irt file).
+1                                    # Number of random source generator
+0 normal 0.5 0.1                     # The only random source generator with id: 0 with a normal law and two parameters 0.5 and 0.1 for mean and standard deviation
+4                                    # 4 models will be allocated
+0 15.0 17.0 generator 2 0.0 100.0 0  # Model 0, in position x = 15.0 y = 17.0, is a generator with one double real message
+1 12.0 5.0 generator 2 0.0 100.0 0   # Model 1, in position x = 12.0 y = 5.0, is a generator with one double real message
+2 -5.0 0.0 adder_2 2 1.0 1.0 0       # Model 2, in position x = -5.0 y = 0.0, is a adder_2 with one double real message
+3 0.0 1.0 counter 1 0.0 0            # Model 3, in position x = 12.0 y = 1.0, is a counter with one real message
+3                                    # 3 internal connections
+0 0 2 0                              # Model 'A' output port '0' connected to model 'Add' input port '0'
+1 0 2 1                              # Model 'A' output port '0' connected to model 'Add' input port '0'
+2 0 3 0                              # Model 'Add' output port '0' connected to model 'C' input port '0'
 ''''
-
-The `string` for name contains only the following no-utf8 characters from the
-POSIX, BSD and C99 norms: `isalnum() || isdigit(c) || _` in the  i.e.
-`0-9|a-z|A-Z|_`.
