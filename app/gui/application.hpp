@@ -265,9 +265,6 @@ struct editor
       file_discrete_outs;
     std::vector<observation_output> observation_outputs;
 
-    void show_sources_window(bool* is_show);
-    void show_menu_sources(const char* title, source& src);
-
     template<typename Function, typename... Args>
     constexpr void observation_dispatch(const u32 index,
                                         Function&& f,
@@ -328,7 +325,6 @@ struct editor
     bool show_save_file_dialog = false;
     bool show_select_directory_dialog = false;
     bool show_settings = false;
-    bool show_sources = false;
 
     struct settings_manager
     {
@@ -432,8 +428,11 @@ struct editor
     void show_model_dynamics(model& mdl) noexcept;
     void show_model_cluster(cluster& mdl) noexcept;
     void show_top() noexcept;
+    void show_sources() noexcept;
+    void show_editor() noexcept;
+    void show_menu_sources(const char* title, source& src);
 
-    bool show_editor() noexcept;
+    bool show_window() noexcept;
 };
 
 struct window_logger

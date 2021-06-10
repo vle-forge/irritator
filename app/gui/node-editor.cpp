@@ -2583,273 +2583,9 @@ add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
     return status::success;
 }
 
-bool
+void
 editor::show_editor() noexcept
 {
-    ImNodes::EditorContextSet(context);
-
-    ImGuiWindowFlags windows_flags = 0;
-    windows_flags |= ImGuiWindowFlags_MenuBar;
-
-    ImGui::SetNextWindowPos(ImVec2(500, 50), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(800, 700), ImGuiCond_Once);
-    if (!ImGui::Begin(name.c_str(), &show, windows_flags)) {
-        ImGui::End();
-        return true;
-    }
-
-    if (ImGui::BeginMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("Open"))
-                show_load_file_dialog = true;
-
-            if (!path.empty() && ImGui::MenuItem("Save")) {
-                log_w.log(3,
-                          "Write into file %s\n",
-                          (const char*)path.u8string().c_str());
-                if (auto os = std::ofstream(path); os.is_open()) {
-                    writer w(os);
-                    auto ret = w(sim, srcs);
-                    if (is_success(ret))
-                        log_w.log(5, "success\n");
-                    else
-                        log_w.log(4, "error writing\n");
-                }
-            }
-
-            if (ImGui::MenuItem("Save as..."))
-                show_save_file_dialog = true;
-
-            if (ImGui::MenuItem("Close")) {
-                ImGui::EndMenu();
-                ImGui::EndMenuBar();
-                ImGui::End();
-                return false;
-            }
-
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Edition")) {
-            ImGui::MenuItem("Show minimap", nullptr, &show_minimap);
-            ImGui::MenuItem("Show parameter in models",
-                            nullptr,
-                            &settings.show_dynamics_inputs_in_editor);
-            ImGui::Separator();
-            if (ImGui::MenuItem("Clear"))
-                clear();
-            ImGui::Separator();
-            if (ImGui::MenuItem("Grid Reorder"))
-                compute_grid_layout();
-            if (ImGui::MenuItem("Automatic Layout"))
-                compute_automatic_layout();
-            ImGui::Separator();
-            if (ImGui::MenuItem("External sources"))
-                show_sources = true;
-            if (ImGui::MenuItem("Settings"))
-                show_settings = true;
-
-            ImGui::EndMenu();
-        }
-
-        auto empty_fun = [this](irt::model_id id) {
-            this->top.emplace_back(id);
-            parent(id, undefined<cluster_id>());
-        };
-
-        if (ImGui::BeginMenu("Examples")) {
-            if (ImGui::MenuItem("Insert example AQSS lotka_volterra"))
-                if (auto ret = add_lotka_volterra(); is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize a Lotka Volterra "
-                              "model (%s)\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert Izhikevitch model"))
-                if (auto ret = add_izhikevitch(); is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize an Izhikevitch "
-                              "model (%s)\n",
-                              status_string(ret));
-
-            if (ImGui::MenuItem("Insert example QSS1 lotka_volterra"))
-                if (auto ret = example_qss_lotka_volterra<1>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize "
-                              "example_qss_lotka_volterra<1>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS1 negative_lif"))
-                if (auto ret = example_qss_negative_lif<1>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize "
-                              "example_qss_negative_lif<1>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS1 lif"))
-                if (auto ret = example_qss_lif<1>(sim, empty_fun); is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize example_qss_lif<1>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS1 van_der_pol"))
-                if (auto ret = example_qss_van_der_pol<1>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_van_der_pol<1>: %s\n",
-                      status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS1 izhikevich"))
-                if (auto ret = example_qss_izhikevich<1>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_izhikevich<1>: %s\n",
-                      status_string(ret));
-
-            if (ImGui::MenuItem("Insert example QSS2 lotka_volterra"))
-                if (auto ret = example_qss_lotka_volterra<2>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize "
-                              "example_qss_lotka_volterra<2>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS2 negative_lif"))
-                if (auto ret = example_qss_negative_lif<2>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize "
-                              "example_qss_negative_lif<2>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS2 lif"))
-                if (auto ret = example_qss_lif<2>(sim, empty_fun); is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize example_qss_lif<2>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS2 van_der_pol"))
-                if (auto ret = example_qss_van_der_pol<2>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_van_der_pol<2>: %s\n",
-                      status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS2 izhikevich"))
-                if (auto ret = example_qss_izhikevich<2>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_izhikevich<2>: %s\n",
-                      status_string(ret));
-
-            if (ImGui::MenuItem("Insert example QSS3 lotka_volterra"))
-                if (auto ret = example_qss_lotka_volterra<3>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize "
-                              "example_qss_lotka_volterra<3>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS3 negative_lif"))
-                if (auto ret = example_qss_negative_lif<3>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize "
-                              "example_qss_negative_lif<3>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS3 lif"))
-                if (auto ret = example_qss_lif<3>(sim, empty_fun); is_bad(ret))
-                    log_w.log(3,
-                              "Fail to initialize example_qss_lif<3>: %s\n",
-                              status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS3 van_der_pol"))
-                if (auto ret = example_qss_van_der_pol<3>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_van_der_pol<3>: %s\n",
-                      status_string(ret));
-            if (ImGui::MenuItem("Insert example QSS3 izhikevich"))
-                if (auto ret = example_qss_izhikevich<3>(sim, empty_fun);
-                    is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_izhikevich<3>: %s\n",
-                      status_string(ret));
-
-            ImGui::EndMenu();
-        }
-
-        ImGui::EndMenuBar();
-    }
-
-    if (show_select_directory_dialog) {
-        ImGui::OpenPopup("Select directory");
-        if (select_directory_dialog(observation_directory)) {
-            show_select_directory_dialog = false;
-
-            log_w.log(
-              5, "Output directory: %s", (const char*)path.u8string().c_str());
-        }
-    }
-
-    if (show_load_file_dialog) {
-        const char* title = "Select file path to load";
-        const char8_t* filters[] = { u8".irt", nullptr };
-
-        ImGui::OpenPopup(title);
-        if (load_file_dialog(path, title, filters)) {
-            show_load_file_dialog = false;
-            log_w.log(
-              5, "Load file from %s: ", (const char*)path.u8string().c_str());
-            if (auto is = std::ifstream(path); is.is_open()) {
-                reader r(is);
-                auto ret = r(sim, srcs, [&r, this](model_id id) {
-                    parent(id, undefined<cluster_id>());
-
-                    const auto index = get_index(id);
-                    const auto new_id = top.emplace_back(id);
-                    const auto pos = r.get_position(index);
-
-                    ImNodes::SetNodeEditorSpacePos(new_id, ImVec2(pos.x, pos.y));
-                });
-
-                if (is_success(ret))
-                    log_w.log(5, "success\n");
-                else
-                    log_w.log(4, "fail\n");
-            }
-        }
-    }
-
-    if (show_save_file_dialog) {
-        if (sim.models.size()) {
-            const char* title = "Select file path to save";
-            const char8_t* filters[] = { u8".irt", nullptr };
-
-            ImGui::OpenPopup(title);
-            if (save_file_dialog(path, title, filters)) {
-                show_save_file_dialog = false;
-                log_w.log(
-                  5, "Save file to %s\n", (const char*)path.u8string().c_str());
-
-                log_w.log(3,
-                          "Write into file %s\n",
-                          (const char*)path.u8string().c_str());
-                if (auto os = std::ofstream(path); os.is_open()) {
-                    writer w(os);
-
-                    auto ret = w(sim, srcs, [](model_id mdl_id, float& x, float& y) {
-                        const auto index = irt::get_index(mdl_id);
-                        const auto pos = ImNodes::GetNodeEditorSpacePos(static_cast<int>(index));
-                        x = pos.x;
-                        y = pos.y;
-                        });
-
-                    if (is_success(ret))
-                        log_w.log(5, "success\n");
-                    else
-                        log_w.log(4, "error writing\n");
-                }
-            }
-        }
-    }
 
     ImGui::Text("X -- delete selected nodes and/or connections / "
                 "D -- duplicate selected nodes / "
@@ -2862,6 +2598,8 @@ editor::show_editor() noexcept
       ImGuiTableFlags_BordersV;
 
     if (ImGui::BeginTable("Editor", 2, flags)) {
+        ImNodes::EditorContextSet(context);
+
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
 
@@ -2874,13 +2612,14 @@ editor::show_editor() noexcept
           ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
           ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
 
+        model_id new_model = undefined<model_id>();
+        const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
         if (!ImGui::IsAnyItemHovered() && open_popup)
             ImGui::OpenPopup("Context menu");
 
         if (ImGui::BeginPopup("Context menu")) {
-            model_id new_model = undefined<model_id>();
-            const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
             if (ImGui::BeginMenu("QSS1")) {
                 auto i = static_cast<int>(dynamics_type::qss1_integrator);
@@ -2938,19 +2677,20 @@ editor::show_editor() noexcept
             add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
             ImGui::EndPopup();
-
-            if (new_model != undefined<model_id>()) {
-                parent(new_model, undefined<cluster_id>());
-                ImNodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
-                                               click_pos);
-            }
         }
+
         ImGui::PopStyleVar();
 
         if (show_minimap)
             ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
 
         ImNodes::EndNodeEditor();
+
+        if (new_model != undefined<model_id>()) {
+            parent(new_model, undefined<cluster_id>());
+            ImNodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
+                                           click_pos);
+        }
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
@@ -3217,11 +2957,289 @@ editor::show_editor() noexcept
 
         ImGui::EndTable();
     }
+}
+
+bool
+editor::show_window() noexcept
+{
+    ImGuiWindowFlags windows_flags = 0;
+    windows_flags |= ImGuiWindowFlags_MenuBar;
+
+    ImGui::SetNextWindowPos(ImVec2(500, 50), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(800, 700), ImGuiCond_Once);
+    if (!ImGui::Begin(name.c_str(), &show, windows_flags)) {
+        ImGui::End();
+        return true;
+    }
+
+    if (ImGui::BeginMenuBar()) {
+        if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Open"))
+                show_load_file_dialog = true;
+
+            if (!path.empty() && ImGui::MenuItem("Save")) {
+                log_w.log(3,
+                          "Write into file %s\n",
+                          (const char*)path.u8string().c_str());
+                if (auto os = std::ofstream(path); os.is_open()) {
+                    writer w(os);
+                    auto ret = w(sim, srcs);
+                    if (is_success(ret))
+                        log_w.log(5, "success\n");
+                    else
+                        log_w.log(4, "error writing\n");
+                }
+            }
+
+            if (ImGui::MenuItem("Save as..."))
+                show_save_file_dialog = true;
+
+            if (ImGui::MenuItem("Close")) {
+                ImGui::EndMenu();
+                ImGui::EndMenuBar();
+                ImGui::End();
+                return false;
+            }
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Edition")) {
+            ImGui::MenuItem("Show minimap", nullptr, &show_minimap);
+            ImGui::MenuItem("Show parameter in models",
+                            nullptr,
+                            &settings.show_dynamics_inputs_in_editor);
+            ImGui::Separator();
+            if (ImGui::MenuItem("Clear"))
+                clear();
+            ImGui::Separator();
+            if (ImGui::MenuItem("Grid Reorder"))
+                compute_grid_layout();
+            if (ImGui::MenuItem("Automatic Layout"))
+                compute_automatic_layout();
+            ImGui::Separator();
+            if (ImGui::MenuItem("Settings"))
+                show_settings = true;
+
+            ImGui::EndMenu();
+        }
+
+        auto empty_fun = [this](irt::model_id id) {
+            this->top.emplace_back(id);
+            parent(id, undefined<cluster_id>());
+        };
+
+        if (ImGui::BeginMenu("Examples")) {
+            if (ImGui::MenuItem("Insert example AQSS lotka_volterra"))
+                if (auto ret = add_lotka_volterra(); is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize a Lotka Volterra "
+                              "model (%s)\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert Izhikevitch model"))
+                if (auto ret = add_izhikevitch(); is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize an Izhikevitch "
+                              "model (%s)\n",
+                              status_string(ret));
+
+            if (ImGui::MenuItem("Insert example QSS1 lotka_volterra"))
+                if (auto ret = example_qss_lotka_volterra<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_lotka_volterra<1>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 negative_lif"))
+                if (auto ret = example_qss_negative_lif<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_negative_lif<1>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 lif"))
+                if (auto ret = example_qss_lif<1>(sim, empty_fun); is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize example_qss_lif<1>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 van_der_pol"))
+                if (auto ret = example_qss_van_der_pol<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_van_der_pol<1>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 izhikevich"))
+                if (auto ret = example_qss_izhikevich<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_izhikevich<1>: %s\n",
+                      status_string(ret));
+
+            if (ImGui::MenuItem("Insert example QSS2 lotka_volterra"))
+                if (auto ret = example_qss_lotka_volterra<2>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_lotka_volterra<2>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS2 negative_lif"))
+                if (auto ret = example_qss_negative_lif<2>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_negative_lif<2>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS2 lif"))
+                if (auto ret = example_qss_lif<2>(sim, empty_fun); is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize example_qss_lif<2>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS2 van_der_pol"))
+                if (auto ret = example_qss_van_der_pol<2>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_van_der_pol<2>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS2 izhikevich"))
+                if (auto ret = example_qss_izhikevich<2>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_izhikevich<2>: %s\n",
+                      status_string(ret));
+
+            if (ImGui::MenuItem("Insert example QSS3 lotka_volterra"))
+                if (auto ret = example_qss_lotka_volterra<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_lotka_volterra<3>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 negative_lif"))
+                if (auto ret = example_qss_negative_lif<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_negative_lif<3>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 lif"))
+                if (auto ret = example_qss_lif<3>(sim, empty_fun); is_bad(ret))
+                    log_w.log(3,
+                              "Fail to initialize example_qss_lif<3>: %s\n",
+                              status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 van_der_pol"))
+                if (auto ret = example_qss_van_der_pol<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_van_der_pol<3>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 izhikevich"))
+                if (auto ret = example_qss_izhikevich<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_izhikevich<3>: %s\n",
+                      status_string(ret));
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenuBar();
+    }
+
+    if (show_select_directory_dialog) {
+        ImGui::OpenPopup("Select directory");
+        if (select_directory_dialog(observation_directory)) {
+            show_select_directory_dialog = false;
+
+            log_w.log(
+              5, "Output directory: %s", (const char*)path.u8string().c_str());
+        }
+    }
+
+    if (show_load_file_dialog) {
+        const char* title = "Select file path to load";
+        const char8_t* filters[] = { u8".irt", nullptr };
+
+        ImGui::OpenPopup(title);
+        if (load_file_dialog(path, title, filters)) {
+            show_load_file_dialog = false;
+            log_w.log(
+              5, "Load file from %s: ", (const char*)path.u8string().c_str());
+            if (auto is = std::ifstream(path); is.is_open()) {
+                reader r(is);
+                auto ret = r(sim, srcs, [&r, this](model_id id) {
+                    parent(id, undefined<cluster_id>());
+
+                    const auto index = get_index(id);
+                    const auto new_id = top.emplace_back(id);
+                    const auto pos = r.get_position(index);
+
+                    ImNodes::SetNodeEditorSpacePos(new_id,
+                                                   ImVec2(pos.x, pos.y));
+                });
+
+                if (is_success(ret))
+                    log_w.log(5, "success\n");
+                else
+                    log_w.log(4, "fail\n");
+            }
+        }
+    }
+
+    if (show_save_file_dialog) {
+        if (sim.models.size()) {
+            const char* title = "Select file path to save";
+            const char8_t* filters[] = { u8".irt", nullptr };
+
+            ImGui::OpenPopup(title);
+            if (save_file_dialog(path, title, filters)) {
+                show_save_file_dialog = false;
+                log_w.log(
+                  5, "Save file to %s\n", (const char*)path.u8string().c_str());
+
+                log_w.log(3,
+                          "Write into file %s\n",
+                          (const char*)path.u8string().c_str());
+                if (auto os = std::ofstream(path); os.is_open()) {
+                    writer w(os);
+
+                    auto ret =
+                      w(sim, srcs, [](model_id mdl_id, float& x, float& y) {
+                          const auto index = irt::get_index(mdl_id);
+                          const auto pos = ImNodes::GetNodeEditorSpacePos(
+                            static_cast<int>(index));
+                          x = pos.x;
+                          y = pos.y;
+                      });
+
+                    if (is_success(ret))
+                        log_w.log(5, "success\n");
+                    else
+                        log_w.log(4, "error writing\n");
+                }
+            }
+        }
+    }
+
+    constexpr ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
+    if (ImGui::BeginTabBar("editor bar", tab_bar_flags)) {
+        if (ImGui::BeginTabItem("model")) {
+            show_editor();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("sources")) {
+            show_sources();
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
 
     ImGui::End();
-
-    if (show_sources)
-        show_sources_window(&show_sources);
 
     return true;
 }

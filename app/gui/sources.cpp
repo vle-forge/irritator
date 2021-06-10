@@ -267,16 +267,8 @@ show_random_distribution_input(random_source& src) noexcept
 }
 
 void
-editor::show_sources_window(bool* is_show)
+editor::show_sources() noexcept
 {
-    ImGui::SetNextWindowPos(ImVec2(70, 450), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(400, 300), ImGuiCond_FirstUseEver);
-
-    if (!ImGui::Begin("External sources", is_show)) {
-        ImGui::End();
-        return;
-    }
-
     static bool show_file_dialog = false;
     static irt::constant_source* constant_ptr = nullptr;
     static irt::binary_file_source* binary_file_ptr = nullptr;
@@ -626,8 +618,6 @@ editor::show_sources_window(bool* is_show)
             }
         }
     }
-
-    ImGui::End();
 }
 
 void

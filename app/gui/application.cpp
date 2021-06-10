@@ -105,7 +105,7 @@ application::show()
     editor* ed = nullptr;
     while (editors.next(ed)) {
         if (ed->show) {
-            if (!ed->show_editor()) {
+            if (!ed->show_window()) {
                 editor* next = ed;
                 editors.next(next);
                 free_editor(*ed);
