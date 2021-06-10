@@ -589,9 +589,183 @@ struct time_domain<time>
 
 /*****************************************************************************
  *
- * Small string
+ * Containers
  *
  ****************************************************************************/
+
+/**
+ * @brief A vector like class but without dynamic allocation.
+ * @tparam T Any type (trivial or not).
+ * @tparam length The capacity of the vector.
+ */
+template<typename T, i32 length>
+class small_vector
+{
+    static_assert(length > 1);
+
+    std::byte m_buffer[length * sizeof(T)];
+    i32 m_size;
+
+public:
+    using iterator = T*;
+    using const_iterator = const T*;
+    using size_type = u8;
+    using reference = T&;
+    using const_reference = const T&;
+
+    constexpr small_vector() noexcept
+    {
+        m_size = 0;
+    }
+
+    constexpr small_vector(const small_vector& other) noexcept
+      : m_size(other.m_size)
+    {
+        std::copy_n(other.data(), other.m_size, data());
+    }
+
+    constexpr small_vector& operator=(const small_vector& other) noexcept
+    {
+        if (&other != this) {
+            m_size = other.m_size;
+            std::copy_n(other.data(), other.m_size, data());
+        }
+
+        return *this;
+    }
+
+    constexpr small_vector(small_vector&& other) noexcept = delete;
+    constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
+
+    constexpr T* data() noexcept
+    {
+        return reinterpret_cast<T*>(&m_buffer[0]);
+    }
+
+    constexpr const T* data() const noexcept
+    {
+        return reinterpret_cast<const T*>(&m_buffer[0]);
+    }
+
+    constexpr reference operator[](const sz index) noexcept
+    {
+        irt_assert(index < static_cast<sz>(m_size));
+
+        return data()[index];
+    }
+
+    constexpr const_reference operator[](const sz index) const noexcept
+    {
+        irt_assert(index < static_cast<sz>(m_size));
+
+        return data()[index];
+    }
+
+    constexpr iterator begin() noexcept
+    {
+        return data();
+    }
+
+    constexpr const_iterator begin() const noexcept
+    {
+        return data();
+    }
+
+    constexpr iterator end() noexcept
+    {
+        return data() + m_size;
+    }
+
+    constexpr const_iterator end() const noexcept
+    {
+        return data() + m_size;
+    }
+
+    constexpr sz size() const noexcept
+    {
+        return static_cast<sz>(m_size);
+    }
+
+    constexpr i32 ssize() const noexcept
+    {
+        return m_size;
+    }
+
+    constexpr sz capacity() const noexcept
+    {
+        return static_cast<sz>(length);
+    }
+
+    constexpr bool empty() const noexcept
+    {
+        return m_size == 0;
+    }
+
+    constexpr bool full() const noexcept
+    {
+        return m_size >= length;
+    }
+
+    constexpr void clear() noexcept
+    {
+        if constexpr (!std::is_trivial_v<T>) {
+            for (i32 i = 0; i != m_size; ++i)
+                data()[i].~T();
+        }
+
+        m_size = 0;
+    }
+
+    constexpr bool can_alloc() noexcept
+    {
+        return m_size < length - 1;
+    }
+
+    constexpr bool can_alloc(i32 number) noexcept
+    {
+        return length - m_size >= number;
+    }
+
+    template<typename... Args>
+    constexpr reference alloc(Args&&... args) noexcept
+    {
+        assert(can_alloc(1) && "check alloc() with full() before using use.");
+
+        new (&(data()[m_size])) T(std::forward<Args>(args)...);
+        ++m_size;
+
+        return data()[m_size - 1];
+    }
+
+    constexpr void pop_back() noexcept
+    {
+        if (m_size) {
+            if constexpr (std::is_trivial_v<T>)
+                data()[m_size - 1].~T();
+
+            --m_size;
+        }
+    }
+
+    constexpr void swap_pop_back(sz index) noexcept
+    {
+        irt_assert(index < m_size);
+
+        if (index == m_size - 1) {
+            pop_back();
+        } else {
+            if constexpr (std::is_trivial_v<T>) {
+                data()[index] = data()[m_size - 1];
+                pop_back();
+            } else {
+                using std::swap;
+
+                swap(data()[index], data()[m_size - 1]);
+                pop_back();
+            }
+        }
+    }
+};
 
 template<size_t length = 8>
 class small_string
@@ -1207,6 +1381,28 @@ public:
         irt_assert(!empty());
 
         return node->value;
+    }
+
+    reference operator[](sz index) noexcept
+    {
+        sz i = 0;
+
+        for (auto it = begin(), et = end(); it != et; ++it, ++i)
+            if (i == index)
+                return *it;
+
+        irt_unreachable();
+    }
+
+    const_reference operator[](sz index) const noexcept
+    {
+        sz i = 0;
+
+        for (auto it = begin(), et = end(); it != et; ++it, ++i)
+            if (i == index)
+                return *it;
+
+        irt_unreachable();
     }
 
     template<typename... Args>

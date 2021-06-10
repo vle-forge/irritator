@@ -502,6 +502,90 @@ main()
                irt::time_domain<irt::time>::negative_infinity);
     };
 
+    "small-vector<T>"_test = [] {
+        irt::small_vector<int, 8> v;
+        expect(v.empty());
+        expect(v.capacity() == 8);
+        v.alloc(0);
+        v.alloc(1);
+        v.alloc(2);
+        v.alloc(3);
+        v.alloc(4);
+        v.alloc(5);
+        v.alloc(6);
+        v.alloc(7);
+        expect(v.size() == 8);
+        expect(v.full());
+        expect(!v.empty());
+        expect(v[0] == 0);
+        expect(v[1] == 1);
+        expect(v[2] == 2);
+        expect(v[3] == 3);
+        expect(v[4] == 4);
+        expect(v[5] == 5);
+        expect(v[6] == 6);
+        expect(v[7] == 7);
+        v.swap_pop_back(0);
+        expect(v.size() == 7);
+        expect(!v.full());
+        expect(!v.empty());
+        expect(v[0] == 7);
+        expect(v[1] == 1);
+        expect(v[2] == 2);
+        expect(v[3] == 3);
+        expect(v[4] == 4);
+        expect(v[5] == 5);
+        expect(v[6] == 6);
+        v.swap_pop_back(6);
+        expect(v.size() == 6);
+        expect(!v.full());
+        expect(!v.empty());
+        expect(v[0] == 7);
+        expect(v[1] == 1);
+        expect(v[2] == 2);
+        expect(v[3] == 3);
+        expect(v[4] == 4);
+        expect(v[5] == 5);
+
+        irt::small_vector<int, 8> v2;
+        v2 = v;
+        v2[0] *= 2;
+        expect(v2[0] == 14);
+        expect(v2[1] == 1);
+        expect(v2[2] == 2);
+        expect(v2[3] == 3);
+        expect(v2[4] == 4);
+        expect(v2[5] == 5);
+    };
+
+    "small-vector-no-trivial"_test = [] {
+        struct toto
+        {
+            int i;
+
+            toto(int i_)
+              : i(i_)
+            {}
+
+            ~toto()
+            {
+                i = 0;
+            }
+        };
+
+        irt::small_vector<toto, 4> v;
+        v.alloc(10);
+        v.clear();
+
+        expect(v.data()[0].i == 0);
+
+        irt::small_vector<toto, 4> v2 = v;
+        v2.alloc(10);
+
+        expect(v.data()[0].i == 0);
+        expect(v2.data()[0].i == 10);
+    };
+
     "small_string"_test = [] {
         irt::small_string<8> f1;
         expect(f1.capacity() == 8_ul);
@@ -1057,7 +1141,9 @@ main()
         }
 
         {
-            std::string string_error{ "0 0 0 0\n1\n0 5 6 qss1_integrator A B C\n" };
+            std::string string_error{
+                "0 0 0 0\n1\n0 5 6 qss1_integrator A B C\n"
+            };
             std::istringstream is{ string_error };
             irt::simulation sim;
             irt::external_source srcs;
