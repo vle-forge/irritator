@@ -3374,24 +3374,34 @@ struct port
 {
     shared_flat_list<node> connections;
     flat_list<message> messages;
-    // message* output = nullptr;
-
-    // port& operator=(const double v) noexcept
-    // {
-    //     output[0] = v;
-    //     return *this;
-    // }
-
-    // port& operator=(const std::initializer_list<double>& v) noexcept
-    // {
-    //     std::copy_n(std::data(v), std::size(v), &output->real[0]);
-    //     return *this;
-    // }
 };
 
+struct component_port
+{
+    shared_flat_list<node> connections;
+    flat_list<message> messages;
+};
+
+/**
+ * @brief Useless for user
+ *
+ * @c none model does not have dynamics. It is use internally to develop the
+ * component part of the irritator gui. @c none is a component. A component
+ * stores children as a list of @c model_id, parameters and observable as a list
+ * of @c model_id and two @c component_port for the input and output port (the
+ * part of the public interface).
+ */
 struct none
 {
     time sigma = time_domain<time>::infinity;
+
+    shared_flat_list<model_id> children;
+    shared_flat_list<model_id> parameters;
+    shared_flat_list<model_id> observables;
+    shared_flat_list<port> x;
+    shared_flat_list<port> y;
+    shared_flat_list<node> internal_x;
+    shared_flat_list<node> internal_y;
 };
 
 struct integrator
@@ -6892,13 +6902,13 @@ public:
               *mdl,
               []<typename Dynamics>([[maybe_unused]] Dynamics& dyn) -> void {
                   if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                      for (sz i = 0; i < std::size(dyn.x); ++i)
-                          dyn.x[i].messages.clear();
+                      for (auto& elem : dyn.x)
+                          elem.messages.clear();
                   }
 
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                      for (sz i = 0; i < std::size(dyn.y); ++i)
-                          dyn.y[i].messages.clear();
+                      for (auto& elem : dyn.y)
+                          elem.messages.clear();
                   }
               });
         }
@@ -6949,15 +6959,13 @@ public:
             dyn.archive.set_allocator(&flat_double_list_shared_allocator);
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-                dyn.x[i].messages.set_allocator(&message_list_allocator);
-            }
+            for (auto& elem : dyn.x)
+                elem.messages.set_allocator(&message_list_allocator);
         }
 
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                dyn.y[i].messages.set_allocator(&message_list_allocator);
-            }
+            for (auto& elem : dyn.y)
+                elem.messages.set_allocator(&message_list_allocator);
         }
 
         return dyn;
@@ -6984,14 +6992,13 @@ public:
                 dyn.archive.set_allocator(&flat_double_list_shared_allocator);
 
             if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-                    dyn.x[i].messages.set_allocator(&message_list_allocator);
-                }
+                for (auto& elem : dyn.x)
+                    elem.messages.set_allocator(&message_list_allocator);
             }
 
             if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                    dyn.y[i].messages.set_allocator(&message_list_allocator);
+                for (auto& elem : dyn.y) {
+                    elem.messages.set_allocator(&message_list_allocator);
                 }
             }
         });
@@ -7032,40 +7039,44 @@ public:
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
             auto& mdl_src = get_model(dyn);
 
-            for (int i = 0, e = (int)std::size(dyn.y); i != e; ++i) {
-                while (!dyn.y[i].connections.empty()) {
+            int i = 0;
+            for (auto& elem : dyn.y) {
+                while (!elem.connections.empty()) {
                     auto* mdl_dst =
-                      models.try_to_get(dyn.y[i].connections.front().model);
+                      models.try_to_get(elem.connections.front().model);
                     if (mdl_dst) {
                         disconnect(mdl_src,
                                    i,
                                    *mdl_dst,
-                                   dyn.y[i].connections.front().port_index);
+                                   elem.connections.front().port_index);
                     }
                 }
 
-                dyn.y[i].connections.clear(node_list_allocator);
-                dyn.y[i].messages.clear();
+                elem.connections.clear(node_list_allocator);
+                elem.messages.clear();
+                ++i;
             }
         }
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             auto& mdl_dst = get_model(dyn);
 
-            for (int i = 0, e = (int)std::size(dyn.x); i != e; ++i) {
-                while (!dyn.x[i].connections.empty()) {
+            int i = 0;
+            for (auto& elem : dyn.x) {
+                while (!elem.connections.empty()) {
                     auto* mdl_src =
-                      models.try_to_get(dyn.x[i].connections.front().model);
+                      models.try_to_get(elem.connections.front().model);
                     if (mdl_src) {
                         disconnect(*mdl_src,
-                                   dyn.x[i].connections.front().port_index,
+                                   elem.connections.front().port_index,
                                    mdl_dst,
                                    i);
                     }
                 }
 
-                dyn.x[i].connections.clear(node_list_allocator);
-                dyn.x[i].messages.clear();
+                elem.connections.clear(node_list_allocator);
+                elem.messages.clear();
+                ++i;
             }
         }
 
@@ -7164,9 +7175,20 @@ public:
         return dispatch(
           src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  if (port_src >= 0 && port_src < (int)std::size(dyn.x)) {
-                      p = &dyn.x[port_src];
-                      return status::success;
+                  if constexpr (std::is_same_v<none, Dynamics>) {
+                      auto it = dyn.x.begin();
+                      for (int i = 0; i < port_src && it != dyn.x.end(); ++i)
+                          ++it;
+
+                      if (it != dyn.x.end()) {
+                          p = &(*it);
+                          return status::success;
+                      }
+                  } else {
+                      if (port_src >= 0 && port_src < length(dyn.x)) {
+                          p = &dyn.x[port_src];
+                          return status::success;
+                      }
                   }
               }
 
@@ -7179,9 +7201,20 @@ public:
         return dispatch(
           dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
               if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  if (port_dst >= 0 && port_dst < (int)std::size(dyn.y)) {
-                      p = &dyn.y[port_dst];
-                      return status::success;
+                  if constexpr (std::is_same_v<none, Dynamics>) {
+                      auto it = dyn.y.begin();
+                      for (int i = 0; i < port_dst && it != dyn.y.end(); ++i)
+                          ++it;
+
+                      if (it != dyn.y.end()) {
+                          p = &(*it);
+                          return status::success;
+                      }
+                  } else {
+                      if (port_dst >= 0 && port_dst < length(dyn.y)) {
+                          p = &dyn.y[port_dst];
+                          return status::success;
+                      }
                   }
               }
 
@@ -7433,8 +7466,8 @@ public:
             irt_return_if_bad(dyn.transition(t, t - mdl.tl, mdl.tn - t));
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i)
-                dyn.x[i].messages.clear();
+            for (auto& elem : dyn.x)
+                elem.messages.clear();
 
         irt_assert(mdl.tn >= t);
 

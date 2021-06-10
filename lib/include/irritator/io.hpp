@@ -512,8 +512,8 @@ private:
         position() noexcept = default;
 
         position(const float x_, const float y_) noexcept
-            : x(x_)
-            , y(y_)
+          : x(x_)
+          , y(y_)
         {}
 
         float x, y;
@@ -555,9 +555,8 @@ public:
 
     position get_position(const sz index) const noexcept
     {
-        return index < positions.size() ?
-            positions[index] :
-            position{ 0.f, 0.f };
+        return index < positions.size() ? positions[index]
+                                        : position{ 0.f, 0.f };
     }
 
     status operator()(simulation& sim, external_source& srcs) noexcept
@@ -1611,16 +1610,17 @@ struct writer
             sim.dispatch(
               *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                      for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                          for (const auto& elem : dyn.y[i].connections) {
-                              auto* dst = sim.models.try_to_get(elem.model);
+                      int i = 0;
+                      for (auto& elem : dyn.y) {
+                          for (const auto& cnt : elem.connections) {
+                              auto* dst = sim.models.try_to_get(cnt.model);
                               if (dst) {
                                   auto it_out =
                                     std::find(map.begin(),
                                               map.end(),
                                               sim.models.get_id(*mdl));
                                   auto it_in = std::find(
-                                    map.begin(), map.end(), elem.model);
+                                    map.begin(), map.end(), cnt.model);
 
                                   irt_assert(it_out != map.end());
                                   irt_assert(it_in != map.end());
@@ -1628,9 +1628,11 @@ struct writer
                                   os << std::distance(map.begin(), it_out)
                                      << ' ' << i << ' '
                                      << std::distance(map.begin(), it_in) << ' '
-                                     << elem.port_index << '\n';
+                                     << cnt.port_index << '\n';
                               }
                           }
+
+                          ++i;
                       }
                   }
               });
@@ -2144,18 +2146,21 @@ public:
             sim.dispatch(
               *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                      for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                          for (const auto& elem : dyn.y[i].connections) {
-                              auto* dst = sim.models.try_to_get(elem.model);
+                      int i = 0;
+                      for (auto& elem : dyn.y) {
+                          for (const auto& cnt : elem.connections) {
+                              auto* dst = sim.models.try_to_get(cnt.model);
                               if (dst) {
                                   auto src_id = sim.models.get_id(*mdl);
 
                                   os << irt::get_key(src_id) << " -> "
-                                     << irt::get_key(elem.model) << " [label=\""
-                                     << i << " - " << elem.port_index
+                                     << irt::get_key(cnt.model) << " [label=\""
+                                     << i << " - " << cnt.port_index
                                      << "\"];\n";
                               }
                           }
+
+                          ++i;
                       }
                   }
               });

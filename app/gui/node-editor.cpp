@@ -261,8 +261,8 @@ editor::group(const ImVector<int>& nodes) noexcept
                   *model,
                   [this, &new_cluster]<typename Dynamics>(Dynamics& dyn) {
                       if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                          for (sz i = 0u, e = std::size(dyn.x); i != e; ++i) {
-                              for (const auto& elem : dyn.x[i].connections) {
+                          for (auto& elem : dyn.x) {
+                              for (const auto& elem : elem.connections) {
                                   auto* src = sim.models.try_to_get(elem.model);
                                   if (src &&
                                       is_in_hierarchy(new_cluster,
@@ -276,8 +276,8 @@ editor::group(const ImVector<int>& nodes) noexcept
 
                       if constexpr (is_detected_v<has_output_port_t,
                                                   Dynamics>) {
-                          for (sz i = 0u, e = std::size(dyn.y); i != e; ++i) {
-                              for (const auto& elem : dyn.y[i].connections) {
+                          for (auto& y_ : dyn.y) {
+                              for (const auto& elem : y_.connections) {
                                   auto* src = sim.models.try_to_get(elem.model);
                                   if (src &&
                                       is_in_hierarchy(new_cluster,
@@ -304,8 +304,7 @@ editor::group(const ImVector<int>& nodes) noexcept
                             Dynamics& dyn) {
                               if constexpr (is_detected_v<has_input_port_t,
                                                           Dynamics>) {
-                                  for (sz i = 0u, e = std::size(dyn.x); i != e;
-                                       ++i) {
+                                  for (auto& x_ : dyn.x) {
                                       for (const auto& elem :
                                            dyn.x[model_port.port_index]
                                              .connections) {
@@ -337,8 +336,7 @@ editor::group(const ImVector<int>& nodes) noexcept
                             Dynamics& dyn) {
                               if constexpr (is_detected_v<has_output_port_t,
                                                           Dynamics>) {
-                                  for (sz i = 0u, e = std::size(dyn.y); i != e;
-                                       ++i) {
+                                  for (auto& _y : dyn.y) {
                                       for (const auto& elem :
                                            dyn.y[model_port.port_index]
                                              .connections) {
@@ -624,17 +622,25 @@ struct copier
                   auto& new_dyn = sim.alloc<Dynamics>();
                   *mdl_id_dst = sim.get_id(new_dyn);
 
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                      for (sz j = 0u, ej = std::size(new_dyn.x); j != ej; ++j)
+                  if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                      int j = 0;
+                      for (auto& elem : new_dyn.x) {
                           this->c_input_ports.emplace_back(
-                            make_input_node_id(sim.models.get_id(mdl), (int)j),
-                            make_input_node_id(*mdl_id_dst, (int)j));
+                            make_input_node_id(sim.models.get_id(mdl), j),
+                            make_input_node_id(*mdl_id_dst, j));
+                          ++j;
+                      }
+                  }
 
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                      for (sz j = 0, ej = std::size(new_dyn.y); j != ej; ++j)
+                  if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                      int j = 0;
+                      for (auto& elem : new_dyn.y) {
                           this->c_output_ports.emplace_back(
-                            make_output_node_id(sim.models.get_id(mdl), (int)j),
-                            make_input_node_id(*mdl_id_dst, (int)j));
+                            make_output_node_id(sim.models.get_id(mdl), j),
+                            make_input_node_id(*mdl_id_dst, j));
+                          ++j;
+                      }
+                  }
 
                   return status::success;
               });
@@ -784,8 +790,8 @@ compute_connection_distance(const model& mdl, editor& ed, const float k)
     ed.sim.dispatch(
       mdl, [&mdl, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              for (sz i = 0, e = std::size(dyn.y); i != e; ++i)
-                  for (auto& dst : dyn.y[i].connections)
+              for (auto& elem : dyn.y)
+                  for (auto& dst : elem.connections)
                       compute_connection_distance(
                         ed.sim.get_id(mdl), dst.model, ed, k);
           }
@@ -1275,8 +1281,10 @@ show_connection(editor& ed, const model& mdl, int connection_id)
       mdl,
       [&ed, &mdl, &connection_id]<typename Dynamics>(Dynamics& dyn) -> void {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              for (sz i = 0, e = std::size(dyn.y); i != e; ++i) {
-                  int out = make_output_node_id(ed.sim.get_id(dyn), (int)i);
+              int i = 0;
+              
+              for (auto& elem : dyn.y) {
+                  int out = make_output_node_id(ed.sim.get_id(dyn), i);
 
                   for (const auto& c : dyn.y[i].connections) {
                       if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
@@ -1285,6 +1293,8 @@ show_connection(editor& ed, const model& mdl, int connection_id)
                           ImNodes::Link(connection_id++, out, in);
                       }
                   }
+
+                  ++i;
               }
           }
       });
@@ -1367,7 +1377,8 @@ add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
     if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
         const auto** names = get_input_port_names<Dynamics>();
 
-        for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
+        sz i = 0;
+        for (auto& elem : dyn.x) {
             irt_assert(i < 8u);
             const auto& mdl = get_model(dyn);
             const auto mdl_id = ed.sim.models.get_id(mdl);
@@ -1378,6 +1389,7 @@ add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
                                          ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndInputAttribute();
+            ++i;
         }
     }
 }
@@ -1389,9 +1401,9 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
     if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
         const auto** names = get_output_port_names<Dynamics>();
 
-        for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
+        sz i = 0;
+        for (auto& elem : dyn.y) {
             irt_assert(i < 8u);
-
             const auto& mdl = get_model(dyn);
             const auto mdl_id = ed.sim.models.get_id(mdl);
 
@@ -1401,6 +1413,7 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
                                           ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndOutputAttribute();
+            ++i;
         }
     }
 }
@@ -2377,8 +2390,9 @@ static status
 make_input_tooltip(Dynamics& dyn, std::string& out)
 {
     if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-        for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-            if (dyn.x[i].messages.empty())
+        sz i = 0;
+        for (auto& elem : dyn.x) {
+            if (elem.messages.empty())
                 continue;
 
             fmt::format_to(std::back_inserter(out), "x[{}]: ", i);
@@ -2406,6 +2420,8 @@ make_input_tooltip(Dynamics& dyn, std::string& out)
                     break;
                 }
             }
+
+            ++i;
         }
     }
 
@@ -2803,8 +2819,8 @@ editor::show_editor() noexcept
                        &link_id_to_delete]<typename Dynamics>(Dynamics& dyn) {
                           if constexpr (is_detected_v<has_output_port_t,
                                                       Dynamics>) {
-                              for (sz j = 0, e = std::size(dyn.y); j != e;
-                                   ++j) {
+                              int j = 0;
+                              for (auto& elem : dyn.y) {
                                   for (const auto& elem :
                                        dyn.y[j].connections) {
                                       if (current_link_id ==
@@ -2826,6 +2842,8 @@ editor::show_editor() noexcept
 
                                       ++current_link_id;
                                   }
+
+                                  ++j;
                               }
                           }
                       });
