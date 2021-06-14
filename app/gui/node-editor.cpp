@@ -2480,8 +2480,9 @@ editor::show_top() noexcept
                 //    ImGui::EndPopup();
                 //}
 
-                ImGui::Text("%s",
-                            dynamics_type_names[static_cast<int>(mdl->type)]);
+                ImGui::Text("%zu\n%s",
+                  i,
+                  dynamics_type_names[static_cast<int>(mdl->type)]);
 
                 ImNodes::EndNodeTitleBar();
                 show_model_dynamics(*mdl);
