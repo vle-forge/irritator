@@ -8,6 +8,8 @@ on:
 
 env:
   TEST_OUTPUT_ON_FAILURE: 1
+  CC: gcc-10
+  CXX: g++-10
 
 jobs:
   build:
