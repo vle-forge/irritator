@@ -2465,6 +2465,21 @@ editor::show_editor() noexcept
                       3,
                       "Fail to initialize example_qss_izhikevich<1>: %s\n",
                       status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 seir_lineaire")) 
+                if (auto ret = example_qss_seir_lineaire<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_seir_lineaire<1>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 seir_nonlineaire"))
+                if (auto ret = example_qss_seir_nonlineaire<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                        3,
+                        "Fail to initialize "
+                        "example_qss_seir_nonlineaire<1>: %s\n",
+                        status_string(ret));
 
             if (ImGui::MenuItem("Insert example QSS2 lotka_volterra"))
                 if (auto ret = example_qss_lotka_volterra<2>(sim, empty_fun);
