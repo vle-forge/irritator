@@ -1,15 +1,14 @@
 = Irritator
 Gauthier Quesnel <gauthier.quesnel@inrae.fr>
-v0.1.0, 2020-xx-xx
+v0.1.0, 2021-xx-xx
 :toc:
 :homepage: https://github.com/quesnel/irritator/
 
-[width="15%"]
-|============
-| https://travis-ci.org/vle-forge/irritator[image:https://travis-ci.org/vle-forge/irritator.png?branch=master[Build Status]] | https://ci.appveyor.com/project/vle-forge/irritator?branch=master[image:https://ci.appveyor.com/api/projects/status/github/vle-forge/irritator?branch=master&svg=true[Build Status]] | https://codecov.io/gh/vle-forge/irritator[image:https://codecov.io/gh/vle-forge/irritator/branch/irritator-0.5/graph/badge.svg[Coverage Status]]
-|============
+image:https://github.com/vle-forge/irritator/actions/workflows/linux.yml/badge.svg[Linux, link=https://github.com/vle-forge/irritator/actions/workflows/linux.yml]
+image:https://github.com/vle-forge/irritator/actions/workflows/macos.yml/badge.svg[MacOS, link=https://github.com/vle-forge/irritator/actions/workflows/macos.yml]
+image:https://github.com/vle-forge/irritator/actions/workflows/windows.yml/badge.svg[Windows, link=https://github.com/vle-forge/irritator/actions/workflows/windows.yml]
 
-Copyright © 2020 http://www.inrae.fr/en[INRA]
+Copyright © 2021 http://www.inrae.fr/en[INRA]
 
 The software is released under the https://www.boost.org/LICENSE_1_0.txt[Boost license]. See the LICENSE file.
 
