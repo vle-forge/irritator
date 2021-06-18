@@ -15,7 +15,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        BUILD_TYPE: [Debug, RelWithDebInfo, Release]
+        BUILD_TYPE: [Debug, Release]
 
     steps:
     - name: Checkout repository and submodule
@@ -34,4 +34,4 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{env.BUILD_TYPE}} --rerun-failed --output-on-failure
+      run: ctest -C ${{matrix.BUILD_TYPE}} --rerun-failed --output-on-failure
