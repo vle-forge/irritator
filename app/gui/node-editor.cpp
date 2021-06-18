@@ -1790,6 +1790,12 @@ show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 {}
 
 static void
+show_dynamics_values(simulation& /*sim*/, const filter& /*dyn*/)
+{
+    //ImGui::Text("number %ld", static_cast<long>(dyn.number));
+}
+
+static void
 show_dynamics_values(simulation& /*sim*/, const flow& dyn)
 {
     if (dyn.i < dyn.default_size)
@@ -2312,6 +2318,10 @@ show_dynamics_inputs(editor& /*ed*/, accumulator_2& /*dyn*/)
 {}
 
 static void
+show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
+{}
+
+static void
 show_dynamics_inputs(editor& /*ed*/, flow& /*dyn*/)
 {}
 
@@ -2675,6 +2685,7 @@ editor::show_editor() noexcept
             add_popup_menuitem(*this, dynamics_type::constant, &new_model);
             add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
             add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::filter, &new_model);
             add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
             ImGui::EndPopup();
