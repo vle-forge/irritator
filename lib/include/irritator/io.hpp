@@ -16,6 +16,7 @@
 namespace irt {
 
 static inline const char* dynamics_type_names[] = { "none",
+                                                    "filter"/*adding filter model without specifying qss1,2 3*/,
                                                     "qss1_integrator",
                                                     "qss1_multiplier",
                                                     "qss1_cross",
@@ -92,6 +93,10 @@ get_input_port_names() noexcept
 {
     if constexpr (std::is_same_v<Dynamics, none>)
         return str_empty;
+
+    /* adding my filter dynamics input port names here*/
+    if constexpr (std::is_same_v<Dynamics, filter>)
+        return str_in_1; // I return this value because the filter has just a single input
 
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss2_integrator> ||
