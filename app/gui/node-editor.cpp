@@ -1673,6 +1673,17 @@ show_dynamics_values(const filter& dyn)
     ImGui::Text("number %ld", static_cast<long>(dyn.number));
 }
 
+/**
+ * Here i am declaring the dynamic values port names to be shown on the filter model
+ *
+ */
+
+static void
+show_dynamics_values(const filter& dyn)
+{
+    ImGui::Text("number %ld", static_cast<long>(dyn.number));
+}
+
 static void
 show_dynamics_values(simulation& /*sim*/, const queue& dyn)
 {
@@ -2022,6 +2033,14 @@ show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
  *
  */
 static void
+show_dynamics_inputs(filter& dyn)
+{
+    //use Immediate mode (ImGui) functions for the declaration here
+    ImGui::InputDouble("input", &dyn.x);
+}
+
+static void
+show_dynamics_inputs(queue& dyn)
 show_dynamics_inputs(filter& dyn)
 {
     //use Immediate mode (ImGui) functions for the declaration here
@@ -2698,6 +2717,7 @@ editor::show_editor() noexcept
         add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
         add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
         add_popup_menuitem(*this, dynamics_type::flow, &new_model);
+        //add_popup_menuitem(*this, dynamics_type::filter, &new_model);
 
             ImGui::EndPopup();
         }
