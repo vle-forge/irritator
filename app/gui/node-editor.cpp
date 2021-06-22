@@ -1679,10 +1679,8 @@ show_dynamics_values(const filter& dyn)
  */
 
 static void
-show_dynamics_values(const filter& dyn)
-{
-    ImGui::Text("number %ld", static_cast<long>(dyn.number));
-}
+show_dynamics_values(const filter& /*dyn*/)
+{ }
 
 static void
 show_dynamics_values(simulation& /*sim*/, const queue& dyn)
@@ -3290,9 +3288,318 @@ editor::show_window() noexcept
             show_editor();
             ImGui::EndTabItem();
         }
+<<<<<<< HEAD
         if (ImGui::BeginTabItem("sources")) {
             show_sources();
             ImGui::EndTabItem();
+=======
+    } else
+        tooltip.clear();
+
+    if (!ImGui::IsAnyItemHovered() && ImGui::IsMouseClicked(1))
+        ImGui::OpenPopup("Context menu");
+
+    if (ImGui::BeginPopup("Context menu")) {
+        model_id new_model = undefined<model_id>();
+        ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+
+        if (ImGui::BeginMenu("QSS1")) {
+            auto i = static_cast<int>(dynamics_type::qss1_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss1_wsum_4);
+            for (; i != e; ++i)
+                add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("QSS2")) {
+            auto i = static_cast<int>(dynamics_type::qss2_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss2_wsum_4);
+
+            for (; i != e; ++i)
+                add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("QSS3")) {
+            auto i = static_cast<int>(dynamics_type::qss3_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss3_wsum_4);
+
+            for (; i != e; ++i)
+                add_popup_menuitem(
+                  *this, static_cast<dynamics_type>(i), &new_model);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("AQSS (experimental)")) {
+            add_popup_menuitem(*this, dynamics_type::integrator, &new_model);
+            add_popup_menuitem(*this, dynamics_type::quantifier, &new_model);
+            add_popup_menuitem(*this, dynamics_type::adder_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::adder_3, &new_model);
+            add_popup_menuitem(*this, dynamics_type::adder_4, &new_model);
+            add_popup_menuitem(*this, dynamics_type::mult_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::mult_3, &new_model);
+            add_popup_menuitem(*this, dynamics_type::mult_4, &new_model);
+            add_popup_menuitem(*this, dynamics_type::cross, &new_model);
+            ImGui::EndMenu();
+        }
+
+        add_popup_menuitem(*this, dynamics_type::counter, &new_model);
+        add_popup_menuitem(*this, dynamics::filter, &newmodel);
+        add_popup_menuitem(*this, dynamics_type::queue, &new_model);
+        add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
+        add_popup_menuitem(*this, dynamics_type::priority_queue, &new_model);
+        add_popup_menuitem(*this, dynamics_type::generator, &new_model);
+        add_popup_menuitem(*this, dynamics_type::constant, &new_model);
+        add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
+        add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+        add_popup_menuitem(*this, dynamics_type::flow, &new_model);
+        ImGui::EndPopup();
+
+        if (new_model != undefined<model_id>()) {
+            parent(new_model, undefined<cluster_id>());
+            imnodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
+                                           click_pos);
+        }
+    }
+
+    {
+        int start = 0, end = 0;
+        if (imnodes::IsLinkCreated(&start, &end)) {
+            const gport out = get_out(start);
+            const gport in = get_in(end);
+
+            if (out.model && in.model && sim.can_connect(1)) {
+                if (auto status = sim.connect(
+                      *out.model, out.port_index, *in.model, in.port_index);
+                    is_bad(status))
+                    log_w.log(6,
+                              "Fail to connect these models: %s\n",
+                              status_string(status));
+            }
+        }
+    }
+
+    ImGui::PopStyleVar();
+
+    const int num_selected_links = imnodes::NumSelectedLinks();
+    const int num_selected_nodes = imnodes::NumSelectedNodes();
+    static ImVector<int> selected_nodes;
+    static ImVector<int> selected_links;
+
+    if (num_selected_nodes > 0) {
+        selected_nodes.resize(num_selected_nodes, -1);
+
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
+            imnodes::GetSelectedNodes(selected_nodes.begin());
+            log_w.log(7, "%d model(s) to delete\n", num_selected_nodes);
+            free_children(selected_nodes);
+        } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('D')) {
+            imnodes::GetSelectedNodes(selected_nodes.begin());
+            log_w.log(7, "%d model(s)/group(s) to copy\n", num_selected_nodes);
+            copy(selected_nodes);
+        } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('G')) {
+            if (num_selected_nodes > 1) {
+                imnodes::GetSelectedNodes(selected_nodes.begin());
+                log_w.log(7, "%d model(s) to group\n", num_selected_nodes);
+                group(selected_nodes);
+            } else if (num_selected_nodes == 1) {
+                imnodes::GetSelectedNodes(selected_nodes.begin());
+                log_w.log(7, "group to ungroup\n");
+                ungroup(selected_nodes[0]);
+            }
+        }
+        selected_nodes.resize(0);
+    } else if (num_selected_links > 0) {
+        selected_links.resize(static_cast<size_t>(num_selected_links));
+
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
+            std::fill_n(selected_links.begin(), selected_links.size(), -1);
+            imnodes::GetSelectedLinks(selected_links.begin());
+            std::sort(
+              selected_links.begin(), selected_links.end(), std::less<int>());
+
+            int i = 0;
+            int link_id_to_delete = selected_links[0];
+            int current_link_id = 0;
+
+            log_w.log(7, "%d connection(s) to delete\n", num_selected_links);
+
+            auto selected_links_ptr = selected_links.Data;
+            auto selected_links_size = selected_links.Size;
+
+            model* mdl = nullptr;
+            while (sim.models.next(mdl) && link_id_to_delete != -1) {
+                sim.dispatch(
+                  *mdl,
+                  [this,
+                   &mdl,
+                   &i,
+                   &current_link_id,
+                   selected_links_ptr,
+                   selected_links_size,
+                   &link_id_to_delete]<typename Dynamics>(Dynamics& dyn) {
+                      if constexpr (is_detected_v<has_output_port_t,
+                                                  Dynamics>) {
+                          for (sz j = 0, e = std::size(dyn.y); j != e; ++j) {
+                              for (const auto& elem : dyn.y[j].connections) {
+                                  if (current_link_id == link_id_to_delete) {
+                                      this->sim.disconnect(
+                                        *mdl,
+                                        (int)j,
+                                        this->sim.models.get(elem.model),
+                                        elem.port_index);
+
+                                      ++i;
+
+                                      if (i != selected_links_size)
+                                          link_id_to_delete =
+                                            selected_links_ptr[i];
+                                      else
+                                          link_id_to_delete = -1;
+                                  }
+
+                                  ++current_link_id;
+                              }
+                          }
+                      }
+                  });
+            }
+        }
+
+        selected_links.resize(0);
+    }
+
+    ImGui::NextColumn();
+
+    if (ImGui::CollapsingHeader("Selected Models",
+                                ImGuiTreeNodeFlags_CollapsingHeader |
+                                  ImGuiTreeNodeFlags_DefaultOpen) &&
+        num_selected_nodes) {
+        selected_nodes.resize(num_selected_nodes, -1);
+        imnodes::GetSelectedNodes(selected_nodes.begin());
+
+        static std::vector<std::string> names;
+        names.clear();
+        names.resize(selected_nodes.size());
+
+        for (int i = 0, e = selected_nodes.size(); i != e; ++i)
+            names[i] = fmt::format("{}", selected_nodes[i]);
+
+        for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
+            const auto index = top.get_index(selected_nodes[i]);
+
+            if (index == not_found)
+                continue;
+
+            const auto& child = top.children[index];
+            if (child.first.index())
+                continue;
+
+            const auto id = std::get<model_id>(child.first);
+            model* mdl = sim.models.try_to_get(id);
+            if (!mdl)
+                continue;
+
+            if (ImGui::TreeNodeEx(names[i].c_str(),
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
+                const auto index = get_index(id);
+                auto out = observation_outputs[index];
+                auto old_choose = static_cast<int>(out.index());
+                auto choose = old_choose;
+
+                ImGui::Text("%s",
+                            dynamics_type_names[static_cast<int>(mdl->type)]);
+
+                const char* items[] = { "none", "plot", "file", "file dt " };
+                ImGui::Combo("type", &choose, items, IM_ARRAYSIZE(items));
+
+                if (choose == 1) {
+                    if (old_choose == 2 || old_choose == 3) {
+                        sim.observers.free(mdl->obs_id);
+                        observation_outputs_free(index);
+                    }
+
+                    plot_output* plot;
+                    if (old_choose != 1) {
+                        plot_output& tf = plot_outs.alloc(names[i].c_str());
+                        plot = &tf;
+                        tf.ed = this;
+                        observation_outputs[index] = plot_outs.get_id(tf);
+                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                        sim.observe(*mdl, o);
+                    } else {
+                        plot =
+                          plot_outs.try_to_get(std::get<plot_output_id>(out));
+                        irt_assert(plot);
+                    }
+
+                    ImGui::InputText(
+                      "name##plot", plot->name.begin(), plot->name.capacity());
+                    ImGui::InputDouble(
+                      "dt##plot", &plot->time_step, 0.001, 1.0, "%.8f");
+                } else if (choose == 2) {
+                    if (old_choose == 1 || old_choose == 3) {
+                        sim.observers.free(mdl->obs_id);
+                        observation_outputs_free(index);
+                    }
+
+                    file_output* file;
+                    if (old_choose != 2) {
+                        file_output& tf = file_outs.alloc(names[i].c_str());
+                        file = &tf;
+                        tf.ed = this;
+                        observation_outputs[index] = file_outs.get_id(tf);
+                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                        sim.observe(*mdl, o);
+                    } else {
+                        file =
+                          file_outs.try_to_get(std::get<file_output_id>(out));
+                        irt_assert(file);
+                    }
+
+                    ImGui::InputText(
+                      "name##file", file->name.begin(), file->name.capacity());
+                } else if (choose == 3) {
+                    if (old_choose == 1 || old_choose == 2) {
+                        sim.observers.free(mdl->obs_id);
+                        observation_outputs_free(index);
+                    }
+
+                    file_discrete_output* file;
+                    if (old_choose != 3) {
+                        file_discrete_output& tf =
+                          file_discrete_outs.alloc(names[i].c_str());
+                        file = &tf;
+                        tf.ed = this;
+                        observation_outputs[index] =
+                          file_discrete_outs.get_id(tf);
+                        auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                        sim.observe(*mdl, o);
+                    } else {
+                        file = file_discrete_outs.try_to_get(
+                          std::get<file_discrete_output_id>(out));
+                        irt_assert(file);
+                    }
+
+                    ImGui::InputText("name##filedt",
+                                     file->name.begin(),
+                                     file->name.capacity());
+                    ImGui::InputDouble(
+                      "dt##filedt", &file->time_step, 0.001, 1.0, "%.8f");
+                } else if (old_choose != choose) {
+                    sim.observers.free(mdl->obs_id);
+                    observation_outputs_free(index);
+                }
+
+                sim.dispatch(*mdl, []<typename Dynamics>(Dynamics& dyn) {
+                    show_dynamics_inputs(dyn);
+                });
+
+                ImGui::TreePop();
+            }
+>>>>>>> seirdeux
         }
         ImGui::EndTabBar();
     }

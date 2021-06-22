@@ -17,7 +17,6 @@
 namespace irt {
 
 static inline const char* dynamics_type_names[] = { "none",
-                                                    "filter"/*adding filter model without specifying qss1,2 3*/,
                                                     "qss1_integrator",
                                                     "qss1_multiplier",
                                                     "qss1_cross",
@@ -60,6 +59,7 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "mult_3",
                                                     "mult_4",
                                                     "counter",
+                                                    "filter",
                                                     "queue",
                                                     "dynamic_queue",
                                                     "priority_queue",
@@ -221,6 +221,7 @@ get_input_port_names(const dynamics_type type) noexcept
 
     case dynamics_type::quantifier:
     case dynamics_type::counter:
+    case dynamics_type::filter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
@@ -302,6 +303,7 @@ get_output_port_names() noexcept
                   std::is_same_v<Dynamics, mult_3> ||
                   std::is_same_v<Dynamics, mult_4> ||
                   std::is_same_v<Dynamics, counter> ||
+                  std::is_same_v<Dynamics,filter> ||
                   std::is_same_v<Dynamics, queue> ||
                   std::is_same_v<Dynamics, dynamic_queue> ||
                   std::is_same_v<Dynamics, priority_queue> ||
@@ -369,6 +371,7 @@ get_output_port_names(const dynamics_type type) noexcept
     case dynamics_type::mult_3:
     case dynamics_type::mult_4:
     case dynamics_type::counter:
+    case dynamics_type::filter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
@@ -968,6 +971,7 @@ private:
             { "adder_4", dynamics_type::adder_4 },
             { "constant", dynamics_type::constant },
             { "counter", dynamics_type::counter },
+            { "filter",dynamics_type::filter },
             { "cross", dynamics_type::cross },
             { "dynamic_queue", dynamics_type::dynamic_queue },
             { "flow", dynamics_type::flow },
@@ -1307,7 +1311,16 @@ private:
         return true;
     }
 
+<<<<<<< HEAD
     bool read(simulation& /*sim*/, queue& dyn) noexcept
+=======
+    bool read(filter& /*dyn*/) noexcept
+    {
+        return true;
+    }
+
+    bool read(queue& dyn) noexcept
+>>>>>>> seirdeux
     {
         return !!(is >> dyn.default_ta);
     }
@@ -2003,6 +2016,7 @@ private:
         os << "counter\n";
     }
 
+<<<<<<< HEAD
     void write(const source& src) noexcept
     {
         u32 a, b;
@@ -2011,6 +2025,14 @@ private:
     }
 
     void write(const simulation& /*sim*/, const queue& dyn) noexcept
+=======
+    void write(const simulation&, const filter& /*dyn*/) noexcept
+    {
+        os << "filter\n";
+    }
+
+    void write(const queue& dyn) noexcept
+>>>>>>> seirdeux
     {
         os << "queue " << dyn.default_ta << '\n';
     }
