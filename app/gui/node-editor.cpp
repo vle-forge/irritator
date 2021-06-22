@@ -1662,6 +1662,17 @@ show_dynamics_values(simulation& /*sim*/, const counter& dyn)
     ImGui::Text("number %ld", static_cast<long>(dyn.number));
 }
 
+/**
+ * Here i am declaring the dynamic values port names to be shown on the filter model
+ *
+ */
+
+static void
+show_dynamics_values(const filter& dyn)
+{
+    ImGui::Text("number %ld", static_cast<long>(dyn.number));
+}
+
 static void
 show_dynamics_values(simulation& /*sim*/, const queue& dyn)
 {
@@ -2004,6 +2015,18 @@ show_dynamics_inputs(editor& /*ed*/, mult_4& dyn)
 static void
 show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
 {}
+
+/**
+ * Here i am declaring the dynamic inpputs into the values port names to be shown on the filter
+ * model
+ *
+ */
+static void
+show_dynamics_inputs(filter& dyn)
+{
+    //use Immediate mode (ImGui) functions for the declaration here
+    ImGui::InputDouble("input", &dyn.x);
+}
 
 static void
 show_dynamics_inputs(editor& /*ed*/, queue& dyn)
@@ -2666,16 +2689,15 @@ editor::show_editor() noexcept
                 ImGui::EndMenu();
             }
 
-            add_popup_menuitem(*this, dynamics_type::counter, &new_model);
-            add_popup_menuitem(*this, dynamics_type::queue, &new_model);
-            add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
-            add_popup_menuitem(
-              *this, dynamics_type::priority_queue, &new_model);
-            add_popup_menuitem(*this, dynamics_type::generator, &new_model);
-            add_popup_menuitem(*this, dynamics_type::constant, &new_model);
-            add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
-            add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
-            add_popup_menuitem(*this, dynamics_type::flow, &new_model);
+        add_popup_menuitem(*this, dynamics_type::counter, &new_model);
+        add_popup_menuitem(*this, dynamics_type::queue, &new_model);
+        add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
+        add_popup_menuitem(*this, dynamics_type::priority_queue, &new_model);
+        add_popup_menuitem(*this, dynamics_type::generator, &new_model);
+        add_popup_menuitem(*this, dynamics_type::constant, &new_model);
+        add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
+        add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+        add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
             ImGui::EndPopup();
         }
