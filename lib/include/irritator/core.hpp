@@ -2860,6 +2860,7 @@ enum class dynamics_type : i32
     mult_4,
 
     counter,
+    filter,
 
     queue,
     dynamic_queue,

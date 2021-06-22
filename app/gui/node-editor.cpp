@@ -1595,10 +1595,8 @@ show_dynamics_values(const counter& dyn)
  */
 
 static void
-show_dynamics_values(const filter& dyn)
-{
-    ImGui::Text("number %ld", static_cast<long>(dyn.number));
-}
+show_dynamics_values(const filter& /*dyn*/)
+{ }
 
 static void
 show_dynamics_values(const queue& dyn)
@@ -2723,6 +2721,7 @@ editor::show_editor() noexcept
         }
 
         add_popup_menuitem(*this, dynamics_type::counter, &new_model);
+        add_popup_menuitem(*this, dynamics::filter, &newmodel);
         add_popup_menuitem(*this, dynamics_type::queue, &new_model);
         add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
         add_popup_menuitem(*this, dynamics_type::priority_queue, &new_model);
@@ -2731,8 +2730,6 @@ editor::show_editor() noexcept
         add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
         add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
         add_popup_menuitem(*this, dynamics_type::flow, &new_model);
-        //add_popup_menuitem(*this, dynamics_type::filter, &new_model);
-
         ImGui::EndPopup();
 
         if (new_model != undefined<model_id>()) {
