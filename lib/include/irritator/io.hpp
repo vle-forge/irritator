@@ -2024,15 +2024,12 @@ private:
         os << b << ' ' << src.type;
     }
 
-    void write(const simulation& /*sim*/, const queue& dyn) noexcept
-=======
     void write(const simulation&, const filter& /*dyn*/) noexcept
     {
         os << "filter\n";
     }
 
-    void write(const queue& dyn) noexcept
->>>>>>> seirdeux
+    void write(const simulation& /*sim*/, const queue& dyn) noexcept
     {
         os << "queue " << dyn.default_ta << '\n';
     }

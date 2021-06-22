@@ -5120,7 +5120,7 @@ struct filter
         return status::success;
     }
 };
-// filter model ends here ------------------------------
+// filter model definition ends here ------------------------------
 
 struct counter
 {
