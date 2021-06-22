@@ -4903,6 +4903,33 @@ struct mult
     }
 };
 
+/**
+ * The filter model has a single input and one output
+ * Also the sigma is set to infinity
+ * study the models for none and integrator from line 3003 as examples
+ * 
+ * I have not yet declared paravmaters like up_threshold and lower_threshold
+ * Interestingly I have not yet declared consructors where I will define initial values
+ * for parameters up_threshold and lower_threshold
+ */
+
+struct filter
+{
+    port x[1]; // declaring a single input port
+    port y[1]; // dclaring a single output port
+    time sigma; // sigma time component to be set to infinity as per specification
+    //i64 number;
+
+    status initialize() noexcept
+    {
+        //number = { 0 };
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+};
+// filter model ends here ------------------------------
+
 struct counter
 {
     port x[1];
