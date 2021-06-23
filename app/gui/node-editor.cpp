@@ -1663,6 +1663,12 @@ show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 }
 
 static void
+show_dynamics_values(simulation& /*sim*/, const filter& dyn)
+{
+    ImGui::Text("input %.3f", dyn.x);
+}
+
+static void
 show_dynamics_values(simulation& /*sim*/, const queue& dyn)
 {
     if (dyn.queue.empty()) {
@@ -2003,6 +2009,10 @@ show_dynamics_inputs(editor& /*ed*/, mult_4& dyn)
 
 static void
 show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
 {}
 
 static void
@@ -2675,6 +2685,7 @@ editor::show_editor() noexcept
             add_popup_menuitem(*this, dynamics_type::constant, &new_model);
             add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
             add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::filter, &new_model);
             add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
             ImGui::EndPopup();
