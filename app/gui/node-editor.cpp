@@ -1663,12 +1663,6 @@ show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 }
 
 static void
-show_dynamics_values(simulation& /*sim*/, const filter& dyn)
-{
-    ImGui::Text("input %.3f", dyn.x);
-}
-
-static void
 show_dynamics_values(simulation& /*sim*/, const queue& dyn)
 {
     if (dyn.queue.empty()) {
@@ -1792,10 +1786,6 @@ show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
 }
 
 static void
-show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
-{}
-
-static void
 show_dynamics_values(simulation& /*sim*/, const flow& dyn)
 {
     if (dyn.i < dyn.default_size)
@@ -1803,6 +1793,16 @@ show_dynamics_values(simulation& /*sim*/, const flow& dyn)
     else
         ImGui::Text("no data");
 }
+
+static void
+show_dynamics_values(simulation& /*sim*/, const filter& dyn)
+{
+    ImGui::Text("input %.3f", dyn.x);
+}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
+{}
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss1_integrator& dyn)
@@ -2009,10 +2009,6 @@ show_dynamics_inputs(editor& /*ed*/, mult_4& dyn)
 
 static void
 show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
-{}
-
-static void
-show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
 {}
 
 static void
@@ -2323,6 +2319,10 @@ show_dynamics_inputs(editor& /*ed*/, accumulator_2& /*dyn*/)
 
 static void
 show_dynamics_inputs(editor& /*ed*/, flow& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
 {}
 
 static void

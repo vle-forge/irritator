@@ -5133,7 +5133,6 @@ struct filter
     status initialize() noexcept
     {
         sigma = time_domain<time>::infinity;
-
         return status::success;
     }
 };
