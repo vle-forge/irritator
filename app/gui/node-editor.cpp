@@ -2662,10 +2662,8 @@ editor::show_editor() noexcept
             }
 
             if (ImGui::BeginMenu("AQSS (experimental)")) {
-                add_popup_menuitem(
-                  *this, dynamics_type::integrator, &new_model);
-                add_popup_menuitem(
-                  *this, dynamics_type::quantifier, &new_model);
+                add_popup_menuitem(*this, dynamics_type::integrator, &new_model);
+                add_popup_menuitem(*this, dynamics_type::quantifier, &new_model);
                 add_popup_menuitem(*this, dynamics_type::adder_2, &new_model);
                 add_popup_menuitem(*this, dynamics_type::adder_3, &new_model);
                 add_popup_menuitem(*this, dynamics_type::adder_4, &new_model);
@@ -2680,13 +2678,13 @@ editor::show_editor() noexcept
             add_popup_menuitem(*this, dynamics_type::filter, &new_model);
             add_popup_menuitem(*this, dynamics_type::queue, &new_model);
             add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
-            add_popup_menuitem(
-              *this, dynamics_type::priority_queue, &new_model);
+            add_popup_menuitem(*this, dynamics_type::priority_queue, &new_model);
             add_popup_menuitem(*this, dynamics_type::generator, &new_model);
             add_popup_menuitem(*this, dynamics_type::constant, &new_model);
             add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
             add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
             add_popup_menuitem(*this, dynamics_type::flow, &new_model);
+            add_popup_menuitem(*this, dynamics_type::filter, &new_model);
 
             ImGui::EndPopup();
         }
