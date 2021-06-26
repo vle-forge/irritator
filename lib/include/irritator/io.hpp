@@ -59,7 +59,6 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "mult_3",
                                                     "mult_4",
                                                     "counter",
-                                                    "filter",
                                                     "queue",
                                                     "dynamic_queue",
                                                     "priority_queue",
@@ -68,7 +67,8 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "cross",
                                                     "time_func",
                                                     "accumulator_2",
-                                                    "flow" };
+                                                    "flow",
+                                                    "filter" };
 
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
@@ -300,14 +300,14 @@ get_output_port_names() noexcept
                   std::is_same_v<Dynamics, mult_3> ||
                   std::is_same_v<Dynamics, mult_4> ||
                   std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, filter> ||
                   std::is_same_v<Dynamics, queue> ||
                   std::is_same_v<Dynamics, dynamic_queue> ||
                   std::is_same_v<Dynamics, priority_queue> ||
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, flow>)
+                  std::is_same_v<Dynamics, flow> ||
+                  std::is_same_v<Dynamics, filter> )
         return str_out_1;
 
     if constexpr (std::is_same_v<Dynamics, cross> ||
@@ -368,7 +368,6 @@ get_output_port_names(const dynamics_type type) noexcept
     case dynamics_type::mult_3:
     case dynamics_type::mult_4:
     case dynamics_type::counter:
-    case dynamics_type::filter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
@@ -376,6 +375,7 @@ get_output_port_names(const dynamics_type type) noexcept
     case dynamics_type::constant:
     case dynamics_type::time_func:
     case dynamics_type::flow:
+    case dynamics_type::filter:
         return str_out_1;
 
     case dynamics_type::cross:

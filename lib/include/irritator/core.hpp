@@ -5300,6 +5300,11 @@ struct filter
     time sigma;
     //i64 number;
 
+    enum MyEnum
+    {
+        port_input;
+    };
+
     status initialize() noexcept
     {
         //number = { 0 };
