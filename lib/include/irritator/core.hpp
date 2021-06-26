@@ -6053,7 +6053,6 @@ max_size_in_bytes() noexcept
                sizeof(mult_3),
                sizeof(mult_4),
                sizeof(counter),
-               sizeof(filter),
                sizeof(queue),
                sizeof(dynamic_queue),
                sizeof(priority_queue),
