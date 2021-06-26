@@ -58,7 +58,8 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "mult_2",
                                                     "mult_3",
                                                     "mult_4",
-                                                    "counter",                                                    "f
+                                                    "counter",
+                                                    "filter",
                                                     "queue",
                                                     "dynamic_queue",
                                                     "priority_queue",
@@ -67,8 +68,7 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "cross",
                                                     "time_func",
                                                     "accumulator_2",
-                                                    "flow",
-                                                    "filter"};
+                                                    "flow" };
 
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));

@@ -5129,11 +5129,22 @@ struct filter
 {
     port x[1];
     port y[1];
-    time sigma;
+    time sigma = time_domain<time>::infinity;
     status initialize() noexcept
     {
-        sigma = time_domain<time>::infinity;
+        //sigma = time_domain<time>::infinity;
         return status::success;
+    }
+
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
+    {
+
+        return status::success;
+    }
+
+    message observation(const time /*e*/) const noexcept
+    {
+        return { static_cast<double>(0) };
     }
 };
 
