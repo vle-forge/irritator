@@ -647,16 +647,16 @@ public:
         return reinterpret_cast<const T*>(&m_buffer[0]);
     }
 
-    constexpr reference operator[](const sz index) noexcept
+    constexpr reference operator[](const i32 index) noexcept
     {
-        irt_assert(index < static_cast<sz>(m_size));
+        irt_assert(index >= 0 && index < m_size);
 
         return data()[index];
     }
 
-    constexpr const_reference operator[](const sz index) const noexcept
+    constexpr const_reference operator[](const i32 index) const noexcept
     {
-        irt_assert(index < static_cast<sz>(m_size));
+        irt_assert(index >= 0 && index < m_size);
 
         return data()[index];
     }
@@ -747,7 +747,7 @@ public:
         }
     }
 
-    constexpr void swap_pop_back(sz index) noexcept
+    constexpr void swap_pop_back(i32 index) noexcept
     {
         irt_assert(index < m_size);
 
