@@ -304,7 +304,7 @@ editor::group(const ImVector<int>& nodes) noexcept
                             Dynamics& dyn) {
                               if constexpr (is_detected_v<has_input_port_t,
                                                           Dynamics>) {
-                                  for (auto& x_ : dyn.x) {
+                                  for ([[maybe_unused]] auto& x_ : dyn.x) {
                                       for (const auto& elem :
                                            dyn.x[model_port.port_index]
                                              .connections) {
@@ -336,7 +336,7 @@ editor::group(const ImVector<int>& nodes) noexcept
                             Dynamics& dyn) {
                               if constexpr (is_detected_v<has_output_port_t,
                                                           Dynamics>) {
-                                  for (auto& _y : dyn.y) {
+                                  for ([[maybe_unused]] auto& _y : dyn.y) {
                                       for (const auto& elem :
                                            dyn.y[model_port.port_index]
                                              .connections) {
@@ -624,7 +624,7 @@ struct copier
 
                   if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
                       int j = 0;
-                      for (auto& elem : new_dyn.x) {
+                      for ([[maybe_unused]] auto& elem : new_dyn.x) {
                           this->c_input_ports.emplace_back(
                             make_input_node_id(sim.models.get_id(mdl), j),
                             make_input_node_id(*mdl_id_dst, j));
@@ -634,7 +634,7 @@ struct copier
 
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                       int j = 0;
-                      for (auto& elem : new_dyn.y) {
+                      for ([[maybe_unused]] auto& elem : new_dyn.y) {
                           this->c_output_ports.emplace_back(
                             make_output_node_id(sim.models.get_id(mdl), j),
                             make_input_node_id(*mdl_id_dst, j));
@@ -1282,8 +1282,8 @@ show_connection(editor& ed, const model& mdl, int connection_id)
       [&ed, &mdl, &connection_id]<typename Dynamics>(Dynamics& dyn) -> void {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
               int i = 0;
-              
-              for (auto& elem : dyn.y) {
+
+              for ([[maybe_unused]] auto& elem : dyn.y) {
                   int out = make_output_node_id(ed.sim.get_id(dyn), i);
 
                   for (const auto& c : dyn.y[i].connections) {
@@ -1378,7 +1378,7 @@ add_input_attribute(editor& ed, const Dynamics& dyn) noexcept
         const auto** names = get_input_port_names<Dynamics>();
 
         sz i = 0;
-        for (auto& elem : dyn.x) {
+        for ([[maybe_unused]] auto& elem : dyn.x) {
             irt_assert(i < 8u);
             const auto& mdl = get_model(dyn);
             const auto mdl_id = ed.sim.models.get_id(mdl);
@@ -1402,7 +1402,7 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
         const auto** names = get_output_port_names<Dynamics>();
 
         sz i = 0;
-        for (auto& elem : dyn.y) {
+        for ([[maybe_unused]] auto& elem : dyn.y) {
             irt_assert(i < 8u);
             const auto& mdl = get_model(dyn);
             const auto mdl_id = ed.sim.models.get_id(mdl);
@@ -2820,7 +2820,7 @@ editor::show_editor() noexcept
                           if constexpr (is_detected_v<has_output_port_t,
                                                       Dynamics>) {
                               int j = 0;
-                              for (auto& elem : dyn.y) {
+                              for ([[maybe_unused]] auto& elem : dyn.y) {
                                   for (const auto& elem :
                                        dyn.y[j].connections) {
                                       if (current_link_id ==
