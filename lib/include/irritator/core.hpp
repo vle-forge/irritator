@@ -1324,11 +1324,19 @@ private:
     node_type* node{ nullptr };
 
 public:
-    shared_flat_list() = default;
+    shared_flat_list() noexcept = default;
 
-    shared_flat_list(const shared_flat_list& other) = delete;
+    shared_flat_list(const shared_flat_list& /*other*/) noexcept
+      : node{ nullptr }
+    {}
+
+    shared_flat_list(shared_flat_list&& other) noexcept
+      : node{ other.node }
+    {
+        other.node = nullptr;
+    }
+
     shared_flat_list& operator=(const shared_flat_list& other) = delete;
-    shared_flat_list(shared_flat_list&& other) = delete;
     shared_flat_list& operator=(shared_flat_list&& other) = delete;
 
     ~shared_flat_list() noexcept = default;
@@ -2088,13 +2096,19 @@ private:
     i64 m_size{ 0 };
 
 public:
-    flat_double_list() = default;
+    flat_double_list() noexcept = default;
 
-    flat_double_list(allocator_type* allocator)
+    flat_double_list(allocator_type* allocator) noexcept
       : m_allocator(allocator)
     {}
 
-    flat_double_list(const flat_double_list& other) = delete;
+    flat_double_list(const flat_double_list& other) noexcept
+      : m_allocator{ other.m_allocator }
+      , m_front{ nullptr }
+      , m_back{ nullptr }
+      , m_size{ 0 }
+    {}
+
     flat_double_list& operator=(const flat_double_list& other) = delete;
 
     flat_double_list(flat_double_list&& other) noexcept
