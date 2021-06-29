@@ -3371,6 +3371,56 @@ using has_init_port_t = decltype(&T::init);
 template<typename T>
 using has_sim_attribute_t = decltype(&T::sim);
 
+template<typename U, typename V>
+struct map
+{
+    static_assert(std::is_trivial_v<V> && std::is_trivial_v<U>,
+                  "map is trivial type only (model_id, etc.)");
+
+    struct element
+    {
+        element() noexcept = default;
+
+        element(const U u_, const V v_)
+          : u(u_)
+          , v(v_)
+        {}
+
+        U u;
+        V v;
+    };
+
+    // @TODO replace with a lightweight vector
+    std::vector<element> elements;
+
+    element* try_emplace_back(const U u, const V v)
+    {
+        try {
+            return &elements.emplace_back(u, v);
+        } catch (...) {
+            return nullptr;
+        }
+    }
+
+    void sort() noexcept
+    {
+        std::sort(
+          elements.begin(),
+          elements.end(),
+          [](const auto& left, const auto& right) { return left.u < right.u; });
+    }
+
+    const V* find(const U u) const noexcept
+    {
+        auto it = binary_find(
+          elements.begin(), elements.end(), u, [](const auto& elem, const U u) {
+              return elem.u == u;
+          });
+
+        return it != elements.end() ? &it->v : nullptr;
+    }
+};
+
 struct node
 {
     node() = default;
