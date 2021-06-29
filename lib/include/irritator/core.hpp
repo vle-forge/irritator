@@ -3064,8 +3064,7 @@ enum class dynamics_type : i32
     cross,
     time_func,
     accumulator_2,
-    flow,
-    filter/*added the filter*/
+    flow
 };
 
 constexpr i8
@@ -5126,18 +5125,40 @@ struct counter
     }
 };
 
-//struct filter
-//{
-//    port x[1];
-//    port y[1];
-//    time sigma;
-//    status initialize() noexcept
-//    {
-//        sigma = time_domain<time>::infinity;
-//
-//        return status::success;
-//    }
-//};
+/*
+ * Add filter declaratio here as struct
+ */
+struct filter
+{
+    port x[1];
+    port y[1];
+    time sigma;
+    i64 number;
+
+    status initialize() noexcept
+    {
+        number = { 0 };
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
+    {
+        const auto diff =
+          std::distance(std::begin(x[0].messages), std::end(x[0].messages));
+
+        number += static_cast<i64>(diff);
+
+        return status::success;
+    }
+
+    message observation(const time /*e*/) const noexcept
+    {
+        return { static_cast<double>(number) };
+    }
+};
+
 
 struct generator
 {
@@ -5291,42 +5312,6 @@ struct flow
     {
         return { default_data[i] };
     }
-};
-
-struct filter
-{
-    port x[1];
-    port y[1];
-    time sigma;
-    //i64 number;
-
-    enum MyEnum
-    {
-        port_input;
-    };
-
-    status initialize() noexcept
-    {
-        //number = { 0 };
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    //status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
-    //{
-    //    const auto diff =
-    //      std::distance(std::begin(x[0].messages), std::end(x[0].messages));
-
-    //    number += static_cast<i64>(diff);
-
-    //    return status::success;
-    //}
-
-    //message observation(const time /*e*/) const noexcept
-    //{
-    //    return { static_cast<double>(number) };
-    //}
 };
 
 template<size_t PortNumber>
@@ -6058,6 +6043,7 @@ max_size_in_bytes() noexcept
                sizeof(mult_3),
                sizeof(mult_4),
                sizeof(counter),
+               sizeof(filter), 
                sizeof(queue),
                sizeof(dynamic_queue),
                sizeof(priority_queue),
@@ -6066,8 +6052,7 @@ max_size_in_bytes() noexcept
                sizeof(cross),
                sizeof(time_func),
                sizeof(accumulator_2),
-               sizeof(flow),
-               sizeof(filter));
+               sizeof(flow));
 }
 
 struct model
@@ -6297,6 +6282,10 @@ dynamics_typeof() noexcept
         return dynamics_type::mult_4;
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
+    if constexpr (std::is_same_v<dynamics_id, filter>)
+        return dynamics_type::filter;
+    if constexpr (std::is_same_v<Dynamics, filter>)
+        return dynamics_type::filter;
     if constexpr (std::is_same_v<Dynamics, queue>)
         return dynamics_type::queue;
     if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
@@ -6315,8 +6304,6 @@ dynamics_typeof() noexcept
         return dynamics_type::accumulator_2;
     if constexpr (std::is_same_v<Dynamics, flow>)
         return dynamics_type::flow;
-    if constexpr (std::is_same_v<Dynamics, filter>)
-        return dynamics_type::filter;
 
     return dynamics_type::none;
 }
@@ -6478,6 +6465,8 @@ struct simulation
             return f(*reinterpret_cast<mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
             return f(*reinterpret_cast<counter*>(&mdl.dyn), args...);
+        case dynamics_type::filter:
+            return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
         case dynamics_type::queue:
             return f(*reinterpret_cast<queue*>(&mdl.dyn), args...);
         case dynamics_type::dynamic_queue:
@@ -6496,8 +6485,6 @@ struct simulation
             return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
         case dynamics_type::flow:
             return f(*reinterpret_cast<flow*>(&mdl.dyn), args...);
-        case dynamics_type::filter:
-            return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
         }
 
         irt_unreachable();
@@ -6605,6 +6592,8 @@ struct simulation
             return f(*reinterpret_cast<const mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
             return f(*reinterpret_cast<const counter*>(&mdl.dyn), args...);
+        case dynamics_type::filter:
+            return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
         case dynamics_type::queue:
             return f(*reinterpret_cast<const queue*>(&mdl.dyn), args...);
         case dynamics_type::dynamic_queue:
@@ -6626,8 +6615,6 @@ struct simulation
             return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
         case dynamics_type::flow:
             return f(*reinterpret_cast<const flow*>(&mdl.dyn), args...);
-        case dynamics_type::filter:
-            return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
         }
 
         irt_unreachable();
@@ -6922,6 +6909,7 @@ public:
         case dynamics_type::mult_3:
         case dynamics_type::mult_4:
         case dynamics_type::counter:
+        case dynamics_type::filter:
         case dynamics_type::queue:
         case dynamics_type::dynamic_queue:
         case dynamics_type::priority_queue:
@@ -6930,7 +6918,6 @@ public:
         case dynamics_type::cross:
         case dynamics_type::time_func:
         case dynamics_type::flow:
-        case dynamics_type::filter:
         case dynamics_type::accumulator_2:
             if (mdl_dst.type == dynamics_type::integrator &&
                 i_port_index ==

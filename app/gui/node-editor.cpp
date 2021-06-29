@@ -1665,7 +1665,7 @@ show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 static void
 show_dynamics_values(simulation& /*sim*/, const filter& dyn)
 {
-    ImGui::Text("input %.3f", dyn.x);
+    ImGui::Text("number %ld", static_cast<long>(dyn.number));
 }
 
 static void
@@ -2013,7 +2013,9 @@ show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
 
 static void
 show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
-{}
+{
+    //ImGui::InputDouble("in", &dyn.x);
+}
 
 static void
 show_dynamics_inputs(editor& /*ed*/, queue& dyn)
