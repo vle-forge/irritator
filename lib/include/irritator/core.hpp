@@ -2393,6 +2393,7 @@ public:
  *
  ****************************************************************************/
 
+enum class component_id : std::uint64_t;
 enum class model_id : std::uint64_t;
 enum class dynamics_id : std::uint64_t;
 enum class message_id : std::uint64_t;
@@ -3438,12 +3439,17 @@ struct port
 {
     shared_flat_list<node> connections;
     flat_list<message> messages;
-};
 
-struct component_port
-{
-    shared_flat_list<node> connections;
-    flat_list<message> messages;
+    port() noexcept = default;
+
+    port(const port& /*other*/) noexcept
+      : connections{}
+      , messages{}
+    {}
+
+    port(port&& other) noexcept = delete;
+    port& operator=(const port&) noexcept = delete;
+    port& operator=(port&&) noexcept = delete;
 };
 
 /**
@@ -3458,14 +3464,12 @@ struct component_port
 struct none
 {
     time sigma = time_domain<time>::infinity;
+    component_id id = undefined<component_id>();
 
-    shared_flat_list<model_id> children;
-    shared_flat_list<model_id> parameters;
-    shared_flat_list<model_id> observables;
+    map<model_id, model_id> dict;
+
     shared_flat_list<port> x;
     shared_flat_list<port> y;
-    shared_flat_list<node> internal_x;
-    shared_flat_list<node> internal_y;
 };
 
 struct integrator
@@ -6365,6 +6369,17 @@ struct model
     dynamics_type type{ dynamics_type::none };
 
     std::byte dyn[max_size_in_bytes()];
+};
+
+struct component
+{
+    small_string<16> name;
+    shared_flat_list<model_id> children;
+    shared_flat_list<model_id> parameters;
+    shared_flat_list<model_id> observables;
+
+    shared_flat_list<node> internal_x;
+    shared_flat_list<node> internal_y;
 };
 
 /*****************************************************************************
