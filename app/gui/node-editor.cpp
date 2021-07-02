@@ -1676,36 +1676,36 @@ show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 static void
 show_dynamics_values(simulation& /*sim*/, const queue& dyn)
 {
-    if (dyn.queue.empty()) {
+    if (dyn.fifo.empty()) {
         ImGui::Text("empty");
     } else {
-        ImGui::Text("size %" PRId64, dyn.queue.size());
-        ImGui::Text("next ta %.3f", dyn.queue.begin()->real[0]);
-        ImGui::Text("next value %.3f", dyn.queue.begin()->real[1]);
+        ImGui::Text("size %" PRId64, dyn.fifo.size());
+        ImGui::Text("next ta %.3f", dyn.fifo.begin()->real[0]);
+        ImGui::Text("next value %.3f", dyn.fifo.begin()->real[1]);
     }
 }
 
 static void
 show_dynamics_values(simulation& /*sim*/, const dynamic_queue& dyn)
 {
-    if (dyn.queue.empty()) {
+    if (dyn.fifo.empty()) {
         ImGui::Text("empty");
     } else {
-        ImGui::Text("size %" PRId64, dyn.queue.size());
-        ImGui::Text("next ta %.3f", dyn.queue.begin()->real[0]);
-        ImGui::Text("next value %.3f", dyn.queue.begin()->real[1]);
+        ImGui::Text("size %" PRId64, dyn.fifo.size());
+        ImGui::Text("next ta %.3f", dyn.fifo.begin()->real[0]);
+        ImGui::Text("next value %.3f", dyn.fifo.begin()->real[1]);
     }
 }
 
 static void
 show_dynamics_values(simulation& /*sim*/, const priority_queue& dyn)
 {
-    if (dyn.queue.empty()) {
+    if (dyn.fifo.empty()) {
         ImGui::Text("empty");
     } else {
-        ImGui::Text("size %" PRId64, dyn.queue.size());
-        ImGui::Text("next ta %.3f", dyn.queue.begin()->real[0]);
-        ImGui::Text("next value %.3f", dyn.queue.begin()->real[1]);
+        ImGui::Text("size %" PRId64, dyn.fifo.size());
+        ImGui::Text("next ta %.3f", dyn.fifo.begin()->real[0]);
+        ImGui::Text("next value %.3f", dyn.fifo.begin()->real[1]);
     }
 }
 

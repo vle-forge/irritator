@@ -6062,38 +6062,46 @@ struct queue
     port x[1];
     port y[1];
     time sigma;
-    flat_double_list<dated_message> queue;
+    flat_double_list<dated_message> fifo;
 
     double default_ta = 1.0;
+
+    queue() noexcept = default;
+
+    queue(const queue& other) noexcept
+      : sigma(other.sigma)
+      , fifo(other.fifo.get_allocator())
+      , default_ta(other.default_ta)
+    {}
 
     status initialize() noexcept
     {
         if (default_ta <= 0)
             irt_bad_return(status::model_queue_bad_ta);
 
-        if (!queue.get_allocator())
+        if (!fifo.get_allocator())
             irt_bad_return(status::model_queue_empty_allocator);
 
         sigma = time_domain<time>::infinity;
-        queue.clear();
+        fifo.clear();
 
         return status::success;
     }
 
     status transition(time t, time /*e*/, time /*r*/) noexcept
     {
-        while (!queue.empty() && queue.front().real[0] <= t)
-            queue.pop_front();
+        while (!fifo.empty() && fifo.front().real[0] <= t)
+            fifo.pop_front();
 
         for (const auto& msg : x[0].messages) {
-            if (!queue.get_allocator()->can_alloc(1u))
+            if (!fifo.get_allocator()->can_alloc(1u))
                 irt_bad_return(status::model_queue_full);
 
-            queue.emplace_back(t + default_ta, msg[0], msg[1], msg[2], msg[3]);
+            fifo.emplace_back(t + default_ta, msg[0], msg[1], msg[2], msg[3]);
         }
 
-        if (!queue.empty()) {
-            sigma = queue.front().real[0] - t;
+        if (!fifo.empty()) {
+            sigma = fifo.front().real[0] - t;
             sigma = sigma <= 0. ? 0. : sigma;
         } else {
             sigma = time_domain<time>::infinity;
@@ -6104,9 +6112,9 @@ struct queue
 
     status lambda() noexcept
     {
-        if (!queue.empty()) {
-            auto it = queue.begin();
-            auto end = queue.end();
+        if (!fifo.empty()) {
+            auto it = fifo.begin();
+            auto end = fifo.end();
             const auto t = it->real[0];
 
             for (; it != end && it->real[0] <= t; ++it)
@@ -6123,16 +6131,26 @@ struct dynamic_queue
     port x[1];
     port y[1];
     time sigma;
-    flat_double_list<dated_message> queue;
+    flat_double_list<dated_message> fifo;
 
     simulation* sim = nullptr;
     source default_source_ta;
     bool stop_on_error = false;
 
+    dynamic_queue() noexcept = default;
+
+    dynamic_queue(const dynamic_queue& other) noexcept
+      : sigma(other.sigma)
+      , fifo(other.fifo.get_allocator())
+      , sim(nullptr)
+      , default_source_ta(other.default_source_ta)
+      , stop_on_error(other.stop_on_error)
+    {}
+
     status initialize() noexcept
     {
         sigma = time_domain<time>::infinity;
-        queue.clear();
+        fifo.clear();
 
         if (stop_on_error)
             irt_return_if_bad(initialize_source(*sim, default_source_ta));
@@ -6144,25 +6162,25 @@ struct dynamic_queue
 
     status transition(time t, time /*e*/, time /*r*/) noexcept
     {
-        while (!queue.empty() && queue.front().real[0] <= t)
-            queue.pop_front();
+        while (!fifo.empty() && fifo.front().real[0] <= t)
+            fifo.pop_front();
 
         for (const auto& msg : x[0].messages) {
-            if (!queue.get_allocator()->can_alloc(1u))
+            if (!fifo.get_allocator()->can_alloc(1u))
                 irt_bad_return(status::model_dynamic_queue_full);
 
             double ta;
             if (stop_on_error) {
                 irt_return_if_bad(update_source(*sim, default_source_ta, ta));
-                queue.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
+                fifo.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
             } else {
                 if (is_success(update_source(*sim, default_source_ta, ta)))
-                    queue.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
+                    fifo.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
             }
         }
 
-        if (!queue.empty()) {
-            sigma = queue.front().real[0] - t;
+        if (!fifo.empty()) {
+            sigma = fifo.front().real[0] - t;
             sigma = sigma <= 0. ? 0. : sigma;
         } else {
             sigma = time_domain<time>::infinity;
@@ -6173,9 +6191,9 @@ struct dynamic_queue
 
     status lambda() noexcept
     {
-        if (!queue.empty()) {
-            auto it = queue.begin();
-            auto end = queue.end();
+        if (!fifo.empty()) {
+            auto it = fifo.begin();
+            auto end = fifo.end();
             const auto t = it->real[0];
 
             for (; it != end && it->real[0] <= t; ++it)
@@ -6192,29 +6210,40 @@ struct priority_queue
     port x[1];
     port y[1];
     time sigma;
-    flat_double_list<dated_message> queue;
+    flat_double_list<dated_message> fifo;
     double default_ta = 1.0;
 
     simulation* sim = nullptr;
     source default_source_ta;
     bool stop_on_error = false;
 
+    priority_queue() noexcept = default;
+
+    priority_queue(const priority_queue& other) noexcept
+      : sigma(other.sigma)
+      , fifo(other.fifo.get_allocator())
+      , default_ta(other.default_ta)
+      , sim(nullptr)
+      , default_source_ta(other.default_source_ta)
+      , stop_on_error(other.stop_on_error)
+    {}
+
 private:
     status try_to_insert(const time t, const message& msg) noexcept
     {
-        if (!queue.get_allocator()->can_alloc(1u))
+        if (!fifo.get_allocator()->can_alloc(1u))
             irt_bad_return(status::model_priority_queue_source_is_null);
 
-        if (queue.empty() || queue.begin()->real[0] > t) {
-            queue.emplace_front(t, msg[0], msg[1], msg[2], msg[3]);
+        if (fifo.empty() || fifo.begin()->real[0] > t) {
+            fifo.emplace_front(t, msg[0], msg[1], msg[2], msg[3]);
         } else {
-            auto it = queue.begin();
-            auto end = queue.end();
+            auto it = fifo.begin();
+            auto end = fifo.end();
             ++it;
 
             for (; it != end; ++it) {
                 if (it->real[0] > t) {
-                    queue.emplace(it, t, msg[0], msg[1], msg[2], msg[3]);
+                    fifo.emplace(it, t, msg[0], msg[1], msg[2], msg[3]);
                     return status::success;
                 }
             }
@@ -6226,7 +6255,7 @@ private:
 public:
     status initialize() noexcept
     {
-        if (!queue.get_allocator())
+        if (!fifo.get_allocator())
             irt_bad_return(status::model_priority_queue_empty_allocator);
 
         if (stop_on_error)
@@ -6235,15 +6264,15 @@ public:
             (void)initialize_source(*sim, default_source_ta);
 
         sigma = time_domain<time>::infinity;
-        queue.clear();
+        fifo.clear();
 
         return status::success;
     }
 
     status transition(time t, time /*e*/, time /*r*/) noexcept
     {
-        while (!queue.empty() && queue.front().real[0] <= t)
-            queue.pop_front();
+        while (!fifo.empty() && fifo.front().real[0] <= t)
+            fifo.pop_front();
 
         for (const auto& msg : x[0].messages) {
             double value;
@@ -6262,8 +6291,8 @@ public:
             }
         }
 
-        if (!queue.empty()) {
-            sigma = queue.front().real[0] - t;
+        if (!fifo.empty()) {
+            sigma = fifo.front().real[0] - t;
             sigma = sigma <= 0. ? 0. : sigma;
         } else {
             sigma = time_domain<time>::infinity;
@@ -6274,9 +6303,9 @@ public:
 
     status lambda() noexcept
     {
-        if (!queue.empty()) {
-            auto it = queue.begin();
-            auto end = queue.end();
+        if (!fifo.empty()) {
+            auto it = fifo.begin();
+            auto end = fifo.end();
             const auto t = it->real[0];
 
             for (; it != end && it->real[0] <= t; ++it)
@@ -7594,7 +7623,7 @@ public:
         if constexpr (std::is_same_v<Dynamics, queue> ||
                       std::is_same_v<Dynamics, dynamic_queue> ||
                       std::is_same_v<Dynamics, priority_queue>)
-            dyn.queue.set_allocator(&dated_message_allocator);
+            dyn.fifo.set_allocator(&dated_message_allocator);
 
         if constexpr (std::is_same_v<Dynamics, generator> ||
                       std::is_same_v<Dynamics, dynamic_queue> ||
