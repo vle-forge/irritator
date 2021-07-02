@@ -852,52 +852,90 @@ main()
     "message"_test = [] {
         {
             irt::message vdouble;
-            expect(vdouble[0] == 0.0);
-            expect(vdouble[1] == 0.0);
-            expect(vdouble[2] == 0.0);
-            expect(vdouble[3] == 0.0);
-            expect(vdouble.size() == 0_ul);
-            expect(vdouble.ssize() == 0);
+            assert(vdouble[0] == 0.0);
+            assert(vdouble[1] == 0.0);
+            assert(vdouble[2] == 0.0);
+            assert(vdouble.size() == 0);
+            assert(vdouble.ssize() == 0);
         }
 
         {
             irt::message vdouble(1.0);
-            expect(vdouble[0] == 1.0);
-            expect(vdouble[1] == 0.0);
-            expect(vdouble[2] == 0.0);
-            expect(vdouble[3] == 0.0);
-            expect(vdouble.size() == 1_ul);
-            expect(vdouble.ssize() == 1);
+            assert(vdouble[0] == 1.0);
+            assert(vdouble[1] == 0.0);
+            assert(vdouble[2] == 0.0);
+            assert(vdouble.size() == 1);
+            assert(vdouble.ssize() == 1);
         }
 
         {
             irt::message vdouble(0.0, 1.0);
-            expect(vdouble[0] == 0.0);
-            expect(vdouble[1] == 1.0);
-            expect(vdouble[2] == 0.0);
-            expect(vdouble[3] == 0.0);
-            expect(vdouble.size() == 2_ul);
-            expect(vdouble.ssize() == 2);
+            assert(vdouble[0] == 0.0);
+            assert(vdouble[1] == 1.0);
+            assert(vdouble[2] == 0.0);
+            assert(vdouble.size() == 2);
+            assert(vdouble.ssize() == 2);
         }
 
         {
             irt::message vdouble(0.0, 0.0, 1.0);
-            expect(vdouble[0] == 0.0);
-            expect(vdouble[1] == 0.0);
-            expect(vdouble[2] == 1.0);
-            expect(vdouble[3] == 0.0);
-            expect(vdouble.size() == 3_ul);
-            expect(vdouble.ssize() == 3);
+            assert(vdouble[0] == 0.0);
+            assert(vdouble[1] == 0.0);
+            assert(vdouble[2] == 1.0);
+            assert(vdouble.size() == 3);
+            assert(vdouble.ssize() == 3);
+        }
+    };
+
+    "observation_message"_test = [] {
+        {
+            irt::observation_message vdouble;
+            assert(vdouble[0] == 0.0);
+            assert(vdouble[1] == 0.0);
+            assert(vdouble[2] == 0.0);
+            assert(vdouble[3] == 0.0);
+            assert(vdouble.size() == 0);
+            assert(vdouble.ssize() == 0);
         }
 
         {
-            irt::message vdouble(0.0, 0.0, 0.0, 1.0);
-            expect(vdouble[0] == 0.0);
-            expect(vdouble[1] == 0.0);
-            expect(vdouble[2] == 0.0);
-            expect(vdouble[3] == 1.0);
-            expect(vdouble.size() == 4_ul);
-            expect(vdouble.ssize() == 4);
+            irt::observation_message vdouble(1.0);
+            assert(vdouble[0] == 1.0);
+            assert(vdouble[1] == 0.0);
+            assert(vdouble[2] == 0.0);
+            assert(vdouble[3] == 0.0);
+            assert(vdouble.size() == 1);
+            assert(vdouble.ssize() == 1);
+        }
+
+        {
+            irt::observation_message vdouble(0.0, 1.0);
+            assert(vdouble[0] == 0.0);
+            assert(vdouble[1] == 1.0);
+            assert(vdouble[2] == 0.0);
+            assert(vdouble[3] == 0.0);
+            assert(vdouble.size() == 2);
+            assert(vdouble.ssize() == 2);
+        }
+
+        {
+            irt::observation_message vdouble(0.0, 0.0, 1.0);
+            assert(vdouble[0] == 0.0);
+            assert(vdouble[1] == 0.0);
+            assert(vdouble[2] == 1.0);
+            assert(vdouble[3] == 0.0);
+            assert(vdouble.size() == 3);
+            assert(vdouble.ssize() == 3);
+        }
+
+        {
+            irt::observation_message vdouble(0.0, 0.0, 0.0, 1.0);
+            assert(vdouble[0] == 0.0);
+            assert(vdouble[1] == 0.0);
+            assert(vdouble[2] == 0.0);
+            assert(vdouble[3] == 1.0);
+            assert(vdouble.size() == 4);
+            assert(vdouble.ssize() == 4);
         }
     };
 

@@ -952,33 +952,41 @@ public:
  *
  ****************************************************************************/
 
-struct message
+template<size_t length>
+struct fixed_real_array
 {
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
-    double real[4];
+    static_assert(length >= 1, "fixed_real_array length must be >= 1");
+
+    double real[length];
 
     constexpr size_type size() const noexcept
     {
-        return real[3] ? 4u : real[2] ? 3u : real[1] ? 2u : real[0] ? 1u : 0u;
+        for (size_t i = length; i != 0u; --i)
+            if (real[i - 1u])
+                return i;
+
+        return 0u;
     }
 
     constexpr difference_type ssize() const noexcept
     {
-        return real[3] ? 4 : real[2] ? 3 : real[1] ? 2 : real[0] ? 1 : 0;
+        return static_cast<difference_type>(size());
     }
 
-    constexpr message() noexcept
-      : real{ 0., 0., 0., 0. }
-    {}
+    constexpr fixed_real_array() noexcept
+    {
+        std::fill_n(real, length, 0.0);
+    }
 
     template<typename... Args>
-    constexpr message(Args&&... args)
+    constexpr fixed_real_array(Args&&... args)
       : real{ std::forward<Args>(args)... }
     {
         auto size = sizeof...(args);
-        for (; size < std::size(real); ++size)
+        for (; size < length; ++size)
             real[size] = 0.;
     }
 
@@ -994,55 +1002,13 @@ struct message
 
     constexpr void reset() noexcept
     {
-        std::fill_n(std::data(real), std::size(real), 0.);
+        std::fill_n(real, length, 0.0);
     }
 };
 
-struct dated_message
-{
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
-
-    double real[5];
-
-    constexpr dated_message() noexcept
-      : real{ 0., 0., 0., 0., 0. }
-    {}
-
-    template<typename... Args>
-    constexpr dated_message(Args&&... args)
-      : real{ std::forward<Args>(args)... }
-    {
-        auto size = sizeof...(args);
-        for (; size != std::size(real); ++size)
-            real[size] = 0.;
-    }
-
-    constexpr double operator[](const difference_type i) const noexcept
-    {
-        return real[i];
-    }
-
-    constexpr double& operator[](const difference_type i) noexcept
-    {
-        return real[i];
-    }
-
-    constexpr void reset() noexcept
-    {
-        std::fill_n(std::data(real), std::size(real), 0.);
-    }
-
-    inline bool operator<(const dated_message& rhs) const noexcept
-    {
-        return real[0] < rhs.real[0];
-    }
-
-    inline bool operator==(const dated_message& rhs) const noexcept
-    {
-        return real[0] == rhs.real[0];
-    }
-};
+using message = fixed_real_array<3>;
+using dated_message = fixed_real_array<4>;
+using observation_message = fixed_real_array<4>;
 
 /*****************************************************************************
  *
@@ -3340,7 +3306,7 @@ struct observer
     update_fn cb;
     small_string<8> name;
     model_id model = static_cast<model_id>(0);
-    message msg;
+    observation_message msg;
 };
 
 namespace detail {
@@ -3378,7 +3344,8 @@ using transition_function_t =
 
 template<class T>
 using observation_function_t =
-  decltype(detail::helper<message (T::*)(const time) const, &T::observation>{});
+  decltype(detail::helper<observation_message (T::*)(const time) const,
+                          &T::observation>{});
 
 template<class T>
 using initialize_function_t =
@@ -3667,7 +3634,7 @@ struct integrator
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { last_output_value };
     }
@@ -3861,7 +3828,7 @@ struct abstract_integrator<1>
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { X, u };
     }
@@ -4027,7 +3994,7 @@ struct abstract_integrator<2>
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { X, u, mu };
     }
@@ -4369,7 +4336,7 @@ struct abstract_integrator<3>
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { X, u, mu, pu };
     }
@@ -4459,7 +4426,7 @@ struct abstract_power
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { value[0] };
     }
@@ -4544,7 +4511,7 @@ struct abstract_square
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { value[0] };
     }
@@ -4671,7 +4638,8 @@ struct abstract_sum
         return status::success;
     }
 
-    message observation([[maybe_unused]] const time e) const noexcept
+    observation_message observation(
+      [[maybe_unused]] const time e) const noexcept
     {
         double value = 0.;
 
@@ -4826,7 +4794,8 @@ struct abstract_wsum
         return status::success;
     }
 
-    message observation([[maybe_unused]] const time e) const noexcept
+    observation_message observation(
+      [[maybe_unused]] const time e) const noexcept
     {
         double value = 0.;
 
@@ -4963,7 +4932,8 @@ struct abstract_multiplier
         return status::success;
     }
 
-    message observation([[maybe_unused]] const time e) const noexcept
+    observation_message observation(
+      [[maybe_unused]] const time e) const noexcept
     {
         if constexpr (QssLevel == 1)
             return values[0] * values[1];
@@ -5160,7 +5130,7 @@ struct quantifier
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { m_upthreshold, m_downthreshold };
     }
@@ -5375,7 +5345,7 @@ struct adder
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         double ret = 0.0;
 
@@ -5461,7 +5431,7 @@ struct mult
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         double ret = 1.0;
 
@@ -5503,7 +5473,7 @@ struct counter
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { static_cast<double>(number) };
     }
@@ -5571,7 +5541,7 @@ struct generator
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { value };
     }
@@ -5619,7 +5589,7 @@ struct constant
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { value };
     }
@@ -5754,7 +5724,7 @@ struct flow
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { default_data[i] };
     }
@@ -5903,7 +5873,7 @@ struct cross
         return status::success;
     }
 
-    message observation(const time /*e*/) const noexcept
+    observation_message observation(const time /*e*/) const noexcept
     {
         return { value, if_value, else_value };
     }
@@ -6150,7 +6120,7 @@ struct abstract_cross
         return status::success;
     }
 
-    message observation(const time /*t*/) const noexcept
+    observation_message observation(const time /*t*/) const noexcept
     {
         return { value[0], if_value[0], else_value[0] };
     }
@@ -6231,7 +6201,7 @@ struct time_func
         return status::success;
     }
 
-    message observation(const time /*t*/) const noexcept
+    observation_message observation(const time /*t*/) const noexcept
     {
         return { value };
     }
@@ -6287,7 +6257,7 @@ struct queue
             if (!fifo.get_allocator()->can_alloc(1u))
                 irt_bad_return(status::model_queue_full);
 
-            fifo.emplace_back(t + default_ta, msg[0], msg[1], msg[2], msg[3]);
+            fifo.emplace_back(t + default_ta, msg[0], msg[1], msg[2]);
         }
 
         if (!fifo.empty()) {
@@ -6309,7 +6279,7 @@ struct queue
 
             for (; it != end && it->real[0] <= t; ++it)
                 y[0].messages.emplace_front(
-                  it->real[1], it->real[2], it->real[3], it->real[4]);
+                  it->real[1], it->real[2], it->real[3]);
         }
 
         return status::success;
@@ -6362,10 +6332,10 @@ struct dynamic_queue
             double ta;
             if (stop_on_error) {
                 irt_return_if_bad(update_source(*sim, default_source_ta, ta));
-                fifo.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
+                fifo.emplace_back(t + ta, msg[0], msg[1], msg[2]);
             } else {
                 if (is_success(update_source(*sim, default_source_ta, ta)))
-                    fifo.emplace_back(t + ta, msg[0], msg[1], msg[2], msg[3]);
+                    fifo.emplace_back(t + ta, msg[0], msg[1], msg[2]);
             }
         }
 
@@ -6388,7 +6358,7 @@ struct dynamic_queue
 
             for (; it != end && it->real[0] <= t; ++it)
                 y[0].messages.emplace_front(
-                  it->real[1], it->real[2], it->real[3], it->real[4]);
+                  it->real[1], it->real[2], it->real[3]);
         }
 
         return status::success;
@@ -6425,7 +6395,7 @@ private:
             irt_bad_return(status::model_priority_queue_source_is_null);
 
         if (fifo.empty() || fifo.begin()->real[0] > t) {
-            fifo.emplace_front(t, msg[0], msg[1], msg[2], msg[3]);
+            fifo.emplace_front(t, msg[0], msg[1], msg[2]);
         } else {
             auto it = fifo.begin();
             auto end = fifo.end();
@@ -6433,7 +6403,7 @@ private:
 
             for (; it != end; ++it) {
                 if (it->real[0] > t) {
-                    fifo.emplace(it, t, msg[0], msg[1], msg[2], msg[3]);
+                    fifo.emplace(it, t, msg[0], msg[1], msg[2]);
                     return status::success;
                 }
             }
@@ -6500,7 +6470,7 @@ public:
 
             for (; it != end && it->real[0] <= t; ++it)
                 y[0].messages.emplace_front(
-                  it->real[1], it->real[2], it->real[3], it->real[4]);
+                  it->real[1], it->real[2], it->real[3]);
         }
 
         return status::success;
