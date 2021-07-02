@@ -7581,8 +7581,51 @@ public:
         return dyn;
     }
 
-    /** @brief This function allocates dynamics and models.
-     *
+    /**
+     * @brief This function allocates dynamics and models.
+     */
+    model& clone(const model& mdl) noexcept
+    {
+        /* Use can_alloc before using this function. */
+        irt_assert(!models.full());
+
+        auto& new_mdl = models.alloc();
+        new_mdl.type = mdl.type;
+        new_mdl.handle = nullptr;
+
+        dispatch(
+          new_mdl, [this, &new_mdl]<typename Dynamics>(Dynamics& dyn) -> void {
+              new (&dyn) Dynamics{ get_dyn<Dynamics>(new_mdl) };
+
+              if constexpr (std::is_same_v<Dynamics, integrator>) {
+                  dyn.archive.reset();
+                  dyn.archive.set_allocator(&flat_double_list_shared_allocator);
+              }
+              if constexpr (std::is_same_v<Dynamics, quantifier>) {
+                  dyn.archive.reset();
+                  dyn.archive.set_allocator(&flat_double_list_shared_allocator);
+              }
+
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                  for (auto& elem : dyn.x) {
+                      elem.connections.reset();
+                      elem.messages.reset();
+                      elem.messages.set_allocator(&message_list_allocator);
+                  }
+              }
+
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                  for (auto& elem : dyn.y) {
+                      elem.connections.reset();
+                      elem.messages.reset();
+                      elem.messages.set_allocator(&message_list_allocator);
+                  }
+              }
+          });
+    }
+
+    /**
+     * @brief This function allocates dynamics and models.
      */
     model& alloc(dynamics_type type) noexcept
     {

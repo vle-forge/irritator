@@ -7,7 +7,11 @@
 
 #include <irritator/core.hpp>
 
+#include <utility>
+
 namespace irt {
+
+namespace detail {
 
 inline status
 flat_merge_create_models(none& none_mdl,
@@ -25,11 +29,8 @@ flat_merge_create_models(none& none_mdl,
     // flat_merge_create_model function to flattend the hierarchy of models and
     // remove the none models. The new simulation models are built from leaf.
 
-    for (const auto elem : c.children) {
-        auto* from_c = component_models.try_to_get(elem);
-        if (!from_c)
-            continue;
-
+    model* from_c = nullptr;
+    while (c.models.next(from_c)) {
         if (from_c->type != dynamics_type::none)
             continue;
 
@@ -86,8 +87,143 @@ flat_merge_create_models(none& none_mdl,
 }
 
 inline status
+copy_input_connection(const shared_flat_list<node>& connections,
+                      const map<model_id, model_id>& dict,
+                      const data_array<model, model_id>& component_models,
+                      const data_array<component, component_id>& components,
+                      simulation& sim,
+                      model& out_mdl,
+                      int out_port)
+{
+    std::vector<std::tuple<const model*, int>> stack;
+    std::vector<std::tuple<model*, int>> to_connect;
+
+    for (const auto& elem : connections) {
+        const auto* mdl = component_models.try_to_get(elem.model);
+        if (!mdl)
+            continue;
+
+        if (mdl->type == dynamics_type::none) {
+            stack.emplace_back(std::make_tuple(mdl, elem.port_index));
+        } else {
+            auto* v = dict.find(elem.model);
+            if (!v)
+                continue;
+
+            auto* sim_mdl = sim.models.try_to_get(*v);
+            irt_return_if_fail(sim_mdl, status::unknown_dynamics);
+
+            to_connect.emplace_back(std::make_tuple(sim_mdl, elem.port_index));
+        }
+    }
+
+    while (!stack.empty()) {
+        const auto src_mdl = stack.back();
+        stack.pop_back();
+
+        const auto& src_dyn = get_dyn<none>(*std::get<0>(src_mdl));
+        const auto* compo = components.try_to_get(src_dyn.id);
+        if (!compo)
+            continue;
+
+        auto it = compo->internal_y.begin();
+        std::advance(it, std::get<1>(src_mdl));
+
+        for (auto& elem : it->connections) {
+            const auto* mdl = component_models.try_to_get(elem.model);
+            if (!mdl)
+                continue;
+
+            if (mdl->type == dynamics_type::none) {
+                stack.emplace_back(mdl, elem.port_index);
+            } else {
+                auto* v = src_dyn.dict.find(elem.model);
+                if (!v)
+                    continue;
+
+                auto* sim_mdl = sim.models.try_to_get(*v);
+                irt_return_if_fail(sim_mdl, status::unknown_dynamics);
+
+                to_connect.emplace_back(sim_mdl, elem.port_index);
+            }
+        }
+    }
+
+    for (auto& elem : to_connect)
+        sim.connect(*std::get<0>(elem), std::get<1>(elem), out_mdl, out_port);
+}
+
+inline status
+copy_output_connection(const shared_flat_list<node>& connections,
+                       const map<model_id, model_id>& dict,
+                       const data_array<model, model_id>& component_models,
+                       const data_array<component, component_id>& components,
+                       simulation& sim,
+                       model& out_mdl,
+                       int out_port)
+{
+    std::vector<std::tuple<const model*, int>> stack;
+    std::vector<std::tuple<model*, int>> to_connect;
+
+    for (const auto& elem : connections) {
+        const auto* mdl = component_models.try_to_get(elem.model);
+        if (!mdl)
+            continue;
+
+        if (mdl->type == dynamics_type::none) {
+            stack.emplace_back(std::make_tuple(mdl, elem.port_index));
+        } else {
+            auto* v = dict.find(elem.model);
+            if (!v)
+                continue;
+
+            auto* sim_mdl = sim.models.try_to_get(*v);
+            irt_return_if_fail(sim_mdl, status::unknown_dynamics);
+
+            to_connect.emplace_back(std::make_tuple(sim_mdl, elem.port_index));
+        }
+    }
+
+    while (!stack.empty()) {
+        const auto src_mdl = stack.back();
+        stack.pop_back();
+
+        const auto& src_dyn = get_dyn<none>(*std::get<0>(src_mdl));
+        const auto* compo = components.try_to_get(src_dyn.id);
+        if (!compo)
+            continue;
+
+        auto it = compo->internal_y.begin();
+        std::advance(it, std::get<1>(src_mdl));
+
+        for (auto& elem : it->connections) {
+            const auto* mdl = component_models.try_to_get(elem.model);
+            if (!mdl)
+                continue;
+
+            if (mdl->type == dynamics_type::none) {
+                stack.emplace_back(mdl, elem.port_index);
+            } else {
+                auto* v = src_dyn.dict.find(elem.model);
+                if (!v)
+                    continue;
+
+                auto* sim_mdl = sim.models.try_to_get(*v);
+                irt_return_if_fail(sim_mdl, status::unknown_dynamics);
+
+                to_connect.emplace_back(sim_mdl, elem.port_index);
+            }
+        }
+    }
+
+    for (auto& elem : to_connect)
+        sim.connect(*std::get<0>(elem), std::get<1>(elem), out_mdl, out_port);
+}
+
+inline status
 flat_merge_create_connections(
   none& none_mdl,
+  const data_array<component, component_id>& components,
   const data_array<model, model_id>& component_models,
   simulation& sim)
 {
@@ -103,65 +239,28 @@ flat_merge_create_connections(
 
         auto& sim_mdl = sim.models.get(elem.v);
 
-        auto ret = sim.dispatch(
+        auto ret = dispatch(
           sim_mdl,
-          [&component_models, &none_mdl, &sim, &from_c_mdl]<typename Dynamics>(
-            Dynamics& dyn) -> status {
+          [&components,
+           &component_models,
+           &none_mdl,
+           &sim,
+           &from_c_mdl]<typename Dynamics>(Dynamics& dyn) -> status {
+              auto& from_sim = get_model(dyn);
               auto& from_c_dyn = get_dyn<Dynamics>(from_c_mdl);
 
               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
                   int port_index = 0;
                   for (auto& x : from_c_dyn.x) {
-                      auto it = x.connections.begin();
-                      auto et = x.connections.end();
+                      auto ret = copy_input_connection(x.connections,
+                                                       none_mdl.dict,
+                                                       component_models,
+                                                       components,
+                                                       sim,
+                                                       from_sim,
+                                                       port_index);
 
-                      while (it != et) {
-                          auto* mdl = component_models.try_to_get(it->model);
-                          if (!mdl)
-                              continue;
-
-                          if (mdl->type == dynamics_type::none) {
-                              auto& none_dyn = get_dyn<none>(*mdl);
-                              auto port = none_dyn.y.begin();
-                              std::advance(port, it->port_index);
-
-                              for (auto& cnt : port->connections) {
-                                  auto* v = none_dyn.dict.find(cnt.model);
-                                  irt_assert(v);
-
-                                  auto* src = sim.models.try_to_get(*v);
-                                  irt_assert(src);
-
-                                  irt_return_if_fail(
-                                    sim.can_connect(1u),
-                                    status::
-                                      simulation_not_enough_memory_message_list_allocator);
-
-                                  irt_return_if_bad(sim.connect(*src,
-                                                                it->port_index,
-                                                                get_model(dyn),
-                                                                port_index));
-                              }
-
-                          } else {
-                              auto* v = none_mdl.dict.find(it->model);
-                              irt_assert(v);
-
-                              auto* src = sim.models.try_to_get(*v);
-                              irt_assert(src);
-
-                              irt_return_if_fail(
-                                sim.can_connect(1u),
-                                status::
-                                  simulation_not_enough_memory_message_list_allocator);
-
-                              irt_return_if_bad(sim.connect(*src,
-                                                            it->port_index,
-                                                            get_model(dyn),
-                                                            port_index));
-                          }
-                      }
-
+                      irt_return_if_bad(ret);
                       ++port_index;
                   }
               }
@@ -169,57 +268,14 @@ flat_merge_create_connections(
               if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                   int port_index = 0;
                   for (auto& y : from_c_dyn.y) {
-                      auto it = y.connections.begin();
-                      auto et = y.connections.end();
-
-                      while (it != et) {
-                          auto* mdl = component_models.try_to_get(it->model);
-                          if (!mdl)
-                              continue;
-
-                          if (mdl->type == dynamics_type::none) {
-                              auto& none_dyn = get_dyn<none>(*mdl);
-                              auto port = none_dyn.x.begin();
-                              std::advance(port, it->port_index);
-
-                              for (auto& cnt : port->connections) {
-                                  auto* v = none_dyn.dict.find(cnt.model);
-                                  irt_assert(v);
-
-                                  auto* dst = sim.models.try_to_get(*v);
-                                  irt_assert(dst);
-
-                                  irt_return_if_fail(
-                                    sim.can_connect(1u),
-                                    status::
-                                      simulation_not_enough_memory_message_list_allocator);
-
-                                  irt_return_if_bad(
-                                    sim.connect(get_model(dyn),
-                                                port_index,
-                                                *dst,
-                                                it->port_index));
-                              }
-
-                          } else {
-                              auto* v = none_mdl.dict.find(it->model);
-                              irt_assert(v);
-
-                              auto* dst = sim.models.try_to_get(*v);
-                              irt_assert(dst);
-
-                              irt_return_if_fail(
-                                sim.can_connect(1u),
-                                status::
-                                  simulation_not_enough_memory_message_list_allocator);
-
-                              irt_return_if_bad(sim.connect(get_model(dyn),
-                                                            port_index,
-                                                            *dst,
-                                                            it->port_index));
-                          }
-                      }
-
+                      auto ret = copy_output_connection(y.connections,
+                                                        none_mdl.dict,
+                                                        component_models,
+                                                        components,
+                                                        sim,
+                                                        from_sim,
+                                                        port_index);
+                      irt_return_if_bad(ret);
                       ++port_index;
                   }
               }
@@ -233,17 +289,19 @@ flat_merge_create_connections(
     return status::success;
 }
 
+} // namespace detail
+
 inline status
 flat_merge(none& none_mdl,
            const data_array<component, component_id>& components,
            const data_array<model, model_id>& component_models,
            simulation& sim)
 {
-    irt_return_if_bad(
-      flat_merge_create_models(none_mdl, components, component_models, sim));
+    irt_return_if_bad(detail::flat_merge_create_models(
+      none_mdl, components, component_models, sim));
 
-    irt_return_if_bad(
-      flat_merge_create_connections(none_mdl, component_models, sim));
+    irt_return_if_bad(detail::flat_merge_create_connections(
+      none_mdl, components, component_models, sim));
 
     return status::success;
 }

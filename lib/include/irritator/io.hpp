@@ -932,9 +932,9 @@ private:
             port* input_port = nullptr;
 
             irt_return_if_bad(
-              sim.get_output_port(*mdl_src, port_src_index, output_port));
+              get_output_port(*mdl_src, port_src_index, output_port));
             irt_return_if_bad(
-              sim.get_input_port(*mdl_dst, port_dst_index, input_port));
+              get_input_port(*mdl_dst, port_dst_index, input_port));
 
             irt_return_if_bad(
               sim.connect(*mdl_src, port_src_index, *mdl_dst, port_dst_index));
