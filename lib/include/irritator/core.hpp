@@ -20,6 +20,8 @@
 #include <string_view>
 #include <type_traits>
 
+#include <vector>
+
 #include <cmath>
 #include <cstdint>
 #include <cstring>
