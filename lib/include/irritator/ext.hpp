@@ -41,30 +41,27 @@ flat_merge_create_models(none& none_mdl,
     // into the simulation and we fill the dictionary component model ->
     // simulation model to prepare connections between models.
 
-    for (const auto elem : c.children) {
-        auto* from_c = component_models.try_to_get(elem);
-        if (!from_c)
-            continue;
-
+    from_c = nullptr;
+    while (c.models.next(from_c)) {
         if (from_c->type == dynamics_type::none)
             continue;
 
         irt_return_if_fail(sim.can_alloc(),
                            status::simulation_not_enough_model);
 
-        auto& from_c_dyn = get_dyn<none>(*from_c);
         auto& mdl = sim.models.alloc();
         auto id = sim.models.get_id(mdl);
         mdl.type = from_c->type;
         mdl.handle = nullptr;
 
         // @TODO Need a new status::model_none_not_enough_memory
-        irt_return_if_fail(none_mdl.dict.try_emplace_back(elem, id) != nullptr,
-                           status::simulation_not_enough_model);
+        irt_return_if_fail(none_mdl.dict.try_emplace_back(
+                             c.models.get_id(from_c), id) != nullptr,
+          status::simulation_not_enough_model);
 
-        sim.dispatch(
-          mdl, [&sim, &from_c_dyn]<typename Dynamics>(Dynamics& dyn) -> void {
-              new (&dyn) Dynamics{ dyn };
+        dispatch(
+          mdl, [&sim, &from_c]<typename Dynamics>(Dynamics& dyn) -> void {
+              new (&dyn) Dynamics(get_dyn<Dynamics>(*from_c));
 
               if constexpr (std::is_same_v<Dynamics, integrator>)
                   dyn.archive.set_allocator(

@@ -1016,18 +1016,16 @@ main()
 
         auto& mdl = irt::get_model(dyn1);
 
-        sim.dispatch(mdl,
-                     []([[maybe_unused]] auto& dyns) { std::cout << "ok"; });
+        irt::dispatch(mdl, []([[maybe_unused]] auto& dyns) { std::cout << "ok"; });
 
-        auto ret =
-          sim.dispatch(mdl, []([[maybe_unused]] const auto& dyns) -> int {
-              std::cout << "ok";
-              return 1;
-          });
+        auto ret = irt::dispatch(mdl, []([[maybe_unused]] const auto& dyns) -> int {
+            std::cout << "ok";
+            return 1;
+        });
 
         expect(ret == 1);
 
-        auto ret_2 = sim.dispatch(
+        auto ret_2 = irt::dispatch(
           mdl,
           []([[maybe_unused]] const auto& dyns, int v1, double v2) {
               std::cout << "ok" << v1 << ' ' << v2;
