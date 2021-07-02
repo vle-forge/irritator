@@ -1351,6 +1351,11 @@ public:
         }
     }
 
+    void reset() noexcept
+    {
+        node = nullptr;
+    }
+
     bool empty() const noexcept
     {
         return node == nullptr;
@@ -1700,6 +1705,12 @@ public:
     {
         other.allocator = nullptr;
         other.node = nullptr;
+    }
+
+    void reset() noexcept
+    {
+        allocator = nullptr;
+        node = nullptr;
     }
 
     void set_allocator(allocator_type* allocator_new) noexcept
@@ -2099,6 +2110,9 @@ public:
 
     flat_double_list(allocator_type* allocator) noexcept
       : m_allocator(allocator)
+      , m_front{ nullptr }
+      , m_back{ nullptr }
+      , m_size{ 0 }
     {}
 
     flat_double_list(const flat_double_list& other) noexcept
@@ -2122,20 +2136,6 @@ public:
         other.m_size = 0;
     }
 
-    void set_allocator(allocator_type* allocator) noexcept
-    {
-        clear();
-        m_allocator = allocator;
-        m_front = nullptr;
-        m_back = nullptr;
-        m_size = 0;
-    }
-
-    allocator_type* get_allocator() const noexcept
-    {
-        return m_allocator;
-    }
-
     flat_double_list& operator=(flat_double_list&& other) noexcept
     {
         if (this != &other) {
@@ -2153,9 +2153,31 @@ public:
         return *this;
     }
 
+    void set_allocator(allocator_type* allocator) noexcept
+    {
+        clear();
+        m_allocator = allocator;
+        m_front = nullptr;
+        m_back = nullptr;
+        m_size = 0;
+    }
+
+    allocator_type* get_allocator() const noexcept
+    {
+        return m_allocator;
+    }
+
     ~flat_double_list() noexcept
     {
         clear();
+    }
+
+    void reset() noexcept
+    {
+        m_allocator = nullptr;
+        m_front = nullptr;
+        m_back = nullptr;
+        m_size = 0;
     }
 
     void clear() noexcept
