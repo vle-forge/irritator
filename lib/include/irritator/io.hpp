@@ -1045,7 +1045,7 @@ private:
 
         auto& mdl = sim.alloc(type);
 
-        auto ret = sim.dispatch(
+        auto ret = dispatch(
           mdl, [this, &sim]<typename Dynamics>(Dynamics& dyn) -> status {
               irt_return_if_fail(this->read(sim, dyn),
                                  status::io_file_format_dynamics_init_error);
@@ -1607,7 +1607,7 @@ struct writer
     {
         model* mdl = nullptr;
         while (sim.models.next(mdl)) {
-            sim.dispatch(
+            dispatch(
               *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                       int i = 0;
@@ -1649,7 +1649,7 @@ struct writer
 
             os << id << " 0.0 0.0 ";
 
-            sim.dispatch(
+            dispatch(
               *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
 
             ++id;
@@ -1670,7 +1670,7 @@ struct writer
             get_pos(mdl_id, x, y);
             os << id << ' ' << x << ' ' << y << ' ';
 
-            sim.dispatch(
+            dispatch(
               *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
 
             ++id;
@@ -2143,7 +2143,7 @@ public:
 
         irt::model* mdl = nullptr;
         while (sim.models.next(mdl)) {
-            sim.dispatch(
+            dispatch(
               *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                       int i = 0;

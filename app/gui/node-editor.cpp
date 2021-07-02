@@ -257,7 +257,7 @@ editor::group(const ImVector<int>& nodes) noexcept
             const auto child_id = std::get<model_id>(child.first);
 
             if (auto* model = sim.models.try_to_get(child_id); model) {
-                sim.dispatch(
+                dispatch(
                   *model,
                   [this, &new_cluster]<typename Dynamics>(Dynamics& dyn) {
                       if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
@@ -298,7 +298,7 @@ editor::group(const ImVector<int>& nodes) noexcept
                     const auto model_port = get_in(id);
 
                     if (model_port.model) {
-                        sim.dispatch(
+                        dispatch(
                           *model_port.model,
                           [this, &new_cluster, &model_port]<typename Dynamics>(
                             Dynamics& dyn) {
@@ -330,7 +330,7 @@ editor::group(const ImVector<int>& nodes) noexcept
                     const auto model_port = get_out(id);
 
                     if (model_port.model) {
-                        sim.dispatch(
+                        dispatch(
                           *model_port.model,
                           [this, &new_cluster, &model_port]<typename Dynamics>(
                             Dynamics& dyn) {
@@ -612,7 +612,7 @@ struct copier
             auto* mdl = sim.models.try_to_get(c_models[i].src);
             auto* mdl_id_dst = &c_models[i].dst;
 
-            auto ret = sim.dispatch(
+            auto ret = dispatch(
               *mdl,
               [this, &sim, mdl, &mdl_id_dst]<typename Dynamics>(
                 Dynamics& /*dyn*/) -> status {
@@ -774,28 +774,27 @@ compute_connection_distance(const model& mdl,
                             editor& ed,
                             const float k)
 {
-    ed.sim.dispatch(
-      mdl, [&mdl, port, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
-          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              for (auto& dst : dyn.y[port].connections)
-                  compute_connection_distance(
-                    ed.sim.get_id(mdl), dst.model, ed, k);
-          }
-      });
+    dispatch(mdl,
+             [&mdl, port, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
+                 if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                     for (auto& dst : dyn.y[port].connections)
+                         compute_connection_distance(
+                           ed.sim.get_id(mdl), dst.model, ed, k);
+                 }
+             });
 }
 
 static void
 compute_connection_distance(const model& mdl, editor& ed, const float k)
 {
-    ed.sim.dispatch(
-      mdl, [&mdl, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
-          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              for (auto& elem : dyn.y)
-                  for (auto& dst : elem.connections)
-                      compute_connection_distance(
-                        ed.sim.get_id(mdl), dst.model, ed, k);
-          }
-      });
+    dispatch(mdl, [&mdl, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+            for (auto& elem : dyn.y)
+                for (auto& dst : elem.connections)
+                    compute_connection_distance(
+                      ed.sim.get_id(mdl), dst.model, ed, k);
+        }
+    });
 }
 
 void
@@ -1254,22 +1253,21 @@ editor::add_izhikevitch() noexcept
 static int
 show_connection(editor& ed, const model& mdl, int port, int connection_id)
 {
-    ed.sim.dispatch(
-      mdl,
-      [&ed, &mdl, port, &connection_id]<typename Dynamics>(
-        Dynamics& dyn) -> void {
-          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              int out = make_output_node_id(ed.sim.get_id(dyn), port);
+    dispatch(mdl,
+             [&ed, &mdl, port, &connection_id]<typename Dynamics>(
+               Dynamics& dyn) -> void {
+                 if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                     int out = make_output_node_id(ed.sim.get_id(dyn), port);
 
-              for (const auto& c : dyn.y[port].connections) {
-                  if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
-                      mdl_dst) {
-                      int in = make_input_node_id(c.model, c.port_index);
-                      ImNodes::Link(connection_id++, out, in);
-                  }
-              }
-          }
-      });
+                     for (const auto& c : dyn.y[port].connections) {
+                         if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
+                             mdl_dst) {
+                             int in = make_input_node_id(c.model, c.port_index);
+                             ImNodes::Link(connection_id++, out, in);
+                         }
+                     }
+                 }
+             });
 
     return connection_id;
 }
@@ -1277,7 +1275,7 @@ show_connection(editor& ed, const model& mdl, int port, int connection_id)
 static int
 show_connection(editor& ed, const model& mdl, int connection_id)
 {
-    ed.sim.dispatch(
+    dispatch(
       mdl,
       [&ed, &mdl, &connection_id]<typename Dynamics>(Dynamics& dyn) -> void {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
@@ -2365,7 +2363,7 @@ void
 editor::show_model_dynamics(model& mdl) noexcept
 {
     if (simulation_show_value && st != editor_status::editing) {
-        sim.dispatch(mdl, [&](const auto& dyn) {
+        dispatch(mdl, [&](const auto& dyn) {
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
             show_dynamics_values(sim, dyn);
@@ -2373,7 +2371,7 @@ editor::show_model_dynamics(model& mdl) noexcept
             add_output_attribute(*this, dyn);
         });
     } else {
-        sim.dispatch(mdl, [&](auto& dyn) {
+        dispatch(mdl, [&](auto& dyn) {
             add_input_attribute(*this, dyn);
             ImGui::PushItemWidth(120.0f);
 
@@ -2439,7 +2437,7 @@ show_tooltip(editor& ed, const model& mdl, const model_id id)
                        mdl.tl,
                        mdl.tn);
 
-        auto ret = ed.sim.dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+        auto ret = dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (is_detected_v<has_input_port_t, Dynamics>)
                 return make_input_tooltip(dyn, ed.tooltip);
 
@@ -2808,7 +2806,7 @@ editor::show_editor() noexcept
 
                 model* mdl = nullptr;
                 while (sim.models.next(mdl) && link_id_to_delete != -1) {
-                    sim.dispatch(
+                    dispatch(
                       *mdl,
                       [this,
                        &mdl,
@@ -2979,11 +2977,10 @@ editor::show_editor() noexcept
                         observation_outputs_free(index);
                     }
 
-                    sim.dispatch(*mdl,
-                                 [this]<typename Dynamics>(Dynamics& dyn) {
-                                     ImGui::Spacing();
-                                     show_dynamics_inputs(*this, dyn);
-                                 });
+                    dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
+                        ImGui::Spacing();
+                        show_dynamics_inputs(*this, dyn);
+                    });
 
                     ImGui::TreePop();
                 }

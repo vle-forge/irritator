@@ -6371,15 +6371,578 @@ struct model
     std::byte dyn[max_size_in_bytes()];
 };
 
+template<typename Function, typename... Args>
+constexpr auto
+dispatch(const model& mdl, Function&& f, Args... args) noexcept
+{
+    switch (mdl.type) {
+    case dynamics_type::none:
+        return f(*reinterpret_cast<const none*>(&mdl.dyn), args...);
+
+    case dynamics_type::qss1_integrator:
+        return f(*reinterpret_cast<const qss1_integrator*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_multiplier:
+        return f(*reinterpret_cast<const qss1_multiplier*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_cross:
+        return f(*reinterpret_cast<const qss1_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_power:
+        return f(*reinterpret_cast<const qss1_power*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_square:
+        return f(*reinterpret_cast<const qss1_square*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_sum_2:
+        return f(*reinterpret_cast<const qss1_sum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_sum_3:
+        return f(*reinterpret_cast<const qss1_sum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_sum_4:
+        return f(*reinterpret_cast<const qss1_sum_4*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_wsum_2:
+        return f(*reinterpret_cast<const qss1_wsum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_wsum_3:
+        return f(*reinterpret_cast<const qss1_wsum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_wsum_4:
+        return f(*reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn), args...);
+
+    case dynamics_type::qss2_integrator:
+        return f(*reinterpret_cast<const qss2_integrator*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_multiplier:
+        return f(*reinterpret_cast<const qss2_multiplier*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_cross:
+        return f(*reinterpret_cast<const qss2_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_power:
+        return f(*reinterpret_cast<const qss2_power*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_square:
+        return f(*reinterpret_cast<const qss2_square*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_sum_2:
+        return f(*reinterpret_cast<const qss2_sum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_sum_3:
+        return f(*reinterpret_cast<const qss2_sum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_sum_4:
+        return f(*reinterpret_cast<const qss2_sum_4*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_wsum_2:
+        return f(*reinterpret_cast<const qss2_wsum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_wsum_3:
+        return f(*reinterpret_cast<const qss2_wsum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_wsum_4:
+        return f(*reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn), args...);
+
+    case dynamics_type::qss3_integrator:
+        return f(*reinterpret_cast<const qss3_integrator*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_multiplier:
+        return f(*reinterpret_cast<const qss3_multiplier*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_cross:
+        return f(*reinterpret_cast<const qss3_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_power:
+        return f(*reinterpret_cast<const qss3_power*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_square:
+        return f(*reinterpret_cast<const qss3_square*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_sum_2:
+        return f(*reinterpret_cast<const qss3_sum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_sum_3:
+        return f(*reinterpret_cast<const qss3_sum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_sum_4:
+        return f(*reinterpret_cast<const qss3_sum_4*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_wsum_2:
+        return f(*reinterpret_cast<const qss3_wsum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_wsum_3:
+        return f(*reinterpret_cast<const qss3_wsum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_wsum_4:
+        return f(*reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn), args...);
+
+    case dynamics_type::integrator:
+        return f(*reinterpret_cast<const integrator*>(&mdl.dyn), args...);
+    case dynamics_type::quantifier:
+        return f(*reinterpret_cast<const quantifier*>(&mdl.dyn), args...);
+    case dynamics_type::adder_2:
+        return f(*reinterpret_cast<const adder_2*>(&mdl.dyn), args...);
+    case dynamics_type::adder_3:
+        return f(*reinterpret_cast<const adder_3*>(&mdl.dyn), args...);
+    case dynamics_type::adder_4:
+        return f(*reinterpret_cast<const adder_4*>(&mdl.dyn), args...);
+    case dynamics_type::mult_2:
+        return f(*reinterpret_cast<const mult_2*>(&mdl.dyn), args...);
+    case dynamics_type::mult_3:
+        return f(*reinterpret_cast<const mult_3*>(&mdl.dyn), args...);
+    case dynamics_type::mult_4:
+        return f(*reinterpret_cast<const mult_4*>(&mdl.dyn), args...);
+    case dynamics_type::counter:
+        return f(*reinterpret_cast<const counter*>(&mdl.dyn), args...);
+    case dynamics_type::queue:
+        return f(*reinterpret_cast<const queue*>(&mdl.dyn), args...);
+    case dynamics_type::dynamic_queue:
+        return f(*reinterpret_cast<const dynamic_queue*>(&mdl.dyn), args...);
+    case dynamics_type::priority_queue:
+        return f(*reinterpret_cast<const priority_queue*>(&mdl.dyn), args...);
+    case dynamics_type::generator:
+        return f(*reinterpret_cast<const generator*>(&mdl.dyn), args...);
+    case dynamics_type::constant:
+        return f(*reinterpret_cast<const constant*>(&mdl.dyn), args...);
+    case dynamics_type::cross:
+        return f(*reinterpret_cast<const cross*>(&mdl.dyn), args...);
+    case dynamics_type::accumulator_2:
+        return f(*reinterpret_cast<const accumulator_2*>(&mdl.dyn), args...);
+    case dynamics_type::time_func:
+        return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
+    case dynamics_type::filter:
+        return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
+    case dynamics_type::flow:
+        return f(*reinterpret_cast<const flow*>(&mdl.dyn), args...);
+    }
+
+    irt_unreachable();
+}
+
+template<typename Function, typename... Args>
+constexpr auto
+dispatch(model& mdl, Function&& f, Args... args) noexcept
+{
+    switch (mdl.type) {
+    case dynamics_type::none:
+        return f(*reinterpret_cast<none*>(&mdl.dyn), args...);
+
+    case dynamics_type::qss1_integrator:
+        return f(*reinterpret_cast<qss1_integrator*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_multiplier:
+        return f(*reinterpret_cast<qss1_multiplier*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_cross:
+        return f(*reinterpret_cast<qss1_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_power:
+        return f(*reinterpret_cast<qss1_power*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_square:
+        return f(*reinterpret_cast<qss1_square*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_sum_2:
+        return f(*reinterpret_cast<qss1_sum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_sum_3:
+        return f(*reinterpret_cast<qss1_sum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_sum_4:
+        return f(*reinterpret_cast<qss1_sum_4*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_wsum_2:
+        return f(*reinterpret_cast<qss1_wsum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_wsum_3:
+        return f(*reinterpret_cast<qss1_wsum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_wsum_4:
+        return f(*reinterpret_cast<qss1_wsum_4*>(&mdl.dyn), args...);
+
+    case dynamics_type::qss2_integrator:
+        return f(*reinterpret_cast<qss2_integrator*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_multiplier:
+        return f(*reinterpret_cast<qss2_multiplier*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_cross:
+        return f(*reinterpret_cast<qss2_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_power:
+        return f(*reinterpret_cast<qss2_power*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_square:
+        return f(*reinterpret_cast<qss2_square*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_sum_2:
+        return f(*reinterpret_cast<qss2_sum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_sum_3:
+        return f(*reinterpret_cast<qss2_sum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_sum_4:
+        return f(*reinterpret_cast<qss2_sum_4*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_wsum_2:
+        return f(*reinterpret_cast<qss2_wsum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_wsum_3:
+        return f(*reinterpret_cast<qss2_wsum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_wsum_4:
+        return f(*reinterpret_cast<qss2_wsum_4*>(&mdl.dyn), args...);
+
+    case dynamics_type::qss3_integrator:
+        return f(*reinterpret_cast<qss3_integrator*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_multiplier:
+        return f(*reinterpret_cast<qss3_multiplier*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_cross:
+        return f(*reinterpret_cast<qss3_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_power:
+        return f(*reinterpret_cast<qss3_power*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_square:
+        return f(*reinterpret_cast<qss3_square*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_sum_2:
+        return f(*reinterpret_cast<qss3_sum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_sum_3:
+        return f(*reinterpret_cast<qss3_sum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_sum_4:
+        return f(*reinterpret_cast<qss3_sum_4*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_wsum_2:
+        return f(*reinterpret_cast<qss3_wsum_2*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_wsum_3:
+        return f(*reinterpret_cast<qss3_wsum_3*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_wsum_4:
+        return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn), args...);
+
+    case dynamics_type::integrator:
+        return f(*reinterpret_cast<integrator*>(&mdl.dyn), args...);
+    case dynamics_type::quantifier:
+        return f(*reinterpret_cast<quantifier*>(&mdl.dyn), args...);
+    case dynamics_type::adder_2:
+        return f(*reinterpret_cast<adder_2*>(&mdl.dyn), args...);
+    case dynamics_type::adder_3:
+        return f(*reinterpret_cast<adder_3*>(&mdl.dyn), args...);
+    case dynamics_type::adder_4:
+        return f(*reinterpret_cast<adder_4*>(&mdl.dyn), args...);
+    case dynamics_type::mult_2:
+        return f(*reinterpret_cast<mult_2*>(&mdl.dyn), args...);
+    case dynamics_type::mult_3:
+        return f(*reinterpret_cast<mult_3*>(&mdl.dyn), args...);
+    case dynamics_type::mult_4:
+        return f(*reinterpret_cast<mult_4*>(&mdl.dyn), args...);
+    case dynamics_type::counter:
+        return f(*reinterpret_cast<counter*>(&mdl.dyn), args...);
+    case dynamics_type::queue:
+        return f(*reinterpret_cast<queue*>(&mdl.dyn), args...);
+    case dynamics_type::dynamic_queue:
+        return f(*reinterpret_cast<dynamic_queue*>(&mdl.dyn), args...);
+    case dynamics_type::priority_queue:
+        return f(*reinterpret_cast<priority_queue*>(&mdl.dyn), args...);
+    case dynamics_type::generator:
+        return f(*reinterpret_cast<generator*>(&mdl.dyn), args...);
+    case dynamics_type::constant:
+        return f(*reinterpret_cast<constant*>(&mdl.dyn), args...);
+    case dynamics_type::cross:
+        return f(*reinterpret_cast<cross*>(&mdl.dyn), args...);
+    case dynamics_type::accumulator_2:
+        return f(*reinterpret_cast<accumulator_2*>(&mdl.dyn), args...);
+    case dynamics_type::time_func:
+        return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
+    case dynamics_type::filter:
+        return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
+    case dynamics_type::flow:
+        return f(*reinterpret_cast<flow*>(&mdl.dyn), args...);
+    }
+
+    irt_unreachable();
+}
+
+inline status
+get_input_port(model& src, int port_src, port*& p) noexcept
+{
+    return dispatch(
+      src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+              if constexpr (std::is_same_v<none, Dynamics>) {
+                  auto it = dyn.x.begin();
+                  for (int i = 0; i < port_src && it != dyn.x.end(); ++i)
+                      ++it;
+
+                  if (it != dyn.x.end()) {
+                      p = &(*it);
+                      return status::success;
+                  }
+              } else {
+                  if (port_src >= 0 && port_src < length(dyn.x)) {
+                      p = &dyn.x[port_src];
+                      return status::success;
+                  }
+              }
+          }
+
+          return status::model_connect_output_port_unknown;
+      });
+}
+
+inline status
+get_output_port(model& dst, int port_dst, port*& p) noexcept
+{
+    return dispatch(
+      dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+              if constexpr (std::is_same_v<none, Dynamics>) {
+                  auto it = dyn.y.begin();
+                  for (int i = 0; i < port_dst && it != dyn.y.end(); ++i)
+                      ++it;
+
+                  if (it != dyn.y.end()) {
+                      p = &(*it);
+                      return status::success;
+                  }
+              } else {
+                  if (port_dst >= 0 && port_dst < length(dyn.y)) {
+                      p = &dyn.y[port_dst];
+                      return status::success;
+                  }
+              }
+          }
+
+          return status::model_connect_output_port_unknown;
+      });
+}
+
+inline bool
+is_ports_compatible(const model& mdl_src,
+                    [[maybe_unused]] const int o_port_index,
+                    const model& mdl_dst,
+                    const int i_port_index) noexcept
+{
+    if (&mdl_src == &mdl_dst)
+        return false;
+
+    switch (mdl_src.type) {
+    case dynamics_type::none:
+        return false;
+
+    case dynamics_type::quantifier:
+        if (mdl_dst.type == dynamics_type::integrator &&
+            i_port_index ==
+              static_cast<int>(integrator::port_name::port_quanta))
+            return true;
+
+        return false;
+
+    case dynamics_type::qss1_integrator:
+    case dynamics_type::qss1_multiplier:
+    case dynamics_type::qss1_cross:
+    case dynamics_type::qss1_power:
+    case dynamics_type::qss1_square:
+    case dynamics_type::qss1_sum_2:
+    case dynamics_type::qss1_sum_3:
+    case dynamics_type::qss1_sum_4:
+    case dynamics_type::qss1_wsum_2:
+    case dynamics_type::qss1_wsum_3:
+    case dynamics_type::qss1_wsum_4:
+    case dynamics_type::qss2_integrator:
+    case dynamics_type::qss2_multiplier:
+    case dynamics_type::qss2_cross:
+    case dynamics_type::qss2_power:
+    case dynamics_type::qss2_square:
+    case dynamics_type::qss2_sum_2:
+    case dynamics_type::qss2_sum_3:
+    case dynamics_type::qss2_sum_4:
+    case dynamics_type::qss2_wsum_2:
+    case dynamics_type::qss2_wsum_3:
+    case dynamics_type::qss2_wsum_4:
+    case dynamics_type::qss3_integrator:
+    case dynamics_type::qss3_multiplier:
+    case dynamics_type::qss3_cross:
+    case dynamics_type::qss3_power:
+    case dynamics_type::qss3_square:
+    case dynamics_type::qss3_sum_2:
+    case dynamics_type::qss3_sum_3:
+    case dynamics_type::qss3_sum_4:
+    case dynamics_type::qss3_wsum_2:
+    case dynamics_type::qss3_wsum_3:
+    case dynamics_type::qss3_wsum_4:
+    case dynamics_type::integrator:
+    case dynamics_type::adder_2:
+    case dynamics_type::adder_3:
+    case dynamics_type::adder_4:
+    case dynamics_type::mult_2:
+    case dynamics_type::mult_3:
+    case dynamics_type::mult_4:
+    case dynamics_type::counter:
+    case dynamics_type::queue:
+    case dynamics_type::dynamic_queue:
+    case dynamics_type::priority_queue:
+    case dynamics_type::generator:
+    case dynamics_type::constant:
+    case dynamics_type::cross:
+    case dynamics_type::time_func:
+    case dynamics_type::filter:
+    case dynamics_type::flow:
+    case dynamics_type::accumulator_2:
+        if (mdl_dst.type == dynamics_type::integrator &&
+            i_port_index ==
+              static_cast<int>(integrator::port_name::port_quanta))
+            return false;
+
+        return true;
+    }
+
+    return false;
+}
+
+inline status
+global_connect(data_array<model, model_id>& models,
+               shared_flat_list<node>::allocator_type& allocator,
+               model& src,
+               int port_src,
+               model& dst,
+               int port_dst) noexcept
+{
+    port* src_port = nullptr;
+    irt_return_if_bad(get_output_port(src, port_src, src_port));
+
+    port* dst_port = nullptr;
+    irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
+
+    auto model_src_id = models.get_id(src);
+    auto model_dst_id = models.get_id(dst);
+
+    auto it = src_port->connections.begin();
+    auto et = src_port->connections.end();
+
+    while (it != et) {
+        irt_return_if_fail(
+          !(it->model == model_dst_id && it->port_index == port_dst),
+          status::model_connect_already_exist);
+
+        ++it;
+    };
+
+    irt_return_if_fail(is_ports_compatible(src, port_src, dst, port_dst),
+                       status::model_connect_bad_dynamics);
+
+    src_port->connections.emplace_front(allocator, model_dst_id, port_dst);
+    dst_port->connections.emplace_front(allocator, model_src_id, port_src);
+
+    return status::success;
+}
+
+inline status
+global_disconnect(data_array<model, model_id>& models,
+                  shared_flat_list<node>::allocator_type& allocator,
+                  model& src,
+                  int port_src,
+                  model& dst,
+                  int port_dst) noexcept
+{
+    port* src_port = nullptr;
+    irt_return_if_bad(get_output_port(src, port_src, src_port));
+
+    port* dst_port = nullptr;
+    irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
+
+    {
+        const auto end = std::end(src_port->connections);
+        auto it = std::begin(src_port->connections);
+
+        if (it->model == models.get_id(dst) && it->port_index == port_dst) {
+            src_port->connections.pop_front(allocator);
+        } else {
+            auto prev = it++;
+            while (it != end) {
+                if (it->model == models.get_id(dst) &&
+                    it->port_index == port_dst) {
+                    src_port->connections.erase_after(allocator, prev);
+                    break;
+                }
+                prev = it++;
+            }
+        }
+    }
+
+    {
+        const auto end = std::end(dst_port->connections);
+        auto it = std::begin(dst_port->connections);
+
+        if (it->model == models.get_id(src) && it->port_index == port_src) {
+            dst_port->connections.pop_front(allocator);
+        } else {
+            auto prev = it++;
+            while (it != end) {
+                if (it->model == models.get_id(src) &&
+                    it->port_index == port_src) {
+                    dst_port->connections.erase_after(allocator, prev);
+                    break;
+                }
+                prev = it++;
+            }
+        }
+    }
+
+    return status::success;
+}
+
 struct component
 {
     small_string<16> name;
-    shared_flat_list<model_id> children;
-    shared_flat_list<model_id> parameters;
-    shared_flat_list<model_id> observables;
+    data_array<model, model_id> models;
+    small_vector<model_id, 16> parameters;
+    small_vector<model_id, 16> observables;
+    small_vector<port, 16> internal_x;
+    small_vector<port, 16> internal_y;
 
-    shared_flat_list<node> internal_x;
-    shared_flat_list<node> internal_y;
+    shared_flat_list<node>::allocator_type node_allocator;
+
+    status init(sz model_number) noexcept
+    {
+        irt_return_if_bad(models.init(model_number));
+        irt_return_if_bad(node_allocator.init(model_number * 4u));
+
+        return status::success;
+    }
+
+    bool can_alloc(const sz number = 1u) const noexcept
+    {
+        return models.can_alloc(number);
+    }
+
+    bool can_connect(const sz number = 1u) const noexcept
+    {
+        return node_allocator.can_alloc(number);
+    }
+
+    // model& alloc(dynamics_type type) noexcept
+    //{
+    //    irt_assert(can_alloc(1u));
+
+    //    auto& mdl = models.alloc();
+    //    mdl.type = type;
+    //    mdl.handle = nullptr;
+
+    //    dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
+    //        new (&dyn) Dynamics{};
+    //    });
+
+    //    return mdl;
+    //}
+
+    // status connect(model_id src, int port_src, model_id dst, int port_dst)
+    //{
+
+    //}
+
+    // status connect(model& src, int port_src, model& dst, int port_dst)
+    //{
+
+    //}
+
+    // status disconnect(model_id src, int port_src, model_id dst, int port_dst)
+    //{
+    //    port* src_port = nullptr;
+    //    irt_return_if_bad(get_output_port(src, port_src, src_port));
+
+    //    port* dst_port = nullptr;
+    //    irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
+
+    //}
+
+    // status free(model& mdl) noexcept
+    //{
+    //    dispatch(mdl, [&mdl, this]<typename Dynamics>(Dynamics& dyn) -> status
+    //    {
+    //        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+    //            int i = 0;
+    //            for (auto& port : dyn.x) {
+    //                while (!port.connections.empty()) {
+    //                    disconnect(port.connections.front().model,
+    //                               port.connections.front().port_index,
+    //                               models.get_id(mdl),
+    //                               i);
+    //                }
+
+    //                port.connections.clear(node_allocator);
+    //                ++i;
+    //            }
+    //        }
+
+    //        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+    //            int i = 0;
+    //            for (auto& port : dyn.y) {
+    //                while (!port.connections.empty()) {
+    //                    disconnect(models.get_id(mdl),
+    //                               i,
+    //                               port.connections.front().model,
+    //                               port.connections.front().port_index);
+    //                }
+
+    //                port.connections.clear(node_allocator);
+    //                ++i;
+    //            }
+    //        }
+
+    //        dyn.~Dynamics();
+    //    });
+
+    //    models.free(mdl);
+    //}
 };
 
 /*****************************************************************************
@@ -6684,255 +7247,6 @@ struct simulation
         return models.get_id(get_model(dyn));
     }
 
-    template<typename Function, typename... Args>
-    constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
-    {
-        switch (mdl.type) {
-        case dynamics_type::none:
-            return f(*reinterpret_cast<none*>(&mdl.dyn), args...);
-
-        case dynamics_type::qss1_integrator:
-            return f(*reinterpret_cast<qss1_integrator*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_multiplier:
-            return f(*reinterpret_cast<qss1_multiplier*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_cross:
-            return f(*reinterpret_cast<qss1_cross*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_power:
-            return f(*reinterpret_cast<qss1_power*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_square:
-            return f(*reinterpret_cast<qss1_square*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_sum_2:
-            return f(*reinterpret_cast<qss1_sum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_sum_3:
-            return f(*reinterpret_cast<qss1_sum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_sum_4:
-            return f(*reinterpret_cast<qss1_sum_4*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_wsum_2:
-            return f(*reinterpret_cast<qss1_wsum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_wsum_3:
-            return f(*reinterpret_cast<qss1_wsum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_wsum_4:
-            return f(*reinterpret_cast<qss1_wsum_4*>(&mdl.dyn), args...);
-
-        case dynamics_type::qss2_integrator:
-            return f(*reinterpret_cast<qss2_integrator*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_multiplier:
-            return f(*reinterpret_cast<qss2_multiplier*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_cross:
-            return f(*reinterpret_cast<qss2_cross*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_power:
-            return f(*reinterpret_cast<qss2_power*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_square:
-            return f(*reinterpret_cast<qss2_square*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_sum_2:
-            return f(*reinterpret_cast<qss2_sum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_sum_3:
-            return f(*reinterpret_cast<qss2_sum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_sum_4:
-            return f(*reinterpret_cast<qss2_sum_4*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_wsum_2:
-            return f(*reinterpret_cast<qss2_wsum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_wsum_3:
-            return f(*reinterpret_cast<qss2_wsum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_wsum_4:
-            return f(*reinterpret_cast<qss2_wsum_4*>(&mdl.dyn), args...);
-
-        case dynamics_type::qss3_integrator:
-            return f(*reinterpret_cast<qss3_integrator*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_multiplier:
-            return f(*reinterpret_cast<qss3_multiplier*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_cross:
-            return f(*reinterpret_cast<qss3_cross*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_power:
-            return f(*reinterpret_cast<qss3_power*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_square:
-            return f(*reinterpret_cast<qss3_square*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_sum_2:
-            return f(*reinterpret_cast<qss3_sum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_sum_3:
-            return f(*reinterpret_cast<qss3_sum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_sum_4:
-            return f(*reinterpret_cast<qss3_sum_4*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_wsum_2:
-            return f(*reinterpret_cast<qss3_wsum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_wsum_3:
-            return f(*reinterpret_cast<qss3_wsum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_wsum_4:
-            return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn), args...);
-
-        case dynamics_type::integrator:
-            return f(*reinterpret_cast<integrator*>(&mdl.dyn), args...);
-        case dynamics_type::quantifier:
-            return f(*reinterpret_cast<quantifier*>(&mdl.dyn), args...);
-        case dynamics_type::adder_2:
-            return f(*reinterpret_cast<adder_2*>(&mdl.dyn), args...);
-        case dynamics_type::adder_3:
-            return f(*reinterpret_cast<adder_3*>(&mdl.dyn), args...);
-        case dynamics_type::adder_4:
-            return f(*reinterpret_cast<adder_4*>(&mdl.dyn), args...);
-        case dynamics_type::mult_2:
-            return f(*reinterpret_cast<mult_2*>(&mdl.dyn), args...);
-        case dynamics_type::mult_3:
-            return f(*reinterpret_cast<mult_3*>(&mdl.dyn), args...);
-        case dynamics_type::mult_4:
-            return f(*reinterpret_cast<mult_4*>(&mdl.dyn), args...);
-        case dynamics_type::counter:
-            return f(*reinterpret_cast<counter*>(&mdl.dyn), args...);
-        case dynamics_type::queue:
-            return f(*reinterpret_cast<queue*>(&mdl.dyn), args...);
-        case dynamics_type::dynamic_queue:
-            return f(*reinterpret_cast<dynamic_queue*>(&mdl.dyn), args...);
-        case dynamics_type::priority_queue:
-            return f(*reinterpret_cast<priority_queue*>(&mdl.dyn), args...);
-        case dynamics_type::generator:
-            return f(*reinterpret_cast<generator*>(&mdl.dyn), args...);
-        case dynamics_type::constant:
-            return f(*reinterpret_cast<constant*>(&mdl.dyn), args...);
-        case dynamics_type::cross:
-            return f(*reinterpret_cast<cross*>(&mdl.dyn), args...);
-        case dynamics_type::accumulator_2:
-            return f(*reinterpret_cast<accumulator_2*>(&mdl.dyn), args...);
-        case dynamics_type::time_func:
-            return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
-        case dynamics_type::filter:
-            return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
-        case dynamics_type::flow:
-            return f(*reinterpret_cast<flow*>(&mdl.dyn), args...);
-        }
-
-        irt_unreachable();
-    }
-
-    template<typename Function, typename... Args>
-    constexpr auto dispatch(const model& mdl,
-                            Function&& f,
-                            Args... args) const noexcept
-    {
-        switch (mdl.type) {
-        case dynamics_type::none:
-            return f(*reinterpret_cast<const none*>(&mdl.dyn), args...);
-
-        case dynamics_type::qss1_integrator:
-            return f(*reinterpret_cast<const qss1_integrator*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::qss1_multiplier:
-            return f(*reinterpret_cast<const qss1_multiplier*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::qss1_cross:
-            return f(*reinterpret_cast<const qss1_cross*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_power:
-            return f(*reinterpret_cast<const qss1_power*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_square:
-            return f(*reinterpret_cast<const qss1_square*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_sum_2:
-            return f(*reinterpret_cast<const qss1_sum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_sum_3:
-            return f(*reinterpret_cast<const qss1_sum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_sum_4:
-            return f(*reinterpret_cast<const qss1_sum_4*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_wsum_2:
-            return f(*reinterpret_cast<const qss1_wsum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_wsum_3:
-            return f(*reinterpret_cast<const qss1_wsum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss1_wsum_4:
-            return f(*reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn), args...);
-
-        case dynamics_type::qss2_integrator:
-            return f(*reinterpret_cast<const qss2_integrator*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::qss2_multiplier:
-            return f(*reinterpret_cast<const qss2_multiplier*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::qss2_cross:
-            return f(*reinterpret_cast<const qss2_cross*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_power:
-            return f(*reinterpret_cast<const qss2_power*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_square:
-            return f(*reinterpret_cast<const qss2_square*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_sum_2:
-            return f(*reinterpret_cast<const qss2_sum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_sum_3:
-            return f(*reinterpret_cast<const qss2_sum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_sum_4:
-            return f(*reinterpret_cast<const qss2_sum_4*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_wsum_2:
-            return f(*reinterpret_cast<const qss2_wsum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_wsum_3:
-            return f(*reinterpret_cast<const qss2_wsum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss2_wsum_4:
-            return f(*reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn), args...);
-
-        case dynamics_type::qss3_integrator:
-            return f(*reinterpret_cast<const qss3_integrator*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::qss3_multiplier:
-            return f(*reinterpret_cast<const qss3_multiplier*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::qss3_cross:
-            return f(*reinterpret_cast<const qss3_cross*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_power:
-            return f(*reinterpret_cast<const qss3_power*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_square:
-            return f(*reinterpret_cast<const qss3_square*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_sum_2:
-            return f(*reinterpret_cast<const qss3_sum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_sum_3:
-            return f(*reinterpret_cast<const qss3_sum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_sum_4:
-            return f(*reinterpret_cast<const qss3_sum_4*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_wsum_2:
-            return f(*reinterpret_cast<const qss3_wsum_2*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_wsum_3:
-            return f(*reinterpret_cast<const qss3_wsum_3*>(&mdl.dyn), args...);
-        case dynamics_type::qss3_wsum_4:
-            return f(*reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn), args...);
-
-        case dynamics_type::integrator:
-            return f(*reinterpret_cast<const integrator*>(&mdl.dyn), args...);
-        case dynamics_type::quantifier:
-            return f(*reinterpret_cast<const quantifier*>(&mdl.dyn), args...);
-        case dynamics_type::adder_2:
-            return f(*reinterpret_cast<const adder_2*>(&mdl.dyn), args...);
-        case dynamics_type::adder_3:
-            return f(*reinterpret_cast<const adder_3*>(&mdl.dyn), args...);
-        case dynamics_type::adder_4:
-            return f(*reinterpret_cast<const adder_4*>(&mdl.dyn), args...);
-        case dynamics_type::mult_2:
-            return f(*reinterpret_cast<const mult_2*>(&mdl.dyn), args...);
-        case dynamics_type::mult_3:
-            return f(*reinterpret_cast<const mult_3*>(&mdl.dyn), args...);
-        case dynamics_type::mult_4:
-            return f(*reinterpret_cast<const mult_4*>(&mdl.dyn), args...);
-        case dynamics_type::counter:
-            return f(*reinterpret_cast<const counter*>(&mdl.dyn), args...);
-        case dynamics_type::queue:
-            return f(*reinterpret_cast<const queue*>(&mdl.dyn), args...);
-        case dynamics_type::dynamic_queue:
-            return f(*reinterpret_cast<const dynamic_queue*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::priority_queue:
-            return f(*reinterpret_cast<const priority_queue*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::generator:
-            return f(*reinterpret_cast<const generator*>(&mdl.dyn), args...);
-        case dynamics_type::constant:
-            return f(*reinterpret_cast<const constant*>(&mdl.dyn), args...);
-        case dynamics_type::cross:
-            return f(*reinterpret_cast<const cross*>(&mdl.dyn), args...);
-        case dynamics_type::accumulator_2:
-            return f(*reinterpret_cast<const accumulator_2*>(&mdl.dyn),
-                     args...);
-        case dynamics_type::time_func:
-            return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
-        case dynamics_type::filter:
-            return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
-        case dynamics_type::flow:
-            return f(*reinterpret_cast<const flow*>(&mdl.dyn), args...);
-        }
-
-        irt_unreachable();
-    }
-
 public:
     status init(size_t model_capacity, size_t messages_capacity)
     {
@@ -7162,176 +7476,15 @@ public:
         dyn.~Dynamics();
     }
 
-    bool is_ports_compatible(const model& mdl_src,
-                             [[maybe_unused]] const int o_port_index,
-                             const model& mdl_dst,
-                             const int i_port_index) const noexcept
-    {
-        if (&mdl_src == &mdl_dst)
-            return false;
-
-        switch (mdl_src.type) {
-        case dynamics_type::none:
-            return false;
-
-        case dynamics_type::quantifier:
-            if (mdl_dst.type == dynamics_type::integrator &&
-                i_port_index ==
-                  static_cast<int>(integrator::port_name::port_quanta))
-                return true;
-
-            return false;
-
-        case dynamics_type::qss1_integrator:
-        case dynamics_type::qss1_multiplier:
-        case dynamics_type::qss1_cross:
-        case dynamics_type::qss1_power:
-        case dynamics_type::qss1_square:
-        case dynamics_type::qss1_sum_2:
-        case dynamics_type::qss1_sum_3:
-        case dynamics_type::qss1_sum_4:
-        case dynamics_type::qss1_wsum_2:
-        case dynamics_type::qss1_wsum_3:
-        case dynamics_type::qss1_wsum_4:
-        case dynamics_type::qss2_integrator:
-        case dynamics_type::qss2_multiplier:
-        case dynamics_type::qss2_cross:
-        case dynamics_type::qss2_power:
-        case dynamics_type::qss2_square:
-        case dynamics_type::qss2_sum_2:
-        case dynamics_type::qss2_sum_3:
-        case dynamics_type::qss2_sum_4:
-        case dynamics_type::qss2_wsum_2:
-        case dynamics_type::qss2_wsum_3:
-        case dynamics_type::qss2_wsum_4:
-        case dynamics_type::qss3_integrator:
-        case dynamics_type::qss3_multiplier:
-        case dynamics_type::qss3_cross:
-        case dynamics_type::qss3_power:
-        case dynamics_type::qss3_square:
-        case dynamics_type::qss3_sum_2:
-        case dynamics_type::qss3_sum_3:
-        case dynamics_type::qss3_sum_4:
-        case dynamics_type::qss3_wsum_2:
-        case dynamics_type::qss3_wsum_3:
-        case dynamics_type::qss3_wsum_4:
-        case dynamics_type::integrator:
-        case dynamics_type::adder_2:
-        case dynamics_type::adder_3:
-        case dynamics_type::adder_4:
-        case dynamics_type::mult_2:
-        case dynamics_type::mult_3:
-        case dynamics_type::mult_4:
-        case dynamics_type::counter:
-        case dynamics_type::queue:
-        case dynamics_type::dynamic_queue:
-        case dynamics_type::priority_queue:
-        case dynamics_type::generator:
-        case dynamics_type::constant:
-        case dynamics_type::cross:
-        case dynamics_type::time_func:
-        case dynamics_type::filter:
-        case dynamics_type::flow:
-        case dynamics_type::accumulator_2:
-            if (mdl_dst.type == dynamics_type::integrator &&
-                i_port_index ==
-                  static_cast<int>(integrator::port_name::port_quanta))
-                return false;
-
-            return true;
-        }
-
-        return false;
-    }
-
     bool can_connect(size_t number) const noexcept
     {
         return node_list_allocator.can_alloc(number);
     }
 
-    status get_input_port(model& src, int port_src, port*& p)
-    {
-        return dispatch(
-          src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  if constexpr (std::is_same_v<none, Dynamics>) {
-                      auto it = dyn.x.begin();
-                      for (int i = 0; i < port_src && it != dyn.x.end(); ++i)
-                          ++it;
-
-                      if (it != dyn.x.end()) {
-                          p = &(*it);
-                          return status::success;
-                      }
-                  } else {
-                      if (port_src >= 0 && port_src < length(dyn.x)) {
-                          p = &dyn.x[port_src];
-                          return status::success;
-                      }
-                  }
-              }
-
-              return status::model_connect_output_port_unknown;
-          });
-    }
-
-    status get_output_port(model& dst, int port_dst, port*& p)
-    {
-        return dispatch(
-          dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  if constexpr (std::is_same_v<none, Dynamics>) {
-                      auto it = dyn.y.begin();
-                      for (int i = 0; i < port_dst && it != dyn.y.end(); ++i)
-                          ++it;
-
-                      if (it != dyn.y.end()) {
-                          p = &(*it);
-                          return status::success;
-                      }
-                  } else {
-                      if (port_dst >= 0 && port_dst < length(dyn.y)) {
-                          p = &dyn.y[port_dst];
-                          return status::success;
-                      }
-                  }
-              }
-
-              return status::model_connect_output_port_unknown;
-          });
-    }
-
     status connect(model& src, int port_src, model& dst, int port_dst) noexcept
     {
-        port* src_port = nullptr;
-        irt_return_if_bad(get_output_port(src, port_src, src_port));
-
-        port* dst_port = nullptr;
-        irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
-
-        auto model_src_id = models.get_id(src);
-        auto model_dst_id = models.get_id(dst);
-
-        auto it = src_port->connections.begin();
-        auto et = src_port->connections.end();
-
-        while (it != et) {
-            irt_return_if_fail(
-              !(it->model == model_dst_id && it->port_index == port_dst),
-              status::model_connect_already_exist);
-
-            ++it;
-        };
-
-        irt_return_if_fail(is_ports_compatible(src, port_src, dst, port_dst),
-                           status::model_connect_bad_dynamics);
-
-        src_port->connections.emplace_front(
-          node_list_allocator, model_dst_id, port_dst);
-        dst_port->connections.emplace_front(
-          node_list_allocator, model_src_id, port_src);
-
-        return status::success;
+        return global_connect(
+          models, node_list_allocator, src, port_src, dst, port_dst);
     }
 
     template<typename DynamicsSrc, typename DynamicsDst>
@@ -7373,53 +7526,8 @@ public:
                       model& dst,
                       int port_dst) noexcept
     {
-        port* src_port = nullptr;
-        irt_return_if_bad(get_output_port(src, port_src, src_port));
-
-        port* dst_port = nullptr;
-        irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
-
-        {
-            const auto end = std::end(src_port->connections);
-            auto it = std::begin(src_port->connections);
-
-            if (it->model == models.get_id(dst) && it->port_index == port_dst) {
-                src_port->connections.pop_front(node_list_allocator);
-            } else {
-                auto prev = it++;
-                while (it != end) {
-                    if (it->model == models.get_id(dst) &&
-                        it->port_index == port_dst) {
-                        src_port->connections.erase_after(node_list_allocator,
-                                                          prev);
-                        break;
-                    }
-                    prev = it++;
-                }
-            }
-        }
-
-        {
-            const auto end = std::end(dst_port->connections);
-            auto it = std::begin(dst_port->connections);
-
-            if (it->model == models.get_id(src) && it->port_index == port_src) {
-                dst_port->connections.pop_front(node_list_allocator);
-            } else {
-                auto prev = it++;
-                while (it != end) {
-                    if (it->model == models.get_id(src) &&
-                        it->port_index == port_src) {
-                        dst_port->connections.erase_after(node_list_allocator,
-                                                          prev);
-                        break;
-                    }
-                    prev = it++;
-                }
-            }
-        }
-
-        return status::success;
+        return global_disconnect(
+          models, node_list_allocator, src, port_src, dst, port_dst);
     }
 
     status initialize(time t) noexcept
