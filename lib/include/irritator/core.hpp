@@ -3485,6 +3485,13 @@ struct port
  */
 struct none
 {
+    none() noexcept = default;
+
+    none(const none& other) noexcept
+      : sigma(other.sigma)
+      , id(other.id)
+    {}
+
     time sigma = time_domain<time>::infinity;
     component_id id = undefined<component_id>();
 
@@ -4048,6 +4055,19 @@ struct abstract_integrator<3>
 
     abstract_integrator() = default;
 
+    abstract_integrator(const abstract_integrator& other) noexcept
+      : default_X(other.default_dQ)
+      , default_dQ(other.default_dQ)
+      , X(other.X)
+      , u(other.u)
+      , mu(other.mu)
+      , pu(other.pu)
+      , q(other.q)
+      , mq(other.mq)
+      , pq(other.pq)
+      , sigma(other.sigma)
+    {}
+
     status initialize() noexcept
     {
         irt_return_if_fail(std::isfinite(default_X),
@@ -4371,6 +4391,12 @@ struct abstract_power
 
     abstract_power() noexcept = default;
 
+    abstract_power(const abstract_power& other) noexcept
+      : default_n(other.default_n)
+    {
+        std::copy_n(other.value, QssLevel, value);
+    }
+
     status initialize() noexcept
     {
         std::fill_n(value, QssLevel, 0.0);
@@ -4454,6 +4480,11 @@ struct abstract_square
 
     abstract_square() noexcept = default;
 
+    abstract_square(const abstract_square& other) noexcept
+    {
+        std::copy_n(other.value, QssLevel, value);
+    }
+
     status initialize() noexcept
     {
         std::fill_n(value, QssLevel, 0.0);
@@ -4534,6 +4565,12 @@ struct abstract_sum
     double values[QssLevel * PortNumber];
 
     abstract_sum() noexcept = default;
+
+    abstract_sum(const abstract_sum& other) noexcept
+      : sigma(other.sigma)
+    {
+        std::copy_n(other.values, QssLevel * PortNumber, values);
+    }
 
     status initialize() noexcept
     {
@@ -4680,6 +4717,14 @@ struct abstract_wsum
 
     abstract_wsum() noexcept = default;
 
+    abstract_wsum(const abstract_wsum& other) noexcept
+      : sigma(other.sigma)
+    {
+        std::copy_n(
+          other.default_input_coeffs, PortNumber, default_input_coeffs);
+        std::copy_n(other.values, QssLevel * PortNumber, values);
+    }
+
     status initialize() noexcept
     {
         std::fill_n(values, QssLevel * PortNumber, 0.);
@@ -4825,6 +4870,12 @@ struct abstract_multiplier
     double values[QssLevel * 2];
 
     abstract_multiplier() noexcept = default;
+
+    abstract_multiplier(const abstract_multiplier& other) noexcept
+      : sigma(other.sigma)
+    {
+        std::copy_n(other.values, std::size(values), values);
+    }
 
     status initialize() noexcept
     {
@@ -5265,6 +5316,20 @@ struct adder
         std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
     }
 
+    adder(const adder& other) noexcept
+      : sigma(other.sigma)
+    {
+        std::copy_n(other.default_values,
+                    std::size(other.default_values),
+                    default_values);
+        std::copy_n(other.default_input_coeffs,
+                    std::size(other.default_input_coeffs),
+                    default_input_coeffs);
+        std::copy_n(other.values, std::size(other.values), values);
+        std::copy_n(
+          other.input_coeffs, std::size(other.input_coeffs), input_coeffs);
+    }
+
     status initialize() noexcept
     {
         std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
@@ -5340,6 +5405,19 @@ struct mult
         std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
     }
 
+    mult(const mult& other) noexcept
+    {
+        std::copy_n(other.default_values,
+                    std::size(other.default_values),
+                    default_values);
+        std::copy_n(other.default_input_coeffs,
+                    std::size(other.default_input_coeffs),
+                    default_input_coeffs);
+        std::copy_n(other.values, std::size(other.values), values);
+        std::copy_n(
+          other.input_coeffs, std::size(other.input_coeffs), input_coeffs);
+    }
+
     status initialize() noexcept
     {
         std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
@@ -5398,6 +5476,13 @@ struct counter
     time sigma;
     i64 number;
 
+    counter() noexcept = default;
+
+    counter(const counter& other) noexcept
+      : sigma(other.sigma)
+      , number(other.number)
+    {}
+
     status initialize() noexcept
     {
         number = { 0 };
@@ -5433,6 +5518,18 @@ struct generator
     source default_source_ta;
     source default_source_value;
     bool stop_on_error = false;
+
+    generator() noexcept = default;
+
+    generator(const generator& other) noexcept
+      : sigma(other.sigma)
+      , value(other.value)
+      , sim{ nullptr }
+      , default_offset(other.default_offset)
+      , default_source_ta(other.default_source_ta)
+      , default_source_value(other.default_source_value)
+      , stop_on_error(other.stop_on_error)
+    {}
 
     status initialize() noexcept
     {
@@ -5487,6 +5584,15 @@ struct constant
     time default_offset = time_domain<time>::zero;
 
     double value = 0.0;
+
+    constant() noexcept = default;
+
+    constant(const constant& other) noexcept
+      : sigma(other.sigma)
+      , default_value(other.default_value)
+      , default_offset(other.default_offset)
+      , value(other.value)
+    {}
 
     status initialize() noexcept
     {
@@ -5594,6 +5700,18 @@ struct flow
     double accu_sigma;
     sz i;
 
+    flow() noexcept = default;
+
+    flow(const flow& other) noexcept
+      : sigma(other.sigma)
+      , default_samplerate(other.default_samplerate)
+      , default_data(other.default_data)
+      , default_sigmas(other.default_sigmas)
+      , default_size(other.default_size)
+      , accu_sigma(other.accu_sigma)
+      , i(other.i)
+    {}
+
     status initialize() noexcept
     {
         irt_return_if_fail(default_samplerate > 0.,
@@ -5648,6 +5766,15 @@ struct accumulator
     double number;
     double numbers[PortNumber];
 
+    accumulator() = default;
+
+    accumulator(const accumulator& other) noexcept
+      : sigma(other.sigma)
+      , number(other.number)
+    {
+        std::copy_n(other.numbers, std::size(numbers), numbers);
+    }
+
     status initialize() noexcept
     {
         number = 0.0;
@@ -5687,6 +5814,19 @@ struct cross
     double else_value;
     double result;
     double event;
+
+    cross() noexcept = default;
+
+    cross(const cross& other) noexcept
+      : sigma(other.sigma)
+      , default_threshold(other.default_threshold)
+      , threshold(other.threshold)
+      , value(other.value)
+      , if_value(other.if_value)
+      , else_value(other.else_value)
+      , result(other.result)
+      , event(other.event)
+    {}
 
     enum port_name
     {
@@ -5786,6 +5926,22 @@ struct abstract_cross
     double last_reset;
     bool reach_threshold;
     bool detect_up;
+
+    abstract_cross() noexcept = default;
+
+    abstract_cross(const abstract_cross& other) noexcept
+      : sigma(other.sigma)
+      , default_threshold(other.default_threshold)
+      , default_detect_up(other.default_detect_up)
+      , threshold(other.threshold)
+      , last_reset(other.last_reset)
+      , reach_threshold(other.reach_threshold)
+      , detect_up(other.detect_up)
+    {
+        std::copy_n(other.if_value, QssLevel, if_value);
+        std::copy_n(other.else_value, QssLevel, else_value);
+        std::copy_n(other.value, QssLevel, value);
+    }
 
     enum port_name
     {
@@ -6041,6 +6197,16 @@ struct time_func
 
     double value;
     double (*f)(double) = nullptr;
+
+    time_func() noexcept = default;
+
+    time_func(const time_func& other) noexcept
+      : sigma(other.sigma)
+      , default_sigma(other.default_sigma)
+      , default_f(other.default_f)
+      , value(other.value)
+      , f(other.f)
+    {}
 
     status initialize() noexcept
     {
