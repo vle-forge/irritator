@@ -398,13 +398,13 @@ example_qss_seir_nonlinear(simulation& sim, F f) noexcept
     auto& constant_i = sim.alloc<constant>();
     constant_i.default_value = 0.01667;
 
-    /*auto& pow_a = sim.alloc<abstract_power<QssLevel>>();
-    pow_a.defaul*/
+    auto& pow_a = sim.alloc<abstract_power<QssLevel>>();
+    pow_a.default_n = -1;
     /*auto& pow_a = sim.alloc<qss2_power<QssLevel>>();
     pow_a.default_n = -1;*/
 
-    auto& pow_a = sim.alloc<qss2_power>();
-    pow_a.default_n = -1;
+    /*auto& pow_a = sim.alloc<qss2_power>();
+    pow_a.default_n = -1;*/
 
     sim.connect(constant_a, 0, sum_a, 0);
     sim.connect(constant_b, 0, product_a, 0);
