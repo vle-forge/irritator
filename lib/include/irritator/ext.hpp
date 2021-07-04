@@ -249,22 +249,6 @@ flat_merge_create_connections(
               auto& from_sim = get_model(dyn);
               auto& from_c_dyn = get_dyn<Dynamics>(from_c_mdl);
 
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  int port_index = 0;
-                  for (auto& x : from_c_dyn.x) {
-                      auto ret = copy_input_connection(x.connections,
-                                                       none_mdl.dict,
-                                                       component_models,
-                                                       components,
-                                                       sim,
-                                                       from_sim,
-                                                       port_index);
-
-                      irt_return_if_bad(ret);
-                      ++port_index;
-                  }
-              }
-
               if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                   int port_index = 0;
                   for (auto& y : from_c_dyn.y) {

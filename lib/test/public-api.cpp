@@ -334,7 +334,8 @@ main()
         fmt::print("accumulator {}\n", sizeof(irt::accumulator_2));
         fmt::print("flow {}\n", sizeof(irt::flow));
         fmt::print("model {}\n", sizeof(irt::model));
-        fmt::print("port {}\n", sizeof(irt::port));
+        fmt::print("input_port {}\n", sizeof(irt::input_port));
+        fmt::print("output_port {}\n", sizeof(irt::output_port));
     };
 
     "model_constepxr"_test = [] {
@@ -1054,12 +1055,14 @@ main()
 
         auto& mdl = irt::get_model(dyn1);
 
-        irt::dispatch(mdl, []([[maybe_unused]] auto& dyns) { std::cout << "ok"; });
+        irt::dispatch(mdl,
+                      []([[maybe_unused]] auto& dyns) { std::cout << "ok"; });
 
-        auto ret = irt::dispatch(mdl, []([[maybe_unused]] const auto& dyns) -> int {
-            std::cout << "ok";
-            return 1;
-        });
+        auto ret =
+          irt::dispatch(mdl, []([[maybe_unused]] const auto& dyns) -> int {
+              std::cout << "ok";
+              return 1;
+          });
 
         expect(ret == 1);
 

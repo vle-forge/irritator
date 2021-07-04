@@ -3424,22 +3424,33 @@ struct node
     int port_index = 0;
 };
 
-struct port
+struct input_port
+{
+    flat_list<message> messages;
+};
+
+struct output_port
 {
     shared_flat_list<node> connections;
     flat_list<message> messages;
-
-    port() noexcept = default;
-
-    port(const port& /*other*/) noexcept
-      : connections{}
-      , messages{}
-    {}
-
-    port(port&& other) noexcept = delete;
-    port& operator=(const port&) noexcept = delete;
-    port& operator=(port&&) noexcept = delete;
 };
+
+// struct port
+//{
+//    shared_flat_list<node> connections;
+//    flat_list<message> messages;
+//
+//    port() noexcept = default;
+//
+//    port(const port& /*other*/) noexcept
+//      : connections{}
+//      , messages{}
+//    {}
+//
+//    port(port&& other) noexcept = delete;
+//    port& operator=(const port&) noexcept = delete;
+//    port& operator=(port&&) noexcept = delete;
+//};
 
 /**
  * @brief Useless for user
@@ -3464,14 +3475,14 @@ struct none
 
     map<model_id, model_id> dict;
 
-    shared_flat_list<port> x;
-    shared_flat_list<port> y;
+    shared_flat_list<input_port> x;
+    shared_flat_list<output_port> y;
 };
 
 struct integrator
 {
-    port x[3];
-    port y[1];
+    input_port x[3];
+    output_port y[1];
     time sigma = time_domain<time>::zero;
 
     enum port_name
@@ -3536,9 +3547,9 @@ struct integrator
         return status::success;
     }
 
-    status external(port& port_quanta,
-                    port& port_x_dot,
-                    port& port_reset,
+    status external(input_port& port_quanta,
+                    input_port& port_x_dot,
+                    input_port& port_reset,
                     time t) noexcept
     {
         for (const auto& msg : port_quanta.messages) {
@@ -3722,8 +3733,8 @@ struct abstract_integrator;
 template<>
 struct abstract_integrator<1>
 {
-    port x[2];
-    port y[1];
+    input_port x[2];
+    output_port y[1];
     double default_X = 0.;
     double default_dQ = 0.01;
     double X;
@@ -3841,8 +3852,8 @@ struct abstract_integrator<1>
 template<>
 struct abstract_integrator<2>
 {
-    port x[2];
-    port y[1];
+    input_port x[2];
+    output_port y[1];
     double default_X = 0.;
     double default_dQ = 0.01;
     double X;
@@ -4001,8 +4012,8 @@ struct abstract_integrator<2>
 template<>
 struct abstract_integrator<3>
 {
-    port x[2];
-    port y[1];
+    input_port x[2];
+    output_port y[1];
     double default_X = 0.;
     double default_dQ = 0.01;
     double X;
@@ -4349,8 +4360,8 @@ struct abstract_power
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    port x[1];
-    port y[1];
+    input_port x[1];
+    output_port y[1];
     time sigma;
 
     double value[QssLevel];
@@ -4439,8 +4450,8 @@ struct abstract_square
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    port x[1];
-    port y[1];
+    input_port x[1];
+    output_port y[1];
     time sigma;
 
     double value[QssLevel];
@@ -4525,8 +4536,8 @@ struct abstract_sum
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    port x[PortNumber];
-    port y[1];
+    input_port x[PortNumber];
+    output_port y[1];
     time sigma;
 
     double values[QssLevel * PortNumber];
@@ -4676,8 +4687,8 @@ struct abstract_wsum
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    port x[PortNumber];
-    port y[1];
+    input_port x[PortNumber];
+    output_port y[1];
     time sigma;
 
     double default_input_coeffs[PortNumber] = { 0 };
@@ -4832,8 +4843,8 @@ struct abstract_multiplier
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    port x[2];
-    port y[1];
+    input_port x[2];
+    output_port y[1];
     time sigma;
 
     double values[QssLevel * 2];
@@ -4952,8 +4963,8 @@ using qss3_multiplier = abstract_multiplier<3>;
 
 struct quantifier
 {
-    port x[1];
-    port y[1];
+    input_port x[1];
+    output_port y[1];
     time sigma = time_domain<time>::infinity;
 
     enum class state
@@ -5036,7 +5047,7 @@ struct quantifier
         return status::success;
     }
 
-    status external(port& p, time t) noexcept
+    status external(input_port& p, time t) noexcept
     {
         double val = 0.0, shifting_factor = 0.0;
 
@@ -5267,8 +5278,8 @@ struct adder
 {
     static_assert(PortNumber > 1, "adder model need at least two input port");
 
-    port x[PortNumber];
-    port y[1];
+    input_port x[PortNumber];
+    output_port y[1];
     time sigma;
 
     double default_values[PortNumber];
@@ -5359,8 +5370,8 @@ struct mult
 {
     static_assert(PortNumber > 1, "mult model need at least two input port");
 
-    port x[PortNumber];
-    port y[1];
+    input_port x[PortNumber];
+    output_port y[1];
     time sigma;
 
     double default_values[PortNumber];
@@ -5442,7 +5453,7 @@ struct mult
 
 struct counter
 {
-    port x[1];
+    input_port x[1];
     time sigma;
     i64 number;
 
@@ -5479,7 +5490,7 @@ struct counter
 
 struct generator
 {
-    port y[1];
+    output_port y[1];
     time sigma;
     double value;
 
@@ -5547,7 +5558,7 @@ struct generator
 
 struct constant
 {
-    port y[1];
+    output_port y[1];
     time sigma;
 
     double default_value = 0.0;
@@ -5595,7 +5606,7 @@ struct constant
 
 struct flow
 {
-    port y[1];
+    output_port y[1];
     time sigma;
 
     double default_samplerate = 44100.0;
@@ -5667,7 +5678,7 @@ struct flow
 template<size_t PortNumber>
 struct accumulator
 {
-    port x[2 * PortNumber];
+    input_port x[2 * PortNumber];
     time sigma;
     double number;
     double numbers[PortNumber];
@@ -5708,8 +5719,8 @@ struct accumulator
 
 struct cross
 {
-    port x[4];
-    port y[2];
+    input_port x[4];
+    output_port y[2];
     time sigma;
 
     double default_threshold = 0.0;
@@ -5818,8 +5829,8 @@ struct abstract_cross
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    port x[4];
-    port y[3];
+    input_port x[4];
+    output_port y[3];
     time sigma;
 
     double default_threshold = 0.0;
@@ -6095,7 +6106,7 @@ time_function(double t) noexcept
 
 struct time_func
 {
-    port y[1];
+    output_port y[1];
     time sigma;
 
     double default_sigma = 0.01;
@@ -6153,8 +6164,8 @@ using accumulator_2 = accumulator<2>;
 
 struct queue
 {
-    port x[1];
-    port y[1];
+    input_port x[1];
+    output_port y[1];
     time sigma;
     flat_double_list<dated_message> fifo;
 
@@ -6222,8 +6233,8 @@ struct queue
 
 struct dynamic_queue
 {
-    port x[1];
-    port y[1];
+    input_port x[1];
+    output_port y[1];
     time sigma;
     flat_double_list<dated_message> fifo;
 
@@ -6301,8 +6312,8 @@ struct dynamic_queue
 
 struct priority_queue
 {
-    port x[1];
-    port y[1];
+    input_port x[1];
+    output_port y[1];
     time sigma;
     flat_double_list<dated_message> fifo;
     double default_ta = 1.0;
@@ -6730,7 +6741,7 @@ dispatch(model& mdl, Function&& f, Args... args) noexcept
 }
 
 inline status
-get_input_port(model& src, int port_src, port*& p) noexcept
+get_input_port(model& src, int port_src, input_port*& p) noexcept
 {
     return dispatch(
       src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -6757,7 +6768,7 @@ get_input_port(model& src, int port_src, port*& p) noexcept
 }
 
 inline status
-get_output_port(model& dst, int port_dst, port*& p) noexcept
+get_output_port(model& dst, int port_dst, output_port*& p) noexcept
 {
     return dispatch(
       dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -6867,16 +6878,16 @@ is_ports_compatible(const model& mdl_src,
 
 inline status
 global_connect(data_array<model, model_id>& models,
-        shared_flat_list<node>::allocator_type& allocator,
-        model& src,
-        int port_src,
-        model& dst,
-        int port_dst) noexcept
+               shared_flat_list<node>::allocator_type& allocator,
+               model& src,
+               int port_src,
+               model& dst,
+               int port_dst) noexcept
 {
-    port* src_port = nullptr;
+    output_port* src_port = nullptr;
     irt_return_if_bad(get_output_port(src, port_src, src_port));
 
-    port* dst_port = nullptr;
+    input_port* dst_port = nullptr;
     irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
 
     auto model_src_id = models.get_id(src);
@@ -6897,60 +6908,37 @@ global_connect(data_array<model, model_id>& models,
                        status::model_connect_bad_dynamics);
 
     src_port->connections.emplace_front(allocator, model_dst_id, port_dst);
-    dst_port->connections.emplace_front(allocator, model_src_id, port_src);
 
     return status::success;
 }
 
 inline status
 global_disconnect(data_array<model, model_id>& models,
-           shared_flat_list<node>::allocator_type& allocator,
-           model& src,
-           int port_src,
-           model& dst,
-           int port_dst) noexcept
+                  shared_flat_list<node>::allocator_type& allocator,
+                  model& src,
+                  int port_src,
+                  model& dst,
+                  int port_dst) noexcept
 {
-    port* src_port = nullptr;
+    output_port* src_port = nullptr;
     irt_return_if_bad(get_output_port(src, port_src, src_port));
 
-    port* dst_port = nullptr;
+    input_port* dst_port = nullptr;
     irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
 
-    {
-        const auto end = std::end(src_port->connections);
-        auto it = std::begin(src_port->connections);
+    const auto end = std::end(src_port->connections);
+    auto it = std::begin(src_port->connections);
 
-        if (it->model == models.get_id(dst) && it->port_index == port_dst) {
-            src_port->connections.pop_front(allocator);
-        } else {
-            auto prev = it++;
-            while (it != end) {
-                if (it->model == models.get_id(dst) &&
-                    it->port_index == port_dst) {
-                    src_port->connections.erase_after(allocator, prev);
-                    break;
-                }
-                prev = it++;
+    if (it->model == models.get_id(dst) && it->port_index == port_dst) {
+        src_port->connections.pop_front(allocator);
+    } else {
+        auto prev = it++;
+        while (it != end) {
+            if (it->model == models.get_id(dst) && it->port_index == port_dst) {
+                src_port->connections.erase_after(allocator, prev);
+                break;
             }
-        }
-    }
-
-    {
-        const auto end = std::end(dst_port->connections);
-        auto it = std::begin(dst_port->connections);
-
-        if (it->model == models.get_id(src) && it->port_index == port_src) {
-            dst_port->connections.pop_front(allocator);
-        } else {
-            auto prev = it++;
-            while (it != end) {
-                if (it->model == models.get_id(src) &&
-                    it->port_index == port_src) {
-                    dst_port->connections.erase_after(allocator, prev);
-                    break;
-                }
-                prev = it++;
-            }
+            prev = it++;
         }
     }
 
@@ -6963,8 +6951,8 @@ struct component
     data_array<model, model_id> models;
     small_vector<model_id, 16> parameters;
     small_vector<model_id, 16> observables;
-    small_vector<port, 16> internal_x;
-    small_vector<port, 16> internal_y;
+    small_vector<input_port, 16> internal_x;
+    small_vector<output_port, 16> internal_y;
 
     shared_flat_list<node>::allocator_type node_allocator;
 
@@ -7336,7 +7324,7 @@ struct simulation
     flat_list<model_id>::allocator_type model_list_allocator;
     flat_list<message>::allocator_type message_list_allocator;
     shared_flat_list<node>::allocator_type node_list_allocator;
-    flat_list<port*>::allocator_type emitting_output_port_allocator;
+    flat_list<output_port*>::allocator_type emitting_output_port_allocator;
     flat_double_list<dated_message>::allocator_type dated_message_allocator;
     flat_double_list<record>::allocator_type flat_double_list_shared_allocator;
 
@@ -7506,7 +7494,6 @@ public:
 
               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
                   for (auto& elem : dyn.x) {
-                      elem.connections.reset();
                       elem.messages.reset();
                       elem.messages.set_allocator(&message_list_allocator);
                   }
@@ -7612,23 +7599,8 @@ public:
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             auto& mdl_dst = get_model(dyn);
 
-            int i = 0;
-            for (auto& elem : dyn.x) {
-                while (!elem.connections.empty()) {
-                    auto* mdl_src =
-                      models.try_to_get(elem.connections.front().model);
-                    if (mdl_src) {
-                        disconnect(*mdl_src,
-                                   elem.connections.front().port_index,
-                                   mdl_dst,
-                                   i);
-                    }
-                }
-
-                elem.connections.clear(node_list_allocator);
+            for (auto& elem : dyn.x)
                 elem.messages.clear();
-                ++i;
-            }
         }
 
         dyn.~Dynamics();
@@ -7673,8 +7645,6 @@ public:
 
         src.y[port_src].connections.emplace_front(
           node_list_allocator, model_dst_id, port_dst);
-        dst.x[port_dst].connections.emplace_front(
-          node_list_allocator, model_src_id, port_src);
 
         return status::success;
     }
@@ -7719,17 +7689,18 @@ public:
 
         const auto& bag = sched.pop();
 
-        flat_list<port*> emitting_output_ports(&emitting_output_port_allocator);
+        flat_list<output_port*> emitting_output_ports(
+          &emitting_output_port_allocator);
 
         for (const auto id : bag)
             if (auto* mdl = models.try_to_get(id); mdl)
                 irt_return_if_bad(
                   make_transition(*mdl, t, emitting_output_ports));
 
-        for (port* port_src : emitting_output_ports) {
+        for (output_port* port_src : emitting_output_ports) {
             for (node& dst : port_src->connections) {
                 if (auto* mdl = models.try_to_get(dst.model); mdl) {
-                    port* port_dst = nullptr;
+                    input_port* port_dst = nullptr;
                     irt_return_if_bad(
                       get_input_port(*mdl, dst.port_index, port_dst));
 
@@ -7779,10 +7750,11 @@ public:
     }
 
     template<typename Dynamics>
-    status make_transition(model& mdl,
-                           Dynamics& dyn,
-                           time t,
-                           flat_list<port*>& emitting_output_ports) noexcept
+    status make_transition(
+      model& mdl,
+      Dynamics& dyn,
+      time t,
+      flat_list<output_port*>& emitting_output_ports) noexcept
     {
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
             if (mdl.obs_id != static_cast<observer_id>(0)) {
@@ -7826,7 +7798,9 @@ public:
         return status::success;
     }
 
-    status make_transition(model& mdl, time t, flat_list<port*>& o) noexcept
+    status make_transition(model& mdl,
+                           time t,
+                           flat_list<output_port*>& o) noexcept
     {
         return dispatch(mdl,
                         [this, &mdl, t, &o]<typename Dynamics>(Dynamics& dyn) {

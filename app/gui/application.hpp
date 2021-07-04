@@ -22,9 +22,7 @@ namespace irt {
 
 // Forward declaration
 struct application;
-struct cluster;
 struct editor;
-struct top_cluster;
 struct window_logger;
 struct plot_output;
 struct file_output;
@@ -33,12 +31,9 @@ struct file_discrete_output;
 static inline constexpr int not_found = -1;
 
 enum class editor_id : u64;
-enum class cluster_id : u64;
 enum class plot_output_id : u64;
 enum class file_output_id : u64;
 enum class file_discrete_output_id : u64;
-
-using child_id = std::variant<model_id, cluster_id>;
 
 using observation_output = std::variant<std::monostate,
                                         plot_output_id,
@@ -129,83 +124,6 @@ struct file_discrete_output
     small_string<24u> name;
     double tl = 0.0;
     double time_step = 0.01;
-};
-
-struct cluster
-{
-    cluster() = default;
-
-    small_string<16> name;
-    std::vector<child_id> children;
-    std::vector<int> input_ports;
-    std::vector<int> output_ports;
-
-    int get(const child_id id) const noexcept
-    {
-        auto it = std::find(std::begin(children), std::end(children), id);
-        if (it == std::end(children))
-            return not_found;
-
-        return static_cast<int>(std::distance(std::begin(children), it));
-    }
-};
-
-struct top_cluster
-{
-    std::vector<std::pair<child_id, int>> children;
-    int next_node_id = 0;
-
-    static inline constexpr int not_found = -1;
-
-    status init(size_t models) noexcept
-    {
-        try {
-            children.reserve(models);
-        } catch (const std::bad_alloc&) {
-            std::vector<std::pair<child_id, int>>().swap(children);
-            irt_bad_return(status::gui_not_enough_memory);
-        }
-
-        return status::success;
-    }
-
-    int get_index(const child_id id) const noexcept
-    {
-        for (int i = 0, e = length(children); i != e; ++i)
-            if (children[i].first == id)
-                return i;
-
-        return not_found;
-    }
-
-    int get_index(const int node) const noexcept
-    {
-        for (int i = 0, e = length(children); i != e; ++i)
-            if (children[i].second == node)
-                return i;
-
-        return not_found;
-    }
-
-    void clear() noexcept
-    {
-        children.clear();
-    }
-
-    void pop(const int index) noexcept
-    {
-        std::swap(children[index], children.back());
-        children.pop_back();
-    }
-
-    int emplace_back(const child_id id)
-    {
-        int ret = next_node_id++;
-
-        children.emplace_back(id, ret);
-
-        return ret;
-    }
 };
 
 int
@@ -304,10 +222,6 @@ struct editor
 
     std::filesystem::path observation_directory;
 
-    data_array<cluster, cluster_id> clusters;
-    std::vector<cluster_id> clusters_mapper; /* group per cluster_id */
-    std::vector<cluster_id> models_mapper;   /* group per model_id */
-
     std::vector<bool> models_make_transition;
 
     ImVector<ImVec2> positions;
@@ -316,8 +230,6 @@ struct editor
     bool use_real_time;
     bool starting = true;
     float synchronize_timestep = 1.f;
-
-    top_cluster top;
 
     std::string tooltip;
 
@@ -333,14 +245,11 @@ struct editor
         int gui_node_cache = 1024;
         ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
         ImVec4 gui_model_transition_color{ .27f, .54f, .54f, 1.f };
-        ImVec4 gui_cluster_color{ .27f, .54f, .27f, 1.f };
 
         ImU32 gui_hovered_model_color;
         ImU32 gui_selected_model_color;
         ImU32 gui_hovered_model_transition_color;
         ImU32 gui_selected_model_transition_color;
-        ImU32 gui_hovered_cluster_color;
-        ImU32 gui_selected_cluster_color;
 
         int automatic_layout_iteration_limit = 200;
         float automatic_layout_x_distance = 350.f;
@@ -358,39 +267,11 @@ struct editor
     status initialize(u32 id) noexcept;
     void clear() noexcept;
 
-    void group(const ImVector<int>& nodes) noexcept;
-    void ungroup(const int node) noexcept;
-    void free_group(cluster& group) noexcept;
     void free_children(const ImVector<int>& nodes) noexcept;
     status copy(const ImVector<int>& nodes) noexcept;
 
     void compute_grid_layout() noexcept;
     void compute_automatic_layout() noexcept;
-
-    bool is_in_hierarchy(const cluster& group,
-                         const cluster_id group_to_search) const noexcept;
-    cluster_id ancestor(const child_id child) const noexcept;
-    int get_top_group_ref(const child_id child) const noexcept;
-
-    cluster_id parent(cluster_id child) const noexcept
-    {
-        return clusters_mapper[get_index(child)];
-    }
-
-    cluster_id parent(model_id child) const noexcept
-    {
-        return models_mapper[get_index(child)];
-    }
-
-    void parent(const cluster_id child, const cluster_id parent) noexcept
-    {
-        clusters_mapper[get_index(child)] = parent;
-    }
-
-    void parent(const model_id child, const cluster_id parent) noexcept
-    {
-        models_mapper[get_index(child)] = parent;
-    }
 
     struct gport
     {
@@ -426,7 +307,6 @@ struct editor
 
     void show_connections() noexcept;
     void show_model_dynamics(model& mdl) noexcept;
-    void show_model_cluster(cluster& mdl) noexcept;
     void show_top() noexcept;
     void show_sources() noexcept;
     void show_editor() noexcept;
