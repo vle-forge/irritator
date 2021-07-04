@@ -928,13 +928,11 @@ private:
             auto* mdl_dst = sim.models.try_to_get(map[mdl_dst_id]);
             irt_return_if_fail(mdl_dst, status::io_file_format_model_unknown);
 
-            port* output_port = nullptr;
-            port* input_port = nullptr;
+            output_port* out = nullptr;
+            input_port* in = nullptr;
 
-            irt_return_if_bad(
-              get_output_port(*mdl_src, port_src_index, output_port));
-            irt_return_if_bad(
-              get_input_port(*mdl_dst, port_dst_index, input_port));
+            irt_return_if_bad(get_output_port(*mdl_src, port_src_index, out));
+            irt_return_if_bad(get_input_port(*mdl_dst, port_dst_index, in));
 
             irt_return_if_bad(
               sim.connect(*mdl_src, port_src_index, *mdl_dst, port_dst_index));
@@ -1612,7 +1610,8 @@ struct writer
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                       int i = 0;
                       for (auto& elem : dyn.y) {
-                          for (const auto& cnt : elem.connections) {
+                          auto list = sim.allocs.get_node(elem);
+                          for (const auto& cnt : list) {
                               auto* dst = sim.models.try_to_get(cnt.model);
                               if (dst) {
                                   auto it_out =
@@ -2148,7 +2147,8 @@ public:
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                       int i = 0;
                       for (auto& elem : dyn.y) {
-                          for (const auto& cnt : elem.connections) {
+                          auto list = sim.allocs.get_node(elem);
+                          for (const auto& cnt : list) {
                               auto* dst = sim.models.try_to_get(cnt.model);
                               if (dst) {
                                   auto src_id = sim.models.get_id(*mdl);

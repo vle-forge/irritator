@@ -249,961 +249,988 @@ main()
 {
     using namespace boost::ut;
 
-    "model-id-port-node-id"_test = [] {
-        auto i = make_input_node_id(irt::model_id{ 50 }, 7);
-        auto j = make_output_node_id(irt::model_id{ 50 }, 3);
-        auto k1 = make_input_node_id(irt::model_id{ 268435455 }, 0);
-        auto k2 = make_output_node_id(irt::model_id{ 268435455 }, 0);
-        auto k3 = make_input_node_id(irt::model_id{ 268435455 }, 7);
-        auto k4 = make_output_node_id(irt::model_id{ 268435455 }, 7);
-
-        expect(i != j);
-
-        auto ni = get_model_input_port(i);
-        auto nj = get_model_output_port(j);
-        auto nk1 = get_model_input_port(k1);
-        auto nk2 = get_model_output_port(k2);
-        auto nk3 = get_model_input_port(k3);
-        auto nk4 = get_model_output_port(k4);
-
-        expect(ni.first == 50u);
-        expect(ni.second == 7u);
-        expect(nj.first == 50u);
-        expect(nj.second == 3u);
-        expect(nk1.first == 268435455u);
-        expect(nk1.second == 0u);
-        expect(nk2.first == 268435455u);
-        expect(nk2.second == 0u);
-        expect(nk3.first == 268435455u);
-        expect(nk3.second == 7u);
-        expect(nk4.first == 268435455u);
-        expect(nk4.second == 7u);
-    };
-
-    "sizeof"_test = [] {
-        fmt::print("none {}\n", sizeof(irt::none));
-        fmt::print("qss1_integrator {}\n", sizeof(irt::qss1_integrator));
-        fmt::print("qss1_multiplier {}\n", sizeof(irt::qss1_multiplier));
-        fmt::print("qss1_cross {}\n", sizeof(irt::qss1_cross));
-        fmt::print("qss1_power {}\n", sizeof(irt::qss1_power));
-        fmt::print("qss1_square {}\n", sizeof(irt::qss1_square));
-        fmt::print("qss1_sum_2 {}\n", sizeof(irt::qss1_sum_2));
-        fmt::print("qss1_sum_3 {}\n", sizeof(irt::qss1_sum_3));
-        fmt::print("qss1_sum_4 {}\n", sizeof(irt::qss1_sum_4));
-        fmt::print("qss1_wsum_2 {}\n", sizeof(irt::qss1_wsum_2));
-        fmt::print("qss1_wsum_3 {}\n", sizeof(irt::qss1_wsum_3));
-        fmt::print("qss1_wsum_4 {}\n", sizeof(irt::qss1_wsum_4));
-        fmt::print("qss2_integrator {}\n", sizeof(irt::qss2_integrator));
-        fmt::print("qss2_multiplier {}\n", sizeof(irt::qss2_multiplier));
-        fmt::print("qss2_cross {}\n", sizeof(irt::qss2_cross));
-        fmt::print("qss2_power {}\n", sizeof(irt::qss2_power));
-        fmt::print("qss2_square {}\n", sizeof(irt::qss2_square));
-        fmt::print("qss2_sum_2 {}\n", sizeof(irt::qss2_sum_2));
-        fmt::print("qss2_sum_3 {}\n", sizeof(irt::qss2_sum_3));
-        fmt::print("qss2_sum_4 {}\n", sizeof(irt::qss2_sum_4));
-        fmt::print("qss2_wsum_2 {}\n", sizeof(irt::qss2_wsum_2));
-        fmt::print("qss2_wsum_3 {}\n", sizeof(irt::qss2_wsum_3));
-        fmt::print("qss2_wsum_4 {}\n", sizeof(irt::qss2_wsum_4));
-        fmt::print("qss3_integrator {}\n", sizeof(irt::qss3_integrator));
-        fmt::print("qss3_multiplier {}\n", sizeof(irt::qss3_multiplier));
-        fmt::print("qss3_power {}\n", sizeof(irt::qss3_power));
-        fmt::print("qss3_square {}\n", sizeof(irt::qss3_square));
-        fmt::print("qss3_cross {}\n", sizeof(irt::qss3_cross));
-        fmt::print("qss3_sum_2 {}\n", sizeof(irt::qss3_sum_2));
-        fmt::print("qss3_sum_3 {}\n", sizeof(irt::qss3_sum_3));
-        fmt::print("qss3_sum_4 {}\n", sizeof(irt::qss3_sum_4));
-        fmt::print("qss3_wsum_2 {}\n", sizeof(irt::qss3_wsum_2));
-        fmt::print("qss3_wsum_3 {}\n", sizeof(irt::qss3_wsum_3));
-        fmt::print("qss3_wsum_4 {}\n", sizeof(irt::qss3_wsum_4));
-        fmt::print("integrator {}\n", sizeof(irt::integrator));
-        fmt::print("quantifier {}\n", sizeof(irt::quantifier));
-        fmt::print("adder_2 {}\n", sizeof(irt::adder_2));
-        fmt::print("adder_3 {}\n", sizeof(irt::adder_3));
-        fmt::print("adder_4 {}\n", sizeof(irt::adder_4));
-        fmt::print("mult_2 {}\n", sizeof(irt::mult_2));
-        fmt::print("mult_3 {}\n", sizeof(irt::mult_3));
-        fmt::print("mult_4 {}\n", sizeof(irt::mult_4));
-        fmt::print("counter {}\n", sizeof(irt::counter));
-        fmt::print("queue {}\n", sizeof(irt::queue));
-        fmt::print("dynamic_queue {}\n", sizeof(irt::dynamic_queue));
-        fmt::print("priority_queue {}\n", sizeof(irt::priority_queue));
-        fmt::print("generator {}\n", sizeof(irt::generator));
-        fmt::print("constant {}\n", sizeof(irt::constant));
-        fmt::print("cross {}\n", sizeof(irt::cross));
-        fmt::print("time_func {}\n", sizeof(irt::time_func));
-        fmt::print("accumulator {}\n", sizeof(irt::accumulator_2));
-        fmt::print("flow {}\n", sizeof(irt::flow));
-        fmt::print("model {}\n", sizeof(irt::model));
-        fmt::print("port {}\n", sizeof(irt::port));
-    };
-
-    "model_constepxr"_test = [] {
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::counter> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::counter> ==
-               false);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::counter> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::counter> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::counter> ==
-               false);
-
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::generator> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::generator> ==
-               true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::generator> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::generator> ==
-               false);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::generator> ==
-               true);
-
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_2> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_2> ==
-               true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::adder_2> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_2> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_2> ==
-               true);
-
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_3> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_3> ==
-               true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::adder_3> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_3> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_3> ==
-               true);
-
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_4> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_4> ==
-               true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::adder_4> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_4> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_4> ==
-               true);
-
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_2> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_2> == true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::mult_2> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_2> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_2> == true);
-
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_3> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_3> == true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::mult_3> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_3> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_3> == true);
-
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_4> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_4> == true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::mult_4> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_4> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_4> == true);
-
-        expect(
-          irt::is_detected_v<irt::initialize_function_t, irt::integrator> ==
-          true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::integrator> ==
-               true);
-        expect(
-          irt::is_detected_v<irt::transition_function_t, irt::integrator> ==
-          true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::integrator> ==
-               true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::integrator> ==
-               true);
-
-        expect(
-          irt::is_detected_v<irt::initialize_function_t, irt::quantifier> ==
-          true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::quantifier> ==
-               true);
-        expect(
-          irt::is_detected_v<irt::transition_function_t, irt::quantifier> ==
-          true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::quantifier> ==
-               true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::quantifier> ==
-               true);
-    };
-
-    "status"_test = [] {
-        irt::status s1 = irt::status::success;
-        expect(irt::is_success(s1) == true);
-        expect(irt::is_bad(s1) == false);
-
-        irt::status s2 = irt::status::block_allocator_not_enough_memory;
-        expect(irt::is_success(s2) == false);
-        expect(irt::is_bad(s2) == true);
-    };
-
-    "function_ref"_test = [] {
-        {
-            irt::function_ref<void(void)> fr = function_ref_f;
-            fr();
-            expect(function_ref_called == true);
-        }
-
-        {
-            function_ref_class o;
-            auto x = &function_ref_class::baz;
-            irt::function_ref<void(function_ref_class&)> fr = x;
-            fr(o);
-            expect(o.baz_called);
-            x = &function_ref_class::qux;
-            fr = x;
-            fr(o);
-            expect(o.qux_called);
-        }
-
-        {
-            auto x = [] { return 42; };
-            irt::function_ref<int()> fr = x;
-            expect(fr() == 42);
-        }
-
-        {
-            int i = 0;
-            auto x = [&i] { i = 42; };
-            irt::function_ref<void()> fr = x;
-            fr();
-            expect(i == 42);
-        }
-
-        {
-            function_ref_multiple_operator ops;
-            ops.i = 0;
-            irt::function_ref<void(bool)> b1(ops);
-            irt::function_ref<void(double)> b2(ops);
-
-            b1(true);
-            b2(0.0);
-
-            expect(ops.i == 2);
-        }
-    };
-
-    "time"_test = [] {
-        expect(irt::time_domain<irt::time>::infinity >
-               irt::time_domain<irt::time>::zero);
-        expect(irt::time_domain<irt::time>::zero >
-               irt::time_domain<irt::time>::negative_infinity);
-    };
-
-    "small-vector<T>"_test = [] {
-        irt::small_vector<int, 8> v;
-        expect(v.empty());
-        expect(v.capacity() == 8);
-        v.alloc(0);
-        v.alloc(1);
-        v.alloc(2);
-        v.alloc(3);
-        v.alloc(4);
-        v.alloc(5);
-        v.alloc(6);
-        v.alloc(7);
-        expect(v.size() == 8);
-        expect(v.full());
-        expect(!v.empty());
-        expect(v[0] == 0);
-        expect(v[1] == 1);
-        expect(v[2] == 2);
-        expect(v[3] == 3);
-        expect(v[4] == 4);
-        expect(v[5] == 5);
-        expect(v[6] == 6);
-        expect(v[7] == 7);
-        v.swap_pop_back(0);
-        expect(v.size() == 7);
-        expect(!v.full());
-        expect(!v.empty());
-        expect(v[0] == 7);
-        expect(v[1] == 1);
-        expect(v[2] == 2);
-        expect(v[3] == 3);
-        expect(v[4] == 4);
-        expect(v[5] == 5);
-        expect(v[6] == 6);
-        v.swap_pop_back(6);
-        expect(v.size() == 6);
-        expect(!v.full());
-        expect(!v.empty());
-        expect(v[0] == 7);
-        expect(v[1] == 1);
-        expect(v[2] == 2);
-        expect(v[3] == 3);
-        expect(v[4] == 4);
-        expect(v[5] == 5);
-
-        irt::small_vector<int, 8> v2;
-        v2 = v;
-        v2[0] *= 2;
-        expect(v2[0] == 14);
-        expect(v2[1] == 1);
-        expect(v2[2] == 2);
-        expect(v2[3] == 3);
-        expect(v2[4] == 4);
-        expect(v2[5] == 5);
-    };
-
-    "small-vector-no-trivial"_test = [] {
-        struct toto
-        {
-            int i;
-
-            toto(int i_)
-              : i(i_)
-            {}
-
-            ~toto()
-            {
-                i = 0;
-            }
-        };
-
-        irt::small_vector<toto, 4> v;
-        v.alloc(10);
-        v.clear();
-
-        expect(v.data()[0].i == 0);
-
-        irt::small_vector<toto, 4> v2 = v;
-        v2.alloc(10);
-
-        expect(v.data()[0].i == 0);
-        expect(v2.data()[0].i == 10);
-    };
-
-    "small_string"_test = [] {
-        irt::small_string<8> f1;
-        expect(f1.capacity() == 8_ul);
-        expect(f1 == "");
-        expect(f1.size() == 0_ul);
-
-        f1 = "ok";
-        expect(f1 == "ok");
-        expect(f1.size() == 2_ul);
-
-        f1 = "okok";
-        expect(f1 == "okok");
-        expect(f1.size() == 4_ul);
-
-        f1 = "okok123456";
-        expect(f1 == "okok123");
-        expect(f1.size() == 7_ul);
-
-        irt::small_string<8> f2(f1);
-        expect(f2 == "okok123");
-        expect(f2.size() == 7_ul);
-
-        expect(f1.c_str() != f2.c_str());
-
-        irt::small_string<8> f3("012345678");
-        expect(f3 == "0123456");
-        expect(f3.size() == 7_ul);
-
-        f3.clear();
-        expect(f3 == "");
-        expect(f3.size() == 0_ul);
-
-        f3 = f2;
-        expect(f3 == "okok123");
-        expect(f3.size() == 7_ul);
-    };
-
-    "list"_test = [] {
-        irt::flat_list<int>::allocator_type allocator;
-        expect(is_success(allocator.init(32)));
-
-        irt::flat_list<int> lst(&allocator);
-
-        lst.emplace_front(5);
-        lst.emplace_front(4);
-        lst.emplace_front(3);
-        lst.emplace_front(2);
-        lst.emplace_front(1);
-
-        {
-            int i = 1;
-            for (auto it = lst.begin(); it != lst.end(); ++it)
-                expect(*it == i++);
-        }
-
-        lst.pop_front();
-
-        {
-            int i = 2;
-            for (auto it = lst.begin(); it != lst.end(); ++it)
-                expect(*it == i++);
-        }
-    };
-
-    "double_list"_test = [] {
-        irt::flat_double_list<int>::allocator_type allocator;
-        expect(is_success(allocator.init(32)));
-
-        irt::flat_double_list<int> lst(&allocator);
-
-        expect(lst.empty());
-        expect(lst.begin() == lst.end());
-
-        lst.emplace_front(0);
-        expect(lst.begin() == --lst.end());
-        expect(++lst.begin() == lst.end());
-
-        lst.clear();
-        expect(lst.empty());
-        expect(lst.begin() == lst.end());
-
-        lst.emplace_front(5);
-        lst.emplace_front(4);
-        lst.emplace_front(3);
-        lst.emplace_front(2);
-        lst.emplace_front(1);
-        lst.emplace_back(6);
-        lst.emplace_back(7);
-        lst.emplace_back(8);
-
-        {
-            int i = 1;
-            for (auto it = lst.begin(); it != lst.end(); ++it)
-                expect(*it == i++);
-        }
-
-        lst.pop_front();
-
-        {
-            int i = 2;
-            for (auto it = lst.begin(); it != lst.end(); ++it)
-                expect(*it == i++);
-        }
-
-        {
-            auto it = lst.begin();
-            expect(*it == 2);
-
-            --it;
-            expect(it == lst.end());
-
-            --it;
-            expect(it == --lst.end());
-        }
-
-        {
-            auto it = lst.end();
-            expect(it == lst.end());
-
-            --it;
-            expect(*it == 8);
-
-            --it;
-            expect(*it == 7);
-        }
-
-        lst.emplace(lst.begin(), 10);
-        expect(*lst.begin() == 10);
-
-        {
-            auto it = lst.begin();
-            ++it;
-
-            it = lst.emplace(it, 11);
-            expect(*it == 11);
-            expect(*lst.begin() == 10);
-        }
-    };
-
-    "data_array_api"_test = [] {
-        struct position
-        {
-            position() = default;
-            constexpr position(float x_)
-              : x(x_)
-            {}
-
-            float x;
-        };
-
-        enum class position_id : std::uint64_t
-        {
-        };
-
-        irt::data_array<position, position_id> array;
-
-        expect(array.max_size() == 0);
-        expect(array.max_used() == 0);
-        expect(array.capacity() == 0);
-        expect(array.next_key() == 1);
-        expect(array.is_free_list_empty());
-
-        bool is_init = irt::is_success(array.init(3));
-
-        expect(array.max_size() == 0);
-        expect(array.max_used() == 0);
-        expect(array.capacity() == 3);
-        expect(array.next_key() == 1);
-        expect(array.is_free_list_empty());
-
-        expect(is_init);
-
-        {
-            auto& first = array.alloc();
-            first.x = 0.f;
-            expect(array.max_size() == 1);
-            expect(array.max_used() == 1);
-            expect(array.capacity() == 3);
-            expect(array.next_key() == 2);
-            expect(array.is_free_list_empty());
-
-            auto& second = array.alloc();
-            expect(array.max_size() == 2);
-            expect(array.max_used() == 2);
-            expect(array.capacity() == 3);
-            expect(array.next_key() == 3);
-            expect(array.is_free_list_empty());
-
-            second.x = 1.f;
-
-            auto& third = array.alloc();
-            expect(array.max_size() == 3);
-            expect(array.max_used() == 3);
-            expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
-            expect(array.is_free_list_empty());
-
-            third.x = 2.f;
-
-            expect(array.full());
-        }
-
-        array.clear();
-
-        expect(array.max_size() == 0);
-        expect(array.max_used() == 0);
-        expect(array.capacity() == 3);
-        expect(array.next_key() == 1);
-        expect(array.is_free_list_empty());
-
-        is_init = irt::is_success(array.init(3));
-
-        {
-            auto& d1 = array.alloc(1.f);
-            auto& d2 = array.alloc(2.f);
-            auto& d3 = array.alloc(3.f);
-
-            expect(array.max_size() == 3);
-            expect(array.max_used() == 3);
-            expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
-            expect(array.is_free_list_empty());
-
-            array.free(d1);
-
-            expect(array.max_size() == 2);
-            expect(array.max_used() == 3);
-            expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
-            expect(!array.is_free_list_empty());
-
-            array.free(d2);
-
-            expect(array.max_size() == 1);
-            expect(array.max_used() == 3);
-            expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
-            expect(!array.is_free_list_empty());
-
-            array.free(d3);
-            expect(array.max_size() == 0);
-            expect(array.max_used() == 3);
-            expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
-            expect(!array.is_free_list_empty());
-
-            auto& n1 = array.alloc();
-            auto& n2 = array.alloc();
-            auto& n3 = array.alloc();
-
-            expect(irt::get_index(array.get_id(n1)) == 2_u);
-            expect(irt::get_index(array.get_id(n2)) == 1_u);
-            expect(irt::get_index(array.get_id(n3)) == 0_u);
-
-            expect(array.max_size() == 3);
-            expect(array.max_used() == 3);
-            expect(array.capacity() == 3);
-            expect(array.next_key() == 7);
-            expect(array.is_free_list_empty());
-        }
-    };
-
-    "message"_test = [] {
-        {
-            irt::message vdouble;
-            assert(vdouble[0] == 0.0);
-            assert(vdouble[1] == 0.0);
-            assert(vdouble[2] == 0.0);
-            assert(vdouble.size() == 0);
-            assert(vdouble.ssize() == 0);
-        }
-
-        {
-            irt::message vdouble(1.0);
-            assert(vdouble[0] == 1.0);
-            assert(vdouble[1] == 0.0);
-            assert(vdouble[2] == 0.0);
-            assert(vdouble.size() == 1);
-            assert(vdouble.ssize() == 1);
-        }
-
-        {
-            irt::message vdouble(0.0, 1.0);
-            assert(vdouble[0] == 0.0);
-            assert(vdouble[1] == 1.0);
-            assert(vdouble[2] == 0.0);
-            assert(vdouble.size() == 2);
-            assert(vdouble.ssize() == 2);
-        }
-
-        {
-            irt::message vdouble(0.0, 0.0, 1.0);
-            assert(vdouble[0] == 0.0);
-            assert(vdouble[1] == 0.0);
-            assert(vdouble[2] == 1.0);
-            assert(vdouble.size() == 3);
-            assert(vdouble.ssize() == 3);
-        }
-    };
-
-    "observation_message"_test = [] {
-        {
-            irt::observation_message vdouble;
-            assert(vdouble[0] == 0.0);
-            assert(vdouble[1] == 0.0);
-            assert(vdouble[2] == 0.0);
-            assert(vdouble[3] == 0.0);
-            assert(vdouble.size() == 0);
-            assert(vdouble.ssize() == 0);
-        }
-
-        {
-            irt::observation_message vdouble(1.0);
-            assert(vdouble[0] == 1.0);
-            assert(vdouble[1] == 0.0);
-            assert(vdouble[2] == 0.0);
-            assert(vdouble[3] == 0.0);
-            assert(vdouble.size() == 1);
-            assert(vdouble.ssize() == 1);
-        }
-
-        {
-            irt::observation_message vdouble(0.0, 1.0);
-            assert(vdouble[0] == 0.0);
-            assert(vdouble[1] == 1.0);
-            assert(vdouble[2] == 0.0);
-            assert(vdouble[3] == 0.0);
-            assert(vdouble.size() == 2);
-            assert(vdouble.ssize() == 2);
-        }
-
-        {
-            irt::observation_message vdouble(0.0, 0.0, 1.0);
-            assert(vdouble[0] == 0.0);
-            assert(vdouble[1] == 0.0);
-            assert(vdouble[2] == 1.0);
-            assert(vdouble[3] == 0.0);
-            assert(vdouble.size() == 3);
-            assert(vdouble.ssize() == 3);
-        }
-
-        {
-            irt::observation_message vdouble(0.0, 0.0, 0.0, 1.0);
-            assert(vdouble[0] == 0.0);
-            assert(vdouble[1] == 0.0);
-            assert(vdouble[2] == 0.0);
-            assert(vdouble[3] == 1.0);
-            assert(vdouble.size() == 4);
-            assert(vdouble.ssize() == 4);
-        }
-    };
-
-    "heap_order"_test = [] {
-        irt::heap h;
-        h.init(4u);
-
-        irt::heap::handle i1 = h.insert(0.0, irt::model_id{ 0 });
-        irt::heap::handle i2 = h.insert(1.0, irt::model_id{ 1 });
-        irt::heap::handle i3 = h.insert(-1.0, irt::model_id{ 2 });
-        irt::heap::handle i4 = h.insert(2.0, irt::model_id{ 3 });
-        expect(h.full());
-
-        expect(i1->tn == 0.0_d);
-        expect(i2->tn == 1.0_d);
-        expect(i3->tn == -1.0_d);
-        expect(i4->tn == 2.0_d);
-
-        expect(h.top() == i3);
-        h.pop();
-        expect(h.top() == i1);
-        h.pop();
-        expect(h.top() == i2);
-        h.pop();
-        expect(h.top() == i4);
-        h.pop();
-
-        expect(h.empty());
-        expect(!h.full());
-    };
-
-    "heap_insert_pop"_test = [] {
-        irt::heap h;
-        h.init(4u);
-
-        irt::heap::handle i1 = h.insert(0.0, irt::model_id{ 0 });
-        irt::heap::handle i2 = h.insert(1.0, irt::model_id{ 1 });
-        irt::heap::handle i3 = h.insert(-1.0, irt::model_id{ 2 });
-        irt::heap::handle i4 = h.insert(2.0, irt::model_id{ 3 });
-
-        expect(i1 != nullptr);
-        expect(i2 != nullptr);
-        expect(i3 != nullptr);
-        expect(i4 != nullptr);
-
-        expect(!h.empty());
-        expect(h.top() == i3);
-
-        h.pop(); // remove i3
-        h.pop(); // rmeove i1
-
-        expect(h.top() == i2);
-
-        i3->tn = -10.0;
-        h.insert(i3);
-
-        i1->tn = -1.0;
-        h.insert(i1);
-
-        expect(h.top() == i3);
-        h.pop();
-
-        expect(h.top() == i1);
-        h.pop();
-
-        expect(h.top() == i2);
-        h.pop();
-
-        expect(h.top() == i4);
-        h.pop();
-
-        expect(h.empty());
-    };
-
-    "heap_with_equality"_test = [] {
-        irt::heap h;
-        h.init(256u);
-
-        for (double t = 0; t < 100.0; ++t)
-            h.insert(t, irt::model_id{ static_cast<unsigned>(t) });
-
-        expect(h.size() == 100_ul);
-
-        h.insert(50.0, irt::model_id{ 502 });
-        h.insert(50.0, irt::model_id{ 503 });
-        h.insert(50.0, irt::model_id{ 504 });
-
-        expect(h.size() == 103_ul);
-
-        for (double t = 0.0; t < 50.0; ++t) {
-            expect(h.top()->tn == t);
-            h.pop();
-        }
-
-        expect(h.top()->tn == 50.0_d);
-        h.pop();
-        expect(h.top()->tn == 50.0_d);
-        h.pop();
-        expect(h.top()->tn == 50.0_d);
-        h.pop();
-        expect(h.top()->tn == 50.0_d);
-        h.pop();
-
-        for (double t = 51.0; t < 100.0; ++t) {
-            expect(h.top()->tn == t);
-            h.pop();
-        }
-    };
-
-    "simulation-dispatch"_test = [] {
-        irt::simulation sim;
-        sim.init(64u, 256u);
-        auto& dyn1 = sim.alloc<irt::none>();
-        (void)sim.alloc<irt::qss1_integrator>();
-        (void)sim.alloc<irt::qss1_multiplier>();
-
-        auto& mdl = irt::get_model(dyn1);
-
-        irt::dispatch(mdl, []([[maybe_unused]] auto& dyns) { std::cout << "ok"; });
-
-        auto ret = irt::dispatch(mdl, []([[maybe_unused]] const auto& dyns) -> int {
-            std::cout << "ok";
-            return 1;
-        });
-
-        expect(ret == 1);
-
-        auto ret_2 = irt::dispatch(
-          mdl,
-          []([[maybe_unused]] const auto& dyns, int v1, double v2) {
-              std::cout << "ok" << v1 << ' ' << v2;
-              return v2 + v1;
-          },
-          123,
-          456.0);
-
-        expect(ret_2 == 579.0);
-    };
-
-    "input-output"_test = [] {
-        std::string str;
-        str.reserve(4096u);
-
-        {
-            irt::simulation sim;
-            irt::external_source srcs;
-            expect(irt::is_success(sim.init(64lu, 4096lu)));
-
-            sim.alloc<irt::none>();
-            sim.alloc<irt::qss1_integrator>();
-            sim.alloc<irt::qss1_multiplier>();
-            sim.alloc<irt::qss1_cross>();
-            sim.alloc<irt::qss1_power>();
-            sim.alloc<irt::qss1_square>();
-            sim.alloc<irt::qss1_sum_2>();
-            sim.alloc<irt::qss1_sum_3>();
-            sim.alloc<irt::qss1_sum_4>();
-            sim.alloc<irt::qss1_wsum_2>();
-            sim.alloc<irt::qss1_wsum_3>();
-            sim.alloc<irt::qss1_wsum_4>();
-            sim.alloc<irt::qss2_integrator>();
-            sim.alloc<irt::qss2_multiplier>();
-            sim.alloc<irt::qss2_cross>();
-            sim.alloc<irt::qss2_power>();
-            sim.alloc<irt::qss2_square>();
-            sim.alloc<irt::qss2_sum_2>();
-            sim.alloc<irt::qss2_sum_3>();
-            sim.alloc<irt::qss2_sum_4>();
-            sim.alloc<irt::qss2_wsum_2>();
-            sim.alloc<irt::qss2_wsum_3>();
-            sim.alloc<irt::qss2_wsum_4>();
-            sim.alloc<irt::qss3_integrator>();
-            sim.alloc<irt::qss3_multiplier>();
-            sim.alloc<irt::qss3_power>();
-            sim.alloc<irt::qss3_square>();
-            sim.alloc<irt::qss3_cross>();
-            sim.alloc<irt::qss3_sum_2>();
-            sim.alloc<irt::qss3_sum_3>();
-            sim.alloc<irt::qss3_sum_4>();
-            sim.alloc<irt::qss3_wsum_2>();
-            sim.alloc<irt::qss3_wsum_3>();
-            sim.alloc<irt::qss3_wsum_4>();
-            sim.alloc<irt::integrator>();
-            sim.alloc<irt::quantifier>();
-            sim.alloc<irt::adder_2>();
-            sim.alloc<irt::adder_3>();
-            sim.alloc<irt::adder_4>();
-            sim.alloc<irt::mult_2>();
-            sim.alloc<irt::mult_3>();
-            sim.alloc<irt::mult_4>();
-            sim.alloc<irt::counter>();
-            sim.alloc<irt::queue>();
-            sim.alloc<irt::dynamic_queue>();
-            sim.alloc<irt::priority_queue>();
-            sim.alloc<irt::generator>();
-            sim.alloc<irt::constant>();
-            sim.alloc<irt::cross>();
-            sim.alloc<irt::time_func>();
-            sim.alloc<irt::accumulator_2>();
-            sim.alloc<irt::flow>();
-
-            std::ostringstream os;
-            irt::writer w(os);
-
-            expect(irt::is_success(w(sim, srcs)));
-            str = os.str();
-        }
-
-        expect(!str.empty());
-        fmt::print(str);
-
-        {
-            std::istringstream is(str);
-
-            irt::simulation sim;
-            irt::external_source srcs;
-            expect(irt::is_success(sim.init(64lu, 32lu)));
-            expect(irt::is_success(srcs.init(64u)));
-
-            irt::reader r(is);
-            expect(irt::is_success(r(sim, srcs)));
-
-            expect(sim.models.size() == 52);
-        }
-
-        {
-            std::istringstream is(str);
-            int i = 0;
-
-            irt::simulation sim;
-            irt::external_source srcs;
-            expect(irt::is_success(sim.init(64lu, 32lu)));
-
-            irt::reader r(is);
-            expect(irt::is_success(
-              r(sim, srcs, [&i](irt::model_id /*id*/) { ++i; })));
-            expect(i == 52);
-
-            expect(sim.models.size() == 52);
-        }
-
-        {
-            std::string string_error{
-                "0 0 0 0\n1\n0 5 6 qss1_integrator A B C\n"
-            };
-            std::istringstream is{ string_error };
-            irt::simulation sim;
-            irt::external_source srcs;
-
-            expect(irt::is_success(sim.init(64lu, 32lu)));
-
-            irt::is_fatal_breakpoint = false;
-
-            irt::reader r(is);
-            expect(irt::is_bad(r(sim, srcs)));
-            expect(r.line_error() == 3);
-            expect(r.column_error() <= 23); /* linux/win: 22 macos: 23 */
-            expect(r.model_error == 0);
-            expect(r.connection_error == 0);
-
-            expect(r.get_position(0).x == 5.f);
-            expect(r.get_position(0).y == 6.f);
-
-            irt::is_fatal_breakpoint = true;
-        }
-    };
+    // "model-id-port-node-id"_test = [] {
+    //     auto i = make_input_node_id(irt::model_id{ 50 }, 7);
+    //     auto j = make_output_node_id(irt::model_id{ 50 }, 3);
+    //     auto k1 = make_input_node_id(irt::model_id{ 268435455 }, 0);
+    //     auto k2 = make_output_node_id(irt::model_id{ 268435455 }, 0);
+    //     auto k3 = make_input_node_id(irt::model_id{ 268435455 }, 7);
+    //     auto k4 = make_output_node_id(irt::model_id{ 268435455 }, 7);
+
+    //     expect(i != j);
+
+    //     auto ni = get_model_input_port(i);
+    //     auto nj = get_model_output_port(j);
+    //     auto nk1 = get_model_input_port(k1);
+    //     auto nk2 = get_model_output_port(k2);
+    //     auto nk3 = get_model_input_port(k3);
+    //     auto nk4 = get_model_output_port(k4);
+
+    //     expect(ni.first == 50u);
+    //     expect(ni.second == 7u);
+    //     expect(nj.first == 50u);
+    //     expect(nj.second == 3u);
+    //     expect(nk1.first == 268435455u);
+    //     expect(nk1.second == 0u);
+    //     expect(nk2.first == 268435455u);
+    //     expect(nk2.second == 0u);
+    //     expect(nk3.first == 268435455u);
+    //     expect(nk3.second == 7u);
+    //     expect(nk4.first == 268435455u);
+    //     expect(nk4.second == 7u);
+    // };
+
+    // "sizeof"_test = [] {
+    //     fmt::print("none {}\n", sizeof(irt::none));
+    //     fmt::print("qss1_integrator {}\n", sizeof(irt::qss1_integrator));
+    //     fmt::print("qss1_multiplier {}\n", sizeof(irt::qss1_multiplier));
+    //     fmt::print("qss1_cross {}\n", sizeof(irt::qss1_cross));
+    //     fmt::print("qss1_power {}\n", sizeof(irt::qss1_power));
+    //     fmt::print("qss1_square {}\n", sizeof(irt::qss1_square));
+    //     fmt::print("qss1_sum_2 {}\n", sizeof(irt::qss1_sum_2));
+    //     fmt::print("qss1_sum_3 {}\n", sizeof(irt::qss1_sum_3));
+    //     fmt::print("qss1_sum_4 {}\n", sizeof(irt::qss1_sum_4));
+    //     fmt::print("qss1_wsum_2 {}\n", sizeof(irt::qss1_wsum_2));
+    //     fmt::print("qss1_wsum_3 {}\n", sizeof(irt::qss1_wsum_3));
+    //     fmt::print("qss1_wsum_4 {}\n", sizeof(irt::qss1_wsum_4));
+    //     fmt::print("qss2_integrator {}\n", sizeof(irt::qss2_integrator));
+    //     fmt::print("qss2_multiplier {}\n", sizeof(irt::qss2_multiplier));
+    //     fmt::print("qss2_cross {}\n", sizeof(irt::qss2_cross));
+    //     fmt::print("qss2_power {}\n", sizeof(irt::qss2_power));
+    //     fmt::print("qss2_square {}\n", sizeof(irt::qss2_square));
+    //     fmt::print("qss2_sum_2 {}\n", sizeof(irt::qss2_sum_2));
+    //     fmt::print("qss2_sum_3 {}\n", sizeof(irt::qss2_sum_3));
+    //     fmt::print("qss2_sum_4 {}\n", sizeof(irt::qss2_sum_4));
+    //     fmt::print("qss2_wsum_2 {}\n", sizeof(irt::qss2_wsum_2));
+    //     fmt::print("qss2_wsum_3 {}\n", sizeof(irt::qss2_wsum_3));
+    //     fmt::print("qss2_wsum_4 {}\n", sizeof(irt::qss2_wsum_4));
+    //     fmt::print("qss3_integrator {}\n", sizeof(irt::qss3_integrator));
+    //     fmt::print("qss3_multiplier {}\n", sizeof(irt::qss3_multiplier));
+    //     fmt::print("qss3_power {}\n", sizeof(irt::qss3_power));
+    //     fmt::print("qss3_square {}\n", sizeof(irt::qss3_square));
+    //     fmt::print("qss3_cross {}\n", sizeof(irt::qss3_cross));
+    //     fmt::print("qss3_sum_2 {}\n", sizeof(irt::qss3_sum_2));
+    //     fmt::print("qss3_sum_3 {}\n", sizeof(irt::qss3_sum_3));
+    //     fmt::print("qss3_sum_4 {}\n", sizeof(irt::qss3_sum_4));
+    //     fmt::print("qss3_wsum_2 {}\n", sizeof(irt::qss3_wsum_2));
+    //     fmt::print("qss3_wsum_3 {}\n", sizeof(irt::qss3_wsum_3));
+    //     fmt::print("qss3_wsum_4 {}\n", sizeof(irt::qss3_wsum_4));
+    //     fmt::print("integrator {}\n", sizeof(irt::integrator));
+    //     fmt::print("quantifier {}\n", sizeof(irt::quantifier));
+    //     fmt::print("adder_2 {}\n", sizeof(irt::adder_2));
+    //     fmt::print("adder_3 {}\n", sizeof(irt::adder_3));
+    //     fmt::print("adder_4 {}\n", sizeof(irt::adder_4));
+    //     fmt::print("mult_2 {}\n", sizeof(irt::mult_2));
+    //     fmt::print("mult_3 {}\n", sizeof(irt::mult_3));
+    //     fmt::print("mult_4 {}\n", sizeof(irt::mult_4));
+    //     fmt::print("counter {}\n", sizeof(irt::counter));
+    //     fmt::print("queue {}\n", sizeof(irt::queue));
+    //     fmt::print("dynamic_queue {}\n", sizeof(irt::dynamic_queue));
+    //     fmt::print("priority_queue {}\n", sizeof(irt::priority_queue));
+    //     fmt::print("generator {}\n", sizeof(irt::generator));
+    //     fmt::print("constant {}\n", sizeof(irt::constant));
+    //     fmt::print("cross {}\n", sizeof(irt::cross));
+    //     fmt::print("time_func {}\n", sizeof(irt::time_func));
+    //     fmt::print("accumulator {}\n", sizeof(irt::accumulator_2));
+    //     fmt::print("flow {}\n", sizeof(irt::flow));
+    //     fmt::print("model {}\n", sizeof(irt::model));
+    //     fmt::print("input_port {}\n", sizeof(irt::input_port));
+    //     fmt::print("output_port {}\n", sizeof(irt::output_port));
+    // };
+
+    // "model_constepxr"_test = [] {
+    //     expect(irt::is_detected_v<irt::initialize_function_t, irt::counter>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::counter> ==
+    //            false);
+    //     expect(irt::is_detected_v<irt::transition_function_t, irt::counter>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::counter> ==
+    //     true); expect(irt::is_detected_v<irt::has_output_port_t,
+    //     irt::counter> ==
+    //            false);
+
+    //     expect(irt::is_detected_v<irt::initialize_function_t, irt::generator>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::generator> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::transition_function_t, irt::generator>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::generator> ==
+    //            false);
+    //     expect(irt::is_detected_v<irt::has_output_port_t, irt::generator> ==
+    //            true);
+
+    //     expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_2>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_2> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::transition_function_t, irt::adder_2>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_2> ==
+    //     true); expect(irt::is_detected_v<irt::has_output_port_t,
+    //     irt::adder_2> ==
+    //            true);
+
+    //     expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_3>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_3> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::transition_function_t, irt::adder_3>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_3> ==
+    //     true); expect(irt::is_detected_v<irt::has_output_port_t,
+    //     irt::adder_3> ==
+    //            true);
+
+    //     expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_4>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_4> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::transition_function_t, irt::adder_4>
+    //     ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_4> ==
+    //     true); expect(irt::is_detected_v<irt::has_output_port_t,
+    //     irt::adder_4> ==
+    //            true);
+
+    //     expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_2> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_2> ==
+    //     true); expect(irt::is_detected_v<irt::transition_function_t,
+    //     irt::mult_2> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_2> ==
+    //     true); expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_2>
+    //     == true);
+
+    //     expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_3> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_3> ==
+    //     true); expect(irt::is_detected_v<irt::transition_function_t,
+    //     irt::mult_3> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_3> ==
+    //     true); expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_3>
+    //     == true);
+
+    //     expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_4> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_4> ==
+    //     true); expect(irt::is_detected_v<irt::transition_function_t,
+    //     irt::mult_4> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_4> ==
+    //     true); expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_4>
+    //     == true);
+
+    //     expect(
+    //       irt::is_detected_v<irt::initialize_function_t, irt::integrator> ==
+    //       true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::integrator> ==
+    //            true);
+    //     expect(
+    //       irt::is_detected_v<irt::transition_function_t, irt::integrator> ==
+    //       true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::integrator> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_output_port_t, irt::integrator> ==
+    //            true);
+
+    //     expect(
+    //       irt::is_detected_v<irt::initialize_function_t, irt::quantifier> ==
+    //       true);
+    //     expect(irt::is_detected_v<irt::lambda_function_t, irt::quantifier> ==
+    //            true);
+    //     expect(
+    //       irt::is_detected_v<irt::transition_function_t, irt::quantifier> ==
+    //       true);
+    //     expect(irt::is_detected_v<irt::has_input_port_t, irt::quantifier> ==
+    //            true);
+    //     expect(irt::is_detected_v<irt::has_output_port_t, irt::quantifier> ==
+    //            true);
+    // };
+
+    // "status"_test = [] {
+    //     irt::status s1 = irt::status::success;
+    //     expect(irt::is_success(s1) == true);
+    //     expect(irt::is_bad(s1) == false);
+
+    //     irt::status s2 = irt::status::block_allocator_not_enough_memory;
+    //     expect(irt::is_success(s2) == false);
+    //     expect(irt::is_bad(s2) == true);
+    // };
+
+    // "function_ref"_test = [] {
+    //     {
+    //         irt::function_ref<void(void)> fr = function_ref_f;
+    //         fr();
+    //         expect(function_ref_called == true);
+    //     }
+
+    //     {
+    //         function_ref_class o;
+    //         auto x = &function_ref_class::baz;
+    //         irt::function_ref<void(function_ref_class&)> fr = x;
+    //         fr(o);
+    //         expect(o.baz_called);
+    //         x = &function_ref_class::qux;
+    //         fr = x;
+    //         fr(o);
+    //         expect(o.qux_called);
+    //     }
+
+    //     {
+    //         auto x = [] { return 42; };
+    //         irt::function_ref<int()> fr = x;
+    //         expect(fr() == 42);
+    //     }
+
+    //     {
+    //         int i = 0;
+    //         auto x = [&i] { i = 42; };
+    //         irt::function_ref<void()> fr = x;
+    //         fr();
+    //         expect(i == 42);
+    //     }
+
+    //     {
+    //         function_ref_multiple_operator ops;
+    //         ops.i = 0;
+    //         irt::function_ref<void(bool)> b1(ops);
+    //         irt::function_ref<void(double)> b2(ops);
+
+    //         b1(true);
+    //         b2(0.0);
+
+    //         expect(ops.i == 2);
+    //     }
+    // };
+
+    // "time"_test = [] {
+    //     expect(irt::time_domain<irt::time>::infinity >
+    //            irt::time_domain<irt::time>::zero);
+    //     expect(irt::time_domain<irt::time>::zero >
+    //            irt::time_domain<irt::time>::negative_infinity);
+    // };
+
+    // "small-vector<T>"_test = [] {
+    //     irt::small_vector<int, 8> v;
+    //     expect(v.empty());
+    //     expect(v.capacity() == 8);
+    //     v.alloc(0);
+    //     v.alloc(1);
+    //     v.alloc(2);
+    //     v.alloc(3);
+    //     v.alloc(4);
+    //     v.alloc(5);
+    //     v.alloc(6);
+    //     v.alloc(7);
+    //     expect(v.size() == 8);
+    //     expect(v.full());
+    //     expect(!v.empty());
+    //     expect(v[0] == 0);
+    //     expect(v[1] == 1);
+    //     expect(v[2] == 2);
+    //     expect(v[3] == 3);
+    //     expect(v[4] == 4);
+    //     expect(v[5] == 5);
+    //     expect(v[6] == 6);
+    //     expect(v[7] == 7);
+    //     v.swap_pop_back(0);
+    //     expect(v.size() == 7);
+    //     expect(!v.full());
+    //     expect(!v.empty());
+    //     expect(v[0] == 7);
+    //     expect(v[1] == 1);
+    //     expect(v[2] == 2);
+    //     expect(v[3] == 3);
+    //     expect(v[4] == 4);
+    //     expect(v[5] == 5);
+    //     expect(v[6] == 6);
+    //     v.swap_pop_back(6);
+    //     expect(v.size() == 6);
+    //     expect(!v.full());
+    //     expect(!v.empty());
+    //     expect(v[0] == 7);
+    //     expect(v[1] == 1);
+    //     expect(v[2] == 2);
+    //     expect(v[3] == 3);
+    //     expect(v[4] == 4);
+    //     expect(v[5] == 5);
+
+    //     irt::small_vector<int, 8> v2;
+    //     v2 = v;
+    //     v2[0] *= 2;
+    //     expect(v2[0] == 14);
+    //     expect(v2[1] == 1);
+    //     expect(v2[2] == 2);
+    //     expect(v2[3] == 3);
+    //     expect(v2[4] == 4);
+    //     expect(v2[5] == 5);
+    // };
+
+    // "small-vector-no-trivial"_test = [] {
+    //     struct toto
+    //     {
+    //         int i;
+
+    //         toto(int i_)
+    //           : i(i_)
+    //         {}
+
+    //         ~toto()
+    //         {
+    //             i = 0;
+    //         }
+    //     };
+
+    //     irt::small_vector<toto, 4> v;
+    //     v.alloc(10);
+    //     v.clear();
+
+    //     expect(v.data()[0].i == 0);
+
+    //     irt::small_vector<toto, 4> v2 = v;
+    //     v2.alloc(10);
+
+    //     expect(v.data()[0].i == 0);
+    //     expect(v2.data()[0].i == 10);
+    // };
+
+    // "small_string"_test = [] {
+    //     irt::small_string<8> f1;
+    //     expect(f1.capacity() == 8_ul);
+    //     expect(f1 == "");
+    //     expect(f1.size() == 0_ul);
+
+    //     f1 = "ok";
+    //     expect(f1 == "ok");
+    //     expect(f1.size() == 2_ul);
+
+    //     f1 = "okok";
+    //     expect(f1 == "okok");
+    //     expect(f1.size() == 4_ul);
+
+    //     f1 = "okok123456";
+    //     expect(f1 == "okok123");
+    //     expect(f1.size() == 7_ul);
+
+    //     irt::small_string<8> f2(f1);
+    //     expect(f2 == "okok123");
+    //     expect(f2.size() == 7_ul);
+
+    //     expect(f1.c_str() != f2.c_str());
+
+    //     irt::small_string<8> f3("012345678");
+    //     expect(f3 == "0123456");
+    //     expect(f3.size() == 7_ul);
+
+    //     f3.clear();
+    //     expect(f3 == "");
+    //     expect(f3.size() == 0_ul);
+
+    //     f3 = f2;
+    //     expect(f3 == "okok123");
+    //     expect(f3.size() == 7_ul);
+    // };
+
+    // "list"_test = [] {
+    //     irt::block_allocator<irt::list_view_node<int>> allocator;
+    //     expect(is_success(allocator.init(32)));
+
+    //     irt::u64 id = static_cast<irt::u64>(-1);
+    //     irt::list_view lst(allocator, id);
+
+    //     lst.emplace_front(5);
+    //     lst.emplace_front(4);
+    //     lst.emplace_front(3);
+    //     lst.emplace_front(2);
+    //     lst.emplace_front(1);
+
+    //     {
+    //         int i = 1;
+    //         for (auto it = lst.begin(); it != lst.end(); ++it)
+    //             expect(*it == i++);
+    //     }
+
+    //     lst.pop_front();
+
+    //     {
+    //         int i = 2;
+    //         for (auto it = lst.begin(); it != lst.end(); ++it)
+    //             expect(*it == i++);
+    //     }
+    // };
+
+    // "double_list"_test = [] {
+    //     irt::block_allocator<irt::list_view_node<int>> allocator;
+    //     expect(is_success(allocator.init(32)));
+
+    //     irt::u64 id = static_cast<irt::u64>(-1);
+    //     irt::list_view lst(allocator, id);
+
+    //     expect(lst.empty());
+    //     expect(lst.begin() == lst.end());
+
+    //     lst.emplace_front(0);
+    //     expect(lst.begin() == --lst.end());
+    //     expect(++lst.begin() == lst.end());
+
+    //     lst.clear();
+    //     expect(lst.empty());
+    //     expect(lst.begin() == lst.end());
+
+    //     lst.emplace_front(5);
+    //     lst.emplace_front(4);
+    //     lst.emplace_front(3);
+    //     lst.emplace_front(2);
+    //     lst.emplace_front(1);
+    //     lst.emplace_back(6);
+    //     lst.emplace_back(7);
+    //     lst.emplace_back(8);
+
+    //     {
+    //         int i = 1;
+    //         for (auto it = lst.begin(); it != lst.end(); ++it)
+    //             expect(*it == i++);
+    //     }
+
+    //     lst.pop_front();
+
+    //     {
+    //         int i = 2;
+    //         for (auto it = lst.begin(); it != lst.end(); ++it)
+    //             expect(*it == i++);
+    //     }
+
+    //     {
+    //         auto it = lst.begin();
+    //         expect(*it == 2);
+
+    //         --it;
+    //         expect(it == lst.end());
+
+    //         --it;
+    //         expect(it == --lst.end());
+    //     }
+
+    //     {
+    //         auto it = lst.end();
+    //         expect(it == lst.end());
+
+    //         --it;
+    //         expect(*it == 8);
+
+    //         --it;
+    //         expect(*it == 7);
+    //     }
+
+    //     lst.emplace(lst.begin(), 10);
+    //     expect(*lst.begin() == 10);
+
+    //     {
+    //         auto it = lst.begin();
+    //         ++it;
+
+    //         it = lst.emplace(it, 11);
+    //         expect(*it == 11);
+    //         expect(*lst.begin() == 10);
+    //     }
+    // };
+
+    // "data_array_api"_test = [] {
+    //     struct position
+    //     {
+    //         position() = default;
+    //         constexpr position(float x_)
+    //           : x(x_)
+    //         {}
+
+    //         float x;
+    //     };
+
+    //     enum class position_id : std::uint64_t
+    //     {
+    //     };
+
+    //     irt::data_array<position, position_id> array;
+
+    //     expect(array.max_size() == 0);
+    //     expect(array.max_used() == 0);
+    //     expect(array.capacity() == 0);
+    //     expect(array.next_key() == 1);
+    //     expect(array.is_free_list_empty());
+
+    //     bool is_init = irt::is_success(array.init(3));
+
+    //     expect(array.max_size() == 0);
+    //     expect(array.max_used() == 0);
+    //     expect(array.capacity() == 3);
+    //     expect(array.next_key() == 1);
+    //     expect(array.is_free_list_empty());
+
+    //     expect(is_init);
+
+    //     {
+    //         auto& first = array.alloc();
+    //         first.x = 0.f;
+    //         expect(array.max_size() == 1);
+    //         expect(array.max_used() == 1);
+    //         expect(array.capacity() == 3);
+    //         expect(array.next_key() == 2);
+    //         expect(array.is_free_list_empty());
+
+    //         auto& second = array.alloc();
+    //         expect(array.max_size() == 2);
+    //         expect(array.max_used() == 2);
+    //         expect(array.capacity() == 3);
+    //         expect(array.next_key() == 3);
+    //         expect(array.is_free_list_empty());
+
+    //         second.x = 1.f;
+
+    //         auto& third = array.alloc();
+    //         expect(array.max_size() == 3);
+    //         expect(array.max_used() == 3);
+    //         expect(array.capacity() == 3);
+    //         expect(array.next_key() == 4);
+    //         expect(array.is_free_list_empty());
+
+    //         third.x = 2.f;
+
+    //         expect(array.full());
+    //     }
+
+    //     array.clear();
+
+    //     expect(array.max_size() == 0);
+    //     expect(array.max_used() == 0);
+    //     expect(array.capacity() == 3);
+    //     expect(array.next_key() == 1);
+    //     expect(array.is_free_list_empty());
+
+    //     is_init = irt::is_success(array.init(3));
+
+    //     {
+    //         auto& d1 = array.alloc(1.f);
+    //         auto& d2 = array.alloc(2.f);
+    //         auto& d3 = array.alloc(3.f);
+
+    //         expect(array.max_size() == 3);
+    //         expect(array.max_used() == 3);
+    //         expect(array.capacity() == 3);
+    //         expect(array.next_key() == 4);
+    //         expect(array.is_free_list_empty());
+
+    //         array.free(d1);
+
+    //         expect(array.max_size() == 2);
+    //         expect(array.max_used() == 3);
+    //         expect(array.capacity() == 3);
+    //         expect(array.next_key() == 4);
+    //         expect(!array.is_free_list_empty());
+
+    //         array.free(d2);
+
+    //         expect(array.max_size() == 1);
+    //         expect(array.max_used() == 3);
+    //         expect(array.capacity() == 3);
+    //         expect(array.next_key() == 4);
+    //         expect(!array.is_free_list_empty());
+
+    //         array.free(d3);
+    //         expect(array.max_size() == 0);
+    //         expect(array.max_used() == 3);
+    //         expect(array.capacity() == 3);
+    //         expect(array.next_key() == 4);
+    //         expect(!array.is_free_list_empty());
+
+    //         auto& n1 = array.alloc();
+    //         auto& n2 = array.alloc();
+    //         auto& n3 = array.alloc();
+
+    //         expect(irt::get_index(array.get_id(n1)) == 2_u);
+    //         expect(irt::get_index(array.get_id(n2)) == 1_u);
+    //         expect(irt::get_index(array.get_id(n3)) == 0_u);
+
+    //         expect(array.max_size() == 3);
+    //         expect(array.max_used() == 3);
+    //         expect(array.capacity() == 3);
+    //         expect(array.next_key() == 7);
+    //         expect(array.is_free_list_empty());
+    //     }
+    // };
+
+    // "message"_test = [] {
+    //     {
+    //         irt::message vdouble;
+    //         assert(vdouble[0] == 0.0);
+    //         assert(vdouble[1] == 0.0);
+    //         assert(vdouble[2] == 0.0);
+    //         assert(vdouble.size() == 0);
+    //         assert(vdouble.ssize() == 0);
+    //     }
+
+    //     {
+    //         irt::message vdouble(1.0);
+    //         assert(vdouble[0] == 1.0);
+    //         assert(vdouble[1] == 0.0);
+    //         assert(vdouble[2] == 0.0);
+    //         assert(vdouble.size() == 1);
+    //         assert(vdouble.ssize() == 1);
+    //     }
+
+    //     {
+    //         irt::message vdouble(0.0, 1.0);
+    //         assert(vdouble[0] == 0.0);
+    //         assert(vdouble[1] == 1.0);
+    //         assert(vdouble[2] == 0.0);
+    //         assert(vdouble.size() == 2);
+    //         assert(vdouble.ssize() == 2);
+    //     }
+
+    //     {
+    //         irt::message vdouble(0.0, 0.0, 1.0);
+    //         assert(vdouble[0] == 0.0);
+    //         assert(vdouble[1] == 0.0);
+    //         assert(vdouble[2] == 1.0);
+    //         assert(vdouble.size() == 3);
+    //         assert(vdouble.ssize() == 3);
+    //     }
+    // };
+
+    // "observation_message"_test = [] {
+    //     {
+    //         irt::observation_message vdouble;
+    //         assert(vdouble[0] == 0.0);
+    //         assert(vdouble[1] == 0.0);
+    //         assert(vdouble[2] == 0.0);
+    //         assert(vdouble[3] == 0.0);
+    //         assert(vdouble.size() == 0);
+    //         assert(vdouble.ssize() == 0);
+    //     }
+
+    //     {
+    //         irt::observation_message vdouble(1.0);
+    //         assert(vdouble[0] == 1.0);
+    //         assert(vdouble[1] == 0.0);
+    //         assert(vdouble[2] == 0.0);
+    //         assert(vdouble[3] == 0.0);
+    //         assert(vdouble.size() == 1);
+    //         assert(vdouble.ssize() == 1);
+    //     }
+
+    //     {
+    //         irt::observation_message vdouble(0.0, 1.0);
+    //         assert(vdouble[0] == 0.0);
+    //         assert(vdouble[1] == 1.0);
+    //         assert(vdouble[2] == 0.0);
+    //         assert(vdouble[3] == 0.0);
+    //         assert(vdouble.size() == 2);
+    //         assert(vdouble.ssize() == 2);
+    //     }
+
+    //     {
+    //         irt::observation_message vdouble(0.0, 0.0, 1.0);
+    //         assert(vdouble[0] == 0.0);
+    //         assert(vdouble[1] == 0.0);
+    //         assert(vdouble[2] == 1.0);
+    //         assert(vdouble[3] == 0.0);
+    //         assert(vdouble.size() == 3);
+    //         assert(vdouble.ssize() == 3);
+    //     }
+
+    //     {
+    //         irt::observation_message vdouble(0.0, 0.0, 0.0, 1.0);
+    //         assert(vdouble[0] == 0.0);
+    //         assert(vdouble[1] == 0.0);
+    //         assert(vdouble[2] == 0.0);
+    //         assert(vdouble[3] == 1.0);
+    //         assert(vdouble.size() == 4);
+    //         assert(vdouble.ssize() == 4);
+    //     }
+    // };
+
+    // "heap_order"_test = [] {
+    //     irt::heap h;
+    //     h.init(4u);
+
+    //     irt::heap::handle i1 = h.insert(0.0, irt::model_id{ 0 });
+    //     irt::heap::handle i2 = h.insert(1.0, irt::model_id{ 1 });
+    //     irt::heap::handle i3 = h.insert(-1.0, irt::model_id{ 2 });
+    //     irt::heap::handle i4 = h.insert(2.0, irt::model_id{ 3 });
+    //     expect(h.full());
+
+    //     expect(i1->tn == 0.0_d);
+    //     expect(i2->tn == 1.0_d);
+    //     expect(i3->tn == -1.0_d);
+    //     expect(i4->tn == 2.0_d);
+
+    //     expect(h.top() == i3);
+    //     h.pop();
+    //     expect(h.top() == i1);
+    //     h.pop();
+    //     expect(h.top() == i2);
+    //     h.pop();
+    //     expect(h.top() == i4);
+    //     h.pop();
+
+    //     expect(h.empty());
+    //     expect(!h.full());
+    // };
+
+    // "heap_insert_pop"_test = [] {
+    //     irt::heap h;
+    //     h.init(4u);
+
+    //     irt::heap::handle i1 = h.insert(0.0, irt::model_id{ 0 });
+    //     irt::heap::handle i2 = h.insert(1.0, irt::model_id{ 1 });
+    //     irt::heap::handle i3 = h.insert(-1.0, irt::model_id{ 2 });
+    //     irt::heap::handle i4 = h.insert(2.0, irt::model_id{ 3 });
+
+    //     expect(i1 != nullptr);
+    //     expect(i2 != nullptr);
+    //     expect(i3 != nullptr);
+    //     expect(i4 != nullptr);
+
+    //     expect(!h.empty());
+    //     expect(h.top() == i3);
+
+    //     h.pop(); // remove i3
+    //     h.pop(); // rmeove i1
+
+    //     expect(h.top() == i2);
+
+    //     i3->tn = -10.0;
+    //     h.insert(i3);
+
+    //     i1->tn = -1.0;
+    //     h.insert(i1);
+
+    //     expect(h.top() == i3);
+    //     h.pop();
+
+    //     expect(h.top() == i1);
+    //     h.pop();
+
+    //     expect(h.top() == i2);
+    //     h.pop();
+
+    //     expect(h.top() == i4);
+    //     h.pop();
+
+    //     expect(h.empty());
+    // };
+
+    // "heap_with_equality"_test = [] {
+    //     irt::heap h;
+    //     h.init(256u);
+
+    //     for (double t = 0; t < 100.0; ++t)
+    //         h.insert(t, irt::model_id{ static_cast<unsigned>(t) });
+
+    //     expect(h.size() == 100_ul);
+
+    //     h.insert(50.0, irt::model_id{ 502 });
+    //     h.insert(50.0, irt::model_id{ 503 });
+    //     h.insert(50.0, irt::model_id{ 504 });
+
+    //     expect(h.size() == 103_ul);
+
+    //     for (double t = 0.0; t < 50.0; ++t) {
+    //         expect(h.top()->tn == t);
+    //         h.pop();
+    //     }
+
+    //     expect(h.top()->tn == 50.0_d);
+    //     h.pop();
+    //     expect(h.top()->tn == 50.0_d);
+    //     h.pop();
+    //     expect(h.top()->tn == 50.0_d);
+    //     h.pop();
+    //     expect(h.top()->tn == 50.0_d);
+    //     h.pop();
+
+    //     for (double t = 51.0; t < 100.0; ++t) {
+    //         expect(h.top()->tn == t);
+    //         h.pop();
+    //     }
+    // };
+
+    // "simulation-dispatch"_test = [] {
+    //     irt::simulation sim;
+    //     sim.init(64u, 256u);
+    //     auto& dyn1 = sim.alloc<irt::none>();
+    //     (void)sim.alloc<irt::qss1_integrator>();
+    //     (void)sim.alloc<irt::qss1_multiplier>();
+
+    //     auto& mdl = irt::get_model(dyn1);
+
+    //     irt::dispatch(mdl,
+    //                   []([[maybe_unused]] auto& dyns) { std::cout << "ok";
+    //                   });
+
+    //     auto ret =
+    //       irt::dispatch(mdl, []([[maybe_unused]] const auto& dyns) -> int {
+    //           std::cout << "ok";
+    //           return 1;
+    //       });
+
+    //     expect(ret == 1);
+
+    //     auto ret_2 = irt::dispatch(
+    //       mdl,
+    //       []([[maybe_unused]] const auto& dyns, int v1, double v2) {
+    //           std::cout << "ok" << v1 << ' ' << v2;
+    //           return v2 + v1;
+    //       },
+    //       123,
+    //       456.0);
+
+    //     expect(ret_2 == 579.0);
+    // };
+
+    // "input-output"_test = [] {
+    //     std::string str;
+    //     str.reserve(4096u);
+
+    //     {
+    //         irt::simulation sim;
+    //         irt::external_source srcs;
+    //         expect(irt::is_success(sim.init(64lu, 4096lu)));
+
+    //         sim.alloc<irt::none>();
+    //         sim.alloc<irt::qss1_integrator>();
+    //         sim.alloc<irt::qss1_multiplier>();
+    //         sim.alloc<irt::qss1_cross>();
+    //         sim.alloc<irt::qss1_power>();
+    //         sim.alloc<irt::qss1_square>();
+    //         sim.alloc<irt::qss1_sum_2>();
+    //         sim.alloc<irt::qss1_sum_3>();
+    //         sim.alloc<irt::qss1_sum_4>();
+    //         sim.alloc<irt::qss1_wsum_2>();
+    //         sim.alloc<irt::qss1_wsum_3>();
+    //         sim.alloc<irt::qss1_wsum_4>();
+    //         sim.alloc<irt::qss2_integrator>();
+    //         sim.alloc<irt::qss2_multiplier>();
+    //         sim.alloc<irt::qss2_cross>();
+    //         sim.alloc<irt::qss2_power>();
+    //         sim.alloc<irt::qss2_square>();
+    //         sim.alloc<irt::qss2_sum_2>();
+    //         sim.alloc<irt::qss2_sum_3>();
+    //         sim.alloc<irt::qss2_sum_4>();
+    //         sim.alloc<irt::qss2_wsum_2>();
+    //         sim.alloc<irt::qss2_wsum_3>();
+    //         sim.alloc<irt::qss2_wsum_4>();
+    //         sim.alloc<irt::qss3_integrator>();
+    //         sim.alloc<irt::qss3_multiplier>();
+    //         sim.alloc<irt::qss3_power>();
+    //         sim.alloc<irt::qss3_square>();
+    //         sim.alloc<irt::qss3_cross>();
+    //         sim.alloc<irt::qss3_sum_2>();
+    //         sim.alloc<irt::qss3_sum_3>();
+    //         sim.alloc<irt::qss3_sum_4>();
+    //         sim.alloc<irt::qss3_wsum_2>();
+    //         sim.alloc<irt::qss3_wsum_3>();
+    //         sim.alloc<irt::qss3_wsum_4>();
+    //         sim.alloc<irt::integrator>();
+    //         sim.alloc<irt::quantifier>();
+    //         sim.alloc<irt::adder_2>();
+    //         sim.alloc<irt::adder_3>();
+    //         sim.alloc<irt::adder_4>();
+    //         sim.alloc<irt::mult_2>();
+    //         sim.alloc<irt::mult_3>();
+    //         sim.alloc<irt::mult_4>();
+    //         sim.alloc<irt::counter>();
+    //         sim.alloc<irt::queue>();
+    //         sim.alloc<irt::dynamic_queue>();
+    //         sim.alloc<irt::priority_queue>();
+    //         sim.alloc<irt::generator>();
+    //         sim.alloc<irt::constant>();
+    //         sim.alloc<irt::cross>();
+    //         sim.alloc<irt::time_func>();
+    //         sim.alloc<irt::accumulator_2>();
+    //         sim.alloc<irt::flow>();
+
+    //         std::ostringstream os;
+    //         irt::writer w(os);
+
+    //         expect(irt::is_success(w(sim, srcs)));
+    //         str = os.str();
+    //     }
+
+    //     expect(!str.empty());
+    //     fmt::print(str);
+
+    //     {
+    //         std::istringstream is(str);
+
+    //         irt::simulation sim;
+    //         irt::external_source srcs;
+    //         expect(irt::is_success(sim.init(64lu, 32lu)));
+    //         expect(irt::is_success(srcs.init(64u)));
+
+    //         irt::reader r(is);
+    //         expect(irt::is_success(r(sim, srcs)));
+
+    //         expect(sim.models.size() == 52);
+    //     }
+
+    //     {
+    //         std::istringstream is(str);
+    //         int i = 0;
+
+    //         irt::simulation sim;
+    //         irt::external_source srcs;
+    //         expect(irt::is_success(sim.init(64lu, 32lu)));
+
+    //         irt::reader r(is);
+    //         expect(irt::is_success(
+    //           r(sim, srcs, [&i](irt::model_id /*id*/) { ++i; })));
+    //         expect(i == 52);
+
+    //         expect(sim.models.size() == 52);
+    //     }
+
+    //     {
+    //         std::string string_error{
+    //             "0 0 0 0\n1\n0 5 6 qss1_integrator A B C\n"
+    //         };
+    //         std::istringstream is{ string_error };
+    //         irt::simulation sim;
+    //         irt::external_source srcs;
+
+    //         expect(irt::is_success(sim.init(64lu, 32lu)));
+
+    //         irt::is_fatal_breakpoint = false;
+
+    //         irt::reader r(is);
+    //         expect(irt::is_bad(r(sim, srcs)));
+    //         expect(r.line_error() == 3);
+    //         expect(r.column_error() <= 23); /* linux/win: 22 macos: 23 */
+    //         expect(r.model_error == 0);
+    //         expect(r.connection_error == 0);
+
+    //         expect(r.get_position(0).x == 5.f);
+    //         expect(r.get_position(0).y == 6.f);
+
+    //         irt::is_fatal_breakpoint = true;
+    //     }
+    // };
 
     "constant_simulation"_test = [] {
+        fmt::print("constant_simulation\n");
         irt::simulation sim;
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
@@ -1227,12 +1254,13 @@ main()
         do {
             st = sim.run(t);
             expect(irt::is_success(st));
-        } while (t < sim.end);
+        } while (!irt::time_domain<irt::time>::is_infinity(t));
 
         expect(cnt.number == static_cast<irt::i64>(2));
     };
 
     "cross_simulation"_test = [] {
+        fmt::print("cross_simulation\n");
         irt::simulation sim;
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
@@ -1258,7 +1286,7 @@ main()
         do {
             st = sim.run(t);
             expect(irt::is_success(st));
-        } while (t < sim.end);
+        } while (!irt::time_domain<irt::time>::is_infinity(t));
 
         expect(cnt.number == static_cast<irt::i64>(2));
     };
@@ -1330,7 +1358,7 @@ main()
         double c = 0.0;
         do {
             auto st = sim.run(t);
-            expect((irt::is_success(st)) == true);
+            expect(irt::is_success(st) == true);
             expect(time_fun.value == t * t);
             c++;
         } while (t < duration);

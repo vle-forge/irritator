@@ -121,639 +121,236 @@ editor::settings_manager::compute_colors() noexcept
       ImGui::ColorConvertFloat4ToU32(gui_model_transition_color * 1.25f);
     gui_selected_model_transition_color =
       ImGui::ColorConvertFloat4ToU32(gui_model_transition_color * 1.5f);
-
-    gui_hovered_cluster_color =
-      ImGui::ColorConvertFloat4ToU32(gui_cluster_color * 1.25f);
-    gui_selected_cluster_color =
-      ImGui::ColorConvertFloat4ToU32(gui_cluster_color * 1.5f);
 }
 
 void
 editor::clear() noexcept
 {
-    clusters.clear();
     sim.clear();
-
-    std::fill(std::begin(clusters_mapper),
-              std::end(clusters_mapper),
-              undefined<cluster_id>());
-
-    std::fill(std::begin(models_mapper),
-              std::end(models_mapper),
-              undefined<cluster_id>());
-
-    top.clear();
-}
-
-cluster_id
-editor::ancestor(const child_id child) const noexcept
-{
-    if (child.index() == 0) {
-        const auto mdl_id = std::get<model_id>(child);
-        auto parent = models_mapper[get_index(mdl_id)];
-        auto ret = parent;
-
-        while (parent != undefined<cluster_id>()) {
-            ret = parent;
-            parent = clusters_mapper[get_index(parent)];
-        }
-
-        return ret;
-    } else {
-        const auto gp_id = std::get<cluster_id>(child);
-        auto parent = clusters_mapper[get_index(gp_id)];
-        auto ret = parent;
-
-        while (parent != undefined<cluster_id>()) {
-            ret = parent;
-            parent = clusters_mapper[get_index(parent)];
-        }
-
-        return ret;
-    }
-}
-
-int
-editor::get_top_group_ref(const child_id child) const noexcept
-{
-    const auto top_ref = ancestor(child);
-
-    return top_ref == undefined<cluster_id>() ? top.get_index(child)
-                                              : top.get_index(top_ref);
-}
-
-bool
-editor::is_in_hierarchy(const cluster& group,
-                        const cluster_id group_to_search) const noexcept
-{
-    if (clusters.get_id(group) == group_to_search) {
-        log_w.log(7, "clusters.get_id(group) == group_to_search\n");
-        return true;
-    }
-
-    // TODO: Derecursive this part of the function.
-    for (const auto elem : group.children) {
-        if (elem.index() == 1) {
-            const auto id = std::get<cluster_id>(elem);
-
-            if (id == group_to_search) {
-                log_w.log(7, "id == group_to_search\n");
-                return true;
-            }
-
-            if (const auto* gp = clusters.try_to_get(id); gp) {
-                if (is_in_hierarchy(*gp, group_to_search)) {
-                    log_w.log(7, "is_in_hierarchy = true\n");
-                    return true;
-                }
-            }
-        }
-    }
-
-    return false;
-}
-
-void
-editor::group(const ImVector<int>& nodes) noexcept
-{
-    if (!clusters.can_alloc(1)) {
-        log_w.log(5, "Fail to allocate a new group.");
-        return;
-    }
-
-    auto& new_cluster = clusters.alloc();
-    auto new_cluster_id = clusters.get_id(new_cluster);
-    format(new_cluster.name, "Group {}", new_cluster_id);
-    parent(new_cluster_id, undefined<cluster_id>());
-
-    /* First, move children models and groups from the current cluster into the
-       newly allocated cluster. */
-
-    for (int i = 0, e = nodes.size(); i != e; ++i) {
-        if (auto index = top.get_index(nodes[i]); index != not_found) {
-            new_cluster.children.push_back(top.children[index].first);
-            top.pop(index);
-        }
-    }
-
-    top.emplace_back(new_cluster_id);
-
-    for (const auto child : new_cluster.children) {
-        if (child.index() == 0) {
-            const auto id = std::get<model_id>(child);
-            parent(id, new_cluster_id);
-        } else {
-            const auto id = std::get<cluster_id>(child);
-            parent(id, new_cluster_id);
-        }
-    }
-
-    /* For all input and output ports of the remaining models in the current
-       cluster, we try to detect if the corresponding model is or is not in the
-       same cluster. */
-
-    for (const auto& child : top.children) {
-        if (child.first.index() == 0) {
-            const auto child_id = std::get<model_id>(child.first);
-
-            if (auto* model = sim.models.try_to_get(child_id); model) {
-                dispatch(
-                  *model,
-                  [this, &new_cluster]<typename Dynamics>(Dynamics& dyn) {
-                      if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                          for (auto& elem : dyn.x) {
-                              for (const auto& elem : elem.connections) {
-                                  auto* src = sim.models.try_to_get(elem.model);
-                                  if (src &&
-                                      is_in_hierarchy(new_cluster,
-                                                      this->parent(elem.model)))
-                                      new_cluster.output_ports.emplace_back(
-                                        make_output_node_id(elem.model,
-                                                            elem.port_index));
-                              }
-                          }
-                      }
-
-                      if constexpr (is_detected_v<has_output_port_t,
-                                                  Dynamics>) {
-                          for (auto& y_ : dyn.y) {
-                              for (const auto& elem : y_.connections) {
-                                  auto* src = sim.models.try_to_get(elem.model);
-                                  if (src &&
-                                      is_in_hierarchy(new_cluster,
-                                                      this->parent(elem.model)))
-                                      new_cluster.input_ports.emplace_back(
-                                        make_input_node_id(elem.model,
-                                                           elem.port_index));
-                              }
-                          }
-                      }
-                  });
-            }
-        } else {
-            const auto child_id = std::get<cluster_id>(child.first);
-
-            if (auto* group = clusters.try_to_get(child_id); group) {
-                for (const auto id : group->input_ports) {
-                    const auto model_port = get_in(id);
-
-                    if (model_port.model) {
-                        dispatch(
-                          *model_port.model,
-                          [this, &new_cluster, &model_port]<typename Dynamics>(
-                            Dynamics& dyn) {
-                              if constexpr (is_detected_v<has_input_port_t,
-                                                          Dynamics>) {
-                                  for ([[maybe_unused]] auto& x_ : dyn.x) {
-                                      for (const auto& elem :
-                                           dyn.x[model_port.port_index]
-                                             .connections) {
-                                          auto* src =
-                                            sim.models.try_to_get(elem.model);
-                                          if (src &&
-                                              is_in_hierarchy(
-                                                new_cluster,
-                                                this->parent(elem.model)))
-                                              new_cluster.output_ports
-                                                .emplace_back(
-                                                  make_output_node_id(
-                                                    elem.model,
-                                                    elem.port_index));
-                                      }
-                                  }
-                              }
-                          });
-                    }
-                }
-
-                for (const auto id : group->output_ports) {
-                    const auto model_port = get_out(id);
-
-                    if (model_port.model) {
-                        dispatch(
-                          *model_port.model,
-                          [this, &new_cluster, &model_port]<typename Dynamics>(
-                            Dynamics& dyn) {
-                              if constexpr (is_detected_v<has_output_port_t,
-                                                          Dynamics>) {
-                                  for ([[maybe_unused]] auto& _y : dyn.y) {
-                                      for (const auto& elem :
-                                           dyn.y[model_port.port_index]
-                                             .connections) {
-                                          auto* dst =
-                                            sim.models.try_to_get(elem.model);
-                                          if (dst &&
-                                              is_in_hierarchy(
-                                                new_cluster,
-                                                this->parent(elem.model)))
-                                              new_cluster.input_ports
-                                                .emplace_back(
-                                                  make_input_node_id(
-                                                    elem.model,
-                                                    elem.port_index));
-                                      }
-                                  }
-                              }
-                          });
-                    }
-                }
-            }
-        }
-    }
-}
-
-void
-editor::ungroup(const int node) noexcept
-{
-    const auto index = top.get_index(node);
-
-    if (index == not_found) {
-        log_w.log(5, "ungroup model not in top\n");
-        return;
-    }
-
-    if (top.children[index].first.index() == 0) {
-        log_w.log(5, "node is not a group\n");
-        return;
-    }
-
-    auto* group =
-      clusters.try_to_get(std::get<cluster_id>(top.children[index].first));
-    if (!group) {
-        log_w.log(5, "group does not exist\n");
-        return;
-    }
-
-    const auto group_id = clusters.get_id(*group);
-    top.pop(index);
-
-    for (size_t i = 0, e = group->children.size(); i != e; ++i) {
-        if (group->children[i].index() == 0) {
-            const auto id = std::get<model_id>(group->children[i]);
-            if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                parent(id, undefined<cluster_id>());
-                top.emplace_back(group->children[i]);
-            }
-        } else {
-            auto id = std::get<cluster_id>(group->children[i]);
-            if (auto* gp = clusters.try_to_get(id); gp) {
-                parent(id, undefined<cluster_id>());
-                top.emplace_back(group->children[i]);
-            }
-        }
-    }
-
-    clusters.free(*group);
-    parent(group_id, undefined<cluster_id>());
-}
-
-void
-editor::free_group(cluster& group) noexcept
-{
-    const auto group_id = clusters.get_id(group);
-
-    for (const auto child : group.children) {
-        if (child.index() == 0) {
-            auto id = std::get<model_id>(child);
-            models_mapper[get_index(id)] = undefined<cluster_id>();
-            if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                log_w.log(7, "delete model %" PRIu64 "\n", id);
-                sim.deallocate(id);
-
-                observation_dispatch(
-                  get_index(id),
-                  [this](auto& outs, auto id) { outs.free(id); });
-
-                observation_outputs[get_index(id)] = std::monostate{};
-            }
-        } else {
-            auto id = std::get<cluster_id>(child);
-            clusters_mapper[get_index(id)] = undefined<cluster_id>();
-            if (auto* gp = clusters.try_to_get(id); gp) {
-                log_w.log(7, "delete group %" PRIu64 "\n", gp);
-                free_group(*gp);
-            }
-        }
-    }
-
-    parent(group_id, undefined<cluster_id>());
-    clusters.free(group);
 }
 
 void
 editor::free_children(const ImVector<int>& nodes) noexcept
 {
     for (int i = 0, e = nodes.size(); i != e; ++i) {
-        const auto index = top.get_index(nodes[i]);
-        if (index == not_found)
+        const auto* mdl = sim.models.try_to_get(nodes[i]);
+        if (!mdl)
             continue;
 
-        const auto child = top.children[index];
+        const auto child_id = sim.models.get_id(mdl);
+        log_w.log(7, "delete %" PRIu64 "\n", child_id);
+        sim.deallocate(child_id);
 
-        if (child.first.index() == 0) {
-            const auto id = std::get<model_id>(child.first);
-            if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                models_mapper[get_index(id)] = undefined<cluster_id>();
-                log_w.log(7, "delete %" PRIu64 "\n", id);
-                parent(id, undefined<cluster_id>());
-                sim.deallocate(id);
+        observation_dispatch(
+          get_index(child_id),
+          [this](auto& outs, const auto id) { outs.free(id); });
 
-                observation_dispatch(
-                  get_index(id),
-                  [this](auto& outs, const auto id) { outs.free(id); });
-
-                observation_outputs[get_index(id)] = std::monostate{};
-            }
-        } else {
-            const auto id = std::get<cluster_id>(child.first);
-            if (auto* gp = clusters.try_to_get(id); gp) {
-                clusters_mapper[get_index(id)] = undefined<cluster_id>();
-                log_w.log(7, "delete group %" PRIu64 "\n", id);
-                free_group(*gp);
-            }
-        }
-
-        top.pop(index);
+        observation_outputs[get_index(child_id)] = std::monostate{};
     }
 }
 
-struct copier
-{
-    struct copy_model
-    {
-        copy_model() = default;
+// struct copier
+// {
+//     struct copy_model
+//     {
+//         copy_model() = default;
 
-        copy_model(const model_id src_, const model_id dst_) noexcept
-          : src(src_)
-          , dst(dst_)
-        {}
+//         copy_model(const model_id src_, const model_id dst_) noexcept
+//           : src(src_)
+//           , dst(dst_)
+//         {}
 
-        model_id src, dst;
-    };
+//         model_id src, dst;
+//     };
 
-    struct copy_cluster
-    {
-        copy_cluster() = default;
+//     struct copy_input_port
+//     {
+//         copy_input_port() = default;
 
-        copy_cluster(const cluster_id src_, const cluster_id dst_) noexcept
-          : src(src_)
-          , dst(dst_)
-        {}
+//         copy_input_port(const int src_, const int dst_) noexcept
+//           : src(src_)
+//           , dst(dst_)
+//         {}
 
-        cluster_id src, dst;
-    };
+//         int src, dst;
+//     };
 
-    struct copy_input_port
-    {
-        copy_input_port() = default;
+//     struct copy_output_port
+//     {
+//         copy_output_port() = default;
 
-        copy_input_port(const int src_, const int dst_) noexcept
-          : src(src_)
-          , dst(dst_)
-        {}
+//         copy_output_port(const int src_, const int dst_) noexcept
+//           : src(src_)
+//           , dst(dst_)
+//         {}
 
-        int src, dst;
-    };
+//         int src, dst;
+//     };
 
-    struct copy_output_port
-    {
-        copy_output_port() = default;
+//     std::vector<copy_model> c_models;
+//     std::vector<copy_input_port> c_input_ports;
+//     std::vector<copy_output_port> c_output_ports;
 
-        copy_output_port(const int src_, const int dst_) noexcept
-          : src(src_)
-          , dst(dst_)
-        {}
+//     void sort() noexcept
+//     {
+//         std::sort(std::begin(c_models),
+//                   std::end(c_models),
+//                   [](const auto left, const auto right) {
+//                       return static_cast<u64>(left.src) <
+//                              static_cast<u64>(right.src);
+//                   });
 
-        int src, dst;
-    };
+//         std::sort(std::begin(c_input_ports),
+//                   std::end(c_input_ports),
+//                   [](const auto left, const auto right) {
+//                       return static_cast<u64>(left.src) <
+//                              static_cast<u64>(right.src);
+//                   });
 
-    std::vector<copy_model> c_models;
-    std::vector<copy_cluster> c_clusters;
-    std::vector<copy_input_port> c_input_ports;
-    std::vector<copy_output_port> c_output_ports;
+//         std::sort(std::begin(c_output_ports),
+//                   std::end(c_output_ports),
+//                   [](const auto left, const auto right) {
+//                       return static_cast<u64>(left.src) <
+//                              static_cast<u64>(right.src);
+//                   });
+//     }
 
-    void sort() noexcept
-    {
-        std::sort(std::begin(c_models),
-                  std::end(c_models),
-                  [](const auto left, const auto right) {
-                      return static_cast<u64>(left.src) <
-                             static_cast<u64>(right.src);
-                  });
+//     template<typename Container, typename T>
+//     static int get(const Container& c, const T src) noexcept
+//     {
+//         const typename Container::value_type val{};
 
-        std::sort(std::begin(c_clusters),
-                  std::end(c_clusters),
-                  [](const auto left, const auto right) {
-                      return static_cast<u64>(left.src) <
-                             static_cast<u64>(right.src);
-                  });
+//         auto it = std::lower_bound(std::begin(c),
+//                                    std::end(c),
+//                                    val,
+//                                    [](const auto& left, const auto& right) {
+//                                        return static_cast<u64>(left.src) <
+//                                               static_cast<u64>(right.src);
+//                                    });
 
-        std::sort(std::begin(c_input_ports),
-                  std::end(c_input_ports),
-                  [](const auto left, const auto right) {
-                      return static_cast<u64>(left.src) <
-                             static_cast<u64>(right.src);
-                  });
+//         return (it != std::end(c) &&
+//                 static_cast<u64>(src) == static_cast<u64>(it->src))
+//                  ? static_cast<int>(std::distance(std::begin(c), it))
+//                  : not_found;
+//     }
 
-        std::sort(std::begin(c_output_ports),
-                  std::end(c_output_ports),
-                  [](const auto left, const auto right) {
-                      return static_cast<u64>(left.src) <
-                             static_cast<u64>(right.src);
-                  });
-    }
+//     int get_model(const model_id src) const noexcept
+//     {
+//         return get(c_models, src);
+//     }
 
-    template<typename Container, typename T>
-    static int get(const Container& c, const T src) noexcept
-    {
-        const typename Container::value_type val{};
+//     int get_input_port(const int src) const noexcept
+//     {
+//         return get(c_input_ports, src);
+//     }
 
-        auto it = std::lower_bound(std::begin(c),
-                                   std::end(c),
-                                   val,
-                                   [](const auto& left, const auto& right) {
-                                       return static_cast<u64>(left.src) <
-                                              static_cast<u64>(right.src);
-                                   });
+//     int get_output_port(const int src) const noexcept
+//     {
+//         return get(c_output_ports, src);
+//     }
 
-        return (it != std::end(c) &&
-                static_cast<u64>(src) == static_cast<u64>(it->src))
-                 ? static_cast<int>(std::distance(std::begin(c), it))
-                 : not_found;
-    }
+//     status copy(editor& ed,
+//                 const size_t models_to_merge_with_top,
+//                 const size_t clusters_to_merge_with_top)
+//     {
+//         auto& sim = ed.sim;
 
-    int get_model(const model_id src) const noexcept
-    {
-        return get(c_models, src);
-    }
+//         for (size_t i = 0, e = std::size(c_models); i != e; ++i) {
+//             auto* mdl = sim.models.try_to_get(c_models[i].src);
+//             auto* mdl_id_dst = &c_models[i].dst;
 
-    int get_cluster(const cluster_id src) const noexcept
-    {
-        return get(c_clusters, src);
-    }
+//             auto ret = dispatch(
+//               *mdl,
+//               [this, &sim, mdl, &mdl_id_dst]<typename Dynamics>(
+//                 Dynamics& /*dyn*/) -> status {
+//                   irt_return_if_fail(sim.models.can_alloc(1),
+//                                      status::dynamics_not_enough_memory);
 
-    int get_input_port(const int src) const noexcept
-    {
-        return get(c_input_ports, src);
-    }
+//                   auto& new_dyn = sim.alloc<Dynamics>();
+//                   *mdl_id_dst = sim.get_id(new_dyn);
 
-    int get_output_port(const int src) const noexcept
-    {
-        return get(c_output_ports, src);
-    }
+//                   if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+//                       int j = 0;
+//                       for ([[maybe_unused]] auto& elem : new_dyn.x) {
+//                           this->c_input_ports.emplace_back(
+//                             make_input_node_id(sim.models.get_id(mdl), j),
+//                             make_input_node_id(*mdl_id_dst, j));
+//                           ++j;
+//                       }
+//                   }
 
-    status copy(editor& ed,
-                const size_t models_to_merge_with_top,
-                const size_t clusters_to_merge_with_top)
-    {
-        auto& sim = ed.sim;
+//                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+//                       int j = 0;
+//                       for ([[maybe_unused]] auto& elem : new_dyn.y) {
+//                           this->c_output_ports.emplace_back(
+//                             make_output_node_id(sim.models.get_id(mdl), j),
+//                             make_input_node_id(*mdl_id_dst, j));
+//                           ++j;
+//                       }
+//                   }
 
-        for (size_t i = 0, e = std::size(c_models); i != e; ++i) {
-            auto* mdl = sim.models.try_to_get(c_models[i].src);
-            auto* mdl_id_dst = &c_models[i].dst;
+//                   return status::success;
+//               });
 
-            auto ret = dispatch(
-              *mdl,
-              [this, &sim, mdl, &mdl_id_dst]<typename Dynamics>(
-                Dynamics& /*dyn*/) -> status {
-                  irt_return_if_fail(sim.models.can_alloc(1),
-                                     status::dynamics_not_enough_memory);
+//             irt_return_if_bad(ret);
+//         }
 
-                  auto& new_dyn = sim.alloc<Dynamics>();
-                  *mdl_id_dst = sim.get_id(new_dyn);
+//         sort();
 
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                      int j = 0;
-                      for ([[maybe_unused]] auto& elem : new_dyn.x) {
-                          this->c_input_ports.emplace_back(
-                            make_input_node_id(sim.models.get_id(mdl), j),
-                            make_input_node_id(*mdl_id_dst, j));
-                          ++j;
-                      }
-                  }
+//         // for (size_t i = 0, e = std::size(c_input_ports); i != e; ++i) {
+//         //    const auto* src =
+//         //    sim.input_ports.try_to_get(c_input_ports[i].src); auto* dst =
+//         //    sim.input_ports.try_to_get(c_input_ports[i].dst);
 
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                      int j = 0;
-                      for ([[maybe_unused]] auto& elem : new_dyn.y) {
-                          this->c_output_ports.emplace_back(
-                            make_output_node_id(sim.models.get_id(mdl), j),
-                            make_input_node_id(*mdl_id_dst, j));
-                          ++j;
-                      }
-                  }
+//         //    assert(dst->connections.empty());
 
-                  return status::success;
-              });
+//         //    for (const auto port : src->connections) {
+//         //        const auto index = get_output_port(port);
+//         //        dst->connections.emplace_front(c_output_ports[index].dst);
+//         //    }
+//         //}
 
-            irt_return_if_bad(ret);
-        }
+//         // for (size_t i = 0, e = std::size(c_output_ports); i != e; ++i) {
+//         //    const auto* src =
+//         //      sim.output_ports.try_to_get(c_output_ports[i].src);
+//         //    auto* dst = sim.output_ports.try_to_get(c_output_ports[i].dst);
 
-        for (size_t i = 0, e = std::size(c_clusters); i != e; ++i) {
-            auto* gp_src = ed.clusters.try_to_get(c_clusters[i].src);
-            auto& gp_dst = ed.clusters.alloc(*gp_src);
-            c_clusters[i].dst = ed.clusters.get_id(gp_dst);
-        }
+//         //    assert(dst->connections.empty());
 
-        sort();
+//         //    for (const auto port : src->connections) {
+//         //        const auto index = get_input_port(port);
+//         //        dst->connections.emplace_front(c_input_ports[index].dst);
+//         //    }
+//         //}
 
-        for (size_t i = 0, e = std::size(c_clusters); i != e; ++i) {
-            auto* gp_src = ed.clusters.try_to_get(c_clusters[i].src);
-            auto* gp_dst = ed.clusters.try_to_get(c_clusters[i].dst);
+//                 ed.parent(c_models[i].dst, c_clusters[index].dst);
+//         }
 
-            for (size_t j = 0, ej = gp_src->children.size(); j != ej; ++j) {
-                if (gp_src->children[j].index() == 0) {
-                    const auto id = std::get<model_id>(gp_src->children[j]);
-                    const auto index = get_model(id);
-                    gp_dst->children[j] = c_models[index].dst;
-                } else {
-                    const auto id = std::get<cluster_id>(gp_src->children[j]);
-                    const auto index = get_cluster(id);
-                    gp_dst->children[j] = c_clusters[index].dst;
-                }
-            }
+//         /* Finally, merge clusters and models from user selection into the
+//            editor.top structure. */
 
-            for (size_t j = 0, ej = gp_src->input_ports.size(); j != ej; ++j) {
-                const auto index = get_input_port(gp_src->input_ports[j]);
-                gp_dst->input_ports[j] = c_input_ports[index].dst;
-            }
+//         for (size_t i = 0; i != models_to_merge_with_top; ++i) {
+//             ed.top.emplace_back(c_models[i].dst);
+//             ed.parent(c_models[i].dst, undefined<cluster_id>());
+//         }
 
-            for (size_t j = 0, ej = gp_src->output_ports.size(); j != ej; ++j) {
-                const auto index = get_output_port(gp_src->output_ports[j]);
-                gp_dst->output_ports[j] = c_output_ports[index].dst;
-            }
-        }
+//         for (size_t i = 0; i != clusters_to_merge_with_top; ++i) {
+//             ed.top.emplace_back(c_clusters[i].dst);
+//             ed.parent(c_clusters[i].dst, undefined<cluster_id>());
+//         }
 
-        // for (size_t i = 0, e = std::size(c_input_ports); i != e; ++i) {
-        //    const auto* src =
-        //    sim.input_ports.try_to_get(c_input_ports[i].src); auto* dst =
-        //    sim.input_ports.try_to_get(c_input_ports[i].dst);
-
-        //    assert(dst->connections.empty());
-
-        //    for (const auto port : src->connections) {
-        //        const auto index = get_output_port(port);
-        //        dst->connections.emplace_front(c_output_ports[index].dst);
-        //    }
-        //}
-
-        // for (size_t i = 0, e = std::size(c_output_ports); i != e; ++i) {
-        //    const auto* src =
-        //      sim.output_ports.try_to_get(c_output_ports[i].src);
-        //    auto* dst = sim.output_ports.try_to_get(c_output_ports[i].dst);
-
-        //    assert(dst->connections.empty());
-
-        //    for (const auto port : src->connections) {
-        //        const auto index = get_input_port(port);
-        //        dst->connections.emplace_front(c_input_ports[index].dst);
-        //    }
-        //}
-
-        for (size_t i = 0, e = std::size(c_models); i != e; ++i) {
-            const auto parent_src = ed.parent(c_models[i].src);
-            const auto index = get_cluster(parent_src);
-
-            if (index == not_found)
-                ed.parent(c_models[i].dst, parent_src);
-            else
-                ed.parent(c_models[i].dst, c_clusters[index].dst);
-        }
-
-        for (size_t i = 0, e = std::size(c_clusters); i != e; ++i) {
-            const auto parent_src = ed.parent(c_clusters[i].src);
-            const auto index = get_cluster(parent_src);
-
-            if (index == not_found)
-                ed.parent(c_models[i].dst, parent_src);
-            else
-                ed.parent(c_models[i].dst, c_clusters[index].dst);
-        }
-
-        /* Finally, merge clusters and models from user selection into the
-           editor.top structure. */
-
-        for (size_t i = 0; i != models_to_merge_with_top; ++i) {
-            ed.top.emplace_back(c_models[i].dst);
-            ed.parent(c_models[i].dst, undefined<cluster_id>());
-        }
-
-        for (size_t i = 0; i != clusters_to_merge_with_top; ++i) {
-            ed.top.emplace_back(c_clusters[i].dst);
-            ed.parent(c_clusters[i].dst, undefined<cluster_id>());
-        }
-
-        return status::success;
-    }
-};
+//         return status::success;
+//     }
+// };
 
 static void
-compute_connection_distance(const child_id src,
-                            const child_id dst,
+compute_connection_distance(const model_id src,
+                            const model_id dst,
                             editor& ed,
                             const float k)
 {
-    const auto v = ed.get_top_group_ref(src);
-    const auto u = ed.get_top_group_ref(dst);
+    const auto v = get_index(src);
+    const auto u = get_index(dst);
 
     const float dx = ed.positions[v].x - ed.positions[u].x;
     const float dy = ed.positions[v].y - ed.positions[u].y;
@@ -777,7 +374,8 @@ compute_connection_distance(const model& mdl,
     dispatch(mdl,
              [&mdl, port, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
                  if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                     for (auto& dst : dyn.y[port].connections)
+                     auto list = ed.sim.allocs.get_node(dyn.y[port]);
+                     for (auto& dst : list)
                          compute_connection_distance(
                            ed.sim.get_id(mdl), dst.model, ed, k);
                  }
@@ -789,10 +387,13 @@ compute_connection_distance(const model& mdl, editor& ed, const float k)
 {
     dispatch(mdl, [&mdl, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            for (auto& elem : dyn.y)
-                for (auto& dst : elem.connections)
+            for (auto& elem : dyn.y) {
+                auto list = ed.sim.allocs.get_node(elem);
+
+                for (auto& dst : list)
                     compute_connection_distance(
                       ed.sim.get_id(mdl), dst.model, ed, k);
+            }
         }
     });
 }
@@ -800,15 +401,15 @@ compute_connection_distance(const model& mdl, editor& ed, const float k)
 void
 editor::compute_grid_layout() noexcept
 {
-    const auto size = length(top.children);
+    const auto size = sim.models.size();
 
-    if (size == 0)
+    if (size == 0 || size > std::numeric_limits<int>::max())
         return;
 
     const auto tmp = std::sqrt(size);
     const auto column = static_cast<int>(tmp);
     auto line = column;
-    auto remaining = size - (column * line);
+    auto remaining = static_cast<int>(size) - (column * line);
 
     while (remaining > column) {
         ++line;
@@ -818,15 +419,22 @@ editor::compute_grid_layout() noexcept
     const auto panning = ImNodes::EditorContextGetPanning();
     auto new_pos = panning;
 
+    model* mdl = nullptr;
     int elem = 0;
 
     for (int i = 0; i < column; ++i) {
+        if (!sim.models.next(mdl))
+            break;
+
+        auto mdl_id = sim.models.get_id(mdl);
+        auto mdl_index = get_index(mdl_id);
+
         new_pos.y =
           panning.y + static_cast<float>(i) * settings.grid_layout_y_distance;
         for (int j = 0; j < line; ++j) {
             new_pos.x = panning.x +
                         static_cast<float>(j) * settings.grid_layout_x_distance;
-            ImNodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
+            ImNodes::SetNodeGridSpacePos(mdl_index, new_pos);
             positions[elem].x = new_pos.x;
             positions[elem].y = new_pos.y;
             ++elem;
@@ -837,9 +445,15 @@ editor::compute_grid_layout() noexcept
     new_pos.y =
       panning.y + static_cast<float>(column) * settings.grid_layout_y_distance;
     for (int j = 0; j < remaining; ++j) {
+        if (!sim.models.next(mdl))
+            break;
+
+        auto mdl_id = sim.models.get_id(mdl);
+        auto mdl_index = get_index(mdl_id);
+
         new_pos.x =
           panning.x + static_cast<float>(j) * settings.grid_layout_x_distance;
-        ImNodes::SetNodeGridSpacePos(top.children[elem].second, new_pos);
+        ImNodes::SetNodeGridSpacePos(mdl_index, new_pos);
         positions[elem].x = new_pos.x;
         positions[elem].y = new_pos.y;
         ++elem;
@@ -856,11 +470,15 @@ editor::compute_automatic_layout() noexcept
        Experience, Vol. 21(1 1), 1129-1164 (november 1991).
        */
 
-    const auto size = length(top.children);
+    const auto size = sim.models.size();
+
+    if (size == 0 || size > std::numeric_limits<int>::max())
+        return;
+
     const auto tmp = std::sqrt(size);
     const auto column = static_cast<int>(tmp);
     auto line = column;
-    auto remaining = size - (column * line);
+    auto remaining = static_cast<int>(size) - (column * line);
 
     while (remaining > column) {
         ++line;
@@ -872,7 +490,7 @@ editor::compute_automatic_layout() noexcept
     const float L =
       line + (remaining > 0) ? settings.automatic_layout_y_distance : 0.f;
     const float area = W * L;
-    const float k_square = area / static_cast<float>(top.children.size());
+    const float k_square = area / static_cast<float>(sim.models.size());
     const float k = std::sqrt(k_square);
 
     // float t = 1.f - static_cast<float>(iteration) /
@@ -908,29 +526,15 @@ editor::compute_automatic_layout() noexcept
             }
         }
 
-        for (size_t i = 0, e = top.children.size(); i != e; ++i) {
-            if (top.children[i].first.index() == 0) {
-                const auto id = std::get<model_id>(top.children[i].first);
-                if (const auto* mdl = sim.models.try_to_get(id); mdl)
-                    compute_connection_distance(*mdl, *this, k);
-            } else {
-                const auto id = std::get<cluster_id>(top.children[i].first);
-                if (auto* gp = clusters.try_to_get(id); gp) {
-                    for (sz i = 0; i < std::size(gp->output_ports); ++i) {
-                        auto model_port = get_out(gp->output_ports[i]);
-                        if (model_port.model) {
-                            compute_connection_distance(*model_port.model,
-                                                        model_port.port_index,
-                                                        *this,
-                                                        k);
-                        }
-                    }
-                }
-            }
+        model* mdl = nullptr;
+        while (sim.models.next(mdl)) {
+            compute_connection_distance(*mdl, *this, k);
         }
 
         auto sum = 0.f;
+        mdl = nullptr;
         for (int i_v = 0; i_v < size; ++i_v) {
+            irt_assert(sim.models.next(mdl));
             const int v = i_v;
 
             const float d2 = displacements[v].x * displacements[v].x +
@@ -949,7 +553,10 @@ editor::compute_automatic_layout() noexcept
             positions[v].x += displacements[v].x;
             positions[v].y += displacements[v].y;
 
-            ImNodes::SetNodeGridSpacePos(top.children[v].second, positions[v]);
+            const auto mdl_id = sim.models.get_id(mdl);
+            const auto mdl_index = get_index(mdl_id);
+
+            ImNodes::SetNodeGridSpacePos(mdl_index, positions[v]);
         }
     }
 
@@ -959,55 +566,59 @@ editor::compute_automatic_layout() noexcept
 status
 editor::copy(const ImVector<int>& nodes) noexcept
 {
-    copier cp;
+    // copier cp;
 
-    std::vector<cluster_id> copy_stack;
+    // std::vector<cluster_id> copy_stack;
 
-    for (int i = 0, e = nodes.size(); i != e; ++i) {
-        const auto index = top.get_index(nodes[i]);
-        if (index == not_found)
-            continue;
+    // for (int i = 0, e = nodes.size(); i != e; ++i) {
+    //     const auto index = top.get_index(nodes[i]);
+    //     if (index == not_found)
+    //         continue;
 
-        const auto child = top.children[index];
+    //     const auto child = top.children[index];
 
-        if (child.first.index() == 0) {
-            const auto id = std::get<model_id>(child.first);
-            if (auto* mdl = sim.models.try_to_get(id); mdl)
-                cp.c_models.emplace_back(id, undefined<model_id>());
-        } else {
-            const auto id = std::get<cluster_id>(child.first);
-            if (auto* gp = clusters.try_to_get(id); gp) {
-                cp.c_clusters.emplace_back(id, undefined<cluster_id>());
-                copy_stack.emplace_back(id);
-            }
-        }
-    }
+    //     if (child.first.index() == 0) {
+    //         const auto id = std::get<model_id>(child.first);
+    //         if (auto* mdl = sim.models.try_to_get(id); mdl)
+    //             cp.c_models.emplace_back(id, undefined<model_id>());
+    //     } else {
+    //         const auto id = std::get<cluster_id>(child.first);
+    //         if (auto* gp = clusters.try_to_get(id); gp) {
+    //             cp.c_clusters.emplace_back(id, undefined<cluster_id>());
+    //             copy_stack.emplace_back(id);
+    //         }
+    //     }
+    // }
 
-    const auto models_to_merge_with_top = std::size(cp.c_models);
-    const auto clusters_to_merge_with_top = std::size(cp.c_clusters);
+    // const auto models_to_merge_with_top = std::size(cp.c_models);
+    // const auto clusters_to_merge_with_top = std::size(cp.c_clusters);
 
-    while (!copy_stack.empty()) {
-        const auto gp_id = copy_stack.back();
-        copy_stack.pop_back();
+    // while (!copy_stack.empty()) {
+    //     const auto gp_id = copy_stack.back();
+    //     copy_stack.pop_back();
 
-        if (auto* gp = clusters.try_to_get(gp_id); gp) {
-            for (const auto child : gp->children) {
-                if (child.index() == 0) {
-                    const auto id = std::get<model_id>(child);
-                    if (auto* mdl = sim.models.try_to_get(id); mdl)
-                        cp.c_models.emplace_back(id, undefined<model_id>());
-                } else {
-                    const auto id = std::get<cluster_id>(child);
-                    if (auto* gp = clusters.try_to_get(id); gp) {
-                        cp.c_clusters.emplace_back(id, undefined<cluster_id>());
-                        copy_stack.emplace_back(id);
-                    }
-                }
-            }
-        }
-    }
+    //     if (auto* gp = clusters.try_to_get(gp_id); gp) {
+    //         for (const auto child : gp->children) {
+    //             if (child.index() == 0) {
+    //                 const auto id = std::get<model_id>(child);
+    //                 if (auto* mdl = sim.models.try_to_get(id); mdl)
+    //                     cp.c_models.emplace_back(id, undefined<model_id>());
+    //             } else {
+    //                 const auto id = std::get<cluster_id>(child);
+    //                 if (auto* gp = clusters.try_to_get(id); gp) {
+    //                     cp.c_clusters.emplace_back(id,
+    //                     undefined<cluster_id>());
+    //                     copy_stack.emplace_back(id);
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
-    return cp.copy(*this, models_to_merge_with_top, clusters_to_merge_with_top);
+    // return cp.copy(*this, models_to_merge_with_top,
+    // clusters_to_merge_with_top);
+    //
+    return status::success;
 }
 
 status
@@ -1015,8 +626,6 @@ editor::initialize(u32 id) noexcept
 {
     irt_return_if_bad(sim.init(to_unsigned(settings.kernel_model_cache),
                                to_unsigned(settings.kernel_message_cache)));
-    irt_return_if_bad(clusters.init(sim.models.capacity()));
-    irt_return_if_bad(top.init(to_unsigned(settings.gui_node_cache)));
     irt_return_if_bad(plot_outs.init(to_unsigned(settings.kernel_model_cache)));
     irt_return_if_bad(file_outs.init(to_unsigned(settings.kernel_model_cache)));
     irt_return_if_bad(
@@ -1027,17 +636,12 @@ editor::initialize(u32 id) noexcept
 
     try {
         observation_outputs.resize(sim.models.capacity());
-        models_mapper.resize(sim.models.capacity(), undefined<cluster_id>());
-        clusters_mapper.resize(sim.models.capacity(), undefined<cluster_id>());
         models_make_transition.resize(sim.models.capacity(), false);
 
-        positions.resize(sim.models.capacity() + clusters.capacity(),
-                         ImVec2{ 0.f, 0.f });
-        displacements.resize(sim.models.capacity() + clusters.capacity(),
-                             ImVec2{ 0.f, 0.f });
+        positions.resize(sim.models.capacity(), ImVec2{ 0.f, 0.f });
+        displacements.resize(sim.models.capacity(), ImVec2{ 0.f, 0.f });
 
         observation_directory = std::filesystem::current_path();
-
     } catch (const std::bad_alloc& /*e*/) {
         return status::gui_not_enough_memory;
     }
@@ -1101,22 +705,6 @@ editor::add_lotka_volterra() noexcept
     irt_return_if_bad(sim.connect(quantifier_b, 0, integrator_b, 0));
     irt_return_if_bad(sim.connect(integrator_a, 0, quantifier_a, 0));
     irt_return_if_bad(sim.connect(integrator_b, 0, quantifier_b, 0));
-
-    top.emplace_back(sim.get_id(sum_a));
-    top.emplace_back(sim.get_id(sum_b));
-    top.emplace_back(sim.get_id(product));
-    top.emplace_back(sim.get_id(integrator_a));
-    top.emplace_back(sim.get_id(integrator_b));
-    top.emplace_back(sim.get_id(quantifier_a));
-    top.emplace_back(sim.get_id(quantifier_b));
-
-    parent(sim.get_id(sum_a), undefined<cluster_id>());
-    parent(sim.get_id(sum_b), undefined<cluster_id>());
-    parent(sim.get_id(product), undefined<cluster_id>());
-    parent(sim.get_id(integrator_a), undefined<cluster_id>());
-    parent(sim.get_id(integrator_b), undefined<cluster_id>());
-    parent(sim.get_id(quantifier_a), undefined<cluster_id>());
-    parent(sim.get_id(quantifier_b), undefined<cluster_id>());
 
     return status::success;
 }
@@ -1217,36 +805,6 @@ editor::add_izhikevitch() noexcept
     irt_return_if_bad(sim.connect(integrator_b, 0, sum_d, 0));
     irt_return_if_bad(sim.connect(constant, 0, sum_d, 1));
 
-    top.emplace_back(sim.get_id(constant));
-    top.emplace_back(sim.get_id(constant2));
-    top.emplace_back(sim.get_id(constant3));
-    top.emplace_back(sim.get_id(sum_a));
-    top.emplace_back(sim.get_id(sum_b));
-    top.emplace_back(sim.get_id(sum_c));
-    top.emplace_back(sim.get_id(sum_d));
-    top.emplace_back(sim.get_id(product));
-    top.emplace_back(sim.get_id(integrator_a));
-    top.emplace_back(sim.get_id(integrator_b));
-    top.emplace_back(sim.get_id(quantifier_a));
-    top.emplace_back(sim.get_id(quantifier_b));
-    top.emplace_back(sim.get_id(cross));
-    top.emplace_back(sim.get_id(cross2));
-
-    parent(sim.get_id(constant), undefined<cluster_id>());
-    parent(sim.get_id(constant2), undefined<cluster_id>());
-    parent(sim.get_id(constant3), undefined<cluster_id>());
-    parent(sim.get_id(sum_a), undefined<cluster_id>());
-    parent(sim.get_id(sum_b), undefined<cluster_id>());
-    parent(sim.get_id(sum_c), undefined<cluster_id>());
-    parent(sim.get_id(sum_d), undefined<cluster_id>());
-    parent(sim.get_id(product), undefined<cluster_id>());
-    parent(sim.get_id(integrator_a), undefined<cluster_id>());
-    parent(sim.get_id(integrator_b), undefined<cluster_id>());
-    parent(sim.get_id(quantifier_a), undefined<cluster_id>());
-    parent(sim.get_id(quantifier_b), undefined<cluster_id>());
-    parent(sim.get_id(cross), undefined<cluster_id>());
-    parent(sim.get_id(cross2), undefined<cluster_id>());
-
     return status::success;
 }
 
@@ -1259,7 +817,8 @@ show_connection(editor& ed, const model& mdl, int port, int connection_id)
                  if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                      int out = make_output_node_id(ed.sim.get_id(dyn), port);
 
-                     for (const auto& c : dyn.y[port].connections) {
+                     auto list = ed.sim.allocs.get_node(dyn.y[port]);
+                     for (const auto& c : list) {
                          if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
                              mdl_dst) {
                              int in = make_input_node_id(c.model, c.port_index);
@@ -1284,7 +843,8 @@ show_connection(editor& ed, const model& mdl, int connection_id)
               for ([[maybe_unused]] auto& elem : dyn.y) {
                   int out = make_output_node_id(ed.sim.get_id(dyn), i);
 
-                  for (const auto& c : dyn.y[i].connections) {
+                  auto list = ed.sim.allocs.get_node(dyn.y[i]);
+                  for (const auto& c : list) {
                       if (auto* mdl_dst = ed.sim.models.try_to_get(c.model);
                           mdl_dst) {
                           int in = make_input_node_id(c.model, c.port_index);
@@ -1305,67 +865,8 @@ editor::show_connections() noexcept
 {
     int connection_id = 0;
 
-    for (size_t i = 0, e = top.children.size(); i != e; ++i) {
-        if (top.children[i].first.index() == 0) {
-            const auto id = std::get<model_id>(top.children[i].first);
-            if (const auto* mdl = sim.models.try_to_get(id); mdl)
-                connection_id = show_connection(*this, *mdl, connection_id);
-        } else {
-            const auto id = std::get<cluster_id>(top.children[i].first);
-            if (auto* gp = clusters.try_to_get(id); gp) {
-                for (sz i = 0; i < std::size(gp->output_ports); ++i) {
-                    auto model_port = get_out(gp->output_ports[i]);
-                    if (model_port.model) {
-                        show_connection(*this,
-                                        *model_port.model,
-                                        model_port.port_index,
-                                        connection_id);
-                    }
-                }
-            }
-        }
-    }
-}
-
-void
-editor::show_model_cluster(cluster& mdl) noexcept
-{
-    {
-        auto it = mdl.input_ports.begin();
-        auto end = mdl.input_ports.end();
-
-        while (it != end) {
-            const auto node = get_in(*it);
-            if (node.model) {
-                ImNodes::BeginInputAttribute(*it,
-                                             ImNodesPinShape_TriangleFilled);
-                ImGui::TextUnformatted("");
-                ImNodes::EndInputAttribute();
-                ++it;
-            } else {
-                it = mdl.input_ports.erase(it);
-            }
-        }
-    }
-
-    {
-        auto it = mdl.output_ports.begin();
-        auto end = mdl.output_ports.end();
-
-        while (it != end) {
-            const auto node = get_out(*it);
-
-            if (node.model) {
-                ImNodes::BeginOutputAttribute(*it,
-                                              ImNodesPinShape_TriangleFilled);
-                ImGui::TextUnformatted("");
-                ImNodes::EndOutputAttribute();
-                ++it;
-            } else {
-                it = mdl.output_ports.erase(it);
-            }
-        }
-    }
+    for (model* mdl = nullptr; sim.models.next(mdl);)
+        connection_id = show_connection(*this, *mdl, connection_id);
 }
 
 template<typename Dynamics>
@@ -1674,38 +1175,38 @@ show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 }
 
 static void
-show_dynamics_values(simulation& /*sim*/, const queue& dyn)
+show_dynamics_values(simulation& sim, const queue& dyn)
 {
-    if (dyn.fifo.empty()) {
+    if (dyn.fifo == -1) {
         ImGui::Text("empty");
     } else {
-        ImGui::Text("size %" PRId64, dyn.fifo.size());
-        ImGui::Text("next ta %.3f", dyn.fifo.begin()->real[0]);
-        ImGui::Text("next value %.3f", dyn.fifo.begin()->real[1]);
+        auto list = sim.allocs.get_dated_message(dyn.fifo);
+        ImGui::Text("next ta %.3f", list.front().real[0]);
+        ImGui::Text("next value %.3f", list.front().real[1]);
     }
 }
 
 static void
-show_dynamics_values(simulation& /*sim*/, const dynamic_queue& dyn)
+show_dynamics_values(simulation& sim, const dynamic_queue& dyn)
 {
-    if (dyn.fifo.empty()) {
+    if (dyn.fifo == -1) {
         ImGui::Text("empty");
     } else {
-        ImGui::Text("size %" PRId64, dyn.fifo.size());
-        ImGui::Text("next ta %.3f", dyn.fifo.begin()->real[0]);
-        ImGui::Text("next value %.3f", dyn.fifo.begin()->real[1]);
+        auto list = sim.allocs.get_dated_message(dyn.fifo);
+        ImGui::Text("next ta %.3f", list.front().real[0]);
+        ImGui::Text("next value %.3f", list.front().real[1]);
     }
 }
 
 static void
-show_dynamics_values(simulation& /*sim*/, const priority_queue& dyn)
+show_dynamics_values(simulation& sim, const priority_queue& dyn)
 {
-    if (dyn.fifo.empty()) {
+    if (dyn.fifo == -1) {
         ImGui::Text("empty");
     } else {
-        ImGui::Text("size %" PRId64, dyn.fifo.size());
-        ImGui::Text("next ta %.3f", dyn.fifo.begin()->real[0]);
-        ImGui::Text("next value %.3f", dyn.fifo.begin()->real[1]);
+        auto list = sim.allocs.get_dated_message(dyn.fifo);
+        ImGui::Text("next ta %.3f", list.front().real[0]);
+        ImGui::Text("next value %.3f", list.front().real[1]);
     }
 }
 
@@ -2385,17 +1886,18 @@ editor::show_model_dynamics(model& mdl) noexcept
 
 template<typename Dynamics>
 static status
-make_input_tooltip(Dynamics& dyn, std::string& out)
+make_input_tooltip(simulation& sim, Dynamics& dyn, std::string& out)
 {
     if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-        sz i = 0;
+        int i = 0;
         for (auto& elem : dyn.x) {
-            if (elem.messages.empty())
+            if (!have_message(elem))
                 continue;
 
             fmt::format_to(std::back_inserter(out), "x[{}]: ", i);
 
-            for (const auto& msg : dyn.x[i].messages) {
+            auto list = sim.allocs.get_input_message(dyn.x[i]);
+            for (const auto& msg : list) {
                 switch (msg.size()) {
                 case 0:
                     fmt::format_to(std::back_inserter(out), "() ");
@@ -2439,7 +1941,7 @@ show_tooltip(editor& ed, const model& mdl, const model_id id)
 
         auto ret = dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                return make_input_tooltip(dyn, ed.tooltip);
+                return make_input_tooltip(ed.sim, dyn, ed.tooltip);
 
             return status::success;
         });
@@ -2463,97 +1965,61 @@ show_tooltip(editor& ed, const model& mdl, const model_id id)
 void
 editor::show_top() noexcept
 {
-    for (size_t i = 0, e = top.children.size(); i != e; ++i) {
-        if (top.children[i].first.index() == 0) {
-            const auto id = std::get<model_id>(top.children[i].first);
-            if (auto* mdl = sim.models.try_to_get(id); mdl) {
-                if (st != editor_status::editing &&
-                    models_make_transition[get_index(id)]) {
+    model* mdl = nullptr;
+    while (sim.models.next(mdl)) {
+        const auto mdl_id = sim.models.get_id(mdl);
+        const auto mdl_index = get_index(mdl_id);
 
-                    ImNodes::PushColorStyle(
-                      ImNodesCol_TitleBar,
-                      ImGui::ColorConvertFloat4ToU32(
-                        settings.gui_model_transition_color));
+        if (st != editor_status::editing && models_make_transition[mdl_index]) {
 
-                    ImNodes::PushColorStyle(
-                      ImNodesCol_TitleBarHovered,
-                      settings.gui_hovered_model_transition_color);
-                    ImNodes::PushColorStyle(
-                      ImNodesCol_TitleBarSelected,
-                      settings.gui_selected_model_transition_color);
-                } else {
-                    ImNodes::PushColorStyle(
-                      ImNodesCol_TitleBar,
-                      ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
+            ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                                    ImGui::ColorConvertFloat4ToU32(
+                                      settings.gui_model_transition_color));
 
-                    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                                            settings.gui_hovered_model_color);
-                    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                                            settings.gui_selected_model_color);
-                }
-
-                ImNodes::BeginNode(top.children[i].second);
-                ImNodes::BeginNodeTitleBar();
-                // ImGui::TextUnformatted(mdl->name.c_str());
-                // ImGui::OpenPopupOnItemClick("Rename model", 1);
-
-                // bool is_rename = true;
-                // ImGui::SetNextWindowSize(ImVec2(250, 200),
-                // ImGuiCond_Always); if (ImGui::BeginPopupModal("Rename
-                // model", &is_rename)) {
-                //    ImGui::InputText(
-                //      "Name##edit-1", mdl->name.begin(),
-                //      mdl->name.capacity());
-                //    if (ImGui::Button("Close"))
-                //        ImGui::CloseCurrentPopup();
-                //    ImGui::EndPopup();
-                //}
-
-                ImGui::Text("%zu\n%s",
-                            i,
-                            dynamics_type_names[static_cast<int>(mdl->type)]);
-
-                ImNodes::EndNodeTitleBar();
-                show_model_dynamics(*mdl);
-                ImNodes::EndNode();
-
-                ImNodes::PopColorStyle();
-                ImNodes::PopColorStyle();
-            }
+            ImNodes::PushColorStyle(
+              ImNodesCol_TitleBarHovered,
+              settings.gui_hovered_model_transition_color);
+            ImNodes::PushColorStyle(
+              ImNodesCol_TitleBarSelected,
+              settings.gui_selected_model_transition_color);
         } else {
-            const auto id = std::get<cluster_id>(top.children[i].first);
-            if (auto* gp = clusters.try_to_get(id); gp) {
-                ImNodes::PushColorStyle(
-                  ImNodesCol_TitleBar,
-                  ImGui::ColorConvertFloat4ToU32(settings.gui_cluster_color));
-                ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                                        settings.gui_hovered_cluster_color);
-                ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                                        settings.gui_selected_cluster_color);
+            ImNodes::PushColorStyle(
+              ImNodesCol_TitleBar,
+              ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
 
-                ImNodes::BeginNode(top.children[i].second);
-                ImNodes::BeginNodeTitleBar();
-                ImGui::TextUnformatted(gp->name.c_str());
-                ImGui::OpenPopupOnItemClick("Rename group", 1);
-
-                bool is_rename = true;
-                ImGui::SetNextWindowSize(ImVec2(250, 200), ImGuiCond_Always);
-                if (ImGui::BeginPopupModal("Rename group", &is_rename)) {
-                    ImGui::InputText(
-                      "Name##edit-2", gp->name.begin(), gp->name.capacity());
-                    if (ImGui::Button("Close"))
-                        ImGui::CloseCurrentPopup();
-                    ImGui::EndPopup();
-                }
-
-                ImNodes::EndNodeTitleBar();
-                show_model_cluster(*gp);
-                ImNodes::EndNode();
-
-                ImNodes::PopColorStyle();
-                ImNodes::PopColorStyle();
-            }
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
+                                    settings.gui_hovered_model_color);
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                    settings.gui_selected_model_color);
         }
+
+        ImNodes::BeginNode(mdl_index);
+        ImNodes::BeginNodeTitleBar();
+        // ImGui::TextUnformatted(mdl->name.c_str());
+        // ImGui::OpenPopupOnItemClick("Rename model", 1);
+
+        // bool is_rename = true;
+        // ImGui::SetNextWindowSize(ImVec2(250, 200),
+        // ImGuiCond_Always); if (ImGui::BeginPopupModal("Rename
+        // model", &is_rename)) {
+        //    ImGui::InputText(
+        //      "Name##edit-1", mdl->name.begin(),
+        //      mdl->name.capacity());
+        //    if (ImGui::Button("Close"))
+        //        ImGui::CloseCurrentPopup();
+        //    ImGui::EndPopup();
+        //}
+
+        ImGui::Text("%d\n%s",
+                    mdl_index,
+                    dynamics_type_names[static_cast<int>(mdl->type)]);
+
+        ImNodes::EndNodeTitleBar();
+        show_model_dynamics(*mdl);
+        ImNodes::EndNode();
+
+        ImNodes::PopColorStyle();
+        ImNodes::PopColorStyle();
     }
 }
 
@@ -2575,9 +2041,6 @@ editor::settings_manager::show(bool* is_open)
     ImGui::DragInt("node cache", &gui_node_cache, 1.f, 1024, 1024 * 1024);
     if (ImGui::ColorEdit3(
           "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
-        compute_colors();
-    if (ImGui::ColorEdit3(
-          "cluster", (float*)&gui_cluster_color, ImGuiColorEditFlags_NoOptions))
         compute_colors();
 
     ImGui::Text("Automatic layout parameters");
@@ -2718,20 +2181,18 @@ editor::show_editor() noexcept
         ImNodes::EndNodeEditor();
 
         if (new_model != undefined<model_id>()) {
-            parent(new_model, undefined<cluster_id>());
-            ImNodes::SetNodeScreenSpacePos(top.emplace_back(new_model),
-                                           click_pos);
+            const auto mdl_index = get_index(new_model);
+            ImNodes::SetNodeScreenSpacePos(mdl_index, click_pos);
         }
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
 
         int node_id;
         if (ImNodes::IsNodeHovered(&node_id) && is_running()) {
-            const auto index = top.get_index(node_id);
-            if (index != not_found || top.children[index].first.index() == 0) {
-                const auto id = std::get<model_id>(top.children[index].first);
-                if (auto* mdl = sim.models.try_to_get(id); mdl)
-                    show_tooltip(*this, *mdl, id);
+            auto* mdl = sim.models.try_to_get(node_id);
+            if (mdl) {
+                const auto mdl_id = sim.models.get_id(mdl);
+                show_tooltip(*this, *mdl, mdl_id);
             }
         } else
             tooltip.clear();
@@ -2769,19 +2230,8 @@ editor::show_editor() noexcept
                 free_children(selected_nodes);
             } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('D')) {
                 ImNodes::GetSelectedNodes(selected_nodes.begin());
-                log_w.log(
-                  7, "%d model(s)/group(s) to copy\n", num_selected_nodes);
+                log_w.log(7, "%d model(s) to copy\n", num_selected_nodes);
                 copy(selected_nodes);
-            } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('G')) {
-                if (num_selected_nodes > 1) {
-                    ImNodes::GetSelectedNodes(selected_nodes.begin());
-                    log_w.log(7, "%d model(s) to group\n", num_selected_nodes);
-                    group(selected_nodes);
-                } else if (num_selected_nodes == 1) {
-                    ImNodes::GetSelectedNodes(selected_nodes.begin());
-                    log_w.log(7, "group to ungroup\n");
-                    ungroup(selected_nodes[0]);
-                }
             }
             selected_nodes.resize(0);
         } else if (num_selected_links > 0) {
@@ -2819,8 +2269,9 @@ editor::show_editor() noexcept
                                                       Dynamics>) {
                               int j = 0;
                               for ([[maybe_unused]] auto& elem : dyn.y) {
-                                  for (const auto& elem :
-                                       dyn.y[j].connections) {
+                                  auto list =
+                                    this->sim.allocs.get_node(dyn.y[j]);
+                                  for (const auto& elem : list) {
                                       if (current_link_id ==
                                           link_id_to_delete) {
                                           this->sim.disconnect(
@@ -2868,24 +2319,16 @@ editor::show_editor() noexcept
                 names[i] = fmt::format("{}", selected_nodes[i]);
 
             for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
-                const auto index = top.get_index(selected_nodes[i]);
-
-                if (index == not_found)
-                    continue;
-
-                const auto& child = top.children[index];
-                if (child.first.index())
-                    continue;
-
-                const auto id = std::get<model_id>(child.first);
-                model* mdl = sim.models.try_to_get(id);
+                auto* mdl = sim.models.try_to_get(selected_nodes[i]);
                 if (!mdl)
                     continue;
+
+                const auto id = sim.models.get_id(mdl);
 
                 if (ImGui::TreeNodeEx(names[i].c_str(),
                                       ImGuiTreeNodeFlags_DefaultOpen)) {
                     const auto index = get_index(id);
-                    auto out = observation_outputs[index];
+                    auto& out = observation_outputs[index];
                     auto old_choose = static_cast<int>(out.index());
                     auto choose = old_choose;
 
@@ -3056,9 +2499,7 @@ editor::show_window() noexcept
             ImGui::EndMenu();
         }
 
-        auto empty_fun = [this](irt::model_id id) {
-            this->top.emplace_back(id);
-            parent(id, undefined<cluster_id>());
+        auto empty_fun = [this](irt::model_id /*id*/) {
         };
 
         if (ImGui::BeginMenu("Examples")) {
@@ -3225,13 +2666,10 @@ editor::show_window() noexcept
             if (auto is = std::ifstream(path); is.is_open()) {
                 reader r(is);
                 auto ret = r(sim, srcs, [&r, this](model_id id) {
-                    parent(id, undefined<cluster_id>());
-
                     const auto index = get_index(id);
-                    const auto new_id = top.emplace_back(id);
                     const auto pos = r.get_position(index);
 
-                    ImNodes::SetNodeEditorSpacePos(new_id,
+                    ImNodes::SetNodeEditorSpacePos(index,
                                                    ImVec2(pos.x, pos.y));
                 });
 
