@@ -1043,1345 +1043,16 @@ struct dated_message
 
 /*****************************************************************************
  *
- * Flat list
- *
- ****************************************************************************/
-
-template<typename T>
-class block_allocator
-{
-public:
-    using value_type = T;
-
-    union block
-    {
-        block* next;
-        typename std::aligned_storage<sizeof(T), alignof(T)>::type storage;
-    };
-
-private:
-    block* blocks{ nullptr };    // contains all preallocated blocks
-    block* free_head{ nullptr }; // a free list
-    sz size{ 0 };                // number of active elements allocated
-    sz max_size{ 0 }; // number of elements allocated (with free_head)
-    sz capacity{ 0 }; // capacity of the allocator
-
-public:
-    block_allocator() = default;
-
-    block_allocator(const block_allocator&) = delete;
-    block_allocator& operator=(const block_allocator&) = delete;
-
-    ~block_allocator() noexcept
-    {
-        if (blocks)
-            g_free_fn(blocks);
-    }
-
-    status init(std::size_t new_capacity) noexcept
-    {
-        if (new_capacity == 0)
-            return status::block_allocator_bad_capacity;
-
-        if (new_capacity != capacity) {
-            if (blocks)
-                g_free_fn(blocks);
-
-            blocks =
-              static_cast<block*>(g_alloc_fn(new_capacity * sizeof(block)));
-            if (blocks == nullptr)
-                return status::block_allocator_not_enough_memory;
-        }
-
-        size = 0;
-        max_size = 0;
-        capacity = new_capacity;
-        free_head = nullptr;
-
-        return status::success;
-    }
-
-    void reset() noexcept
-    {
-        if (capacity > 0) {
-            size = 0;
-            max_size = 0;
-            free_head = nullptr;
-        }
-    }
-
-    T* alloc() noexcept
-    {
-        block* new_block = nullptr;
-
-        if (free_head != nullptr) {
-            new_block = free_head;
-            free_head = free_head->next;
-        } else {
-            irt_assert(max_size < capacity);
-            new_block = reinterpret_cast<block*>(&blocks[max_size++]);
-        }
-        ++size;
-
-        return reinterpret_cast<T*>(new_block);
-    }
-
-    bool can_alloc() noexcept
-    {
-        return free_head != nullptr || max_size < capacity;
-    }
-
-    void free(T* n) noexcept
-    {
-        irt_assert(n);
-
-        block* ptr = reinterpret_cast<block*>(n);
-
-        ptr->next = free_head;
-        free_head = ptr;
-
-        --size;
-
-        if (size == 0) {         // A special part: if it no longer exists
-            max_size = 0;        // we reset the free list and the number
-            free_head = nullptr; // of elements allocated.
-        }
-    }
-
-    bool can_alloc(size_t number) const noexcept
-    {
-        return number + size < capacity;
-    }
-};
-
-template<typename T>
-class shared_flat_list
-{
-public:
-    struct node_type
-    {
-        T value;
-        node_type* next = nullptr;
-    };
-
-public:
-    using allocator_type = block_allocator<node_type>;
-    using value_type = T;
-    using reference = T&;
-    using const_reference = const T&;
-    using pointer = T*;
-
-    class iterator
-    {
-    private:
-        node_type* node{ nullptr };
-
-    public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
-        using difference_type = std::ptrdiff_t;
-
-        iterator() noexcept = default;
-
-        iterator(node_type* n) noexcept
-          : node(n)
-        {}
-
-        iterator(const iterator& other) noexcept
-          : node(other.node)
-        {}
-
-        iterator& operator=(const iterator& other) noexcept
-        {
-            node = other.node;
-            return *this;
-        }
-
-        T& operator*() noexcept
-        {
-            return node->value;
-        }
-
-        T* operator->() noexcept
-        {
-            return &node->value;
-        }
-
-        iterator operator++() noexcept
-        {
-            if (node != nullptr)
-                node = node->next;
-
-            return *this;
-        }
-
-        iterator operator++(int) noexcept
-        {
-            iterator tmp(*this);
-
-            if (node != nullptr)
-                node = node->next;
-
-            return tmp;
-        }
-
-        bool operator==(const iterator& other) const noexcept
-        {
-            return node == other.node;
-        }
-
-        bool operator!=(const iterator& other) const noexcept
-        {
-            return node != other.node;
-        }
-
-        void swap(iterator& other) noexcept
-        {
-            std::swap(node, other.node);
-        }
-
-        friend class shared_flat_list<T>;
-    };
-
-    class const_iterator
-    {
-    private:
-        const node_type* node{ nullptr };
-
-    public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
-        using difference_type = std::ptrdiff_t;
-
-        const_iterator() noexcept = default;
-
-        const_iterator(node_type* n) noexcept
-          : node(n)
-        {}
-
-        const_iterator(const const_iterator& other) noexcept
-          : node(other.node)
-        {}
-
-        const_iterator& operator=(const const_iterator& other) noexcept
-        {
-            node = other.node;
-            return *this;
-        }
-
-        const T& operator*() noexcept
-        {
-            return node->value;
-        }
-
-        const T* operator->() noexcept
-        {
-            return &node->value;
-        }
-
-        const_iterator operator++() noexcept
-        {
-            if (node != nullptr)
-                node = node->next;
-
-            return *this;
-        }
-
-        const_iterator operator++(int) noexcept
-        {
-            const_iterator tmp(*this);
-
-            if (node != nullptr)
-                node = node->next;
-
-            return tmp;
-        }
-
-        bool operator==(const const_iterator& other) const noexcept
-        {
-            return node == other.node;
-        }
-
-        bool operator!=(const const_iterator& other) const noexcept
-        {
-            return node != other.node;
-        }
-
-        void swap(const_iterator& other) noexcept
-        {
-            std::swap(node, other.node);
-        }
-
-        friend class shared_flat_list<T>;
-    };
-
-private:
-    node_type* node{ nullptr };
-
-public:
-    shared_flat_list() = default;
-
-    shared_flat_list(const shared_flat_list& other) = delete;
-    shared_flat_list& operator=(const shared_flat_list& other) = delete;
-    shared_flat_list(shared_flat_list&& other) = delete;
-    shared_flat_list& operator=(shared_flat_list&& other) = delete;
-
-    ~shared_flat_list() noexcept = default;
-
-    void clear(allocator_type& allocator) noexcept
-    {
-        node_type* prev = node;
-
-        while (node != nullptr) {
-            node = node->next;
-            allocator.free(prev);
-            prev = node;
-        }
-    }
-
-    bool empty() const noexcept
-    {
-        return node == nullptr;
-    }
-
-    iterator begin() noexcept
-    {
-        return iterator(node);
-    }
-
-    iterator end() noexcept
-    {
-        return iterator(nullptr);
-    }
-
-    const_iterator begin() const noexcept
-    {
-        return const_iterator(node);
-    }
-
-    const_iterator end() const noexcept
-    {
-        return const_iterator(nullptr);
-    }
-
-    reference front() noexcept
-    {
-        irt_assert(!empty());
-
-        return node->value;
-    }
-
-    const_reference front() const noexcept
-    {
-        irt_assert(!empty());
-
-        return node->value;
-    }
-
-    reference operator[](sz index) noexcept
-    {
-        sz i = 0;
-
-        for (auto it = begin(), et = end(); it != et; ++it, ++i)
-            if (i == index)
-                return *it;
-
-        irt_unreachable();
-    }
-
-    const_reference operator[](sz index) const noexcept
-    {
-        sz i = 0;
-
-        for (auto it = begin(), et = end(); it != et; ++it, ++i)
-            if (i == index)
-                return *it;
-
-        irt_unreachable();
-    }
-
-    template<typename... Args>
-    iterator emplace_front(allocator_type& allocator, Args&&... args) noexcept
-    {
-        node_type* new_node = allocator.alloc();
-
-        new (&new_node->value) T(std::forward<Args>(args)...);
-
-        new_node->next = node;
-        node = new_node;
-
-        return begin();
-    }
-
-    template<typename... Args>
-    iterator emplace_after(allocator_type& allocator,
-                           iterator it,
-                           Args&&... args) noexcept
-    {
-        node_type* new_node = allocator.alloc();
-        new (&new_node->value) T(std::forward<Args>(args)...);
-
-        if (it->node == nullptr)
-            return emplace_front(std::forward<Args>(args)...);
-
-        new_node->next = it->node->next;
-        it->node->next = new_node;
-
-        return iterator(new_node);
-    }
-
-    template<typename... Args>
-    iterator try_emplace_front(allocator_type& allocator,
-                               Args&&... args) noexcept
-    {
-        auto [success, new_node] = allocator.try_alloc();
-
-        if (!success)
-            return end();
-
-        new (&new_node->value) T(std::forward<Args>(args)...);
-
-        new_node->next = node;
-        node = new_node;
-
-        return begin();
-    }
-
-    template<typename... Args>
-    iterator try_emplace_after(allocator_type& allocator,
-                               iterator it,
-                               Args&&... args) noexcept
-    {
-        auto [success, new_node] = allocator.try_alloc();
-
-        if (!success)
-            return end();
-
-        new (&new_node->value) T(std::forward<Args>(args)...);
-
-        if (it->node == nullptr)
-            return emplace_front(std::forward<Args>(args)...);
-
-        new_node->next = it->node->next;
-        it->node->next = new_node;
-
-        return iterator(new_node);
-    }
-
-    void pop_front(allocator_type& allocator) noexcept
-    {
-        if (node == nullptr)
-            return;
-
-        node_type* to_delete = node;
-        node = node->next;
-
-        if constexpr (!std::is_trivial_v<T>)
-            to_delete->value.~T();
-
-        allocator.free(to_delete);
-    }
-
-    iterator erase_after(allocator_type& allocator, iterator it) noexcept
-    {
-        if (it.node == nullptr)
-            return end();
-
-        node_type* to_delete = it.node->next;
-        if (to_delete == nullptr)
-            return end();
-
-        node_type* next = to_delete->next;
-        it.node->next = next;
-
-        if constexpr (!std::is_trivial_v<T>)
-            to_delete->value.~T();
-
-        allocator.free(to_delete);
-
-        return iterator(next);
-    }
-};
-
-template<typename T>
-class flat_list
-{
-public:
-    struct node_type
-    {
-        T value;
-        node_type* next = nullptr;
-    };
-
-public:
-    using allocator_type = block_allocator<node_type>;
-    using value_type = T;
-    using reference = T&;
-    using const_reference = const T&;
-    using pointer = T*;
-
-    class iterator
-    {
-    private:
-        node_type* node{ nullptr };
-
-    public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
-        using difference_type = std::ptrdiff_t;
-
-        iterator() noexcept = default;
-
-        iterator(node_type* n) noexcept
-          : node(n)
-        {}
-
-        iterator(const iterator& other) noexcept
-          : node(other.node)
-        {}
-
-        iterator& operator=(const iterator& other) noexcept
-        {
-            node = other.node;
-            return *this;
-        }
-
-        T& operator*() noexcept
-        {
-            return node->value;
-        }
-
-        T* operator->() noexcept
-        {
-            return &node->value;
-        }
-
-        iterator operator++() noexcept
-        {
-            if (node != nullptr)
-                node = node->next;
-
-            return *this;
-        }
-
-        iterator operator++(int) noexcept
-        {
-            iterator tmp(*this);
-
-            if (node != nullptr)
-                node = node->next;
-
-            return tmp;
-        }
-
-        bool operator==(const iterator& other) const noexcept
-        {
-            return node == other.node;
-        }
-
-        bool operator!=(const iterator& other) const noexcept
-        {
-            return node != other.node;
-        }
-
-        void swap(iterator& other) noexcept
-        {
-            std::swap(node, other.node);
-        }
-
-        friend class flat_list<T>;
-    };
-
-    class const_iterator
-    {
-    private:
-        const node_type* node{ nullptr };
-
-    public:
-        using iterator_category = std::forward_iterator_tag;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
-        using difference_type = std::ptrdiff_t;
-
-        const_iterator() noexcept = default;
-
-        const_iterator(node_type* n) noexcept
-          : node(n)
-        {}
-
-        const_iterator(const const_iterator& other) noexcept
-          : node(other.node)
-        {}
-
-        const_iterator& operator=(const const_iterator& other) noexcept
-        {
-            node = other.node;
-            return *this;
-        }
-
-        const T& operator*() noexcept
-        {
-            return node->value;
-        }
-
-        const T* operator->() noexcept
-        {
-            return &node->value;
-        }
-
-        const_iterator operator++() noexcept
-        {
-            if (node != nullptr)
-                node = node->next;
-
-            return *this;
-        }
-
-        const_iterator operator++(int) noexcept
-        {
-            const_iterator tmp(*this);
-
-            if (node != nullptr)
-                node = node->next;
-
-            return tmp;
-        }
-
-        bool operator==(const const_iterator& other) const noexcept
-        {
-            return node == other.node;
-        }
-
-        bool operator!=(const const_iterator& other) const noexcept
-        {
-            return node != other.node;
-        }
-
-        void swap(const_iterator& other) noexcept
-        {
-            std::swap(node, other.node);
-        }
-
-        friend class flat_list<T>;
-    };
-
-private:
-    allocator_type* allocator{ nullptr };
-    node_type* node{ nullptr };
-
-public:
-    flat_list() = default;
-
-    flat_list(allocator_type* allocator_new) noexcept
-      : allocator(allocator_new)
-    {}
-
-    flat_list(const flat_list& other) = delete;
-    flat_list& operator=(const flat_list& other) = delete;
-
-    flat_list(flat_list&& other) noexcept
-      : allocator(other.allocator)
-      , node(other.node)
-    {
-        other.allocator = nullptr;
-        other.node = nullptr;
-    }
-
-    void set_allocator(allocator_type* allocator_new) noexcept
-    {
-        clear();
-        allocator = allocator_new;
-        node = nullptr;
-    }
-
-    flat_list& operator=(flat_list&& other) noexcept
-    {
-        if (this != &other) {
-            clear();
-            allocator = other.allocator;
-            other.allocator = nullptr;
-            node = other.node;
-            other.node = nullptr;
-        }
-
-        return *this;
-    }
-
-    ~flat_list() noexcept
-    {
-        clear();
-    }
-
-    void clear() noexcept
-    {
-        node_type* prev = node;
-
-        while (node != nullptr) {
-            node = node->next;
-            allocator->free(prev);
-            prev = node;
-        }
-    }
-
-    bool empty() const noexcept
-    {
-        return node == nullptr;
-    }
-
-    iterator begin() noexcept
-    {
-        return iterator(node);
-    }
-
-    iterator end() noexcept
-    {
-        return iterator(nullptr);
-    }
-
-    const_iterator begin() const noexcept
-    {
-        return const_iterator(node);
-    }
-
-    const_iterator end() const noexcept
-    {
-        return const_iterator(nullptr);
-    }
-
-    reference front() noexcept
-    {
-        irt_assert(!empty());
-
-        return node->value;
-    }
-
-    const_reference front() const noexcept
-    {
-        irt_assert(!empty());
-
-        return node->value;
-    }
-
-    template<typename... Args>
-    iterator emplace_front(Args&&... args) noexcept
-    {
-        node_type* new_node = allocator->alloc();
-
-        new (&new_node->value) T(std::forward<Args>(args)...);
-
-        new_node->next = node;
-        node = new_node;
-
-        return begin();
-    }
-
-    template<typename... Args>
-    iterator emplace_after(iterator it, Args&&... args) noexcept
-    {
-        node_type* new_node = allocator->alloc();
-        new (&new_node->value) T(std::forward<Args>(args)...);
-
-        if (it->node == nullptr)
-            return emplace_front(std::forward<Args>(args)...);
-
-        new_node->next = it->node->next;
-        it->node->next = new_node;
-
-        return iterator(new_node);
-    }
-
-    template<typename... Args>
-    iterator try_emplace_front(Args&&... args) noexcept
-    {
-        auto [success, new_node] = allocator->try_alloc();
-
-        if (!success)
-            return end();
-
-        new (&new_node->value) T(std::forward<Args>(args)...);
-
-        new_node->next = node;
-        node = new_node;
-
-        return begin();
-    }
-
-    template<typename... Args>
-    iterator try_emplace_after(iterator it, Args&&... args) noexcept
-    {
-        auto [success, new_node] = allocator->try_alloc();
-
-        if (!success)
-            return end();
-
-        new (&new_node->value) T(std::forward<Args>(args)...);
-
-        if (it->node == nullptr)
-            return emplace_front(std::forward<Args>(args)...);
-
-        new_node->next = it->node->next;
-        it->node->next = new_node;
-
-        return iterator(new_node);
-    }
-
-    void pop_front() noexcept
-    {
-        if (node == nullptr)
-            return;
-
-        node_type* to_delete = node;
-        node = node->next;
-
-        if constexpr (!std::is_trivial_v<T>)
-            to_delete->value.~T();
-
-        allocator->free(to_delete);
-    }
-
-    iterator erase_after(iterator it) noexcept
-    {
-        irt_assert(allocator);
-
-        if (it.node == nullptr)
-            return end();
-
-        node_type* to_delete = it.node->next;
-        if (to_delete == nullptr)
-            return end();
-
-        node_type* next = to_delete->next;
-        it.node->next = next;
-
-        if constexpr (!std::is_trivial_v<T>)
-            to_delete->value.~T();
-
-        allocator->free(to_delete);
-
-        return iterator(next);
-    }
-};
-
-template<typename T>
-class flat_double_list
-{
-private:
-    struct node_type
-    {
-        T value;
-        node_type* next = nullptr;
-        node_type* prev = nullptr;
-    };
-
-public:
-    using allocator_type = block_allocator<node_type>;
-    using value_type = T;
-    using reference = T&;
-    using pointer = T*;
-
-    class iterator
-    {
-    private:
-        flat_double_list* list{ nullptr };
-        node_type* node{ nullptr };
-
-    public:
-        using iterator_category = std::bidirectional_iterator_tag;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
-
-        iterator() noexcept = default;
-
-        iterator(flat_double_list* lst, node_type* n) noexcept
-          : list(lst)
-          , node(n)
-        {}
-
-        iterator(const iterator& other) noexcept
-          : list(other.list)
-          , node(other.node)
-        {}
-
-        iterator& operator=(const iterator& other) noexcept
-        {
-            list = other.list;
-            node = other.node;
-            return *this;
-        }
-
-        T& operator*() noexcept
-        {
-            return node->value;
-        }
-
-        T* operator*() const noexcept
-        {
-            return node->value;
-        }
-
-        pointer operator->() noexcept
-        {
-            return &(node->value);
-        }
-
-        pointer operator->() const noexcept
-        {
-            return &node->value;
-        }
-
-        iterator operator++() noexcept
-        {
-            node = (node == nullptr) ? list->m_front : node->next;
-
-            return *this;
-        }
-
-        iterator operator++(int) noexcept
-        {
-            iterator tmp(*this);
-
-            node = (node == nullptr) ? list->m_front : node->next;
-
-            return tmp;
-        }
-
-        iterator operator--() noexcept
-        {
-            node = (node == nullptr) ? list->m_back : node->prev;
-
-            return *this;
-        }
-
-        iterator operator--(int) noexcept
-        {
-            iterator tmp(*this);
-
-            node = (node == nullptr) ? list->m_back : node->prev;
-
-            return tmp;
-        }
-
-        bool operator==(const iterator& other) const noexcept
-        {
-            return node == other.node;
-        }
-
-        bool operator!=(const iterator& other) const noexcept
-        {
-            return node != other.node;
-        }
-
-        void swap(iterator& other) noexcept
-        {
-            std::swap(list, other.list);
-            std::swap(node, other.node);
-        }
-
-        friend class flat_double_list<T>;
-    };
-
-    class const_iterator
-    {
-    private:
-        const flat_double_list* list{ nullptr };
-        node_type* node{ nullptr };
-
-    public:
-        using const_iterator_category = std::bidirectional_iterator_tag;
-        using value_type = T;
-        using pointer = T*;
-        using reference = T&;
-
-        const_iterator() noexcept = default;
-
-        const_iterator(const flat_double_list* lst, node_type* n) noexcept
-          : list(lst)
-          , node(n)
-        {}
-
-        const_iterator(const const_iterator& other) noexcept
-          : list(other.list)
-          , node(other.node)
-        {}
-
-        const_iterator& operator=(const const_iterator& other) noexcept
-        {
-            list = other.list;
-            node = other.node;
-            return *this;
-        }
-
-        const T& operator*() noexcept
-        {
-            return node->value;
-        }
-
-        const T* operator->() noexcept
-        {
-            return &(node->value);
-        }
-
-        const_iterator operator++() noexcept
-        {
-            node = (node == nullptr) ? list->m_front : node->next;
-
-            return *this;
-        }
-
-        const_iterator operator++(int) noexcept
-        {
-            const_iterator tmp(*this);
-
-            node = (node == nullptr) ? list->m_front : node->next;
-
-            return tmp;
-        }
-
-        const_iterator operator--() noexcept
-        {
-            node = (node == nullptr) ? list->m_back : node->prev;
-
-            return *this;
-        }
-
-        const_iterator operator--(int) noexcept
-        {
-            const_iterator tmp(*this);
-
-            node = (node == nullptr) ? list->m_back : node->prev;
-
-            return tmp;
-        }
-
-        bool operator==(const const_iterator& other) const noexcept
-        {
-            return node == other.node;
-        }
-
-        bool operator!=(const const_iterator& other) const noexcept
-        {
-            return node != other.node;
-        }
-
-        void swap(const_iterator& other) noexcept
-        {
-            std::swap(list, other.list);
-            std::swap(node, other.node);
-        }
-
-        friend class flat_double_list<T>;
-    };
-
-private:
-    allocator_type* m_allocator{ nullptr };
-    node_type* m_front{ nullptr };
-    node_type* m_back{ nullptr };
-    i64 m_size{ 0 };
-
-public:
-    flat_double_list() = default;
-
-    flat_double_list(allocator_type* allocator)
-      : m_allocator(allocator)
-    {}
-
-    flat_double_list(const flat_double_list& other) = delete;
-    flat_double_list& operator=(const flat_double_list& other) = delete;
-
-    flat_double_list(flat_double_list&& other) noexcept
-      : m_allocator(other.m_allocator)
-      , m_front(other.m_front)
-      , m_back(other.m_back)
-      , m_size(other.m_size)
-    {
-        other.m_allocator = nullptr;
-        other.m_front = nullptr;
-        other.m_back = nullptr;
-        other.m_size = 0;
-    }
-
-    void set_allocator(allocator_type* allocator) noexcept
-    {
-        clear();
-        m_allocator = allocator;
-        m_front = nullptr;
-        m_back = nullptr;
-        m_size = 0;
-    }
-
-    allocator_type* get_allocator() const noexcept
-    {
-        return m_allocator;
-    }
-
-    flat_double_list& operator=(flat_double_list&& other) noexcept
-    {
-        if (this != &other) {
-            clear();
-            m_allocator = other.m_allocator;
-            other.m_allocator = nullptr;
-            m_front = other.m_front;
-            other.m_front = nullptr;
-            m_back = other.m_back;
-            other.m_back = nullptr;
-            m_size = other.m_size;
-            other.m_size = 0;
-        }
-
-        return *this;
-    }
-
-    ~flat_double_list() noexcept
-    {
-        clear();
-    }
-
-    void clear() noexcept
-    {
-        node_type* prev = m_front;
-
-        while (m_front != nullptr) {
-            m_front = m_front->next;
-            m_allocator->free(prev);
-            prev = m_front;
-        }
-
-        m_size = 0;
-        m_back = nullptr;
-    }
-
-    iterator begin() noexcept
-    {
-        return iterator(this, m_front);
-    }
-
-    iterator end() noexcept
-    {
-        return iterator(this, nullptr);
-    }
-
-    const_iterator begin() const noexcept
-    {
-        return const_iterator(this, m_front);
-    }
-
-    const_iterator end() const noexcept
-    {
-        return const_iterator(this, nullptr);
-    }
-
-    reference front() noexcept
-    {
-        return m_front->value;
-    }
-
-    reference back() noexcept
-    {
-        return m_back->value;
-    }
-
-    reference front() const noexcept
-    {
-        return m_front->value;
-    }
-
-    reference back() const noexcept
-    {
-        return m_back->value;
-    }
-
-    /**
-     * @brief Inserts a new element into the container directly before pos.
-     * @tparam ...Args
-     * @param pos
-     * @param ...args
-     * @return
-     */
-    template<typename... Args>
-    iterator emplace(iterator pos, Args&&... args) noexcept
-    {
-        if (!pos.node)
-            return emplace_back(std::forward<Args>(args)...);
-
-        if (!pos.node->prev)
-            return emplace_front(std::forward<Args>(args)...);
-
-        node_type* new_node = m_allocator->alloc();
-        new (&new_node->value) T(std::forward<Args>(args)...);
-        ++m_size;
-
-        new_node->prev = pos.node->prev;
-        new_node->next = pos.node;
-        pos.node->prev->next = new_node;
-        pos.node->prev = new_node;
-        return iterator(this, new_node);
-    }
-
-    template<typename... Args>
-    iterator emplace_front(Args&&... args) noexcept
-    {
-        node_type* new_node = m_allocator->alloc();
-        new (&new_node->value) T(std::forward<Args>(args)...);
-        ++m_size;
-
-        if (m_front) {
-            new_node->prev = nullptr;
-            new_node->next = m_front;
-            m_front->prev = new_node;
-            m_front = new_node;
-        } else {
-            new_node->prev = nullptr;
-            new_node->next = nullptr;
-            m_front = new_node;
-            m_back = new_node;
-        }
-
-        return begin();
-    }
-
-    template<typename... Args>
-    iterator emplace_back(Args&&... args) noexcept
-    {
-        node_type* new_node = m_allocator->alloc();
-        new (&new_node->value) T(std::forward<Args>(args)...);
-        ++m_size;
-
-        if (m_back) {
-            new_node->prev = m_back;
-            new_node->next = nullptr;
-            m_back->next = new_node;
-            m_back = new_node;
-        } else {
-            new_node->prev = nullptr;
-            new_node->next = nullptr;
-            m_front = new_node;
-            m_back = new_node;
-        }
-
-        return iterator(this, new_node);
-    }
-
-    template<typename... Args>
-    iterator try_emplace_front(Args&&... args) noexcept
-    {
-        auto [success, new_node] = m_allocator->try_alloc();
-
-        if (!success)
-            return end();
-
-        new (&new_node->value) T(std::forward<Args>(args)...);
-        ++m_size;
-
-        if (m_front) {
-            new_node->prev = nullptr;
-            new_node->next = m_front;
-            m_front->prev = new_node;
-            m_front = new_node;
-        } else {
-            new_node->prev = nullptr;
-            new_node->next = nullptr;
-            m_front = new_node;
-            m_back = new_node;
-        }
-
-        return begin();
-    }
-
-    template<typename... Args>
-    iterator try_emplace_back(Args&&... args) noexcept
-    {
-        auto [success, new_node] = m_allocator->try_alloc();
-
-        if (!success)
-            return end();
-
-        new (&new_node->value) T(std::forward<Args>(args)...);
-        ++m_size;
-
-        if (m_back) {
-            new_node->prev = m_back;
-            new_node->next = nullptr;
-            m_back->next = new_node;
-            m_back = new_node;
-        } else {
-            new_node->prev = nullptr;
-            new_node->next = nullptr;
-            m_front = new_node;
-            m_back = new_node;
-        }
-
-        return iterator(this, new_node);
-    }
-
-    void pop_front() noexcept
-    {
-        if (m_front == nullptr)
-            return;
-
-        node_type* to_delete = m_front;
-        m_front = m_front->next;
-
-        if (m_front)
-            m_front->prev = nullptr;
-        else
-            m_back = nullptr;
-
-        if constexpr (!std::is_trivial_v<T>)
-            to_delete->value.~T();
-
-        m_allocator->free(to_delete);
-        --m_size;
-    }
-
-    void pop_back() noexcept
-    {
-        if (m_back == nullptr)
-            return;
-
-        node_type* to_delete = m_back;
-        m_back = m_back->prev;
-
-        if (m_back)
-            m_back->next = nullptr;
-        else
-            m_front = nullptr;
-
-        if constexpr (!std::is_trivial_v<T>)
-            to_delete->value.~T();
-
-        m_allocator->free(to_delete);
-        --m_size;
-    }
-
-    bool empty() const noexcept
-    {
-        return m_size == 0;
-    }
-
-    i64 size() const noexcept
-    {
-        return m_size;
-    }
-};
-
-/*****************************************************************************
- *
  * data-array
  *
  ****************************************************************************/
 
-enum class model_id : std::uint64_t;
-enum class dynamics_id : std::uint64_t;
-enum class message_id : std::uint64_t;
-enum class observer_id : std::uint64_t;
+enum class model_id : u64;
+enum class dynamics_id : u64;
+enum class message_id : u64;
+enum class observer_id : u64;
+enum class connections_id : u64;
+enum class record_id : u64;
 
 template<typename T>
 constexpr u32
@@ -2826,18 +1497,6 @@ public:
     }
 };
 
-struct record
-{
-    record() noexcept = default;
-
-    record(double x_dot_, time date_) noexcept
-      : x_dot{ x_dot_ }
-      , date{ date_ }
-    {}
-
-    double x_dot{ 0 };
-    time date{ time_domain<time>::infinity };
-};
 
 /**
  * @brief Pairing heap implementation.
@@ -3355,6 +2014,226 @@ using has_init_port_t = decltype(&T::init);
 template<typename T>
 using has_sim_attribute_t = decltype(&T::sim);
 
+enum class forward_list : u32;
+enum class list : u64;
+
+template<typename T>
+class flat_list
+{
+public:
+    using value_type = T;
+
+    struct list_item {
+        T elem;
+        u32 begin;
+        u32 end;
+    };
+
+    struct forward_list_item {
+        T elem;
+        u32 begin;
+    }
+
+private:
+
+public:
+    u32 alloc()
+    {
+
+    }
+
+};
+
+
+template<typename T, typename Identifier>
+class data_array_list
+{
+public
+    using identifier_type = Identifier;
+    using value_type = T;
+
+private:
+    data_array<T, Identifier> data;
+
+public:
+    data_array_list() = default;
+
+    void clear(T& elem) noexcept
+    {
+        irt_assert(c.try_to_get(elem) != nullptr);
+        auto next = elem.next;
+        c.free(elem);
+
+        do {
+            auto *t_next = c.try_to_get(next);
+            if (!t_next)
+                break;
+
+            next = t_next->next;
+            c.free(*t_next);
+        } while (next != undefined<identifier_type>());
+    }
+
+    template<typename... Args>
+    auto& alloc(Identifier& id, Args&&... args) noexcept
+    {
+        irt_assert(data.try_to_get(id) == nullptr);
+
+        auto& new_elem = data.alloc(std::forward<Args>(args)...);
+        new_elem.prev = undefined<identifier_type>();
+        new_elem.next = undefined<identifier_type>();
+        id = data.get_id(new_elem);
+
+        return new_elem;
+    }
+
+    template<typename... Args>
+    auto& emplace_front(Identifier& id, Args&&... args) noexcept
+    {
+        auto *elem = data.try_to_get(id);
+        if (elem == nullptr)
+            return list_alloc(c, id, std::forward<Args>(args)...);
+
+        Identifier new_id = undefined<Identifier>();
+        auto& new_elem = list_alloc(c, new_id, std::forward<Args>(args)...);
+        new_elem.next = data.get_id(elem);
+        elem->prev = data.get_id(new_elem);
+
+        return new_elem;
+    }
+
+    void pop_front(Identifier& id) noexcept
+    {
+        auto *elem = data.try_to_get(id);
+        if (elem == nullptr) {
+            id = undefined<Identifier>();
+            return;
+        }
+
+        auto next_id = elem->next;
+        data.free(*elem);
+
+        auto* next = data.try_to_get(next_id);
+        id = (next == nullptr) ? undefined<Identifier>() : next_id;
+    }
+
+    template<typename... Args>
+    auto& emplace_after(Identifier& id, Args&&... args) noexcept
+    {
+        auto *elem = data.try_to_get(id);
+        if (elem == nullptr)
+            return list_alloc(c, id, std::forward<Args>(args)...);
+
+        Identifier new_id = undefined<Identifier>();
+        auto& new_elem = list_alloc(c, new_id, std::forward<Args>(args)...);
+
+        if (elem->next == undefined<Identifier>()) {
+            elem->next = new_id;
+            new_elem.prev = id;
+        } else {
+            if (auto *next_elem = data.try_to_get(elem->next); next_elem) {
+                new_elem.next = elem->next;
+                mext_elem.prev = new_id;
+                elem->next = new_id;
+                new_elem.prev = id;
+            } else {
+                elem->next = new_id;
+                new_elem.prev = id;            
+            }
+        }
+
+        return new_elem;
+    }
+
+    void remove_after(Identifier& id) noexcept
+    {
+        auto *elem = data.try_to_get(id);
+        if (elem == nullptr)
+            return;
+
+        auto next_id = elem->next;
+        auto *next = data.try_to_get(next_id);
+
+        if (next == nullptr) {
+            elem->next = undefined<Identifier>();
+        } else {
+            elem->next = next->next;
+            next->prev = data.get_id(elem);
+            data.free(next);
+        }
+    }
+
+    void remove(Identifier id) noexcept
+    {
+        auto *elem = data.try_to_get(id);
+        if (elem == nullptr)
+            return;
+
+        auto *prev = data.try_to_get(elem->prev);
+        auto *next = data.try_to_get(elem->next);
+
+        irt_assert((prev && next) || (!prev && !next));
+
+        prev->next = data.get_id(elem->next);
+        next->prev = data.get_id(elem->prev);
+    }
+
+    bool next(T&* elem) noexcept
+    {
+        irt_assert(elem);
+
+        if (elem->next == undefined<Identifier>())
+            return false;
+
+        auto* next = c.try_to_get(elem->next);
+        if (next == nullptr)
+            return false;
+
+        elem = next;
+
+        return true; 
+    }
+
+    bool can_alloc(Identifier id)
+    {
+        auto *elem = data.try_to_get(id);
+        if (!elem)
+            return false;
+
+        if (!elem->list.full())
+            return true;
+
+        while (next(elem)) {
+            if (!elem->list.full())
+                return true;
+        }
+
+        return false;
+    }
+
+    elem* find_first(Identifier& id)
+    {
+        auto *elem = data.try_to_get(id);
+        if (!elem) {
+            if (data.can_alloc())
+                return &alloc(id);
+            return nullptr;
+        }
+
+        if (!elem->list.full())
+            return elem;                
+
+        while (next(elem)) {
+            if (!elem->list.full())
+                return elem;
+        }
+
+        if (data.can_alloc())
+            return &emplace_front(id);
+        return nullptr;
+    }
+};
+
 struct node
 {
     node() = default;
@@ -3368,23 +2247,51 @@ struct node
     int port_index = 0;
 };
 
+struct record
+{
+    record() noexcept = default;
+
+    record(const double x_dot_, const time date_) noexcept
+      : x_dot{ x_dot_ }
+      , date{ date_ }
+    {}
+
+    double x_dot = 0.0;
+    time date = time_domain<time>::infinity;
+};
+
+struct archive
+{
+    small_vector<record, 32> list;
+    record_id next;
+    record_id prev;
+};
+
+struct message_list
+{
+    small_vector<message, 4> list;
+    message_id next;
+    message_id prev;
+};
+
+struct dated_message_list
+{
+    small_vector<message, 32> list;
+    dated_message_id next;
+    dated_message_id prev;
+};
+
+struct connection_list
+{
+    small_vector<node, 8> list;
+    connection_id next;
+    connection_id prev;
+};
+
 struct port
 {
-    shared_flat_list<node> connections;
-    flat_list<message> messages;
-    // message* output = nullptr;
-
-    // port& operator=(const double v) noexcept
-    // {
-    //     output[0] = v;
-    //     return *this;
-    // }
-
-    // port& operator=(const std::initializer_list<double>& v) noexcept
-    // {
-    //     std::copy_n(std::data(v), std::size(v), &output->real[0]);
-    //     return *this;
-    // }
+    connection_id connections;
+    message_id message;
 };
 
 struct none
@@ -3416,7 +2323,7 @@ struct integrator
 
     double default_current_value = 0.0;
     double default_reset_value = 0.0;
-    flat_double_list<record> archive;
+    record_id archive;
 
     double current_value = 0.0;
     double reset_value = 0.0;
@@ -4857,7 +3764,7 @@ struct quantifier
     int default_past_length = 3;
     adapt_state default_adapt_state = adapt_state::possible;
     bool default_zero_init_offset = false;
-    flat_double_list<record> archive;
+    record_id archive;
 
     double m_upthreshold = 0.0;
     double m_downthreshold = 0.0;
@@ -5918,7 +4825,7 @@ struct queue
     port x[1];
     port y[1];
     time sigma;
-    flat_double_list<dated_message> queue;
+    dated_message_id queue;
 
     double default_ta = 1.0;
 
@@ -5979,7 +4886,7 @@ struct dynamic_queue
     port x[1];
     port y[1];
     time sigma;
-    flat_double_list<dated_message> queue;
+    dated_message_id queue;
 
     simulation* sim = nullptr;
     source default_source_ta;
@@ -6048,7 +4955,7 @@ struct priority_queue
     port x[1];
     port y[1];
     time sigma;
-    flat_double_list<dated_message> queue;
+    dated_message_id queue;
     double default_ta = 1.0;
 
     simulation* sim = nullptr;
@@ -6235,10 +5142,7 @@ struct model
 class scheduller
 {
 private:
-    using list = flat_list<model_id>;
-    using allocator = typename list::allocator_type;
-
-    allocator m_list_allocator;
+    using list = std::vector<model_id>;
     list m_list;
     heap m_heap;
 
@@ -6248,9 +5152,7 @@ public:
     status init(size_t capacity) noexcept
     {
         irt_return_if_bad(m_heap.init(capacity));
-        irt_return_if_bad(m_list_allocator.init(capacity));
-
-        m_list.set_allocator(&m_list_allocator);
+        m_list.reserve(capacity);
 
         return status::success;
     }
@@ -6313,10 +5215,10 @@ public:
 
         m_list.clear();
 
-        m_list.emplace_front(m_heap.pop()->id);
+        m_list.emplace_back(m_heap.pop()->id);
 
         while (!m_heap.empty() && t == tn())
-            m_list.emplace_front(m_heap.pop()->id);
+            m_list.emplace_back(m_heap.pop()->id);
 
         return m_list;
     }
@@ -6497,15 +5399,10 @@ get_model(Dynamics& d) noexcept
 
 struct simulation
 {
-    flat_list<model_id>::allocator_type model_list_allocator;
-    flat_list<message>::allocator_type message_list_allocator;
-    shared_flat_list<node>::allocator_type node_list_allocator;
-    flat_list<port*>::allocator_type emitting_output_port_allocator;
-    flat_double_list<dated_message>::allocator_type dated_message_allocator;
-    flat_double_list<record>::allocator_type flat_double_list_shared_allocator;
-
+    data_array_list<message_list, message_id> messages;
+    data_array_list<dated_message_list, dated_message_id> messages;
+    data_array_list<connection_list, connection_id> messages;
     data_array<model, model_id> models;
-    data_array<message, message_id> messages;
     data_array<observer, observer_id> observers;
 
     scheduller sched;
@@ -6820,12 +5717,12 @@ public:
               []<typename Dynamics>([[maybe_unused]] Dynamics& dyn) -> void {
                   if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
                       for (sz i = 0; i < std::size(dyn.x); ++i)
-                          dyn.x[i].messages.clear();
+                        messages.clear(dyn.x[i].messages);
                   }
 
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                       for (sz i = 0; i < std::size(dyn.y); ++i)
-                          dyn.y[i].messages.clear();
+                          messages.clear(dyn.y[i].messages);
                   }
               });
         }
@@ -6871,21 +5768,9 @@ public:
         Dynamics& dyn = get_dyn<Dynamics>(mdl);
 
         if constexpr (std::is_same_v<Dynamics, integrator>)
-            dyn.archive.set_allocator(&flat_double_list_shared_allocator);
+            archives.alloc(dyn.archive);
         if constexpr (std::is_same_v<Dynamics, quantifier>)
-            dyn.archive.set_allocator(&flat_double_list_shared_allocator);
-
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-                dyn.x[i].messages.set_allocator(&message_list_allocator);
-            }
-        }
-
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                dyn.y[i].messages.set_allocator(&message_list_allocator);
-            }
-        }
+            archives.alloc(dyn.archive);
 
         return dyn;
     }
@@ -6906,21 +5791,9 @@ public:
             new (&dyn) Dynamics{};
 
             if constexpr (std::is_same_v<Dynamics, integrator>)
-                dyn.archive.set_allocator(&flat_double_list_shared_allocator);
+                archives.alloc(dyn.archive);
             if constexpr (std::is_same_v<Dynamics, quantifier>)
-                dyn.archive.set_allocator(&flat_double_list_shared_allocator);
-
-            if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                for (size_t i = 0, e = std::size(dyn.x); i != e; ++i) {
-                    dyn.x[i].messages.set_allocator(&message_list_allocator);
-                }
-            }
-
-            if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                for (size_t i = 0, e = std::size(dyn.y); i != e; ++i) {
-                    dyn.y[i].messages.set_allocator(&message_list_allocator);
-                }
-            }
+                archives.alloc(dyn.archive);
         });
 
         return mdl;
@@ -6957,44 +5830,20 @@ public:
     void do_deallocate(Dynamics& dyn) noexcept
     {
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            auto& mdl_src = get_model(dyn);
-
-            for (int i = 0, e = (int)std::size(dyn.y); i != e; ++i) {
-                while (!dyn.y[i].connections.empty()) {
-                    auto* mdl_dst =
-                      models.try_to_get(dyn.y[i].connections.front().model);
-                    if (mdl_dst) {
-                        disconnect(mdl_src,
-                                   i,
-                                   *mdl_dst,
-                                   dyn.y[i].connections.front().port_index);
-                    }
-                }
-
-                dyn.y[i].connections.clear(node_list_allocator);
-                dyn.y[i].messages.clear();
+            for (sz i = 0, e = std::size(dyn.y); i != e; ++i) {
+                connections.clear(dyn.y[i].connections);
+                messages.clear(dyn.y[i].messages);
             }
         }
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-            auto& mdl_dst = get_model(dyn);
+            for (sz i = 0, e = std::size(dyn.x); i != e; ++i)
+                messages.clear(dyn.x[i].messages);
 
-            for (int i = 0, e = (int)std::size(dyn.x); i != e; ++i) {
-                while (!dyn.x[i].connections.empty()) {
-                    auto* mdl_src =
-                      models.try_to_get(dyn.x[i].connections.front().model);
-                    if (mdl_src) {
-                        disconnect(*mdl_src,
-                                   dyn.x[i].connections.front().port_index,
-                                   mdl_dst,
-                                   i);
-                    }
-                }
-
-                dyn.x[i].connections.clear(node_list_allocator);
-                dyn.x[i].messages.clear();
-            }
-        }
+        if constexpr (std::is_same_v<Dynamics, integrator>)
+            archives.clear(dyn.archive);
+        if constexpr (std::is_same_v<Dynamics, quantifier>)
+            archives.clear(dyn.archive);
 
         dyn.~Dynamics();
     }
@@ -7090,7 +5939,7 @@ public:
         return dispatch(
           src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                  if (port_src >= 0 && port_src < (int)std::size(dyn.x)) {
+                  if (port_src >= 0 && port_src < length(dyn.x)) {
                       p = &dyn.x[port_src];
                       return status::success;
                   }
@@ -7105,7 +5954,7 @@ public:
         return dispatch(
           dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
               if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  if (port_dst >= 0 && port_dst < (int)std::size(dyn.y)) {
+                  if (port_dst >= 0 && port_dst < length(dyn.y)) {
                       p = &dyn.y[port_dst];
                       return status::success;
                   }
@@ -7126,24 +5975,20 @@ public:
         auto model_src_id = models.get_id(src);
         auto model_dst_id = models.get_id(dst);
 
-        auto it = src_port->connections.begin();
-        auto et = src_port->connections.end();
-
-        while (it != et) {
-            irt_return_if_fail(
-              !(it->model == model_dst_id && it->port_index == port_dst),
-              status::model_connect_already_exist);
-
-            ++it;
-        };
+        auto *cnt = connections.try_to_get(src_port->connections);
+        while (connections.next(cnt)) {
+            for (auto& node : cnt->connections) {
+                irt_return_if_fail(
+                  !(node.model == model_dst_id && node.port_index == port_dst),
+                  status::model_connect_already_exist);                
+            }
+        }
 
         irt_return_if_fail(is_ports_compatible(src, port_src, dst, port_dst),
                            status::model_connect_bad_dynamics);
 
-        src_port->connections.emplace_front(
-          node_list_allocator, model_dst_id, port_dst);
-        dst_port->connections.emplace_front(
-          node_list_allocator, model_src_id, port_src);
+        auto *list = connections.find_first(src_port->connections);
+        list.emplace_back(model_dst_id, port_dst);
 
         return status::success;
     }
@@ -7156,30 +6001,8 @@ public:
     {
         model& src_model = get_model(src);
         model& dst_model = get_model(dst);
-        model_id model_src_id = get_id(src);
-        model_id model_dst_id = get_id(dst);
 
-        auto it = std::begin(src.y[port_src].connections);
-        auto et = std::end(src.y[port_src].connections);
-
-        while (it != et) {
-            irt_return_if_fail(
-              !(it->model == model_dst_id && it->port_index == port_dst),
-              status::model_connect_already_exist);
-
-            ++it;
-        }
-
-        irt_return_if_fail(
-          is_ports_compatible(src_model, port_src, dst_model, port_dst),
-          status::model_connect_bad_dynamics);
-
-        src.y[port_src].connections.emplace_front(
-          node_list_allocator, model_dst_id, port_dst);
-        dst.x[port_dst].connections.emplace_front(
-          node_list_allocator, model_src_id, port_src);
-
-        return status::success;
+        return connect(src_model, port_src, dst_model, port_dst);
     }
 
     status disconnect(model& src,
@@ -7190,45 +6013,16 @@ public:
         port* src_port = nullptr;
         irt_return_if_bad(get_output_port(src, port_src, src_port));
 
+        auto dst_id = models.get_id(dst);
         port* dst_port = nullptr;
         irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
 
-        {
-            const auto end = std::end(src_port->connections);
-            auto it = std::begin(src_port->connections);
-
-            if (it->model == models.get_id(dst) && it->port_index == port_dst) {
-                src_port->connections.pop_front(node_list_allocator);
-            } else {
-                auto prev = it++;
-                while (it != end) {
-                    if (it->model == models.get_id(dst) &&
-                        it->port_index == port_dst) {
-                        src_port->connections.erase_after(node_list_allocator,
-                                                          prev);
-                        break;
-                    }
-                    prev = it++;
-                }
-            }
-        }
-
-        {
-            const auto end = std::end(dst_port->connections);
-            auto it = std::begin(dst_port->connections);
-
-            if (it->model == models.get_id(src) && it->port_index == port_src) {
-                dst_port->connections.pop_front(node_list_allocator);
-            } else {
-                auto prev = it++;
-                while (it != end) {
-                    if (it->model == models.get_id(src) &&
-                        it->port_index == port_src) {
-                        dst_port->connections.erase_after(node_list_allocator,
-                                                          prev);
-                        break;
-                    }
-                    prev = it++;
+        auto *cnt = connections(src_port->connections);
+        while (cnt) {
+            for (sz i = 0, e = cnt->list.size(); i != e; ++i) {
+                if (cnt->list[i]->model == dst_id && node->port_index == port_dst) {
+                    cnt->list.swap_pop_back(i);
+                    return;
                 }
             }
         }
@@ -7267,7 +6061,7 @@ public:
 
         const auto& bag = sched.pop();
 
-        flat_list<port*> emitting_output_ports(&emitting_output_port_allocator);
+        emitting_output_ports.clear();
 
         for (const auto id : bag)
             if (auto* mdl = models.try_to_get(id); mdl)
