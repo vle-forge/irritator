@@ -1,4 +1,3 @@
-This readme file is for the filter repo
+I am adding this to help in creation of a new pull request for the filterbranch master
 
-I am using this to modify my branch so that I can 
-Have a separate pull request for the filter
+all my comments for the filter task will be aded here
