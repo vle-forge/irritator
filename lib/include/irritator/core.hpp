@@ -5219,23 +5219,20 @@ struct constant
         return { value };
     }
 };
-//starts the filter +++++++++++++++++++++++++++++++++
+
 struct filter
 {
     port x[1];
     port y[1];
     time sigma;
-    i64 number;
 
     status initialize() noexcept
     {
         sigma=time_domain<time>::infinity;
-        number ={0}; 
         return status::success;
     }
 
 };
-//ends the filter--------------------------------
 
 struct flow
 {
