@@ -1793,6 +1793,7 @@ static void
 show_dynamics_values(simulation& /*sim*/, const filter& dyn)
 {
     ImGui::Text("input %.3f", dyn.x);
+    ImGui::Text("output %.3f", dyn.y);
 }
 
 static void
