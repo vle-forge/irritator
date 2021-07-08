@@ -1663,6 +1663,12 @@ show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 }
 
 static void
+show_dynamics_values(simulation& /*sim*/, const filter& dyn)
+{
+    ImGui::Text("number %ld", static_cast<long>(dyn.number));
+}
+
+static void
 show_dynamics_values(simulation& /*sim*/, const queue& dyn)
 {
     if (dyn.queue.empty()) {
@@ -1788,6 +1794,12 @@ show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
 static void
 show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 {}
+
+static void
+show_dynamics_values(simulation& /*sim*/, const filter& /*dyn*/)
+{
+    //ImGui::Text("number %ld", static_cast<long>(dyn.number));
+}
 
 static void
 show_dynamics_values(simulation& /*sim*/, const flow& dyn)
@@ -2004,6 +2016,12 @@ show_dynamics_inputs(editor& /*ed*/, mult_4& dyn)
 static void
 show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
 {}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
+{
+    //ImGui::InputDouble("in", &dyn.x);
+}
 
 static void
 show_dynamics_inputs(editor& /*ed*/, queue& dyn)
@@ -2309,6 +2327,10 @@ show_dynamics_inputs(editor& /*ed*/, cross& dyn)
 
 static void
 show_dynamics_inputs(editor& /*ed*/, accumulator_2& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
 {}
 
 static void
@@ -2667,6 +2689,7 @@ editor::show_editor() noexcept
             }
 
             add_popup_menuitem(*this, dynamics_type::counter, &new_model);
+            add_popup_menuitem(*this, dynamics_type::filter, &new_model);
             add_popup_menuitem(*this, dynamics_type::queue, &new_model);
             add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
             add_popup_menuitem(
@@ -2675,6 +2698,7 @@ editor::show_editor() noexcept
             add_popup_menuitem(*this, dynamics_type::constant, &new_model);
             add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
             add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::filter, &new_model);
             add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
             ImGui::EndPopup();
@@ -3077,6 +3101,21 @@ editor::show_window() noexcept
                       3,
                       "Fail to initialize example_qss_izhikevich<1>: %s\n",
                       status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 seir_lineaire")) 
+                if (auto ret = example_qss_seir_lineaire<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_seir_lineaire<1>: %s\n",
+                      status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS1 seir_nonlineaire"))
+                if (auto ret = example_qss_seir_nonlineaire<1>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                        3,
+                        "Fail to initialize "
+                        "example_qss_seir_nonlineaire<1>: %s\n",
+                        status_string(ret));
 
             if (ImGui::MenuItem("Insert example QSS2 lotka_volterra"))
                 if (auto ret = example_qss_lotka_volterra<2>(sim, empty_fun);
