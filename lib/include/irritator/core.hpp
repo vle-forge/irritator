@@ -3053,7 +3053,6 @@ enum class dynamics_type : i32
     mult_4,
 
     counter,
-    filter,
 
     queue,
     dynamic_queue,
@@ -5125,18 +5124,18 @@ struct counter
     }
 };
 
-struct filter
-{
-    port x[1];
-    port y[1];
-    time sigma;
-    status initialize() noexcept
-    {
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-};
+//struct filter
+//{
+//    port x[1];
+//    port y[1];
+//    time sigma;
+//    status initialize() noexcept
+//    {
+//        sigma = time_domain<time>::infinity;
+//
+//        return status::success;
+//    }
+//};
 
 struct generator
 {
@@ -6021,7 +6020,6 @@ max_size_in_bytes() noexcept
                sizeof(mult_3),
                sizeof(mult_4),
                sizeof(counter),
-               sizeof(filter),
                sizeof(queue),
                sizeof(dynamic_queue),
                sizeof(priority_queue),
@@ -6260,8 +6258,6 @@ dynamics_typeof() noexcept
         return dynamics_type::mult_4;
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
-    if constexpr (std::is_same_v<Dynamics, filter>)
-        return dynamics_type::filter;
     if constexpr (std::is_same_v<Dynamics, queue>)
         return dynamics_type::queue;
     if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
@@ -6441,8 +6437,6 @@ struct simulation
             return f(*reinterpret_cast<mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
             return f(*reinterpret_cast<counter*>(&mdl.dyn), args...);
-        case dynamics_type::filter:
-            return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
         case dynamics_type::queue:
             return f(*reinterpret_cast<queue*>(&mdl.dyn), args...);
         case dynamics_type::dynamic_queue:
@@ -6568,8 +6562,6 @@ struct simulation
             return f(*reinterpret_cast<const mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
             return f(*reinterpret_cast<const counter*>(&mdl.dyn), args...);
-        case dynamics_type::filter:
-            return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
         case dynamics_type::queue:
             return f(*reinterpret_cast<const queue*>(&mdl.dyn), args...);
         case dynamics_type::dynamic_queue:
@@ -6885,7 +6877,6 @@ public:
         case dynamics_type::mult_3:
         case dynamics_type::mult_4:
         case dynamics_type::counter:
-        case dynamics_type::filter:
         case dynamics_type::queue:
         case dynamics_type::dynamic_queue:
         case dynamics_type::priority_queue:
