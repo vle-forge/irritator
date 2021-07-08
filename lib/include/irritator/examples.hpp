@@ -431,8 +431,6 @@ example_qss_seir_nonlineaire(simulation& sim, F f) noexcept
     integrator_d.default_X = 15.0;
     integrator_d.default_dQ = 0.01;
 
-    // The values used here are from Singh et al., 2017
-
     auto& constant_a = sim.alloc<constant>();
     constant_a.default_value = 0.005;
 
