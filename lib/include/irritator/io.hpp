@@ -59,7 +59,6 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "mult_3",
                                                     "mult_4",
                                                     "counter",
-                                                    "filter",
                                                     "queue",
                                                     "dynamic_queue",
                                                     "priority_queue",
@@ -68,6 +67,7 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "cross",
                                                     "time_func",
                                                     "accumulator_2",
+                                                    "filter",
                                                     "flow" };
 
 static_assert(std::size(dynamics_type_names) ==
@@ -300,13 +300,13 @@ get_output_port_names() noexcept
                   std::is_same_v<Dynamics, mult_3> ||
                   std::is_same_v<Dynamics, mult_4> ||
                   std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, filter> ||
                   std::is_same_v<Dynamics, queue> ||
                   std::is_same_v<Dynamics, dynamic_queue> ||
                   std::is_same_v<Dynamics, priority_queue> ||
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
+                  std::is_same_v<Dynamics, filter> ||
                   std::is_same_v<Dynamics, flow>)
         return str_out_1;
 
@@ -368,13 +368,13 @@ get_output_port_names(const dynamics_type type) noexcept
     case dynamics_type::mult_3:
     case dynamics_type::mult_4:
     case dynamics_type::counter:
-    case dynamics_type::filter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
     case dynamics_type::generator:
     case dynamics_type::constant:
     case dynamics_type::time_func:
+    case dynamics_type::filter:
     case dynamics_type::flow:
         return str_out_1;
 
@@ -967,10 +967,10 @@ private:
             { "adder_3", dynamics_type::adder_3 },
             { "adder_4", dynamics_type::adder_4 },
             { "constant", dynamics_type::constant },
-            { "counter", dynamics_type::counter },
-            { "filter", dynamics_type::filter}, 
+            { "counter", dynamics_type::counter }, 
             { "cross", dynamics_type::cross },
             { "dynamic_queue", dynamics_type::dynamic_queue },
+            { "filter", dynamics_type::filter },
             { "flow", dynamics_type::flow },
             { "generator", dynamics_type::generator },
             { "integrator", dynamics_type::integrator },
@@ -1308,11 +1308,6 @@ private:
         return true;
     }
 
-    bool read(simulation& /*sim*/, filter& /*dyn*/) noexcept
-    {
-        return true;
-    }
-
     bool read(simulation& /*sim*/, queue& dyn) noexcept
     {
         return !!(is >> dyn.default_ta);
@@ -1515,6 +1510,11 @@ private:
         else
             dyn.default_f = &time_function;
 
+        return true;
+    }
+
+    bool read(simulation& /*sim*/, filter& /*dyn*/) noexcept
+    {
         return true;
     }
 
@@ -2009,11 +2009,6 @@ private:
         os << "counter\n";
     }
 
-    void write(const simulation& /*sim*/, const filter& /*dyn*/) noexcept
-    {
-        os << "filter\n";
-    }
-
     void write(const source& src) noexcept
     {
         u32 a, b;
@@ -2114,6 +2109,11 @@ private:
     {
         os << "time_func "
            << (dyn.default_f == &time_function ? "time\n" : "square\n");
+    }
+
+    void write(const simulation& /*sim*/, const filter& /*dyn*/) noexcept
+    {
+        os << "filter\n";
     }
 
     void write(const simulation& /*sim*/, const flow& dyn) noexcept
