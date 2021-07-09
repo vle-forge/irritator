@@ -1790,6 +1790,13 @@ show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 {}
 
 static void
+show_dynamics_values(simulation& /*sim*/, const filter& dyn)
+{
+    //ImGui::Text("number %ld", static_cast<long>(dyn.x));
+    ImGui::Text("value %.3f", dyn.x);
+}
+
+static void
 show_dynamics_values(simulation& /*sim*/, const flow& dyn)
 {
     if (dyn.i < dyn.default_size)
@@ -2309,6 +2316,10 @@ show_dynamics_inputs(editor& /*ed*/, cross& dyn)
 
 static void
 show_dynamics_inputs(editor& /*ed*/, accumulator_2& /*dyn*/)
+{}
+
+static void
+show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
 {}
 
 static void

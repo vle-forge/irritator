@@ -3063,6 +3063,7 @@ enum class dynamics_type : i32
     cross,
     time_func,
     accumulator_2,
+    filter,
     flow
 };
 
@@ -5124,18 +5125,18 @@ struct counter
     }
 };
 
-//struct filter
-//{
-//    port x[1];
-//    port y[1];
-//    time sigma;
-//    status initialize() noexcept
-//    {
-//        sigma = time_domain<time>::infinity;
-//
-//        return status::success;
-//    }
-//};
+struct filter
+{
+    port x[1];
+    port y[1];
+    time sigma;
+    status initialize() noexcept
+    {
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+};
 
 struct generator
 {
@@ -6028,6 +6029,7 @@ max_size_in_bytes() noexcept
                sizeof(cross),
                sizeof(time_func),
                sizeof(accumulator_2),
+               sizeof(filter),
                sizeof(flow));
 }
 
@@ -6274,6 +6276,8 @@ dynamics_typeof() noexcept
         return dynamics_type::time_func;
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return dynamics_type::accumulator_2;
+    if constexpr (std::is_same_v<Dynamics,filter>)
+        return dynamics_type::filter;
     if constexpr (std::is_same_v<Dynamics, flow>)
         return dynamics_type::flow;
 
@@ -6453,6 +6457,8 @@ struct simulation
             return f(*reinterpret_cast<accumulator_2*>(&mdl.dyn), args...);
         case dynamics_type::time_func:
             return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
+        case dynamics_type::filter:
+            return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
         case dynamics_type::flow:
             return f(*reinterpret_cast<flow*>(&mdl.dyn), args...);
         }
@@ -6581,6 +6587,8 @@ struct simulation
                      args...);
         case dynamics_type::time_func:
             return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
+        case dynamics_type::filter:
+            return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
         case dynamics_type::flow:
             return f(*reinterpret_cast<const flow*>(&mdl.dyn), args...);
         }
@@ -6884,6 +6892,7 @@ public:
         case dynamics_type::constant:
         case dynamics_type::cross:
         case dynamics_type::time_func:
+        case dynamics_type::filter:
         case dynamics_type::flow:
         case dynamics_type::accumulator_2:
             if (mdl_dst.type == dynamics_type::integrator &&
