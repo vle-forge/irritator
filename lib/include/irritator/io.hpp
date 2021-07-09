@@ -968,16 +968,11 @@ private:
             { "adder_4", dynamics_type::adder_4 },
             { "constant", dynamics_type::constant },
             { "counter", dynamics_type::counter },
-<<<<<<< HEAD
             { "cross", dynamics_type::cross },
             { "dynamic_queue", dynamics_type::dynamic_queue },
-            { "filter", dynamics_type::filter },
-=======
-            { "filter", dynamics_type::filter },
             { "cross", dynamics_type::cross },
             { "dynamic_queue", dynamics_type::dynamic_queue },
             { "filter",dynamics_type::filter },
->>>>>>> f825a9ba534088b7c78f7e5ef7b44dfb9a078292
             { "flow", dynamics_type::flow },
             { "generator", dynamics_type::generator },
             { "integrator", dynamics_type::integrator },
@@ -2120,11 +2115,7 @@ private:
 
     void write(const simulation& /*sim*/, const filter& /*dyn*/) noexcept
     {
-<<<<<<< HEAD
         os << "filter\n";
-=======
-        os << "filter\n"; 
->>>>>>> f825a9ba534088b7c78f7e5ef7b44dfb9a078292
     }
 
     void write(const simulation& /*sim*/, const flow& dyn) noexcept
