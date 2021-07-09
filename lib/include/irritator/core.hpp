@@ -5125,19 +5125,44 @@ struct counter
     }
 };
 
+<<<<<<< HEAD
+=======
+/*
+ * Add filter declaratio here as struct
+ */
 struct filter
 {
     port x[1];
     port y[1];
     time sigma;
+    i64 number;
+
     status initialize() noexcept
     {
+        number = { 0 };
         sigma = time_domain<time>::infinity;
 
         return status::success;
     }
+
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
+    {
+        const auto diff =
+          std::distance(std::begin(x[0].messages), std::end(x[0].messages));
+
+        number += static_cast<i64>(diff);
+
+        return status::success;
+    }
+
+    message observation(const time /*e*/) const noexcept
+    {
+        return { static_cast<double>(number) };
+    }
 };
 
+
+>>>>>>> 9940469b4544279414fdcc4eb74a76b0249dc8d1
 struct generator
 {
     port y[1];
@@ -5231,6 +5256,29 @@ struct constant
     {
         return { value };
     }
+};
+
+struct filter
+{
+    port x[1];
+    port y[1];
+    time sigma;
+<<<<<<< HEAD
+    status initialize() noexcept
+    {
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+=======
+
+    status initialize() noexcept
+    {
+        sigma=time_domain<time>::infinity;
+        return status::success;
+    }
+
+>>>>>>> 9940469b4544279414fdcc4eb74a76b0249dc8d1
 };
 
 struct flow
@@ -6021,6 +6069,13 @@ max_size_in_bytes() noexcept
                sizeof(mult_3),
                sizeof(mult_4),
                sizeof(counter),
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+               sizeof(filter), 
+>>>>>>> 9940469b4544279414fdcc4eb74a76b0249dc8d1
+>>>>>>> f825a9ba534088b7c78f7e5ef7b44dfb9a078292
                sizeof(queue),
                sizeof(dynamic_queue),
                sizeof(priority_queue),
@@ -6260,6 +6315,16 @@ dynamics_typeof() noexcept
         return dynamics_type::mult_4;
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+    if constexpr (std::is_same_v<dynamics_id, filter>)
+        return dynamics_type::filter;
+    if constexpr (std::is_same_v<Dynamics, filter>)
+        return dynamics_type::filter;
+>>>>>>> 9940469b4544279414fdcc4eb74a76b0249dc8d1
+>>>>>>> f825a9ba534088b7c78f7e5ef7b44dfb9a078292
     if constexpr (std::is_same_v<Dynamics, queue>)
         return dynamics_type::queue;
     if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
@@ -6276,7 +6341,15 @@ dynamics_typeof() noexcept
         return dynamics_type::time_func;
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return dynamics_type::accumulator_2;
+<<<<<<< HEAD
     if constexpr (std::is_same_v<Dynamics,filter>)
+=======
+<<<<<<< HEAD
+    if constexpr (std::is_same_v<Dynamics, filter>)
+=======
+    if constexpr(std::is_same_v<Dynamics, filter>)
+>>>>>>> 9940469b4544279414fdcc4eb74a76b0249dc8d1
+>>>>>>> f825a9ba534088b7c78f7e5ef7b44dfb9a078292
         return dynamics_type::filter;
     if constexpr (std::is_same_v<Dynamics, flow>)
         return dynamics_type::flow;
@@ -6458,7 +6531,15 @@ struct simulation
         case dynamics_type::time_func:
             return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
         case dynamics_type::filter:
+<<<<<<< HEAD
             return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
+=======
+<<<<<<< HEAD
+            return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
+=======
+            return f(*reinterpret_cast<filter*>(&mdl.dyn),args...);
+>>>>>>> 9940469b4544279414fdcc4eb74a76b0249dc8d1
+>>>>>>> f825a9ba534088b7c78f7e5ef7b44dfb9a078292
         case dynamics_type::flow:
             return f(*reinterpret_cast<flow*>(&mdl.dyn), args...);
         }

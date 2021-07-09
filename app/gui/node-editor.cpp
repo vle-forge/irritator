@@ -1792,8 +1792,13 @@ show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 static void
 show_dynamics_values(simulation& /*sim*/, const filter& dyn)
 {
+<<<<<<< HEAD
     //ImGui::Text("number %ld", static_cast<long>(dyn.x));
     ImGui::Text("value %.3f", dyn.x);
+=======
+    ImGui::Text("input %.3f", dyn.x);
+    ImGui::Text("output %.3f", dyn.y);
+>>>>>>> f825a9ba534088b7c78f7e5ef7b44dfb9a078292
 }
 
 static void
@@ -2686,6 +2691,7 @@ editor::show_editor() noexcept
             add_popup_menuitem(*this, dynamics_type::constant, &new_model);
             add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
             add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::filter, &new_model);
             add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
             ImGui::EndPopup();

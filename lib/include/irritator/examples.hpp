@@ -369,8 +369,11 @@ example_qss_seir_nonlinear(simulation& sim, F f) noexcept
     integrator_d.default_X = 600.0;
     integrator_d.default_dQ = 0.01;
 
+<<<<<<< HEAD
     // The values used here are from Singh et al., 2017. Also used Chitnis 
 
+=======
+>>>>>>> f825a9ba534088b7c78f7e5ef7b44dfb9a078292
     auto& constant_a = sim.alloc<constant>();
     constant_a.default_value = 16.667;
 
