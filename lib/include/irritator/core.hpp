@@ -3053,7 +3053,6 @@ enum class dynamics_type : i32
     mult_4,
 
     counter,
-    filter,
 
     queue,
     dynamic_queue,
@@ -3064,6 +3063,7 @@ enum class dynamics_type : i32
     cross,
     time_func,
     accumulator_2,
+    filter,
     flow
 };
 
@@ -6021,7 +6021,6 @@ max_size_in_bytes() noexcept
                sizeof(mult_3),
                sizeof(mult_4),
                sizeof(counter),
-               sizeof(filter),
                sizeof(queue),
                sizeof(dynamic_queue),
                sizeof(priority_queue),
@@ -6030,6 +6029,7 @@ max_size_in_bytes() noexcept
                sizeof(cross),
                sizeof(time_func),
                sizeof(accumulator_2),
+               sizeof(filter),
                sizeof(flow));
 }
 
@@ -6260,8 +6260,6 @@ dynamics_typeof() noexcept
         return dynamics_type::mult_4;
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
-    if constexpr (std::is_same_v<Dynamics, filter>)
-        return dynamics_type::filter;
     if constexpr (std::is_same_v<Dynamics, queue>)
         return dynamics_type::queue;
     if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
@@ -6278,6 +6276,8 @@ dynamics_typeof() noexcept
         return dynamics_type::time_func;
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return dynamics_type::accumulator_2;
+    if constexpr (std::is_same_v<Dynamics, filter>)
+        return dynamics_type::filter;
     if constexpr (std::is_same_v<Dynamics, flow>)
         return dynamics_type::flow;
 
@@ -6441,8 +6441,6 @@ struct simulation
             return f(*reinterpret_cast<mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
             return f(*reinterpret_cast<counter*>(&mdl.dyn), args...);
-        case dynamics_type::filter:
-            return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
         case dynamics_type::queue:
             return f(*reinterpret_cast<queue*>(&mdl.dyn), args...);
         case dynamics_type::dynamic_queue:
@@ -6459,6 +6457,8 @@ struct simulation
             return f(*reinterpret_cast<accumulator_2*>(&mdl.dyn), args...);
         case dynamics_type::time_func:
             return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
+        case dynamics_type::filter:
+            return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
         case dynamics_type::flow:
             return f(*reinterpret_cast<flow*>(&mdl.dyn), args...);
         }
@@ -6568,8 +6568,6 @@ struct simulation
             return f(*reinterpret_cast<const mult_4*>(&mdl.dyn), args...);
         case dynamics_type::counter:
             return f(*reinterpret_cast<const counter*>(&mdl.dyn), args...);
-        case dynamics_type::filter:
-            return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
         case dynamics_type::queue:
             return f(*reinterpret_cast<const queue*>(&mdl.dyn), args...);
         case dynamics_type::dynamic_queue:
@@ -6589,6 +6587,8 @@ struct simulation
                      args...);
         case dynamics_type::time_func:
             return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
+        case dynamics_type::filter:
+            return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
         case dynamics_type::flow:
             return f(*reinterpret_cast<const flow*>(&mdl.dyn), args...);
         }
@@ -6885,7 +6885,6 @@ public:
         case dynamics_type::mult_3:
         case dynamics_type::mult_4:
         case dynamics_type::counter:
-        case dynamics_type::filter:
         case dynamics_type::queue:
         case dynamics_type::dynamic_queue:
         case dynamics_type::priority_queue:
@@ -6893,6 +6892,7 @@ public:
         case dynamics_type::constant:
         case dynamics_type::cross:
         case dynamics_type::time_func:
+        case dynamics_type::filter:
         case dynamics_type::flow:
         case dynamics_type::accumulator_2:
             if (mdl_dst.type == dynamics_type::integrator &&

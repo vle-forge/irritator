@@ -2677,7 +2677,6 @@ editor::show_editor() noexcept
             }
 
             add_popup_menuitem(*this, dynamics_type::counter, &new_model);
-            add_popup_menuitem(*this, dynamics_type::filter, &new_model);
             add_popup_menuitem(*this, dynamics_type::queue, &new_model);
             add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
             add_popup_menuitem(
@@ -2686,6 +2685,7 @@ editor::show_editor() noexcept
             add_popup_menuitem(*this, dynamics_type::constant, &new_model);
             add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
             add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
+            add_popup_menuitem(*this, dynamics_type::filter, &new_model);
             add_popup_menuitem(*this, dynamics_type::flow, &new_model);
 
             ImGui::EndPopup();
