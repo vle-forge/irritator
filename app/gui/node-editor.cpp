@@ -1663,12 +1663,6 @@ show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 }
 
 static void
-show_dynamics_values(simulation& /*sim*/, const filter& dyn)
-{
-    ImGui::Text("input %.3f", dyn.x);
-}
-
-static void
 show_dynamics_values(simulation& /*sim*/, const queue& dyn)
 {
     if (dyn.queue.empty()) {
@@ -1794,6 +1788,12 @@ show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
 static void
 show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 {}
+
+static void
+show_dynamics_values(simulation& /*sim*/, const filter& dyn)
+{
+    ImGui::Text("input %.3f", dyn.x);
+}
 
 static void
 show_dynamics_values(simulation& /*sim*/, const flow& dyn)
