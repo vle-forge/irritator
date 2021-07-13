@@ -5125,19 +5125,6 @@ struct counter
     }
 };
 
-struct filter
-{
-    port x[1];
-    port y[1];
-    time sigma;
-    status initialize() noexcept
-    {
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-};
-
 struct generator
 {
     port y[1];
@@ -5230,6 +5217,19 @@ struct constant
     message observation(const time /*e*/) const noexcept
     {
         return { value };
+    }
+};
+
+struct filter
+{
+    port x[1];
+    port y[1];
+    time sigma;
+    status initialize() noexcept
+    {
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
     }
 };
 

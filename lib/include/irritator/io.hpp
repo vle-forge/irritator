@@ -137,11 +137,11 @@ get_input_port_names() noexcept
         return str_adaptative_integrator;
 
     if constexpr (std::is_same_v<Dynamics, quantifier> ||
-                  std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, filter> ||
+                  std::is_same_v<Dynamics, counter> ||                  
                   std::is_same_v<Dynamics, queue> ||
                   std::is_same_v<Dynamics, dynamic_queue> ||
                   std::is_same_v<Dynamics, priority_queue> ||
+                  std::is_same_v<Dynamics, filter> ||
                   std::is_same_v<Dynamics, qss1_power> ||
                   std::is_same_v<Dynamics, qss2_power> ||
                   std::is_same_v<Dynamics, qss3_power> ||
@@ -218,10 +218,10 @@ get_input_port_names(const dynamics_type type) noexcept
 
     case dynamics_type::quantifier:
     case dynamics_type::counter:
-    case dynamics_type::filter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
+    case dynamics_type::filter:
     case dynamics_type::qss1_power:
     case dynamics_type::qss2_power:
     case dynamics_type::qss3_power:
