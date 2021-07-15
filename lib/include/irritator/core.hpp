@@ -3063,6 +3063,7 @@ enum class dynamics_type : i32
     cross,
     time_func,
     accumulator_2,
+    filter,
     flow
 };
 
@@ -5217,6 +5218,13 @@ struct constant
     {
         return { value };
     }
+};
+
+struct filter
+{
+    port x[1];
+    port y[1];
+    time sigma = time_domain<time>::infinity;
 };
 
 struct flow
