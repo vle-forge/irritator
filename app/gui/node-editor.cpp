@@ -3125,10 +3125,10 @@ editor::show_window() noexcept
             if (ImGui::MenuItem("Insert example QSS2 seir_nonlinear"))
                 if (auto ret = example_qss_seir_nonlinear<2>(sim, empty_fun);
                     is_bad(ret))
-                    log_w.log(
-                      3,
-                      "Fail to initialize example_qss_seir_nonlinear<2>: %s\n",
-                      status_string(ret));
+                    log_w.log(3,
+                              "Fail to initialize "
+                              "example_qss_seir_nonlinear<2>: %s\n",
+                              status_string(ret));
 
             if (ImGui::MenuItem("Insert example QSS3 lotka_volterra"))
                 if (auto ret = example_qss_lotka_volterra<3>(sim, empty_fun);
