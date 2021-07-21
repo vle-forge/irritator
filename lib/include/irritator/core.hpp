@@ -1957,8 +1957,8 @@ get_index(T identifier) noexcept
 {
     static_assert(std::is_enum<T>::value, "Identifier must be a enumeration");
 
-    return static_cast<u32>(static_cast<std::underlying_type_t<T>>(identifier) &
-                            0x00000000ffffffff);
+    return unpack_doubleword_right(
+      static_cast<std::underlying_type_t<T>>(identifier));
 }
 
 template<typename T>
@@ -1967,17 +1967,8 @@ get_key(T identifier) noexcept
 {
     static_assert(std::is_enum<T>::value, "Identifier must be a enumeration");
 
-    return static_cast<u32>(
-      (static_cast<typename std::underlying_type_t<T>>(identifier) &
-       0xffffffff00000000) >>
-      32);
-}
-
-template<typename T>
-constexpr u32
-get_max_key() noexcept
-{
-    return static_cast<u32>(0xffffffff00000000 >> 32);
+    return unpack_doubleword_left(
+      static_cast<std::underlying_type_t<T>>(identifier));
 }
 
 template<typename T>
@@ -1998,21 +1989,14 @@ template<typename T>
 constexpr T
 make_id(u32 key, u32 index) noexcept
 {
-    u64 identifier = key;
-    identifier <<= 32;
-    identifier |= index;
-
-    T ret{ identifier };
-    return ret;
-
-    // return static_cast<T>(identifier);
+    return static_cast<T>(make_doubleword(key, index));
 }
 
 template<typename T>
 constexpr u32
 make_next_key(u32 key) noexcept
 {
-    return key == get_max_key<T>() ? 1u : key + 1;
+    return key == static_cast<u32>(-1) ? 1u : key + 1;
 }
 
 /**
