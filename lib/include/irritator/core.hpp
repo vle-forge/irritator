@@ -243,9 +243,11 @@ is_defined(Identifier id) noexcept
     return id != undefined<Identifier>();
 }
 
-/**
- * @brief Enummeration to integral
- */
+//! @brief A simple enumeration to integral helper function.
+//! @tparam Enum An enumeration
+//! @tparam Integer The underlying_type deduce from @c Enum
+//! @param e The element in enumeration to convert.
+//! @return An integral.
 template<class Enum, class Integer = typename std::underlying_type<Enum>::type>
 constexpr Integer
 ordinal(Enum e) noexcept
@@ -255,9 +257,11 @@ ordinal(Enum e) noexcept
     return static_cast<Integer>(e);
 }
 
-/**
- * @brief Integral to enumeration
- */
+//! @brief A simpole integral to enumeration helper function.
+//! @tparam Enum An enumeration
+//! @tparam Integer The underlying_type deduce from @c Enum
+//! @param i The integral to convert.
+//! @return A element un enumeration.
 template<class Enum, class Integer = typename std::underlying_type<Enum>::type>
 constexpr Enum
 enum_cast(Integer i) noexcept
@@ -267,12 +271,10 @@ enum_cast(Integer i) noexcept
     return static_cast<Enum>(i);
 }
 
-/**
- * @brief returns an iterator to the result or end if not found
- *
- * Binary search function which returns an iterator to the result or end if
- * not found using the lower_bound standard function.
- */
+//! @brief returns an iterator to the result or end if not found
+//!
+//! Binary search function which returns an iterator to the result or end if
+//! not found using the lower_bound standard function.
 template<typename Iterator, typename T>
 Iterator
 binary_find(Iterator begin, Iterator end, const T& value)
@@ -284,12 +286,10 @@ binary_find(Iterator begin, Iterator end, const T& value)
         return end;
 }
 
-/**
- * @brief returns an iterator to the result or end if not found
- *
- * Binary search function which returns an iterator to the result or end if
- * not found using the lower_bound standard function.
- */
+//! @brief returns an iterator to the result or end if not found
+//!
+//! Binary search function which returns an iterator to the result or end if
+//! not found using the lower_bound standard function.
 template<typename Iterator, typename T, typename Compare>
 Iterator
 binary_find(Iterator begin, Iterator end, const T& value, Compare comp)
@@ -456,13 +456,13 @@ class function_ref<R(Args...)>
 public:
     constexpr function_ref() noexcept = default;
 
-    /// Creates a `function_ref` which refers to the same callable as `rhs`.
+    //! Creates a `function_ref` which refers to the same callable as `rhs`.
     constexpr function_ref(const function_ref<R(Args...)>& rhs) noexcept =
       default;
 
-    /// Constructs a `function_ref` referring to `f`.
-    ///
-    /// \synopsis template <typename F> constexpr function_ref(F &&f) noexcept
+    //! Constructs a `function_ref` referring to `f`.
+    //!
+    //! \synopsis template <typename F> constexpr function_ref(F &&f) noexcept
     template<
       typename F,
       std::enable_if_t<!std::is_same<std::decay_t<F>, function_ref>::value &&
@@ -477,14 +477,14 @@ public:
         };
     }
 
-    /// Makes `*this` refer to the same callable as `rhs`.
+    //! Makes `*this` refer to the same callable as `rhs`.
     constexpr function_ref<R(Args...)>& operator=(
       const function_ref<R(Args...)>& rhs) noexcept = default;
 
-    /// Makes `*this` refer to `f`.
-    ///
-    /// \synopsis template <typename F> constexpr function_ref &operator=(F &&f)
-    /// noexcept;
+    //! Makes `*this` refer to `f`.
+    //!
+    //! \synopsis template <typename F> constexpr function_ref &operator=(F &&f)
+    //! noexcept;
     template<
       typename F,
       std::enable_if_t<std::is_invocable_r<R, F&&, Args...>::value>* = nullptr>
@@ -527,7 +527,7 @@ private:
     R (*cb)(void*, Args...) = nullptr;
 };
 
-/// Swaps the referred callables of `lhs` and `rhs`.
+//! Swaps the referred callables of `lhs` and `rhs`.
 template<typename R, typename... Args>
 constexpr void
 swap(function_ref<R(Args...)>& lhs, function_ref<R(Args...)>& rhs) noexcept
@@ -610,15 +610,13 @@ struct time_domain<time>
  *
  ****************************************************************************/
 
-/**
- * @brief A vector like class but without dynamic allocation.
- * @tparam T Any type (trivial or not).
- * @tparam length The capacity of the vector.
- */
+//! @brief A vector like class but without dynamic allocation.
+//! @tparam T Any type (trivial or not).
+//! @tparam length The capacity of the vector.
 template<typename T, i32 length>
 class small_vector
 {
-    static_assert(length > 1);
+    static_assert(length >= 1 && length < std::numeric_limits<i32>::max());
 
     std::byte m_buffer[length * sizeof(T)];
     i32 m_size;
@@ -744,7 +742,7 @@ public:
     }
 
     template<typename... Args>
-    constexpr reference alloc(Args&&... args) noexcept
+    constexpr reference emplace_back(Args&&... args) noexcept
     {
         assert(can_alloc(1) && "check alloc() with full() before using use.");
 
@@ -766,7 +764,7 @@ public:
 
     constexpr void swap_pop_back(i32 index) noexcept
     {
-        irt_assert(index < m_size);
+        irt_assert(index >= 0 && index < m_size);
 
         if (index == m_size - 1) {
             pop_back();
@@ -784,16 +782,14 @@ public:
     }
 };
 
-/**
- * @brief A vector like class.
- * @tparam T Any type (trivial or not).
- */
+//! @brief A vector like class with dynamic allocation.
+//! @tparam T Any type (trivial or not).
 template<typename T>
 class vector
 {
     T* m_data = nullptr;
-    int m_size = 0;
-    int m_capacity = 0;
+    i32 m_size = 0;
+    i32 m_capacity = 0;
 
 public:
     using iterator = T*;
@@ -998,18 +994,19 @@ public:
     }
 };
 
+//! @brief A small_string without heap allocation.
 template<size_t length = 8>
 class small_string
 {
-    char buffer_[length];
-    u8 size_;
+    char m_buffer[length];
+    u8 m_size;
 
 public:
     using iterator = char*;
     using const_iterator = const char*;
-    using size_type = u8;
+    using m_sizetype = u8;
 
-    static_assert(length > size_t{ 1 } && length < size_t{ 254 });
+    static_assert(length > 1 && length < 254);
 
     constexpr small_string() noexcept
     {
@@ -1018,25 +1015,25 @@ public:
 
     constexpr small_string(const small_string& str) noexcept
     {
-        std::copy_n(str.buffer_, str.size_, buffer_);
-        buffer_[str.size_] = '\0';
-        size_ = str.size_;
+        std::copy_n(str.m_buffer, str.m_size, m_buffer);
+        m_buffer[str.m_size] = '\0';
+        m_size = str.m_size;
     }
 
     constexpr small_string(small_string&& str) noexcept
     {
-        std::copy_n(str.buffer_, str.size_, buffer_);
-        buffer_[str.size_] = '\0';
-        size_ = str.size_;
+        std::copy_n(str.m_buffer, str.m_size, m_buffer);
+        m_buffer[str.m_size] = '\0';
+        m_size = str.m_size;
         str.clear();
     }
 
     constexpr small_string& operator=(const small_string& str) noexcept
     {
         if (&str != this) {
-            std::copy_n(str.buffer_, str.size_, buffer_);
-            buffer_[str.size_] = '\0';
-            size_ = str.size_;
+            std::copy_n(str.m_buffer, str.m_size, m_buffer);
+            m_buffer[str.m_size] = '\0';
+            m_size = str.m_size;
         }
 
         return *this;
@@ -1045,9 +1042,9 @@ public:
     constexpr small_string& operator=(small_string&& str) noexcept
     {
         if (&str != this) {
-            std::copy_n(str.buffer_, str.size_, buffer_);
-            buffer_[str.size_] = '\0';
-            size_ = str.size_;
+            std::copy_n(str.m_buffer, str.m_size, m_buffer);
+            m_buffer[str.m_size] = '\0';
+            m_size = str.m_size;
         }
 
         return *this;
@@ -1055,9 +1052,9 @@ public:
 
     constexpr small_string(const char* str) noexcept
     {
-        std::strncpy(buffer_, str, length - 1);
-        buffer_[length - 1] = '\0';
-        size_ = static_cast<u8>(std::strlen(buffer_));
+        std::strncpy(m_buffer, str, length - 1);
+        m_buffer[length - 1] = '\0';
+        m_size = static_cast<u8>(std::strlen(m_buffer));
     }
 
     constexpr small_string(const std::string_view str) noexcept
@@ -1069,112 +1066,116 @@ public:
     {
         constexpr unsigned char zero{ 0 };
 
-        return zero == size_;
+        return zero == m_size;
     }
 
-    constexpr void size(std::size_t sz) noexcept
+    constexpr void size(sz new_size) noexcept
     {
-        size_ = static_cast<u8>(std::min(sz, length - 1));
-        buffer_[size_] = '\0';
+        m_size = static_cast<u8>(std::min(new_size, length - 1));
+        m_buffer[m_size] = '\0';
     }
 
-    constexpr std::size_t size() const noexcept
+    constexpr sz size() const noexcept
     {
-        return size_;
+        return m_size;
     }
 
-    constexpr std::size_t capacity() const noexcept
+    constexpr sz capacity() const noexcept
     {
         return length;
     }
 
     constexpr void assign(const std::string_view str) noexcept
     {
-        const size_t copy_length = std::min(str.size(), length - 1);
+        const auto copy_length = std::min(str.size(), length - 1);
 
-        std::memcpy(buffer_, str.data(), copy_length);
-        buffer_[copy_length] = '\0';
+        std::memcpy(m_buffer, str.data(), copy_length);
+        m_buffer[copy_length] = '\0';
 
-        size_ = static_cast<u8>(copy_length);
+        m_size = static_cast<u8>(copy_length);
     }
 
     constexpr std::string_view sv() const noexcept
     {
-        return { buffer_, size_ };
+        return { m_buffer, m_size };
     }
 
     constexpr void clear() noexcept
     {
-        std::fill_n(buffer_, length, '\0');
-        size_ = 0;
+        std::fill_n(m_buffer, length, '\0');
+        m_size = 0;
     }
 
     constexpr const char* c_str() const noexcept
     {
-        return buffer_;
+        return m_buffer;
     }
 
     constexpr iterator begin() noexcept
     {
-        return buffer_;
+        return m_buffer;
     }
 
     constexpr iterator end() noexcept
     {
-        return buffer_ + size_;
+        return m_buffer + m_size;
     }
 
     constexpr const_iterator begin() const noexcept
     {
-        return buffer_;
+        return m_buffer;
     }
 
     constexpr const_iterator end() const noexcept
     {
-        return buffer_ + size_;
+        return m_buffer + m_size;
     }
 
     constexpr bool operator==(const small_string& rhs) const noexcept
     {
-        return std::strncmp(buffer_, rhs.buffer_, length) == 0;
+        return std::strncmp(m_buffer, rhs.m_buffer, length) == 0;
     }
 
     constexpr bool operator!=(const small_string& rhs) const noexcept
     {
-        return std::strncmp(buffer_, rhs.buffer_, length) != 0;
+        return std::strncmp(m_buffer, rhs.m_buffer, length) != 0;
     }
 
     constexpr bool operator>(const small_string& rhs) const noexcept
     {
-        return std::strncmp(buffer_, rhs.buffer_, length) > 0;
+        return std::strncmp(m_buffer, rhs.m_buffer, length) > 0;
     }
 
     constexpr bool operator<(const small_string& rhs) const noexcept
     {
-        return std::strncmp(buffer_, rhs.buffer_, length) < 0;
+        return std::strncmp(m_buffer, rhs.m_buffer, length) < 0;
     }
 
     constexpr bool operator==(const char* rhs) const noexcept
     {
-        return std::strncmp(buffer_, rhs, length) == 0;
+        return std::strncmp(m_buffer, rhs, length) == 0;
     }
 
     constexpr bool operator!=(const char* rhs) const noexcept
     {
-        return std::strncmp(buffer_, rhs, length) != 0;
+        return std::strncmp(m_buffer, rhs, length) != 0;
     }
 
     constexpr bool operator>(const char* rhs) const noexcept
     {
-        return std::strncmp(buffer_, rhs, length) > 0;
+        return std::strncmp(m_buffer, rhs, length) > 0;
     }
 
     constexpr bool operator<(const char* rhs) const noexcept
     {
-        return std::strncmp(buffer_, rhs, length) < 0;
+        return std::strncmp(m_buffer, rhs, length) < 0;
     }
 };
 
+//! @brief A small array of reals.
+//!
+//! This class in mainly used to store message and observation in the simulation
+//! kernel.
 template<size_t length>
 struct fixed_real_array
 {
@@ -1698,7 +1699,7 @@ public:
         return m_allocator[unpack_doubleword_right(m_list)].value;
     }
 
-    // Inserts a new element into the container directly before pos.
+    //! @brief Inserts a new element into the container directly before pos.
     template<typename... Args>
     iterator emplace(iterator pos, Args&&... args) noexcept
     {
@@ -1720,10 +1721,11 @@ public:
 
     //! @brief Erases the specified elements from the container.
     //!
-    //! Iterator following the last removed element.
     //! If pos refers to the last element, then the end() iterator is returned.
     //! If last==end() prior to removal, then the updated end() iterator is
     //! returned. If [first, last) is an empty range, then last is returned.
+    //!
+    //! @return iIterator following the last removed element.
     iterator erase(iterator pos) noexcept
     {
         if (pos.id == static_cast<u32>(-1))
@@ -1999,21 +2001,19 @@ make_next_key(u32 key) noexcept
     return key == static_cast<u32>(-1) ? 1u : key + 1;
 }
 
-/**
- * @brief An optimized fixed size array for dynamics objects.
- *
- * A container to handle everything from trivial, pod or object.
- * - linear memory/iteration
- * - O(1) alloc/free
- * - stable indices
- * - weak references
- * - zero overhead dereferences
- *
- * @tparam T The type of object the data_array holds.
- * @tparam Identifier A enum class identifier to store identifier unsigned
- *     number.
- * @todo Make Identifier split key|id automatically for all unsigned.
- */
+//! @brief An optimized fixed size array for dynamics objects.
+//!
+//! A container to handle everything from trivial, pod or object.
+//! - linear memory/iteration
+//! - O(1) alloc/free
+//! - stable indices
+//! - weak references
+//! - zero overhead dereferences
+//!
+//! @tparam T The type of object the data_array holds.
+//! @tparam Identifier A enum class identifier to store identifier unsigned
+//!     number.
+//! @todo Make Identifier split key|id automatically for all unsigned.
 template<typename T, typename Identifier>
 class data_array
 {
@@ -2028,10 +2028,10 @@ private:
         Identifier id;
     };
 
-    item* m_items = nullptr; // items vector.
-    u32 m_max_size = 0;      // total size
-    u32 m_max_used = 0;      // highest index ever allocated
-    u32 m_capacity = 0;      // num allocated items
+    item* m_items = nullptr; // items array.
+    u32 m_max_size = 0;      // number of valid item in array.
+    u32 m_max_used = 0;      // highest index ever allocated in array.
+    u32 m_capacity = 0;      // capacity of the array.
     u32 m_next_key = 1;      // [1..2^32] (don't let == 0)
     u32 m_free_head = none;  // index of first free entry
 
@@ -2051,11 +2051,9 @@ public:
             g_free_fn(m_items);
     }
 
-    /**
-     * @brief Initialize the underlying byffer of T.
-     *
-     * @return @c is_success(status) or is_bad(status).
-     */
+    //! @brief Initialize the underlying byffer of T.
+    //!
+    //! @return @c is_success(status) or is_bad(status).
     status init(std::size_t capacity) noexcept
     {
         clear();
@@ -2076,11 +2074,9 @@ public:
         return status::success;
     }
 
-    /**
-     * @brief Resets data members
-     *
-     * Run destructor on outstanding items and re-initialize of size.
-     */
+    //! @brief Resets data members
+    //!
+    //! Run destructor on outstanding items and re-initialize of size.
     void clear() noexcept
     {
         if constexpr (!std::is_trivial_v<T>) {
@@ -2098,19 +2094,17 @@ public:
         m_free_head = none;
     }
 
-    /**
-     * @brief Alloc a new element.
-     *
-     * If allocator can not allocate new item, this function abort() if
-     * NDEBUG macro is not defined. Before using this function, tries @c
-     * can_alloc() for example.
-     *
-     * Use @c m_free_head if not empty or use a new items from buffer
-     * (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
-     * index to build unique identifier.
-     *
-     * @return A reference to the newly allocated element.
-     */
+    //! @brief Alloc a new element.
+    //!
+    //! If m_max_size == m_capacity then this function will abort. Before using
+    //! this function, tries @c !can_alloc() for example otherwise use the @c
+    //! try_alloc function.
+    //!
+    //! Use @c m_free_head if not empty or use a new items from buffer
+    //! (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
+    //! index to build unique identifier.
+    //!
+    //! @return A reference to the newly allocated element.
     template<typename... Args>
     T& alloc(Args&&... args) noexcept
     {
@@ -2138,16 +2132,14 @@ public:
         return m_items[new_index].item;
     }
 
-    /**
-     * @brief Alloc a new element.
-     *
-     * Use @c m_free_head if not empty or use a new items from buffer
-     * (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
-     * index to build unique identifier.
-     *
-     * @return A pair with a boolean if the allocation success and a pointer
-     * to the newly element.
-     */
+    //! @brief Alloc a new element.
+    //!
+    //! Use @c m_free_head if not empty or use a new items from buffer
+    //! (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
+    //! index to build unique identifier.
+    //!
+    //! @return A pair with a boolean if the allocation success and a pointer
+    //! to the newly element.
     template<typename... Args>
     std::pair<bool, T*> try_alloc(Args&&... args) noexcept
     {
@@ -2176,12 +2168,10 @@ public:
         return { true, &m_items[new_index].item };
     }
 
-    /**
-     * @brief Free the element @c t.
-     *
-     * Internally, puts the elelent @c t entry on free list and use id to
-     * store next.
-     */
+    //! @brief Free the element @c t.
+    //!
+    //! Internally, puts the elelent @c t entry on free list and use id to
+    //! store next.
     void free(T& t) noexcept
     {
         auto id = get_id(t);
@@ -2200,12 +2190,10 @@ public:
         --m_max_size;
     }
 
-    /**
-     * @brief Free the element pointer by @c id.
-     *
-     * Internally, puts the elelent @c t entry on free list and use id to
-     * store next.
-     */
+    //! @brief Free the element pointer by @c id.
+    //!
+    //! Internally, puts the element @c id entry on free list and use id to
+    //! store next.
     void free(Identifier id) noexcept
     {
         auto index = get_index(id);
@@ -2222,11 +2210,9 @@ public:
         --m_max_size;
     }
 
-    /**
-     * @brief Accessor to the id part of the item
-     *
-     * @return @c Identifier.
-     */
+    //! @brief Accessor to the id part of the item
+    //!
+    //! @return @c Identifier.
     Identifier get_id(const T* t) const noexcept
     {
         irt_assert(t != nullptr);
@@ -2235,44 +2221,39 @@ public:
         return ptr->id;
     }
 
-    /**
-     * @brief Accessor to the id part of the item
-     *
-     * @return @c Identifier.
-     */
+    //! @brief Accessor to the id part of the item
+    //!
+    //! @return @c Identifier.
     Identifier get_id(const T& t) const noexcept
     {
         auto* ptr = reinterpret_cast<const item*>(&t);
         return ptr->id;
     }
 
-    /**
-     * @brief Accessor to the item part of the id.
-     *
-     * @return @c T
-     */
+    //! @brief Accessor to the item part of the id.
+    //!
+    //! @return @c T
     T& get(Identifier id) noexcept
     {
         return m_items[get_index(id)].item;
     }
 
-    /**
-     * @brief Accessor to the item part of the id.
-     *
-     * @return @c T
-     */
+    //! @brief Accessor to the item part of the id.
+    //!
+    //! @return @c T
     const T& get(Identifier id) const noexcept
     {
         return m_items[get_index(id)].item;
     }
 
-    /**
-     * @brief Get a T from an ID.
-     *
-     * @details Validates ID, then returns item, returns null if invalid.
-     * For cases like AI references and others where 'the thing might have
-     * been deleted out from under me.
-     */
+    //! @brief Get a T from an ID.
+    //!
+    //! @details Validates ID, then returns item, returns null if invalid.
+    //! For cases like AI references and others where 'the thing might have
+    //! been deleted out from under me.
+    //!
+    //! @param id Identifier to get.
+    //! @return T or nullptr
     T* try_to_get(Identifier id) const noexcept
     {
         if (get_key(id)) {
@@ -2284,30 +2265,34 @@ public:
         return nullptr;
     }
 
+    //! @brief Get a T directly from the index in the array.
+    //!
+    //! @param index The array.
+    //! @return T or nullptr.
     T* try_to_get(u32 index) const noexcept
     {
+        irt_assert(index < m_max_used);
+
         if (is_valid(m_items[index].id))
             return &m_items[index].item;
 
         return nullptr;
     }
 
-    /**
-     * @brief Return next valid item.
-     * @code
-     * data_array<int> d;
-     * ...
-     * int* value = nullptr;
-     * while (d.next(value)) {
-     *     std::cout << *value;
-     * }
-     * @endcode
-     *
-     * Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not on
-     * free list).
-     *
-     * @return true if the paramter @c t is valid false otherwise.
-     */
+    //! @brief Return next valid item.
+    //! @code
+    //! data_array<int> d;
+    //! ...
+    //! int* value = nullptr;
+    //! while (d.next(value)) {
+    //!     std::cout << *value << ' ';
+    //! }
+    //! @endcode
+    //!
+    //! Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not on
+    //! free list).
+    //!
+    //! @return true if the paramter @c t is valid false otherwise.
     bool next(T*& t) const noexcept
     {
         u32 index;
@@ -2340,15 +2325,17 @@ public:
         return m_free_head == none && m_max_used == m_capacity;
     }
 
-    constexpr std::size_t size() const noexcept
+    constexpr sz size() const noexcept
     {
         return m_max_size;
     }
 
     constexpr bool can_alloc(const sz nb) const noexcept
     {
-        irt_assert(nb > 0);
-        return m_capacity - m_max_size >= static_cast<u32>(nb);
+        const u64 capacity = m_capacity;
+        const u64 max_size = m_max_size;
+
+        return capacity - max_size >= nb;
     }
 
     constexpr bool can_alloc() const noexcept
@@ -2445,16 +2432,14 @@ struct record
     time date{ time_domain<time>::infinity };
 };
 
-/**
- * @brief Pairing heap implementation.
- *
- * A pairing heap is a type of heap data structure with relatively simple
- * implementation and excellent practical amortized performance, introduced
- * by Michael Fredman, Robert Sedgewick, Daniel Sleator, and Robert Tarjan
- * in 1986.
- *
- * https://en.wikipedia.org/wiki/Pairing_heap
- */
+//! @brief Pairing heap implementation.
+//!
+//! A pairing heap is a type of heap data structure with relatively simple
+//! implementation and excellent practical amortized performance, introduced
+//! by Michael Fredman, Robert Sedgewick, Daniel Sleator, and Robert Tarjan
+//! in 1986.
+//!
+//! https://en.wikipedia.org/wiki/Pairing_heap
 class heap
 {
 private:
@@ -2753,9 +2738,9 @@ struct source
 
     double* buffer = nullptr;
     u64 id = 0;    // The identifier of the external source (see operation())
-    int type = -1; // The type of the external source (see operation())
-    int size = 0;
-    int index = 0;
+    i32 type = -1; // The type of the external source (see operation())
+    i32 size = 0;
+    i32 index = 0;
 
     void reset() noexcept
     {
@@ -3135,15 +3120,13 @@ using has_init_port_t = decltype(&T::init);
 template<typename T>
 using has_sim_attribute_t = decltype(&T::sim);
 
-/**
- * @brief Useless for user
- *
- * @c none model does not have dynamics. It is use internally to develop the
- * component part of the irritator gui. @c none is a component. A component
- * stores children as a list of @c model_id, parameters and observable as a
- * list of @c model_id and two @c component_port for the input and output
- * port (the part of the public interface).
- */
+//! @brief Useless for user
+//!
+//! @c none model does not have dynamics. It is use internally to develop the
+//! component part of the irritator gui. @c none is a component. A component
+//! stores children as a list of @c model_id, parameters and observable as a
+//! list of @c model_id and two @c component_port for the input and output
+//! port (the part of the public interface).
 struct none
 {
     none() noexcept = default;
@@ -7113,9 +7096,7 @@ public:
         m_heap.clear();
     }
 
-    /**
-     * @brief Insert a newly model into the scheduller.
-     */
+    //! @brief Insert a newly model into the scheduller.
     void insert(model& mdl, model_id id, time tn) noexcept
     {
         irt_assert(mdl.handle == nullptr);
@@ -7123,10 +7104,8 @@ public:
         mdl.handle = m_heap.insert(tn, id);
     }
 
-    /**
-     * @brief Reintegrate or reinsert an old popped model into the
-     * scheduller.
-     */
+    //! @brief Reintegrate or reinsert an old popped model into the
+    //! scheduller.
     void reintegrate(model& mdl, time tn) noexcept
     {
         irt_assert(mdl.handle != nullptr);
@@ -7352,11 +7331,9 @@ struct simulation
 
     scheduller sched;
 
-    /**
-     * @brief Use initialize, generate or finalize data from a source.
-     *
-     * See the @c external_source class for an implementation.
-     */
+    //! @brief Use initialize, generate or finalize data from a source.
+    //!
+    //! See the @c external_source class for an implementation.
     function_ref<status(source&, const source::operation_type)> source_dispatch;
 
     template<typename Dynamics>
@@ -7397,11 +7374,9 @@ public:
         return models.can_alloc(place);
     }
 
-    /**
-     * @brief cleanup simulation object
-     *
-     * Clean scheduller and input/output port from message.
-     */
+    //! @brief cleanup simulation object
+    //!
+    //! Clean scheduller and input/output port from message.
     void clean() noexcept
     {
         sched.clear();
@@ -7411,9 +7386,7 @@ public:
         allocs.dated_message_alloc.reset();
     }
 
-    /**
-     * @brief cleanup simulation and destroy all models and connections
-     */
+    //! @brief cleanup simulation and destroy all models and connections
     void clear() noexcept
     {
         clean();
@@ -7426,9 +7399,7 @@ public:
         observers.clear();
     }
 
-    /** @brief This function allocates dynamics and models.
-     *
-     */
+    //! @brief This function allocates dynamics and models.
     template<typename Dynamics>
     Dynamics& alloc() noexcept
     {
@@ -7444,9 +7415,7 @@ public:
         return get_dyn<Dynamics>(mdl);
     }
 
-    /**
-     * @brief This function allocates dynamics and models.
-     */
+    //! @brief This function allocates dynamics and models.
     model& clone(const model& mdl) noexcept
     {
         /* Use can_alloc before using this function. */
@@ -7464,9 +7433,7 @@ public:
         return new_mdl;
     }
 
-    /**
-     * @brief This function allocates dynamics and models.
-     */
+    //! @brief This function allocates dynamics and models.
     model& alloc(dynamics_type type) noexcept
     {
         /* Use can_alloc before using this function. */
