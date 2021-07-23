@@ -18,6 +18,28 @@
 #include "implot.h"
 #include <imgui.h>
 
+namespace ImGui {
+
+template<typename RealType>
+bool
+InputReal(const char* label,
+          RealType* v,
+          RealType step = irt::zero,
+          RealType step_fast = irt::zero,
+          const char* format = "%.6f",
+          ImGuiInputTextFlags flags = 0)
+{
+    if constexpr (std::is_same_v<RealType, float>) {
+        return InputFloat(label, v, step, step_fast, format, flags);
+    }
+
+    if constexpr (std::is_same_v<RealType, double>) {
+        return InputDouble(label, v, step, step_fast, format, flags);
+    }
+}
+
+} // namespace ImGui
+
 namespace irt {
 
 // Forward declaration
@@ -76,8 +98,8 @@ struct plot_output
     std::vector<float> xs;
     std::vector<float> ys;
     small_string<24u> name;
-    double tl = 0.0;
-    double time_step = 0.01;
+    real tl = zero;
+    real time_step = to_real(0.01);
 };
 
 void
@@ -118,8 +140,8 @@ struct file_discrete_output
     editor* ed = nullptr;
     std::ofstream ofs;
     small_string<24u> name;
-    double tl = 0.0;
-    double time_step = 0.01;
+    real tl = irt::real(0);
+    real time_step = irt::real(0.01);
 };
 
 void
@@ -152,14 +174,14 @@ struct editor
     simulation sim;
     external_source srcs;
 
-    double simulation_begin = 0.0;
-    double simulation_end = 10.0;
-    double simulation_current = 10.0;
-    double simulation_next_time = 0.0;
+    irt::real simulation_begin = 0.0;
+    irt::real simulation_end = 10.0;
+    irt::real simulation_current = 10.0;
+    irt::real simulation_next_time = 0.0;
     long simulation_bag_id = 0;
     int step_by_step_bag = 0;
 
-    double simulation_during_date;
+    real simulation_during_date;
     int simulation_during_bag;
 
     editor_status st = editor_status::editing;

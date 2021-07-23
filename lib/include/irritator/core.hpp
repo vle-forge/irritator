@@ -135,6 +135,45 @@ using sz = size_t;
 using f32 = float;
 using f64 = double;
 
+#ifdef IRRITATOR_REAL_TYPE_F64
+using real = f64;
+#else
+using real = f32;
+#endif //  IRRITATOR_REAL_TYPE
+
+//! @brief An helper function to initialize floating point number and disable
+//! warnings the IRRITATOR_REAL_TYPE_F64 is defined.
+//!
+//! @param v The floating point number to convert to float, double or long
+//! double.
+//! @return A real.
+inline constexpr real
+to_real(long double v) noexcept
+{
+    return static_cast<real>(v);
+}
+
+namespace literals {
+
+//! @brief An helper literal function to initialize floating point number and
+//! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
+//!
+//! @param v The floating point number to convert to float, double or long
+//! double.
+//! @return A real.
+inline constexpr real operator"" _r(long double v) noexcept
+{
+    return static_cast<real>(v);
+}
+
+} // namespace literals
+
+constexpr static inline real one = to_real(1.);
+constexpr static inline real two = to_real(2.);
+constexpr static inline real three = to_real(3.);
+constexpr static inline real four = to_real(4.);
+constexpr static inline real zero = to_real(0.);
+
 inline u16
 make_halfword(u8 a, u8 b) noexcept
 {
@@ -576,7 +615,7 @@ static inline global_free_function_type g_free_fn{ free_wrapper };
  *
  ****************************************************************************/
 
-using time = double;
+using time = real;
 
 template<typename T>
 struct time_domain
@@ -587,11 +626,11 @@ struct time_domain<time>
 {
     using time_type = time;
 
-    static constexpr const double infinity =
-      std::numeric_limits<double>::infinity();
-    static constexpr const double negative_infinity =
-      -std::numeric_limits<double>::infinity();
-    static constexpr const double zero = 0;
+    static constexpr const real infinity =
+      std::numeric_limits<real>::infinity();
+    static constexpr const real negative_infinity =
+      -std::numeric_limits<real>::infinity();
+    static constexpr const real zero = 0;
 
     static constexpr bool is_infinity(time t) noexcept
     {
@@ -1179,17 +1218,18 @@ public:
 template<size_t length>
 struct fixed_real_array
 {
+    using value_type = real;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
     static_assert(length >= 1, "fixed_real_array length must be >= 1");
 
-    double real[length];
+    real data[length]{};
 
     constexpr size_type size() const noexcept
     {
         for (size_t i = length; i != 0u; --i)
-            if (real[i - 1u])
+            if (data[i - 1u])
                 return i;
 
         return 0u;
@@ -1200,33 +1240,33 @@ struct fixed_real_array
         return static_cast<difference_type>(size());
     }
 
-    constexpr fixed_real_array() noexcept
+    constexpr fixed_real_array() noexcept = default;
+
+    template<typename U,
+             typename = std::enable_if_t<std::is_convertible_v<U, irt::real>>>
+    constexpr fixed_real_array(std::initializer_list<U> ilist) noexcept
     {
-        std::fill_n(real, length, 0.0);
+        irt_assert(ilist.size() <= length);
+
+        int index = 0;
+        for (const U& element : ilist) {
+            data[index++] = element;
+        }
     }
 
-    template<typename... Args>
-    constexpr fixed_real_array(Args&&... args)
-      : real{ std::forward<Args>(args)... }
+    constexpr real operator[](const difference_type i) const noexcept
     {
-        auto size = sizeof...(args);
-        for (; size < length; ++size)
-            real[size] = 0.;
+        return data[i];
     }
 
-    constexpr double operator[](const difference_type i) const noexcept
+    constexpr real& operator[](const difference_type i) noexcept
     {
-        return real[i];
-    }
-
-    constexpr double& operator[](const difference_type i) noexcept
-    {
-        return real[i];
+        return data[i];
     }
 
     constexpr void reset() noexcept
     {
-        std::fill_n(real, length, 0.0);
+        std::fill_n(data, length, zero);
     }
 };
 
@@ -1294,7 +1334,7 @@ struct message_allocator
         length = static_cast<i16>(alloc_number);
         m_size += alloc_number;
 
-        static constexpr message zero;
+        static const message zero;
         std::fill_n(m_data + index, static_cast<sz>(alloc_number), zero);
 
         return std::span<message>(m_data + index,
@@ -1710,7 +1750,7 @@ public:
             return emplace_front(std::forward<Args>(args)...);
 
         u32 new_node = m_allocator.alloc_index();
-        new (&m_allocator[new_node].value) T(std::forward<Args>(args)...);
+        new (&m_allocator[new_node].value) T{ std::forward<Args>(args)... };
 
         m_allocator[new_node].prev = pos.id;
         m_allocator[new_node].next = m_allocator[pos.id].next;
@@ -1761,7 +1801,7 @@ public:
         irt_assert(m_allocator.can_alloc());
 
         u32 new_node = m_allocator.alloc_index();
-        new (&m_allocator[new_node].value) T(std::forward<Args>(args)...);
+        new (&m_allocator[new_node].value) T{ std::forward<Args>(args)... };
 
         u32 first, last;
         unpack_doubleword(m_list, &first, &last);
@@ -1789,7 +1829,7 @@ public:
         irt_assert(m_allocator.can_alloc());
 
         u32 new_node = m_allocator.alloc_index();
-        new (&m_allocator[new_node].value) T(std::forward<Args>(args)...);
+        new (&m_allocator[new_node].value) T{ std::forward<Args>(args)... };
 
         u32 first, last;
         unpack_doubleword(m_list, &first, &last);
@@ -2423,12 +2463,12 @@ struct record
 {
     record() noexcept = default;
 
-    record(double x_dot_, time date_) noexcept
+    record(real x_dot_, time date_) noexcept
       : x_dot{ x_dot_ }
       , date{ date_ }
     {}
 
-    double x_dot{ 0 };
+    real x_dot{ 0 };
     time date{ time_domain<time>::infinity };
 };
 
@@ -3169,16 +3209,16 @@ struct integrator
         running
     };
 
-    double default_current_value = 0.0;
-    double default_reset_value = 0.0;
+    real default_current_value = 0.0;
+    real default_reset_value = 0.0;
     u64 archive = static_cast<u64>(-1);
 
-    double current_value = 0.0;
-    double reset_value = 0.0;
-    double up_threshold = 0.0;
-    double down_threshold = 0.0;
-    double last_output_value = 0.0;
-    double expected_value = 0.0;
+    real current_value = 0.0;
+    real reset_value = 0.0;
+    real up_threshold = 0.0;
+    real down_threshold = 0.0;
+    real last_output_value = 0.0;
+    real expected_value = 0.0;
     bool reset = false;
     state st = state::init;
 
@@ -3226,8 +3266,8 @@ struct integrator
         if (have_message(x[port_quanta])) {
             auto lst = alloc.get_input_message(x[port_quanta]);
             for (const auto& msg : lst) {
-                up_threshold = msg.real[0];
-                down_threshold = msg.real[1];
+                up_threshold = msg.data[0];
+                down_threshold = msg.data[1];
 
                 if (st == state::wait_for_quanta)
                     st = state::running;
@@ -3241,7 +3281,7 @@ struct integrator
             auto lst = alloc.get_input_message(x[port_x_dot]);
             auto archive_list = alloc.get_archive(archive);
             for (const auto& msg : lst) {
-                archive_list.emplace_back(msg.real[0], t);
+                archive_list.emplace_back(msg.data[0], t);
 
                 if (st == state::wait_for_x_dot)
                     st = state::running;
@@ -3254,7 +3294,7 @@ struct integrator
         if (have_message(x[port_reset])) {
             auto lst = alloc.get_input_message(x[port_reset]);
             for (const auto& msg : lst) {
-                reset_value = msg.real[0];
+                reset_value = msg.data[0];
                 reset = true;
             }
         }
@@ -3274,7 +3314,7 @@ struct integrator
             last_output_value = expected_value;
             auto lst = alloc.get_archive(archive);
 
-            const double last_derivative_value = lst.back().x_dot;
+            const real last_derivative_value = lst.back().x_dot;
             lst.clear();
             lst.emplace_back(last_derivative_value, t);
             current_value = expected_value;
@@ -3369,7 +3409,7 @@ struct integrator
         return status::success;
     }
 
-    double compute_current_value(allocators& alloc, time t) noexcept
+    real compute_current_value(allocators& alloc, time t) noexcept
     {
         if (static_cast<u64>(-1) == archive)
             return reset ? reset_value : last_output_value;
@@ -3397,7 +3437,7 @@ struct integrator
         }
     }
 
-    double compute_expected_value(allocators& alloc) noexcept
+    real compute_expected_value(allocators& alloc) noexcept
     {
         auto lst = alloc.get_archive(archive);
         const auto current_derivative = lst.back().x_dot;
@@ -3426,11 +3466,11 @@ struct abstract_integrator<1>
 {
     input_port x[2];
     output_port y[1];
-    double default_X = 0.;
-    double default_dQ = 0.01;
-    double X;
-    double q;
-    double u;
+    real default_X = zero;
+    real default_dQ = irt::real(0.01);
+    real X;
+    real q;
+    real u;
     time sigma = time_domain<time>::zero;
 
     enum port_name
@@ -3455,12 +3495,12 @@ struct abstract_integrator<1>
         irt_return_if_fail(std::isfinite(default_X),
                            status::model_integrator_X_error);
 
-        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > 0.,
+        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > zero,
                            status::model_integrator_X_error);
 
         X = default_X;
         q = std::floor(X / default_dQ) * default_dQ;
-        u = 0.;
+        u = zero;
 
         sigma = time_domain<time>::zero;
 
@@ -3475,10 +3515,10 @@ struct abstract_integrator<1>
         X += e * u;
         u = value_x;
 
-        if (sigma != 0.) {
-            if (u == 0.)
+        if (sigma != zero) {
+            if (u == zero)
                 sigma = time_domain<time>::infinity;
-            else if (u > 0.)
+            else if (u > zero)
                 sigma = (q + default_dQ - X) / u;
             else
                 sigma = (q - default_dQ - X) / u;
@@ -3504,7 +3544,7 @@ struct abstract_integrator<1>
         q = X;
 
         sigma =
-          u == 0. ? time_domain<time>::infinity : default_dQ / std::abs(u);
+          u == zero ? time_domain<time>::infinity : default_dQ / std::abs(u);
 
         return status::success;
     }
@@ -3555,13 +3595,13 @@ struct abstract_integrator<2>
 {
     input_port x[2];
     output_port y[1];
-    double default_X = 0.;
-    double default_dQ = 0.01;
-    double X;
-    double u;
-    double mu;
-    double q;
-    double mq;
+    real default_X = zero;
+    real default_dQ = irt::real(0.01);
+    real X;
+    real u;
+    real mu;
+    real q;
+    real mq;
     time sigma = time_domain<time>::zero;
 
     enum port_name
@@ -3593,10 +3633,10 @@ struct abstract_integrator<2>
 
         X = default_X;
 
-        u = 0.;
-        mu = 0.;
+        u = zero;
+        mu = zero;
         q = X;
-        mq = 0.;
+        mq = zero;
 
         sigma = time_domain<time>::zero;
 
@@ -3606,48 +3646,48 @@ struct abstract_integrator<2>
     status external(allocators& alloc, const time e) noexcept
     {
         auto lst = alloc.get_input_message(x[port_x_dot]);
-        const double value_x = lst.front()[0];
-        const double value_slope = lst.front()[1];
+        const real value_x = lst.front()[0];
+        const real value_slope = lst.front()[1];
 
-        X += (u * e) + (mu / 2.0) * (e * e);
+        X += (u * e) + (mu / two) * (e * e);
         u = value_x;
         mu = value_slope;
 
-        if (sigma != 0) {
+        if (sigma != zero) {
             q += mq * e;
-            const double a = mu / 2;
-            const double b = u - mq;
-            double c = X - q + default_dQ;
-            double s;
+            const real a = mu / two;
+            const real b = u - mq;
+            real c = X - q + default_dQ;
+            real s;
             sigma = time_domain<time>::infinity;
 
-            if (a == 0) {
-                if (b != 0) {
+            if (a == zero) {
+                if (b != zero) {
                     s = -c / b;
-                    if (s > 0)
+                    if (s > zero)
                         sigma = s;
 
                     c = X - q - default_dQ;
                     s = -c / b;
-                    if ((s > 0) && (s < sigma))
+                    if ((s > zero) && (s < sigma))
                         sigma = s;
                 }
             } else {
-                s = (-b + std::sqrt(b * b - 4. * a * c)) / 2. / a;
-                if (s > 0.)
+                s = (-b + std::sqrt(b * b - four * a * c)) / two / a;
+                if (s > zero)
                     sigma = s;
 
-                s = (-b - std::sqrt(b * b - 4. * a * c)) / 2. / a;
-                if ((s > 0.) && (s < sigma))
+                s = (-b - std::sqrt(b * b - four * a * c)) / two / a;
+                if ((s > zero) && (s < sigma))
                     sigma = s;
 
                 c = X - q - default_dQ;
-                s = (-b + std::sqrt(b * b - 4. * a * c)) / 2. / a;
-                if ((s > 0.) && (s < sigma))
+                s = (-b + std::sqrt(b * b - four * a * c)) / two / a;
+                if ((s > zero) && (s < sigma))
                     sigma = s;
 
-                s = (-b - std::sqrt(b * b - 4. * a * c)) / 2. / a;
-                if ((s > 0.) && (s < sigma))
+                s = (-b - std::sqrt(b * b - four * a * c)) / two / a;
+                if ((s > zero) && (s < sigma))
                     sigma = s;
             }
 
@@ -3660,13 +3700,13 @@ struct abstract_integrator<2>
 
     status internal() noexcept
     {
-        X += u * sigma + mu / 2. * sigma * sigma;
+        X += u * sigma + mu / two * sigma * sigma;
         q = X;
         u += mu * sigma;
         mq = u;
 
         sigma = mu == 0. ? time_domain<time>::infinity
-                         : std::sqrt(2. * default_dQ / std::abs(mu));
+                         : std::sqrt(two * default_dQ / std::abs(mu));
 
         return status::success;
     }
@@ -3706,7 +3746,7 @@ struct abstract_integrator<2>
             return status::simulation_not_enough_memory_message_list_allocator;
 
         auto span = alloc.alloc_message(y[0], 1);
-        span.front()[0] = X + u * sigma + mu * sigma * sigma / 2.;
+        span.front()[0] = X + u * sigma + mu * sigma * sigma / two;
         span.front()[1] = u + mu * sigma;
 
         return status::success;
@@ -3723,15 +3763,15 @@ struct abstract_integrator<3>
 {
     input_port x[2];
     output_port y[1];
-    double default_X = 0.;
-    double default_dQ = 0.01;
-    double X;
-    double u;
-    double mu;
-    double pu;
-    double q;
-    double mq;
-    double pq;
+    real default_X = zero;
+    real default_dQ = irt::real(0.01);
+    real X;
+    real u;
+    real mu;
+    real pu;
+    real q;
+    real mq;
+    real pq;
     time sigma = time_domain<time>::zero;
 
     enum port_name
@@ -3764,12 +3804,12 @@ struct abstract_integrator<3>
                            status::model_integrator_X_error);
 
         X = default_X;
-        u = 0;
-        mu = 0;
-        pu = 0;
+        u = zero;
+        mu = zero;
+        pu = zero;
         q = default_X;
-        mq = 0;
-        pq = 0;
+        mq = zero;
+        pq = zero;
         sigma = time_domain<time>::zero;
 
         return status::success;
@@ -3779,70 +3819,70 @@ struct abstract_integrator<3>
     {
         auto lst = alloc.get_input_message(x[port_x_dot]);
         auto& value = lst.front();
-        const double value_x = value[0];
-        const double value_slope = value[1];
-        const double value_derivative = value[2];
+        const real value_x = value[0];
+        const real value_slope = value[1];
+        const real value_derivative = value[2];
 
 #if irt_have_numbers == 1
-        constexpr double pi_div_3 = std::numbers::pi_v<double> / 3.;
+        constexpr real pi_div_3 = std::numbers::pi_v<real> / three;
 #else
-        constexpr double pi_div_3 = 1.0471975511965976;
+        constexpr real pi_div_3 = 1.0471975511965976;
 #endif
 
-        X = X + u * e + (mu * e * e) / 2. + (pu * e * e * e) / 3.;
+        X = X + u * e + (mu * e * e) / two + (pu * e * e * e) / three;
         u = value_x;
         mu = value_slope;
         pu = value_derivative;
 
         if (sigma != 0.) {
             q = q + mq * e + pq * e * e;
-            mq = mq + 2. * pq * e;
-            auto a = mu / 2. - pq;
+            mq = mq + two * pq * e;
+            auto a = mu / two - pq;
             auto b = u - mq;
             auto c = X - q - default_dQ;
-            auto s = 0.;
+            auto s = zero;
 
-            if (pu != 0) {
-                a = 3. * a / pu;
-                b = 3. * b / pu;
-                c = 3. * c / pu;
-                auto v = b - a * a / 3.;
-                auto w = c - b * a / 3. + 2. * a * a * a / 27.;
-                auto i1 = -w / 2.;
-                auto i2 = i1 * i1 + v * v * v / 27.;
+            if (pu != zero) {
+                a = three * a / pu;
+                b = three * b / pu;
+                c = three * c / pu;
+                auto v = b - a * a / three;
+                auto w = c - b * a / three + two * a * a * a / real(27);
+                auto i1 = -w / two;
+                auto i2 = i1 * i1 + v * v * v / real(27);
 
-                if (i2 > 0) {
+                if (i2 > zero) {
                     i2 = std::sqrt(i2);
                     auto A = i1 + i2;
                     auto B = i1 - i2;
 
-                    if (A > 0.)
-                        A = std::pow(A, 1. / 3.);
+                    if (A > zero)
+                        A = std::pow(A, one / three);
                     else
-                        A = -std::pow(std::abs(A), 1. / 3.);
-                    if (B > 0.)
-                        B = std::pow(B, 1. / 3.);
+                        A = -std::pow(std::abs(A), one / three);
+                    if (B > zero)
+                        B = std::pow(B, one / three);
                     else
-                        B = -std::pow(std::abs(B), 1. / 3.);
+                        B = -std::pow(std::abs(B), one / three);
 
-                    s = A + B - a / 3.;
-                    if (s < 0.)
+                    s = A + B - a / three;
+                    if (s < zero)
                         s = time_domain<time>::infinity;
-                } else if (i2 == 0.) {
+                } else if (i2 == zero) {
                     auto A = i1;
-                    if (A > 0.)
-                        A = std::pow(A, 1. / 3.);
+                    if (A > zero)
+                        A = std::pow(A, one / three);
                     else
-                        A = -std::pow(std::abs(A), 1. / 3.);
-                    auto x1 = 2. * A - a / 3.;
-                    auto x2 = -(A + a / 3.);
-                    if (x1 < 0.) {
-                        if (x2 < 0.) {
+                        A = -std::pow(std::abs(A), one / three);
+                    auto x1 = two * A - a / three;
+                    auto x2 = -(A + a / three);
+                    if (x1 < zero) {
+                        if (x2 < zero) {
                             s = time_domain<time>::infinity;
                         } else {
                             s = x2;
                         }
-                    } else if (x2 < 0.) {
+                    } else if (x2 < zero) {
                         s = x1;
                     } else if (x1 < x2) {
                         s = x1;
@@ -3850,58 +3890,58 @@ struct abstract_integrator<3>
                         s = x2;
                     }
                 } else {
-                    auto arg = w * std::sqrt(27. / (-v)) / (2. * v);
-                    arg = std::acos(arg) / 3.;
-                    auto y1 = 2 * std::sqrt(-v / 3.);
-                    auto y2 = -y1 * std::cos(pi_div_3 - arg) - a / 3.;
-                    auto y3 = -y1 * std::cos(pi_div_3 + arg) - a / 3.;
-                    y1 = y1 * std::cos(arg) - a / 3.;
-                    if (y1 < 0.) {
+                    auto arg = w * std::sqrt(real(27) / (-v)) / (two * v);
+                    arg = std::acos(arg) / three;
+                    auto y1 = two * std::sqrt(-v / three);
+                    auto y2 = -y1 * std::cos(pi_div_3 - arg) - a / three;
+                    auto y3 = -y1 * std::cos(pi_div_3 + arg) - a / three;
+                    y1 = y1 * std::cos(arg) - a / three;
+                    if (y1 < zero) {
                         s = time_domain<time>::infinity;
-                    } else if (y3 < 0.) {
+                    } else if (y3 < zero) {
                         s = y1;
-                    } else if (y2 < 0.) {
+                    } else if (y2 < zero) {
                         s = y3;
                     } else {
                         s = y2;
                     }
                 }
-                c = c + 6. * default_dQ / pu;
-                w = c - b * a / 3. + 2. * a * a * a / 27.;
-                i1 = -w / 2;
-                i2 = i1 * i1 + v * v * v / 27.;
-                if (i2 > 0.) {
+                c = c + real(6) * default_dQ / pu;
+                w = c - b * a / three + two * a * a * a / real(27);
+                i1 = -w / two;
+                i2 = i1 * i1 + v * v * v / real(27);
+                if (i2 > zero) {
                     i2 = std::sqrt(i2);
                     auto A = i1 + i2;
                     auto B = i1 - i2;
-                    if (A > 0)
-                        A = std::pow(A, 1. / 3.);
+                    if (A > zero)
+                        A = std::pow(A, one / three);
                     else
-                        A = -std::pow(std::abs(A), 1. / 3.);
-                    if (B > 0.)
-                        B = std::pow(B, 1. / 3.);
+                        A = -std::pow(std::abs(A), one / three);
+                    if (B > zero)
+                        B = std::pow(B, one / three);
                     else
-                        B = -std::pow(std::abs(B), 1. / 3.);
-                    sigma = A + B - a / 3.;
+                        B = -std::pow(std::abs(B), one / three);
+                    sigma = A + B - a / three;
 
-                    if (s < sigma || sigma < 0.) {
+                    if (s < sigma || sigma < zero) {
                         sigma = s;
                     }
-                } else if (i2 == 0.) {
+                } else if (i2 == zero) {
                     auto A = i1;
-                    if (A > 0.)
-                        A = std::pow(A, 1. / 3.);
+                    if (A > zero)
+                        A = std::pow(A, one / three);
                     else
-                        A = -std::pow(std::abs(A), 1. / 3.);
-                    auto x1 = 2. * A - a / 3.;
-                    auto x2 = -(A + a / 3.);
-                    if (x1 < 0.) {
-                        if (x2 < 0.) {
+                        A = -std::pow(std::abs(A), one / three);
+                    auto x1 = two * A - a / three;
+                    auto x2 = -(A + a / three);
+                    if (x1 < zero) {
+                        if (x2 < zero) {
                             sigma = time_domain<time>::infinity;
                         } else {
                             sigma = x2;
                         }
-                    } else if (x2 < 0.) {
+                    } else if (x2 < zero) {
                         sigma = x1;
                     } else if (x1 < x2) {
                         sigma = x1;
@@ -3912,17 +3952,17 @@ struct abstract_integrator<3>
                         sigma = s;
                     }
                 } else {
-                    auto arg = w * std::sqrt(27. / (-v)) / (2. * v);
-                    arg = std::acos(arg) / 3.;
-                    auto y1 = 2. * std::sqrt(-v / 3.);
-                    auto y2 = -y1 * std::cos(pi_div_3 - arg) - a / 3.;
-                    auto y3 = -y1 * std::cos(pi_div_3 + arg) - a / 3.;
-                    y1 = y1 * std::cos(arg) - a / 3.;
-                    if (y1 < 0.) {
+                    auto arg = w * std::sqrt(real(27) / (-v)) / (two * v);
+                    arg = std::acos(arg) / three;
+                    auto y1 = two * std::sqrt(-v / three);
+                    auto y2 = -y1 * std::cos(pi_div_3 - arg) - a / three;
+                    auto y3 = -y1 * std::cos(pi_div_3 + arg) - a / three;
+                    y1 = y1 * std::cos(arg) - a / three;
+                    if (y1 < zero) {
                         sigma = time_domain<time>::infinity;
-                    } else if (y3 < 0.) {
+                    } else if (y3 < zero) {
                         sigma = y1;
-                    } else if (y2 < 0.) {
+                    } else if (y2 < zero) {
                         sigma = y3;
                     } else {
                         sigma = y2;
@@ -3933,20 +3973,20 @@ struct abstract_integrator<3>
                 }
             } else {
                 if (a != 0.) {
-                    auto x1 = b * b - 4 * a * c;
-                    if (x1 < 0.) {
+                    auto x1 = b * b - four * a * c;
+                    if (x1 < zero) {
                         s = time_domain<time>::infinity;
                     } else {
                         x1 = std::sqrt(x1);
-                        auto x2 = (-b - x1) / 2. / a;
-                        x1 = (-b + x1) / 2. / a;
-                        if (x1 < 0.) {
-                            if (x2 < 0.) {
+                        auto x2 = (-b - x1) / two / a;
+                        x1 = (-b + x1) / two / a;
+                        if (x1 < zero) {
+                            if (x2 < zero) {
                                 s = time_domain<time>::infinity;
                             } else {
                                 s = x2;
                             }
-                        } else if (x2 < 0.) {
+                        } else if (x2 < zero) {
                             s = x1;
                         } else if (x1 < x2) {
                             s = x1;
@@ -3954,21 +3994,21 @@ struct abstract_integrator<3>
                             s = x2;
                         }
                     }
-                    c = c + 2. * default_dQ;
-                    x1 = b * b - 4. * a * c;
-                    if (x1 < 0.) {
+                    c = c + two * default_dQ;
+                    x1 = b * b - four * a * c;
+                    if (x1 < zero) {
                         sigma = time_domain<time>::infinity;
                     } else {
                         x1 = std::sqrt(x1);
-                        auto x2 = (-b - x1) / 2. / a;
-                        x1 = (-b + x1) / 2. / a;
-                        if (x1 < 0.) {
-                            if (x2 < 0.) {
+                        auto x2 = (-b - x1) / two / a;
+                        x1 = (-b + x1) / two / a;
+                        if (x1 < zero) {
+                            if (x2 < zero) {
                                 sigma = time_domain<time>::infinity;
                             } else {
                                 sigma = x2;
                             }
-                        } else if (x2 < 0.) {
+                        } else if (x2 < zero) {
                             sigma = x1;
                         } else if (x1 < x2) {
                             sigma = x1;
@@ -3979,12 +4019,12 @@ struct abstract_integrator<3>
                     if (s < sigma)
                         sigma = s;
                 } else {
-                    if (b != 0.) {
+                    if (b != zero) {
                         auto x1 = -c / b;
-                        auto x2 = x1 - 2 * default_dQ / b;
-                        if (x1 < 0.)
+                        auto x2 = x1 - two * default_dQ / b;
+                        if (x1 < zero)
                             x1 = time_domain<time>::infinity;
-                        if (x2 < 0.)
+                        if (x2 < zero)
                             x2 = time_domain<time>::infinity;
                         if (x1 < x2) {
                             sigma = x1;
@@ -4004,16 +4044,17 @@ struct abstract_integrator<3>
 
     status internal() noexcept
     {
-        X = X + u * sigma + (mu * sigma * sigma) / 2. +
-            (pu * sigma * sigma * sigma) / 3.;
+        X = X + u * sigma + (mu * sigma * sigma) / two +
+            (pu * sigma * sigma * sigma) / three;
         q = X;
-        u = u + mu * sigma + pu * pow(sigma, 2);
+        u = u + mu * sigma + pu * pow(sigma, two);
         mq = u;
-        mu = mu + 2 * pu * sigma;
-        pq = mu / 2;
+        mu = mu + two * pu * sigma;
+        pq = mu / two;
 
-        sigma = pu == 0. ? time_domain<time>::infinity
-                         : std::pow(std::abs(3. * default_dQ / pu), 1. / 3.);
+        sigma = pu == 0.
+                  ? time_domain<time>::infinity
+                  : std::pow(std::abs(three * default_dQ / pu), one / three);
 
         return status::success;
     }
@@ -4052,10 +4093,10 @@ struct abstract_integrator<3>
             return status::simulation_not_enough_memory_message_list_allocator;
 
         auto span = alloc.alloc_message(y[0], 1);
-        span[0][0] = X + u * sigma + (mu * sigma * sigma) / 2. +
-                     (pu * sigma * sigma * sigma) / 3.;
+        span[0][0] = X + u * sigma + (mu * sigma * sigma) / two +
+                     (pu * sigma * sigma * sigma) / three;
         span[0][1] = u + mu * sigma + pu * sigma * sigma;
-        span[0][2] = mu / 2. + pu * sigma;
+        span[0][2] = mu / two + pu * sigma;
 
         return status::success;
     }
@@ -4079,8 +4120,8 @@ struct abstract_power
     output_port y[1];
     time sigma;
 
-    double value[QssLevel];
-    double default_n;
+    real value[QssLevel];
+    real default_n;
 
     abstract_power() noexcept = default;
 
@@ -4092,7 +4133,7 @@ struct abstract_power
 
     status initialize(allocators& /*alloc*/) noexcept
     {
-        std::fill_n(value, QssLevel, 0.0);
+        std::fill_n(value, QssLevel, zero);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -4121,7 +4162,7 @@ struct abstract_power
               default_n * std::pow(value[0], default_n - 1) * value[1];
             span[0][2] =
               default_n * (default_n - 1) * std::pow(value[0], default_n - 2) *
-                (value[1] * value[1] / 2.0) +
+                (value[1] * value[1] / two) +
               default_n * std::pow(value[0], default_n - 1) * value[2];
         }
 
@@ -4178,7 +4219,7 @@ struct abstract_square
     output_port y[1];
     time sigma;
 
-    double value[QssLevel];
+    real value[QssLevel];
 
     abstract_square() noexcept = default;
 
@@ -4189,7 +4230,7 @@ struct abstract_square
 
     status initialize(allocators& /*alloc*/) noexcept
     {
-        std::fill_n(value, QssLevel, 0.0);
+        std::fill_n(value, QssLevel, zero);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -4208,13 +4249,13 @@ struct abstract_square
 
         if constexpr (QssLevel == 2) {
             span[0][0] = value[0] * value[0];
-            span[0][1] = 2. * value[0] * value[1];
+            span[0][1] = two * value[0] * value[1];
         }
 
         if constexpr (QssLevel == 3) {
             span[0][0] = value[0] * value[0];
-            span[0][1] = 2. * value[0] * value[1];
-            span[0][2] = (2. * value[0] * value[2]) + (value[1] * value[1]);
+            span[0][1] = two * value[0] * value[1];
+            span[0][2] = (two * value[0] * value[2]) + (value[1] * value[1]);
         }
 
         return status::success;
@@ -4272,7 +4313,7 @@ struct abstract_sum
     output_port y[1];
     time sigma;
 
-    double values[QssLevel * PortNumber];
+    real values[QssLevel * PortNumber];
 
     abstract_sum() noexcept = default;
 
@@ -4284,7 +4325,7 @@ struct abstract_sum
 
     status initialize(allocators& /*alloc*/) noexcept
     {
-        std::fill_n(values, QssLevel * PortNumber, 0.0);
+        std::fill_n(values, QssLevel * PortNumber, zero);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -4298,7 +4339,7 @@ struct abstract_sum
         auto span = alloc.alloc_message(y[0], 1);
 
         if constexpr (QssLevel == 1) {
-            double value = 0.;
+            real value = 0.;
             for (int i = 0; i != PortNumber; ++i)
                 value += values[i];
 
@@ -4306,8 +4347,8 @@ struct abstract_sum
         }
 
         if constexpr (QssLevel == 2) {
-            double value = 0.;
-            double slope = 0.;
+            real value = 0.;
+            real slope = 0.;
 
             for (int i = 0; i != PortNumber; ++i) {
                 value += values[i];
@@ -4319,9 +4360,9 @@ struct abstract_sum
         }
 
         if constexpr (QssLevel == 3) {
-            double value = 0.;
-            double slope = 0.;
-            double derivative = 0.;
+            real value = 0.;
+            real slope = 0.;
+            real derivative = 0.;
 
             for (size_t i = 0; i != PortNumber; ++i) {
                 value += values[i];
@@ -4396,7 +4437,7 @@ struct abstract_sum
     observation_message observation(
       [[maybe_unused]] const time e) const noexcept
     {
-        double value = 0.;
+        real value = 0.;
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i)
@@ -4437,8 +4478,8 @@ struct abstract_wsum
     output_port y[1];
     time sigma;
 
-    double default_input_coeffs[PortNumber] = { 0 };
-    double values[QssLevel * PortNumber];
+    real default_input_coeffs[PortNumber] = { 0 };
+    real values[QssLevel * PortNumber];
 
     abstract_wsum() noexcept = default;
 
@@ -4452,7 +4493,7 @@ struct abstract_wsum
 
     status initialize(allocators& /*alloc*/) noexcept
     {
-        std::fill_n(values, QssLevel * PortNumber, 0.);
+        std::fill_n(values, QssLevel * PortNumber, zero);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -4466,7 +4507,7 @@ struct abstract_wsum
         auto span = alloc.alloc_message(y[0], 1);
 
         if constexpr (QssLevel == 1) {
-            double value = 0.0;
+            real value = zero;
 
             for (int i = 0; i != PortNumber; ++i)
                 value += default_input_coeffs[i] * values[i];
@@ -4475,8 +4516,8 @@ struct abstract_wsum
         }
 
         if constexpr (QssLevel == 2) {
-            double value = 0.;
-            double slope = 0.;
+            real value = zero;
+            real slope = zero;
 
             for (int i = 0; i != PortNumber; ++i) {
                 value += default_input_coeffs[i] * values[i];
@@ -4488,9 +4529,9 @@ struct abstract_wsum
         }
 
         if constexpr (QssLevel == 3) {
-            double value = 0.;
-            double slope = 0.;
-            double derivative = 0.;
+            real value = zero;
+            real slope = zero;
+            real derivative = zero;
 
             for (int i = 0; i != PortNumber; ++i) {
                 value += default_input_coeffs[i] * values[i];
@@ -4566,7 +4607,7 @@ struct abstract_wsum
     observation_message observation(
       [[maybe_unused]] const time e) const noexcept
     {
-        double value = 0.;
+        real value = zero;
 
         if constexpr (QssLevel >= 1) {
             for (int i = 0; i != PortNumber; ++i)
@@ -4607,7 +4648,7 @@ struct abstract_multiplier
     output_port y[1];
     time sigma;
 
-    double values[QssLevel * 2];
+    real values[QssLevel * 2];
 
     abstract_multiplier() noexcept = default;
 
@@ -4619,7 +4660,7 @@ struct abstract_multiplier
 
     status initialize(allocators& /*alloc*/) noexcept
     {
-        std::fill_n(values, QssLevel * 2, 0.);
+        std::fill_n(values, QssLevel * 2, zero);
         sigma = time_domain<time>::infinity;
 
         return status::success;
@@ -4712,15 +4753,17 @@ struct abstract_multiplier
       [[maybe_unused]] const time e) const noexcept
     {
         if constexpr (QssLevel == 1)
-            return values[0] * values[1];
+            return { values[0] * values[1] };
 
         if constexpr (QssLevel == 2)
-            return (values[0] + e * values[2 + 0]) *
-                   (values[1] + e * values[2 + 1]);
+            return { (values[0] + e * values[2 + 0]) *
+                     (values[1] + e * values[2 + 1]) };
 
         if constexpr (QssLevel == 3)
-            return (values[0] + e * values[2 + 0] + e * e * values[2 + 2 + 0]) *
-                   (values[1] + e * values[2 + 1] + e * e * values[2 + 2 + 1]);
+            return {
+                (values[0] + e * values[2 + 0] + e * e * values[2 + 2 + 0]) *
+                (values[1] + e * values[2 + 1] + e * e * values[2 + 2 + 1])
+            };
     }
 };
 
@@ -4754,17 +4797,17 @@ struct quantifier
         down
     };
 
-    double default_step_size = 0.001;
+    real default_step_size = real(0.001);
     int default_past_length = 3;
     adapt_state default_adapt_state = adapt_state::possible;
     bool default_zero_init_offset = false;
     u64 archive = -1;
     int archive_length = 0;
 
-    double m_upthreshold = 0.0;
-    double m_downthreshold = 0.0;
-    double m_offset = 0.0;
-    double m_step_size = 0.0;
+    real m_upthreshold = zero;
+    real m_downthreshold = zero;
+    real m_offset = zero;
+    real m_step_size = zero;
     int m_step_number = 0;
     int m_past_length = 0;
     bool m_zero_init_offset = false;
@@ -4797,9 +4840,9 @@ struct quantifier
         m_past_length = default_past_length;
         m_zero_init_offset = default_zero_init_offset;
         m_adapt_state = default_adapt_state;
-        m_upthreshold = 0.0;
-        m_downthreshold = 0.0;
-        m_offset = 0.0;
+        m_upthreshold = zero;
+        m_downthreshold = zero;
+        m_offset = zero;
         m_step_number = 0;
         archive = -1;
         archive_length = 0;
@@ -4826,12 +4869,12 @@ struct quantifier
 
     status external(allocators& alloc, time t) noexcept
     {
-        double val = 0.0, shifting_factor = 0.0;
+        real val = 0.0, shifting_factor = 0.0;
 
         {
             auto span = alloc.get_input_message(x[0]);
-            double sum = 0.0;
-            double nb = 0.0;
+            real sum = zero;
+            real nb = zero;
 
             for (const auto& elem : span) {
                 sum += elem[0];
@@ -4939,57 +4982,57 @@ private:
 
     void update_thresholds() noexcept
     {
-        const auto step_number = static_cast<double>(m_step_number);
+        const auto step_number = static_cast<real>(m_step_number);
 
-        m_upthreshold = m_offset + m_step_size * (step_number + 1.0);
-        m_downthreshold = m_offset + m_step_size * (step_number - 1.0);
+        m_upthreshold = m_offset + m_step_size * (step_number + one);
+        m_downthreshold = m_offset + m_step_size * (step_number - one);
     }
 
-    void update_thresholds(double factor) noexcept
+    void update_thresholds(real factor) noexcept
     {
-        const auto step_number = static_cast<double>(m_step_number);
+        const auto step_number = static_cast<real>(m_step_number);
 
-        m_upthreshold = m_offset + m_step_size * (step_number + (1.0 - factor));
+        m_upthreshold = m_offset + m_step_size * (step_number + (one - factor));
         m_downthreshold =
-          m_offset + m_step_size * (step_number - (1.0 - factor));
+          m_offset + m_step_size * (step_number - (one - factor));
     }
 
-    void update_thresholds(double factor, direction d) noexcept
+    void update_thresholds(real factor, direction d) noexcept
     {
-        const auto step_number = static_cast<double>(m_step_number);
+        const auto step_number = static_cast<real>(m_step_number);
 
         if (d == direction::up) {
             m_upthreshold =
-              m_offset + m_step_size * (step_number + (1.0 - factor));
-            m_downthreshold = m_offset + m_step_size * (step_number - 1.0);
+              m_offset + m_step_size * (step_number + (one - factor));
+            m_downthreshold = m_offset + m_step_size * (step_number - one);
         } else {
-            m_upthreshold = m_offset + m_step_size * (step_number + 1.0);
+            m_upthreshold = m_offset + m_step_size * (step_number + one);
             m_downthreshold =
-              m_offset + m_step_size * (step_number - (1.0 - factor));
+              m_offset + m_step_size * (step_number - (one - factor));
         }
     }
 
-    void init_step_number_and_offset(double value) noexcept
+    void init_step_number_and_offset(real value) noexcept
     {
         m_step_number = static_cast<int>(std::floor(value / m_step_size));
 
         if (m_zero_init_offset) {
             m_offset = 0.0;
         } else {
-            m_offset = value - static_cast<double>(m_step_number) * m_step_size;
+            m_offset = value - static_cast<real>(m_step_number) * m_step_size;
         }
     }
 
-    double shift_quanta(allocators& alloc)
+    real shift_quanta(allocators& alloc)
     {
         auto lst = alloc.get_archive(archive);
-        double factor = 0.0;
+        real factor = 0.0;
 
         if (oscillating(alloc, m_past_length - 1) &&
             ((lst.back().date - lst.front().date) != 0)) {
-            double acc = 0.0;
-            double local_estim;
-            double cnt = 0;
+            real acc = 0.0;
+            real local_estim;
+            real cnt = 0;
 
             auto it_2 = lst.begin();
             auto it_0 = it_2++;
@@ -5019,7 +5062,7 @@ private:
         return factor;
     }
 
-    void store_change(allocators& alloc, double val, time t) noexcept
+    void store_change(allocators& alloc, real val, time t) noexcept
     {
         auto lst = alloc.get_archive(archive);
         lst.emplace_back(val, t);
@@ -5075,19 +5118,18 @@ struct adder
     output_port y[1];
     time sigma;
 
-    double default_values[PortNumber];
-    double default_input_coeffs[PortNumber];
+    real default_values[PortNumber];
+    real default_input_coeffs[PortNumber];
 
-    double values[PortNumber];
-    double input_coeffs[PortNumber];
+    real values[PortNumber];
+    real input_coeffs[PortNumber];
 
     adder() noexcept
     {
-        std::fill_n(std::begin(default_values),
-                    PortNumber,
-                    1.0 / static_cast<double>(PortNumber));
+        constexpr auto div = one / static_cast<real>(PortNumber);
 
-        std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
+        std::fill_n(std::begin(default_values), PortNumber, div);
+        std::fill_n(std::begin(default_input_coeffs), PortNumber, zero);
     }
 
     adder(const adder& other) noexcept
@@ -5123,7 +5165,7 @@ struct adder
             return status::simulation_not_enough_memory_message_list_allocator;
 
         auto span = alloc.alloc_message(y[0], 1);
-        double to_send = 0.0;
+        real to_send = zero;
 
         for (size_t i = 0; i != PortNumber; ++i)
             to_send += input_coeffs[i] * values[i];
@@ -5157,7 +5199,7 @@ struct adder
 
     observation_message observation(const time /*e*/) const noexcept
     {
-        double ret = 0.0;
+        real ret = zero;
 
         for (size_t i = 0; i != PortNumber; ++i)
             ret += input_coeffs[i] * values[i];
@@ -5175,16 +5217,16 @@ struct mult
     output_port y[1];
     time sigma;
 
-    double default_values[PortNumber];
-    double default_input_coeffs[PortNumber];
+    real default_values[PortNumber];
+    real default_input_coeffs[PortNumber];
 
-    double values[PortNumber];
-    double input_coeffs[PortNumber];
+    real values[PortNumber];
+    real input_coeffs[PortNumber];
 
     mult() noexcept
     {
-        std::fill_n(std::begin(default_values), PortNumber, 1.0);
-        std::fill_n(std::begin(default_input_coeffs), PortNumber, 0.0);
+        std::fill_n(std::begin(default_values), PortNumber, one);
+        std::fill_n(std::begin(default_input_coeffs), PortNumber, zero);
     }
 
     mult(const mult& other) noexcept
@@ -5219,7 +5261,7 @@ struct mult
             return status::simulation_not_enough_memory_message_list_allocator;
 
         auto span = alloc.alloc_message(y[0], 1);
-        double to_send = 1.0;
+        real to_send = 1.0;
 
         for (size_t i = 0; i != PortNumber; ++i)
             to_send *= std::pow(values[i], input_coeffs[i]);
@@ -5251,7 +5293,7 @@ struct mult
 
     observation_message observation(const time /*e*/) const noexcept
     {
-        double ret = 1.0;
+        real ret = 1.0;
 
         for (size_t i = 0; i != PortNumber; ++i)
             ret *= std::pow(values[i], input_coeffs[i]);
@@ -5295,7 +5337,7 @@ struct counter
 
     observation_message observation(const time /*e*/) const noexcept
     {
-        return { static_cast<double>(number) };
+        return { static_cast<real>(number) };
     }
 };
 
@@ -5303,10 +5345,10 @@ struct generator
 {
     output_port y[1];
     time sigma;
-    double value;
+    real value;
 
     simulation* sim = nullptr;
-    double default_offset = 0.0;
+    real default_offset = 0.0;
     source default_source_ta;
     source default_source_value;
     bool stop_on_error = false;
@@ -5343,15 +5385,26 @@ struct generator
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        if (stop_on_error) {
-            irt_return_if_bad(update_source(*sim, default_source_ta, sigma));
-            irt_return_if_bad(update_source(*sim, default_source_value, value));
-        } else {
-            if (is_bad(update_source(*sim, default_source_ta, sigma)))
-                sigma = time_domain<time>::infinity;
+        double local_sigma = 0;
+        double local_value = 0;
 
-            if (is_bad(update_source(*sim, default_source_value, value)))
-                value = 0.0;
+        if (stop_on_error) {
+            irt_return_if_bad(
+              update_source(*sim, default_source_ta, local_sigma));
+            irt_return_if_bad(
+              update_source(*sim, default_source_value, local_value));
+            sigma = static_cast<real>(local_sigma);
+            value = static_cast<real>(local_value);
+        } else {
+            if (is_bad(update_source(*sim, default_source_ta, local_sigma)))
+                sigma = time_domain<time>::infinity;
+            else
+                sigma = static_cast<real>(local_sigma);
+
+            if (is_bad(update_source(*sim, default_source_value, local_value)))
+                value = 0;
+            else
+                value = static_cast<real>(local_value);
         }
 
         return status::success;
@@ -5379,10 +5432,10 @@ struct constant
     output_port y[1];
     time sigma;
 
-    double default_value = 0.0;
+    real default_value = 0.0;
     time default_offset = time_domain<time>::zero;
 
-    double value = 0.0;
+    real value = 0.0;
 
     constant() noexcept = default;
 
@@ -5498,12 +5551,12 @@ struct flow
     output_port y[1];
     time sigma;
 
-    double default_samplerate = 44100.0;
-    double* default_data = nullptr;
-    double* default_sigmas = nullptr;
+    real default_samplerate = 44100.0;
+    real* default_data = nullptr;
+    real* default_sigmas = nullptr;
     sz default_size = 0u;
 
-    double accu_sigma;
+    real accu_sigma;
     sz i;
 
     flow() noexcept = default;
@@ -5520,15 +5573,15 @@ struct flow
 
     status initialize(allocators& /*alloc*/) noexcept
     {
-        irt_return_if_fail(default_samplerate > 0.,
+        irt_return_if_fail(default_samplerate > zero,
                            status::model_flow_bad_samplerate);
 
         irt_return_if_fail(default_data != nullptr &&
                              default_sigmas != nullptr && default_size > 1,
                            status::model_flow_bad_data);
 
-        sigma = 1.0 / default_samplerate;
-        accu_sigma = 0.;
+        sigma = one / default_samplerate;
+        accu_sigma = zero;
         i = 0;
 
         return status::success;
@@ -5576,8 +5629,8 @@ struct accumulator
 {
     input_port x[2 * PortNumber];
     time sigma;
-    double number;
-    double numbers[PortNumber];
+    real number;
+    real numbers[PortNumber];
 
     accumulator() = default;
 
@@ -5590,8 +5643,8 @@ struct accumulator
 
     status initialize(allocators& /*alloc*/) noexcept
     {
-        number = 0.0;
-        std::fill_n(numbers, PortNumber, 0.0);
+        number = zero;
+        std::fill_n(numbers, PortNumber, zero);
 
         sigma = time_domain<time>::infinity;
 
@@ -5610,7 +5663,7 @@ struct accumulator
 
         for (sz i = 0; i != PortNumber; ++i) {
             auto span = alloc.get_input_message(x[i]);
-            if (span[0][0] != 0.0)
+            if (span[0][0] != zero)
                 number += numbers[i];
         }
 
@@ -5624,14 +5677,14 @@ struct cross
     output_port y[2];
     time sigma;
 
-    double default_threshold = 0.0;
+    real default_threshold = zero;
 
-    double threshold;
-    double value;
-    double if_value;
-    double else_value;
-    double result;
-    double event;
+    real threshold;
+    real value;
+    real if_value;
+    real else_value;
+    real result;
+    real event;
 
     cross() noexcept = default;
 
@@ -5657,11 +5710,11 @@ struct cross
     status initialize(allocators& /*alloc*/) noexcept
     {
         threshold = default_threshold;
-        value = threshold - 1.0;
-        if_value = 0.0;
-        else_value = 0.0;
-        result = 0.0;
-        event = 0.0;
+        value = threshold - one;
+        if_value = zero;
+        else_value = zero;
+        result = zero;
+        event = zero;
 
         sigma = time_domain<time>::zero;
 
@@ -5675,7 +5728,7 @@ struct cross
     {
         bool have_message = false;
         bool have_message_value = false;
-        event = 0.0;
+        event = zero;
 
         auto span_thresholds = alloc.get_input_message(x[port_threshold]);
         for (auto& elem : span_thresholds) {
@@ -5703,10 +5756,10 @@ struct cross
         }
 
         if (have_message_value) {
-            event = 0.0;
+            event = zero;
             if (value >= threshold) {
                 else_value = if_value;
-                event = 1.0;
+                event = one;
             }
         }
 
@@ -5747,14 +5800,14 @@ struct abstract_cross
     output_port y[3];
     time sigma;
 
-    double default_threshold = 0.0;
+    real default_threshold = zero;
     bool default_detect_up = true;
 
-    double threshold;
-    double if_value[QssLevel];
-    double else_value[QssLevel];
-    double value[QssLevel];
-    double last_reset;
+    real threshold;
+    real if_value[QssLevel];
+    real else_value[QssLevel];
+    real value[QssLevel];
+    real last_reset;
     bool reach_threshold;
     bool detect_up;
 
@@ -5791,12 +5844,12 @@ struct abstract_cross
 
     status initialize(allocators& /*alloc*/) noexcept
     {
-        std::fill_n(if_value, QssLevel, 0.);
-        std::fill_n(else_value, QssLevel, 0.);
-        std::fill_n(value, QssLevel, 0.);
+        std::fill_n(if_value, QssLevel, zero);
+        std::fill_n(else_value, QssLevel, zero);
+        std::fill_n(value, QssLevel, zero);
 
         threshold = default_threshold;
-        value[0] = threshold - 1.0;
+        value[0] = threshold - one;
 
         sigma = time_domain<time>::infinity;
         last_reset = time_domain<time>::infinity;
@@ -5831,14 +5884,14 @@ struct abstract_cross
                     const auto a = value[2];
                     const auto b = value[1];
                     const auto c = value[0] - threshold;
-                    const auto d = b * b - 4. * a * c;
+                    const auto d = b * b - four * a * c;
 
-                    if (d > 0.) {
-                        const auto x1 = (-b + std::sqrt(d)) / (2. * a);
-                        const auto x2 = (-b - std::sqrt(d)) / (2. * a);
+                    if (d > zero) {
+                        const auto x1 = (-b + std::sqrt(d)) / (two * a);
+                        const auto x2 = (-b - std::sqrt(d)) / (two * a);
 
-                        if (x1 > 0.) {
-                            if (x2 > 0.) {
+                        if (x1 > zero) {
+                            if (x2 > zero) {
                                 sigma = std::min(x1, x2);
                             } else {
                                 sigma = x1;
@@ -5848,9 +5901,9 @@ struct abstract_cross
                                 sigma = x2;
                         }
                     }
-                    if (d == 0.) {
-                        const auto x = -b / (2. * a);
-                        if (x > 0.)
+                    if (d == zero) {
+                        const auto x = -b / (two * a);
+                        if (x > zero)
                             sigma = x;
                     }
                 } else {
@@ -5858,7 +5911,7 @@ struct abstract_cross
                     const auto b = value[0] - threshold;
                     const auto d = -b * a;
 
-                    if (d > 0.)
+                    if (d > zero)
                         sigma = d;
                 }
             }
@@ -5883,7 +5936,7 @@ struct abstract_cross
                 if_value[0] += if_value[1] * e;
             if constexpr (QssLevel == 3) {
                 if_value[0] += if_value[1] * e + if_value[2] * e * e;
-                if_value[1] += 2. * if_value[2] * e;
+                if_value[1] += two * if_value[2] * e;
             }
         } else {
             auto span = alloc.get_input_message(x[port_if_value]);
@@ -5901,7 +5954,7 @@ struct abstract_cross
                 else_value[0] += else_value[1] * e;
             if constexpr (QssLevel == 3) {
                 else_value[0] += else_value[1] * e + else_value[2] * e * e;
-                else_value[1] += 2. * else_value[2] * e;
+                else_value[1] += two * else_value[2] * e;
             }
         } else {
             auto span = alloc.get_input_message(x[port_else_value]);
@@ -5919,7 +5972,7 @@ struct abstract_cross
                 value[0] += value[1] * e;
             if constexpr (QssLevel == 3) {
                 value[0] += value[1] * e + value[2] * e * e;
-                value[1] += 2. * value[2] * e;
+                value[1] += two * value[2] * e;
             }
         } else {
             auto span = alloc.get_input_message(x[port_value]);
@@ -5973,7 +6026,7 @@ struct abstract_cross
             span_else_value[0][0] = else_value[0];
             if (reach_threshold) {
                 span_if_value[0][0] = if_value[0];
-                span_event[0][0] = 1.0;
+                span_event[0][0] = one;
             }
         }
 
@@ -6003,31 +6056,31 @@ using qss1_cross = abstract_cross<1>;
 using qss2_cross = abstract_cross<2>;
 using qss3_cross = abstract_cross<3>;
 
-inline double
-sin_time_function(double t) noexcept
+inline real
+sin_time_function(real t) noexcept
 {
-    constexpr double f0 = 0.1;
+    constexpr real f0 = to_real(0.1);
 
 #if irt_have_numbers == 1
-    constexpr double pi = std::numbers::pi_v<double>;
+    constexpr real pi = std::numbers::pi_v<real>;
 #else
     // std::acos(-1) is not a constexpr in MVSC 2019
-    constexpr double pi = 3.141592653589793238462643383279502884;
+    constexpr real pi = 3.141592653589793238462643383279502884;
 #endif
 
-    constexpr const double mult = 2.0 * pi * f0;
+    constexpr const real mult = two * pi * f0;
 
     return std::sin(mult * t);
 }
 
-inline double
-square_time_function(double t) noexcept
+inline real
+square_time_function(real t) noexcept
 {
     return t * t;
 }
 
-inline double
-time_function(double t) noexcept
+inline real
+time_function(real t) noexcept
 {
     return t;
 }
@@ -6037,11 +6090,11 @@ struct time_func
     output_port y[1];
     time sigma;
 
-    double default_sigma = 0.01;
-    double (*default_f)(double) = &time_function;
+    real default_sigma = to_real(0.01);
+    real (*default_f)(real) = &time_function;
 
-    double value;
-    double (*f)(double) = nullptr;
+    real value;
+    real (*f)(real) = nullptr;
 
     time_func() noexcept = default;
 
@@ -6105,7 +6158,7 @@ struct queue
 
     u64 fifo = -1;
 
-    double default_ta = 1.0;
+    real default_ta = one;
 
     queue() noexcept = default;
 
@@ -6139,7 +6192,7 @@ struct queue
                       time /*r*/) noexcept
     {
         auto list = alloc.get_dated_message(fifo);
-        while (!list.empty() && list.front().real[0] <= t)
+        while (!list.empty() && list.front().data[0] <= t)
             list.pop_front();
 
         auto span = alloc.get_input_message(x[0]);
@@ -6147,12 +6200,14 @@ struct queue
             if (!alloc.can_alloc_dated_message(1))
                 return status::model_queue_full;
 
-            list.emplace_back(t + default_ta, msg[0], msg[1], msg[2]);
+            list.emplace_back(
+              irt::real(t + default_ta), msg[0], msg[1], msg[2]);
         }
 
         if (!list.empty()) {
             sigma = list.front()[0] - t;
-            sigma = sigma <= 0. ? 0. : sigma;
+            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
+                                                     : sigma;
         } else {
             sigma = time_domain<time>::infinity;
         }
@@ -6168,14 +6223,14 @@ struct queue
         auto list = alloc.get_dated_message(fifo);
         auto it = list.begin();
         auto end = list.end();
-        const auto t = it->real[0];
+        const auto t = it->data[0];
 
         auto number = 1;
 
         {
             auto cit = list.begin();
             ++cit;
-            for (; cit != end && cit->real[0] <= t; ++cit)
+            for (; cit != end && cit->data[0] <= t; ++cit)
                 number++;
         }
 
@@ -6184,10 +6239,10 @@ struct queue
 
         auto span = alloc.alloc_message(y[0], number);
 
-        for (int i = 0; it != end && it->real[0] <= t; ++it, ++i) {
-            span[i][0] = it->real[1];
-            span[i][1] = it->real[2];
-            span[i][2] = it->real[3];
+        for (int i = 0; it != end && it->data[0] <= t; ++it, ++i) {
+            span[i][0] = it->data[1];
+            span[i][1] = it->data[2];
+            span[i][2] = it->data[3];
         }
 
         return status::success;
@@ -6242,7 +6297,7 @@ struct dynamic_queue
                       time /*r*/) noexcept
     {
         auto list = alloc.get_dated_message(fifo);
-        while (!list.empty() && list.front().real[0] <= t)
+        while (!list.empty() && list.front().data[0] <= t)
             list.pop_front();
 
         auto span = alloc.get_input_message(x[0]);
@@ -6253,16 +6308,19 @@ struct dynamic_queue
             double ta;
             if (stop_on_error) {
                 irt_return_if_bad(update_source(*sim, default_source_ta, ta));
-                list.emplace_back(t + ta, msg[0], msg[1], msg[2]);
+                list.emplace_back(
+                  t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
             } else {
                 if (is_success(update_source(*sim, default_source_ta, ta)))
-                    list.emplace_back(t + ta, msg[0], msg[1], msg[2]);
+                    list.emplace_back(
+                      t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
             }
         }
 
         if (!list.empty()) {
-            sigma = list.front().real[0] - t;
-            sigma = sigma <= 0. ? 0. : sigma;
+            sigma = list.front().data[0] - t;
+            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
+                                                     : sigma;
         } else {
             sigma = time_domain<time>::infinity;
         }
@@ -6278,14 +6336,14 @@ struct dynamic_queue
         auto list = alloc.get_dated_message(fifo);
         auto it = list.begin();
         auto end = list.end();
-        const auto t = it->real[0];
+        const auto t = it->data[0];
 
         auto number = 1;
 
         {
             auto cit = list.begin();
             ++cit;
-            for (; cit != end && cit->real[0] <= t; ++cit)
+            for (; cit != end && cit->data[0] <= t; ++cit)
                 number++;
         }
 
@@ -6294,10 +6352,10 @@ struct dynamic_queue
 
         auto span = alloc.alloc_message(y[0], number);
 
-        for (int i = 0; it != end && it->real[0] <= t; ++it, ++i) {
-            span[i][0] = it->real[1];
-            span[i][1] = it->real[2];
-            span[i][2] = it->real[3];
+        for (int i = 0; it != end && it->data[0] <= t; ++it, ++i) {
+            span[i][0] = it->data[1];
+            span[i][1] = it->data[2];
+            span[i][2] = it->data[3];
         }
 
         return status::success;
@@ -6310,7 +6368,7 @@ struct priority_queue
     output_port y[1];
     time sigma;
     u64 fifo = -1;
-    double default_ta = 1.0;
+    real default_ta = 1.0;
 
     simulation* sim = nullptr;
     source default_source_ta;
@@ -6336,16 +6394,16 @@ private:
             irt_bad_return(status::model_priority_queue_source_is_null);
 
         auto list = alloc.get_dated_message(fifo);
-        if (list.empty() || list.begin()->real[0] > t) {
-            list.emplace_front(t, msg[0], msg[1], msg[2]);
+        if (list.empty() || list.begin()->data[0] > t) {
+            list.emplace_front(irt::real(t), msg[0], msg[1], msg[2]);
         } else {
             auto it = list.begin();
             auto end = list.end();
             ++it;
 
             for (; it != end; ++it) {
-                if (it->real[0] > t) {
-                    list.emplace(it, t, msg[0], msg[1], msg[2]);
+                if (it->data[0] > t) {
+                    list.emplace(it, irt::real(t), msg[0], msg[1], msg[2]);
                     return status::success;
                 }
             }
@@ -6382,7 +6440,7 @@ public:
                       time /*r*/) noexcept
     {
         auto list = alloc.get_dated_message(fifo);
-        while (!list.empty() && list.front().real[0] <= t)
+        while (!list.empty() && list.front().data[0] <= t)
             list.pop_front();
 
         auto span = alloc.get_input_message(x[0]);
@@ -6393,12 +6451,14 @@ public:
                 irt_return_if_bad(
                   update_source(*sim, default_source_ta, value));
 
-                if (auto ret = try_to_insert(alloc, value + t, msg);
+                if (auto ret =
+                      try_to_insert(alloc, static_cast<real>(value) + t, msg);
                     is_bad(ret))
                     irt_bad_return(status::model_priority_queue_full);
             } else {
                 if (is_success(update_source(*sim, default_source_ta, value))) {
-                    if (auto ret = try_to_insert(alloc, value + t, msg);
+                    if (auto ret = try_to_insert(
+                          alloc, static_cast<real>(value) + t, msg);
                         is_bad(ret))
                         irt_bad_return(status::model_priority_queue_full);
                 }
@@ -6407,7 +6467,8 @@ public:
 
         if (!list.empty()) {
             sigma = list.front()[0] - t;
-            sigma = sigma <= 0. ? 0. : sigma;
+            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
+                                                     : sigma;
         } else {
             sigma = time_domain<time>::infinity;
         }
@@ -6423,14 +6484,14 @@ public:
         auto list = alloc.get_dated_message(fifo);
         auto it = list.begin();
         auto end = list.end();
-        const auto t = it->real[0];
+        const auto t = it->data[0];
 
         auto number = 1;
 
         {
             auto cit = list.begin();
             ++cit;
-            for (; cit != end && cit->real[0] <= t; ++cit)
+            for (; cit != end && cit->data[0] <= t; ++cit)
                 number++;
         }
 
@@ -6439,10 +6500,10 @@ public:
 
         auto span = alloc.alloc_message(y[0], number);
 
-        for (int i = 0; it != end && it->real[0] <= t; ++it, ++i) {
-            span[i][0] = it->real[1];
-            span[i][1] = it->real[2];
-            span[i][2] = it->real[3];
+        for (int i = 0; it != end && it->data[0] <= t; ++it, ++i) {
+            span[i][0] = it->data[1];
+            span[i][1] = it->data[2];
+            span[i][2] = it->data[3];
         }
 
         return status::success;
@@ -6522,8 +6583,8 @@ max_size_in_bytes() noexcept
 
 struct model
 {
-    double tl = 0.0;
-    double tn = time_domain<time>::infinity;
+    real tl = 0.0;
+    real tn = time_domain<time>::infinity;
     heap::handle handle = nullptr;
 
     observer_id obs_id = observer_id{ 0 };
@@ -7700,7 +7761,7 @@ public:
         mdl.tl = t;
         mdl.tn = t + dyn.sigma;
         if (dyn.sigma && mdl.tn == t)
-            mdl.tn = std::nextafter(t, t + 1.);
+            mdl.tn = std::nextafter(t, t + irt::one);
 
         sched.reintegrate(mdl, mdl.tn);
 

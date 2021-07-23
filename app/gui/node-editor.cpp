@@ -657,6 +657,8 @@ editor::initialize(u32 id) noexcept
 status
 editor::add_lotka_volterra() noexcept
 {
+    using namespace irt::literals;
+
     if (!sim.models.can_alloc(10))
         return status::simulation_not_enough_model;
 
@@ -668,26 +670,26 @@ editor::add_lotka_volterra() noexcept
     auto& quantifier_a = sim.alloc<quantifier>();
     auto& quantifier_b = sim.alloc<quantifier>();
 
-    integrator_a.default_current_value = 18.0;
+    integrator_a.default_current_value = 18.0_r;
 
     quantifier_a.default_adapt_state = irt::quantifier::adapt_state::possible;
     quantifier_a.default_zero_init_offset = true;
-    quantifier_a.default_step_size = 0.01;
+    quantifier_a.default_step_size = 0.01_r;
     quantifier_a.default_past_length = 3;
 
     integrator_b.default_current_value = 7.0;
 
     quantifier_b.default_adapt_state = irt::quantifier::adapt_state::possible;
     quantifier_b.default_zero_init_offset = true;
-    quantifier_b.default_step_size = 0.01;
+    quantifier_b.default_step_size = 0.01_r;
     quantifier_b.default_past_length = 3;
 
-    product.default_input_coeffs[0] = 1.0;
-    product.default_input_coeffs[1] = 1.0;
-    sum_a.default_input_coeffs[0] = 2.0;
-    sum_a.default_input_coeffs[1] = -0.4;
-    sum_b.default_input_coeffs[0] = -1.0;
-    sum_b.default_input_coeffs[1] = 0.1;
+    product.default_input_coeffs[0] = 1.0_r;
+    product.default_input_coeffs[1] = 1.0_r;
+    sum_a.default_input_coeffs[0] = 2.0_r;
+    sum_a.default_input_coeffs[1] = -0.4_r;
+    sum_b.default_input_coeffs[0] = -1.0_r;
+    sum_b.default_input_coeffs[1] = 0.1_r;
 
     irt_return_if_bad(sim.connect(sum_a, 0, integrator_a, 1));
     irt_return_if_bad(sim.connect(sum_b, 0, integrator_b, 1));
@@ -712,6 +714,8 @@ editor::add_lotka_volterra() noexcept
 status
 editor::add_izhikevitch() noexcept
 {
+    using namespace irt::literals;
+
     if (!sim.models.can_alloc(14))
         return status::simulation_not_enough_model;
 
@@ -730,46 +734,46 @@ editor::add_izhikevitch() noexcept
     auto& cross = sim.alloc<irt::cross>();
     auto& cross2 = sim.alloc<irt::cross>();
 
-    double a = 0.2;
-    double b = 2.0;
-    double c = -56.0;
-    double d = -16.0;
-    double I = -99.0;
-    double vt = 30.0;
+    real a = 0.2_r;
+    real b = 2.0_r;
+    real c = -56.0_r;
+    real d = -16.0_r;
+    real I = -99.0_r;
+    real vt = 30.0_r;
 
-    constant.default_value = 1.0;
+    constant.default_value = 1.0_r;
     constant2.default_value = c;
     constant3.default_value = I;
 
     cross.default_threshold = vt;
     cross2.default_threshold = vt;
 
-    integrator_a.default_current_value = 0.0;
+    integrator_a.default_current_value = 0.0_r;
 
     quantifier_a.default_adapt_state = irt::quantifier::adapt_state::possible;
     quantifier_a.default_zero_init_offset = true;
-    quantifier_a.default_step_size = 0.01;
+    quantifier_a.default_step_size = 0.01_r;
     quantifier_a.default_past_length = 3;
 
-    integrator_b.default_current_value = 0.0;
+    integrator_b.default_current_value = 0.0_r;
 
     quantifier_b.default_adapt_state = irt::quantifier::adapt_state::possible;
     quantifier_b.default_zero_init_offset = true;
-    quantifier_b.default_step_size = 0.01;
+    quantifier_b.default_step_size = 0.01_r;
     quantifier_b.default_past_length = 3;
 
-    product.default_input_coeffs[0] = 1.0;
-    product.default_input_coeffs[1] = 1.0;
+    product.default_input_coeffs[0] = 1.0_r;
+    product.default_input_coeffs[1] = 1.0_r;
 
-    sum_a.default_input_coeffs[0] = 1.0;
-    sum_a.default_input_coeffs[1] = -1.0;
+    sum_a.default_input_coeffs[0] = 1.0_r;
+    sum_a.default_input_coeffs[1] = -1.0_r;
     sum_b.default_input_coeffs[0] = -a;
     sum_b.default_input_coeffs[1] = a * b;
-    sum_c.default_input_coeffs[0] = 0.04;
-    sum_c.default_input_coeffs[1] = 5.0;
-    sum_c.default_input_coeffs[2] = 140.0;
-    sum_c.default_input_coeffs[3] = 1.0;
-    sum_d.default_input_coeffs[0] = 1.0;
+    sum_c.default_input_coeffs[0] = 0.04_r;
+    sum_c.default_input_coeffs[1] = 5.0_r;
+    sum_c.default_input_coeffs[2] = 140.0_r;
+    sum_c.default_input_coeffs[3] = 1.0_r;
+    sum_d.default_input_coeffs[0] = 1.0_r;
     sum_d.default_input_coeffs[1] = d;
 
     irt_return_if_bad(sim.connect(integrator_a, 0, cross, 0));
@@ -1181,8 +1185,8 @@ show_dynamics_values(simulation& sim, const queue& dyn)
         ImGui::Text("empty");
     } else {
         auto list = sim.allocs.get_dated_message(dyn.fifo);
-        ImGui::Text("next ta %.3f", list.front().real[0]);
-        ImGui::Text("next value %.3f", list.front().real[1]);
+        ImGui::Text("next ta %.3f", list.front().data[0]);
+        ImGui::Text("next value %.3f", list.front().data[1]);
     }
 }
 
@@ -1193,8 +1197,8 @@ show_dynamics_values(simulation& sim, const dynamic_queue& dyn)
         ImGui::Text("empty");
     } else {
         auto list = sim.allocs.get_dated_message(dyn.fifo);
-        ImGui::Text("next ta %.3f", list.front().real[0]);
-        ImGui::Text("next value %.3f", list.front().real[1]);
+        ImGui::Text("next ta %.3f", list.front().data[0]);
+        ImGui::Text("next value %.3f", list.front().data[1]);
     }
 }
 
@@ -1205,8 +1209,8 @@ show_dynamics_values(simulation& sim, const priority_queue& dyn)
         ImGui::Text("empty");
     } else {
         auto list = sim.allocs.get_dated_message(dyn.fifo);
-        ImGui::Text("next ta %.3f", list.front().real[0]);
-        ImGui::Text("next value %.3f", list.front().real[1]);
+        ImGui::Text("next ta %.3f", list.front().data[0]);
+        ImGui::Text("next value %.3f", list.front().data[1]);
     }
 }
 
@@ -1321,22 +1325,22 @@ show_dynamics_values(simulation& /*sim*/, const flow& dyn)
 static void
 show_dynamics_inputs(editor& /*ed*/, qss1_integrator& dyn)
 {
-    ImGui::InputDouble("value", &dyn.default_X);
-    ImGui::InputDouble("reset", &dyn.default_dQ);
+    ImGui::InputReal("value", &dyn.default_X);
+    ImGui::InputReal("reset", &dyn.default_dQ);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss2_integrator& dyn)
 {
-    ImGui::InputDouble("value", &dyn.default_X);
-    ImGui::InputDouble("reset", &dyn.default_dQ);
+    ImGui::InputReal("value", &dyn.default_X);
+    ImGui::InputReal("reset", &dyn.default_dQ);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss3_integrator& dyn)
 {
-    ImGui::InputDouble("value", &dyn.default_X);
-    ImGui::InputDouble("reset", &dyn.default_dQ);
+    ImGui::InputReal("value", &dyn.default_X);
+    ImGui::InputReal("reset", &dyn.default_dQ);
 }
 
 static void
@@ -1358,25 +1362,25 @@ show_dynamics_inputs(editor& /*ed*/, qss1_sum_4& /*dyn*/)
 static void
 show_dynamics_inputs(editor& /*ed*/, qss1_wsum_2& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss1_wsum_3& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss1_wsum_4& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
 }
 
 static void
@@ -1398,25 +1402,25 @@ show_dynamics_inputs(editor& /*ed*/, qss2_sum_4& /*dyn*/)
 static void
 show_dynamics_inputs(editor& /*ed*/, qss2_wsum_2& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss2_wsum_3& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss2_wsum_4& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
 }
 
 static void
@@ -1438,87 +1442,87 @@ show_dynamics_inputs(editor& /*ed*/, qss3_sum_4& /*dyn*/)
 static void
 show_dynamics_inputs(editor& /*ed*/, qss3_wsum_2& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss3_wsum_3& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss3_wsum_4& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, integrator& dyn)
 {
-    ImGui::InputDouble("value", &dyn.default_current_value);
-    ImGui::InputDouble("reset", &dyn.default_reset_value);
+    ImGui::InputReal("value", &dyn.default_current_value);
+    ImGui::InputReal("reset", &dyn.default_reset_value);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, quantifier& dyn)
 {
-    ImGui::InputDouble("quantum", &dyn.default_step_size);
+    ImGui::InputReal("quantum", &dyn.default_step_size);
     ImGui::SliderInt("archive length", &dyn.default_past_length, 3, 100);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, adder_2& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, adder_3& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, adder_4& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[3]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[3]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, mult_2& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, mult_3& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, mult_4& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputDouble("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputDouble("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputDouble("coeff-3", &dyn.default_input_coeffs[3]);
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
 }
 
 static void
@@ -1528,7 +1532,7 @@ show_dynamics_inputs(editor& /*ed*/, counter& /*dyn*/)
 static void
 show_dynamics_inputs(editor& /*ed*/, queue& dyn)
 {
-    ImGui::InputDouble("delay", &dyn.default_ta);
+    ImGui::InputReal("delay", &dyn.default_ta);
     ImGui::SameLine();
     HelpMarker("Delay to resent the first input receives (FIFO queue)");
 }
@@ -1737,7 +1741,7 @@ show_dynamics_inputs(editor& ed, priority_queue& dyn)
 static void
 show_dynamics_inputs(editor& ed, generator& dyn)
 {
-    ImGui::InputDouble("offset", &dyn.default_offset);
+    ImGui::InputReal("offset", &dyn.default_offset);
     ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
     ImGui::SameLine();
     HelpMarker("Unchecked, the generator stops to send data if the source are "
@@ -1750,8 +1754,8 @@ show_dynamics_inputs(editor& ed, generator& dyn)
 static void
 show_dynamics_inputs(editor& ed, constant& dyn)
 {
-    ImGui::InputDouble("value", &dyn.default_value);
-    ImGui::InputDouble("offset", &dyn.default_offset);
+    ImGui::InputReal("value", &dyn.default_value);
+    ImGui::InputReal("offset", &dyn.default_offset);
 
     if (ed.is_running()) {
         if (ImGui::Button("Send now")) {
@@ -1763,7 +1767,7 @@ show_dynamics_inputs(editor& ed, constant& dyn)
             mdl.tn = ed.simulation_current + dyn.sigma;
             if (dyn.sigma && mdl.tn == ed.simulation_current)
                 mdl.tn = std::nextafter(ed.simulation_current,
-                                        ed.simulation_current + 1.);
+                                        ed.simulation_current + to_real(1.));
 
             ed.sim.sched.update(mdl, mdl.tn);
         }
@@ -1773,40 +1777,40 @@ show_dynamics_inputs(editor& ed, constant& dyn)
 static void
 show_dynamics_inputs(editor& /*ed*/, qss1_cross& dyn)
 {
-    ImGui::InputDouble("threshold", &dyn.default_threshold);
+    ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss2_cross& dyn)
 {
-    ImGui::InputDouble("threshold", &dyn.default_threshold);
+    ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss3_cross& dyn)
 {
-    ImGui::InputDouble("threshold", &dyn.default_threshold);
+    ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss1_power& dyn)
 {
-    ImGui::InputDouble("n", &dyn.default_n);
+    ImGui::InputReal("n", &dyn.default_n);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss2_power& dyn)
 {
-    ImGui::InputDouble("n", &dyn.default_n);
+    ImGui::InputReal("n", &dyn.default_n);
 }
 
 static void
 show_dynamics_inputs(editor& /*ed*/, qss3_power& dyn)
 {
-    ImGui::InputDouble("n", &dyn.default_n);
+    ImGui::InputReal("n", &dyn.default_n);
 }
 
 static void
@@ -1824,7 +1828,7 @@ show_dynamics_inputs(editor& /*ed*/, qss3_square& /*dyn*/)
 static void
 show_dynamics_inputs(editor& /*ed*/, cross& dyn)
 {
-    ImGui::InputDouble("threshold", &dyn.default_threshold);
+    ImGui::InputReal("threshold", &dyn.default_threshold);
 }
 
 static void
@@ -2364,8 +2368,11 @@ editor::show_editor() noexcept
                         ImGui::InputText("name##plot",
                                          plot->name.begin(),
                                          plot->name.capacity());
-                        ImGui::InputDouble(
-                          "dt##plot", &plot->time_step, 0.001, 1.0, "%.8f");
+                        ImGui::InputReal("dt##plot",
+                                         &plot->time_step,
+                                         to_real(0.001),
+                                         to_real(1.0),
+                                         "%.8f");
                     } else if (choose == 2) {
                         if (old_choose == 1 || old_choose == 3) {
                             sim.observers.free(mdl->obs_id);
@@ -2418,8 +2425,11 @@ editor::show_editor() noexcept
                         ImGui::InputText("name##filedt",
                                          file->name.begin(),
                                          file->name.capacity());
-                        ImGui::InputDouble(
-                          "dt##filedt", &file->time_step, 0.001, 1.0, "%.8f");
+                        ImGui::InputReal("dt##filedt",
+                                         &file->time_step,
+                                         to_real(0.001),
+                                         to_real(1.0),
+                                         "%.8f");
                     } else if (old_choose != choose) {
                         sim.observers.free(mdl->obs_id);
                         observation_outputs_free(index);

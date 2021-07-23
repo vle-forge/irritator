@@ -51,11 +51,11 @@ file_output_callback(const irt::observer& obs,
         break;
 
     case irt::observer::status::run:
-        fmt::print(fo->os, "{},{}\n", t, obs.msg.real[0]);
+        fmt::print(fo->os, "{},{}\n", t, obs.msg.data[0]);
         break;
 
     case irt::observer::status::finalize:
-        fmt::print(fo->os, "{},{}\n", t, obs.msg.real[0]);
+        fmt::print(fo->os, "{},{}\n", t, obs.msg.data[0]);
         break;
     }
 }
@@ -1343,7 +1343,7 @@ main()
     "time_func"_test = [] {
         fmt::print("time_func\n");
         irt::simulation sim;
-        const double duration = 30;
+        const irt::real duration{ 30 };
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
         expect(sim.can_alloc(2));
@@ -1352,13 +1352,13 @@ main()
         auto& cnt = sim.alloc<irt::counter>();
 
         time_fun.default_f = &irt::square_time_function;
-        time_fun.default_sigma = 0.1;
+        time_fun.default_sigma = irt::real{ 0.1 };
 
         expect(sim.connect(time_fun, 0, cnt, 0) == irt::status::success);
 
         irt::time t{ 0 };
         expect(sim.initialize(t) == irt::status::success);
-        double c = 0.0;
+        irt::real c{ 0 };
         do {
             auto st = sim.run(t);
             expect(irt::is_success(st) == true);
@@ -1366,15 +1366,16 @@ main()
             c++;
         } while (t < duration);
 
-        const auto value = (2.0 * duration / time_fun.default_sigma - 1.0);
+        const auto value =
+          (irt::real{ 2.0 } * duration / time_fun.default_sigma -
+           irt::real{ 1.0 });
         expect(c == value);
     };
 
     "time_func_sin"_test = [] {
         fmt::print("time_func_sin\n");
-        const double pi = std::acos(-1);
-        const double f0 = 0.1;
-        const double duration = 30;
+        const irt::real pi = irt::real{ std::acos(irt::real{ -1 }) };
+        const irt::real f0 = irt::real{ 0.1 };
         irt::simulation sim;
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
@@ -1384,21 +1385,22 @@ main()
         auto& cnt = sim.alloc<irt::counter>();
 
         time_fun.default_f = &irt::sin_time_function;
-        time_fun.default_sigma = 0.1;
+        time_fun.default_sigma = irt::real{ 0.1 };
 
         expect(sim.connect(time_fun, 0, cnt, 0) == irt::status::success);
 
         irt::time t{ 0 };
+        const irt::real duration{ 30 };
         expect(sim.initialize(t) == irt::status::success);
-        double c = 0;
+        irt::real c = irt::zero;
         do {
-
             auto st = sim.run(t);
             expect((irt::is_success(st)) >> fatal);
-            expect(time_fun.value == std::sin(2 * pi * f0 * t));
+            expect(time_fun.value == std::sin(irt::two * pi * f0 * t));
             c++;
         } while (t < duration);
-        expect(c == 2.0 * duration / time_fun.default_sigma - 1.0);
+        expect(c == (irt::real{ 2.0 } * duration / time_fun.default_sigma -
+                     irt::real{ 1.0 }));
     };
 
     "lotka_volterra_simulation"_test = [] {
@@ -1416,28 +1418,28 @@ main()
         auto& quantifier_a = sim.alloc<irt::quantifier>();
         auto& quantifier_b = sim.alloc<irt::quantifier>();
 
-        integrator_a.default_current_value = 18.0;
+        integrator_a.default_current_value = irt::real{ 18.0 };
 
         quantifier_a.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size = 0.01;
+        quantifier_a.default_step_size = irt::real{ 0.01 };
         quantifier_a.default_past_length = 3;
 
-        integrator_b.default_current_value = 7.0;
+        integrator_b.default_current_value = irt::real{ 7.0 };
 
         quantifier_b.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size = 0.01;
+        quantifier_b.default_step_size = irt::real{ 0.01 };
         quantifier_b.default_past_length = 3;
 
-        product.default_input_coeffs[0] = 1.0;
-        product.default_input_coeffs[1] = 1.0;
-        sum_a.default_input_coeffs[0] = 2.0;
-        sum_a.default_input_coeffs[1] = -0.4;
-        sum_b.default_input_coeffs[0] = -1.0;
-        sum_b.default_input_coeffs[1] = 0.1;
+        product.default_input_coeffs[0] = irt::real{ 1.0 };
+        product.default_input_coeffs[1] = irt::real{ 1.0 };
+        sum_a.default_input_coeffs[0] = irt::real{ 2.0 };
+        sum_a.default_input_coeffs[1] = irt::real{ -0.4 };
+        sum_b.default_input_coeffs[0] = irt::real{ -1.0 };
+        sum_b.default_input_coeffs[1] = irt::real{ 0.1 };
 
         expect((sim.models.size() == 7_ul) >> fatal);
 
@@ -1475,7 +1477,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t = { 0 };
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 7_ul) >> fatal);
@@ -1483,7 +1485,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 15.0);
+        } while (t < irt::real{ 15.0 });
     };
 
     "izhikevitch_simulation"_test = [] {
@@ -1508,49 +1510,49 @@ main()
         auto& cross = sim.alloc<irt::cross>();
         auto& cross2 = sim.alloc<irt::cross>();
 
-        double a = 0.2;
-        double b = 2.0;
-        double c = -56.0;
-        double d = -16.0;
-        double I = -99.0;
-        double vt = 30.0;
+        irt::real a = irt::real(0.2);
+        irt::real b = irt::real(2.0);
+        irt::real c = irt::real(-56.0);
+        irt::real d = irt::real(-16.0);
+        irt::real I = irt::real(-99.0);
+        irt::real vt = irt::real(30.0);
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1.0);
         constant2.default_value = c;
         constant3.default_value = I;
 
         cross.default_threshold = vt;
         cross2.default_threshold = vt;
 
-        integrator_a.default_current_value = 0.0;
+        integrator_a.default_current_value = irt::real(0.0);
 
         quantifier_a.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size = 0.01;
+        quantifier_a.default_step_size = irt::real(0.01);
         quantifier_a.default_past_length = 3;
 
-        integrator_b.default_current_value = 0.0;
+        integrator_b.default_current_value = irt::real(0.0);
 
         quantifier_b.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size = 0.01;
+        quantifier_b.default_step_size = irt::real(0.01);
         quantifier_b.default_past_length = 3;
 
         product.default_input_coeffs[0] = 1.0;
         product.default_input_coeffs[1] = 1.0;
 
-        sum_a.default_input_coeffs[0] = 1.0;
-        sum_a.default_input_coeffs[1] = -1.0;
-        sum_b.default_input_coeffs[0] = -a;
-        sum_b.default_input_coeffs[1] = a * b;
-        sum_c.default_input_coeffs[0] = 0.04;
-        sum_c.default_input_coeffs[1] = 5.0;
-        sum_c.default_input_coeffs[2] = 140.0;
-        sum_c.default_input_coeffs[3] = 1.0;
-        sum_d.default_input_coeffs[0] = 1.0;
-        sum_d.default_input_coeffs[1] = d;
+        sum_a.default_input_coeffs[0] = irt::real(1.0);
+        sum_a.default_input_coeffs[1] = irt::real(-1.0);
+        sum_b.default_input_coeffs[0] = irt::real(-a);
+        sum_b.default_input_coeffs[1] = irt::real(a * b);
+        sum_c.default_input_coeffs[0] = irt::real(0.04);
+        sum_c.default_input_coeffs[1] = irt::real(5.0);
+        sum_c.default_input_coeffs[2] = irt::real(140.0);
+        sum_c.default_input_coeffs[3] = irt::real(1.0);
+        sum_d.default_input_coeffs[0] = irt::real(1.0);
+        sum_d.default_input_coeffs[1] = irt::real(d);
 
         expect((sim.models.size() == 14_ul) >> fatal);
 
@@ -1600,7 +1602,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t = irt::real(0);
 
         expect(irt::status::success == sim.initialize(t));
         expect((sim.sched.size() == 14_ul) >> fatal);
@@ -1608,7 +1610,7 @@ main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 120);
+        } while (t < irt::real(120));
     };
 
     "lotka_volterra_simulation_qss1"_test = [] {
@@ -1624,16 +1626,16 @@ main()
         auto& integrator_a = sim.alloc<irt::qss1_integrator>();
         auto& integrator_b = sim.alloc<irt::qss1_integrator>();
 
-        integrator_a.default_X = 18.0;
-        integrator_a.default_dQ = 0.1;
+        integrator_a.default_X = irt::real(18.0);
+        integrator_a.default_dQ = irt::real(0.1);
 
-        integrator_b.default_X = 7.0;
-        integrator_b.default_dQ = 0.1;
+        integrator_b.default_X = irt::real(7.0);
+        integrator_b.default_dQ = irt::real(0.1);
 
-        sum_a.default_input_coeffs[0] = 2.0;
-        sum_a.default_input_coeffs[1] = -0.4;
-        sum_b.default_input_coeffs[0] = -1.0;
-        sum_b.default_input_coeffs[1] = 0.1;
+        sum_a.default_input_coeffs[0] = irt::real(2.0);
+        sum_a.default_input_coeffs[1] = irt::real(-0.4);
+        sum_b.default_input_coeffs[0] = irt::real(-1.0);
+        sum_b.default_input_coeffs[1] = irt::real(0.1);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -1662,7 +1664,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t = irt::real(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -1670,7 +1672,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 15.0);
+        } while (t < irt::real(15));
     };
 
     "lotka_volterra_simulation_qss2"_test = [] {
@@ -1686,16 +1688,16 @@ main()
         auto& integrator_a = sim.alloc<irt::qss2_integrator>();
         auto& integrator_b = sim.alloc<irt::qss2_integrator>();
 
-        integrator_a.default_X = 18.0;
-        integrator_a.default_dQ = 0.1;
+        integrator_a.default_X = irt::real(18.0);
+        integrator_a.default_dQ = irt::real(0.1);
 
-        integrator_b.default_X = 7.0;
-        integrator_b.default_dQ = 0.1;
+        integrator_b.default_X = irt::real(7.0);
+        integrator_b.default_dQ = irt::real(0.1);
 
-        sum_a.default_input_coeffs[0] = 2.0;
-        sum_a.default_input_coeffs[1] = -0.4;
-        sum_b.default_input_coeffs[0] = -1.0;
-        sum_b.default_input_coeffs[1] = 0.1;
+        sum_a.default_input_coeffs[0] = irt::real(2.0);
+        sum_a.default_input_coeffs[1] = irt::real(-0.4);
+        sum_b.default_input_coeffs[0] = irt::real(-1.0);
+        sum_b.default_input_coeffs[1] = irt::real(0.1);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -1724,7 +1726,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t = irt::real(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -1732,7 +1734,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 15.0);
+        } while (t < irt::real(15));
     };
 
     "lif_simulation_qss"_test = [] {
@@ -1749,21 +1751,21 @@ main()
         auto& constant_cross = sim.alloc<irt::constant>();
         auto& cross = sim.alloc<irt::cross>();
 
-        double tau = 10.0;
-        double Vt = 1.0;
-        double V0 = 10.0;
-        double Vr = -V0;
+        irt::real tau = irt::real(10.0);
+        irt::real Vt = irt::real(1.0);
+        irt::real V0 = irt::real(10.0);
+        irt::real Vr = irt::real(-V0);
 
-        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[0] = irt::real(-1) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
         constant_cross.default_value = Vr;
 
-        integrator.default_current_value = 0.0;
+        integrator.default_current_value = irt::real(0);
 
         quantifier.default_adapt_state = irt::quantifier::adapt_state::possible;
         quantifier.default_zero_init_offset = true;
-        quantifier.default_step_size = 0.1;
+        quantifier.default_step_size = irt::real(0.1);
         quantifier.default_past_length = 3;
 
         I.default_f = &irt::sin_time_function;
@@ -1791,7 +1793,7 @@ main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = 0.0;
+        irt::time t(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 6_ul) >> fatal);
@@ -1799,7 +1801,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 100.0);
+        } while (t < irt::time(100));
     };
 
     "lif_simulation_qss1"_test = [] {
@@ -1815,19 +1817,19 @@ main()
         auto& constant_cross = sim.alloc<irt::constant>();
         auto& cross = sim.alloc<irt::qss1_cross>();
 
-        double tau = 10.0;
-        double Vt = 1.0;
-        double V0 = 10.0;
-        double Vr = -V0;
+        irt::real tau = irt::real(10.0);
+        irt::real Vt = irt::real(1.0);
+        irt::real V0 = irt::real(10.0);
+        irt::real Vr = irt::real(-V0);
 
-        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[0] = irt::real(-1) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = 0.0;
-        integrator.default_dQ = 0.001;
+        integrator.default_X = irt::real(0);
+        integrator.default_dQ = irt::real(0.001);
 
         cross.default_threshold = Vt;
 
@@ -1859,7 +1861,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 100.0);
+        } while (t < irt::time{ 100.0 });
     };
 
     "lif_simulation_qss2"_test = [] {
@@ -1875,19 +1877,19 @@ main()
         auto& constant_cross = sim.alloc<irt::constant>();
         auto& cross = sim.alloc<irt::qss2_cross>();
 
-        double tau = 10.0;
-        double Vt = 1.0;
-        double V0 = 10.0;
-        double Vr = -V0;
+        irt::real tau = irt::real(10.0);
+        irt::real Vt = irt::real(1.0);
+        irt::real V0 = irt::real(10.0);
+        irt::real Vr = irt::real(-V0);
 
-        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1.0);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = 0.0;
-        integrator.default_dQ = 0.001;
+        integrator.default_X = irt::real(0.0);
+        integrator.default_dQ = irt::real(0.001);
 
         cross.default_threshold = Vt;
 
@@ -1914,7 +1916,7 @@ main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = 0.0;
+        irt::time t = irt::time(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -1923,7 +1925,7 @@ main()
             // printf("--------------------------------------------\n");
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 100.0);
+        } while (t < irt::time(100));
     };
 
     "izhikevich_simulation_qss1"_test = [] {
@@ -1946,35 +1948,35 @@ main()
         auto& cross = sim.alloc<irt::qss1_cross>();
         auto& cross2 = sim.alloc<irt::qss1_cross>();
 
-        double a = 0.2;
-        double b = 2.0;
-        double c = -56.0;
-        double d = -16.0;
-        double I = -99.0;
-        double vt = 30.0;
+        irt::real a = irt::real(0.2);
+        irt::real b = irt::real(2.0);
+        irt::real c = irt::real(-56.0);
+        irt::real d = irt::real(-16.0);
+        irt::real I = irt::real(-99.0);
+        irt::real vt = irt::real(30.0);
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1.0);
         constant2.default_value = c;
         constant3.default_value = I;
 
         cross.default_threshold = vt;
         cross2.default_threshold = vt;
 
-        integrator_a.default_X = 0.0;
-        integrator_a.default_dQ = 0.01;
+        integrator_a.default_X = irt::real(0.0);
+        integrator_a.default_dQ = irt::real(0.01);
 
-        integrator_b.default_X = 0.0;
-        integrator_b.default_dQ = 0.01;
+        integrator_b.default_X = irt::real(0.0);
+        integrator_b.default_dQ = irt::real(0.01);
 
-        sum_a.default_input_coeffs[0] = 1.0;
-        sum_a.default_input_coeffs[1] = -1.0;
+        sum_a.default_input_coeffs[0] = irt::real(1.0);
+        sum_a.default_input_coeffs[1] = irt::real(-1.0);
         sum_b.default_input_coeffs[0] = -a;
         sum_b.default_input_coeffs[1] = a * b;
-        sum_c.default_input_coeffs[0] = 0.04;
-        sum_c.default_input_coeffs[1] = 5.0;
-        sum_c.default_input_coeffs[2] = 140.0;
-        sum_c.default_input_coeffs[3] = 1.0;
-        sum_d.default_input_coeffs[0] = 1.0;
+        sum_c.default_input_coeffs[0] = irt::real(0.04);
+        sum_c.default_input_coeffs[1] = irt::real(5.0);
+        sum_c.default_input_coeffs[2] = irt::real(140.0);
+        sum_c.default_input_coeffs[3] = irt::real(1.0);
+        sum_d.default_input_coeffs[0] = irt::real(1.0);
         sum_d.default_input_coeffs[1] = d;
 
         expect((sim.models.size() == 12_ul) >> fatal);
@@ -2021,7 +2023,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t = irt::real(0);
 
         expect(irt::status::success == sim.initialize(t));
         expect((sim.sched.size() == 12_ul) >> fatal);
@@ -2029,7 +2031,7 @@ main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 140);
+        } while (t < irt::time(140));
     };
 
     "izhikevich_simulation_qss2"_test = [] {
@@ -2052,36 +2054,36 @@ main()
         auto& cross = sim.alloc<irt::qss2_cross>();
         auto& cross2 = sim.alloc<irt::qss2_cross>();
 
-        double a = 0.2;
-        double b = 2.0;
-        double c = -56.0;
-        double d = -16.0;
-        double I = -99.0;
-        double vt = 30.0;
+        irt::real a = irt::real(0.2);
+        irt::real b = irt::real(2.0);
+        irt::real c = irt::real(-56.0);
+        irt::real d = irt::real(-16.0);
+        irt::real I = irt::real(-99.0);
+        irt::real vt = irt::real(30.0);
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1.0);
         constant2.default_value = c;
         constant3.default_value = I;
 
         cross.default_threshold = vt;
         cross2.default_threshold = vt;
 
-        integrator_a.default_X = 0.0;
-        integrator_a.default_dQ = 0.01;
+        integrator_a.default_X = irt::real(0.0);
+        integrator_a.default_dQ = irt::real(0.01);
 
-        integrator_b.default_X = 0.0;
-        integrator_b.default_dQ = 0.01;
+        integrator_b.default_X = irt::real(0.0);
+        integrator_b.default_dQ = irt::real(0.01);
 
-        sum_a.default_input_coeffs[0] = 1.0;
-        sum_a.default_input_coeffs[1] = -1.0;
-        sum_b.default_input_coeffs[0] = -a;
-        sum_b.default_input_coeffs[1] = a * b;
-        sum_c.default_input_coeffs[0] = 0.04;
-        sum_c.default_input_coeffs[1] = 5.0;
-        sum_c.default_input_coeffs[2] = 140.0;
-        sum_c.default_input_coeffs[3] = 1.0;
-        sum_d.default_input_coeffs[0] = 1.0;
-        sum_d.default_input_coeffs[1] = d;
+        sum_a.default_input_coeffs[0] = irt::real(1.0);
+        sum_a.default_input_coeffs[1] = irt::real(-1.0);
+        sum_b.default_input_coeffs[0] = irt::real(-a);
+        sum_b.default_input_coeffs[1] = irt::real(a * b);
+        sum_c.default_input_coeffs[0] = irt::real(0.04);
+        sum_c.default_input_coeffs[1] = irt::real(5.0);
+        sum_c.default_input_coeffs[2] = irt::real(140.0);
+        sum_c.default_input_coeffs[3] = irt::real(1.0);
+        sum_d.default_input_coeffs[0] = irt::real(1.0);
+        sum_d.default_input_coeffs[1] = irt::real(d);
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
@@ -2127,7 +2129,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t = irt::zero;
 
         expect(irt::status::success == sim.initialize(t));
         expect((sim.sched.size() == 12_ul) >> fatal);
@@ -2135,7 +2137,7 @@ main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 140.);
+        } while (t < irt::time(140));
     };
 
     "lotka_volterra_simulation_qss3"_test = [] {
@@ -2151,16 +2153,16 @@ main()
         auto& integrator_a = sim.alloc<irt::qss3_integrator>();
         auto& integrator_b = sim.alloc<irt::qss3_integrator>();
 
-        integrator_a.default_X = 18.0;
-        integrator_a.default_dQ = 0.1;
+        integrator_a.default_X = irt::real(18.0);
+        integrator_a.default_dQ = irt::real(0.1);
 
-        integrator_b.default_X = 7.0;
-        integrator_b.default_dQ = 0.1;
+        integrator_b.default_X = irt::real(7.0);
+        integrator_b.default_dQ = irt::real(0.1);
 
-        sum_a.default_input_coeffs[0] = 2.0;
-        sum_a.default_input_coeffs[1] = -0.4;
-        sum_b.default_input_coeffs[0] = -1.0;
-        sum_b.default_input_coeffs[1] = 0.1;
+        sum_a.default_input_coeffs[0] = irt::real(2.0);
+        sum_a.default_input_coeffs[1] = irt::real(-0.4);
+        sum_b.default_input_coeffs[0] = irt::real(-1.0);
+        sum_b.default_input_coeffs[1] = irt::real(0.1);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2189,7 +2191,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t = irt::zero;
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2197,7 +2199,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 15.0);
+        } while (t < irt::time(15));
     };
 
     "lif_simulation_qss3"_test = [] {
@@ -2213,19 +2215,19 @@ main()
         auto& constant_cross = sim.alloc<irt::constant>();
         auto& cross = sim.alloc<irt::qss3_cross>();
 
-        double tau = 10.0;
-        double Vt = 1.0;
-        double V0 = 10.0;
-        double Vr = -V0;
+        irt::real tau = irt::real(10.0);
+        irt::real Vt = irt::real(1.0);
+        irt::real V0 = irt::real(10.0);
+        irt::real Vr = irt::real(-V0);
 
-        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1.0);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = 0.0;
-        integrator.default_dQ = 0.01;
+        integrator.default_X = irt::real(0.0);
+        integrator.default_dQ = irt::real(0.01);
 
         cross.default_threshold = Vt;
 
@@ -2252,7 +2254,7 @@ main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = 0.0;
+        irt::time t = irt::zero;
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2261,7 +2263,7 @@ main()
             // printf("--------------------------------------------\n");
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 100.0);
+        } while (t < irt::time(100));
     };
 
     "izhikevich_simulation_qss3"_test = [] {
@@ -2284,36 +2286,36 @@ main()
         auto& cross = sim.alloc<irt::qss3_cross>();
         auto& cross2 = sim.alloc<irt::qss3_cross>();
 
-        double a = 0.2;
-        double b = 2.0;
-        double c = -56.0;
-        double d = -16.0;
-        double I = -99.0;
-        double vt = 30.0;
+        irt::real a = irt::real(0.2);
+        irt::real b = irt::real(2.0);
+        irt::real c = irt::real(-56.0);
+        irt::real d = irt::real(-16.0);
+        irt::real I = irt::real(-99.0);
+        irt::real vt = irt::real(30.0);
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1.0);
         constant2.default_value = c;
         constant3.default_value = I;
 
         cross.default_threshold = vt;
         cross2.default_threshold = vt;
 
-        integrator_a.default_X = 0.0;
-        integrator_a.default_dQ = 0.01;
+        integrator_a.default_X = irt::real(0.0);
+        integrator_a.default_dQ = irt::real(0.01);
 
-        integrator_b.default_X = 0.0;
-        integrator_b.default_dQ = 0.01;
+        integrator_b.default_X = irt::real(0.0);
+        integrator_b.default_dQ = irt::real(0.01);
 
-        sum_a.default_input_coeffs[0] = 1.0;
-        sum_a.default_input_coeffs[1] = -1.0;
-        sum_b.default_input_coeffs[0] = -a;
-        sum_b.default_input_coeffs[1] = a * b;
-        sum_c.default_input_coeffs[0] = 0.04;
-        sum_c.default_input_coeffs[1] = 5.0;
-        sum_c.default_input_coeffs[2] = 140.0;
-        sum_c.default_input_coeffs[3] = 1.0;
-        sum_d.default_input_coeffs[0] = 1.0;
-        sum_d.default_input_coeffs[1] = d;
+        sum_a.default_input_coeffs[0] = irt::real(1.0);
+        sum_a.default_input_coeffs[1] = irt::real(-1.0);
+        sum_b.default_input_coeffs[0] = irt::real(-a);
+        sum_b.default_input_coeffs[1] = irt::real(a * b);
+        sum_c.default_input_coeffs[0] = irt::real(0.04);
+        sum_c.default_input_coeffs[1] = irt::real(5.0);
+        sum_c.default_input_coeffs[2] = irt::real(140.0);
+        sum_c.default_input_coeffs[3] = irt::real(1.0);
+        sum_d.default_input_coeffs[0] = irt::real(1.0);
+        sum_d.default_input_coeffs[1] = irt::real(d);
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
@@ -2359,7 +2361,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t = irt::zero;
 
         expect(irt::status::success == sim.initialize(t));
         expect((sim.sched.size() == 12_ul) >> fatal);
@@ -2367,7 +2369,7 @@ main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 140);
+        } while (t < irt::time(140));
     };
 
     "van_der_pol_simulation"_test = [] {
@@ -2384,30 +2386,30 @@ main()
         auto& quantifier_a = sim.alloc<irt::quantifier>();
         auto& quantifier_b = sim.alloc<irt::quantifier>();
 
-        integrator_a.default_current_value = 0.0;
+        integrator_a.default_current_value = irt::real(0);
 
         quantifier_a.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size = 0.01;
+        quantifier_a.default_step_size = irt::real(0.01);
         quantifier_a.default_past_length = 3;
 
-        integrator_b.default_current_value = 10.0;
+        integrator_b.default_current_value = irt::real(10.0);
 
         quantifier_b.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size = 0.01;
+        quantifier_b.default_step_size = irt::real(0.01);
         quantifier_b.default_past_length = 3;
 
-        product.default_input_coeffs[0] = 1.0;
-        product.default_input_coeffs[1] = 1.0;
-        product.default_input_coeffs[2] = 1.0;
+        product.default_input_coeffs[0] = irt::real(1);
+        product.default_input_coeffs[1] = irt::real(1);
+        product.default_input_coeffs[2] = irt::real(1);
 
-        double mu = 4.0;
+        irt::real mu(4.0);
         sum.default_input_coeffs[0] = mu;
         sum.default_input_coeffs[1] = -mu;
-        sum.default_input_coeffs[2] = -1.0;
+        sum.default_input_coeffs[2] = irt::real(-1.0);
 
         expect((sim.models.size() == 6_ul) >> fatal);
 
@@ -2446,7 +2448,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 6_ul) >> fatal);
@@ -2454,7 +2456,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 150.0);
+        } while (t < irt::time(150));
     };
 
     "van_der_pol_simulation_qss3"_test = [] {
@@ -2470,16 +2472,16 @@ main()
         auto& integrator_a = sim.alloc<irt::qss3_integrator>();
         auto& integrator_b = sim.alloc<irt::qss3_integrator>();
 
-        integrator_a.default_X = 0.0;
-        integrator_a.default_dQ = 0.001;
+        integrator_a.default_X = irt::real(0.0);
+        integrator_a.default_dQ = irt::real(0.001);
 
-        integrator_b.default_X = 10.0;
-        integrator_b.default_dQ = 0.001;
+        integrator_b.default_X = irt::real(10.0);
+        integrator_b.default_dQ = irt::real(0.001);
 
-        double mu = 4.0;
+        irt::real mu(4);
         sum.default_input_coeffs[0] = mu;
         sum.default_input_coeffs[1] = -mu;
-        sum.default_input_coeffs[2] = -1.0;
+        sum.default_input_coeffs[2] = irt::real(-1.0);
 
         expect(sim.models.size() == 5_ul);
 
@@ -2510,7 +2512,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = 0.0;
+        irt::time t(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2518,7 +2520,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 1500.0);
+        } while (t < irt::time(1500.0));
     };
 
     "neg_lif_simulation_qss1"_test = [] {
@@ -2534,19 +2536,19 @@ main()
         auto& constant_cross = sim.alloc<irt::constant>();
         auto& cross = sim.alloc<irt::qss1_cross>();
 
-        double tau = 10.0;
-        double Vt = -1.0;
-        double V0 = -10.0;
-        double Vr = 0.0;
+        irt::real tau(10.0);
+        irt::real Vt(-1.0);
+        irt::real V0(-10.0);
+        irt::real Vr(0.0);
 
-        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[0] = irt::real(-1) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = 0.0;
-        integrator.default_dQ = 0.001;
+        integrator.default_X = irt::real(0.0);
+        integrator.default_dQ = irt::real(0.001);
 
         cross.default_threshold = Vt;
         cross.default_detect_up = false;
@@ -2573,7 +2575,7 @@ main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = 0.0;
+        irt::time t(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2581,7 +2583,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 100.0);
+        } while (t < irt::time(100));
     };
 
     "neg_lif_simulation_qss2"_test = [] {
@@ -2597,19 +2599,19 @@ main()
         auto& constant_cross = sim.alloc<irt::constant>();
         auto& cross = sim.alloc<irt::qss2_cross>();
 
-        double tau = 10.0;
-        double Vt = -1.0;
-        double V0 = -10.0;
-        double Vr = 0.0;
+        irt::real tau(10.0);
+        irt::real Vt(-1.0);
+        irt::real V0(-10.0);
+        irt::real Vr(0.0);
 
-        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1.0);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = 0.0;
-        integrator.default_dQ = 0.0001;
+        integrator.default_X = irt::real(0.0);
+        integrator.default_dQ = irt::real(0.0001);
 
         cross.default_threshold = Vt;
         cross.default_detect_up = false;
@@ -2636,7 +2638,7 @@ main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = 0.0;
+        irt::time t(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2644,7 +2646,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 100.0);
+        } while (t < irt::time(100.0));
     };
 
     "neg_lif_simulation_qss3"_test = [] {
@@ -2660,19 +2662,19 @@ main()
         auto& constant_cross = sim.alloc<irt::constant>();
         auto& cross = sim.alloc<irt::qss3_cross>();
 
-        double tau = 10.0;
-        double Vt = -1.0;
-        double V0 = -10.0;
-        double Vr = 0.0;
+        irt::real tau = 10;
+        irt::real Vt = -1;
+        irt::real V0 = -10;
+        irt::real Vr = 0;
 
-        sum.default_input_coeffs[0] = -1.0 / tau;
+        sum.default_input_coeffs[0] = irt::real(-1) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = 1.0;
+        constant.default_value = irt::real(1);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = 0.0;
-        integrator.default_dQ = 0.0001;
+        integrator.default_X = irt::zero;
+        integrator.default_dQ = irt::to_real(0.0001);
 
         cross.default_threshold = Vt;
         cross.default_detect_up = false;
@@ -2699,7 +2701,7 @@ main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = 0.0;
+        irt::time t(0);
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2707,7 +2709,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < 100.0);
+        } while (t < irt::time(100.0));
     };
 
     "all"_test = [] {

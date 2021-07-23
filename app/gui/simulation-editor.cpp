@@ -327,8 +327,9 @@ application::show_simulation_window()
 
     static editor_id current = undefined<editor_id>();
     if (auto* ed = make_combo_editor_name(current); ed) {
-        ImGui::InputDouble("Begin", &ed->simulation_begin);
-        ImGui::InputDouble("End", &ed->simulation_end);
+        ImGui::InputReal("Begin", &ed->simulation_begin);
+        ImGui::InputReal("End", &ed->simulation_end);
+
         ImGui::Checkbox("Show values", &ed->simulation_show_value);
 
         if (ImGui::Button("Output files"))

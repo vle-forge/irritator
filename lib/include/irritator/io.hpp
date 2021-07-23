@@ -1065,24 +1065,24 @@ private:
 
     bool read(simulation& /*sim*/, qss1_integrator& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_X));
-        double& x2 = *(const_cast<double*>(&dyn.default_dQ));
+        real& x1 = *(const_cast<real*>(&dyn.default_X));
+        real& x2 = *(const_cast<real*>(&dyn.default_dQ));
 
         return !!(is >> x1 >> x2);
     }
 
     bool read(simulation& /*sim*/, qss2_integrator& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_X));
-        double& x2 = *(const_cast<double*>(&dyn.default_dQ));
+        real& x1 = *(const_cast<real*>(&dyn.default_X));
+        real& x2 = *(const_cast<real*>(&dyn.default_dQ));
 
         return !!(is >> x1 >> x2);
     }
 
     bool read(simulation& /*sim*/, qss3_integrator& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_X));
-        double& x2 = *(const_cast<double*>(&dyn.default_dQ));
+        real& x1 = *(const_cast<real*>(&dyn.default_X));
+        real& x2 = *(const_cast<real*>(&dyn.default_dQ));
 
         return !!(is >> x1 >> x2);
     }
@@ -1109,27 +1109,27 @@ private:
 
     bool read(simulation& /*sim*/, qss1_wsum_2& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
 
         return !!(is >> x1 >> x2);
     }
 
     bool read(simulation& /*sim*/, qss1_wsum_3& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
-        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
+        real& x3 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
 
         return !!(is >> x1 >> x2 >> x3);
     }
 
     bool read(simulation& /*sim*/, qss1_wsum_4& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
-        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
-        double& x4 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
+        real& x3 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
+        real& x4 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
 
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }
@@ -1156,27 +1156,27 @@ private:
 
     bool read(simulation& /*sim*/, qss2_wsum_2& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
 
         return !!(is >> x1 >> x2);
     }
 
     bool read(simulation& /*sim*/, qss2_wsum_3& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
-        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
+        real& x3 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
 
         return !!(is >> x1 >> x2 >> x3);
     }
 
     bool read(simulation& /*sim*/, qss2_wsum_4& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
-        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
-        double& x4 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
+        real& x3 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
+        real& x4 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
 
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }
@@ -1203,27 +1203,27 @@ private:
 
     bool read(simulation& /*sim*/, qss3_wsum_2& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
 
         return !!(is >> x1 >> x2);
     }
 
     bool read(simulation& /*sim*/, qss3_wsum_3& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
-        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
+        real& x3 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
 
         return !!(is >> x1 >> x2 >> x3);
     }
 
     bool read(simulation& /*sim*/, qss3_wsum_4& dyn) noexcept
     {
-        double& x1 = *(const_cast<double*>(&dyn.default_input_coeffs[0]));
-        double& x2 = *(const_cast<double*>(&dyn.default_input_coeffs[1]));
-        double& x3 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
-        double& x4 = *(const_cast<double*>(&dyn.default_input_coeffs[2]));
+        real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
+        real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
+        real& x3 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
+        real& x4 = *(const_cast<real*>(&dyn.default_input_coeffs[2]));
 
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }

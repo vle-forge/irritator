@@ -221,7 +221,7 @@ run_for(editor& ed, long long int duration_in_microseconds) noexcept
     namespace stdc = std::chrono;
 
     auto start_at = stdc::high_resolution_clock::now();
-    long long int duration_since_start;
+    long long int duration_since_start = 0;
 
     if (ed.simulation_bag_id < 0) {
         ed.sim.clean();
