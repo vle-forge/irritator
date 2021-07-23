@@ -48,171 +48,178 @@ pop_data(std::vector<float>& xs, std::vector<float>& ys) noexcept
 }
 
 void
-plot_output::operator()(const irt::observer& obs,
-                        const irt::dynamics_type type,
-                        const irt::time tl,
-                        const irt::time t,
-                        const irt::observer::status s)
+plot_output_callback(const irt::observer& obs,
+                     const irt::dynamics_type type,
+                     const irt::time tl,
+                     const irt::time t,
+                     const irt::observer::status s)
 {
+    auto* plot_output = reinterpret_cast<irt::plot_output*>(obs.user_data);
+
     if (s == irt::observer::status::initialize) {
-        xs.clear();
-        ys.clear();
-        xs.reserve(4096u * 4096u);
-        ys.reserve(4096u * 4096u);
+        plot_output->xs.clear();
+        plot_output->ys.clear();
+        plot_output->xs.reserve(4096u * 4096u);
+        plot_output->ys.reserve(4096u * 4096u);
         return;
     }
 
-    while (!xs.empty() && static_cast<double>(xs.back()) == tl)
-        pop_data(xs, ys);
+    while (!plot_output->xs.empty() &&
+           static_cast<double>(plot_output->xs.back()) == tl)
+        pop_data(plot_output->xs, plot_output->ys);
 
     switch (type) {
     case irt::dynamics_type::qss1_integrator: {
-        for (auto td = tl; td < t; td += time_step) {
+        for (auto td = tl; td < t; td += plot_output->time_step) {
             const auto e = td - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e;
-            push_data(xs, ys, td, value);
+            push_data(plot_output->xs, plot_output->ys, td, value);
         }
         const auto e = t - tl;
         const auto value = obs.msg[0] + obs.msg[1] * e;
-        push_data(xs, ys, t, value);
+        push_data(plot_output->xs, plot_output->ys, t, value);
     } break;
 
     case irt::dynamics_type::qss2_integrator: {
-        for (auto td = tl; td < t; td += time_step) {
+        for (auto td = tl; td < t; td += plot_output->time_step) {
             const auto e = td - tl;
             const auto value =
               obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
-            push_data(xs, ys, td, value);
+            push_data(plot_output->xs, plot_output->ys, td, value);
         }
         const auto e = t - tl;
         const auto value =
           obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
-        push_data(xs, ys, t, value);
+        push_data(plot_output->xs, plot_output->ys, t, value);
     } break;
 
     case irt::dynamics_type::qss3_integrator: {
-        for (auto td = tl; td < t; td += time_step) {
+        for (auto td = tl; td < t; td += plot_output->time_step) {
             const auto e = td - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e +
                                (obs.msg[2] * e * e / 2.0) +
                                (obs.msg[3] * e * e * e / 3.0);
-            push_data(xs, ys, td, value);
+            push_data(plot_output->xs, plot_output->ys, td, value);
         }
         const auto e = t - tl;
         const auto value = obs.msg[0] + obs.msg[1] * e +
                            (obs.msg[2] * e * e / 2.0) +
                            (obs.msg[3] * e * e * e / 3.0);
-        push_data(xs, ys, t, value);
+        push_data(plot_output->xs, plot_output->ys, t, value);
     } break;
 
     default:
-        push_data(xs, ys, t, obs.msg[0]);
+        push_data(plot_output->xs, plot_output->ys, t, obs.msg[0]);
         break;
     }
 }
 
 void
-file_discrete_output::operator()(const irt::observer& obs,
+file_discrete_output_callback(const irt::observer& obs,
                                  const irt::dynamics_type type,
                                  const irt::time tl,
                                  const irt::time t,
                                  const irt::observer::status s)
 {
+    auto* out = reinterpret_cast<file_discrete_output*>(obs.user_data);
+
     switch (s) {
     case irt::observer::status::initialize: {
         std::filesystem::path file;
-        if (ed && !ed->observation_directory.empty())
-            file = ed->observation_directory;
+        if (out->ed && !out->ed->observation_directory.empty())
+            file = out->ed->observation_directory;
 
         file.append(obs.name.begin());
         file.replace_extension(".dat");
 
-        ofs.open(file);
-        fmt::print(ofs, "t,{}\n", name.c_str());
+        out->ofs.open(file);
+        fmt::print(out->ofs, "t,{}\n", out->name.c_str());
     } break;
 
     default:
         switch (type) {
         case irt::dynamics_type::qss1_integrator: {
-            for (auto td = tl; td < t; td += time_step) {
+            for (auto td = tl; td < t; td += out->time_step) {
                 const auto e = td - tl;
                 const auto value = obs.msg[0] + obs.msg[1] * e;
-                fmt::print(ofs, "{},{}\n", td, value);
+                fmt::print(out->ofs, "{},{}\n", td, value);
             }
             const auto e = t - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e;
-            fmt::print(ofs, "{},{}\n", t, value);
+            fmt::print(out->ofs, "{},{}\n", t, value);
         } break;
 
         case irt::dynamics_type::qss2_integrator: {
-            for (auto td = tl; td < t; td += time_step) {
+            for (auto td = tl; td < t; td += out->time_step) {
                 const auto e = td - tl;
                 const auto value =
                   obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
-                fmt::print(ofs, "{},{}\n", td, value);
+                fmt::print(out->ofs, "{},{}\n", td, value);
             }
             const auto e = t - tl;
             const auto value =
               obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
-            fmt::print(ofs, "{},{}\n", t, value);
+            fmt::print(out->ofs, "{},{}\n", t, value);
         } break;
 
         case irt::dynamics_type::qss3_integrator: {
-            for (auto td = tl; td < t; td += time_step) {
+            for (auto td = tl; td < t; td += out->time_step) {
                 const auto e = td - tl;
                 const auto value = obs.msg[0] + obs.msg[1] * e +
                                    (obs.msg[2] * e * e / 2.0) +
                                    (obs.msg[3] * e * e * e / 3.0);
-                fmt::print(ofs, "{},{}\n", td, value);
+                fmt::print(out->ofs, "{},{}\n", td, value);
             }
             const auto e = t - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e +
                                (obs.msg[2] * e * e / 2.0) +
                                (obs.msg[3] * e * e * e / 3.0);
-            fmt::print(ofs, "{},{}\n", t, value);
+            fmt::print(out->ofs, "{},{}\n", t, value);
         } break;
 
         default:
-            fmt::print(ofs, "{},{}\n", t, obs.msg[0]);
+            fmt::print(out->ofs, "{},{}\n", t, obs.msg[0]);
             break;
         }
     }
 
     if (s == irt::observer::status::finalize)
-        ofs.close();
+        out->ofs.close();
 }
 
 void
-file_output::operator()(const irt::observer& obs,
-                        const irt::dynamics_type type,
-                        const irt::time /*tl*/,
-                        const irt::time t,
-                        const irt::observer::status s)
+file_output_callback(const irt::observer& obs,
+                     const irt::dynamics_type type,
+                     const irt::time /*tl*/,
+                     const irt::time t,
+                     const irt::observer::status s)
 {
+    auto* out = reinterpret_cast<file_output*>(obs.user_data);
     std::filesystem::path file;
 
     switch (s) {
     case irt::observer::status::initialize:
-        if (ed && !ed->observation_directory.empty())
-            file = ed->observation_directory;
+        if (out->ed && !out->ed->observation_directory.empty())
+            file = out->ed->observation_directory;
 
         file.append(obs.name.begin());
         file.replace_extension(".dat");
 
-        ofs.open(file);
+        out->ofs.open(file);
 
         switch (type) {
         case irt::dynamics_type::qss1_integrator:
-            fmt::print(ofs, "t,{0},{0}'\n", name.c_str());
+            fmt::print(out->ofs, "t,{0},{0}'\n", out->name.c_str());
             break;
         case irt::dynamics_type::qss2_integrator:
-            fmt::print(ofs, "t,{0},{0}',{0}''\n", name.c_str());
+            fmt::print(out->ofs, "t,{0},{0}',{0}''\n", out->name.c_str());
             break;
         case irt::dynamics_type::qss3_integrator:
-            fmt::print(ofs, "t,{0},{0}',{0}'',{0}'''\n", name.c_str());
+            fmt::print(
+              out->ofs, "t,{0},{0}',{0}'',{0}'''\n", out->name.c_str());
             break;
         default:
-            fmt::print(ofs, "t,{}\n", name.c_str());
+            fmt::print(out->ofs, "t,{}\n", out->name.c_str());
             break;
         }
         break;
@@ -221,14 +228,14 @@ file_output::operator()(const irt::observer& obs,
     case irt::observer::status::finalize:
         switch (type) {
         case irt::dynamics_type::qss1_integrator:
-            fmt::print(ofs, "{},{},{}\n", t, obs.msg[0], obs.msg[1]);
+            fmt::print(out->ofs, "{},{},{}\n", t, obs.msg[0], obs.msg[1]);
             break;
         case irt::dynamics_type::qss2_integrator:
             fmt::print(
-              ofs, "{},{},{},{}\n", t, obs.msg[0], obs.msg[1], obs.msg[2]);
+              out->ofs, "{},{},{},{}\n", t, obs.msg[0], obs.msg[1], obs.msg[2]);
             break;
         case irt::dynamics_type::qss3_integrator:
-            fmt::print(ofs,
+            fmt::print(out->ofs,
                        "{},{},{},{},{}\n",
                        t,
                        obs.msg[0],
@@ -237,14 +244,14 @@ file_output::operator()(const irt::observer& obs,
                        obs.msg[3]);
             break;
         default:
-            fmt::print(ofs, "{},{}\n", t, obs.msg[0]);
+            fmt::print(out->ofs, "{},{}\n", t, obs.msg[0]);
             break;
         }
         break;
     }
 
     if (s == irt::observer::status::finalize)
-        ofs.close();
+        out->ofs.close();
 }
 
 static void

@@ -2877,21 +2877,23 @@ struct observer
         finalize
     };
 
-    using update_fn = function_ref<void(const observer&,
-                                        const dynamics_type,
-                                        const time,
-                                        const time,
-                                        const observer::status)>;
+    using update_fn = void (*)(const observer&,
+                               const dynamics_type,
+                               const time,
+                               const time,
+                               const observer::status);
 
-    observer(const char* name_, update_fn cb_) noexcept
+    observer(const char* name_, update_fn cb_, void* user_data_) noexcept
       : cb(cb_)
       , name(name_)
+      , user_data(user_data_)
     {}
 
     update_fn cb;
     small_string<8> name;
     model_id model = static_cast<model_id>(0);
     observation_message msg;
+    void* user_data = nullptr;
 };
 
 struct node

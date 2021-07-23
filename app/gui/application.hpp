@@ -72,12 +72,6 @@ struct plot_output
       : name(name_)
     {}
 
-    void operator()(const irt::observer& obs,
-                    const irt::dynamics_type /*type*/,
-                    const irt::time tl,
-                    const irt::time t,
-                    const irt::observer::status s);
-
     editor* ed = nullptr;
     std::vector<float> xs;
     std::vector<float> ys;
@@ -85,6 +79,13 @@ struct plot_output
     double tl = 0.0;
     double time_step = 0.01;
 };
+
+void
+plot_output_callback(const irt::observer& obs,
+                     const irt::dynamics_type /*type*/,
+                     const irt::time tl,
+                     const irt::time t,
+                     const irt::observer::status s);
 
 struct file_output
 {
@@ -94,16 +95,17 @@ struct file_output
       : name(name_)
     {}
 
-    void operator()(const irt::observer& obs,
-                    const irt::dynamics_type type,
-                    const irt::time tl,
-                    const irt::time t,
-                    const irt::observer::status s);
-
     editor* ed = nullptr;
     std::ofstream ofs;
     small_string<24u> name;
 };
+
+void
+file_output_callback(const irt::observer& obs,
+                     const irt::dynamics_type type,
+                     const irt::time tl,
+                     const irt::time t,
+                     const irt::observer::status s);
 
 struct file_discrete_output
 {
@@ -113,18 +115,19 @@ struct file_discrete_output
       : name(name_)
     {}
 
-    void operator()(const irt::observer& obs,
-                    const irt::dynamics_type type,
-                    const irt::time tl,
-                    const irt::time t,
-                    const irt::observer::status s);
-
     editor* ed = nullptr;
     std::ofstream ofs;
     small_string<24u> name;
     double tl = 0.0;
     double time_step = 0.01;
 };
+
+void
+file_discrete_output_callback(const irt::observer& obs,
+                              const irt::dynamics_type type,
+                              const irt::time tl,
+                              const irt::time t,
+                              const irt::observer::status s);
 
 int
 make_input_node_id(const irt::model_id mdl, const int port) noexcept;

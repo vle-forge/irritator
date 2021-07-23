@@ -2352,7 +2352,8 @@ editor::show_editor() noexcept
                             plot = &tf;
                             tf.ed = this;
                             observation_outputs[index] = plot_outs.get_id(tf);
-                            auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                            auto& o = sim.observers.alloc(
+                              names[i].c_str(), plot_output_callback, &tf);
                             sim.observe(*mdl, o);
                         } else {
                             plot = plot_outs.try_to_get(
@@ -2377,7 +2378,8 @@ editor::show_editor() noexcept
                             file = &tf;
                             tf.ed = this;
                             observation_outputs[index] = file_outs.get_id(tf);
-                            auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                            auto& o = sim.observers.alloc(
+                              names[i].c_str(), file_output_callback, &tf);
                             sim.observe(*mdl, o);
                         } else {
                             file = file_outs.try_to_get(
@@ -2402,7 +2404,10 @@ editor::show_editor() noexcept
                             tf.ed = this;
                             observation_outputs[index] =
                               file_discrete_outs.get_id(tf);
-                            auto& o = sim.observers.alloc(names[i].c_str(), tf);
+                            auto& o =
+                              sim.observers.alloc(names[i].c_str(),
+                                                  file_discrete_output_callback,
+                                                  &tf);
                             sim.observe(*mdl, o);
                         } else {
                             file = file_discrete_outs.try_to_get(
@@ -2499,8 +2504,7 @@ editor::show_window() noexcept
             ImGui::EndMenu();
         }
 
-        auto empty_fun = [this](irt::model_id /*id*/) {
-        };
+        auto empty_fun = [this](irt::model_id /*id*/) {};
 
         if (ImGui::BeginMenu("Examples")) {
             if (ImGui::MenuItem("Insert example AQSS lotka_volterra"))
@@ -2669,8 +2673,7 @@ editor::show_window() noexcept
                     const auto index = get_index(id);
                     const auto pos = r.get_position(index);
 
-                    ImNodes::SetNodeEditorSpacePos(index,
-                                                   ImVec2(pos.x, pos.y));
+                    ImNodes::SetNodeEditorSpacePos(index, ImVec2(pos.x, pos.y));
                 });
 
                 if (is_success(ret))
