@@ -3170,6 +3170,13 @@ editor::show_window() noexcept
                       3,
                       "Fail to initialize example_qss_izhikevich<3>: %s\n",
                       status_string(ret));
+            if (ImGui::MenuItem("Insert example QSS3 seir_nonlinear"))
+                if (auto ret = example_qss_seir_nonlinear<3>(sim, empty_fun);
+                    is_bad(ret))
+                    log_w.log(
+                      3,
+                      "Fail to initialize example_qss_seir_nonlinear<3>: %s\n",
+                      status_string(ret));
 
             ImGui::EndMenu();
         }
