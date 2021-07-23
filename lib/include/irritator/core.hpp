@@ -21,8 +21,6 @@
 #include <string_view>
 #include <type_traits>
 
-#include <vector>
-
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -355,36 +353,22 @@ enum class status
     head_allocator_bad_capacity,
     head_allocator_not_enough_memory,
     simulation_not_enough_model,
-    simulation_not_enough_memory_message_list_allocator,
-    simulation_not_enough_memory_input_port_list_allocator,
-    simulation_not_enough_memory_output_port_list_allocator,
+    simulation_not_enough_message,
+    simulation_not_enough_connection,
+    vector_init_capacity_error,
+    vector_not_enough_memory,
     data_array_init_capacity_error,
     data_array_not_enough_memory,
-    data_array_archive_init_capacity_error,
-    data_array_archive_not_enough_memory,
-    array_init_capacity_zero,
-    array_init_capacity_too_big,
-    array_init_not_enough_memory,
-    vector_init_capacity_zero,
-    vector_init_capacity_too_big,
-    vector_init_not_enough_memory,
     source_unknown,
     source_empty,
-    dynamics_unknown_id,
-    dynamics_unknown_port_id,
-    dynamics_not_enough_memory,
     model_connect_output_port_unknown,
-    model_connect_input_port_unknown,
     model_connect_already_exist,
     model_connect_bad_dynamics,
     model_queue_bad_ta,
-    model_queue_empty_allocator,
     model_queue_full,
     model_dynamic_queue_source_is_null,
-    model_dynamic_queue_empty_allocator,
     model_dynamic_queue_full,
     model_priority_queue_source_is_null,
-    model_priority_queue_empty_allocator,
     model_priority_queue_full,
     model_integrator_dq_error,
     model_integrator_X_error,
@@ -392,10 +376,6 @@ enum class status
     model_integrator_output_error,
     model_integrator_running_without_x_dot,
     model_integrator_ta_with_bad_x_dot,
-    model_generator_null_ta_source,
-    model_generator_empty_ta_source,
-    model_generator_null_value_source,
-    model_generator_empty_value_source,
     model_quantifier_bad_quantum_parameter,
     model_quantifier_bad_archive_length_parameter,
     model_quantifier_shifting_value_neg,
@@ -852,19 +832,15 @@ public:
 
     status init(sz capacity) noexcept
     {
-        // @todo replace data_array_init_capacity_error with a
-        //     vector_init_capacity_error
         irt_return_if_fail(capacity > 0u &&
                              capacity < std::numeric_limits<int>::max(),
-                           status::data_array_init_capacity_error);
+                           status::vector_init_capacity_error);
 
         clear();
 
         m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
-        // @todo replace data_array_not_enough_memory with a
-        //     vector_not_enough_memory
         if (!m_data)
-            return status::data_array_not_enough_memory;
+            return status::vector_not_enough_memory;
 
         m_size = 0;
         m_capacity = static_cast<int>(capacity);
@@ -1250,7 +1226,6 @@ struct fixed_real_array
         for (; size < length; ++size)
             data[size] = zero;
     }
-
 
     template<typename U,
              typename = std::enable_if_t<std::is_convertible_v<U, irt::real>>>
@@ -3580,7 +3555,7 @@ struct abstract_integrator<1>
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         span.front()[0] = X + u * sigma;
@@ -3753,7 +3728,7 @@ struct abstract_integrator<2>
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         span.front()[0] = X + u * sigma + mu * sigma * sigma / two;
@@ -4100,7 +4075,7 @@ struct abstract_integrator<3>
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         span[0][0] = X + u * sigma + (mu * sigma * sigma) / two +
@@ -4152,7 +4127,7 @@ struct abstract_power
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
 
@@ -4249,7 +4224,7 @@ struct abstract_square
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
 
@@ -4344,7 +4319,7 @@ struct abstract_sum
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
 
@@ -4512,7 +4487,7 @@ struct abstract_wsum
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
 
@@ -4679,7 +4654,7 @@ struct abstract_multiplier
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
 
@@ -4967,7 +4942,7 @@ struct quantifier
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         span[0][0] = m_upthreshold;
@@ -5172,7 +5147,7 @@ struct adder
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         real to_send = zero;
@@ -5268,7 +5243,7 @@ struct mult
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         real to_send = 1.0;
@@ -5423,7 +5398,7 @@ struct generator
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         span[0][0] = value;
@@ -5478,7 +5453,7 @@ struct constant
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         span[0][0] = value;
@@ -5620,7 +5595,7 @@ struct flow
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         span[0][0] = default_data[i];
@@ -5784,7 +5759,7 @@ struct cross
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(2))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span_0 = alloc.alloc_message(y[0], 1);
         span_0[0][0] = result;
@@ -6017,7 +5992,7 @@ struct abstract_cross
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span_else_value = alloc.alloc_message(y[o_else_value], 1);
         std::span<message> span_if_value;
@@ -6025,8 +6000,7 @@ struct abstract_cross
 
         if (reach_threshold) {
             if (!alloc.can_alloc_message(2))
-                return status::
-                  simulation_not_enough_memory_message_list_allocator;
+                return status::simulation_not_enough_message;
 
             span_if_value = alloc.alloc_message(y[o_if_value], 1);
             span_event = alloc.alloc_message(y[o_event], 1);
@@ -6136,7 +6110,7 @@ struct time_func
     status lambda(allocators& alloc) noexcept
     {
         if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], 1);
         span[0][0] = value;
@@ -6245,7 +6219,7 @@ struct queue
         }
 
         if (!alloc.can_alloc_message(number))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], number);
 
@@ -6358,7 +6332,7 @@ struct dynamic_queue
         }
 
         if (!alloc.can_alloc_message(number))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], number);
 
@@ -6506,7 +6480,7 @@ public:
         }
 
         if (!alloc.can_alloc_message(number))
-            return status::simulation_not_enough_memory_message_list_allocator;
+            return status::simulation_not_enough_message;
 
         auto span = alloc.alloc_message(y[0], number);
 
@@ -7000,14 +6974,14 @@ global_connect(allocators& alloc,
               }
 
               if (!alloc.can_alloc_node(1))
-                  return status::model_connect_already_exist; // @todo change
-                                                              // with full
+                  return status::simulation_not_enough_connection;
 
               list.emplace_back(dst, port_dst);
 
               return status::success;
           }
-          return status::success; // @todo change with connection error.
+
+          irt_unreachable();
       });
 }
 
@@ -7031,7 +7005,8 @@ global_disconnect(allocators& alloc,
                   }
               }
           }
-          return status::success; // @todo replace with unknown connection
+
+          irt_unreachable();
       });
 }
 
@@ -7674,8 +7649,7 @@ public:
                         irt_return_if_fail(
                           allocs.can_alloc_input_message(
                             port_dst->size_computed),
-                          status::
-                            simulation_not_enough_memory_message_list_allocator);
+                          status::simulation_not_enough_message);
 
                         allocs.alloc_input_message(*port_dst,
                                                    port_dst->size_computed);
