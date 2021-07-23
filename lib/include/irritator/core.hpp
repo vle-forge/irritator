@@ -1242,6 +1242,16 @@ struct fixed_real_array
 
     constexpr fixed_real_array() noexcept = default;
 
+    template<typename... Args>
+    constexpr fixed_real_array(Args&&... args)
+      : data{ std::forward<Args>(args)... }
+    {
+        auto size = sizeof...(args);
+        for (; size < length; ++size)
+            data[size] = zero;
+    }
+
+
     template<typename U,
              typename = std::enable_if_t<std::is_convertible_v<U, irt::real>>>
     constexpr fixed_real_array(std::initializer_list<U> ilist) noexcept
