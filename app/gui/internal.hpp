@@ -26,8 +26,10 @@ template<size_t N, typename... Args>
 void
 format(small_string<N>& str, const char* fmt, const Args&... args)
 {
+    using size_type = typename small_string<N>::size_type;
+
     auto ret = fmt::format_to_n(str.begin(), N - 1, fmt, args...);
-    str.size(ret.size);
+    str.resize(static_cast<size_type>(ret.size));
 }
 
 } // namespace irt

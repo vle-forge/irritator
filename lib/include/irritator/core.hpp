@@ -629,24 +629,41 @@ struct time_domain<time>
  *
  ****************************************************************************/
 
+//! @brief Compute the best size to fit the small storage size.
+template<size_t N>
+using small_storage_size_t = std::conditional_t<
+  (N < std::numeric_limits<uint8_t>::max()),
+  uint8_t,
+  std::conditional_t<
+    (N < std::numeric_limits<uint16_t>::max()),
+    uint16_t,
+    std::conditional_t<
+      (N < std::numeric_limits<uint32_t>::max()),
+      uint32_t,
+      std::conditional_t<(N < std::numeric_limits<uint32_t>::max()),
+                         uint64_t,
+                         size_t>>>>;
+
 //! @brief A vector like class but without dynamic allocation.
 //! @tparam T Any type (trivial or not).
 //! @tparam length The capacity of the vector.
-template<typename T, i32 length>
+template<typename T, sz length>
 class small_vector
 {
-    static_assert(length >= 1 && length < std::numeric_limits<i32>::max());
-
-    std::byte m_buffer[length * sizeof(T)]{};
-    i32 m_size;
-
 public:
+    static_assert(length >= 1);
+
+    using size_type = small_storage_size_t<length>;
     using iterator = T*;
     using const_iterator = const T*;
-    using size_type = u8;
     using reference = T&;
     using const_reference = const T&;
 
+private:
+    std::byte m_buffer[length * sizeof(T)];
+    size_type m_size;
+
+public:
     constexpr small_vector() noexcept
     {
         m_size = 0;
@@ -681,16 +698,16 @@ public:
         return reinterpret_cast<const T*>(&m_buffer[0]);
     }
 
-    constexpr reference operator[](const i32 index) noexcept
+    constexpr reference operator[](const size_type index) noexcept
     {
-        irt_assert(index >= 0 && index < m_size);
+        irt_assert(index < m_size);
 
         return data()[index];
     }
 
-    constexpr const_reference operator[](const i32 index) const noexcept
+    constexpr const_reference operator[](const size_type index) const noexcept
     {
-        irt_assert(index >= 0 && index < m_size);
+        irt_assert(index < m_size);
 
         return data()[index];
     }
@@ -715,19 +732,14 @@ public:
         return data() + m_size;
     }
 
-    constexpr sz size() const noexcept
-    {
-        return static_cast<sz>(m_size);
-    }
-
-    constexpr i32 ssize() const noexcept
+    constexpr size_type size() const noexcept
     {
         return m_size;
     }
 
     constexpr sz capacity() const noexcept
     {
-        return static_cast<sz>(length);
+        return length;
     }
 
     constexpr bool empty() const noexcept
@@ -755,7 +767,7 @@ public:
         return m_size < length - 1;
     }
 
-    constexpr bool can_alloc(i32 number) noexcept
+    constexpr bool can_alloc(size_type number) noexcept
     {
         return length - m_size >= number;
     }
@@ -781,7 +793,7 @@ public:
         }
     }
 
-    constexpr void swap_pop_back(i32 index) noexcept
+    constexpr void swap_pop_back(size_type index) noexcept
     {
         irt_assert(index >= 0 && index < m_size);
 
@@ -1010,18 +1022,26 @@ public:
 };
 
 //! @brief A small_string without heap allocation.
-template<size_t length = 8>
+template<sz length = 8>
 class small_string
 {
+public:
+    static_assert(length >= 2);
+
+    using size_type = small_storage_size_t<length>;
+    using iterator = char*;
+    using const_iterator = const char*;
+    using reference = char&;
+    using const_reference = const char&;
+
+private:
     char m_buffer[length];
-    u8 m_size;
+    size_type m_size;
 
 public:
     using iterator = char*;
     using const_iterator = const char*;
     using m_sizetype = u8;
-
-    static_assert(length > 1 && length < 254);
 
     constexpr small_string() noexcept
     {
@@ -1077,6 +1097,12 @@ public:
         assign(str);
     }
 
+    void resize(size_type size) noexcept
+    {
+        m_size = size > length ? length : size;
+        m_buffer[m_size - 1] = '\0';
+    }
+
     constexpr bool empty() const noexcept
     {
         constexpr unsigned char zero{ 0 };
@@ -1084,18 +1110,12 @@ public:
         return zero == m_size;
     }
 
-    constexpr void size(sz new_size) noexcept
-    {
-        m_size = static_cast<u8>(std::min(new_size, length - 1));
-        m_buffer[m_size] = '\0';
-    }
-
-    constexpr sz size() const noexcept
+    constexpr size_type size() const noexcept
     {
         return m_size;
     }
 
-    constexpr sz capacity() const noexcept
+    constexpr size_type capacity() const noexcept
     {
         return length;
     }
@@ -1119,6 +1139,20 @@ public:
     {
         std::fill_n(m_buffer, length, '\0');
         m_size = 0;
+    }
+
+    constexpr reference operator[](const size_type index) noexcept
+    {
+        irt_assert(index < m_size);
+
+        return m_buffer[index];
+    }
+
+    constexpr const_reference operator[](const size_type index) const noexcept
+    {
+        irt_assert(index < m_size);
+
+        return m_buffer[index];
     }
 
     constexpr const char* c_str() const noexcept
