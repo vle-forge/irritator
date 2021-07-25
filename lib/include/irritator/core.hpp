@@ -637,7 +637,7 @@ class small_vector
 {
     static_assert(length >= 1 && length < std::numeric_limits<i32>::max());
 
-    std::byte m_buffer[length * sizeof(T)];
+    std::byte m_buffer[length * sizeof(T)]{};
     i32 m_size;
 
 public:
@@ -2395,7 +2395,7 @@ public:
 };
 
 template<typename U, typename V>
-struct map
+class map
 {
     static_assert(std::is_trivial_v<V> && std::is_trivial_v<U>,
                   "map is trivial type only (model_id, etc.)");
@@ -2413,34 +2413,52 @@ struct map
         V v;
     };
 
-    // @TODO replace with a lightweight vector
-    std::vector<element> elements;
+    vector<element> m_elements;
 
-    element* try_emplace_back(const U u, const V v)
+public:
+    status init(sz capacity) noexcept
     {
-        try {
-            return &elements.emplace_back(u, v);
-        } catch (...) {
+        return m_elements.init(capacity);
+    }
+
+    bool can_alloc(sz capacity) const noexcept
+    {
+        return m_elements.can_alloc(capacity);
+    }
+
+    element* try_emplace_back(const U& u, const V& v)
+    {
+        if (!m_elements.can_alloc(1u))
             return nullptr;
-        }
+
+        return &m_elements.emplace_back(u, v);
+    }
+
+    element& emplace_back(const U& u, const V& v)
+    {
+        irt_assert(m_elements.can_alloc(1u));
+
+        return m_elements.emplace_back(u, v);
     }
 
     void sort() noexcept
     {
-        std::sort(
-          elements.begin(),
-          elements.end(),
-          [](const auto& left, const auto& right) { return left.u < right.u; });
+        std::sort(m_elements.begin(),
+                  m_elements.end(),
+                  [](const auto& left, const auto& right) noexcept {
+                      return left.u < right.u;
+                  });
     }
 
     const V* find(const U u) const noexcept
     {
         auto it = binary_find(
-          elements.begin(), elements.end(), u, [](const auto& elem, const U u) {
-              return elem.u == u;
-          });
+          m_elements.begin(),
+          m_elements.end(),
+          u,
+          [](const auto& elem, const U u) noexcept { return elem.u == u; });
 
-        return it != elements.end() ? &it->v : nullptr;
+        return it != m_elements.end() ? &it->v : nullptr;
     }
 };
 
@@ -7013,109 +7031,120 @@ global_disconnect(allocators& alloc,
 struct component
 {
     small_string<16> name;
+
     data_array<model, model_id> models;
+    block_allocator<list_view_node<node>> node_alloc;
+
     small_vector<model_id, 16> parameters;
     small_vector<model_id, 16> observables;
     small_vector<input_port, 16> internal_x;
     small_vector<output_port, 16> internal_y;
 
-    // shared_flat_list<node>::allocator_type node_allocator;
-
     status init(sz model_number) noexcept
     {
         irt_return_if_bad(models.init(model_number));
-        // irt_return_if_bad(node_allocator.init(model_number * 4u));
+        irt_return_if_bad(node_alloc.init(model_number * 4u));
 
         return status::success;
     }
 
-    // bool can_alloc(const sz number = 1u) const noexcept
-    //{
-    //    return models.can_alloc(number);
-    //}
+    bool can_alloc(const sz number = 1u) const noexcept
+    {
+        return models.can_alloc(number);
+    }
 
-    // bool can_connect(const sz number = 1u) const noexcept
-    //{
-    //    return node_allocator.can_alloc(number);
-    //}
+    bool can_connect(const sz number = 1u) const noexcept
+    {
+        return node_alloc.can_alloc(number);
+    }
 
-    // model& alloc(dynamics_type type) noexcept
-    //{
-    //    irt_assert(can_alloc(1u));
+    model& alloc(dynamics_type type) noexcept
+    {
+        irt_assert(can_alloc(1u));
 
-    //    auto& mdl = models.alloc();
-    //    mdl.type = type;
-    //    mdl.handle = nullptr;
+        auto& mdl = models.alloc();
+        mdl.type = type;
+        mdl.handle = nullptr;
 
-    //    dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
-    //        new (&dyn) Dynamics{};
-    //    });
+        dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
+            new (&dyn) Dynamics{};
+        });
 
-    //    return mdl;
-    //}
+        return mdl;
+    }
 
-    // status connect(model_id src, int port_src, model_id dst, int
-    // port_dst)
-    //{
+    status deallocate(model_id id) noexcept
+    {
+        auto* mdl = models.try_to_get(id);
+        irt_return_if_fail(mdl, status::unknown_dynamics);
 
-    //}
+        dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
+            if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                for (auto port : dyn.y)
+                    list_view(this->node_alloc, port.nodes).clear();
+            }
 
-    // status connect(model& src, int port_src, model& dst, int port_dst)
-    //{
+            dyn.~Dynamics();
+        });
 
-    //}
+        models.free(*mdl);
+        return status::success;
+    }
 
-    // status disconnect(model_id src, int port_src, model_id dst, int
-    // port_dst)
-    //{
-    //    port* src_port = nullptr;
-    //    irt_return_if_bad(get_output_port(src, port_src, src_port));
+    status connect(output_port& src, model_id dst, int port_dst) noexcept
+    {
+        auto list = list_view(node_alloc, src.nodes);
 
-    //    port* dst_port = nullptr;
-    //    irt_return_if_bad(get_input_port(dst, port_dst, dst_port));
+        for (auto& connection : list) {
+            if (connection.model == dst && connection.port_index == port_dst)
+                return status::model_connect_already_exist;
+        }
 
-    //}
+        list.emplace_front(dst, port_dst);
+    }
 
-    // status free(model& mdl) noexcept
-    //{
-    //    dispatch(mdl, [&mdl, this]<typename Dynamics>(Dynamics& dyn) ->
-    //    status
-    //    {
-    //        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-    //            int i = 0;
-    //            for (auto& port : dyn.x) {
-    //                while (!port.connections.empty()) {
-    //                    disconnect(port.connections.front().model,
-    //                               port.connections.front().port_index,
-    //                               models.get_id(mdl),
-    //                               i);
-    //                }
+    status connect(model& src,
+                   int port_src,
+                   model_id dst,
+                   int port_dst) noexcept
+    {
+        return dispatch(
+          src,
+          [this, port_src, dst, port_dst]<typename Dynamics>(Dynamics& dyn) {
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                  if (length(dyn.y) < port_src)
+                      return this->connect(dyn.y[port_src], dst, port_dst);
+              }
 
-    //                port.connections.clear(node_allocator);
-    //                ++i;
-    //            }
-    //        }
+              return status::model_connect_bad_dynamics;
+          });
+    }
 
-    //        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-    //            int i = 0;
-    //            for (auto& port : dyn.y) {
-    //                while (!port.connections.empty()) {
-    //                    disconnect(models.get_id(mdl),
-    //                               i,
-    //                               port.connections.front().model,
-    //                               port.connections.front().port_index);
-    //                }
+    void disconnect(output_port& src, model_id dst, int port_dst) noexcept
+    {
+        auto list = list_view(node_alloc, src.nodes);
+        auto it = list.begin();
+        auto et = list.end();
 
-    //                port.connections.clear(node_allocator);
-    //                ++i;
-    //            }
-    //        }
+        while (it != et) {
+            if (it->model == dst && it->port_index == port_dst)
+                it = list.erase(it);
+            else
+                ++it;
+        }
+    }
 
-    //        dyn.~Dynamics();
-    //    });
-
-    //    models.free(mdl);
-    //}
+    void disconnect(model& src, int port_src, model_id dst, int port_dst) noexcept
+    {
+        return dispatch(
+          src,
+          [this, port_src, dst, port_dst]<typename Dynamics>(Dynamics& dyn) {
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                  if (length(dyn.y) < port_src)
+                      this->disconnect(dyn.y[port_src], dst, port_dst);
+              }
+          });
+    }
 };
 
 /*****************************************************************************
