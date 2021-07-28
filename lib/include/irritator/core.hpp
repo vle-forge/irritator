@@ -5225,6 +5225,9 @@ struct filter
     port x[1];
     port y[1];
     time sigma = time_domain<time>::infinity;
+    double current_value = 0.0;
+    double up_threshold = 0.0;
+    double down_threshold = 0.0;
 };
 
 struct flow
