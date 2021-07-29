@@ -306,8 +306,6 @@ template<int QssLevel, typename F>
 status
 example_qss_seir_nonlinear(simulation& sim, F f) noexcept
 {
-    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
-
     bool success = sim.can_alloc(29) && sim.can_connect(38);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
