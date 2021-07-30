@@ -1513,9 +1513,9 @@ private:
         return true;
     }
 
-    bool read(simulation& /*sim*/, filter& /*dyn*/) noexcept
+    bool read(simulation& /*sim*/, filter& dyn) noexcept
     {
-        return true;
+        return !!(is >> dyn.default_value >> dyn.default_input_coeff);
     }
 
     bool read(simulation& /*sim*/, flow& dyn) noexcept
@@ -2111,9 +2111,9 @@ private:
            << (dyn.default_f == &time_function ? "time\n" : "square\n");
     }
 
-    void write(const simulation& /*sim*/, const filter& /*dyn*/) noexcept
+    void write(const simulation& /*sim*/, const filter& dyn) noexcept
     {
-        os << "filter\n";
+        os << "filter"<<dyn.default_value<<' '<<dyn.default_input_coeff <<'\n';
     }
 
     void write(const simulation& /*sim*/, const flow& dyn) noexcept

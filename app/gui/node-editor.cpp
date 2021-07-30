@@ -1792,7 +1792,7 @@ show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 static void
 show_dynamics_values(simulation& /*sim*/, const filter& dyn)
 {
-    ImGui::Text("number %ld", dyn.x);
+    ImGui::Text("%.3f * %.3f", dyn.value, dyn.input_coeff);
 }
 
 static void
@@ -2318,8 +2318,10 @@ show_dynamics_inputs(editor& /*ed*/, accumulator_2& /*dyn*/)
 {}
 
 static void
-show_dynamics_inputs(editor& /*ed*/, filter& /*dyn*/)
-{}
+show_dynamics_inputs(editor& /*ed*/, filter& dyn)
+{
+    ImGui::InputDouble("coeff-0", &dyn.default_input_coeff);
+}
 
 static void
 show_dynamics_inputs(editor& /*ed*/, flow& /*dyn*/)

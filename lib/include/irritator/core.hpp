@@ -5220,14 +5220,76 @@ struct constant
     }
 };
 
-struct filter
-{
+struct filter {
     port x[1];
     port y[1];
-    time sigma = time_domain<time>::infinity;
-    double current_value = 0.0;
-    double up_threshold = 0.0;
-    double down_threshold = 0.0;
+    time sigma;
+
+    double default_lower_threshold;
+    double default_upper_threshold;
+
+    double lower_threshold;
+    double upper_threshold;
+
+    double default_value;
+    double default_input_coeff;
+
+    double value;
+    double input_coeff;
+
+    //filter() noexcept { 
+    //    default_lower_threshold=0.0;
+    //    default_upper_threshold = 1.0;
+    //    default_input_coeff=1.0;
+    //    default_value=0.0;
+
+    //}
+
+    status initialize() noexcept { 
+        default_lower_threshold = 0.0;
+        default_upper_threshold = 1.0;
+        default_input_coeff = 1.0;
+        default_value = 0.0;
+        lower_threshold=default_lower_threshold;
+        upper_threshold=default_upper_threshold;
+        input_coeff=default_input_coeff;
+        value=default_value; 
+
+        return status::success;
+    }
+
+    status lambda() noexcept {
+        double to_send=0.0;
+        if ((value >= lower_threshold) && (value <= upper_threshold)) {
+            to_send = value*input_coeff;
+        }
+        y[0].messages.emplace_front(to_send);
+
+        return status::success;
+    }
+
+    status transition(time, time, time) noexcept {
+        bool have_message = false;
+
+for (const auto& msg : x[0].messages) {
+            value = msg.real[0];
+
+            have_message = true;
+        }
+
+        sigma =
+          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+
+
+        return status::success;
+    }
+
+    message observation(const time) const noexcept {
+        double ret = 0.0;
+        ret += input_coeff * value;
+        return ret;
+        //return { ret };
+    }
 };
 
 struct flow
@@ -7227,6 +7289,7 @@ public:
             source_dispatch(dyn.default_source_value,
                             source::operation_type::finalize);
         }
+
     }
 
     /**
