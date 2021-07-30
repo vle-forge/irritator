@@ -357,7 +357,8 @@ enum class status
     io_file_format_model_unknown,
     io_file_format_dynamics_unknown,
     io_file_format_dynamics_limit_reach,
-    io_file_format_dynamics_init_error
+    io_file_format_dynamics_init_error,
+    filter_threshold_condition_not_satisfied
 };
 
 constexpr i8
@@ -5220,14 +5221,70 @@ struct constant
     }
 };
 
-struct filter
-{
+struct filter {
     port x[1];
     port y[1];
-    time sigma = time_domain<time>::infinity;
-    double current_value = 0.0;
-    double up_threshold = 0.0;
-    double down_threshold = 0.0;
+    time sigma;
+
+    double default_lower_threshold;
+    double default_upper_threshold;
+
+    double lower_threshold;
+    double upper_threshold;
+    irt::message inValue ;
+
+
+    filter() noexcept {
+        default_lower_threshold = -0.5;
+        default_upper_threshold = 0.5;
+        sigma=time_domain<time>::infinity;
+    }
+
+    status initialize() noexcept { 
+        sigma = time_domain<time>::infinity;
+        lower_threshold=default_lower_threshold;
+        upper_threshold=default_upper_threshold;
+        //inValue[0]=0.0;
+        irt_return_if_fail(default_lower_threshold < default_upper_threshold,
+                           status::filter_threshold_condition_not_satisfied);
+
+        return status::success;
+    }
+
+    status lambda() noexcept {
+        y[0].messages.emplace_front(inValue[0]);
+        return status::success;
+    }
+
+    status transition(time, time, time) noexcept {
+
+        sigma = time_domain<time>::infinity;
+        if (!x[0].messages.empty()) {
+            auto& msg=x[0].messages.front();
+
+            if (msg[0] > lower_threshold &&
+                msg[0] < upper_threshold) {
+                inValue[0] = msg[0];
+            }
+            else if (msg[1] < lower_threshold &&
+                       msg[1] < upper_threshold) {
+                inValue[0] = msg[1];
+            } else {
+                inValue[0] = msg[2];
+            }
+
+            sigma = time_domain<time>::zero;
+        }
+
+        return status::success;
+    }
+
+    message observation(const time) const noexcept {
+        //double ret = 0.0; 
+        return inValue[0];
+        //return {inValue[0]};
+
+    }
 };
 
 struct flow
@@ -7227,6 +7284,7 @@ public:
             source_dispatch(dyn.default_source_value,
                             source::operation_type::finalize);
         }
+
     }
 
     /**
