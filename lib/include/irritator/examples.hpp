@@ -319,7 +319,7 @@ example_qss_seir_nonlinear(simulation& sim, F f) noexcept
     sum_b.default_input_coeffs[0] = 1.0;
     sum_b.default_input_coeffs[1] = -1.0;
 
-    auto& sum_c = sim.alloc<abstract_wsum<QssLevel, 3>>();
+    auto& sum_c = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_c.default_input_coeffs[0] = 1.0;
     sum_c.default_input_coeffs[1] = -1.0;
 
@@ -327,7 +327,7 @@ example_qss_seir_nonlinear(simulation& sim, F f) noexcept
     sum_d.default_input_coeffs[0] = 1.0;
     sum_d.default_input_coeffs[1] = -1.0;
 
-    auto& sum_e = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_e = sim.alloc<abstract_wsum<QssLevel, 4>>();
     sum_e.default_input_coeffs[0] = 1.0;
     sum_e.default_input_coeffs[1] = 1.0;
     sum_e.default_input_coeffs[2] = 1.0;
@@ -396,7 +396,8 @@ example_qss_seir_nonlinear(simulation& sim, F f) noexcept
     auto& constant_i = sim.alloc<constant>();
     constant_i.default_value = 0.016667;
 
-    auto& pow_n = sim.alloc<qss2_power>();
+    //auto& pow_n = sim.alloc<qss2_power>();
+    auto& pow_n = sim.alloc<abstract_power<QssLevel>>();
     pow_n.default_n = -1.0;
 
     sim.connect(constant_a, 0, sum_a, 0);
@@ -433,7 +434,7 @@ example_qss_seir_nonlinear(simulation& sim, F f) noexcept
     sim.connect(integrator_c, 0, sum_e, 2);
     sim.connect(integrator_d, 0, product_h, 1);
     sim.connect(integrator_d, 0, sum_e, 3);
-    sim.connect(product_i, 0, product_j, 1);
+    sim.connect(product_i, 0, product_j, 0);
     sim.connect(product_j, 0, product_a, 1);
     sim.connect(product_j, 0, product_c, 1);
     sim.connect(pow_n, 0, product_j, 1);
