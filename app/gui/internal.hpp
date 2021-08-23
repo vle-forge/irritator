@@ -9,6 +9,8 @@
 
 #include <fmt/format.h>
 
+#include <imgui.h>
+
 namespace irt {
 
 /// Helper to display a little (?) mark which shows a tooltip when hovered. In
@@ -33,5 +35,36 @@ format(small_string<N>& str, const char* fmt, const Args&... args)
 }
 
 } // namespace irt
+
+namespace ImGui {
+
+template<typename RealType>
+bool
+InputReal(const char* label,
+          RealType* v,
+          RealType step = irt::zero,
+          RealType step_fast = irt::zero,
+          const char* format = "%.6f",
+          ImGuiInputTextFlags flags = 0)
+{
+    if constexpr (std::is_same_v<RealType, float>) {
+        return InputFloat(label, v, step, step_fast, format, flags);
+    }
+
+    if constexpr (std::is_same_v<RealType, double>) {
+        return InputDouble(label, v, step, step_fast, format, flags);
+    }
+}
+
+template<typename... Args>
+void
+TextFormat(const char* fmt, const Args&... args)
+{
+    irt::small_string<64> buffer;
+    irt::format(buffer, fmt, args...);
+    ImGui::TextUnformatted(buffer.c_str());
+}
+
+} // namespace ImGui
 
 #endif

@@ -18,28 +18,6 @@
 #include "implot.h"
 #include <imgui.h>
 
-namespace ImGui {
-
-template<typename RealType>
-bool
-InputReal(const char* label,
-          RealType* v,
-          RealType step = irt::zero,
-          RealType step_fast = irt::zero,
-          const char* format = "%.6f",
-          ImGuiInputTextFlags flags = 0)
-{
-    if constexpr (std::is_same_v<RealType, float>) {
-        return InputFloat(label, v, step, step_fast, format, flags);
-    }
-
-    if constexpr (std::is_same_v<RealType, double>) {
-        return InputDouble(label, v, step, step_fast, format, flags);
-    }
-}
-
-} // namespace ImGui
-
 namespace irt {
 
 // Forward declaration
@@ -174,10 +152,10 @@ struct editor
     simulation sim;
     external_source srcs;
 
-    irt::real simulation_begin = 0.0;
-    irt::real simulation_end = 10.0;
-    irt::real simulation_current = 10.0;
-    irt::real simulation_next_time = 0.0;
+    irt::real simulation_begin = 0;
+    irt::real simulation_end = 10;
+    irt::real simulation_current = 10;
+    irt::real simulation_next_time = 0;
     long simulation_bag_id = 0;
     int step_by_step_bag = 0;
 

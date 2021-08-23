@@ -14,90 +14,92 @@
 
 namespace irt {
 
+/*
 static void
 show_random_distribution_text(const random_source& src) noexcept
 {
-    switch (src.distribution) {
-    case distribution_type::uniform_int:
-        ImGui::Text("a: %d", src.a32);
-        ImGui::Text("b: %d", src.b32);
-        break;
+switch (src.distribution) {
+case distribution_type::uniform_int:
+ImGui::Text("a: %d", src.a32);
+ImGui::Text("b: %d", src.b32);
+break;
 
-    case distribution_type::uniform_real:
-        ImGui::Text("a: %f", src.a);
-        ImGui::Text("b: %f", src.b);
-        break;
+case distribution_type::uniform_real:
+ImGui::Text("a: %f", src.a);
+ImGui::Text("b: %f", src.b);
+break;
 
-    case distribution_type::bernouilli:
-        ImGui::Text("p: %f", src.p);
-        break;
+case distribution_type::bernouilli:
+ImGui::Text("p: %f", src.p);
+break;
 
-    case distribution_type::binomial:
-        ImGui::Text("p: %f", src.p);
-        ImGui::Text("t: %d", src.t32);
-        break;
+case distribution_type::binomial:
+ImGui::Text("p: %f", src.p);
+ImGui::Text("t: %d", src.t32);
+break;
 
-    case distribution_type::negative_binomial:
-        ImGui::Text("p: %f", src.p);
-        ImGui::Text("t: %d", src.k32);
-        break;
+case distribution_type::negative_binomial:
+ImGui::Text("p: %f", src.p);
+ImGui::Text("t: %d", src.k32);
+break;
 
-    case distribution_type::geometric:
-        ImGui::Text("p: %f", src.p);
-        break;
+case distribution_type::geometric:
+ImGui::Text("p: %f", src.p);
+break;
 
-    case distribution_type::poisson:
-        ImGui::Text("mean: %f", src.mean);
-        break;
+case distribution_type::poisson:
+ImGui::Text("mean: %f", src.mean);
+break;
 
-    case distribution_type::exponential:
-        ImGui::Text("lambda: %f", src.lambda);
-        break;
+case distribution_type::exponential:
+ImGui::Text("lambda: %f", src.lambda);
+break;
 
-    case distribution_type::gamma:
-        ImGui::Text("alpha: %f", src.alpha);
-        ImGui::Text("beta: %f", src.beta);
-        break;
+case distribution_type::gamma:
+ImGui::Text("alpha: %f", src.alpha);
+ImGui::Text("beta: %f", src.beta);
+break;
 
-    case distribution_type::weibull:
-        ImGui::Text("a: %f", src.a);
-        ImGui::Text("b: %f", src.b);
-        break;
+case distribution_type::weibull:
+ImGui::Text("a: %f", src.a);
+ImGui::Text("b: %f", src.b);
+break;
 
-    case distribution_type::exterme_value:
-        ImGui::Text("a: %f", src.a);
-        ImGui::Text("b: %f", src.b);
-        break;
+case distribution_type::exterme_value:
+ImGui::Text("a: %f", src.a);
+ImGui::Text("b: %f", src.b);
+break;
 
-    case distribution_type::normal:
-        ImGui::Text("mean: %f", src.mean);
-        ImGui::Text("stddev: %f", src.stddev);
-        break;
+case distribution_type::normal:
+ImGui::Text("mean: %f", src.mean);
+ImGui::Text("stddev: %f", src.stddev);
+break;
 
-    case distribution_type::lognormal:
-        ImGui::Text("m: %f", src.m);
-        ImGui::Text("s: %f", src.s);
-        break;
+case distribution_type::lognormal:
+ImGui::Text("m: %f", src.m);
+ImGui::Text("s: %f", src.s);
+break;
 
-    case distribution_type::chi_squared:
-        ImGui::Text("n: %f", src.n);
-        break;
+case distribution_type::chi_squared:
+ImGui::Text("n: %f", src.n);
+break;
 
-    case distribution_type::cauchy:
-        ImGui::Text("a: %f", src.a);
-        ImGui::Text("b: %f", src.b);
-        break;
+case distribution_type::cauchy:
+ImGui::Text("a: %f", src.a);
+ImGui::Text("b: %f", src.b);
+break;
 
-    case distribution_type::fisher_f:
-        ImGui::Text("m: %f", src.m);
-        ImGui::Text("s: %f", src.n);
-        break;
+case distribution_type::fisher_f:
+ImGui::Text("m: %f", src.m);
+ImGui::Text("s: %f", src.n);
+break;
 
-    case distribution_type::student_t:
-        ImGui::Text("n: %f", src.n);
-        break;
-    }
+case distribution_type::student_t:
+ImGui::Text("n: %f", src.n);
+break;
 }
+}
+*/
 
 static void
 show_random_distribution_input(random_source& src) noexcept

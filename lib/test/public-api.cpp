@@ -20,7 +20,7 @@
 
 struct file_output
 {
-    std::FILE* os = nullptr;
+    std::FILE*  os = nullptr;
     std::string filename;
 
     file_output(const std::string_view name)
@@ -40,7 +40,7 @@ void
 file_output_callback(const irt::observer& obs,
                      const irt::dynamics_type /*type*/,
                      const irt::time /*tl*/,
-                     const irt::time t,
+                     const irt::time             t,
                      const irt::observer::status s) noexcept
 {
     auto* fo = reinterpret_cast<file_output*>(obs.user_data);
@@ -72,43 +72,31 @@ struct function_ref_class
 {
     bool baz_called = false;
 
-    void baz()
-    {
-        baz_called = true;
-    }
+    void baz() { baz_called = true; }
 
     bool qux_called = false;
 
-    void qux()
-    {
-        qux_called = true;
-    }
+    void qux() { qux_called = true; }
 };
 
 struct function_ref_multiple_operator
 {
     int i;
 
-    void operator()(bool)
-    {
-        i = 1;
-    }
+    void operator()(bool) { i = 1; }
 
-    void operator()(double)
-    {
-        i++;
-    }
+    void operator()(double) { i++; }
 };
 
-static void empty_fun(irt::model_id /*id*/) noexcept
-{}
+static void empty_fun(irt::model_id /*id*/) noexcept {}
 
 static irt::status
-run_simulation(irt::simulation& sim, const double duration)
+run_simulation(irt::simulation& sim, const double duration_p)
 {
     using namespace boost::ut;
 
-    irt::time t = 0.0;
+    irt::time t        = 0;
+    irt::time duration = static_cast<irt::time>(duration_p);
 
     expect(sim.initialize(t) == irt::status::success);
 
@@ -122,8 +110,8 @@ run_simulation(irt::simulation& sim, const double duration)
 
 struct global_alloc
 {
-    size_t allocation_size = 0;
-    int allocation_number = 0;
+    size_t allocation_size   = 0;
+    int    allocation_number = 0;
 
     void* operator()(size_t size)
     {
@@ -147,10 +135,7 @@ struct global_free
     }
 };
 
-static void* null_alloc(size_t /*sz*/)
-{
-    return nullptr;
-}
+static void* null_alloc(size_t /*sz*/) { return nullptr; }
 
 static void
 null_free(void*)
@@ -253,8 +238,8 @@ main()
     using namespace boost::ut;
 
     "model-id-port-node-id"_test = [] {
-        auto i = make_input_node_id(irt::model_id{ 50 }, 7);
-        auto j = make_output_node_id(irt::model_id{ 50 }, 3);
+        auto i  = make_input_node_id(irt::model_id{ 50 }, 7);
+        auto j  = make_output_node_id(irt::model_id{ 50 }, 3);
         auto k1 = make_input_node_id(irt::model_id{ 268435455 }, 0);
         auto k2 = make_output_node_id(irt::model_id{ 268435455 }, 0);
         auto k3 = make_input_node_id(irt::model_id{ 268435455 }, 7);
@@ -262,8 +247,8 @@ main()
 
         expect(i != j);
 
-        auto ni = get_model_input_port(i);
-        auto nj = get_model_output_port(j);
+        auto ni  = get_model_input_port(i);
+        auto nj  = get_model_output_port(j);
         auto nk1 = get_model_input_port(k1);
         auto nk2 = get_model_output_port(k2);
         auto nk3 = get_model_input_port(k3);
@@ -466,25 +451,25 @@ main()
 
         {
             function_ref_class o;
-            auto x = &function_ref_class::baz;
+            auto               x = &function_ref_class::baz;
             irt::function_ref<void(function_ref_class&)> fr = x;
             fr(o);
             expect(o.baz_called);
-            x = &function_ref_class::qux;
+            x  = &function_ref_class::qux;
             fr = x;
             fr(o);
             expect(o.qux_called);
         }
 
         {
-            auto x = [] { return 42; };
+            auto                     x  = [] { return 42; };
             irt::function_ref<int()> fr = x;
             expect(fr() == 42);
         }
 
         {
-            int i = 0;
-            auto x = [&i] { i = 42; };
+            int                       i  = 0;
+            auto                      x  = [&i] { i = 42; };
             irt::function_ref<void()> fr = x;
             fr();
             expect(i == 42);
@@ -493,7 +478,7 @@ main()
         {
             function_ref_multiple_operator ops;
             ops.i = 0;
-            irt::function_ref<void(bool)> b1(ops);
+            irt::function_ref<void(bool)>   b1(ops);
             irt::function_ref<void(double)> b2(ops);
 
             b1(true);
@@ -575,10 +560,7 @@ main()
               : i(i_)
             {}
 
-            ~toto()
-            {
-                i = 0;
-            }
+            ~toto() { i = 0; }
         };
 
         irt::small_vector<toto, 4> v;
@@ -635,7 +617,7 @@ main()
         irt::block_allocator<irt::list_view_node<int>> allocator;
         expect(is_success(allocator.init(32)));
 
-        irt::u64 id = static_cast<irt::u64>(-1);
+        irt::u64       id = static_cast<irt::u64>(-1);
         irt::list_view lst(allocator, id);
 
         lst.emplace_front(5);
@@ -663,7 +645,7 @@ main()
         irt::block_allocator<irt::list_view_node<int>> allocator;
         expect(is_success(allocator.init(32)));
 
-        irt::u64 id = static_cast<irt::u64>(-1);
+        irt::u64       id = static_cast<irt::u64>(-1);
         irt::list_view lst(allocator, id);
 
         expect(lst.empty());
@@ -770,7 +752,7 @@ main()
 
         {
             auto& first = array.alloc();
-            first.x = 0.f;
+            first.x     = 0.f;
             expect(array.max_size() == 1);
             expect(array.max_used() == 1);
             expect(array.capacity() == 3);
@@ -962,10 +944,10 @@ main()
         irt::heap::handle i4 = h.insert(2.0, irt::model_id{ 3 });
         expect(h.full());
 
-        expect(i1->tn == 0.0_d);
-        expect(i2->tn == 1.0_d);
-        expect(i3->tn == -1.0_d);
-        expect(i4->tn == 2.0_d);
+        expect(i1->tn == 0);
+        expect(i2->tn == 1);
+        expect(i3->tn == -1);
+        expect(i4->tn == 2);
 
         expect(h.top() == i3);
         h.pop();
@@ -984,10 +966,10 @@ main()
         irt::heap h;
         h.init(4u);
 
-        irt::heap::handle i1 = h.insert(0.0, irt::model_id{ 0 });
-        irt::heap::handle i2 = h.insert(1.0, irt::model_id{ 1 });
-        irt::heap::handle i3 = h.insert(-1.0, irt::model_id{ 2 });
-        irt::heap::handle i4 = h.insert(2.0, irt::model_id{ 3 });
+        irt::heap::handle i1 = h.insert(0, irt::model_id{ 0 });
+        irt::heap::handle i2 = h.insert(1, irt::model_id{ 1 });
+        irt::heap::handle i3 = h.insert(-1, irt::model_id{ 2 });
+        irt::heap::handle i4 = h.insert(2, irt::model_id{ 3 });
 
         expect(i1 != nullptr);
         expect(i2 != nullptr);
@@ -1002,10 +984,10 @@ main()
 
         expect(h.top() == i2);
 
-        i3->tn = -10.0;
+        i3->tn = -10;
         h.insert(i3);
 
-        i1->tn = -1.0;
+        i1->tn = -1;
         h.insert(i1);
 
         expect(h.top() == i3);
@@ -1034,27 +1016,27 @@ main()
 
         expect(h.size() == 100_ul);
 
-        h.insert(50.0, irt::model_id{ 502 });
-        h.insert(50.0, irt::model_id{ 503 });
-        h.insert(50.0, irt::model_id{ 504 });
+        h.insert(50, irt::model_id{ 502 });
+        h.insert(50, irt::model_id{ 503 });
+        h.insert(50, irt::model_id{ 504 });
 
         expect(h.size() == 103_ul);
 
-        for (double t = 0.0; t < 50.0; ++t) {
+        for (irt::time t = 0, e = 50; t < e; ++t) {
             expect(h.top()->tn == t);
             h.pop();
         }
 
-        expect(h.top()->tn == 50.0_d);
+        expect(h.top()->tn == 50);
         h.pop();
-        expect(h.top()->tn == 50.0_d);
+        expect(h.top()->tn == 50);
         h.pop();
-        expect(h.top()->tn == 50.0_d);
+        expect(h.top()->tn == 50);
         h.pop();
-        expect(h.top()->tn == 50.0_d);
+        expect(h.top()->tn == 50);
         h.pop();
 
-        for (double t = 51.0; t < 100.0; ++t) {
+        for (irt::time t = 51, e = 100; t < e; ++t) {
             expect(h.top()->tn == t);
             h.pop();
         }
@@ -1097,7 +1079,7 @@ main()
         str.reserve(4096u);
 
         {
-            irt::simulation sim;
+            irt::simulation      sim;
             irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 4096lu)));
 
@@ -1155,7 +1137,7 @@ main()
             sim.alloc<irt::flow>();
 
             std::ostringstream os;
-            irt::writer w(os);
+            irt::writer        w(os);
 
             expect(irt::is_success(w(sim, srcs)));
             str = os.str();
@@ -1167,7 +1149,7 @@ main()
         {
             std::istringstream is(str);
 
-            irt::simulation sim;
+            irt::simulation      sim;
             irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 32lu)));
             expect(irt::is_success(srcs.init(64u)));
@@ -1180,9 +1162,9 @@ main()
 
         {
             std::istringstream is(str);
-            int i = 0;
+            int                i = 0;
 
-            irt::simulation sim;
+            irt::simulation      sim;
             irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
@@ -1198,8 +1180,8 @@ main()
             std::string string_error{
                 "0 0 0 0\n1\n0 5 6 qss1_integrator A B C\n"
             };
-            std::istringstream is{ string_error };
-            irt::simulation sim;
+            std::istringstream   is{ string_error };
+            irt::simulation      sim;
             irt::external_source srcs;
 
             expect(irt::is_success(sim.init(64lu, 32lu)));
@@ -1228,8 +1210,8 @@ main()
         expect(sim.can_alloc(3));
 
         auto& cnt = sim.alloc<irt::counter>();
-        auto& c1 = sim.alloc<irt::constant>();
-        auto& c2 = sim.alloc<irt::constant>();
+        auto& c1  = sim.alloc<irt::constant>();
+        auto& c2  = sim.alloc<irt::constant>();
 
         c1.default_value = 0.0;
         c2.default_value = 0.0;
@@ -1257,11 +1239,11 @@ main()
         expect(irt::is_success(sim.init(16lu, 256lu)));
         expect(sim.can_alloc(3));
 
-        auto& cnt = sim.alloc<irt::counter>();
+        auto& cnt    = sim.alloc<irt::counter>();
         auto& cross1 = sim.alloc<irt::cross>();
-        auto& c1 = sim.alloc<irt::constant>();
+        auto& c1     = sim.alloc<irt::constant>();
 
-        c1.default_value = 3.0;
+        c1.default_value         = 3.0;
         cross1.default_threshold = 0.0;
 
         expect(sim.connect(c1, 0, cross1, 0) == irt::status::success);
@@ -1284,7 +1266,7 @@ main()
 
     "generator_counter_simluation"_test = [] {
         fmt::print("generator_counter_simluation\n");
-        irt::simulation sim;
+        irt::simulation      sim;
         irt::external_source srcs;
         sim.source_dispatch = srcs;
 
@@ -1323,7 +1305,7 @@ main()
         do {
             st = sim.run(t);
             expect(irt::is_success(st));
-        } while (t < 10.0);
+        } while (t < 10);
 
         expect(cnt.number == static_cast<irt::i64>(10));
     };
@@ -1337,16 +1319,16 @@ main()
         expect(sim.can_alloc(2));
 
         auto& time_fun = sim.alloc<irt::time_func>();
-        auto& cnt = sim.alloc<irt::counter>();
+        auto& cnt      = sim.alloc<irt::counter>();
 
-        time_fun.default_f = &irt::square_time_function;
-        time_fun.default_sigma = irt::real{ 0.1 };
+        time_fun.default_f     = &irt::square_time_function;
+        time_fun.default_sigma = irt::to_real(0.1);
 
         expect(sim.connect(time_fun, 0, cnt, 0) == irt::status::success);
 
-        irt::time t{ 0 };
+        irt::time t = 0;
+        irt::real c = 0;
         expect(sim.initialize(t) == irt::status::success);
-        irt::real c{ 0 };
         do {
             auto st = sim.run(t);
             expect(irt::is_success(st) == true);
@@ -1362,25 +1344,26 @@ main()
 
     "time_func_sin"_test = [] {
         fmt::print("time_func_sin\n");
-        const irt::real pi = irt::real{ std::acos(irt::real{ -1 }) };
-        const irt::real f0 = irt::real{ 0.1 };
+        const irt::real pi = irt::to_real(std::acos(irt::real{ -1 }));
+        const irt::real f0 = irt::real(0.1);
         irt::simulation sim;
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
         expect(sim.can_alloc(2));
 
         auto& time_fun = sim.alloc<irt::time_func>();
-        auto& cnt = sim.alloc<irt::counter>();
+        auto& cnt      = sim.alloc<irt::counter>();
 
-        time_fun.default_f = &irt::sin_time_function;
-        time_fun.default_sigma = irt::real{ 0.1 };
+        time_fun.default_f     = &irt::sin_time_function;
+        time_fun.default_sigma = irt::real(0.1);
 
         expect(sim.connect(time_fun, 0, cnt, 0) == irt::status::success);
 
-        irt::time t{ 0 };
-        const irt::real duration{ 30 };
+        irt::time       t        = 0;
+        const irt::real duration = 30;
+        irt::real       c        = irt::zero;
+
         expect(sim.initialize(t) == irt::status::success);
-        irt::real c = irt::zero;
         do {
             auto st = sim.run(t);
             expect((irt::is_success(st)) >> fatal);
@@ -1398,36 +1381,36 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(8));
 
-        auto& sum_a = sim.alloc<irt::adder_2>();
-        auto& sum_b = sim.alloc<irt::adder_2>();
-        auto& product = sim.alloc<irt::mult_2>();
+        auto& sum_a        = sim.alloc<irt::adder_2>();
+        auto& sum_b        = sim.alloc<irt::adder_2>();
+        auto& product      = sim.alloc<irt::mult_2>();
         auto& integrator_a = sim.alloc<irt::integrator>();
         auto& integrator_b = sim.alloc<irt::integrator>();
         auto& quantifier_a = sim.alloc<irt::quantifier>();
         auto& quantifier_b = sim.alloc<irt::quantifier>();
 
-        integrator_a.default_current_value = irt::real{ 18.0 };
+        integrator_a.default_current_value = 18;
 
         quantifier_a.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size = irt::real{ 0.01 };
-        quantifier_a.default_past_length = 3;
+        quantifier_a.default_step_size        = irt::to_real(0.01);
+        quantifier_a.default_past_length      = 3;
 
-        integrator_b.default_current_value = irt::real{ 7.0 };
+        integrator_b.default_current_value = 7;
 
         quantifier_b.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size = irt::real{ 0.01 };
-        quantifier_b.default_past_length = 3;
+        quantifier_b.default_step_size        = irt::to_real(0.01);
+        quantifier_b.default_past_length      = 3;
 
-        product.default_input_coeffs[0] = irt::real{ 1.0 };
-        product.default_input_coeffs[1] = irt::real{ 1.0 };
-        sum_a.default_input_coeffs[0] = irt::real{ 2.0 };
-        sum_a.default_input_coeffs[1] = irt::real{ -0.4 };
-        sum_b.default_input_coeffs[0] = irt::real{ -1.0 };
-        sum_b.default_input_coeffs[1] = irt::real{ 0.1 };
+        product.default_input_coeffs[0] = irt::real(1.0);
+        product.default_input_coeffs[1] = irt::real(1.0);
+        sum_a.default_input_coeffs[0]   = irt::real(2.0);
+        sum_a.default_input_coeffs[1]   = irt::real(-0.4);
+        sum_b.default_input_coeffs[0]   = irt::real(-1.0);
+        sum_b.default_input_coeffs[1]   = irt::real(0.1);
 
         expect((sim.models.size() == 7_ul) >> fatal);
 
@@ -1465,7 +1448,7 @@ main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = { 0 };
+        irt::time t = 0;
 
         expect(sim.initialize(t) == irt::status::success);
         expect((sim.sched.size() == 7_ul) >> fatal);
@@ -1473,7 +1456,7 @@ main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
-        } while (t < irt::real{ 15.0 });
+        } while (t < irt::real(15));
     };
 
     "izhikevitch_simulation"_test = [] {
@@ -1483,33 +1466,33 @@ main()
         expect(irt::is_success(sim.init(64lu, 256lu)));
         expect(sim.models.can_alloc(14));
 
-        auto& constant = sim.alloc<irt::constant>();
-        auto& constant2 = sim.alloc<irt::constant>();
-        auto& constant3 = sim.alloc<irt::constant>();
-        auto& sum_a = sim.alloc<irt::adder_2>();
-        auto& sum_b = sim.alloc<irt::adder_2>();
-        auto& sum_c = sim.alloc<irt::adder_4>();
-        auto& sum_d = sim.alloc<irt::adder_2>();
-        auto& product = sim.alloc<irt::mult_2>();
+        auto& constant     = sim.alloc<irt::constant>();
+        auto& constant2    = sim.alloc<irt::constant>();
+        auto& constant3    = sim.alloc<irt::constant>();
+        auto& sum_a        = sim.alloc<irt::adder_2>();
+        auto& sum_b        = sim.alloc<irt::adder_2>();
+        auto& sum_c        = sim.alloc<irt::adder_4>();
+        auto& sum_d        = sim.alloc<irt::adder_2>();
+        auto& product      = sim.alloc<irt::mult_2>();
         auto& integrator_a = sim.alloc<irt::integrator>();
         auto& integrator_b = sim.alloc<irt::integrator>();
         auto& quantifier_a = sim.alloc<irt::quantifier>();
         auto& quantifier_b = sim.alloc<irt::quantifier>();
-        auto& cross = sim.alloc<irt::cross>();
-        auto& cross2 = sim.alloc<irt::cross>();
+        auto& cross        = sim.alloc<irt::cross>();
+        auto& cross2       = sim.alloc<irt::cross>();
 
-        irt::real a = irt::real(0.2);
-        irt::real b = irt::real(2.0);
-        irt::real c = irt::real(-56.0);
-        irt::real d = irt::real(-16.0);
-        irt::real I = irt::real(-99.0);
+        irt::real a  = irt::real(0.2);
+        irt::real b  = irt::real(2.0);
+        irt::real c  = irt::real(-56.0);
+        irt::real d  = irt::real(-16.0);
+        irt::real I  = irt::real(-99.0);
         irt::real vt = irt::real(30.0);
 
-        constant.default_value = irt::real(1.0);
+        constant.default_value  = irt::real(1.0);
         constant2.default_value = c;
         constant3.default_value = I;
 
-        cross.default_threshold = vt;
+        cross.default_threshold  = vt;
         cross2.default_threshold = vt;
 
         integrator_a.default_current_value = irt::real(0.0);
@@ -1517,16 +1500,16 @@ main()
         quantifier_a.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size = irt::real(0.01);
-        quantifier_a.default_past_length = 3;
+        quantifier_a.default_step_size        = irt::real(0.01);
+        quantifier_a.default_past_length      = 3;
 
         integrator_b.default_current_value = irt::real(0.0);
 
         quantifier_b.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size = irt::real(0.01);
-        quantifier_b.default_past_length = 3;
+        quantifier_b.default_step_size        = irt::real(0.01);
+        quantifier_b.default_past_length      = 3;
 
         product.default_input_coeffs[0] = 1.0;
         product.default_input_coeffs[1] = 1.0;
@@ -1608,16 +1591,16 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum_a = sim.alloc<irt::qss1_wsum_2>();
-        auto& sum_b = sim.alloc<irt::qss1_wsum_2>();
-        auto& product = sim.alloc<irt::qss1_multiplier>();
+        auto& sum_a        = sim.alloc<irt::qss1_wsum_2>();
+        auto& sum_b        = sim.alloc<irt::qss1_wsum_2>();
+        auto& product      = sim.alloc<irt::qss1_multiplier>();
         auto& integrator_a = sim.alloc<irt::qss1_integrator>();
         auto& integrator_b = sim.alloc<irt::qss1_integrator>();
 
-        integrator_a.default_X = irt::real(18.0);
+        integrator_a.default_X  = irt::real(18.0);
         integrator_a.default_dQ = irt::real(0.1);
 
-        integrator_b.default_X = irt::real(7.0);
+        integrator_b.default_X  = irt::real(7.0);
         integrator_b.default_dQ = irt::real(0.1);
 
         sum_a.default_input_coeffs[0] = irt::real(2.0);
@@ -1670,16 +1653,16 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum_a = sim.alloc<irt::qss2_wsum_2>();
-        auto& sum_b = sim.alloc<irt::qss2_wsum_2>();
-        auto& product = sim.alloc<irt::qss2_multiplier>();
+        auto& sum_a        = sim.alloc<irt::qss2_wsum_2>();
+        auto& sum_b        = sim.alloc<irt::qss2_wsum_2>();
+        auto& product      = sim.alloc<irt::qss2_multiplier>();
         auto& integrator_a = sim.alloc<irt::qss2_integrator>();
         auto& integrator_b = sim.alloc<irt::qss2_integrator>();
 
-        integrator_a.default_X = irt::real(18.0);
+        integrator_a.default_X  = irt::real(18.0);
         integrator_a.default_dQ = irt::real(0.1);
 
-        integrator_b.default_X = irt::real(7.0);
+        integrator_b.default_X  = irt::real(7.0);
         integrator_b.default_dQ = irt::real(0.1);
 
         sum_a.default_input_coeffs[0] = irt::real(2.0);
@@ -1732,17 +1715,17 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(6));
 
-        auto& sum = sim.alloc<irt::adder_2>();
-        auto& quantifier = sim.alloc<irt::quantifier>();
-        auto& integrator = sim.alloc<irt::integrator>();
-        auto& I = sim.alloc<irt::time_func>();
+        auto& sum            = sim.alloc<irt::adder_2>();
+        auto& quantifier     = sim.alloc<irt::quantifier>();
+        auto& integrator     = sim.alloc<irt::integrator>();
+        auto& I              = sim.alloc<irt::time_func>();
         auto& constant_cross = sim.alloc<irt::constant>();
-        auto& cross = sim.alloc<irt::cross>();
+        auto& cross          = sim.alloc<irt::cross>();
 
         irt::real tau = irt::real(10.0);
-        irt::real Vt = irt::real(1.0);
-        irt::real V0 = irt::real(10.0);
-        irt::real Vr = irt::real(-V0);
+        irt::real Vt  = irt::real(1.0);
+        irt::real V0  = irt::real(10.0);
+        irt::real Vr  = irt::real(-V0);
 
         sum.default_input_coeffs[0] = irt::real(-1) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
@@ -1753,11 +1736,11 @@ main()
 
         quantifier.default_adapt_state = irt::quantifier::adapt_state::possible;
         quantifier.default_zero_init_offset = true;
-        quantifier.default_step_size = irt::real(0.1);
-        quantifier.default_past_length = 3;
+        quantifier.default_step_size        = irt::real(0.1);
+        quantifier.default_past_length      = 3;
 
-        I.default_f = &irt::sin_time_function;
-        I.default_sigma = quantifier.default_step_size;
+        I.default_f             = &irt::sin_time_function;
+        I.default_sigma         = quantifier.default_step_size;
         cross.default_threshold = Vt;
 
         expect((sim.models.size() == 6_ul) >> fatal);
@@ -1799,24 +1782,24 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum = sim.alloc<irt::qss1_wsum_2>();
-        auto& integrator = sim.alloc<irt::qss1_integrator>();
-        auto& constant = sim.alloc<irt::constant>();
+        auto& sum            = sim.alloc<irt::qss1_wsum_2>();
+        auto& integrator     = sim.alloc<irt::qss1_integrator>();
+        auto& constant       = sim.alloc<irt::constant>();
         auto& constant_cross = sim.alloc<irt::constant>();
-        auto& cross = sim.alloc<irt::qss1_cross>();
+        auto& cross          = sim.alloc<irt::qss1_cross>();
 
         irt::real tau = irt::real(10.0);
-        irt::real Vt = irt::real(1.0);
-        irt::real V0 = irt::real(10.0);
-        irt::real Vr = irt::real(-V0);
+        irt::real Vt  = irt::real(1.0);
+        irt::real V0  = irt::real(10.0);
+        irt::real Vr  = irt::real(-V0);
 
         sum.default_input_coeffs[0] = irt::real(-1) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = irt::real(1);
+        constant.default_value       = irt::real(1);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = irt::real(0);
+        integrator.default_X  = irt::real(0);
         integrator.default_dQ = irt::real(0.001);
 
         cross.default_threshold = Vt;
@@ -1859,24 +1842,24 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum = sim.alloc<irt::qss2_wsum_2>();
-        auto& integrator = sim.alloc<irt::qss2_integrator>();
-        auto& constant = sim.alloc<irt::constant>();
+        auto& sum            = sim.alloc<irt::qss2_wsum_2>();
+        auto& integrator     = sim.alloc<irt::qss2_integrator>();
+        auto& constant       = sim.alloc<irt::constant>();
         auto& constant_cross = sim.alloc<irt::constant>();
-        auto& cross = sim.alloc<irt::qss2_cross>();
+        auto& cross          = sim.alloc<irt::qss2_cross>();
 
         irt::real tau = irt::real(10.0);
-        irt::real Vt = irt::real(1.0);
-        irt::real V0 = irt::real(10.0);
-        irt::real Vr = irt::real(-V0);
+        irt::real Vt  = irt::real(1.0);
+        irt::real V0  = irt::real(10.0);
+        irt::real Vr  = irt::real(-V0);
 
         sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = irt::real(1.0);
+        constant.default_value       = irt::real(1.0);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = irt::real(0.0);
+        integrator.default_X  = irt::real(0.0);
         integrator.default_dQ = irt::real(0.001);
 
         cross.default_threshold = Vt;
@@ -1923,37 +1906,37 @@ main()
         expect(irt::is_success(sim.init(128lu, 256)));
         expect(sim.can_alloc(12));
 
-        auto& constant = sim.alloc<irt::constant>();
-        auto& constant2 = sim.alloc<irt::constant>();
-        auto& constant3 = sim.alloc<irt::constant>();
-        auto& sum_a = sim.alloc<irt::qss1_wsum_2>();
-        auto& sum_b = sim.alloc<irt::qss1_wsum_2>();
-        auto& sum_c = sim.alloc<irt::qss1_wsum_4>();
-        auto& sum_d = sim.alloc<irt::qss1_wsum_2>();
-        auto& product = sim.alloc<irt::qss1_multiplier>();
+        auto& constant     = sim.alloc<irt::constant>();
+        auto& constant2    = sim.alloc<irt::constant>();
+        auto& constant3    = sim.alloc<irt::constant>();
+        auto& sum_a        = sim.alloc<irt::qss1_wsum_2>();
+        auto& sum_b        = sim.alloc<irt::qss1_wsum_2>();
+        auto& sum_c        = sim.alloc<irt::qss1_wsum_4>();
+        auto& sum_d        = sim.alloc<irt::qss1_wsum_2>();
+        auto& product      = sim.alloc<irt::qss1_multiplier>();
         auto& integrator_a = sim.alloc<irt::qss1_integrator>();
         auto& integrator_b = sim.alloc<irt::qss1_integrator>();
-        auto& cross = sim.alloc<irt::qss1_cross>();
-        auto& cross2 = sim.alloc<irt::qss1_cross>();
+        auto& cross        = sim.alloc<irt::qss1_cross>();
+        auto& cross2       = sim.alloc<irt::qss1_cross>();
 
-        irt::real a = irt::real(0.2);
-        irt::real b = irt::real(2.0);
-        irt::real c = irt::real(-56.0);
-        irt::real d = irt::real(-16.0);
-        irt::real I = irt::real(-99.0);
+        irt::real a  = irt::real(0.2);
+        irt::real b  = irt::real(2.0);
+        irt::real c  = irt::real(-56.0);
+        irt::real d  = irt::real(-16.0);
+        irt::real I  = irt::real(-99.0);
         irt::real vt = irt::real(30.0);
 
-        constant.default_value = irt::real(1.0);
+        constant.default_value  = irt::real(1.0);
         constant2.default_value = c;
         constant3.default_value = I;
 
-        cross.default_threshold = vt;
+        cross.default_threshold  = vt;
         cross2.default_threshold = vt;
 
-        integrator_a.default_X = irt::real(0.0);
+        integrator_a.default_X  = irt::real(0.0);
         integrator_a.default_dQ = irt::real(0.01);
 
-        integrator_b.default_X = irt::real(0.0);
+        integrator_b.default_X  = irt::real(0.0);
         integrator_b.default_dQ = irt::real(0.01);
 
         sum_a.default_input_coeffs[0] = irt::real(1.0);
@@ -2029,37 +2012,37 @@ main()
         expect(irt::is_success(sim.init(64lu, 256lu)));
         expect(sim.can_alloc(12));
 
-        auto& constant = sim.alloc<irt::constant>();
-        auto& constant2 = sim.alloc<irt::constant>();
-        auto& constant3 = sim.alloc<irt::constant>();
-        auto& sum_a = sim.alloc<irt::qss2_wsum_2>();
-        auto& sum_b = sim.alloc<irt::qss2_wsum_2>();
-        auto& sum_c = sim.alloc<irt::qss2_wsum_4>();
-        auto& sum_d = sim.alloc<irt::qss2_wsum_2>();
-        auto& product = sim.alloc<irt::qss2_multiplier>();
+        auto& constant     = sim.alloc<irt::constant>();
+        auto& constant2    = sim.alloc<irt::constant>();
+        auto& constant3    = sim.alloc<irt::constant>();
+        auto& sum_a        = sim.alloc<irt::qss2_wsum_2>();
+        auto& sum_b        = sim.alloc<irt::qss2_wsum_2>();
+        auto& sum_c        = sim.alloc<irt::qss2_wsum_4>();
+        auto& sum_d        = sim.alloc<irt::qss2_wsum_2>();
+        auto& product      = sim.alloc<irt::qss2_multiplier>();
         auto& integrator_a = sim.alloc<irt::qss2_integrator>();
         auto& integrator_b = sim.alloc<irt::qss2_integrator>();
-        auto& cross = sim.alloc<irt::qss2_cross>();
-        auto& cross2 = sim.alloc<irt::qss2_cross>();
+        auto& cross        = sim.alloc<irt::qss2_cross>();
+        auto& cross2       = sim.alloc<irt::qss2_cross>();
 
-        irt::real a = irt::real(0.2);
-        irt::real b = irt::real(2.0);
-        irt::real c = irt::real(-56.0);
-        irt::real d = irt::real(-16.0);
-        irt::real I = irt::real(-99.0);
+        irt::real a  = irt::real(0.2);
+        irt::real b  = irt::real(2.0);
+        irt::real c  = irt::real(-56.0);
+        irt::real d  = irt::real(-16.0);
+        irt::real I  = irt::real(-99.0);
         irt::real vt = irt::real(30.0);
 
-        constant.default_value = irt::real(1.0);
+        constant.default_value  = irt::real(1.0);
         constant2.default_value = c;
         constant3.default_value = I;
 
-        cross.default_threshold = vt;
+        cross.default_threshold  = vt;
         cross2.default_threshold = vt;
 
-        integrator_a.default_X = irt::real(0.0);
+        integrator_a.default_X  = irt::real(0.0);
         integrator_a.default_dQ = irt::real(0.01);
 
-        integrator_b.default_X = irt::real(0.0);
+        integrator_b.default_X  = irt::real(0.0);
         integrator_b.default_dQ = irt::real(0.01);
 
         sum_a.default_input_coeffs[0] = irt::real(1.0);
@@ -2135,16 +2118,16 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum_a = sim.alloc<irt::qss3_wsum_2>();
-        auto& sum_b = sim.alloc<irt::qss3_wsum_2>();
-        auto& product = sim.alloc<irt::qss3_multiplier>();
+        auto& sum_a        = sim.alloc<irt::qss3_wsum_2>();
+        auto& sum_b        = sim.alloc<irt::qss3_wsum_2>();
+        auto& product      = sim.alloc<irt::qss3_multiplier>();
         auto& integrator_a = sim.alloc<irt::qss3_integrator>();
         auto& integrator_b = sim.alloc<irt::qss3_integrator>();
 
-        integrator_a.default_X = irt::real(18.0);
+        integrator_a.default_X  = irt::real(18.0);
         integrator_a.default_dQ = irt::real(0.1);
 
-        integrator_b.default_X = irt::real(7.0);
+        integrator_b.default_X  = irt::real(7.0);
         integrator_b.default_dQ = irt::real(0.1);
 
         sum_a.default_input_coeffs[0] = irt::real(2.0);
@@ -2197,24 +2180,24 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum = sim.alloc<irt::qss3_wsum_2>();
-        auto& integrator = sim.alloc<irt::qss3_integrator>();
-        auto& constant = sim.alloc<irt::constant>();
+        auto& sum            = sim.alloc<irt::qss3_wsum_2>();
+        auto& integrator     = sim.alloc<irt::qss3_integrator>();
+        auto& constant       = sim.alloc<irt::constant>();
         auto& constant_cross = sim.alloc<irt::constant>();
-        auto& cross = sim.alloc<irt::qss3_cross>();
+        auto& cross          = sim.alloc<irt::qss3_cross>();
 
         irt::real tau = irt::real(10.0);
-        irt::real Vt = irt::real(1.0);
-        irt::real V0 = irt::real(10.0);
-        irt::real Vr = irt::real(-V0);
+        irt::real Vt  = irt::real(1.0);
+        irt::real V0  = irt::real(10.0);
+        irt::real Vr  = irt::real(-V0);
 
         sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = irt::real(1.0);
+        constant.default_value       = irt::real(1.0);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = irt::real(0.0);
+        integrator.default_X  = irt::real(0.0);
         integrator.default_dQ = irt::real(0.01);
 
         cross.default_threshold = Vt;
@@ -2261,37 +2244,37 @@ main()
         expect(irt::is_success(sim.init(64lu, 256lu)));
         expect(sim.can_alloc(12));
 
-        auto& constant = sim.alloc<irt::constant>();
-        auto& constant2 = sim.alloc<irt::constant>();
-        auto& constant3 = sim.alloc<irt::constant>();
-        auto& sum_a = sim.alloc<irt::qss3_wsum_2>();
-        auto& sum_b = sim.alloc<irt::qss3_wsum_2>();
-        auto& sum_c = sim.alloc<irt::qss3_wsum_4>();
-        auto& sum_d = sim.alloc<irt::qss3_wsum_2>();
-        auto& product = sim.alloc<irt::qss3_multiplier>();
+        auto& constant     = sim.alloc<irt::constant>();
+        auto& constant2    = sim.alloc<irt::constant>();
+        auto& constant3    = sim.alloc<irt::constant>();
+        auto& sum_a        = sim.alloc<irt::qss3_wsum_2>();
+        auto& sum_b        = sim.alloc<irt::qss3_wsum_2>();
+        auto& sum_c        = sim.alloc<irt::qss3_wsum_4>();
+        auto& sum_d        = sim.alloc<irt::qss3_wsum_2>();
+        auto& product      = sim.alloc<irt::qss3_multiplier>();
         auto& integrator_a = sim.alloc<irt::qss3_integrator>();
         auto& integrator_b = sim.alloc<irt::qss3_integrator>();
-        auto& cross = sim.alloc<irt::qss3_cross>();
-        auto& cross2 = sim.alloc<irt::qss3_cross>();
+        auto& cross        = sim.alloc<irt::qss3_cross>();
+        auto& cross2       = sim.alloc<irt::qss3_cross>();
 
-        irt::real a = irt::real(0.2);
-        irt::real b = irt::real(2.0);
-        irt::real c = irt::real(-56.0);
-        irt::real d = irt::real(-16.0);
-        irt::real I = irt::real(-99.0);
+        irt::real a  = irt::real(0.2);
+        irt::real b  = irt::real(2.0);
+        irt::real c  = irt::real(-56.0);
+        irt::real d  = irt::real(-16.0);
+        irt::real I  = irt::real(-99.0);
         irt::real vt = irt::real(30.0);
 
-        constant.default_value = irt::real(1.0);
+        constant.default_value  = irt::real(1.0);
         constant2.default_value = c;
         constant3.default_value = I;
 
-        cross.default_threshold = vt;
+        cross.default_threshold  = vt;
         cross2.default_threshold = vt;
 
-        integrator_a.default_X = irt::real(0.0);
+        integrator_a.default_X  = irt::real(0.0);
         integrator_a.default_dQ = irt::real(0.01);
 
-        integrator_b.default_X = irt::real(0.0);
+        integrator_b.default_X  = irt::real(0.0);
         integrator_b.default_dQ = irt::real(0.01);
 
         sum_a.default_input_coeffs[0] = irt::real(1.0);
@@ -2367,8 +2350,8 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(6));
 
-        auto& sum = sim.alloc<irt::adder_3>();
-        auto& product = sim.alloc<irt::mult_3>();
+        auto& sum          = sim.alloc<irt::adder_3>();
+        auto& product      = sim.alloc<irt::mult_3>();
         auto& integrator_a = sim.alloc<irt::integrator>();
         auto& integrator_b = sim.alloc<irt::integrator>();
         auto& quantifier_a = sim.alloc<irt::quantifier>();
@@ -2379,16 +2362,16 @@ main()
         quantifier_a.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size = irt::real(0.01);
-        quantifier_a.default_past_length = 3;
+        quantifier_a.default_step_size        = irt::real(0.01);
+        quantifier_a.default_past_length      = 3;
 
         integrator_b.default_current_value = irt::real(10.0);
 
         quantifier_b.default_adapt_state =
           irt::quantifier::adapt_state::possible;
         quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size = irt::real(0.01);
-        quantifier_b.default_past_length = 3;
+        quantifier_b.default_step_size        = irt::real(0.01);
+        quantifier_b.default_past_length      = 3;
 
         product.default_input_coeffs[0] = irt::real(1);
         product.default_input_coeffs[1] = irt::real(1);
@@ -2454,16 +2437,16 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum = sim.alloc<irt::qss3_wsum_3>();
-        auto& product1 = sim.alloc<irt::qss3_multiplier>();
-        auto& product2 = sim.alloc<irt::qss3_multiplier>();
+        auto& sum          = sim.alloc<irt::qss3_wsum_3>();
+        auto& product1     = sim.alloc<irt::qss3_multiplier>();
+        auto& product2     = sim.alloc<irt::qss3_multiplier>();
         auto& integrator_a = sim.alloc<irt::qss3_integrator>();
         auto& integrator_b = sim.alloc<irt::qss3_integrator>();
 
-        integrator_a.default_X = irt::real(0.0);
+        integrator_a.default_X  = irt::real(0.0);
         integrator_a.default_dQ = irt::real(0.001);
 
-        integrator_b.default_X = irt::real(10.0);
+        integrator_b.default_X  = irt::real(10.0);
         integrator_b.default_dQ = irt::real(0.001);
 
         irt::real mu(4);
@@ -2518,11 +2501,11 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum = sim.alloc<irt::qss1_wsum_2>();
-        auto& integrator = sim.alloc<irt::qss1_integrator>();
-        auto& constant = sim.alloc<irt::constant>();
+        auto& sum            = sim.alloc<irt::qss1_wsum_2>();
+        auto& integrator     = sim.alloc<irt::qss1_integrator>();
+        auto& constant       = sim.alloc<irt::constant>();
         auto& constant_cross = sim.alloc<irt::constant>();
-        auto& cross = sim.alloc<irt::qss1_cross>();
+        auto& cross          = sim.alloc<irt::qss1_cross>();
 
         irt::real tau(10.0);
         irt::real Vt(-1.0);
@@ -2532,10 +2515,10 @@ main()
         sum.default_input_coeffs[0] = irt::real(-1) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = irt::real(1);
+        constant.default_value       = irt::real(1);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = irt::real(0.0);
+        integrator.default_X  = irt::real(0.0);
         integrator.default_dQ = irt::real(0.001);
 
         cross.default_threshold = Vt;
@@ -2581,11 +2564,11 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum = sim.alloc<irt::qss2_wsum_2>();
-        auto& integrator = sim.alloc<irt::qss2_integrator>();
-        auto& constant = sim.alloc<irt::constant>();
+        auto& sum            = sim.alloc<irt::qss2_wsum_2>();
+        auto& integrator     = sim.alloc<irt::qss2_integrator>();
+        auto& constant       = sim.alloc<irt::constant>();
         auto& constant_cross = sim.alloc<irt::constant>();
-        auto& cross = sim.alloc<irt::qss2_cross>();
+        auto& cross          = sim.alloc<irt::qss2_cross>();
 
         irt::real tau(10.0);
         irt::real Vt(-1.0);
@@ -2595,10 +2578,10 @@ main()
         sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = irt::real(1.0);
+        constant.default_value       = irt::real(1.0);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = irt::real(0.0);
+        integrator.default_X  = irt::real(0.0);
         integrator.default_dQ = irt::real(0.0001);
 
         cross.default_threshold = Vt;
@@ -2644,24 +2627,24 @@ main()
         expect(irt::is_success(sim.init(32lu, 512lu)));
         expect(sim.can_alloc(5));
 
-        auto& sum = sim.alloc<irt::qss3_wsum_2>();
-        auto& integrator = sim.alloc<irt::qss3_integrator>();
-        auto& constant = sim.alloc<irt::constant>();
+        auto& sum            = sim.alloc<irt::qss3_wsum_2>();
+        auto& integrator     = sim.alloc<irt::qss3_integrator>();
+        auto& constant       = sim.alloc<irt::constant>();
         auto& constant_cross = sim.alloc<irt::constant>();
-        auto& cross = sim.alloc<irt::qss3_cross>();
+        auto& cross          = sim.alloc<irt::qss3_cross>();
 
         irt::real tau = 10;
-        irt::real Vt = -1;
-        irt::real V0 = -10;
-        irt::real Vr = 0;
+        irt::real Vt  = -1;
+        irt::real V0  = -10;
+        irt::real Vr  = 0;
 
         sum.default_input_coeffs[0] = irt::real(-1) / tau;
         sum.default_input_coeffs[1] = V0 / tau;
 
-        constant.default_value = irt::real(1);
+        constant.default_value       = irt::real(1);
         constant_cross.default_value = Vr;
 
-        integrator.default_X = irt::zero;
+        integrator.default_X  = irt::zero;
         integrator.default_dQ = irt::to_real(0.0001);
 
         cross.default_threshold = Vt;
@@ -2813,11 +2796,11 @@ main()
 
     "memory"_test = [] {
         global_alloc g_a;
-        global_free g_b;
+        global_free  g_b;
 
         {
             irt::g_alloc_fn = g_a;
-            irt::g_free_fn = g_b;
+            irt::g_free_fn  = g_b;
 
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
@@ -2832,8 +2815,8 @@ main()
 
     "null_memory"_test = [] {
         irt::is_fatal_breakpoint = false;
-        irt::g_alloc_fn = null_alloc;
-        irt::g_free_fn = null_free;
+        irt::g_alloc_fn          = null_alloc;
+        irt::g_free_fn           = null_free;
 
         irt::simulation sim;
         expect(sim.init(30u, 30u) != irt::status::success);
@@ -2842,12 +2825,12 @@ main()
     };
 
     "external_source"_test = [] {
-        std::error_code ec;
+        std::error_code   ec;
         std::stringstream ofs_b;
         std::stringstream ofs_t;
 
         std::default_random_engine gen(1234);
-        std::poisson_distribution dist(4.0);
+        std::poisson_distribution  dist(4.0);
 
         irt::generate_random_file(
           ofs_b, gen, dist, 1024, irt::random_file_type::binary);

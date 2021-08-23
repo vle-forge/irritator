@@ -100,18 +100,19 @@ struct neuron
 make_neuron(irt::simulation* sim) noexcept
 {
     using namespace boost::ut;
-    irt::real tau_lif = irt::one + static_cast<irt::real>(rand()) /
-                             (static_cast<irt::real>(RAND_MAX / (irt::two - irt::one)));
+    irt::real tau_lif =
+      irt::one + static_cast<irt::real>(rand()) /
+                   (static_cast<irt::real>(RAND_MAX) / (irt::two - irt::one));
     irt::real Vr_lif = irt::zero;
     irt::real Vt_lif = irt::one;
 
-    auto& sum_lif = sim->alloc<irt::adder_2>();
-    auto& prod_lif = sim->alloc<irt::adder_2>();
-    auto& integrator_lif = sim->alloc<irt::integrator>();
-    auto& quantifier_lif = sim->alloc<irt::quantifier>();
-    auto& constant_lif = sim->alloc<irt::constant>();
+    auto& sum_lif            = sim->alloc<irt::adder_2>();
+    auto& prod_lif           = sim->alloc<irt::adder_2>();
+    auto& integrator_lif     = sim->alloc<irt::integrator>();
+    auto& quantifier_lif     = sim->alloc<irt::quantifier>();
+    auto& constant_lif       = sim->alloc<irt::constant>();
     auto& constant_cross_lif = sim->alloc<irt::constant>();
-    auto& cross_lif = sim->alloc<irt::cross>();
+    auto& cross_lif          = sim->alloc<irt::cross>();
 
     sum_lif.default_input_coeffs[0] = -irt::one;
     sum_lif.default_input_coeffs[1] = irt::two * Vt_lif;
@@ -119,15 +120,15 @@ make_neuron(irt::simulation* sim) noexcept
     prod_lif.default_input_coeffs[0] = irt::one / tau_lif;
     prod_lif.default_input_coeffs[1] = irt::zero;
 
-    constant_lif.default_value = irt::one;
+    constant_lif.default_value       = irt::one;
     constant_cross_lif.default_value = Vr_lif;
 
     integrator_lif.default_current_value = irt::zero;
 
     quantifier_lif.default_adapt_state = irt::quantifier::adapt_state::possible;
     quantifier_lif.default_zero_init_offset = true;
-    quantifier_lif.default_step_size = irt::real(0.1);
-    quantifier_lif.default_past_length = 3;
+    quantifier_lif.default_step_size        = irt::real(0.1);
+    quantifier_lif.default_past_length      = 3;
 
     cross_lif.default_threshold = Vt_lif;
 
@@ -169,55 +170,55 @@ make_synapse(irt::simulation* sim,
              long unsigned int /*source*/,
              long unsigned int /*target*/,
              irt::model& presynaptic_model,
-             int presynaptic_port,
+             int         presynaptic_port,
              irt::model& postsynaptic_model,
-             int postsynaptic_port)
+             int         postsynaptic_port)
 {
     using namespace boost::ut;
     irt::real taupre(20);
     irt::real taupost = taupre;
-    irt::real gamax = irt::to_real(0.015);
-    irt::real dApre = irt::to_real(0.01);
-    irt::real dApost = -dApre * taupre / taupost * irt::to_real(1.05);
-    dApost = dApost * gamax;
-    dApre = dApre * gamax;
+    irt::real gamax   = irt::to_real(0.015);
+    irt::real dApre   = irt::to_real(0.01);
+    irt::real dApost  = -dApre * taupre / taupost * irt::to_real(1.05);
+    dApost            = dApost * gamax;
+    dApre             = dApre * gamax;
 
-    auto& int_pre = sim->alloc<irt::integrator>();
+    auto& int_pre   = sim->alloc<irt::integrator>();
     auto& quant_pre = sim->alloc<irt::quantifier>();
-    auto& sum_pre = sim->alloc<irt::adder_2>();
-    auto& mult_pre = sim->alloc<irt::adder_2>();
+    auto& sum_pre   = sim->alloc<irt::adder_2>();
+    auto& mult_pre  = sim->alloc<irt::adder_2>();
     auto& cross_pre = sim->alloc<irt::cross>();
 
-    auto& int_post = sim->alloc<irt::integrator>();
+    auto& int_post   = sim->alloc<irt::integrator>();
     auto& quant_post = sim->alloc<irt::quantifier>();
-    auto& sum_post = sim->alloc<irt::adder_2>();
-    auto& mult_post = sim->alloc<irt::adder_2>();
+    auto& sum_post   = sim->alloc<irt::adder_2>();
+    auto& mult_post  = sim->alloc<irt::adder_2>();
     auto& cross_post = sim->alloc<irt::cross>();
 
-    auto& const_syn = sim->alloc<irt::constant>();
+    auto& const_syn       = sim->alloc<irt::constant>();
     auto& accumulator_syn = sim->alloc<irt::accumulator_2>();
 
-    cross_pre.default_threshold = irt::one;
-    int_pre.default_current_value = irt::zero;
-    quant_pre.default_adapt_state = irt::quantifier::adapt_state::possible;
+    cross_pre.default_threshold        = irt::one;
+    int_pre.default_current_value      = irt::zero;
+    quant_pre.default_adapt_state      = irt::quantifier::adapt_state::possible;
     quant_pre.default_zero_init_offset = true;
-    quant_pre.default_step_size = irt::real{ 1e-6 };
-    quant_pre.default_past_length = 3;
-    sum_pre.default_input_coeffs[0] = irt::one;
-    sum_pre.default_input_coeffs[1] = dApre;
-    mult_pre.default_input_coeffs[0] = -irt::one / taupre;
-    mult_pre.default_input_coeffs[1] = irt::zero;
+    quant_pre.default_step_size        = irt::to_real(1e-6);
+    quant_pre.default_past_length      = 3;
+    sum_pre.default_input_coeffs[0]    = irt::one;
+    sum_pre.default_input_coeffs[1]    = dApre;
+    mult_pre.default_input_coeffs[0]   = -irt::one / taupre;
+    mult_pre.default_input_coeffs[1]   = irt::zero;
 
-    cross_post.default_threshold = irt::one;
+    cross_post.default_threshold   = irt::one;
     int_post.default_current_value = irt::zero;
     quant_post.default_adapt_state = irt::quantifier::adapt_state::possible;
     quant_post.default_zero_init_offset = true;
-    quant_post.default_step_size = irt::real{1e-6};
-    quant_post.default_past_length = 3;
-    sum_post.default_input_coeffs[0] = irt::one;
-    sum_post.default_input_coeffs[1] = dApost;
-    mult_post.default_input_coeffs[0] = -irt::one / taupost;
-    mult_post.default_input_coeffs[1] = irt::zero;
+    quant_post.default_step_size        = irt::to_real(1e-6);
+    quant_post.default_past_length      = 3;
+    sum_post.default_input_coeffs[0]    = irt::one;
+    sum_post.default_input_coeffs[1]    = dApost;
+    mult_post.default_input_coeffs[0]   = -irt::one / taupost;
+    mult_post.default_input_coeffs[1]   = irt::zero;
 
     const_syn.default_value = irt::one;
 
@@ -288,7 +289,7 @@ main()
     "song_1_simulation"_test = [] {
         irt::simulation sim;
         // Neuron constants
-        long unsigned int N = 4u;
+        const auto N = 4u;
         /*double F = 15.0;
 
         double Eex = 0.0;
@@ -345,7 +346,7 @@ main()
 
         dot_graph_save(sim, stdout);
 
-        irt::time t = 0.0;
+        irt::time  t  = 0.0;
         std::FILE* os = std::fopen("output_song.csv", "w");
         expect((os != nullptr) >> fatal);
 
@@ -366,10 +367,10 @@ main()
             fmt::print(os, "{},", t);
 
             for (long unsigned int i = 0; i < N * N; i++) {
-                auto& pre = sim.models.get(synapses[i].integrator_pre);
+                auto& pre  = sim.models.get(synapses[i].integrator_pre);
                 auto& post = sim.models.get(synapses[i].integrator_post);
 
-                auto& pre_dyn = irt::get_dyn<irt::integrator>(pre);
+                auto& pre_dyn  = irt::get_dyn<irt::integrator>(pre);
                 auto& post_dyn = irt::get_dyn<irt::integrator>(post);
 
                 fmt::print(os,
@@ -378,7 +379,7 @@ main()
                            post_dyn.last_output_value);
             }
             for (long unsigned int i = 0; i < N * N; i++) {
-                auto& acc = sim.models.get(synapses[i].accumulator_syn);
+                auto& acc     = sim.models.get(synapses[i].accumulator_syn);
                 auto& acc_dyn = irt::get_dyn<irt::accumulator_2>(acc);
 
                 fmt::print(os, "{},", acc_dyn.number);

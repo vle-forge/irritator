@@ -17,7 +17,6 @@
 #endif
 #endif
 
-#include <span>
 #include <string_view>
 #include <type_traits>
 
@@ -121,15 +120,15 @@ static inline bool is_fatal_breakpoint = true;
 
 namespace irt {
 
-using i8 = int8_t;
+using i8  = int8_t;
 using i16 = int16_t;
 using i32 = int32_t;
 using i64 = int64_t;
-using u8 = uint8_t;
+using u8  = uint8_t;
 using u16 = uint16_t;
 using u32 = uint32_t;
 using u64 = uint64_t;
-using sz = size_t;
+using sz  = size_t;
 using f32 = float;
 using f64 = double;
 
@@ -166,11 +165,11 @@ inline constexpr real operator"" _r(long double v) noexcept
 
 } // namespace literals
 
-constexpr static inline real one = to_real(1.);
-constexpr static inline real two = to_real(2.);
+constexpr static inline real one   = to_real(1.);
+constexpr static inline real two   = to_real(2.);
 constexpr static inline real three = to_real(3.);
-constexpr static inline real four = to_real(4.);
-constexpr static inline real zero = to_real(0.);
+constexpr static inline real four  = to_real(4.);
+constexpr static inline real zero  = to_real(0.);
 
 inline u16
 make_halfword(u8 a, u8 b) noexcept
@@ -316,11 +315,8 @@ template<typename Iterator, typename T>
 Iterator
 binary_find(Iterator begin, Iterator end, const T& value)
 {
-    Iterator i = std::lower_bound(begin, end, value);
-    if (i != end && !(value < *i))
-        return i;
-    else
-        return end;
+    begin = std::lower_bound(begin, end, value);
+    return (!(begin == end) && !(value < *begin)) ? begin : end;
 }
 
 //! @brief returns an iterator to the result or end if not found
@@ -331,11 +327,8 @@ template<typename Iterator, typename T, typename Compare>
 Iterator
 binary_find(Iterator begin, Iterator end, const T& value, Compare comp)
 {
-    Iterator i = std::lower_bound(begin, end, value, comp);
-    if (i != end && !comp(*i, value))
-        return i;
-    else
-        return end;
+    begin = std::lower_bound(begin, end, value, comp);
+    return (!(begin == end) && !(comp(*begin, value))) ? begin : end;
 }
 
 /*****************************************************************************
@@ -497,7 +490,7 @@ public:
     }
 
     //! Makes `*this` refer to the same callable as `rhs`.
-    constexpr function_ref<R(Args...)>& operator=(
+    constexpr function_ref<R(Args...)>& operator    =(
       const function_ref<R(Args...)>& rhs) noexcept = default;
 
     //! Makes `*this` refer to `f`.
@@ -510,7 +503,7 @@ public:
     constexpr function_ref<R(Args...)>& operator=(F&& f) noexcept
     {
         obj = reinterpret_cast<void*>(std::addressof(f));
-        cb = [](void* obj, Args... args) {
+        cb  = [](void* obj, Args... args) {
             return std::invoke(
               *reinterpret_cast<typename std::add_pointer<F>::type>(obj),
               std::forward<Args>(args)...);
@@ -530,19 +523,16 @@ public:
         return cb(obj, std::forward<Args>(args)...);
     }
 
-    constexpr bool empty() const noexcept
-    {
-        return obj == nullptr;
-    }
+    constexpr bool empty() const noexcept { return obj == nullptr; }
 
     constexpr void reset() noexcept
     {
         obj = nullptr;
-        cb = nullptr;
+        cb  = nullptr;
     }
 
 private:
-    void* obj = nullptr;
+    void* obj               = nullptr;
     R (*cb)(void*, Args...) = nullptr;
 };
 
@@ -567,7 +557,7 @@ function_ref(R (*)(Args...) noexcept) -> function_ref<R(Args...) noexcept>;
  ****************************************************************************/
 
 using global_alloc_function_type = function_ref<void*(sz size)>;
-using global_free_function_type = function_ref<void(void* ptr)>;
+using global_free_function_type  = function_ref<void(void* ptr)>;
 
 static inline void*
 malloc_wrapper(sz size)
@@ -583,7 +573,7 @@ free_wrapper(void* ptr)
 }
 
 static inline global_alloc_function_type g_alloc_fn{ malloc_wrapper };
-static inline global_free_function_type g_free_fn{ free_wrapper };
+static inline global_free_function_type  g_free_fn{ free_wrapper };
 
 /*****************************************************************************
  *
@@ -617,10 +607,7 @@ struct time_domain<time>
         return t == infinity || t == negative_infinity;
     }
 
-    static constexpr bool is_zero(time t) noexcept
-    {
-        return t == zero;
-    }
+    static constexpr bool is_zero(time t) noexcept { return t == zero; }
 };
 
 /*****************************************************************************
@@ -653,10 +640,11 @@ class small_vector
 public:
     static_assert(length >= 1);
 
-    using size_type = small_storage_size_t<length>;
-    using iterator = T*;
-    using const_iterator = const T*;
-    using reference = T&;
+    using size_type       = small_storage_size_t<length>;
+    using index_type      = i32;
+    using iterator        = T*;
+    using const_iterator  = const T*;
+    using reference       = T&;
     using const_reference = const T&;
 
 private:
@@ -664,10 +652,7 @@ private:
     size_type m_size;
 
 public:
-    constexpr small_vector() noexcept
-    {
-        m_size = 0;
-    }
+    constexpr small_vector() noexcept { m_size = 0; }
 
     constexpr small_vector(const small_vector& other) noexcept
       : m_size(other.m_size)
@@ -688,69 +673,37 @@ public:
     constexpr small_vector(small_vector&& other) noexcept = delete;
     constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
 
-    constexpr T* data() noexcept
-    {
-        return reinterpret_cast<T*>(&m_buffer[0]);
-    }
+    constexpr T* data() noexcept { return reinterpret_cast<T*>(&m_buffer[0]); }
 
     constexpr const T* data() const noexcept
     {
         return reinterpret_cast<const T*>(&m_buffer[0]);
     }
 
-    constexpr reference operator[](const size_type index) noexcept
+    constexpr reference operator[](const index_type index) noexcept
     {
+        irt_assert(index >= 0);
         irt_assert(index < m_size);
 
         return data()[index];
     }
 
-    constexpr const_reference operator[](const size_type index) const noexcept
+    constexpr const_reference operator[](const index_type index) const noexcept
     {
+        irt_assert(index >= 0);
         irt_assert(index < m_size);
 
         return data()[index];
     }
 
-    constexpr iterator begin() noexcept
-    {
-        return data();
-    }
-
-    constexpr const_iterator begin() const noexcept
-    {
-        return data();
-    }
-
-    constexpr iterator end() noexcept
-    {
-        return data() + m_size;
-    }
-
-    constexpr const_iterator end() const noexcept
-    {
-        return data() + m_size;
-    }
-
-    constexpr size_type size() const noexcept
-    {
-        return m_size;
-    }
-
-    constexpr sz capacity() const noexcept
-    {
-        return length;
-    }
-
-    constexpr bool empty() const noexcept
-    {
-        return m_size == 0;
-    }
-
-    constexpr bool full() const noexcept
-    {
-        return m_size >= length;
-    }
+    constexpr iterator       begin() noexcept { return data(); }
+    constexpr const_iterator begin() const noexcept { return data(); }
+    constexpr iterator       end() noexcept { return data() + m_size; }
+    constexpr const_iterator end() const noexcept { return data() + m_size; }
+    constexpr sz             size() const noexcept { return m_size; }
+    constexpr sz             capacity() const noexcept { return length; }
+    constexpr bool           empty() const noexcept { return m_size == 0; }
+    constexpr bool           full() const noexcept { return m_size >= length; }
 
     constexpr void clear() noexcept
     {
@@ -762,10 +715,7 @@ public:
         m_size = 0;
     }
 
-    constexpr bool can_alloc() noexcept
-    {
-        return m_size < length - 1;
-    }
+    constexpr bool can_alloc() noexcept { return m_size < length - 1; }
 
     constexpr bool can_alloc(size_type number) noexcept
     {
@@ -793,7 +743,7 @@ public:
         }
     }
 
-    constexpr void swap_pop_back(size_type index) noexcept
+    constexpr void swap_pop_back(index_type index) noexcept
     {
         irt_assert(index >= 0 && index < m_size);
 
@@ -818,16 +768,19 @@ public:
 template<typename T>
 class vector
 {
-    T* m_data = nullptr;
-    i32 m_size = 0;
+    T*  m_data     = nullptr;
+    i32 m_size     = 0;
     i32 m_capacity = 0;
 
 public:
-    using iterator = T*;
-    using const_iterator = const T*;
-    using size_type = u8;
-    using reference = T&;
+    using size_type       = sz;
+    using index_type      = i32;
+    using iterator        = T*;
+    using const_iterator  = const T*;
+    using reference       = T&;
     using const_reference = const T&;
+    using pointer         = T*;
+    using const_pointer   = const T*;
 
     constexpr vector() noexcept = default;
 
@@ -839,7 +792,7 @@ public:
 
     constexpr vector(const vector& other) noexcept = delete;
     constexpr vector& operator=(const vector& other) noexcept = delete;
-    constexpr vector(vector&& other) noexcept = delete;
+    constexpr vector(vector&& other) noexcept                 = delete;
     constexpr vector& operator=(vector&& other) noexcept = delete;
 
     status init(sz capacity) noexcept
@@ -854,21 +807,14 @@ public:
         if (!m_data)
             return status::vector_not_enough_memory;
 
-        m_size = 0;
+        m_size     = 0;
         m_capacity = static_cast<int>(capacity);
 
         return status::success;
     }
 
-    constexpr T* data() noexcept
-    {
-        return m_data;
-    }
-
-    constexpr const T* data() const noexcept
-    {
-        return m_data;
-    }
+    constexpr T*       data() noexcept { return m_data; }
+    constexpr const T* data() const noexcept { return m_data; }
 
     constexpr reference front() noexcept
     {
@@ -894,64 +840,33 @@ public:
         return m_data[m_size - 1];
     }
 
-    constexpr reference operator[](const int index) noexcept
+    constexpr reference operator[](const index_type index) noexcept
     {
         irt_assert(index >= 0 && index < m_size);
 
         return data()[index];
     }
 
-    constexpr const_reference operator[](const int index) const noexcept
+    constexpr const_reference operator[](const index_type index) const noexcept
     {
         irt_assert(index >= 0 && index < m_size);
 
         return data()[index];
     }
 
-    constexpr iterator begin() noexcept
-    {
-        return data();
-    }
-
-    constexpr const_iterator begin() const noexcept
-    {
-        return data();
-    }
-
-    constexpr iterator end() noexcept
-    {
-        return data() + m_size;
-    }
-
-    constexpr const_iterator end() const noexcept
-    {
-        return data() + m_size;
-    }
-
-    constexpr sz size() const noexcept
-    {
-        return static_cast<sz>(m_size);
-    }
-
-    constexpr i32 ssize() const noexcept
-    {
-        return m_size;
-    }
-
-    constexpr sz capacity() const noexcept
+    constexpr iterator       begin() noexcept { return data(); }
+    constexpr const_iterator begin() const noexcept { return data(); }
+    constexpr iterator       end() noexcept { return data() + m_size; }
+    constexpr const_iterator end() const noexcept { return data() + m_size; }
+    constexpr sz  size() const noexcept { return static_cast<sz>(m_size); }
+    constexpr i32 ssize() const noexcept { return m_size; }
+    constexpr sz  capacity() const noexcept
     {
         return static_cast<sz>(m_capacity);
     }
 
-    constexpr bool empty() const noexcept
-    {
-        return m_size == 0;
-    }
-
-    constexpr bool full() const noexcept
-    {
-        return m_size >= m_capacity;
-    }
+    constexpr bool empty() const noexcept { return m_size == 0; }
+    constexpr bool full() const noexcept { return m_size >= m_capacity; }
 
     constexpr void clear() noexcept
     {
@@ -963,15 +878,9 @@ public:
         m_size = 0;
     }
 
-    constexpr void reset() noexcept
-    {
-        m_size = 0;
-    }
+    constexpr void reset() noexcept { m_size = 0; }
 
-    constexpr bool can_alloc() noexcept
-    {
-        return m_size < m_capacity - 1;
-    }
+    constexpr bool can_alloc() noexcept { return m_size < m_capacity - 1; }
 
     constexpr bool can_alloc(i32 number) noexcept
     {
@@ -1001,7 +910,7 @@ public:
         }
     }
 
-    constexpr void swap_pop_back(i32 index) noexcept
+    constexpr void swap_pop_back(index_type index) noexcept
     {
         irt_assert(index < m_size);
 
@@ -1028,38 +937,31 @@ class small_string
 public:
     static_assert(length >= 2);
 
-    using size_type = small_storage_size_t<length>;
-    using iterator = char*;
-    using const_iterator = const char*;
-    using reference = char&;
+    using size_type       = small_storage_size_t<length>;
+    using iterator        = char*;
+    using const_iterator  = const char*;
+    using reference       = char&;
     using const_reference = const char&;
 
 private:
-    char m_buffer[length];
+    char      m_buffer[length];
     size_type m_size;
 
 public:
-    using iterator = char*;
-    using const_iterator = const char*;
-    using m_sizetype = u8;
-
-    constexpr small_string() noexcept
-    {
-        clear();
-    }
+    constexpr small_string() noexcept { clear(); }
 
     constexpr small_string(const small_string& str) noexcept
     {
         std::copy_n(str.m_buffer, str.m_size, m_buffer);
         m_buffer[str.m_size] = '\0';
-        m_size = str.m_size;
+        m_size               = str.m_size;
     }
 
     constexpr small_string(small_string&& str) noexcept
     {
         std::copy_n(str.m_buffer, str.m_size, m_buffer);
         m_buffer[str.m_size] = '\0';
-        m_size = str.m_size;
+        m_size               = str.m_size;
         str.clear();
     }
 
@@ -1068,7 +970,7 @@ public:
         if (&str != this) {
             std::copy_n(str.m_buffer, str.m_size, m_buffer);
             m_buffer[str.m_size] = '\0';
-            m_size = str.m_size;
+            m_size               = str.m_size;
         }
 
         return *this;
@@ -1079,7 +981,7 @@ public:
         if (&str != this) {
             std::copy_n(str.m_buffer, str.m_size, m_buffer);
             m_buffer[str.m_size] = '\0';
-            m_size = str.m_size;
+            m_size               = str.m_size;
         }
 
         return *this;
@@ -1089,17 +991,14 @@ public:
     {
         std::strncpy(m_buffer, str, length - 1);
         m_buffer[length - 1] = '\0';
-        m_size = static_cast<u8>(std::strlen(m_buffer));
+        m_size               = static_cast<u8>(std::strlen(m_buffer));
     }
 
-    constexpr small_string(const std::string_view str) noexcept
-    {
-        assign(str);
-    }
+    constexpr small_string(const std::string_view str) noexcept { assign(str); }
 
     void resize(size_type size) noexcept
     {
-        m_size = size > length ? length : size;
+        m_size               = size > length ? length : size;
         m_buffer[m_size - 1] = '\0';
     }
 
@@ -1110,15 +1009,8 @@ public:
         return zero == m_size;
     }
 
-    constexpr size_type size() const noexcept
-    {
-        return m_size;
-    }
-
-    constexpr size_type capacity() const noexcept
-    {
-        return length;
-    }
+    constexpr sz size() const noexcept { return m_size; }
+    constexpr sz capacity() const noexcept { return length; }
 
     constexpr void assign(const std::string_view str) noexcept
     {
@@ -1155,30 +1047,15 @@ public:
         return m_buffer[index];
     }
 
-    constexpr const char* c_str() const noexcept
-    {
-        return m_buffer;
-    }
+    constexpr const char* c_str() const noexcept { return m_buffer; }
 
-    constexpr iterator begin() noexcept
-    {
-        return m_buffer;
-    }
+    constexpr iterator begin() noexcept { return m_buffer; }
 
-    constexpr iterator end() noexcept
-    {
-        return m_buffer + m_size;
-    }
+    constexpr iterator end() noexcept { return m_buffer + m_size; }
 
-    constexpr const_iterator begin() const noexcept
-    {
-        return m_buffer;
-    }
+    constexpr const_iterator begin() const noexcept { return m_buffer; }
 
-    constexpr const_iterator end() const noexcept
-    {
-        return m_buffer + m_size;
-    }
+    constexpr const_iterator end() const noexcept { return m_buffer + m_size; }
 
     constexpr bool operator==(const small_string& rhs) const noexcept
     {
@@ -1228,8 +1105,8 @@ public:
 template<size_t length>
 struct fixed_real_array
 {
-    using value_type = real;
-    using size_type = std::size_t;
+    using value_type      = real;
+    using size_type       = std::size_t;
     using difference_type = std::ptrdiff_t;
 
     static_assert(length >= 1, "fixed_real_array length must be >= 1");
@@ -1283,102 +1160,12 @@ struct fixed_real_array
         return data[i];
     }
 
-    constexpr void reset() noexcept
-    {
-        std::fill_n(data, length, zero);
-    }
+    constexpr void reset() noexcept { std::fill_n(data, length, zero); }
 };
 
-using message = fixed_real_array<3>;
-using dated_message = fixed_real_array<4>;
+using message             = fixed_real_array<3>;
+using dated_message       = fixed_real_array<4>;
 using observation_message = fixed_real_array<4>;
-
-struct message_allocator
-{
-    message* m_data = nullptr;
-    int m_size = 0;
-    int m_capacity = 0;
-
-    message_allocator() noexcept = default;
-
-    ~message_allocator() noexcept
-    {
-        clear();
-    }
-
-    status init(sz capacity_) noexcept
-    {
-        if (capacity_ > std::numeric_limits<int>::max())
-            return status::data_array_init_capacity_error;
-
-        clear();
-
-        m_data =
-          reinterpret_cast<message*>(g_alloc_fn(capacity_ * sizeof(message)));
-        if (!m_data)
-            return status::data_array_not_enough_memory;
-
-        m_size = 0;
-        m_capacity = static_cast<int>(capacity_);
-
-        return status::success;
-    }
-
-    void reset() noexcept
-    {
-        m_size = 0;
-    }
-
-    void clear() noexcept
-    {
-        if (m_data)
-            g_free_fn(m_data);
-
-        m_data = nullptr;
-        m_size = 0;
-        m_capacity = 0;
-    }
-
-    bool can_alloc(int size = 1) const noexcept
-    {
-        return m_capacity - m_size > size;
-    }
-
-    std::span<message> alloc(i32& index, i16& length, int alloc_number) noexcept
-    {
-        irt_assert(can_alloc(alloc_number) && "Use can_alloc before");
-        irt_assert(length + alloc_number < std::numeric_limits<i16>::max());
-
-        index = m_size;
-        length = static_cast<i16>(alloc_number);
-        m_size += alloc_number;
-
-        static const message zero;
-        std::fill_n(m_data + index, static_cast<sz>(alloc_number), zero);
-
-        return std::span<message>(m_data + index,
-                                  static_cast<sz>(alloc_number));
-    }
-
-    std::span<message> get(i32 index, i16 length) noexcept
-    {
-        irt_assert(index >= 0);
-        irt_assert(index < m_size);
-        irt_assert(length > 0);
-
-        return std::span<message>(m_data + index, length);
-    }
-
-    void copy(std::span<message> src, i32 index, i16& length)
-    {
-        irt_assert(src.size() + static_cast<sz>(m_size) <
-                   std::numeric_limits<i16>::max());
-
-        std::copy_n(src.data(), src.size(), m_data + index);
-
-        length += static_cast<i16>(src.size());
-    }
-};
 
 /*****************************************************************************
  *
@@ -1394,16 +1181,16 @@ public:
 
     union block
     {
-        block* next;
+        block*                                                     next;
         typename std::aligned_storage<sizeof(T), alignof(T)>::type storage;
     };
 
 private:
     block* blocks{ nullptr };    // contains all preallocated blocks
     block* free_head{ nullptr }; // a free list
-    sz size{ 0 };                // number of active elements allocated
-    sz max_size{ 0 }; // number of elements allocated (with free_head)
-    sz capacity{ 0 }; // capacity of the allocator
+    sz     size{ 0 };            // number of active elements allocated
+    sz     max_size{ 0 }; // number of elements allocated (with free_head)
+    sz     capacity{ 0 }; // capacity of the allocator
 
 public:
     block_allocator() = default;
@@ -1432,9 +1219,9 @@ public:
                 return status::block_allocator_not_enough_memory;
         }
 
-        size = 0;
-        max_size = 0;
-        capacity = new_capacity;
+        size      = 0;
+        max_size  = 0;
+        capacity  = new_capacity;
         free_head = nullptr;
 
         return status::success;
@@ -1443,8 +1230,8 @@ public:
     void reset() noexcept
     {
         if (capacity > 0) {
-            size = 0;
-            max_size = 0;
+            size      = 0;
+            max_size  = 0;
             free_head = nullptr;
         }
     }
@@ -1506,7 +1293,7 @@ public:
         --size;
 
         if (size == 0) {         // A special part: if it no longer exists
-            max_size = 0;        // we reset the free list and the number
+            max_size  = 0;       // we reset the free list and the number
             free_head = nullptr; // of elements allocated.
         }
     }
@@ -1538,7 +1325,7 @@ struct list_view_node
 {
     using value_type = T;
 
-    T value;
+    T   value;
     u32 prev;
     u32 next;
 };
@@ -1554,11 +1341,11 @@ class list_view_iterator_impl
 {
 public:
     using iterator_category = std::bidirectional_iterator_tag;
-    using difference_type = std::ptrdiff_t;
-    using value = T;
-    using pointer = T*;
-    using reference = T&;
-    using container_type = ContainerType;
+    using difference_type   = std::ptrdiff_t;
+    using value             = T;
+    using pointer           = T*;
+    using reference         = T&;
+    using container_type    = ContainerType;
 
     template<typename X>
     friend class list_view;
@@ -1568,7 +1355,7 @@ public:
 
 private:
     container_type& lst;
-    u32 id;
+    u32             id;
 
 public:
     list_view_iterator_impl(container_type& lst_, u32 id_) noexcept
@@ -1592,15 +1379,9 @@ public:
         return *this;
     }
 
-    reference operator*() const
-    {
-        return lst.m_allocator[id].value;
-    }
+    reference operator*() const { return lst.m_allocator[id].value; }
 
-    pointer operator->()
-    {
-        return &lst.m_allocator[id].value;
-    }
+    pointer operator->() { return &lst.m_allocator[id].value; }
 
     list_view_iterator_impl& operator++()
     {
@@ -1662,15 +1443,15 @@ template<typename T>
 class list_view
 {
 public:
-    using node_type = list_view_node<T>;
-    using allocator_type = block_allocator<node_type>;
-    using value_type = T;
-    using reference = T&;
+    using node_type       = list_view_node<T>;
+    using allocator_type  = block_allocator<node_type>;
+    using value_type      = T;
+    using reference       = T&;
     using const_reference = const T&;
-    using pointer = T*;
-    using this_type = list_view<T>;
-    using iterator = list_view_iterator_impl<this_type, T>;
-    using const_iterator = list_view_iterator_impl<this_type, const T>;
+    using pointer         = T*;
+    using this_type       = list_view<T>;
+    using iterator        = list_view_iterator_impl<this_type, T>;
+    using const_iterator  = list_view_iterator_impl<this_type, const T>;
 
     // friend class list_view_iterator_impl<this_type, T>;
     template<typename X, typename Y>
@@ -1678,7 +1459,7 @@ public:
 
 private:
     allocator_type& m_allocator;
-    u64& m_list;
+    u64&            m_list;
 
 public:
     list_view(allocator_type& allocator, u64& id) noexcept
@@ -1688,37 +1469,26 @@ public:
 
     ~list_view() noexcept = default;
 
-    void reset() noexcept
-    {
-        m_list = static_cast<u64>(-1);
-    }
-
     void clear() noexcept
     {
         u32 begin = unpack_doubleword_left(m_list);
         while (begin != static_cast<u32>(-1)) {
             auto to_delete = begin;
-            begin = m_allocator[begin].next;
+            begin          = m_allocator[begin].next;
             m_allocator.free(to_delete);
         }
 
         m_list = static_cast<u64>(-1);
     }
 
-    bool empty() const noexcept
-    {
-        return m_list == static_cast<u64>(-1);
-    }
+    bool empty() const noexcept { return m_list == static_cast<u64>(-1); }
 
     iterator begin() noexcept
     {
         return iterator(*this, unpack_doubleword_left(m_list));
     }
 
-    iterator end() noexcept
-    {
-        return iterator(*this, static_cast<u32>(-1));
-    }
+    iterator end() noexcept { return iterator(*this, static_cast<u32>(-1)); }
 
     const_iterator begin() const noexcept
     {
@@ -1773,7 +1543,7 @@ public:
 
         m_allocator[new_node].prev = pos.id;
         m_allocator[new_node].next = m_allocator[pos.id].next;
-        m_allocator[pos.id].next = new_node;
+        m_allocator[pos.id].next   = new_node;
 
         return iterator(*this, new_node);
     }
@@ -1828,18 +1598,18 @@ public:
         if (m_list == static_cast<u64>(-1)) {
             m_allocator[new_node].prev = static_cast<u32>(-1);
             m_allocator[new_node].next = static_cast<u32>(-1);
-            first = new_node;
-            last = new_node;
+            first                      = new_node;
+            last                       = new_node;
         } else {
             m_allocator[new_node].prev = static_cast<u32>(-1);
             m_allocator[new_node].next = first;
-            m_allocator[first].prev = new_node;
-            first = new_node;
+            m_allocator[first].prev    = new_node;
+            first                      = new_node;
         }
 
         m_list = make_doubleword(first, last);
 
-        return begin();
+        return iterator(*this, new_node);
     }
 
     template<typename... Args>
@@ -1856,18 +1626,45 @@ public:
         if (m_list == static_cast<u64>(-1)) {
             m_allocator[new_node].prev = static_cast<u32>(-1);
             m_allocator[new_node].next = static_cast<u32>(-1);
-            first = new_node;
-            last = new_node;
+            first                      = new_node;
+            last                       = new_node;
         } else {
             m_allocator[new_node].next = static_cast<u32>(-1);
             m_allocator[new_node].prev = last;
-            m_allocator[last].next = new_node;
-            last = new_node;
+            m_allocator[last].next     = new_node;
+            last                       = new_node;
         }
 
         m_list = make_doubleword(first, last);
 
-        return begin();
+        return iterator(*this, new_node);
+    }
+
+    iterator push_back(const T& t) noexcept
+    {
+        irt_assert(m_allocator.can_alloc());
+
+        u32 new_node = m_allocator.alloc_index();
+        new (&m_allocator[new_node].value) T(t);
+
+        u32 first, last;
+        unpack_doubleword(m_list, &first, &last);
+
+        if (m_list == static_cast<u64>(-1)) {
+            m_allocator[new_node].prev = static_cast<u32>(-1);
+            m_allocator[new_node].next = static_cast<u32>(-1);
+            first                      = new_node;
+            last                       = new_node;
+        } else {
+            m_allocator[new_node].next = static_cast<u32>(-1);
+            m_allocator[new_node].prev = last;
+            m_allocator[last].next     = new_node;
+            last                       = new_node;
+        }
+
+        m_list = make_doubleword(first, last);
+
+        return iterator(*this, new_node);
     }
 
     void pop_front() noexcept
@@ -1879,7 +1676,7 @@ public:
         unpack_doubleword(m_list, &begin, &end);
 
         u32 to_delete = begin;
-        begin = m_allocator[to_delete].next;
+        begin         = m_allocator[to_delete].next;
 
         if (begin == static_cast<u32>(-1))
             end = static_cast<u32>(-1);
@@ -1902,7 +1699,7 @@ public:
         unpack_doubleword(m_list, &begin, &end);
 
         u32 to_delete = end;
-        end = m_allocator[to_delete].prev;
+        end           = m_allocator[to_delete].prev;
 
         if (end == static_cast<u32>(-1))
             begin = static_cast<u32>(-1);
@@ -1921,22 +1718,22 @@ template<typename T>
 class list_view_const
 {
 public:
-    using node_type = list_view_node<T>;
-    using allocator_type = block_allocator<node_type>;
-    using value_type = T;
-    using reference = T&;
+    using node_type       = list_view_node<T>;
+    using allocator_type  = block_allocator<node_type>;
+    using value_type      = T;
+    using reference       = T&;
     using const_reference = const T&;
-    using pointer = T*;
-    using this_type = list_view_const<T>;
-    using iterator = list_view_iterator_impl<this_type, T>;
-    using const_iterator = list_view_iterator_impl<this_type, const T>;
+    using pointer         = T*;
+    using this_type       = list_view_const<T>;
+    using iterator        = list_view_iterator_impl<this_type, T>;
+    using const_iterator  = list_view_iterator_impl<this_type, const T>;
 
     template<typename X, typename Y>
     friend class list_view_iterator_impl;
 
 private:
     const allocator_type& m_allocator;
-    const u64 m_list;
+    const u64             m_list;
 
 public:
     list_view_const(const allocator_type& allocator, const u64 id) noexcept
@@ -1946,10 +1743,7 @@ public:
 
     ~list_view_const() noexcept = default;
 
-    bool empty() const noexcept
-    {
-        return m_list == static_cast<u64>(-1);
-    }
+    bool empty() const noexcept { return m_list == static_cast<u64>(-1); }
 
     const_iterator begin() noexcept
     {
@@ -2083,20 +1877,20 @@ private:
 
     struct item
     {
-        T item;
+        T          item;
         Identifier id;
     };
 
-    item* m_items = nullptr; // items array.
-    u32 m_max_size = 0;      // number of valid item in array.
-    u32 m_max_used = 0;      // highest index ever allocated in array.
-    u32 m_capacity = 0;      // capacity of the array.
-    u32 m_next_key = 1;      // [1..2^32] (don't let == 0)
-    u32 m_free_head = none;  // index of first free entry
+    item* m_items     = nullptr; // items array.
+    u32   m_max_size  = 0;       // number of valid item in array.
+    u32   m_max_used  = 0;       // highest index ever allocated in array.
+    u32   m_capacity  = 0;       // capacity of the array.
+    u32   m_next_key  = 1;       // [1..2^32] (don't let == 0)
+    u32   m_free_head = none;    // index of first free entry
 
 public:
     using identifier_type = Identifier;
-    using value_type = T;
+    using value_type      = T;
 
     static constexpr u32 none = std::numeric_limits<u32>::max();
 
@@ -2124,10 +1918,10 @@ public:
         if (!m_items)
             return status::data_array_not_enough_memory;
 
-        m_max_size = 0;
-        m_max_used = 0;
-        m_capacity = static_cast<u32>(capacity);
-        m_next_key = 1;
+        m_max_size  = 0;
+        m_max_used  = 0;
+        m_capacity  = static_cast<u32>(capacity);
+        m_next_key  = 1;
         m_free_head = none;
 
         return status::success;
@@ -2147,9 +1941,9 @@ public:
             }
         }
 
-        m_max_size = 0;
-        m_max_used = 0;
-        m_next_key = 1;
+        m_max_size  = 0;
+        m_max_used  = 0;
+        m_next_key  = 1;
         m_free_head = none;
     }
 
@@ -2184,7 +1978,7 @@ public:
         new (&m_items[new_index].item) T(std::forward<Args>(args)...);
 
         m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
-        m_next_key = make_next_key<Identifier>(m_next_key);
+        m_next_key            = make_next_key<Identifier>(m_next_key);
 
         ++m_max_size;
 
@@ -2220,7 +2014,7 @@ public:
         new (&m_items[new_index].item) T(std::forward<Args>(args)...);
 
         m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
-        m_next_key = make_next_key<Identifier>(m_next_key);
+        m_next_key            = make_next_key<Identifier>(m_next_key);
 
         ++m_max_size;
 
@@ -2233,7 +2027,7 @@ public:
     //! store next.
     void free(T& t) noexcept
     {
-        auto id = get_id(t);
+        auto id    = get_id(t);
         auto index = get_index(id);
 
         irt_assert(&m_items[index] == static_cast<void*>(&t));
@@ -2244,7 +2038,7 @@ public:
             m_items[index].item.~T();
 
         m_items[index].id = static_cast<Identifier>(m_free_head);
-        m_free_head = index;
+        m_free_head       = index;
 
         --m_max_size;
     }
@@ -2264,7 +2058,7 @@ public:
             m_items[index].item.~T();
 
         m_items[index].id = static_cast<Identifier>(m_free_head);
-        m_free_head = index;
+        m_free_head       = index;
 
         --m_max_size;
     }
@@ -2292,10 +2086,7 @@ public:
     //! @brief Accessor to the item part of the id.
     //!
     //! @return @c T
-    T& get(Identifier id) noexcept
-    {
-        return m_items[get_index(id)].item;
-    }
+    T& get(Identifier id) noexcept { return m_items[get_index(id)].item; }
 
     //! @brief Accessor to the item part of the id.
     //!
@@ -2358,7 +2149,7 @@ public:
 
         if (t) {
             auto id = get_id(*t);
-            index = get_index(id);
+            index   = get_index(id);
             ++index;
 
             for (; index < m_max_used; ++index) {
@@ -2384,10 +2175,7 @@ public:
         return m_free_head == none && m_max_used == m_capacity;
     }
 
-    constexpr sz size() const noexcept
-    {
-        return m_max_size;
-    }
+    constexpr sz size() const noexcept { return m_max_size; }
 
     constexpr bool can_alloc(const sz nb) const noexcept
     {
@@ -2402,25 +2190,13 @@ public:
         return m_capacity - m_max_size >= 1u;
     }
 
-    constexpr u32 max_size() const noexcept
-    {
-        return m_max_size;
-    }
+    constexpr u32 max_size() const noexcept { return m_max_size; }
 
-    constexpr u32 max_used() const noexcept
-    {
-        return m_max_used;
-    }
+    constexpr u32 max_used() const noexcept { return m_max_used; }
 
-    constexpr u32 capacity() const noexcept
-    {
-        return m_capacity;
-    }
+    constexpr u32 capacity() const noexcept { return m_capacity; }
 
-    constexpr u32 next_key() const noexcept
-    {
-        return m_next_key;
-    }
+    constexpr u32 next_key() const noexcept { return m_next_key; }
 
     constexpr bool is_free_list_empty() const noexcept
     {
@@ -2434,11 +2210,15 @@ class map
     static_assert(std::is_trivial_v<V> && std::is_trivial_v<U>,
                   "map is trivial type only (model_id, etc.)");
 
-    struct element
+    struct map_node
     {
-        element() noexcept = default;
+        map_node() noexcept = default;
 
-        element(const U u_, const V v_)
+        map_node(const U u_) noexcept
+          : u(u_)
+        {}
+
+        map_node(const U u_, const V v_) noexcept
           : u(u_)
           , v(v_)
         {}
@@ -2447,52 +2227,70 @@ class map
         V v;
     };
 
-    vector<element> m_elements;
+    vector<map_node> m_data;
 
 public:
-    status init(sz capacity) noexcept
-    {
-        return m_elements.init(capacity);
-    }
+    using size_type          = vector<map_node>::size_type;
+    using index_type         = vector<map_node>::index_type;
+    using iterator           = vector<map_node>::iterator;
+    using const_iterator     = vector<map_node>::const_iterator;
+    using reference          = vector<map_node>::reference;
+    using const_reference    = vector<map_node>::const_reference;
+    using pointer            = vector<map_node>::pointer;
+    using const_pointer      = vector<map_node>::const_pointer;
+    using pair_iterator_bool = std::pair<iterator, bool>;
+
+    status init(sz capacity) noexcept { return m_data.init(capacity); }
 
     bool can_alloc(sz capacity) const noexcept
     {
-        return m_elements.can_alloc(capacity);
+        return m_data.can_alloc(capacity);
     }
 
-    element* try_emplace_back(const U& u, const V& v)
+    pointer try_emplace_back(const U& u, const V& v)
     {
-        if (!m_elements.can_alloc(1u))
+        if (!m_data.can_alloc(1u))
             return nullptr;
 
-        return &m_elements.emplace_back(u, v);
+        return &m_data.emplace_back(u, v);
     }
 
-    element& emplace_back(const U& u, const V& v)
+    reference emplace_back(const U& u, const V& v)
     {
-        irt_assert(m_elements.can_alloc(1u));
+        irt_assert(m_data.can_alloc(1u));
 
-        return m_elements.emplace_back(u, v);
+        return m_data.emplace_back(u, v);
     }
 
     void sort() noexcept
     {
-        std::sort(m_elements.begin(),
-                  m_elements.end(),
+        std::sort(m_data.begin(),
+                  m_data.end(),
                   [](const auto& left, const auto& right) noexcept {
                       return left.u < right.u;
                   });
     }
 
-    const V* find(const U u) const noexcept
+    const_iterator find(const U u) const noexcept
     {
-        auto it = binary_find(
-          m_elements.begin(),
-          m_elements.end(),
-          u,
-          [](const auto& elem, const U u) noexcept { return elem.u == u; });
+        auto it = std::lower_bound(
+          m_data.begin(), m_data.end(), u, [](const map_node& m, const U u) {
+              return m.u < u;
+          });
 
-        return it != m_elements.end() ? &it->v : nullptr;
+        return (it != m_data.end() && u == it->u) ? it : m_data.end();
+    }
+
+    iterator       begin() noexcept { return m_data.begin(); }
+    iterator       end() noexcept { return m_data.end(); }
+    const_iterator begin() const noexcept { return m_data.begin(); }
+    const_iterator end() const noexcept { return m_data.end(); }
+    sz             size() const noexcept { return m_data.size(); }
+    sz             capacity() const noexcept { return m_data.capacity(); }
+
+    const_reference operator[](index_type i) const noexcept
+    {
+        return m_data[i];
     }
 };
 
@@ -2522,7 +2320,7 @@ class heap
 private:
     struct node
     {
-        time tn;
+        time     tn;
         model_id id;
 
         node* prev;
@@ -2533,9 +2331,9 @@ private:
     size_t m_size{ 0 };
     size_t max_size{ 0 };
     size_t capacity{ 0 };
-    node* root{ nullptr };
-    node* nodes{ nullptr };
-    node* free_list{ nullptr };
+    node*  root{ nullptr };
+    node*  nodes{ nullptr };
+    node*  free_list{ nullptr };
 
 public:
     using handle = node*;
@@ -2562,10 +2360,10 @@ public:
                 return status::head_allocator_not_enough_memory;
         }
 
-        m_size = 0;
-        max_size = 0;
-        capacity = new_capacity;
-        root = nullptr;
+        m_size    = 0;
+        max_size  = 0;
+        capacity  = new_capacity;
+        root      = nullptr;
         free_list = nullptr;
 
         return status::success;
@@ -2573,9 +2371,9 @@ public:
 
     void clear()
     {
-        m_size = 0;
-        max_size = 0;
-        root = nullptr;
+        m_size    = 0;
+        max_size  = 0;
+        root      = nullptr;
         free_list = nullptr;
     }
 
@@ -2584,16 +2382,16 @@ public:
         node* new_node;
 
         if (free_list) {
-            new_node = free_list;
+            new_node  = free_list;
             free_list = free_list->next;
         } else {
             new_node = &nodes[max_size++];
         }
 
-        new_node->tn = tn;
-        new_node->id = id;
-        new_node->prev = nullptr;
-        new_node->next = nullptr;
+        new_node->tn    = tn;
+        new_node->id    = id;
+        new_node->prev  = nullptr;
+        new_node->next  = nullptr;
         new_node->child = nullptr;
 
         insert(new_node);
@@ -2608,19 +2406,19 @@ public:
         if (m_size == 0) {
             clear();
         } else {
-            elem->prev = nullptr;
+            elem->prev  = nullptr;
             elem->child = nullptr;
-            elem->id = static_cast<model_id>(0);
+            elem->id    = static_cast<model_id>(0);
 
             elem->next = free_list;
-            free_list = elem;
+            free_list  = elem;
         }
     }
 
     void insert(handle elem) noexcept
     {
-        elem->prev = nullptr;
-        elem->next = nullptr;
+        elem->prev  = nullptr;
+        elem->next  = nullptr;
         elem->child = nullptr;
 
         ++m_size;
@@ -2684,25 +2482,13 @@ public:
         insert(elem);
     }
 
-    size_t size() const noexcept
-    {
-        return m_size;
-    }
+    size_t size() const noexcept { return m_size; }
 
-    size_t full() const noexcept
-    {
-        return m_size == capacity;
-    }
+    size_t full() const noexcept { return m_size == capacity; }
 
-    bool empty() const noexcept
-    {
-        return root == nullptr;
-    }
+    bool empty() const noexcept { return root == nullptr; }
 
-    handle top() const noexcept
-    {
-        return root;
-    }
+    handle top() const noexcept { return root; }
 
     void merge(heap& src) noexcept
     {
@@ -2728,10 +2514,10 @@ private:
             if (b->next != nullptr)
                 b->next->prev = a;
 
-            a->next = b->next;
-            b->next = a->child;
+            a->next  = b->next;
+            b->next  = a->child;
             a->child = b;
-            b->prev = a;
+            b->prev  = a;
 
             return a;
         }
@@ -2742,9 +2528,9 @@ private:
         if (a->prev != nullptr && a->prev->child != a)
             a->prev->next = b;
 
-        b->prev = a->prev;
-        a->prev = b;
-        a->next = b->child;
+        b->prev  = a->prev;
+        a->prev  = b;
+        a->next  = b->child;
         b->child = a;
 
         return b;
@@ -2814,25 +2600,25 @@ struct source
     };
 
     double* buffer = nullptr;
-    u64 id = 0;    // The identifier of the external source (see operation())
-    i32 type = -1; // The type of the external source (see operation())
-    i32 size = 0;
-    i32 index = 0;
+    u64     id   = 0; // The identifier of the external source (see operation())
+    i32     type = -1; // The type of the external source (see operation())
+    i32     size = 0;
+    i32     index = 0;
 
     void reset() noexcept
     {
         buffer = nullptr;
-        size = 0;
-        index = 0;
-        type = -1;
-        id = 0;
+        size   = 0;
+        index  = 0;
+        type   = -1;
+        id     = 0;
     }
 
     void clear() noexcept
     {
         buffer = nullptr;
-        size = 0;
-        index = 0;
+        size   = 0;
+        index  = 0;
     }
 
     bool next(double& value) noexcept
@@ -2966,173 +2752,75 @@ struct observer
       , user_data(user_data_)
     {}
 
-    update_fn cb;
-    small_string<8> name;
-    model_id model = static_cast<model_id>(0);
+    update_fn           cb;
+    small_string<8>     name;
+    model_id            model = static_cast<model_id>(0);
     observation_message msg;
-    void* user_data = nullptr;
+    void*               user_data = nullptr;
 };
 
 struct node
 {
     node() = default;
 
-    node(const model_id model_, const int port_index_) noexcept
+    node(const model_id model_, const i8 port_index_) noexcept
       : model(model_)
       , port_index(port_index_)
     {}
 
-    model_id model = model_id{ 0 };
-    int port_index = 0;
+    model_id model      = undefined<model_id>();
+    i8       port_index = 0;
 };
 
-struct allocators;
-
-struct output_port
+struct output_message
 {
-    u64 nodes = static_cast<u64>(-1); // list of connections (-1 if empty).
-    i32 index = -1; // index of the first message in the message vector
-    i16 size = 0;   // number of message
-
-    void reset() noexcept
-    {
-        index = -1;
-        size = 0;
-    }
+    message  msg;
+    model_id model;
+    i8       port;
 };
 
-struct input_port
-{
-    i32 index = -1;        // index of the first message in the message vector
-    i16 size = 0;          // number of message
-    i16 size_computed = 0; // @todo comment
-
-    void reset() noexcept
-    {
-        index = -1;
-        size = 0;
-        size_computed = 0;
-    }
-};
+using output_port = u64;
+using input_port  = u64;
 
 inline bool
-have_message(const input_port& port) noexcept
+have_message(const u64 port) noexcept
 {
-    return port.size > 0;
+    return port != static_cast<u64>(-1);
 }
 
-inline bool
-have_message(const output_port& port) noexcept
-{
-    return port.size > 0;
-}
+bool
+can_alloc_message(const simulation& sim, int alloc_number) noexcept;
+bool
+can_alloc_node(const simulation& sim, int alloc_number) noexcept;
+bool
+can_alloc_dated_message(const simulation& sim, int alloc_number) noexcept;
 
-struct allocators
-{
-    message_allocator message_alloc;
-    message_allocator input_message_alloc;
-    block_allocator<list_view_node<node>> node_alloc;
-    block_allocator<list_view_node<record>> record_alloc;
-    block_allocator<list_view_node<dated_message>> dated_message_alloc;
+list_view<message>
+append_message(simulation& sim, input_port& port) noexcept;
+list_view_const<message>
+get_message(const simulation& sim, const input_port port) noexcept;
 
-    bool can_alloc_message(int alloc_number) const noexcept
-    {
-        return message_alloc.can_alloc(alloc_number);
-    }
+list_view<node>
+append_node(simulation& sim, output_port& port) noexcept;
+list_view_const<node>
+get_node(const simulation& sim, const output_port port) noexcept;
 
-    bool can_alloc_input_message(int alloc_number) const noexcept
-    {
-        return input_message_alloc.can_alloc(alloc_number);
-    }
+list_view<record>
+append_archive(simulation& sim, u64& id) noexcept;
+list_view_const<record>
+get_archive(const simulation& sim, const u64 id) noexcept;
 
-    std::span<message> alloc_input_message(input_port& port,
-                                           int alloc_number) noexcept
-    {
-        irt_assert(alloc_number > 0);
-        irt_assert(alloc_number < std::numeric_limits<i16>::max());
-        irt_assert(input_message_alloc.can_alloc(alloc_number));
+list_view<dated_message>
+append_dated_message(simulation& sim, u64& id) noexcept;
+list_view_const<dated_message>
+get_dated_message(const simulation& sim, const u64 id) noexcept;
 
-        return input_message_alloc.alloc(port.index, port.size, alloc_number);
-    }
-
-    std::span<message> alloc_message(output_port& port,
-                                     int alloc_number) noexcept
-    {
-        irt_assert(alloc_number > 0);
-        irt_assert(alloc_number < std::numeric_limits<i16>::max());
-        irt_assert(message_alloc.can_alloc(alloc_number));
-
-        return message_alloc.alloc(port.index, port.size, alloc_number);
-    }
-
-    std::span<message> get_message(output_port& port) noexcept
-    {
-        return message_alloc.get(port.index, port.size);
-    }
-
-    std::span<message> get_input_message(input_port& port) noexcept
-    {
-        return port.index == -1
-                 ? std::span<message>()
-                 : input_message_alloc.get(port.index, port.size);
-    }
-
-    std::span<const message> get_input_message(const input_port& port) noexcept
-    {
-        return port.index == -1
-                 ? std::span<message>()
-                 : input_message_alloc.get(port.index, port.size);
-    }
-
-    void append(std::span<message> src, input_port& port) noexcept
-    {
-        irt_assert(static_cast<sz>(port.size) >=
-                   static_cast<sz>(port.size_computed) + src.size());
-
-        input_message_alloc.copy(
-          src, port.index + port.size_computed, port.size_computed);
-    }
-
-    list_view<node> get_node(output_port& port) noexcept
-    {
-        return list_view<node>(node_alloc, port.nodes);
-    }
-
-    list_view_const<node> get_node(const output_port& port) noexcept
-    {
-        return list_view_const<node>(node_alloc, port.nodes);
-    }
-
-    list_view_const<node> get_node(const output_port& port) const noexcept
-    {
-        return list_view_const<node>(node_alloc, port.nodes);
-    }
-
-    list_view<record> get_archive(u64& id) noexcept
-    {
-        return list_view<record>(record_alloc, id);
-    }
-
-    bool can_alloc_node(int alloc_number) const noexcept
-    {
-        return node_alloc.can_alloc(alloc_number);
-    }
-
-    bool can_alloc_dated_message(int alloc_number) const noexcept
-    {
-        return dated_message_alloc.can_alloc(alloc_number);
-    }
-
-    list_view<dated_message> get_dated_message(u64& id) noexcept
-    {
-        return list_view<dated_message>(dated_message_alloc, id);
-    }
-
-    list_view_const<dated_message> get_dated_message(u64 id) const noexcept
-    {
-        return list_view_const<dated_message>(dated_message_alloc, id);
-    }
-};
+status
+send_message(simulation&  sim,
+             output_port& p,
+             real         r1,
+             real         r2 = zero,
+             real         r3 = zero) noexcept;
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -3167,11 +2855,11 @@ constexpr bool is_detected_v =
 
 template<class T>
 using lambda_function_t =
-  decltype(detail::helper<status (T::*)(allocators&), &T::lambda>{});
+  decltype(detail::helper<status (T::*)(simulation&), &T::lambda>{});
 
 template<class T>
 using transition_function_t =
-  decltype(detail::helper<status (T::*)(allocators&, time, time, time),
+  decltype(detail::helper<status (T::*)(simulation&, time, time, time),
                           &T::transition>{});
 
 template<class T>
@@ -3181,11 +2869,11 @@ using observation_function_t =
 
 template<class T>
 using initialize_function_t =
-  decltype(detail::helper<status (T::*)(allocators&), &T::initialize>{});
+  decltype(detail::helper<status (T::*)(simulation&), &T::initialize>{});
 
 template<class T>
 using finalize_function_t =
-  decltype(detail::helper<status (T::*)(allocators&), &T::finalize>{});
+  decltype(detail::helper<status (T::*)(simulation&), &T::finalize>{});
 
 template<typename T>
 using has_input_port_t = decltype(&T::x);
@@ -3215,20 +2903,20 @@ struct none
       , id(other.id)
     {}
 
-    time sigma = time_domain<time>::infinity;
-    component_id id = undefined<component_id>();
+    time         sigma = time_domain<time>::infinity;
+    component_id id    = undefined<component_id>();
 
     map<model_id, model_id> dict;
 
-    small_vector<input_port, 8> x;
+    small_vector<input_port, 8>  x;
     small_vector<output_port, 8> y;
 };
 
 struct integrator
 {
-    input_port x[3];
+    input_port  x[3];
     output_port y[1];
-    time sigma = time_domain<time>::zero;
+    time        sigma = time_domain<time>::zero;
 
     enum port_name
     {
@@ -3247,17 +2935,17 @@ struct integrator
     };
 
     real default_current_value = 0.0;
-    real default_reset_value = 0.0;
-    u64 archive = static_cast<u64>(-1);
+    real default_reset_value   = 0.0;
+    u64  archive               = static_cast<u64>(-1);
 
-    real current_value = 0.0;
-    real reset_value = 0.0;
-    real up_threshold = 0.0;
-    real down_threshold = 0.0;
-    real last_output_value = 0.0;
-    real expected_value = 0.0;
-    bool reset = false;
-    state st = state::init;
+    real  current_value     = 0.0;
+    real  reset_value       = 0.0;
+    real  up_threshold      = 0.0;
+    real  down_threshold    = 0.0;
+    real  last_output_value = 0.0;
+    real  expected_value    = 0.0;
+    bool  reset             = false;
+    state st                = state::init;
 
     integrator() = default;
 
@@ -3275,35 +2963,35 @@ struct integrator
       , st(other.st)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
-        current_value = default_current_value;
-        reset_value = default_reset_value;
-        up_threshold = 0.0;
-        down_threshold = 0.0;
+        current_value     = default_current_value;
+        reset_value       = default_reset_value;
+        up_threshold      = 0.0;
+        down_threshold    = 0.0;
         last_output_value = 0.0;
-        expected_value = 0.0;
-        reset = false;
-        st = state::init;
-        archive = static_cast<u64>(-1);
-        sigma = time_domain<time>::zero;
+        expected_value    = 0.0;
+        reset             = false;
+        st                = state::init;
+        archive           = static_cast<u64>(-1);
+        sigma             = time_domain<time>::zero;
 
         return status::success;
     }
 
-    status finalize(allocators& alloc) noexcept
+    status finalize(simulation& sim) noexcept
     {
-        alloc.get_archive(archive).clear();
+        append_archive(sim, archive).clear();
 
         return status::success;
     }
 
-    status external(allocators& alloc, time t) noexcept
+    status external(simulation& sim, time t) noexcept
     {
         if (have_message(x[port_quanta])) {
-            auto lst = alloc.get_input_message(x[port_quanta]);
+            auto lst = get_message(sim, x[port_quanta]);
             for (const auto& msg : lst) {
-                up_threshold = msg.data[0];
+                up_threshold   = msg.data[0];
                 down_threshold = msg.data[1];
 
                 if (st == state::wait_for_quanta)
@@ -3315,8 +3003,8 @@ struct integrator
         }
 
         if (have_message(x[port_x_dot])) {
-            auto lst = alloc.get_input_message(x[port_x_dot]);
-            auto archive_list = alloc.get_archive(archive);
+            auto lst          = get_message(sim, x[port_x_dot]);
+            auto archive_list = append_archive(sim, archive);
             for (const auto& msg : lst) {
                 archive_list.emplace_back(msg.data[0], t);
 
@@ -3329,37 +3017,37 @@ struct integrator
         }
 
         if (have_message(x[port_reset])) {
-            auto lst = alloc.get_input_message(x[port_reset]);
+            auto lst = get_message(sim, x[port_reset]);
             for (const auto& msg : lst) {
                 reset_value = msg.data[0];
-                reset = true;
+                reset       = true;
             }
         }
 
         if (st == state::running) {
-            current_value = compute_current_value(alloc, t);
-            expected_value = compute_expected_value(alloc);
+            current_value  = compute_current_value(sim, t);
+            expected_value = compute_expected_value(sim);
         }
 
         return status::success;
     }
 
-    status internal(allocators& alloc, time t) noexcept
+    status internal(simulation& sim, time t) noexcept
     {
         switch (st) {
         case state::running: {
             last_output_value = expected_value;
-            auto lst = alloc.get_archive(archive);
+            auto lst          = append_archive(sim, archive);
 
             const real last_derivative_value = lst.back().x_dot;
             lst.clear();
             lst.emplace_back(last_derivative_value, t);
             current_value = expected_value;
-            st = state::wait_for_quanta;
+            st            = state::wait_for_quanta;
             return status::success;
         }
         case state::init:
-            st = state::wait_for_both;
+            st                = state::wait_for_both;
             last_output_value = current_value;
             return status::success;
         default:
@@ -3367,40 +3055,28 @@ struct integrator
         }
     }
 
-    status transition(allocators& alloc, time t, time /*e*/, time r) noexcept
+    status transition(simulation& sim, time t, time /*e*/, time r) noexcept
     {
         if (!have_message(x[port_quanta]) && !have_message(x[port_x_dot]) &&
             !have_message(x[port_reset])) {
-            irt_return_if_bad(internal(alloc, t));
+            irt_return_if_bad(internal(sim, t));
         } else {
             if (time_domain<time>::is_zero(r))
-                irt_return_if_bad(internal(alloc, t));
+                irt_return_if_bad(internal(sim, t));
 
-            irt_return_if_bad(external(alloc, t));
+            irt_return_if_bad(external(sim, t));
         }
 
-        return ta(alloc);
+        return ta(sim);
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
         switch (st) {
-        case state::running: {
-            if (!alloc.can_alloc_message(1))
-                return status::block_allocator_not_enough_memory;
-
-            auto span = alloc.alloc_message(y[0], 1);
-            span.front()[0] = expected_value;
-            return status::success;
-        }
-        case state::init: {
-            if (!alloc.can_alloc_message(1))
-                return status::block_allocator_not_enough_memory;
-
-            auto span = alloc.alloc_message(y[0], 1);
-            span.front()[0] = current_value;
-            return status::success;
-        }
+        case state::running:
+            return send_message(sim, y[0], expected_value);
+        case state::init:
+            return send_message(sim, y[0], current_value);
         default:
             return status::model_integrator_output_error;
         }
@@ -3413,13 +3089,13 @@ struct integrator
         return { last_output_value };
     }
 
-    status ta(allocators& alloc) noexcept
+    status ta(simulation& sim) noexcept
     {
         if (st == state::running) {
             irt_return_if_fail(static_cast<u64>(-1) != archive,
                                status::model_integrator_running_without_x_dot);
 
-            auto lst = alloc.get_archive(archive);
+            auto       lst                = get_archive(sim, archive);
             const auto current_derivative = lst.back().x_dot;
 
             if (current_derivative == time_domain<time>::zero) {
@@ -3446,15 +3122,15 @@ struct integrator
         return status::success;
     }
 
-    real compute_current_value(allocators& alloc, time t) noexcept
+    real compute_current_value(simulation& sim, time t) noexcept
     {
         if (static_cast<u64>(-1) == archive)
             return reset ? reset_value : last_output_value;
 
-        auto lst = alloc.get_archive(archive);
-        auto val = reset ? reset_value : last_output_value;
-        auto end = lst.end();
-        auto it = lst.begin();
+        auto lst  = get_archive(sim, archive);
+        auto val  = reset ? reset_value : last_output_value;
+        auto end  = lst.end();
+        auto it   = lst.begin();
         auto next = lst.begin();
 
         if (next != end)
@@ -3474,9 +3150,9 @@ struct integrator
         }
     }
 
-    real compute_expected_value(allocators& alloc) noexcept
+    real compute_expected_value(simulation& sim) noexcept
     {
-        auto lst = alloc.get_archive(archive);
+        auto       lst                = get_archive(sim, archive);
         const auto current_derivative = lst.back().x_dot;
 
         if (current_derivative == 0)
@@ -3501,14 +3177,14 @@ struct abstract_integrator;
 template<>
 struct abstract_integrator<1>
 {
-    input_port x[2];
+    input_port  x[2];
     output_port y[1];
-    real default_X = zero;
-    real default_dQ = irt::real(0.01);
-    real X;
-    real q;
-    real u;
-    time sigma = time_domain<time>::zero;
+    real        default_X  = zero;
+    real        default_dQ = irt::real(0.01);
+    real        X;
+    real        q;
+    real        u;
+    time        sigma = time_domain<time>::zero;
 
     enum port_name
     {
@@ -3527,7 +3203,7 @@ struct abstract_integrator<1>
       , sigma(other.sigma)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         irt_return_if_fail(std::isfinite(default_X),
                            status::model_integrator_X_error);
@@ -3544,9 +3220,9 @@ struct abstract_integrator<1>
         return status::success;
     }
 
-    status external(allocators& alloc, const time e) noexcept
+    status external(simulation& sim, const time e) noexcept
     {
-        auto lst = alloc.get_input_message(x[port_x_dot]);
+        auto lst     = get_message(sim, x[port_x_dot]);
         auto value_x = lst.front()[0];
 
         X += e * u;
@@ -3564,13 +3240,13 @@ struct abstract_integrator<1>
         return status::success;
     }
 
-    status reset(allocators& alloc) noexcept
+    status reset(simulation& sim) noexcept
     {
-        auto lst = alloc.get_input_message(x[port_reset]);
+        auto  lst   = get_message(sim, x[port_reset]);
         auto& value = lst.front();
 
-        X = value[0];
-        q = X;
+        X     = value[0];
+        q     = X;
         sigma = time_domain<time>::zero;
         return status::success;
     }
@@ -3586,33 +3262,24 @@ struct abstract_integrator<1>
         return status::success;
     }
 
-    status transition(allocators& alloc,
-                      time /*t*/,
-                      time e,
-                      time /*r*/) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
         if (!have_message(x[port_x_dot]) && !have_message(x[port_reset])) {
             irt_return_if_bad(internal());
         } else {
             if (have_message(x[port_reset])) {
-                irt_return_if_bad(reset(alloc));
+                irt_return_if_bad(reset(sim));
             } else {
-                irt_return_if_bad(external(alloc, e));
+                irt_return_if_bad(external(sim, e));
             }
         }
 
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-        span.front()[0] = X + u * sigma;
-
-        return status::success;
+        return send_message(sim, y[0], X + u * sigma);
     }
 
     observation_message observation(const time /*e*/) const noexcept
@@ -3630,16 +3297,16 @@ struct abstract_integrator<1>
 template<>
 struct abstract_integrator<2>
 {
-    input_port x[2];
+    input_port  x[2];
     output_port y[1];
-    real default_X = zero;
-    real default_dQ = irt::real(0.01);
-    real X;
-    real u;
-    real mu;
-    real q;
-    real mq;
-    time sigma = time_domain<time>::zero;
+    real        default_X  = zero;
+    real        default_dQ = irt::real(0.01);
+    real        X;
+    real        u;
+    real        mu;
+    real        q;
+    real        mq;
+    time        sigma = time_domain<time>::zero;
 
     enum port_name
     {
@@ -3660,19 +3327,19 @@ struct abstract_integrator<2>
       , sigma(other.sigma)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         irt_return_if_fail(std::isfinite(default_X),
                            status::model_integrator_X_error);
 
-        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > 0.,
+        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > zero,
                            status::model_integrator_X_error);
 
         X = default_X;
 
-        u = zero;
+        u  = zero;
         mu = zero;
-        q = X;
+        q  = X;
         mq = zero;
 
         sigma = time_domain<time>::zero;
@@ -3680,22 +3347,22 @@ struct abstract_integrator<2>
         return status::success;
     }
 
-    status external(allocators& alloc, const time e) noexcept
+    status external(simulation& sim, const time e) noexcept
     {
-        auto lst = alloc.get_input_message(x[port_x_dot]);
-        const real value_x = lst.front()[0];
+        auto       lst         = get_message(sim, x[port_x_dot]);
+        const real value_x     = lst.front()[0];
         const real value_slope = lst.front()[1];
 
         X += (u * e) + (mu / two) * (e * e);
-        u = value_x;
+        u  = value_x;
         mu = value_slope;
 
         if (sigma != zero) {
             q += mq * e;
             const real a = mu / two;
             const real b = u - mq;
-            real c = X - q + default_dQ;
-            real s;
+            real       c = X - q + default_dQ;
+            real       s;
             sigma = time_domain<time>::infinity;
 
             if (a == zero) {
@@ -3742,51 +3409,42 @@ struct abstract_integrator<2>
         u += mu * sigma;
         mq = u;
 
-        sigma = mu == 0. ? time_domain<time>::infinity
-                         : std::sqrt(two * default_dQ / std::abs(mu));
+        sigma = mu == zero ? time_domain<time>::infinity
+                           : std::sqrt(two * default_dQ / std::abs(mu));
 
         return status::success;
     }
 
-    status reset(allocators& alloc) noexcept
+    status reset(simulation& sim) noexcept
     {
-        auto lst = alloc.get_input_message(x[port_reset]);
+        auto lst         = get_message(sim, x[port_reset]);
         auto value_reset = lst.front()[0];
 
-        X = value_reset;
-        q = X;
+        X     = value_reset;
+        q     = X;
         sigma = time_domain<time>::zero;
         return status::success;
     }
 
-    status transition(allocators& alloc,
-                      time /*t*/,
-                      time e,
-                      time /*r*/) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
         if (!have_message(x[port_x_dot]) && !have_message(x[port_reset]))
             irt_return_if_bad(internal());
         else {
             if (have_message(x[port_reset])) {
-                irt_return_if_bad(reset(alloc));
+                irt_return_if_bad(reset(sim));
             } else {
-                irt_return_if_bad(external(alloc, e));
+                irt_return_if_bad(external(sim, e));
             }
         }
 
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-        span.front()[0] = X + u * sigma + mu * sigma * sigma / two;
-        span.front()[1] = u + mu * sigma;
-
-        return status::success;
+        return send_message(
+          sim, y[0], X + u * sigma + mu * sigma * sigma / two, u + mu * sigma);
     }
 
     observation_message observation(const time /*e*/) const noexcept
@@ -3798,18 +3456,18 @@ struct abstract_integrator<2>
 template<>
 struct abstract_integrator<3>
 {
-    input_port x[2];
+    input_port  x[2];
     output_port y[1];
-    real default_X = zero;
-    real default_dQ = irt::real(0.01);
-    real X;
-    real u;
-    real mu;
-    real pu;
-    real q;
-    real mq;
-    real pq;
-    time sigma = time_domain<time>::zero;
+    real        default_X  = zero;
+    real        default_dQ = irt::real(0.01);
+    real        X;
+    real        u;
+    real        mu;
+    real        pu;
+    real        q;
+    real        mq;
+    real        pq;
+    time        sigma = time_domain<time>::zero;
 
     enum port_name
     {
@@ -3832,32 +3490,32 @@ struct abstract_integrator<3>
       , sigma(other.sigma)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         irt_return_if_fail(std::isfinite(default_X),
                            status::model_integrator_X_error);
 
-        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > 0.,
+        irt_return_if_fail(std::isfinite(default_dQ) && default_dQ > zero,
                            status::model_integrator_X_error);
 
-        X = default_X;
-        u = zero;
-        mu = zero;
-        pu = zero;
-        q = default_X;
-        mq = zero;
-        pq = zero;
+        X     = default_X;
+        u     = zero;
+        mu    = zero;
+        pu    = zero;
+        q     = default_X;
+        mq    = zero;
+        pq    = zero;
         sigma = time_domain<time>::zero;
 
         return status::success;
     }
 
-    status external(allocators& alloc, const time e) noexcept
+    status external(simulation& sim, const time e) noexcept
     {
-        auto lst = alloc.get_input_message(x[port_x_dot]);
-        auto& value = lst.front();
-        const real value_x = value[0];
-        const real value_slope = value[1];
+        auto       lst              = get_message(sim, x[port_x_dot]);
+        auto&      value            = lst.front();
+        const real value_x          = value[0];
+        const real value_slope      = value[1];
         const real value_derivative = value[2];
 
 #if irt_have_numbers == 1
@@ -3866,30 +3524,30 @@ struct abstract_integrator<3>
         constexpr real pi_div_3 = 1.0471975511965976;
 #endif
 
-        X = X + u * e + (mu * e * e) / two + (pu * e * e * e) / three;
-        u = value_x;
+        X  = X + u * e + (mu * e * e) / two + (pu * e * e * e) / three;
+        u  = value_x;
         mu = value_slope;
         pu = value_derivative;
 
-        if (sigma != 0.) {
-            q = q + mq * e + pq * e * e;
-            mq = mq + two * pq * e;
+        if (sigma != zero) {
+            q      = q + mq * e + pq * e * e;
+            mq     = mq + two * pq * e;
             auto a = mu / two - pq;
             auto b = u - mq;
             auto c = X - q - default_dQ;
             auto s = zero;
 
             if (pu != zero) {
-                a = three * a / pu;
-                b = three * b / pu;
-                c = three * c / pu;
-                auto v = b - a * a / three;
-                auto w = c - b * a / three + two * a * a * a / real(27);
+                a       = three * a / pu;
+                b       = three * b / pu;
+                c       = three * c / pu;
+                auto v  = b - a * a / three;
+                auto w  = c - b * a / three + two * a * a * a / real(27);
                 auto i1 = -w / two;
                 auto i2 = i1 * i1 + v * v * v / real(27);
 
                 if (i2 > zero) {
-                    i2 = std::sqrt(i2);
+                    i2     = std::sqrt(i2);
                     auto A = i1 + i2;
                     auto B = i1 - i2;
 
@@ -3928,11 +3586,11 @@ struct abstract_integrator<3>
                     }
                 } else {
                     auto arg = w * std::sqrt(real(27) / (-v)) / (two * v);
-                    arg = std::acos(arg) / three;
-                    auto y1 = two * std::sqrt(-v / three);
-                    auto y2 = -y1 * std::cos(pi_div_3 - arg) - a / three;
-                    auto y3 = -y1 * std::cos(pi_div_3 + arg) - a / three;
-                    y1 = y1 * std::cos(arg) - a / three;
+                    arg      = std::acos(arg) / three;
+                    auto y1  = two * std::sqrt(-v / three);
+                    auto y2  = -y1 * std::cos(pi_div_3 - arg) - a / three;
+                    auto y3  = -y1 * std::cos(pi_div_3 + arg) - a / three;
+                    y1       = y1 * std::cos(arg) - a / three;
                     if (y1 < zero) {
                         s = time_domain<time>::infinity;
                     } else if (y3 < zero) {
@@ -3943,12 +3601,12 @@ struct abstract_integrator<3>
                         s = y2;
                     }
                 }
-                c = c + real(6) * default_dQ / pu;
-                w = c - b * a / three + two * a * a * a / real(27);
+                c  = c + real(6) * default_dQ / pu;
+                w  = c - b * a / three + two * a * a * a / real(27);
                 i1 = -w / two;
                 i2 = i1 * i1 + v * v * v / real(27);
                 if (i2 > zero) {
-                    i2 = std::sqrt(i2);
+                    i2     = std::sqrt(i2);
                     auto A = i1 + i2;
                     auto B = i1 - i2;
                     if (A > zero)
@@ -3990,11 +3648,11 @@ struct abstract_integrator<3>
                     }
                 } else {
                     auto arg = w * std::sqrt(real(27) / (-v)) / (two * v);
-                    arg = std::acos(arg) / three;
-                    auto y1 = two * std::sqrt(-v / three);
-                    auto y2 = -y1 * std::cos(pi_div_3 - arg) - a / three;
-                    auto y3 = -y1 * std::cos(pi_div_3 + arg) - a / three;
-                    y1 = y1 * std::cos(arg) - a / three;
+                    arg      = std::acos(arg) / three;
+                    auto y1  = two * std::sqrt(-v / three);
+                    auto y2  = -y1 * std::cos(pi_div_3 - arg) - a / three;
+                    auto y3  = -y1 * std::cos(pi_div_3 + arg) - a / three;
+                    y1       = y1 * std::cos(arg) - a / three;
                     if (y1 < zero) {
                         sigma = time_domain<time>::infinity;
                     } else if (y3 < zero) {
@@ -4009,14 +3667,14 @@ struct abstract_integrator<3>
                     }
                 }
             } else {
-                if (a != 0.) {
+                if (a != zero) {
                     auto x1 = b * b - four * a * c;
                     if (x1 < zero) {
                         s = time_domain<time>::infinity;
                     } else {
-                        x1 = std::sqrt(x1);
+                        x1      = std::sqrt(x1);
                         auto x2 = (-b - x1) / two / a;
-                        x1 = (-b + x1) / two / a;
+                        x1      = (-b + x1) / two / a;
                         if (x1 < zero) {
                             if (x2 < zero) {
                                 s = time_domain<time>::infinity;
@@ -4031,14 +3689,14 @@ struct abstract_integrator<3>
                             s = x2;
                         }
                     }
-                    c = c + two * default_dQ;
+                    c  = c + two * default_dQ;
                     x1 = b * b - four * a * c;
                     if (x1 < zero) {
                         sigma = time_domain<time>::infinity;
                     } else {
-                        x1 = std::sqrt(x1);
+                        x1      = std::sqrt(x1);
                         auto x2 = (-b - x1) / two / a;
-                        x1 = (-b + x1) / two / a;
+                        x1      = (-b + x1) / two / a;
                         if (x1 < zero) {
                             if (x2 < zero) {
                                 sigma = time_domain<time>::infinity;
@@ -4083,59 +3741,52 @@ struct abstract_integrator<3>
     {
         X = X + u * sigma + (mu * sigma * sigma) / two +
             (pu * sigma * sigma * sigma) / three;
-        q = X;
-        u = u + mu * sigma + pu * pow(sigma, two);
+        q  = X;
+        u  = u + mu * sigma + pu * std::pow(sigma, two);
         mq = u;
         mu = mu + two * pu * sigma;
         pq = mu / two;
 
-        sigma = pu == 0.
+        sigma = pu == zero
                   ? time_domain<time>::infinity
                   : std::pow(std::abs(three * default_dQ / pu), one / three);
 
         return status::success;
     }
 
-    status reset(allocators& alloc) noexcept
+    status reset(simulation& sim) noexcept
     {
-        auto span = alloc.get_input_message(x[port_reset]);
+        auto span = get_message(sim, x[port_reset]);
 
-        X = span.front()[0];
-        q = X;
+        X     = span.front()[0];
+        q     = X;
         sigma = time_domain<time>::zero;
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
-                      time /*t*/,
-                      time e,
-                      time /*r*/) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
         if (!have_message(x[port_x_dot]) && !have_message(x[port_reset]))
             irt_return_if_bad(internal());
         else {
             if (have_message(x[port_reset]))
-                irt_return_if_bad(reset(alloc));
+                irt_return_if_bad(reset(sim));
             else
-                irt_return_if_bad(external(alloc, e));
+                irt_return_if_bad(external(sim, e));
         }
 
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-        span[0][0] = X + u * sigma + (mu * sigma * sigma) / two +
-                     (pu * sigma * sigma * sigma) / three;
-        span[0][1] = u + mu * sigma + pu * sigma * sigma;
-        span[0][2] = mu / two + pu * sigma;
-
-        return status::success;
+        return send_message(sim,
+                            y[0],
+                            X + u * sigma + (mu * sigma * sigma) / two +
+                              (pu * sigma * sigma * sigma) / three,
+                            u + mu * sigma + pu * sigma * sigma,
+                            mu / two + pu * sigma);
     }
 
     observation_message observation(const time /*e*/) const noexcept
@@ -4153,9 +3804,9 @@ struct abstract_power
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    input_port x[1];
+    input_port  x[1];
     output_port y[1];
-    time sigma;
+    time        sigma;
 
     real value[QssLevel];
     real default_n;
@@ -4168,7 +3819,7 @@ struct abstract_power
         std::copy_n(other.value, QssLevel, value);
     }
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::fill_n(value, QssLevel, zero);
         sigma = time_domain<time>::infinity;
@@ -4176,37 +3827,32 @@ struct abstract_power
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], std::pow(value[0], default_n));
 
-        auto span = alloc.alloc_message(y[0], 1);
+        if constexpr (QssLevel == 2)
+            return send_message(sim,
+                                y[0],
+                                std::pow(value[0], default_n),
+                                default_n * std::pow(value[0], default_n - 1) *
+                                  value[1]);
 
-        if constexpr (QssLevel == 1) {
-            span[0][0] = std::pow(value[0], default_n);
-        }
-
-        if constexpr (QssLevel == 2) {
-            span[0][0] = std::pow(value[0], default_n);
-            span[0][1] =
-              default_n * std::pow(value[0], default_n - 1) * value[1];
-        }
-
-        if constexpr (QssLevel == 3) {
-            span[0][0] = std::pow(value[0], default_n);
-            span[0][1] =
-              default_n * std::pow(value[0], default_n - 1) * value[1];
-            span[0][2] =
+        if constexpr (QssLevel == 3)
+            return send_message(
+              sim,
+              y[0],
+              std::pow(value[0], default_n),
+              default_n * std::pow(value[0], default_n - 1) * value[1],
               default_n * (default_n - 1) * std::pow(value[0], default_n - 2) *
-                (value[1] * value[1] / two) +
-              default_n * std::pow(value[0], default_n - 1) * value[2];
-        }
+                  (value[1] * value[1] / two) +
+                default_n * std::pow(value[0], default_n - 1) * value[2]);
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
@@ -4214,21 +3860,22 @@ struct abstract_power
         sigma = time_domain<time>::infinity;
 
         if (have_message(x[0])) {
-            auto span = alloc.get_input_message(x[0]);
+            auto  list = get_message(sim, x[0]);
+            auto& msg  = list.front();
 
             if constexpr (QssLevel == 1) {
-                value[0] = span[0][0];
+                value[0] = msg[0];
             }
 
             if constexpr (QssLevel == 2) {
-                value[0] = span[0][0];
-                value[1] = span[0][1];
+                value[0] = msg[0];
+                value[1] = msg[1];
             }
 
             if constexpr (QssLevel == 3) {
-                value[0] = span[0][0];
-                value[1] = span[0][1];
-                value[2] = span[0][2];
+                value[0] = msg[0];
+                value[1] = msg[1];
+                value[2] = msg[2];
             }
 
             sigma = time_domain<time>::zero;
@@ -4252,9 +3899,9 @@ struct abstract_square
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    input_port x[1];
+    input_port  x[1];
     output_port y[1];
-    time sigma;
+    time        sigma;
 
     real value[QssLevel];
 
@@ -4265,7 +3912,7 @@ struct abstract_square
         std::copy_n(other.value, QssLevel, value);
     }
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::fill_n(value, QssLevel, zero);
         sigma = time_domain<time>::infinity;
@@ -4273,32 +3920,27 @@ struct abstract_square
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], value[0] * value[0]);
 
-        auto span = alloc.alloc_message(y[0], 1);
+        if constexpr (QssLevel == 2)
+            return send_message(
+              sim, y[0], value[0] * value[0], two * value[0] * value[1]);
 
-        if constexpr (QssLevel == 1) {
-            span[0][0] = value[0] * value[0];
-        }
-
-        if constexpr (QssLevel == 2) {
-            span[0][0] = value[0] * value[0];
-            span[0][1] = two * value[0] * value[1];
-        }
-
-        if constexpr (QssLevel == 3) {
-            span[0][0] = value[0] * value[0];
-            span[0][1] = two * value[0] * value[1];
-            span[0][2] = (two * value[0] * value[2]) + (value[1] * value[1]);
-        }
+        if constexpr (QssLevel == 3)
+            return send_message(sim,
+                                y[0],
+                                value[0] * value[0],
+                                two * value[0] * value[1],
+                                (two * value[0] * value[2]) +
+                                  (value[1] * value[1]));
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
@@ -4306,7 +3948,7 @@ struct abstract_square
         sigma = time_domain<time>::infinity;
 
         if (have_message(x[0])) {
-            auto lst = alloc.get_input_message(x[0]);
+            auto  lst = get_message(sim, x[0]);
             auto& msg = lst.front();
 
             if constexpr (QssLevel == 1) {
@@ -4346,9 +3988,9 @@ struct abstract_sum
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    input_port x[PortNumber];
+    input_port  x[PortNumber];
     output_port y[1];
-    time sigma;
+    time        sigma;
 
     real values[QssLevel * PortNumber];
 
@@ -4360,7 +4002,7 @@ struct abstract_sum
         std::copy_n(other.values, QssLevel * PortNumber, values);
     }
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::fill_n(values, QssLevel * PortNumber, zero);
         sigma = time_domain<time>::infinity;
@@ -4368,19 +4010,14 @@ struct abstract_sum
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-
         if constexpr (QssLevel == 1) {
             real value = 0.;
             for (int i = 0; i != PortNumber; ++i)
                 value += values[i];
 
-            span[0][0] = value;
+            return send_message(sim, y[0], value);
         }
 
         if constexpr (QssLevel == 2) {
@@ -4392,13 +4029,12 @@ struct abstract_sum
                 slope += values[i + PortNumber];
             }
 
-            span[0][0] = value;
-            span[0][1] = slope;
+            return send_message(sim, y[0], value, slope);
         }
 
         if constexpr (QssLevel == 3) {
-            real value = 0.;
-            real slope = 0.;
+            real value      = 0.;
+            real slope      = 0.;
             real derivative = 0.;
 
             for (size_t i = 0; i != PortNumber; ++i) {
@@ -4407,15 +4043,13 @@ struct abstract_sum
                 derivative += values[i + PortNumber + PortNumber];
             }
 
-            span[0][0] = value;
-            span[0][1] = slope;
-            span[0][2] = derivative;
+            return send_message(sim, y[0], value, slope, derivative);
         }
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
@@ -4424,10 +4058,10 @@ struct abstract_sum
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto span = alloc.get_input_message(x[i]);
+                auto span = get_message(sim, x[i]);
                 for (const auto& msg : span) {
                     values[i] = msg[0];
-                    message = true;
+                    message   = true;
                 }
             }
         }
@@ -4437,11 +4071,11 @@ struct abstract_sum
                 if (!have_message(x[i])) {
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    auto span = alloc.get_input_message(x[i]);
+                    auto span = get_message(sim, x[i]);
                     for (const auto& msg : span) {
-                        values[i] = msg[0];
+                        values[i]              = msg[0];
                         values[i + PortNumber] = msg[1];
-                        message = true;
+                        message                = true;
                     }
                 }
             }
@@ -4455,12 +4089,12 @@ struct abstract_sum
                     values[i + PortNumber] +=
                       2 * values[i + PortNumber + PortNumber] * e;
                 } else {
-                    auto span = alloc.get_input_message(x[i]);
+                    auto span = get_message(sim, x[i]);
                     for (const auto& msg : span) {
-                        values[i] = msg[0];
-                        values[i + PortNumber] = msg[1];
+                        values[i]                           = msg[0];
+                        values[i + PortNumber]              = msg[1];
                         values[i + PortNumber + PortNumber] = msg[2];
-                        message = true;
+                        message                             = true;
                     }
                 }
             }
@@ -4511,9 +4145,9 @@ struct abstract_wsum
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    input_port x[PortNumber];
+    input_port  x[PortNumber];
     output_port y[1];
-    time sigma;
+    time        sigma;
 
     real default_input_coeffs[PortNumber] = { 0 };
     real values[QssLevel * PortNumber];
@@ -4528,7 +4162,7 @@ struct abstract_wsum
         std::copy_n(other.values, QssLevel * PortNumber, values);
     }
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::fill_n(values, QssLevel * PortNumber, zero);
         sigma = time_domain<time>::infinity;
@@ -4536,20 +4170,15 @@ struct abstract_wsum
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-
         if constexpr (QssLevel == 1) {
             real value = zero;
 
             for (int i = 0; i != PortNumber; ++i)
                 value += default_input_coeffs[i] * values[i];
 
-            span[0][0] = value;
+            return send_message(sim, y[0], value);
         }
 
         if constexpr (QssLevel == 2) {
@@ -4561,13 +4190,12 @@ struct abstract_wsum
                 slope += default_input_coeffs[i] * values[i + PortNumber];
             }
 
-            span[0][0] = value;
-            span[0][1] = slope;
+            return send_message(sim, y[0], value, slope);
         }
 
         if constexpr (QssLevel == 3) {
-            real value = zero;
-            real slope = zero;
+            real value      = zero;
+            real slope      = zero;
             real derivative = zero;
 
             for (int i = 0; i != PortNumber; ++i) {
@@ -4577,15 +4205,13 @@ struct abstract_wsum
                   default_input_coeffs[i] * values[i + PortNumber + PortNumber];
             }
 
-            span[0][0] = value;
-            span[0][1] = slope;
-            span[0][2] = derivative;
+            return send_message(sim, y[0], value, slope, derivative);
         }
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
@@ -4594,10 +4220,10 @@ struct abstract_wsum
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto span = alloc.get_input_message(x[i]);
+                auto span = get_message(sim, x[i]);
                 for (const auto& msg : span) {
                     values[i] = msg[0];
-                    message = true;
+                    message   = true;
                 }
             }
         }
@@ -4607,11 +4233,11 @@ struct abstract_wsum
                 if (!have_message(x[i])) {
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    auto span = alloc.get_input_message(x[i]);
+                    auto span = get_message(sim, x[i]);
                     for (const auto& msg : span) {
-                        values[i] = msg[0];
+                        values[i]              = msg[0];
                         values[i + PortNumber] = msg[1];
-                        message = true;
+                        message                = true;
                     }
                 }
             }
@@ -4625,12 +4251,12 @@ struct abstract_wsum
                     values[i + PortNumber] +=
                       2 * values[i + PortNumber + PortNumber] * e;
                 } else {
-                    auto span = alloc.get_input_message(x[i]);
+                    auto span = get_message(sim, x[i]);
                     for (const auto& msg : span) {
-                        values[i] = msg[0];
-                        values[i + PortNumber] = msg[1];
+                        values[i]                           = msg[0];
+                        values[i + PortNumber]              = msg[1];
                         values[i + PortNumber + PortNumber] = msg[2];
-                        message = true;
+                        message                             = true;
                     }
                 }
             }
@@ -4681,9 +4307,9 @@ struct abstract_multiplier
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    input_port x[2];
+    input_port  x[2];
     output_port y[1];
-    time sigma;
+    time        sigma;
 
     real values[QssLevel * 2];
 
@@ -4695,7 +4321,7 @@ struct abstract_multiplier
         std::copy_n(other.values, std::size(values), values);
     }
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::fill_n(values, QssLevel * 2, zero);
         sigma = time_domain<time>::infinity;
@@ -4703,46 +4329,46 @@ struct abstract_multiplier
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-
         if constexpr (QssLevel == 1) {
-            span[0][0] = values[0] * values[1];
+            return send_message(sim, y[0], values[0] * values[1]);
         }
 
         if constexpr (QssLevel == 2) {
-            span[0][0] = values[0] * values[1];
-            span[0][1] = values[2 + 0] * values[1] + values[2 + 1] * values[0];
+            return send_message(sim,
+                                y[0],
+                                values[0] * values[1],
+                                values[2 + 0] * values[1] +
+                                  values[2 + 1] * values[0]);
         }
 
         if constexpr (QssLevel == 3) {
-            span[0][0] = values[0] * values[1];
-            span[0][1] = values[2 + 0] * values[1] + values[2 + 1] * values[0];
-            span[0][2] = values[0] * values[2 + 2 + 1] +
-                         values[2 + 0] * values[2 + 1] +
-                         values[2 + 2 + 0] * values[1];
+            return send_message(
+              sim,
+              y[0],
+              values[0] * values[1],
+              values[2 + 0] * values[1] + values[2 + 1] * values[0],
+              values[0] * values[2 + 2 + 1] + values[2 + 0] * values[2 + 1] +
+                values[2 + 2 + 0] * values[1]);
         }
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
         bool message_port_0 = have_message(x[0]);
         bool message_port_1 = have_message(x[1]);
-        sigma = time_domain<time>::infinity;
-        auto span_0 = alloc.get_input_message(x[0]);
-        auto span_1 = alloc.get_input_message(x[1]);
+        sigma               = time_domain<time>::infinity;
+        auto span_0         = get_message(sim, x[0]);
+        auto span_1         = get_message(sim, x[1]);
 
         for (const auto& msg : span_0) {
-            sigma = time_domain<time>::zero;
+            sigma     = time_domain<time>::zero;
             values[0] = msg[0];
 
             if constexpr (QssLevel >= 2)
@@ -4753,7 +4379,7 @@ struct abstract_multiplier
         }
 
         for (const auto& msg : span_1) {
-            sigma = time_domain<time>::zero;
+            sigma     = time_domain<time>::zero;
             values[1] = msg[0];
 
             if constexpr (QssLevel >= 2)
@@ -4810,9 +4436,9 @@ using qss3_multiplier = abstract_multiplier<3>;
 
 struct quantifier
 {
-    input_port x[1];
+    input_port  x[1];
     output_port y[1];
-    time sigma = time_domain<time>::infinity;
+    time        sigma = time_domain<time>::infinity;
 
     enum class state
     {
@@ -4834,22 +4460,22 @@ struct quantifier
         down
     };
 
-    real default_step_size = real(0.001);
-    int default_past_length = 3;
-    adapt_state default_adapt_state = adapt_state::possible;
-    bool default_zero_init_offset = false;
-    u64 archive = -1;
-    int archive_length = 0;
+    real        default_step_size        = real(0.001);
+    int         default_past_length      = 3;
+    adapt_state default_adapt_state      = adapt_state::possible;
+    bool        default_zero_init_offset = false;
+    u64         archive                  = -1;
+    int         archive_length           = 0;
 
-    real m_upthreshold = zero;
-    real m_downthreshold = zero;
-    real m_offset = zero;
-    real m_step_size = zero;
-    int m_step_number = 0;
-    int m_past_length = 0;
-    bool m_zero_init_offset = false;
-    state m_state = state::init;
-    adapt_state m_adapt_state = adapt_state::possible;
+    real        m_upthreshold      = zero;
+    real        m_downthreshold    = zero;
+    real        m_offset           = zero;
+    real        m_step_size        = zero;
+    int         m_step_number      = 0;
+    int         m_past_length      = 0;
+    bool        m_zero_init_offset = false;
+    state       m_state            = state::init;
+    adapt_state m_adapt_state      = adapt_state::possible;
 
     quantifier() noexcept = default;
 
@@ -4871,19 +4497,19 @@ struct quantifier
       , m_adapt_state(other.m_adapt_state)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
-        m_step_size = default_step_size;
-        m_past_length = default_past_length;
+        m_step_size        = default_step_size;
+        m_past_length      = default_past_length;
         m_zero_init_offset = default_zero_init_offset;
-        m_adapt_state = default_adapt_state;
-        m_upthreshold = zero;
-        m_downthreshold = zero;
-        m_offset = zero;
-        m_step_number = 0;
-        archive = -1;
-        archive_length = 0;
-        m_state = state::init;
+        m_adapt_state      = default_adapt_state;
+        m_upthreshold      = zero;
+        m_downthreshold    = zero;
+        m_offset           = zero;
+        m_step_number      = 0;
+        archive            = -1;
+        archive_length     = 0;
+        m_state            = state::init;
 
         irt_return_if_fail(m_step_size > 0,
                            status::model_quantifier_bad_quantum_parameter);
@@ -4897,21 +4523,20 @@ struct quantifier
         return status::success;
     }
 
-    status finalize(allocators& alloc) noexcept
+    status finalize(simulation& sim) noexcept
     {
-        auto lst = alloc.get_archive(archive);
-        lst.clear();
+        append_archive(sim, archive).clear();
         return status::success;
     }
 
-    status external(allocators& alloc, time t) noexcept
+    status external(simulation& sim, time t) noexcept
     {
         real val = 0.0, shifting_factor = 0.0;
 
         {
-            auto span = alloc.get_input_message(x[0]);
-            real sum = zero;
-            real nb = zero;
+            auto span = get_message(sim, x[0]);
+            real sum  = zero;
+            real nb   = zero;
 
             for (const auto& elem : span) {
                 sum += elem[0];
@@ -4938,9 +4563,9 @@ struct quantifier
                 break;
             case adapt_state::possible:
                 store_change(
-                  alloc, val >= m_upthreshold ? m_step_size : -m_step_size, t);
+                  sim, val >= m_upthreshold ? m_step_size : -m_step_size, t);
 
-                shifting_factor = shift_quanta(alloc);
+                shifting_factor = shift_quanta(sim);
 
                 irt_return_if_fail(shifting_factor >= 0,
                                    status::model_quantifier_shifting_value_neg);
@@ -4977,7 +4602,7 @@ struct quantifier
         return status::success;
     }
 
-    status transition(allocators& alloc, time t, time /*e*/, time r) noexcept
+    status transition(simulation& sim, time t, time /*e*/, time r) noexcept
     {
         if (!have_message(x[0])) {
             irt_return_if_bad(internal());
@@ -4985,22 +4610,15 @@ struct quantifier
             if (time_domain<time>::is_zero(r))
                 irt_return_if_bad(internal());
 
-            irt_return_if_bad(external(alloc, t));
+            irt_return_if_bad(external(sim, t));
         }
 
         return ta();
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-        span[0][0] = m_upthreshold;
-        span[0][1] = m_downthreshold;
-
-        return status::success;
+        return send_message(sim, y[0], m_upthreshold, m_downthreshold);
     }
 
     observation_message observation(const time /*e*/) const noexcept
@@ -5021,7 +4639,7 @@ private:
     {
         const auto step_number = static_cast<real>(m_step_number);
 
-        m_upthreshold = m_offset + m_step_size * (step_number + one);
+        m_upthreshold   = m_offset + m_step_size * (step_number + one);
         m_downthreshold = m_offset + m_step_size * (step_number - one);
     }
 
@@ -5060,12 +4678,12 @@ private:
         }
     }
 
-    real shift_quanta(allocators& alloc)
+    real shift_quanta(simulation& sim)
     {
-        auto lst = alloc.get_archive(archive);
+        auto lst    = append_archive(sim, archive);
         real factor = 0.0;
 
-        if (oscillating(alloc, m_past_length - 1) &&
+        if (oscillating(sim, m_past_length - 1) &&
             ((lst.back().date - lst.front().date) != 0)) {
             real acc = 0.0;
             real local_estim;
@@ -5077,7 +4695,7 @@ private:
 
             for (int i = 0; i < archive_length - 2; ++i) {
                 if ((it_2->date - it_0->date) != 0) {
-                    if ((lst.back().x_dot * it_1->x_dot) > 0.0) {
+                    if ((lst.back().x_dot * it_1->x_dot) > zero) {
                         local_estim = 1 - (it_1->date - it_0->date) /
                                             (it_2->date - it_0->date);
                     } else {
@@ -5086,11 +4704,11 @@ private:
                     }
 
                     acc += local_estim;
-                    cnt += 1.0;
+                    cnt += one;
                 }
             }
 
-            acc = acc / cnt;
+            acc    = acc / cnt;
             factor = acc;
             lst.clear();
             archive_length = 0;
@@ -5099,9 +4717,9 @@ private:
         return factor;
     }
 
-    void store_change(allocators& alloc, real val, time t) noexcept
+    void store_change(simulation& sim, real val, time t) noexcept
     {
-        auto lst = alloc.get_archive(archive);
+        auto lst = append_archive(sim, archive);
         lst.emplace_back(val, t);
         archive_length++;
 
@@ -5111,14 +4729,14 @@ private:
         }
     }
 
-    bool oscillating(allocators& alloc, const int range) noexcept
+    bool oscillating(simulation& sim, const int range) noexcept
     {
         if ((range + 1) > archive_length)
             return false;
 
-        auto lst = alloc.get_archive(archive);
+        auto      lst   = get_archive(sim, archive);
         const int limit = archive_length - range;
-        auto it = lst.end();
+        auto      it    = lst.end();
         --it;
         auto next = it--;
 
@@ -5129,13 +4747,13 @@ private:
         return true;
     }
 
-    bool monotonous(allocators& alloc, const int range) noexcept
+    bool monotonous(simulation& sim, const int range) noexcept
     {
         if ((range + 1) > archive_length)
             return false;
 
-        auto lst = alloc.get_archive(archive);
-        auto it = lst.begin();
+        auto lst  = get_archive(sim, archive);
+        auto it   = lst.begin();
         auto prev = it++;
 
         for (int i = 0; i < range; ++i, prev = it++)
@@ -5151,9 +4769,9 @@ struct adder
 {
     static_assert(PortNumber > 1, "adder model need at least two input port");
 
-    input_port x[PortNumber];
+    input_port  x[PortNumber];
     output_port y[1];
-    time sigma;
+    time        sigma;
 
     real default_values[PortNumber];
     real default_input_coeffs[PortNumber];
@@ -5183,7 +4801,7 @@ struct adder
           other.input_coeffs, std::size(other.input_coeffs), input_coeffs);
     }
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
 
@@ -5196,23 +4814,17 @@ struct adder
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
         real to_send = zero;
 
         for (size_t i = 0; i != PortNumber; ++i)
             to_send += input_coeffs[i] * values[i];
 
-        span[0][0] = to_send;
-
-        return status::success;
+        return send_message(sim, y[0], to_send);
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
@@ -5220,7 +4832,7 @@ struct adder
         bool have_message = false;
 
         for (size_t i = 0; i != PortNumber; ++i) {
-            auto span = alloc.get_input_message(x[i]);
+            auto span = get_message(sim, x[i]);
             for (const auto& msg : span) {
                 values[i] = msg[0];
 
@@ -5250,9 +4862,9 @@ struct mult
 {
     static_assert(PortNumber > 1, "mult model need at least two input port");
 
-    input_port x[PortNumber];
+    input_port  x[PortNumber];
     output_port y[1];
-    time sigma;
+    time        sigma;
 
     real default_values[PortNumber];
     real default_input_coeffs[PortNumber];
@@ -5279,7 +4891,7 @@ struct mult
           other.input_coeffs, std::size(other.input_coeffs), input_coeffs);
     }
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
 
@@ -5292,32 +4904,26 @@ struct mult
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
         real to_send = 1.0;
 
         for (size_t i = 0; i != PortNumber; ++i)
             to_send *= std::pow(values[i], input_coeffs[i]);
 
-        span[0][0] = to_send;
-
-        return status::success;
+        return send_message(sim, y[0], to_send);
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
     {
         bool have_message = false;
         for (size_t i = 0; i != PortNumber; ++i) {
-            auto span = alloc.get_input_message(x[i]);
+            auto span = get_message(sim, x[i]);
             for (const auto& msg : span) {
-                values[i] = msg[0];
+                values[i]    = msg[0];
                 have_message = true;
             }
         }
@@ -5342,8 +4948,8 @@ struct mult
 struct counter
 {
     input_port x[1];
-    time sigma;
-    i64 number;
+    time       sigma;
+    i64        number;
 
     counter() noexcept = default;
 
@@ -5352,22 +4958,25 @@ struct counter
       , number(other.number)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         number = { 0 };
-        sigma = time_domain<time>::infinity;
+        sigma  = time_domain<time>::infinity;
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        auto span = alloc.get_input_message(x[0]);
+        auto list = get_message(sim, x[0]);
+        auto it   = list.begin();
+        auto end  = list.end();
 
-        number += span.size();
+        for (; it != end; ++it)
+            ++number;
 
         return status::success;
     }
@@ -5381,43 +4990,49 @@ struct counter
 struct generator
 {
     output_port y[1];
-    time sigma;
-    real value;
+    time        sigma;
+    real        value;
 
-    simulation* sim = nullptr;
-    real default_offset = 0.0;
+    real   default_offset = 0.0;
     source default_source_ta;
     source default_source_value;
-    bool stop_on_error = false;
+    bool   stop_on_error = false;
 
     generator() noexcept = default;
 
     generator(const generator& other) noexcept
       : sigma(other.sigma)
       , value(other.value)
-      , sim{ nullptr }
       , default_offset(other.default_offset)
       , default_source_ta(other.default_source_ta)
       , default_source_value(other.default_source_value)
       , stop_on_error(other.stop_on_error)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& sim) noexcept
     {
         sigma = default_offset;
 
         if (stop_on_error) {
-            irt_return_if_bad(initialize_source(*sim, default_source_ta));
-            irt_return_if_bad(initialize_source(*sim, default_source_value));
+            irt_return_if_bad(initialize_source(sim, default_source_ta));
+            irt_return_if_bad(initialize_source(sim, default_source_value));
         } else {
-            (void)initialize_source(*sim, default_source_ta);
-            (void)initialize_source(*sim, default_source_value);
+            (void)initialize_source(sim, default_source_ta);
+            (void)initialize_source(sim, default_source_value);
         }
 
         return status::success;
     }
 
-    status transition(allocators& /*alloc*/,
+    status finalize(simulation& sim) noexcept
+    {
+        irt_return_if_bad(finalize_source(sim, default_source_ta));
+        irt_return_if_bad(finalize_source(sim, default_source_value));
+
+        return status::success;
+    }
+
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
@@ -5427,18 +5042,18 @@ struct generator
 
         if (stop_on_error) {
             irt_return_if_bad(
-              update_source(*sim, default_source_ta, local_sigma));
+              update_source(sim, default_source_ta, local_sigma));
             irt_return_if_bad(
-              update_source(*sim, default_source_value, local_value));
+              update_source(sim, default_source_value, local_value));
             sigma = static_cast<real>(local_sigma);
             value = static_cast<real>(local_value);
         } else {
-            if (is_bad(update_source(*sim, default_source_ta, local_sigma)))
+            if (is_bad(update_source(sim, default_source_ta, local_sigma)))
                 sigma = time_domain<time>::infinity;
             else
                 sigma = static_cast<real>(local_sigma);
 
-            if (is_bad(update_source(*sim, default_source_value, local_value)))
+            if (is_bad(update_source(sim, default_source_value, local_value)))
                 value = 0;
             else
                 value = static_cast<real>(local_value);
@@ -5447,15 +5062,9 @@ struct generator
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-        span[0][0] = value;
-
-        return status::success;
+        return send_message(sim, y[0], value);
     }
 
     observation_message observation(const time /*e*/) const noexcept
@@ -5467,9 +5076,9 @@ struct generator
 struct constant
 {
     output_port y[1];
-    time sigma;
+    time        sigma;
 
-    real default_value = 0.0;
+    real default_value  = 0.0;
     time default_offset = time_domain<time>::zero;
 
     real value = 0.0;
@@ -5483,7 +5092,7 @@ struct constant
       , value(other.value)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         sigma = default_offset;
 
@@ -5492,7 +5101,7 @@ struct constant
         return status::success;
     }
 
-    status transition(allocators& /*alloc*/,
+    status transition(simulation& /*sim*/,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
@@ -5502,15 +5111,9 @@ struct constant
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-        span[0][0] = value;
-
-        return status::success;
+        return send_message(sim, y[0], value);
     }
 
     observation_message observation(const time /*e*/) const noexcept
@@ -5586,15 +5189,15 @@ struct filter
 struct flow
 {
     output_port y[1];
-    time sigma;
+    time        sigma;
 
-    real default_samplerate = 44100.0;
-    real* default_data = nullptr;
-    real* default_sigmas = nullptr;
-    sz default_size = 0u;
+    real  default_samplerate = 44100.0;
+    real* default_data       = nullptr;
+    real* default_sigmas     = nullptr;
+    sz    default_size       = 0u;
 
     real accu_sigma;
-    sz i;
+    sz   i;
 
     flow() noexcept = default;
 
@@ -5608,7 +5211,7 @@ struct flow
       , i(other.i)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         irt_return_if_fail(default_samplerate > zero,
                            status::model_flow_bad_samplerate);
@@ -5617,14 +5220,14 @@ struct flow
                              default_sigmas != nullptr && default_size > 1,
                            status::model_flow_bad_data);
 
-        sigma = one / default_samplerate;
+        sigma      = one / default_samplerate;
         accu_sigma = zero;
-        i = 0;
+        i          = 0;
 
         return status::success;
     }
 
-    status transition(allocators& /*alloc*/,
+    status transition(simulation& /*sim*/,
                       time t,
                       time /*e*/,
                       time /*r*/) noexcept
@@ -5639,20 +5242,14 @@ struct flow
         }
 
         sigma = time_domain<time>::infinity;
-        i = default_size - 1;
+        i     = default_size - 1;
 
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-        span[0][0] = default_data[i];
-
-        return status::success;
+        return send_message(sim, y[0], default_data[i]);
     }
 
     observation_message observation(const time /*e*/) const noexcept
@@ -5665,9 +5262,9 @@ template<size_t PortNumber>
 struct accumulator
 {
     input_port x[2 * PortNumber];
-    time sigma;
-    real number;
-    real numbers[PortNumber];
+    time       sigma;
+    real       number;
+    real       numbers[PortNumber];
 
     accumulator() = default;
 
@@ -5678,7 +5275,7 @@ struct accumulator
         std::copy_n(other.numbers, std::size(numbers), numbers);
     }
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         number = zero;
         std::fill_n(numbers, PortNumber, zero);
@@ -5688,20 +5285,24 @@ struct accumulator
         return status::success;
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
     {
         for (sz i = 0; i != PortNumber; ++i) {
-            auto span = alloc.get_input_message(x[i + PortNumber]);
-            numbers[i] = span[0][0];
+            if (have_message(x[i + PortNumber])) {
+                auto list  = get_message(sim, x[i + PortNumber]);
+                numbers[i] = list.front()[0];
+            }
         }
 
         for (sz i = 0; i != PortNumber; ++i) {
-            auto span = alloc.get_input_message(x[i]);
-            if (span[0][0] != zero)
-                number += numbers[i];
+            if (have_message(x[i])) {
+                auto list = get_message(sim, x[i]);
+                if (list.front()[0] != zero)
+                    number += numbers[i];
+            }
         }
 
         return status::success;
@@ -5710,9 +5311,9 @@ struct accumulator
 
 struct cross
 {
-    input_port x[4];
+    input_port  x[4];
     output_port y[2];
-    time sigma;
+    time        sigma;
 
     real default_threshold = zero;
 
@@ -5744,51 +5345,51 @@ struct cross
         port_threshold
     };
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
-        threshold = default_threshold;
-        value = threshold - one;
-        if_value = zero;
+        threshold  = default_threshold;
+        value      = threshold - one;
+        if_value   = zero;
         else_value = zero;
-        result = zero;
-        event = zero;
+        result     = zero;
+        event      = zero;
 
         sigma = time_domain<time>::zero;
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        bool have_message = false;
+        bool have_message       = false;
         bool have_message_value = false;
-        event = zero;
+        event                   = zero;
 
-        auto span_thresholds = alloc.get_input_message(x[port_threshold]);
+        auto span_thresholds = get_message(sim, x[port_threshold]);
         for (auto& elem : span_thresholds) {
-            threshold = elem[0];
+            threshold    = elem[0];
             have_message = true;
         }
 
-        auto span_value = alloc.get_input_message(x[port_value]);
+        auto span_value = get_message(sim, x[port_value]);
         for (auto& elem : span_value) {
-            value = elem[0];
+            value              = elem[0];
             have_message_value = true;
-            have_message = true;
+            have_message       = true;
         }
 
-        auto span_if_value = alloc.get_input_message(x[port_if_value]);
+        auto span_if_value = get_message(sim, x[port_if_value]);
         for (auto& elem : span_if_value) {
-            if_value = elem[0];
+            if_value     = elem[0];
             have_message = true;
         }
 
-        auto span_else_value = alloc.get_input_message(x[port_else_value]);
+        auto span_else_value = get_message(sim, x[port_else_value]);
         for (auto& elem : span_else_value) {
-            else_value = elem[0];
+            else_value   = elem[0];
             have_message = true;
         }
 
@@ -5796,7 +5397,7 @@ struct cross
             event = zero;
             if (value >= threshold) {
                 else_value = if_value;
-                event = one;
+                event      = one;
             }
         }
 
@@ -5808,16 +5409,10 @@ struct cross
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(2))
-            return status::simulation_not_enough_message;
-
-        auto span_0 = alloc.alloc_message(y[0], 1);
-        span_0[0][0] = result;
-
-        auto span_1 = alloc.alloc_message(y[1], 1);
-        span_1[0][0] = event;
+        irt_return_if_bad(send_message(sim, y[0], result));
+        irt_return_if_bad(send_message(sim, y[1], event));
 
         return status::success;
     }
@@ -5833,9 +5428,9 @@ struct abstract_cross
 {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    input_port x[4];
+    input_port  x[4];
     output_port y[3];
-    time sigma;
+    time        sigma;
 
     real default_threshold = zero;
     bool default_detect_up = true;
@@ -5879,18 +5474,18 @@ struct abstract_cross
         o_event
     };
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::fill_n(if_value, QssLevel, zero);
         std::fill_n(else_value, QssLevel, zero);
         std::fill_n(value, QssLevel, zero);
 
         threshold = default_threshold;
-        value[0] = threshold - one;
+        value[0]  = threshold - one;
 
-        sigma = time_domain<time>::infinity;
-        last_reset = time_domain<time>::infinity;
-        detect_up = default_detect_up;
+        sigma           = time_domain<time>::infinity;
+        last_reset      = time_domain<time>::infinity;
+        detect_up       = default_detect_up;
         reach_threshold = false;
 
         return status::success;
@@ -5909,7 +5504,7 @@ struct abstract_cross
                 const auto b = value[0] - threshold;
                 const auto d = -b * a;
 
-                if (d > 0.)
+                if (d > zero)
                     sigma = d;
             }
         }
@@ -5955,15 +5550,15 @@ struct abstract_cross
         }
     }
 
-    status transition(allocators& alloc,
-                      time t,
+    status transition(simulation&           sim,
+                      time                  t,
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
         const auto old_else_value = else_value[0];
 
         if (have_message(x[port_threshold])) {
-            auto span = alloc.get_input_message(x[port_threshold]);
+            auto span = get_message(sim, x[port_threshold]);
             for (const auto& msg : span)
                 threshold = msg[0];
         }
@@ -5976,7 +5571,7 @@ struct abstract_cross
                 if_value[1] += two * if_value[2] * e;
             }
         } else {
-            auto span = alloc.get_input_message(x[port_if_value]);
+            auto span = get_message(sim, x[port_if_value]);
             for (const auto& msg : span) {
                 if_value[0] = msg[0];
                 if constexpr (QssLevel >= 2)
@@ -5994,7 +5589,7 @@ struct abstract_cross
                 else_value[1] += two * else_value[2] * e;
             }
         } else {
-            auto span = alloc.get_input_message(x[port_else_value]);
+            auto span = get_message(sim, x[port_else_value]);
             for (const auto& msg : span) {
                 else_value[0] = msg[0];
                 if constexpr (QssLevel >= 2)
@@ -6012,7 +5607,7 @@ struct abstract_cross
                 value[1] += two * value[2] * e;
             }
         } else {
-            auto span = alloc.get_input_message(x[port_value]);
+            auto span = get_message(sim, x[port_value]);
             for (const auto& msg : span) {
                 value[0] = msg[0];
                 if constexpr (QssLevel >= 2)
@@ -6027,9 +5622,9 @@ struct abstract_cross
         if ((detect_up && value[0] >= threshold) ||
             (!detect_up && value[0] <= threshold)) {
             if (t != last_reset) {
-                last_reset = t;
+                last_reset      = t;
                 reach_threshold = true;
-                sigma = time_domain<time>::zero;
+                sigma           = time_domain<time>::zero;
             } else
                 sigma = time_domain<time>::infinity;
         } else if (old_else_value != else_value[0]) {
@@ -6041,42 +5636,48 @@ struct abstract_cross
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
+        if constexpr (QssLevel == 1) {
+            irt_return_if_bad(
+              send_message(sim, y[o_else_value], else_value[0]));
 
-        auto span_else_value = alloc.alloc_message(y[o_else_value], 1);
-        std::span<message> span_if_value;
-        std::span<message> span_event;
-
-        if (reach_threshold) {
-            if (!alloc.can_alloc_message(2))
-                return status::simulation_not_enough_message;
-
-            span_if_value = alloc.alloc_message(y[o_if_value], 1);
-            span_event = alloc.alloc_message(y[o_event], 1);
-        }
-
-        if constexpr (QssLevel >= 1) {
-            span_else_value[0][0] = else_value[0];
             if (reach_threshold) {
-                span_if_value[0][0] = if_value[0];
-                span_event[0][0] = one;
+                irt_return_if_bad(
+                  send_message(sim, y[o_if_value], if_value[0]));
+                irt_return_if_bad(send_message(sim, y[o_event], one));
             }
+
+            return status::success;
         }
 
-        if constexpr (QssLevel >= 2) {
-            span_else_value[0][1] = else_value[1];
-            if (reach_threshold)
-                span_if_value[0][1] = if_value[1];
-        }
+        if constexpr (QssLevel == 2) {
+            irt_return_if_bad(
+              send_message(sim, y[o_else_value], else_value[0], else_value[1]));
 
-        if constexpr (QssLevel >= 3) {
-            span_else_value[0][2] = else_value[2];
             if (reach_threshold) {
-                span_if_value[0][2] = if_value[2];
+                irt_return_if_bad(
+                  send_message(sim, y[o_if_value], if_value[0], if_value[1]));
+                irt_return_if_bad(send_message(sim, y[o_event], one));
             }
+
+            return status::success;
+        }
+
+        if constexpr (QssLevel == 3) {
+            irt_return_if_bad(send_message(sim,
+                                           y[o_else_value],
+                                           else_value[0],
+                                           else_value[1],
+                                           else_value[2]));
+
+            if (reach_threshold) {
+                irt_return_if_bad(send_message(
+                  sim, y[o_if_value], if_value[0], if_value[1], if_value[2]));
+                irt_return_if_bad(send_message(sim, y[o_event], one));
+            }
+
+            return status::success;
         }
 
         return status::success;
@@ -6124,9 +5725,9 @@ time_function(real t) noexcept
 struct time_func
 {
     output_port y[1];
-    time sigma;
+    time        sigma;
 
-    real default_sigma = to_real(0.01);
+    real default_sigma      = to_real(0.01);
     real (*default_f)(real) = &time_function;
 
     real value;
@@ -6142,15 +5743,15 @@ struct time_func
       , f(other.f)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
-        f = default_f;
+        f     = default_f;
         sigma = default_sigma;
         value = 0.0;
         return status::success;
     }
 
-    status transition(allocators& /*alloc*/,
+    status transition(simulation& /*sim*/,
                       time t,
                       time /*e*/,
                       time /*r*/) noexcept
@@ -6159,15 +5760,9 @@ struct time_func
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
-        if (!alloc.can_alloc_message(1))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], 1);
-        span[0][0] = value;
-
-        return status::success;
+        return send_message(sim, y[0], value);
     }
 
     observation_message observation(const time /*t*/) const noexcept
@@ -6188,11 +5783,11 @@ using accumulator_2 = accumulator<2>;
 
 struct queue
 {
-    input_port x[1];
+    input_port  x[1];
     output_port y[1];
-    time sigma;
+    time        sigma;
 
-    u64 fifo = -1;
+    u64 fifo = static_cast<u64>(-1);
 
     real default_ta = one;
 
@@ -6200,40 +5795,36 @@ struct queue
 
     queue(const queue& other) noexcept
       : sigma(other.sigma)
-      , fifo(-1)
+      , fifo(static_cast<u64>(-1))
       , default_ta(other.default_ta)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         if (default_ta <= 0)
             irt_bad_return(status::model_queue_bad_ta);
 
         sigma = time_domain<time>::infinity;
-        fifo = -1;
+        fifo  = static_cast<u64>(-1);
 
         return status::success;
     }
 
-    status finalize(allocators& alloc) noexcept
+    status finalize(simulation& sim) noexcept
     {
-        auto list = alloc.get_dated_message(fifo);
-        list.clear();
+        append_dated_message(sim, fifo).clear();
         return status::success;
     }
 
-    status transition(allocators& alloc,
-                      time t,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept
     {
-        auto list = alloc.get_dated_message(fifo);
+        auto list = append_dated_message(sim, fifo);
         while (!list.empty() && list.front().data[0] <= t)
             list.pop_front();
 
-        auto span = alloc.get_input_message(x[0]);
+        auto span = get_message(sim, x[0]);
         for (const auto& msg : span) {
-            if (!alloc.can_alloc_dated_message(1))
+            if (!can_alloc_dated_message(sim, 1))
                 return status::model_queue_full;
 
             list.emplace_back(
@@ -6251,35 +5842,19 @@ struct queue
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
         if (fifo == static_cast<u64>(-1))
             return status::success;
 
-        auto list = alloc.get_dated_message(fifo);
-        auto it = list.begin();
-        auto end = list.end();
-        const auto t = it->data[0];
+        auto       list = append_dated_message(sim, fifo);
+        auto       it   = list.begin();
+        auto       end  = list.end();
+        const auto t    = it->data[0];
 
-        auto number = 1;
-
-        {
-            auto cit = list.begin();
-            ++cit;
-            for (; cit != end && cit->data[0] <= t; ++cit)
-                number++;
-        }
-
-        if (!alloc.can_alloc_message(number))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], number);
-
-        for (int i = 0; it != end && it->data[0] <= t; ++it, ++i) {
-            span[i][0] = it->data[1];
-            span[i][1] = it->data[2];
-            span[i][2] = it->data[3];
-        }
+        for (; it != end && it->data[0] <= t; ++it)
+            irt_return_if_bad(
+              send_message(sim, y[0], it->data[1], it->data[2], it->data[3]));
 
         return status::success;
     }
@@ -6287,67 +5862,62 @@ struct queue
 
 struct dynamic_queue
 {
-    input_port x[1];
+    input_port  x[1];
     output_port y[1];
-    time sigma;
-    u64 fifo = -1;
+    time        sigma;
+    u64         fifo = static_cast<u64>(-1);
 
-    simulation* sim = nullptr;
     source default_source_ta;
-    bool stop_on_error = false;
+    bool   stop_on_error = false;
 
     dynamic_queue() noexcept = default;
 
     dynamic_queue(const dynamic_queue& other) noexcept
       : sigma(other.sigma)
-      , fifo(-1)
-      , sim(nullptr)
+      , fifo(static_cast<u64>(-1))
       , default_source_ta(other.default_source_ta)
       , stop_on_error(other.stop_on_error)
     {}
 
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& sim) noexcept
     {
         sigma = time_domain<time>::infinity;
-        fifo = -1;
+        fifo  = static_cast<u64>(-1);
 
         if (stop_on_error)
-            irt_return_if_bad(initialize_source(*sim, default_source_ta));
+            irt_return_if_bad(initialize_source(sim, default_source_ta));
         else
-            (void)initialize_source(*sim, default_source_ta);
+            (void)initialize_source(sim, default_source_ta);
 
         return status::success;
     }
 
-    status finalize(allocators& alloc) noexcept
+    status finalize(simulation& sim) noexcept
     {
-        auto list = alloc.get_dated_message(fifo);
-        list.clear();
+        append_dated_message(sim, fifo).clear();
+        irt_return_if_bad(finalize_source(sim, default_source_ta));
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
-                      time t,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept
     {
-        auto list = alloc.get_dated_message(fifo);
+        auto list = append_dated_message(sim, fifo);
         while (!list.empty() && list.front().data[0] <= t)
             list.pop_front();
 
-        auto span = alloc.get_input_message(x[0]);
+        auto span = get_message(sim, x[0]);
         for (const auto& msg : span) {
-            if (!alloc.can_alloc_dated_message(1))
+            if (!can_alloc_dated_message(sim, 1))
                 return status::model_dynamic_queue_full;
 
             double ta;
             if (stop_on_error) {
-                irt_return_if_bad(update_source(*sim, default_source_ta, ta));
+                irt_return_if_bad(update_source(sim, default_source_ta, ta));
                 list.emplace_back(
                   t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
             } else {
-                if (is_success(update_source(*sim, default_source_ta, ta)))
+                if (is_success(update_source(sim, default_source_ta, ta)))
                     list.emplace_back(
                       t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
             }
@@ -6364,35 +5934,19 @@ struct dynamic_queue
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
         if (fifo == static_cast<u64>(-1))
             return status::success;
 
-        auto list = alloc.get_dated_message(fifo);
-        auto it = list.begin();
-        auto end = list.end();
-        const auto t = it->data[0];
+        auto       list = append_dated_message(sim, fifo);
+        auto       it   = list.begin();
+        auto       end  = list.end();
+        const auto t    = it->data[0];
 
-        auto number = 1;
-
-        {
-            auto cit = list.begin();
-            ++cit;
-            for (; cit != end && cit->data[0] <= t; ++cit)
-                number++;
-        }
-
-        if (!alloc.can_alloc_message(number))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], number);
-
-        for (int i = 0; it != end && it->data[0] <= t; ++it, ++i) {
-            span[i][0] = it->data[1];
-            span[i][1] = it->data[2];
-            span[i][2] = it->data[3];
-        }
+        for (; it != end && it->data[0] <= t; ++it)
+            irt_return_if_bad(
+              send_message(sim, y[0], it->data[1], it->data[2], it->data[3]));
 
         return status::success;
     }
@@ -6400,40 +5954,38 @@ struct dynamic_queue
 
 struct priority_queue
 {
-    input_port x[1];
+    input_port  x[1];
     output_port y[1];
-    time sigma;
-    u64 fifo = -1;
-    real default_ta = 1.0;
+    time        sigma;
+    u64         fifo       = static_cast<u64>(-1);
+    real        default_ta = 1.0;
 
-    simulation* sim = nullptr;
     source default_source_ta;
-    bool stop_on_error = false;
+    bool   stop_on_error = false;
 
     priority_queue() noexcept = default;
 
     priority_queue(const priority_queue& other) noexcept
       : sigma(other.sigma)
-      , fifo(-1)
+      , fifo(static_cast<u64>(-1))
       , default_ta(other.default_ta)
-      , sim(nullptr)
       , default_source_ta(other.default_source_ta)
       , stop_on_error(other.stop_on_error)
     {}
 
 private:
-    status try_to_insert(allocators& alloc,
-                         const time t,
+    status try_to_insert(simulation&    sim,
+                         const time     t,
                          const message& msg) noexcept
     {
-        if (!alloc.can_alloc_dated_message(1))
+        if (!can_alloc_dated_message(sim, 1))
             irt_bad_return(status::model_priority_queue_source_is_null);
 
-        auto list = alloc.get_dated_message(fifo);
+        auto list = append_dated_message(sim, fifo);
         if (list.empty() || list.begin()->data[0] > t) {
             list.emplace_front(irt::real(t), msg[0], msg[1], msg[2]);
         } else {
-            auto it = list.begin();
+            auto it  = list.begin();
             auto end = list.end();
             ++it;
 
@@ -6449,52 +6001,48 @@ private:
     }
 
 public:
-    status initialize(allocators& /*alloc*/) noexcept
+    status initialize(simulation& sim) noexcept
     {
         if (stop_on_error)
-            irt_return_if_bad(initialize_source(*sim, default_source_ta));
+            irt_return_if_bad(initialize_source(sim, default_source_ta));
         else
-            (void)initialize_source(*sim, default_source_ta);
+            (void)initialize_source(sim, default_source_ta);
 
         sigma = time_domain<time>::infinity;
-        fifo = -1;
+        fifo  = static_cast<u64>(-1);
 
         return status::success;
     }
 
-    status finalize(allocators& alloc) noexcept
+    status finalize(simulation& sim) noexcept
     {
-        auto list = alloc.get_dated_message(fifo);
-        list.clear();
+        append_dated_message(sim, fifo).clear();
+        irt_return_if_bad(finalize_source(sim, default_source_ta));
 
         return status::success;
     }
 
-    status transition(allocators& alloc,
-                      time t,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept
     {
-        auto list = alloc.get_dated_message(fifo);
+        auto list = append_dated_message(sim, fifo);
         while (!list.empty() && list.front().data[0] <= t)
             list.pop_front();
 
-        auto span = alloc.get_input_message(x[0]);
+        auto span = get_message(sim, x[0]);
         for (const auto& msg : span) {
             double value;
 
             if (stop_on_error) {
-                irt_return_if_bad(
-                  update_source(*sim, default_source_ta, value));
+                irt_return_if_bad(update_source(sim, default_source_ta, value));
 
                 if (auto ret =
-                      try_to_insert(alloc, static_cast<real>(value) + t, msg);
+                      try_to_insert(sim, static_cast<real>(value) + t, msg);
                     is_bad(ret))
                     irt_bad_return(status::model_priority_queue_full);
             } else {
-                if (is_success(update_source(*sim, default_source_ta, value))) {
-                    if (auto ret = try_to_insert(
-                          alloc, static_cast<real>(value) + t, msg);
+                if (is_success(update_source(sim, default_source_ta, value))) {
+                    if (auto ret =
+                          try_to_insert(sim, static_cast<real>(value) + t, msg);
                         is_bad(ret))
                         irt_bad_return(status::model_priority_queue_full);
                 }
@@ -6512,35 +6060,19 @@ public:
         return status::success;
     }
 
-    status lambda(allocators& alloc) noexcept
+    status lambda(simulation& sim) noexcept
     {
         if (fifo == static_cast<u64>(-1))
             return status::success;
 
-        auto list = alloc.get_dated_message(fifo);
-        auto it = list.begin();
-        auto end = list.end();
-        const auto t = it->data[0];
+        auto       list = get_dated_message(sim, fifo);
+        auto       it   = list.begin();
+        auto       end  = list.end();
+        const auto t    = it->data[0];
 
-        auto number = 1;
-
-        {
-            auto cit = list.begin();
-            ++cit;
-            for (; cit != end && cit->data[0] <= t; ++cit)
-                number++;
-        }
-
-        if (!alloc.can_alloc_message(number))
-            return status::simulation_not_enough_message;
-
-        auto span = alloc.alloc_message(y[0], number);
-
-        for (int i = 0; it != end && it->data[0] <= t; ++it, ++i) {
-            span[i][0] = it->data[1];
-            span[i][1] = it->data[2];
-            span[i][2] = it->data[3];
-        }
+        for (; it != end && it->data[0] <= t; ++it)
+            irt_return_if_bad(
+              send_message(sim, y[0], it->data[1], it->data[2], it->data[3]));
 
         return status::success;
     }
@@ -6619,11 +6151,11 @@ max_size_in_bytes() noexcept
 
 struct model
 {
-    real tl = 0.0;
-    real tn = time_domain<time>::infinity;
+    real         tl     = 0.0;
+    real         tn     = time_domain<time>::infinity;
     heap::handle handle = nullptr;
 
-    observer_id obs_id = observer_id{ 0 };
+    observer_id   obs_id = observer_id{ 0 };
     dynamics_type type{ dynamics_type::none };
 
     std::byte dyn[max_size_in_bytes()];
@@ -6924,10 +6456,10 @@ get_output_port(model& dst, int port_dst, output_port*& p) noexcept
 }
 
 inline bool
-is_ports_compatible(const model& mdl_src,
+is_ports_compatible(const model&               mdl_src,
                     [[maybe_unused]] const int o_port_index,
-                    const model& mdl_dst,
-                    const int i_port_index) noexcept
+                    const model&               mdl_dst,
+                    const int                  i_port_index) noexcept
 {
     if (&mdl_src == &mdl_dst)
         return false;
@@ -7007,28 +6539,28 @@ is_ports_compatible(const model& mdl_src,
 }
 
 inline status
-global_connect(allocators& alloc,
-               model& src,
-               int port_src,
-               model_id dst,
-               int port_dst) noexcept
+global_connect(simulation& sim,
+               model&      src,
+               int         port_src,
+               model_id    dst,
+               int         port_dst) noexcept
 {
     return dispatch(
       src,
-      [&alloc, port_src, dst, port_dst]<typename Dynamics>(
+      [&sim, port_src, dst, port_dst]<typename Dynamics>(
         Dynamics& dyn) -> status {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              auto list = alloc.get_node(dyn.y[port_src]);
+              auto list = append_node(sim, dyn.y[static_cast<u8>(port_src)]);
               for (const auto& elem : list) {
                   irt_return_if_fail(
                     !(elem.model == dst && elem.port_index == port_dst),
                     status::model_connect_already_exist);
               }
 
-              if (!alloc.can_alloc_node(1))
-                  return status::simulation_not_enough_connection;
+              irt_return_if_fail(can_alloc_node(sim, 1),
+                                 status::simulation_not_enough_connection);
 
-              list.emplace_back(dst, port_dst);
+              list.emplace_back(dst, static_cast<i8>(port_dst));
 
               return status::success;
           }
@@ -7038,18 +6570,18 @@ global_connect(allocators& alloc,
 }
 
 inline status
-global_disconnect(allocators& alloc,
-                  model& src,
-                  int port_src,
-                  model_id dst,
-                  int port_dst) noexcept
+global_disconnect(simulation& sim,
+                  model&      src,
+                  int         port_src,
+                  model_id    dst,
+                  int         port_dst) noexcept
 {
     return dispatch(
       src,
-      [&alloc, port_src, dst, port_dst]<typename Dynamics>(
+      [&sim, port_src, dst, port_dst]<typename Dynamics>(
         Dynamics& dyn) -> status {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              auto list = alloc.get_node(dyn.y[port_src]);
+              auto list = append_node(sim, dyn.y[port_src]);
               for (auto it = list.begin(), end = list.end(); it != end; ++it) {
                   if (it->model == dst && it->port_index == port_dst) {
                       it = list.erase(it);
@@ -7066,12 +6598,12 @@ struct component
 {
     small_string<16> name;
 
-    data_array<model, model_id> models;
+    data_array<model, model_id>           models;
     block_allocator<list_view_node<node>> node_alloc;
 
-    small_vector<model_id, 16> parameters;
-    small_vector<model_id, 16> observables;
-    small_vector<input_port, 16> internal_x;
+    small_vector<model_id, 16>    parameters;
+    small_vector<model_id, 16>    observables;
+    small_vector<input_port, 16>  internal_x;
     small_vector<output_port, 16> internal_y;
 
     status init(sz model_number) noexcept
@@ -7096,8 +6628,8 @@ struct component
     {
         irt_assert(can_alloc(1u));
 
-        auto& mdl = models.alloc();
-        mdl.type = type;
+        auto& mdl  = models.alloc();
+        mdl.type   = type;
         mdl.handle = nullptr;
 
         dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
@@ -7115,7 +6647,7 @@ struct component
         dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                 for (auto port : dyn.y)
-                    list_view(this->node_alloc, port.nodes).clear();
+                    list_view(this->node_alloc, port).clear();
             }
 
             dyn.~Dynamics();
@@ -7127,20 +6659,21 @@ struct component
 
     status connect(output_port& src, model_id dst, int port_dst) noexcept
     {
-        auto list = list_view(node_alloc, src.nodes);
+        auto list = list_view(node_alloc, src);
 
         for (auto& connection : list) {
-            if (connection.model == dst && connection.port_index == port_dst)
-                return status::model_connect_already_exist;
+            irt_return_if_fail(
+              !(connection.model == dst && connection.port_index == port_dst),
+              status::model_connect_already_exist);
         }
 
-        list.emplace_front(dst, port_dst);
+        list.emplace_front(dst, static_cast<i8>(port_dst));
     }
 
-    status connect(model& src,
-                   int port_src,
+    status connect(model&   src,
+                   int      port_src,
                    model_id dst,
-                   int port_dst) noexcept
+                   int      port_dst) noexcept
     {
         return dispatch(
           src,
@@ -7150,15 +6683,15 @@ struct component
                       return this->connect(dyn.y[port_src], dst, port_dst);
               }
 
-              return status::model_connect_bad_dynamics;
+              irt_bad_return(status::model_connect_bad_dynamics);
           });
     }
 
     void disconnect(output_port& src, model_id dst, int port_dst) noexcept
     {
-        auto list = list_view(node_alloc, src.nodes);
-        auto it = list.begin();
-        auto et = list.end();
+        auto list = list_view(node_alloc, src);
+        auto it   = list.begin();
+        auto et   = list.end();
 
         while (it != et) {
             if (it->model == dst && it->port_index == port_dst)
@@ -7168,14 +6701,18 @@ struct component
         }
     }
 
-    void disconnect(model& src, int port_src, model_id dst, int port_dst) noexcept
+    void disconnect(model&   src,
+                    int      port_src,
+                    model_id dst,
+                    int      port_dst) noexcept
     {
         return dispatch(
           src,
           [this, port_src, dst, port_dst]<typename Dynamics>(Dynamics& dyn) {
               if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                   if (length(dyn.y) < port_src)
-                      this->disconnect(dyn.y[port_src], dst, port_dst);
+                      this->disconnect(
+                        dyn.y[static_cast<u8>(port_src)], dst, port_dst);
               }
           });
     }
@@ -7202,10 +6739,7 @@ public:
         return status::success;
     }
 
-    void clear()
-    {
-        m_heap.clear();
-    }
+    void clear() { m_heap.clear(); }
 
     //! @brief Insert a newly model into the scheduller.
     void insert(model& mdl, model_id id, time tn) noexcept
@@ -7260,20 +6794,11 @@ public:
             out.emplace_back(m_heap.pop()->id);
     }
 
-    time tn() const noexcept
-    {
-        return m_heap.top()->tn;
-    }
+    time tn() const noexcept { return m_heap.top()->tn; }
 
-    bool empty() const noexcept
-    {
-        return m_heap.empty();
-    }
+    bool empty() const noexcept { return m_heap.empty(); }
 
-    size_t size() const noexcept
-    {
-        return m_heap.size();
-    }
+    size_t size() const noexcept { return m_heap.size(); }
 };
 
 /*****************************************************************************
@@ -7433,12 +6958,14 @@ get_model(Dynamics& d) noexcept
 
 struct simulation
 {
-    allocators allocs;
-    vector<output_port*> emitting_output_ports;
-    vector<model_id> immediate_models;
-
-    data_array<model, model_id> models;
-    data_array<observer, observer_id> observers;
+    block_allocator<list_view_node<message>>       message_alloc;
+    block_allocator<list_view_node<node>>          node_alloc;
+    block_allocator<list_view_node<record>>        record_alloc;
+    block_allocator<list_view_node<dated_message>> dated_message_alloc;
+    vector<output_message>                         emitting_output_ports;
+    vector<model_id>                               immediate_models;
+    data_array<model, model_id>                    models;
+    data_array<observer, observer_id>              observers;
 
     scheduller sched;
 
@@ -7447,8 +6974,10 @@ struct simulation
     //! See the @c external_source class for an implementation.
     function_ref<status(source&, const source::operation_type)> source_dispatch;
 
+    model_id get_id(const model& mdl) const { return models.get_id(mdl); }
+
     template<typename Dynamics>
-    constexpr model_id get_id(const Dynamics& dyn) const
+    model_id get_id(const Dynamics& dyn) const
     {
         return models.get_id(get_model(dyn));
     }
@@ -7458,29 +6987,20 @@ public:
     {
         constexpr size_t ten{ 10 };
 
-        irt_return_if_bad(allocs.message_alloc.init(messages_capacity));
-        irt_return_if_bad(allocs.input_message_alloc.init(messages_capacity));
-        irt_return_if_bad(allocs.node_alloc.init(model_capacity * ten));
-        irt_return_if_bad(allocs.record_alloc.init(model_capacity * ten));
-        irt_return_if_bad(allocs.dated_message_alloc.init(model_capacity));
-
+        irt_return_if_bad(message_alloc.init(messages_capacity));
+        irt_return_if_bad(node_alloc.init(model_capacity * ten));
+        irt_return_if_bad(record_alloc.init(model_capacity * ten));
+        irt_return_if_bad(dated_message_alloc.init(model_capacity));
         irt_return_if_bad(emitting_output_ports.init(model_capacity));
         irt_return_if_bad(immediate_models.init(model_capacity));
-
-        irt_return_if_bad(sched.init(model_capacity));
-
         irt_return_if_bad(models.init(model_capacity));
         irt_return_if_bad(observers.init(model_capacity));
+        irt_return_if_bad(sched.init(model_capacity));
 
         return status::success;
     }
 
-    bool can_alloc() const noexcept
-    {
-        return models.can_alloc();
-    }
-
-    bool can_alloc(int place) const noexcept
+    bool can_alloc(int place = 1) const noexcept
     {
         return models.can_alloc(place);
     }
@@ -7491,10 +7011,13 @@ public:
     void clean() noexcept
     {
         sched.clear();
-        allocs.message_alloc.reset();
-        allocs.input_message_alloc.reset();
-        allocs.record_alloc.reset();
-        allocs.dated_message_alloc.reset();
+
+        message_alloc.reset();
+        record_alloc.reset();
+        dated_message_alloc.reset();
+
+        emitting_output_ports.reset();
+        immediate_models.reset();
     }
 
     //! @brief cleanup simulation and destroy all models and connections
@@ -7502,9 +7025,7 @@ public:
     {
         clean();
 
-        allocs.node_alloc.reset();
-        emitting_output_ports.reset();
-        immediate_models.reset();
+        node_alloc.reset();
 
         models.clear();
         observers.clear();
@@ -7514,16 +7035,24 @@ public:
     template<typename Dynamics>
     Dynamics& alloc() noexcept
     {
-        /* Use can_alloc before using this function. */
         irt_assert(!models.full());
 
-        auto& mdl = models.alloc();
-        mdl.type = dynamics_typeof<Dynamics>();
-
+        auto& mdl  = models.alloc();
+        mdl.type   = dynamics_typeof<Dynamics>();
         mdl.handle = nullptr;
 
         new (&mdl.dyn) Dynamics{};
-        return get_dyn<Dynamics>(mdl);
+        auto& dyn = get_dyn<Dynamics>(mdl);
+
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+            for (int i = 0, e = length(dyn.x); i != e; ++i)
+                dyn.x[i] = static_cast<u64>(-1);
+
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+            for (int i = 0, e = length(dyn.y); i != e; ++i)
+                dyn.y[i] = static_cast<u64>(-1);
+
+        return dyn;
     }
 
     //! @brief This function allocates dynamics and models.
@@ -7532,13 +7061,22 @@ public:
         /* Use can_alloc before using this function. */
         irt_assert(!models.full());
 
-        auto& new_mdl = models.alloc();
-        new_mdl.type = mdl.type;
+        auto& new_mdl  = models.alloc();
+        new_mdl.type   = mdl.type;
         new_mdl.handle = nullptr;
 
         dispatch(new_mdl,
-                 [this, &new_mdl]<typename Dynamics>(Dynamics& dyn) -> void {
-                     new (&dyn) Dynamics{ get_dyn<Dynamics>(new_mdl) };
+                 [this, &mdl]<typename Dynamics>(Dynamics& dyn) -> void {
+                     const auto& src_dyn = get_dyn<Dynamics>(mdl);
+                     new (&dyn) Dynamics(src_dyn);
+
+                     if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                         for (int i = 0, e = length(dyn.x); i != e; ++i)
+                             dyn.x[i] = static_cast<u64>(-1);
+
+                     if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                         for (int i = 0, e = length(dyn.y); i != e; ++i)
+                             dyn.y[i] = static_cast<u64>(-1);
                  });
 
         return new_mdl;
@@ -7547,15 +7085,22 @@ public:
     //! @brief This function allocates dynamics and models.
     model& alloc(dynamics_type type) noexcept
     {
-        /* Use can_alloc before using this function. */
         irt_assert(!models.full());
 
-        auto& mdl = models.alloc();
-        mdl.type = type;
+        auto& mdl  = models.alloc();
+        mdl.type   = type;
         mdl.handle = nullptr;
 
         dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
             new (&dyn) Dynamics{};
+
+            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                for (int i = 0, e = length(dyn.x); i != e; ++i)
+                    dyn.x[i] = static_cast<u64>(-1);
+
+            if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                for (int i = 0, e = length(dyn.y); i != e; ++i)
+                    dyn.y[i] = static_cast<u64>(-1);
         });
 
         return mdl;
@@ -7564,7 +7109,7 @@ public:
     void observe(model& mdl, observer& obs) noexcept
     {
         mdl.obs_id = observers.get_id(obs);
-        obs.model = models.get_id(mdl);
+        obs.model  = models.get_id(mdl);
     }
 
     status deallocate(model_id id)
@@ -7573,7 +7118,7 @@ public:
         irt_return_if_fail(mdl, status::unknown_dynamics);
 
         if (auto* obs = observers.try_to_get(mdl->obs_id); obs) {
-            obs->model = static_cast<model_id>(0);
+            obs->model  = static_cast<model_id>(0);
             mdl->obs_id = static_cast<observer_id>(0);
             observers.free(*obs);
         }
@@ -7592,12 +7137,13 @@ public:
     void do_deallocate(Dynamics& dyn) noexcept
     {
         if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            int i = 0;
-            for (auto& elem : dyn.y) {
-                allocs.get_node(elem).clear();
-                elem.nodes = static_cast<u64>(-1);
-                ++i;
-            }
+            for (auto& elem : dyn.y)
+                append_node(*this, elem).clear();
+        }
+
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+            for (auto& elem : dyn.x)
+                append_message(*this, elem).clear();
         }
 
         dyn.~Dynamics();
@@ -7605,7 +7151,7 @@ public:
 
     bool can_connect(int number) const noexcept
     {
-        return allocs.can_alloc_node(number);
+        return can_alloc_node(*this, number);
     }
 
     status connect(model& src, int port_src, model& dst, int port_dst) noexcept
@@ -7613,17 +7159,19 @@ public:
         irt_return_if_fail(is_ports_compatible(src, port_src, dst, port_dst),
                            status::model_connect_bad_dynamics);
 
-        return global_connect(allocs, src, port_src, get_id(dst), port_dst);
+        const auto dst_id = get_id(dst);
+
+        return global_connect(*this, src, port_src, dst_id, port_dst);
     }
 
     template<typename DynamicsSrc, typename DynamicsDst>
     status connect(DynamicsSrc& src,
-                   int port_src,
+                   int          port_src,
                    DynamicsDst& dst,
-                   int port_dst) noexcept
+                   int          port_dst) noexcept
     {
-        model& src_model = get_model(src);
-        model& dst_model = get_model(dst);
+        model&   src_model    = get_model(src);
+        model&   dst_model    = get_model(dst);
         model_id model_dst_id = get_id(dst);
 
         irt_return_if_fail(
@@ -7631,15 +7179,15 @@ public:
           status::model_connect_bad_dynamics);
 
         return global_connect(
-          allocs, src_model, port_src, model_dst_id, port_dst);
+          *this, src_model, port_src, model_dst_id, port_dst);
     }
 
     status disconnect(model& src,
-                      int port_src,
+                      int    port_src,
                       model& dst,
-                      int port_dst) noexcept
+                      int    port_dst) noexcept
     {
-        return global_disconnect(allocs, src, port_src, get_id(dst), port_dst);
+        return global_disconnect(*this, src, port_src, get_id(dst), port_dst);
     }
 
     status initialize(time t) noexcept
@@ -7680,54 +7228,27 @@ public:
             if (auto* mdl = models.try_to_get(id); mdl)
                 irt_return_if_bad(make_transition(*mdl, t));
 
-        allocs.input_message_alloc.reset();
+        for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
+            auto* mdl = models.try_to_get(emitting_output_ports[i].model);
+            if (!mdl)
+                continue;
 
-        // First, we compute the maximum size for each input port
-        for (output_port* port_src : emitting_output_ports) {
-            auto list = allocs.get_node(*port_src);
+            sched.update(*mdl, t);
 
-            for (const node& dst : list) {
-                if (auto* mdl = models.try_to_get(dst.model); mdl) {
-                    input_port* port_dst = nullptr;
-                    irt_return_if_bad(
-                      get_input_port(*mdl, dst.port_index, port_dst));
+            irt_return_if_fail(can_alloc_message(*this, 1),
+                               status::simulation_not_enough_message);
 
-                    port_dst->size_computed += port_src->size;
-                    sched.update(*mdl, t);
-                }
-            }
+            auto  port = emitting_output_ports[i].port;
+            auto& msg  = emitting_output_ports[i].msg;
+
+            dispatch(
+              *mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
+                  if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                      auto list = append_message(*this, dyn.x[port]);
+                      list.push_back(msg);
+                  }
+              });
         }
-
-        for (output_port* port_src : emitting_output_ports) {
-            auto list = allocs.get_node(*port_src);
-            for (const node& dst : list) {
-                if (auto* mdl = models.try_to_get(dst.model); mdl) {
-                    input_port* port_dst = nullptr;
-                    irt_return_if_bad(
-                      get_input_port(*mdl, dst.port_index, port_dst));
-
-                    // If the size attribute is equal to zero, we allocate the
-                    // buffer using the size_computed attribute.
-                    if (port_dst->size == 0) {
-                        irt_return_if_fail(
-                          allocs.can_alloc_input_message(
-                            port_dst->size_computed),
-                          status::simulation_not_enough_message);
-
-                        allocs.alloc_input_message(*port_dst,
-                                                   port_dst->size_computed);
-                        port_dst->size_computed = 0;
-                    }
-
-                    auto span = allocs.get_message(*port_src);
-                    allocs.append(span, *port_dst);
-                }
-            }
-
-            port_src->reset();
-        }
-
-        allocs.message_alloc.reset();
 
         return status::success;
     }
@@ -7735,26 +7256,16 @@ public:
     template<typename Dynamics>
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     {
-        if constexpr (std::is_same_v<Dynamics, generator> ||
-                      std::is_same_v<Dynamics, dynamic_queue> ||
-                      std::is_same_v<Dynamics, priority_queue>)
-            dyn.sim = this;
-
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i].reset();
-        }
-
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-            for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i].reset();
+                dyn.x[i] = static_cast<u64>(-1);
         }
 
         if constexpr (is_detected_v<initialize_function_t, Dynamics>)
-            irt_return_if_bad(dyn.initialize(allocs));
+            irt_return_if_bad(dyn.initialize(*this));
 
-        mdl.tl = t;
-        mdl.tn = t + dyn.sigma;
+        mdl.tl     = t;
+        mdl.tn     = t + dyn.sigma;
         mdl.handle = nullptr;
 
         sched.insert(mdl, models.get_id(mdl), mdl.tn);
@@ -7784,24 +7295,18 @@ public:
         }
 
         if (mdl.tn == mdl.handle->tn) {
-            if constexpr (is_detected_v<lambda_function_t, Dynamics>) {
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                    irt_return_if_bad(dyn.lambda(allocs));
-
-                    for (size_t i = 0, e = std::size(dyn.y); i != e; ++i)
-                        if (have_message(dyn.y[i]))
-                            emitting_output_ports.emplace_back(&dyn.y[i]);
-                }
-            }
+            if constexpr (is_detected_v<lambda_function_t, Dynamics>)
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                    irt_return_if_bad(dyn.lambda(*this));
         }
 
         if constexpr (is_detected_v<transition_function_t, Dynamics>)
-            irt_return_if_bad(
-              dyn.transition(allocs, t, t - mdl.tl, mdl.tn - t));
+            irt_return_if_bad(dyn.transition(*this, t, t - mdl.tl, mdl.tn - t));
 
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (auto& elem : dyn.x)
-                elem.reset();
+                append_message(*this, elem).clear();
+        }
 
         irt_assert(mdl.tn >= t);
 
@@ -7823,31 +7328,23 @@ public:
     }
 
     template<typename Dynamics>
-    void make_finalize(model& mdl,
-                       Dynamics& dyn,
-                       observer& obs,
-                       time t) noexcept
+    status make_finalize(model&    mdl,
+                         Dynamics& dyn,
+                         observer* obs,
+                         time      t) noexcept
     {
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
-            obs.msg = dyn.observation(t - mdl.tl);
-            obs.cb(obs, mdl.type, mdl.tl, t, observer::status::finalize);
-        }
-
-        if constexpr (std::is_same_v<Dynamics, dynamic_queue> ||
-                      std::is_same_v<Dynamics, priority_queue>)
-            source_dispatch(dyn.default_source_ta,
-                            source::operation_type::finalize);
-
-        if constexpr (std::is_same_v<Dynamics, generator>) {
-            source_dispatch(dyn.default_source_ta,
-                            source::operation_type::finalize);
-            source_dispatch(dyn.default_source_value,
-                            source::operation_type::finalize);
+            if (obs) {
+                obs->msg = dyn.observation(t - mdl.tl);
+                obs->cb(*obs, mdl.type, mdl.tl, t, observer::status::finalize);
+            }
         }
 
         if constexpr (is_detected_v<finalize_function_t, Dynamics>) {
-            dyn.finalize(allocs);
+            irt_return_if_bad(dyn.finalize(*this));
         }
+
+        return status::success;
     }
 
     /**
@@ -7860,20 +7357,23 @@ public:
      *
      * This function must be call at the end of the simulation.
      */
-    void finalize(time t) noexcept
+    status finalize(time t) noexcept
     {
         model* mdl = nullptr;
         while (models.next(mdl)) {
-            if (mdl->obs_id != static_cast<observer_id>(0)) {
-                if (auto* obs = observers.try_to_get(mdl->obs_id); obs) {
-                    dispatch(
-                      *mdl,
-                      [this, mdl, obs, t]<typename Dynamics>(Dynamics& dyn) {
-                          this->make_finalize(*mdl, dyn, *obs, t);
-                      });
-                }
-            }
+            observer* obs = nullptr;
+            if (is_defined(mdl->obs_id))
+                obs = observers.try_to_get(mdl->obs_id);
+
+            auto ret = dispatch(
+              *mdl, [this, mdl, obs, t]<typename Dynamics>(Dynamics& dyn) {
+                  return this->make_finalize(*mdl, dyn, obs, t);
+              });
+
+            irt_return_if_bad(ret);
         }
+
+        return status::success;
     }
 };
 
@@ -7894,6 +7394,111 @@ update_source(simulation& sim, source& src, double& val) noexcept
         return ret;
 
     return src.next(val) ? status::success : status::source_empty;
+}
+
+inline status
+finalize_source(simulation& sim, source& src) noexcept
+{
+    return sim.source_dispatch(src, source::operation_type::finalize);
+}
+
+inline bool
+can_alloc_message(const simulation& sim, int alloc_number) noexcept
+{
+    return sim.message_alloc.can_alloc(alloc_number);
+}
+
+inline list_view<message>
+append_message(simulation& sim, input_port& port) noexcept
+{
+    return list_view<message>(sim.message_alloc, port);
+}
+
+inline list_view_const<message>
+get_message(const simulation& sim, const input_port port) noexcept
+{
+    return list_view_const<message>(sim.message_alloc, port);
+}
+
+inline list_view<node>
+append_node(simulation& sim, output_port& port) noexcept
+{
+    return list_view<node>(sim.node_alloc, port);
+}
+
+inline list_view_const<node>
+get_node(const simulation& sim, const output_port port) noexcept
+{
+    return list_view_const<node>(sim.node_alloc, port);
+}
+
+inline list_view_const<record>
+get_archive(const simulation& sim, const u64 id) noexcept
+{
+    return list_view_const<record>(sim.record_alloc, id);
+}
+
+inline list_view<record>
+append_archive(simulation& sim, u64& id) noexcept
+{
+    return list_view<record>(sim.record_alloc, id);
+}
+
+inline bool
+can_alloc_node(const simulation& sim, int alloc_number) noexcept
+{
+    return sim.node_alloc.can_alloc(alloc_number);
+}
+
+inline bool
+can_alloc_dated_message(const simulation& sim, int alloc_number) noexcept
+{
+    return sim.dated_message_alloc.can_alloc(alloc_number);
+}
+
+inline list_view<dated_message>
+append_dated_message(simulation& sim, u64& id) noexcept
+{
+    return list_view<dated_message>(sim.dated_message_alloc, id);
+}
+
+inline list_view_const<dated_message>
+get_dated_message(const simulation& sim, const u64 id) noexcept
+{
+    return list_view_const<dated_message>(sim.dated_message_alloc, id);
+}
+
+inline status
+send_message(simulation&  sim,
+             output_port& p,
+             real         r1,
+             real         r2,
+             real         r3) noexcept
+{
+    auto list = append_node(sim, p);
+    auto it   = list.begin();
+    auto end  = list.end();
+
+    while (it != end) {
+        auto* mdl = sim.models.try_to_get(it->model);
+        if (!mdl) {
+            it = list.erase(it);
+        } else {
+            irt_return_if_fail(sim.emitting_output_ports.can_alloc(1),
+                               status::simulation_not_enough_message);
+
+            auto& output_message  = sim.emitting_output_ports.emplace_back();
+            output_message.msg[0] = r1;
+            output_message.msg[1] = r2;
+            output_message.msg[2] = r3;
+            output_message.model  = it->model;
+            output_message.port   = it->port_index;
+
+            ++it;
+        }
+    }
+
+    return status::success;
 }
 
 } // namespace irt

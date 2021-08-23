@@ -64,8 +64,7 @@ plot_output_callback(const irt::observer& obs,
         return;
     }
 
-    while (!plot_output->xs.empty() &&
-           static_cast<double>(plot_output->xs.back()) == tl)
+    while (!plot_output->xs.empty() && plot_output->xs.back() == tl)
         pop_data(plot_output->xs, plot_output->ys);
 
     switch (type) {
@@ -84,12 +83,12 @@ plot_output_callback(const irt::observer& obs,
         for (auto td = tl; td < t; td += plot_output->time_step) {
             const auto e = td - tl;
             const auto value =
-              obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
+              obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / two);
             push_data(plot_output->xs, plot_output->ys, td, value);
         }
         const auto e = t - tl;
         const auto value =
-          obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
+          obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / two);
         push_data(plot_output->xs, plot_output->ys, t, value);
     } break;
 
@@ -97,14 +96,14 @@ plot_output_callback(const irt::observer& obs,
         for (auto td = tl; td < t; td += plot_output->time_step) {
             const auto e = td - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e +
-                               (obs.msg[2] * e * e / 2.0) +
-                               (obs.msg[3] * e * e * e / 3.0);
+                               (obs.msg[2] * e * e / two) +
+                               (obs.msg[3] * e * e * e / three);
             push_data(plot_output->xs, plot_output->ys, td, value);
         }
         const auto e = t - tl;
         const auto value = obs.msg[0] + obs.msg[1] * e +
-                           (obs.msg[2] * e * e / 2.0) +
-                           (obs.msg[3] * e * e * e / 3.0);
+                           (obs.msg[2] * e * e / two) +
+                           (obs.msg[3] * e * e * e / three);
         push_data(plot_output->xs, plot_output->ys, t, value);
     } break;
 
@@ -116,10 +115,10 @@ plot_output_callback(const irt::observer& obs,
 
 void
 file_discrete_output_callback(const irt::observer& obs,
-                                 const irt::dynamics_type type,
-                                 const irt::time tl,
-                                 const irt::time t,
-                                 const irt::observer::status s)
+                              const irt::dynamics_type type,
+                              const irt::time tl,
+                              const irt::time t,
+                              const irt::observer::status s)
 {
     auto* out = reinterpret_cast<file_discrete_output*>(obs.user_data);
 
@@ -153,12 +152,12 @@ file_discrete_output_callback(const irt::observer& obs,
             for (auto td = tl; td < t; td += out->time_step) {
                 const auto e = td - tl;
                 const auto value =
-                  obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
+                  obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / two);
                 fmt::print(out->ofs, "{},{}\n", td, value);
             }
             const auto e = t - tl;
             const auto value =
-              obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / 2.0);
+              obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / two);
             fmt::print(out->ofs, "{},{}\n", t, value);
         } break;
 
@@ -166,14 +165,14 @@ file_discrete_output_callback(const irt::observer& obs,
             for (auto td = tl; td < t; td += out->time_step) {
                 const auto e = td - tl;
                 const auto value = obs.msg[0] + obs.msg[1] * e +
-                                   (obs.msg[2] * e * e / 2.0) +
-                                   (obs.msg[3] * e * e * e / 3.0);
+                                   (obs.msg[2] * e * e / two) +
+                                   (obs.msg[3] * e * e * e / three);
                 fmt::print(out->ofs, "{},{}\n", td, value);
             }
             const auto e = t - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e +
-                               (obs.msg[2] * e * e / 2.0) +
-                               (obs.msg[3] * e * e * e / 3.0);
+                               (obs.msg[2] * e * e / two) +
+                               (obs.msg[3] * e * e * e / three);
             fmt::print(out->ofs, "{},{}\n", t, value);
         } break;
 
@@ -257,10 +256,10 @@ file_output_callback(const irt::observer& obs,
 static void
 show_simulation_run(window_logger& /*log_w*/, editor& ed)
 {
-    ImGui::Text("Current time %g", ed.simulation_current);
-    ImGui::Text("Current bag %ld", ed.simulation_bag_id);
-    ImGui::Text("Next time %g", ed.simulation_next_time);
-    ImGui::Text("Model %lu", (unsigned long)ed.sim.sched.size());
+    ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
+    ImGui::TextFormat("Current bag {}", ed.simulation_bag_id);
+    ImGui::TextFormat("Next time {:.6f}", ed.simulation_next_time);
+    ImGui::TextFormat("Model {}", (unsigned long)ed.sim.sched.size());
 
     ImGui::SliderFloat("Speed",
                        &ed.synchronize_timestep,
@@ -349,7 +348,7 @@ application::show_simulation_window()
         show_simulation_run(log_w, *ed);
 
         if (ed->st != editor_status::editing) {
-            ImGui::Text("Current: %g", ed->simulation_current);
+            ImGui::TextFormat("Current: {:.6f}", ed->simulation_current);
 
             const double duration = ed->simulation_end - ed->simulation_begin;
             const double elapsed =

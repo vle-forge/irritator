@@ -73,13 +73,13 @@ static inline const char* dynamics_type_names[] = { "none",
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
 
-static inline const char* str_empty[] = { "" };
-static inline const char* str_integrator[] = { "x-dot", "reset" };
+static inline const char* str_empty[]                 = { "" };
+static inline const char* str_integrator[]            = { "x-dot", "reset" };
 static inline const char* str_adaptative_integrator[] = { "quanta",
                                                           "x-dot",
                                                           "reset" };
-static inline const char* str_in_1[] = { "in" };
-static inline const char* str_in_2[] = { "in-1", "in-2" };
+static inline const char* str_in_1[]                  = { "in" };
+static inline const char* str_in_2[]                  = { "in-1", "in-2" };
 static inline const char* str_in_3[] = { "in-1", "in-2", "in-3" };
 static inline const char* str_in_4[] = { "in-1", "in-2", "in-3", "in-4" };
 static inline const char* str_value_if_else[] = { "value",
@@ -249,7 +249,7 @@ get_input_port_names(const dynamics_type type) noexcept
     irt_unreachable();
 }
 
-static inline const char* str_out_1[] = { "out" };
+static inline const char* str_out_1[]     = { "out" };
 static inline const char* str_out_cross[] = { "if-value",
                                               "else-value",
                                               "event" };
@@ -394,12 +394,12 @@ get_output_port_names(const dynamics_type type) noexcept
 class streambuf : public std::streambuf
 {
 public:
-    std::streambuf* m_stream_buffer = { nullptr };
-    std::streamsize m_file_position = { 0 };
-    int m_line_number = { 1 };
-    int m_last_line_number = { 1 };
-    int m_column = { 0 };
-    int m_prev_column = { -1 };
+    std::streambuf* m_stream_buffer    = { nullptr };
+    std::streamsize m_file_position    = { 0 };
+    int             m_line_number      = { 1 };
+    int             m_last_line_number = { 1 };
+    int             m_column           = { 0 };
+    int             m_prev_column      = { -1 };
 
     streambuf(std::streambuf* sbuf)
       : m_stream_buffer(sbuf)
@@ -422,7 +422,7 @@ protected:
         if (traits_type::eq_int_type(rc, traits_type::to_int_type('\n'))) {
             ++m_line_number;
             m_prev_column = m_column + 1;
-            m_column = -1;
+            m_column      = -1;
         }
 
         ++m_column;
@@ -437,8 +437,8 @@ protected:
         if (traits_type::eq_int_type(c, traits_type::to_int_type('\n'))) {
             --m_line_number;
             m_last_line_number = m_line_number;
-            m_column = m_prev_column;
-            m_prev_column = 0;
+            m_column           = m_prev_column;
+            m_prev_column      = 0;
         }
 
         --m_column;
@@ -450,17 +450,17 @@ protected:
         return m_stream_buffer->sungetc();
     }
 
-    std::ios::pos_type seekoff(std::ios::off_type pos,
-                               std::ios_base::seekdir dir,
+    std::ios::pos_type seekoff(std::ios::off_type      pos,
+                               std::ios_base::seekdir  dir,
                                std::ios_base::openmode mode) override final
     {
         if (dir == std::ios_base::beg &&
             pos == static_cast<std::ios::off_type>(0)) {
             m_last_line_number = 1;
-            m_line_number = 1;
-            m_column = 0;
-            m_prev_column = -1;
-            m_file_position = 0;
+            m_line_number      = 1;
+            m_column           = 0;
+            m_prev_column      = -1;
+            m_file_position    = 0;
 
             return m_stream_buffer->pubseekoff(pos, dir, mode);
         }
@@ -468,15 +468,15 @@ protected:
         return std::streambuf::seekoff(pos, dir, mode);
     }
 
-    std::ios::pos_type seekpos(std::ios::pos_type pos,
+    std::ios::pos_type seekpos(std::ios::pos_type      pos,
                                std::ios_base::openmode mode) override final
     {
         if (pos == static_cast<std::ios::pos_type>(0)) {
             m_last_line_number = 1;
-            m_line_number = 1;
-            m_column = 0;
-            m_prev_column = -1;
-            m_file_position = 0;
+            m_line_number      = 1;
+            m_column           = 0;
+            m_prev_column      = -1;
+            m_file_position    = 0;
 
             return m_stream_buffer->pubseekpos(pos, mode);
         }
@@ -488,7 +488,7 @@ protected:
 class reader
 {
 private:
-    streambuf buf;
+    streambuf    buf;
     std::istream is;
 
     struct mapping
@@ -504,6 +504,26 @@ private:
         bool operator<(const mapping& other) const noexcept
         {
             return index < other.index;
+        }
+
+        bool operator<(int i) const noexcept { return index < i; }
+    };
+
+    struct mapping_compare
+    {
+        bool operator()(const mapping& lhs, const mapping& rhs)
+        {
+            return lhs.index < rhs.index;
+        }
+
+        bool operator()(int index, const mapping& rhs)
+        {
+            return index < rhs.index;
+        }
+
+        bool operator()(const mapping& lhs, int index)
+        {
+            return lhs.index < index;
         }
     };
 
@@ -521,13 +541,13 @@ private:
 
     std::vector<model_id> map;
     std::vector<position> positions; /* Stores positions of the models. */
-    std::vector<mapping> constant_mapping;
-    std::vector<mapping> binary_file_mapping;
-    std::vector<mapping> random_mapping;
-    std::vector<mapping> text_file_mapping;
+    std::vector<mapping>  constant_mapping;
+    std::vector<mapping>  binary_file_mapping;
+    std::vector<mapping>  random_mapping;
+    std::vector<mapping>  text_file_mapping;
 
     int source_number = 0;
-    int model_number = 0;
+    int model_number  = 0;
 
     char temp_1[32];
     char temp_2[32];
@@ -540,18 +560,12 @@ public:
 
     ~reader() noexcept = default;
 
-    int model_error = 0;
+    int model_error      = 0;
     int connection_error = 0;
 
-    int line_error() const noexcept
-    {
-        return buf.m_line_number;
-    }
+    int line_error() const noexcept { return buf.m_line_number; }
 
-    int column_error() const noexcept
-    {
-        return buf.m_column;
-    }
+    int column_error() const noexcept { return buf.m_column; }
 
     position get_position(const sz index) const noexcept
     {
@@ -574,8 +588,8 @@ public:
         return status::success;
     }
 
-    status operator()(simulation& sim,
-                      external_source& srcs,
+    status operator()(simulation&                        sim,
+                      external_source&                   srcs,
                       function_ref<void(const model_id)> f) noexcept
     {
         irt_return_if_bad(do_read_data_source(srcs));
@@ -648,7 +662,7 @@ private:
     status do_read_constant_source(external_source& srcs) noexcept
     {
         u32 id;
-        sz size;
+        sz  size;
 
         if (!(is >> id >> size))
             return status::io_file_format_error;
@@ -929,7 +943,7 @@ private:
             irt_return_if_fail(mdl_dst, status::io_file_format_model_unknown);
 
             output_port* out = nullptr;
-            input_port* in = nullptr;
+            input_port*  in  = nullptr;
 
             irt_return_if_bad(get_output_port(*mdl_src, port_src_index, out));
             irt_return_if_bad(get_input_port(*mdl_dst, port_dst_index, in));
@@ -944,18 +958,18 @@ private:
     }
 
     bool convert(const std::string_view dynamics_name,
-                 dynamics_type* type) noexcept
+                 dynamics_type*         type) noexcept
     {
         struct string_to_type
         {
             constexpr string_to_type(const std::string_view n,
-                                     const dynamics_type t)
+                                     const dynamics_type    t)
               : name(n)
               , type(t)
             {}
 
             const std::string_view name;
-            dynamics_type type;
+            dynamics_type          type;
         };
 
         static constexpr string_to_type table[] = {
@@ -1021,7 +1035,7 @@ private:
           std::lower_bound(std::begin(table),
                            std::end(table),
                            dynamics_name,
-                           [](const string_to_type& l,
+                           [](const string_to_type&  l,
                               const std::string_view r) { return l.name < r; });
 
         if (it != std::end(table) && it->name == dynamics_name) {
@@ -1033,7 +1047,7 @@ private:
     }
 
     status do_read_dynamics(simulation& sim,
-                            int id,
+                            int         id,
                             const char* dynamics_name) noexcept
     {
         dynamics_type type;
@@ -1058,10 +1072,7 @@ private:
         return status::success;
     }
 
-    bool read(simulation& /*sim*/, none& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(simulation& /*sim*/, none& /*dyn*/) noexcept { return true; }
 
     bool read(simulation& /*sim*/, qss1_integrator& dyn) noexcept
     {
@@ -1300,10 +1311,7 @@ private:
                   dyn.default_input_coeffs[2] >> dyn.default_input_coeffs[3]);
     }
 
-    bool read(simulation& /*sim*/, counter& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(simulation& /*sim*/, counter& /*dyn*/) noexcept { return true; }
 
     bool read(simulation& /*sim*/, queue& dyn) noexcept
     {
@@ -1311,65 +1319,61 @@ private:
     }
 
     bool read_source(simulation& /*sim*/,
-                     source& src,
-                     int index,
+                     source&              src,
+                     int                  index,
                      external_source_type type)
     {
         switch (type) {
         case external_source_type::binary_file: {
-            auto it = binary_find(
-              binary_file_mapping.begin(),
-              binary_file_mapping.end(),
-              index,
-              [](const auto elem, int i) { return i == elem.index; });
+            auto it = binary_find(binary_file_mapping.begin(),
+                                  binary_file_mapping.end(),
+                                  index,
+                                  mapping_compare());
 
             if (it == binary_file_mapping.end())
                 return false;
 
             src.type = ordinal(type);
-            src.id = it->value;
+            src.id   = it->value;
             return true;
         };
 
         case external_source_type::constant: {
-            auto it = binary_find(
-              constant_mapping.begin(),
-              constant_mapping.end(),
-              index,
-              [](const auto elem, int i) { return i == elem.index; });
+            auto it = binary_find(constant_mapping.begin(),
+                                  constant_mapping.end(),
+                                  index,
+                                  mapping_compare());
             if (it == constant_mapping.end())
                 return false;
 
             src.type = ordinal(type);
-            src.id = it->value;
+            src.id   = it->value;
             return true;
         };
 
         case external_source_type::text_file: {
-            auto it = binary_find(
-              text_file_mapping.begin(),
-              text_file_mapping.end(),
-              index,
-              [](const auto elem, int i) { return i == elem.index; });
+            auto it = binary_find(text_file_mapping.begin(),
+                                  text_file_mapping.end(),
+                                  index,
+                                  mapping_compare());
             if (it == text_file_mapping.end())
                 return false;
 
             src.type = ordinal(type);
-            src.id = it->value;
+            src.id   = it->value;
             return true;
         };
 
         case external_source_type::random: {
-            auto it = binary_find(
-              random_mapping.begin(),
-              random_mapping.end(),
-              index,
-              [](const auto elem, int i) { return i == elem.index; });
+            auto it = binary_find(random_mapping.begin(),
+                                  random_mapping.end(),
+                                  index,
+                                  mapping_compare());
             if (it == random_mapping.end())
                 return false;
 
             src.type = ordinal(type);
-            src.id = it->value;
+            src.id   = it->value;
             return true;
         };
         }
@@ -1524,7 +1528,7 @@ private:
 
 struct writer
 {
-    std::ostream& os;
+    std::ostream&         os;
     std::vector<model_id> map;
 
     writer(std::ostream& os_) noexcept
@@ -1538,7 +1542,7 @@ struct writer
         if (srcs.size() > 0u) {
             constant_source* src = nullptr;
             while (srcs.next(src)) {
-                const auto id = srcs.get_id(src);
+                const auto id    = srcs.get_id(src);
                 const auto index = get_index(id);
                 os << index << ' ' << src->buffer.size();
 
@@ -1557,7 +1561,7 @@ struct writer
         if (srcs.size() > 0u) {
             binary_file_source* src = nullptr;
             while (srcs.next(src)) {
-                const auto id = srcs.get_id(src);
+                const auto id    = srcs.get_id(src);
                 const auto index = get_index(id);
 
                 os << index << ' ' << std::quoted(src->file_path.string())
@@ -1573,7 +1577,7 @@ struct writer
         if (srcs.size() > 0u) {
             text_file_source* src = nullptr;
             while (srcs.next(src)) {
-                const auto id = srcs.get_id(src);
+                const auto id    = srcs.get_id(src);
                 const auto index = get_index(id);
 
                 os << index << ' ' << std::quoted(src->file_path.string())
@@ -1589,7 +1593,7 @@ struct writer
         if (srcs.size() > 0u) {
             random_source* src = nullptr;
             while (srcs.next(src)) {
-                const auto id = srcs.get_id(src);
+                const auto id    = srcs.get_id(src);
                 const auto index = get_index(id);
 
                 os << index << ' ' << distribution_str(src->distribution);
@@ -1609,8 +1613,8 @@ struct writer
               *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                       int i = 0;
-                      for (auto& elem : dyn.y) {
-                          auto list = sim.allocs.get_node(elem);
+                      for (const auto elem : dyn.y) {
+                          auto list = get_node(sim, elem);
                           for (const auto& cnt : list) {
                               auto* dst = sim.models.try_to_get(cnt.model);
                               if (dst) {
@@ -1641,10 +1645,10 @@ struct writer
     void write_model(const simulation& sim)
     {
         model* mdl = nullptr;
-        int id = 0;
+        int    id  = 0;
         while (sim.models.next(mdl)) {
             const auto mdl_id = sim.models.get_id(mdl);
-            map[id] = mdl_id;
+            map[id]           = mdl_id;
 
             os << id << " 0.0 0.0 ";
 
@@ -1655,15 +1659,15 @@ struct writer
         }
     }
 
-    void write_model(const simulation& sim,
+    void write_model(const simulation&                                sim,
                      function_ref<void(model_id, float& x, float& y)> get_pos)
     {
         model* mdl = nullptr;
-        int id = 0;
+        int    id  = 0;
 
         while (sim.models.next(mdl)) {
             const auto mdl_id = sim.models.get_id(mdl);
-            map[id] = mdl_id;
+            map[id]           = mdl_id;
 
             float x = 0., y = 0.;
             get_pos(mdl_id, x, y);
@@ -1676,7 +1680,7 @@ struct writer
         }
     }
 
-    status operator()(const simulation& sim,
+    status operator()(const simulation&      sim,
                       const external_source& srcs) noexcept
     {
         write_constant_sources(srcs.constant_sources);
@@ -1698,8 +1702,8 @@ struct writer
     }
 
     status operator()(
-      const simulation& sim,
-      const external_source& srcs,
+      const simulation&                            sim,
+      const external_source&                       srcs,
       function_ref<void(model_id, float&, float&)> get_pos) noexcept
     {
         write_constant_sources(srcs.constant_sources);
@@ -2146,8 +2150,8 @@ public:
               *mdl, [this, &sim, &mdl]<typename Dynamics>(Dynamics& dyn) {
                   if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
                       int i = 0;
-                      for (auto& elem : dyn.y) {
-                          auto list = sim.allocs.get_node(elem);
+                      for (const auto elem : dyn.y) {
+                          auto list = get_node(sim, elem);
                           for (const auto& cnt : list) {
                               auto* dst = sim.models.try_to_get(cnt.model);
                               if (dst) {
