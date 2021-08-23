@@ -2881,12 +2881,6 @@ using has_input_port_t = decltype(&T::x);
 template<typename T>
 using has_output_port_t = decltype(&T::y);
 
-template<typename T>
-using has_init_port_t = decltype(&T::init);
-
-template<typename T>
-using has_sim_attribute_t = decltype(&T::sim);
-
 //! @brief Useless for user
 //!
 //! @c none model does not have dynamics. It is use internally to develop the
