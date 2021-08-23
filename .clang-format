@@ -9,9 +9,11 @@ BinPackParameters: false
 Standard: c++20
 AlignOperands: true
 AlignTrailingComments: true
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
 AllowShortBlocksOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: None
+AllowShortFunctionsOnASingleLine: All 
 IndentCaseLabels: false
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
