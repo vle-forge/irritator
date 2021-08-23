@@ -6608,12 +6608,12 @@ struct component
         return status::success;
     }
 
-    bool can_alloc(const sz number = 1u) const noexcept
+    bool can_alloc(const int number = 1) const noexcept
     {
         return models.can_alloc(number);
     }
 
-    bool can_connect(const sz number = 1u) const noexcept
+    bool can_connect(const int number = 1) const noexcept
     {
         return node_alloc.can_alloc(number);
     }
@@ -6628,6 +6628,14 @@ struct component
 
         dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
             new (&dyn) Dynamics{};
+
+            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                for (int i = 0, e = length(dyn.x); i != e; ++i)
+                    dyn.x[i] = static_cast<u64>(-1);
+
+            if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                for (int i = 0, e = length(dyn.y); i != e; ++i)
+                    dyn.y[i] = static_cast<u64>(-1);
         });
 
         return mdl;
@@ -6640,8 +6648,8 @@ struct component
 
         dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                for (auto port : dyn.y)
-                    list_view(this->node_alloc, port).clear();
+                for (int i = 0, e = length(dyn.y); i != e; ++i)
+                    list_view(this->node_alloc, dyn.y[i]).clear();
             }
 
             dyn.~Dynamics();
@@ -6661,7 +6669,7 @@ struct component
               status::model_connect_already_exist);
         }
 
-        list.emplace_front(dst, static_cast<i8>(port_dst));
+        list.emplace_back(dst, static_cast<i8>(port_dst));
     }
 
     status connect(model&   src,
