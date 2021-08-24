@@ -3,7 +3,7 @@ add_executable(app src/main.cpp)
 target_link_libraries(app libirritator threads)
 
 set_target_properties(app PROPERTIES
-  OUTPUT_NAME "irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"
+  OUTPUT_NAME "irritator-cli-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"
   CXX_STANDARD 20)
 
 target_compile_options(app
