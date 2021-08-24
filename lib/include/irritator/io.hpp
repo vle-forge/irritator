@@ -507,24 +507,7 @@ private:
         }
 
         bool operator<(int i) const noexcept { return index < i; }
-    };
-
-    struct mapping_compare
-    {
-        bool operator()(const mapping& lhs, const mapping& rhs)
-        {
-            return lhs.index < rhs.index;
-        }
-
-        bool operator()(int index, const mapping& rhs)
-        {
-            return index < rhs.index;
-        }
-
-        bool operator()(const mapping& lhs, int index)
-        {
-            return lhs.index < index;
-        }
+        bool operator==(int i) const noexcept { return index == i; }
     };
 
     struct position
@@ -1325,10 +1308,8 @@ private:
     {
         switch (type) {
         case external_source_type::binary_file: {
-            auto it = binary_find(binary_file_mapping.begin(),
-                                  binary_file_mapping.end(),
-                                  index,
-                                  mapping_compare());
+            auto it = binary_find(
+              binary_file_mapping.begin(), binary_file_mapping.end(), index);
 
             if (it == binary_file_mapping.end())
                 return false;
@@ -1339,10 +1320,8 @@ private:
         };
 
         case external_source_type::constant: {
-            auto it = binary_find(constant_mapping.begin(),
-                                  constant_mapping.end(),
-                                  index,
-                                  mapping_compare());
+            auto it = binary_find(
+              constant_mapping.begin(), constant_mapping.end(), index);
             if (it == constant_mapping.end())
                 return false;
 
@@ -1352,10 +1331,8 @@ private:
         };
 
         case external_source_type::text_file: {
-            auto it = binary_find(text_file_mapping.begin(),
-                                  text_file_mapping.end(),
-                                  index,
-                                  mapping_compare());
+            auto it = binary_find(
+              text_file_mapping.begin(), text_file_mapping.end(), index);
             if (it == text_file_mapping.end())
                 return false;
 
@@ -1365,10 +1342,8 @@ private:
         };
 
         case external_source_type::random: {
-            auto it = binary_find(random_mapping.begin(),
-                                  random_mapping.end(),
-                                  index,
-                                  mapping_compare());
+            auto it =
+              binary_find(random_mapping.begin(), random_mapping.end(), index);
             if (it == random_mapping.end())
                 return false;
 

@@ -316,7 +316,7 @@ Iterator
 binary_find(Iterator begin, Iterator end, const T& value)
 {
     begin = std::lower_bound(begin, end, value);
-    return (!(begin == end) && !(value < *begin)) ? begin : end;
+    return (!(begin == end) && (value == *begin)) ? begin : end;
 }
 
 //! @brief returns an iterator to the result or end if not found
@@ -328,7 +328,7 @@ Iterator
 binary_find(Iterator begin, Iterator end, const T& value, Compare comp)
 {
     begin = std::lower_bound(begin, end, value, comp);
-    return (!(begin == end) && !(comp(*begin, value))) ? begin : end;
+    return (!(begin == end) && (value == *begin)) ? begin : end;
 }
 
 /*****************************************************************************
