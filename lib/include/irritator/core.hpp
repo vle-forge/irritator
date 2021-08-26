@@ -715,9 +715,7 @@ public:
         m_size = 0;
     }
 
-    constexpr bool can_alloc() noexcept { return m_size < length - 1; }
-
-    constexpr bool can_alloc(size_type number) noexcept
+    constexpr bool can_alloc(size_type number = 1) noexcept
     {
         return length - m_size >= number;
     }
@@ -783,152 +781,278 @@ public:
     using const_pointer   = const T*;
 
     constexpr vector() noexcept = default;
-
-    ~vector() noexcept
-    {
-        if (m_data)
-            g_free_fn(m_data);
-    }
+    ~vector() noexcept;
 
     constexpr vector(const vector& other) noexcept = delete;
     constexpr vector& operator=(const vector& other) noexcept = delete;
     constexpr vector(vector&& other) noexcept                 = delete;
     constexpr vector& operator=(vector&& other) noexcept = delete;
 
-    status init(sz capacity) noexcept
-    {
-        irt_return_if_fail(capacity > 0u &&
-                             capacity < std::numeric_limits<int>::max(),
-                           status::vector_init_capacity_error);
+    status init(sz capacity) noexcept;
+    void destroy() noexcept;
+    constexpr void clear() noexcept;
 
-        clear();
+    constexpr T*       data() noexcept;
+    constexpr const T* data() const noexcept;
 
-        m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
-        if (!m_data)
-            return status::vector_not_enough_memory;
+    constexpr reference       front() noexcept;
+    constexpr const_reference front() const noexcept;
+    constexpr reference       back() noexcept;
+    constexpr const_reference back() const noexcept;
 
-        m_size     = 0;
-        m_capacity = static_cast<int>(capacity);
+    constexpr reference       operator[](const index_type index) noexcept;
+    constexpr const_reference operator[](const index_type index) const noexcept;
 
-        return status::success;
-    }
+    constexpr iterator       begin() noexcept;
+    constexpr const_iterator begin() const noexcept;
+    constexpr iterator       end() noexcept;
+    constexpr const_iterator end() const noexcept;
 
-    constexpr T*       data() noexcept { return m_data; }
-    constexpr const T* data() const noexcept { return m_data; }
-
-    constexpr reference front() noexcept
-    {
-        irt_assert(m_size > 0);
-        return m_data[0];
-    }
-
-    constexpr const_reference front() const noexcept
-    {
-        irt_assert(m_size > 0);
-        return m_data[0];
-    }
-
-    constexpr reference back() noexcept
-    {
-        irt_assert(m_size > 0);
-        return m_data[m_size - 1];
-    }
-
-    constexpr const_reference back() const noexcept
-    {
-        irt_assert(m_size > 0);
-        return m_data[m_size - 1];
-    }
-
-    constexpr reference operator[](const index_type index) noexcept
-    {
-        irt_assert(index >= 0 && index < m_size);
-
-        return data()[index];
-    }
-
-    constexpr const_reference operator[](const index_type index) const noexcept
-    {
-        irt_assert(index >= 0 && index < m_size);
-
-        return data()[index];
-    }
-
-    constexpr iterator       begin() noexcept { return data(); }
-    constexpr const_iterator begin() const noexcept { return data(); }
-    constexpr iterator       end() noexcept { return data() + m_size; }
-    constexpr const_iterator end() const noexcept { return data() + m_size; }
-    constexpr sz  size() const noexcept { return static_cast<sz>(m_size); }
-    constexpr i32 ssize() const noexcept { return m_size; }
-    constexpr sz  capacity() const noexcept
-    {
-        return static_cast<sz>(m_capacity);
-    }
-
-    constexpr bool empty() const noexcept { return m_size == 0; }
-    constexpr bool full() const noexcept { return m_size >= m_capacity; }
-
-    constexpr void clear() noexcept
-    {
-        if constexpr (!std::is_trivial_v<T>) {
-            for (i32 i = 0; i != m_size; ++i)
-                data()[i].~T();
-        }
-
-        m_size = 0;
-    }
-
-    constexpr void reset() noexcept { m_size = 0; }
-
-    constexpr bool can_alloc() noexcept { return m_size < m_capacity - 1; }
-
-    constexpr bool can_alloc(i32 number) noexcept
-    {
-        return m_capacity - m_size >= number;
-    }
+    constexpr bool can_alloc(int number = 1) noexcept;
+    constexpr sz   size() const noexcept;
+    constexpr i32 ssize() const noexcept;
+    constexpr sz  capacity() const noexcept;
+    constexpr bool empty() const noexcept;
+    constexpr bool full() const noexcept;
 
     template<typename... Args>
-    constexpr reference emplace_back(Args&&... args) noexcept
-    {
-        irt_assert(can_alloc(1) &&
-                   "check alloc() with full() before using use.");
+    constexpr reference emplace_back(Args&&... args) noexcept;
+    constexpr void pop_back() noexcept;
+    constexpr void swap_pop_back(index_type index) noexcept;
+};
 
-        new (&(data()[m_size])) T(std::forward<Args>(args)...);
+template<typename T>
+inline vector<T>::~vector() noexcept
+{
+    destroy();
+}
 
-        ++m_size;
+template<typename T>
+inline status
+vector<T>::init(sz capacity) noexcept
+{
+    irt_return_if_fail(capacity > 0u &&
+                         capacity < std::numeric_limits<i32>::max(),
+                       status::vector_init_capacity_error);
 
-        return data()[m_size - 1];
+    destroy();
+
+    m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
+    if (!m_data)
+        return status::vector_not_enough_memory;
+
+    m_size     = 0;
+    m_capacity = static_cast<i32>(capacity);
+
+    return status::success;
+}
+
+template<typename T>
+inline void
+vector<T>::destroy() noexcept
+{
+    clear();
+
+    if (m_data)
+        g_free_fn(m_data);
+
+    m_size = 0;
+    m_capacity = 0;
+}
+
+
+template<typename T>
+constexpr void
+vector<T>::clear() noexcept
+{
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+        for (i32 i = 0; i != m_size; ++i)
+            data()[i].~T();
     }
 
-    constexpr void pop_back() noexcept
-    {
-        if (m_size) {
-            if constexpr (std::is_trivial_v<T>)
-                data()[m_size - 1].~T();
+    m_size = 0;
+}
 
-            --m_size;
-        }
+template<typename T>
+constexpr T*
+vector<T>::data() noexcept
+{
+    return m_data;
+}
+
+template<typename T>
+constexpr const T*
+vector<T>::data() const noexcept
+{
+    return m_data;
+}
+
+template<typename T>
+constexpr vector<T>::reference
+vector<T>::front() noexcept
+{
+    irt_assert(m_size > 0);
+    return m_data[0];
+}
+
+template<typename T>
+constexpr vector<T>::const_reference
+vector<T>::front() const noexcept
+{
+    irt_assert(m_size > 0);
+    return m_data[0];
+}
+
+template<typename T>
+constexpr vector<T>::reference
+vector<T>::back() noexcept
+{
+    irt_assert(m_size > 0);
+    return m_data[m_size - 1];
+}
+
+template<typename T>
+constexpr vector<T>::const_reference
+vector<T>::back() const noexcept
+{
+    irt_assert(m_size > 0);
+    return m_data[m_size - 1];
+}
+
+template<typename T>
+constexpr vector<T>::reference
+vector<T>::operator[](const index_type index) noexcept
+{
+    irt_assert(index >= 0 && index < m_size);
+
+    return data()[index];
+}
+
+template<typename T>
+constexpr vector<T>::const_reference
+vector<T>::operator[](const index_type index) const noexcept
+{
+    irt_assert(index >= 0 && index < m_size);
+
+    return data()[index];
+}
+
+template<typename T>
+constexpr vector<T>::iterator
+vector<T>::begin() noexcept
+{
+    return data();
+}
+
+template<typename T>
+constexpr vector<T>::const_iterator
+vector<T>::begin() const noexcept
+{
+    return data();
+}
+
+template<typename T>
+constexpr vector<T>::iterator
+vector<T>::end() noexcept
+{
+    return data() + m_size;
+}
+
+template<typename T>
+constexpr vector<T>::const_iterator
+vector<T>::end() const noexcept
+{
+    return data() + m_size;
+}
+
+template<typename T>
+constexpr sz
+vector<T>::size() const noexcept
+{
+    return static_cast<sz>(m_size);
+}
+
+template<typename T>
+constexpr i32
+vector<T>::ssize() const noexcept
+{
+    return m_size;
+}
+
+template<typename T>
+constexpr sz
+vector<T>::capacity() const noexcept
+{
+    return static_cast<sz>(m_capacity);
+}
+
+template<typename T>
+constexpr bool
+vector<T>::empty() const noexcept
+{
+    return m_size == 0;
+}
+
+template<typename T>
+constexpr bool
+vector<T>::full() const noexcept
+{
+    return m_size >= m_capacity;
+}
+
+template<typename T>
+constexpr bool
+vector<T>::can_alloc(int number) noexcept
+{
+    return m_capacity - m_size >= number;
+}
+
+template<typename T>
+template<typename... Args>
+constexpr vector<T>::reference
+vector<T>::emplace_back(Args&&... args) noexcept
+{
+    irt_assert(can_alloc(1) && "check alloc() with full() before using use.");
+
+    new (&(data()[m_size])) T(std::forward<Args>(args)...);
+
+    ++m_size;
+
+    return data()[m_size - 1];
+}
+
+template<typename T>
+constexpr void
+vector<T>::pop_back() noexcept
+{
+    if (m_size) {
+        if constexpr (std::is_trivial_v<T>)
+            data()[m_size - 1].~T();
+
+        --m_size;
     }
+}
 
-    constexpr void swap_pop_back(index_type index) noexcept
-    {
-        irt_assert(index < m_size);
+template<typename T>
+constexpr void
+vector<T>::swap_pop_back(index_type index) noexcept
+{
+    irt_assert(index < m_size);
 
-        if (index == m_size - 1) {
+    if (index == m_size - 1) {
+        pop_back();
+    } else {
+        if constexpr (std::is_trivial_v<T>) {
+            data()[index] = data()[m_size - 1];
             pop_back();
         } else {
-            if constexpr (std::is_trivial_v<T>) {
-                data()[index] = data()[m_size - 1];
-                pop_back();
-            } else {
-                using std::swap;
+            using std::swap;
 
-                swap(data()[index], data()[m_size - 1]);
-                pop_back();
-            }
+            swap(data()[index], data()[m_size - 1]);
+            pop_back();
         }
     }
-};
+}
 
 //! @brief A small_string without heap allocation.
 template<sz length = 8>
@@ -7018,8 +7142,8 @@ public:
         record_alloc.reset();
         dated_message_alloc.reset();
 
-        emitting_output_ports.reset();
-        immediate_models.reset();
+        emitting_output_ports.clear();
+        immediate_models.clear();
     }
 
     //! @brief cleanup simulation and destroy all models and connections
