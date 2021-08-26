@@ -11,6 +11,228 @@
 
 namespace irt {
 
+template<typename T>
+class hierarchy
+{
+private:
+    hierarchy* m_parent  = nullptr;
+    hierarchy* m_sibling = nullptr;
+    hierarchy* m_child   = nullptr;
+    T          m_owner   = undefined<T>();
+
+public:
+    hierarchy() noexcept = default;
+    ~hierarchy() noexcept;
+
+    void set_owner(T object) noexcept;
+    T    owner() const noexcept;
+
+    void parent_to(hierarchy& node) noexcept;
+    void make_sibling_after(hierarchy& node) noexcept;
+    bool parented_by(const hierarchy& node) const noexcept;
+    void remove_from_parent() noexcept;
+    void remove_from_hierarchy() noexcept;
+
+    T get_parent() const noexcept;
+    T get_child() const noexcept;
+    T get_sibling() const noexcept;
+    T get_prior_sibling() const noexcept;
+    T get_next() const noexcept;
+    T get_next_leaf() const noexcept;
+
+private:
+    hierarchy<T>* get_prior_sibling_node() const noexcept;
+};
+
+template<typename T>
+inline hierarchy<T>::~hierarchy() noexcept
+{
+    remove_from_hierarchy();
+}
+
+template<typename T>
+T
+hierarchy<T>::owner() const noexcept
+{
+    return m_owner;
+}
+
+template<typename T>
+void
+hierarchy<T>::set_owner(T id) noexcept
+{
+    m_owner = id;
+}
+
+template<typename T>
+bool
+hierarchy<T>::parented_by(const hierarchy& node) const noexcept
+{
+    if (m_parent == &node)
+        return true;
+
+    if (m_parent)
+        return m_parent->parented_by(node);
+
+    return false;
+}
+
+template<typename T>
+void
+hierarchy<T>::parent_to(hierarchy& node) noexcept
+{
+    remove_from_parent();
+
+    m_parent   = &node;
+    m_sibling  = node.m_child;
+    node.m_child = this;
+}
+
+template<typename T>
+void
+hierarchy<T>::make_sibling_after(hierarchy& node) noexcept
+{
+    remove_from_parent();
+
+    m_parent       = node.m_parent;
+    m_sibling      = node.m_sibling;
+    node.m_sibling = this;
+}
+
+template<typename T>
+void
+hierarchy<T>::remove_from_parent() noexcept
+{
+
+    if (m_parent) {
+        hierarchy<T>* prev = get_prior_sibling_node();
+
+        if (prev) {
+            prev->m_sibling = m_sibling;
+        } else {
+            m_parent->m_child = m_sibling;
+        }
+    }
+
+    m_parent  = nullptr;
+    m_sibling = nullptr;
+}
+
+template<typename T>
+void
+hierarchy<T>::remove_from_hierarchy() noexcept
+{
+    hierarchy<T>* parent_node = m_parent;
+
+    parent_node = m_parent;
+    remove_from_parent();
+
+    if (parent_node) {
+        while (m_child) {
+            hierarchy<T>* node = m_child;
+            node->remove_from_parent();
+            node->parent_to(*parent_node);
+        }
+    } else {
+        while (m_child)
+            m_child->remove_from_parent();
+    }
+}
+
+template<typename T>
+T
+hierarchy<T>::get_parent() const noexcept
+{
+    return m_parent ? m_parent->m_owner : undefined<T>();
+}
+
+template<typename T>
+T
+hierarchy<T>::get_child() const noexcept
+{
+    return m_child ? m_child->m_owner : undefined<T>();
+}
+
+template<typename T>
+T
+hierarchy<T>::get_sibling() const noexcept
+{
+    return m_sibling ? m_sibling->m_owner : undefined<T>();
+}
+
+template<typename T>
+hierarchy<T>*
+hierarchy<T>::get_prior_sibling_node() const noexcept
+{
+    if (!m_parent || (m_parent->m_child == this))
+        return nullptr;
+
+    hierarchy<T>* prev;
+    hierarchy<T>* node;
+
+    node = m_parent->m_child;
+    prev = nullptr;
+    while ((node != this) && (node != nullptr)) {
+        prev = node;
+        node = node->m_sibling;
+    }
+
+    irt_assert(node == this &&
+               "could not find node in parent's list of children");
+
+    return prev;
+}
+
+template<typename T>
+T
+hierarchy<T>::get_prior_sibling() const noexcept
+{
+    hierarchy<T>* prior = get_prior_sibling_node();
+
+    return prior ? prior->m_owner : undefined<T>();
+}
+
+template<typename T>
+T
+hierarchy<T>::get_next() const noexcept
+{
+    if (m_child)
+        return m_child->m_owner;
+
+    const hierarchy<T>* node = this;
+    while (node && node->m_sibling == nullptr)
+        node = node->m_parent;
+
+    return node ? node->m_sibling->m_owner : undefined<T>();
+}
+
+template<typename T>
+T
+hierarchy<T>::get_next_leaf() const noexcept
+{
+    if (m_child) {
+        const hierarchy<T>* node = m_child;
+        while (node->m_child)
+            node = node->m_child;
+
+        return node->m_owner;
+    }
+
+    const hierarchy<T>* node = this;
+    while (node && node->m_sibling == nullptr)
+        node = node->m_parent;
+
+    if (node) {
+        node = node->m_sibling;
+        while (node->m_child) {
+            node = node->m_child;
+        }
+        return node->m_owner;
+    }
+
+    return nullptr;
+}
+
 namespace detail {
 
 // inline status
@@ -267,10 +489,10 @@ namespace detail {
 
 inline status
 flat_merge(
-  [[maybe_unused]] none& none_mdl,
+  [[maybe_unused]] none&                                      none_mdl,
   [[maybe_unused]] const data_array<component, component_id>& components,
-  [[maybe_unused]] const data_array<model, model_id>& component_models,
-  [[maybe_unused]] simulation& sim)
+  [[maybe_unused]] const data_array<model, model_id>&         component_models,
+  [[maybe_unused]] simulation&                                sim)
 {
     // irt_return_if_bad(detail::flat_merge_create_models(
     //   none_mdl, components, component_models, sim));

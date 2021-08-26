@@ -1042,6 +1042,29 @@ main()
         }
     };
 
+    "hierarchy-simple"_test = [] {
+        enum class int_id : irt::u64;
+        irt::data_array<int, int_id> data;
+        irt::vector<irt::hierarchy<int_id>> hier;
+
+        data.init(256);
+        hier.init(256);
+
+        auto& d1 = data.alloc(0);
+        auto  d1_id = data.get_id(d1);
+
+        auto& gd1 = hier.emplace_back();
+        gd1.set_owner(d1_id);
+
+        for (int i = 0; i < 15; ++i) {
+            auto& d = data.alloc(i + 1);
+            auto  d_id = data.get_id(d);
+            auto  new_hier = hier.emplace_back();
+            new_hier.set_owner(d_id);
+            new_hier.parent_to(gd1);
+        }
+    };
+
     "simulation-dispatch"_test = [] {
         irt::simulation sim;
         sim.init(64u, 256u);
