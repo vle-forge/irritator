@@ -693,7 +693,6 @@ public:
     constexpr void      swap_pop_back(index_type index) noexcept;
 };
 
-
 //! @brief A vector like class with dynamic allocation.
 //! @tparam T Any type (trivial or not).
 template<typename T>
@@ -761,165 +760,54 @@ class small_string
 public:
     static_assert(length >= 2);
 
-    using size_type       = small_storage_size_t<length>;
-    using iterator        = char*;
-    using const_iterator  = const char*;
-    using reference       = char&;
-    using const_reference = const char&;
+    using size_type = small_storage_size_t<length>;
 
 private:
     char      m_buffer[length];
     size_type m_size;
 
 public:
-    constexpr small_string() noexcept { clear(); }
+    using iterator        = char*;
+    using const_iterator  = const char*;
+    using reference       = char&;
+    using const_reference = const char&;
 
-    constexpr small_string(const small_string& str) noexcept
-    {
-        std::copy_n(str.m_buffer, str.m_size, m_buffer);
-        m_buffer[str.m_size] = '\0';
-        m_size               = str.m_size;
-    }
+    constexpr small_string() noexcept;
+    constexpr small_string(const small_string& str) noexcept;
+    constexpr small_string(small_string&& str) noexcept;
+    constexpr small_string(const char* str) noexcept;
+    constexpr small_string(const std::string_view str) noexcept;
 
-    constexpr small_string(small_string&& str) noexcept
-    {
-        std::copy_n(str.m_buffer, str.m_size, m_buffer);
-        m_buffer[str.m_size] = '\0';
-        m_size               = str.m_size;
-        str.clear();
-    }
+    constexpr small_string& operator=(const small_string& str) noexcept;
+    constexpr small_string& operator=(small_string&& str) noexcept;
 
-    constexpr small_string& operator=(const small_string& str) noexcept
-    {
-        if (&str != this) {
-            std::copy_n(str.m_buffer, str.m_size, m_buffer);
-            m_buffer[str.m_size] = '\0';
-            m_size               = str.m_size;
-        }
+    constexpr void assign(const std::string_view str) noexcept;
+    constexpr void clear() noexcept;
+    void           resize(size_type size) noexcept;
+    constexpr bool empty() const noexcept;
 
-        return *this;
-    }
+    constexpr sz size() const noexcept;
+    constexpr sz capacity() const noexcept;
 
-    constexpr small_string& operator=(small_string&& str) noexcept
-    {
-        if (&str != this) {
-            std::copy_n(str.m_buffer, str.m_size, m_buffer);
-            m_buffer[str.m_size] = '\0';
-            m_size               = str.m_size;
-        }
+    constexpr reference       operator[](const size_type index) noexcept;
+    constexpr const_reference operator[](const size_type index) const noexcept;
 
-        return *this;
-    }
+    constexpr std::string_view sv() const noexcept;
+    constexpr const char*      c_str() const noexcept;
 
-    constexpr small_string(const char* str) noexcept
-    {
-        std::strncpy(m_buffer, str, length - 1);
-        m_buffer[length - 1] = '\0';
-        m_size               = static_cast<u8>(std::strlen(m_buffer));
-    }
+    constexpr iterator       begin() noexcept;
+    constexpr iterator       end() noexcept;
+    constexpr const_iterator begin() const noexcept;
+    constexpr const_iterator end() const noexcept;
 
-    constexpr small_string(const std::string_view str) noexcept { assign(str); }
-
-    void resize(size_type size) noexcept
-    {
-        m_size               = size > length ? length : size;
-        m_buffer[m_size - 1] = '\0';
-    }
-
-    constexpr bool empty() const noexcept
-    {
-        constexpr unsigned char zero{ 0 };
-
-        return zero == m_size;
-    }
-
-    constexpr sz size() const noexcept { return m_size; }
-    constexpr sz capacity() const noexcept { return length; }
-
-    constexpr void assign(const std::string_view str) noexcept
-    {
-        const auto copy_length = std::min(str.size(), length - 1);
-
-        std::memcpy(m_buffer, str.data(), copy_length);
-        m_buffer[copy_length] = '\0';
-
-        m_size = static_cast<u8>(copy_length);
-    }
-
-    constexpr std::string_view sv() const noexcept
-    {
-        return { m_buffer, m_size };
-    }
-
-    constexpr void clear() noexcept
-    {
-        std::fill_n(m_buffer, length, '\0');
-        m_size = 0;
-    }
-
-    constexpr reference operator[](const size_type index) noexcept
-    {
-        irt_assert(index < m_size);
-
-        return m_buffer[index];
-    }
-
-    constexpr const_reference operator[](const size_type index) const noexcept
-    {
-        irt_assert(index < m_size);
-
-        return m_buffer[index];
-    }
-
-    constexpr const char* c_str() const noexcept { return m_buffer; }
-
-    constexpr iterator begin() noexcept { return m_buffer; }
-
-    constexpr iterator end() noexcept { return m_buffer + m_size; }
-
-    constexpr const_iterator begin() const noexcept { return m_buffer; }
-
-    constexpr const_iterator end() const noexcept { return m_buffer + m_size; }
-
-    constexpr bool operator==(const small_string& rhs) const noexcept
-    {
-        return std::strncmp(m_buffer, rhs.m_buffer, length) == 0;
-    }
-
-    constexpr bool operator!=(const small_string& rhs) const noexcept
-    {
-        return std::strncmp(m_buffer, rhs.m_buffer, length) != 0;
-    }
-
-    constexpr bool operator>(const small_string& rhs) const noexcept
-    {
-        return std::strncmp(m_buffer, rhs.m_buffer, length) > 0;
-    }
-
-    constexpr bool operator<(const small_string& rhs) const noexcept
-    {
-        return std::strncmp(m_buffer, rhs.m_buffer, length) < 0;
-    }
-
-    constexpr bool operator==(const char* rhs) const noexcept
-    {
-        return std::strncmp(m_buffer, rhs, length) == 0;
-    }
-
-    constexpr bool operator!=(const char* rhs) const noexcept
-    {
-        return std::strncmp(m_buffer, rhs, length) != 0;
-    }
-
-    constexpr bool operator>(const char* rhs) const noexcept
-    {
-        return std::strncmp(m_buffer, rhs, length) > 0;
-    }
-
-    constexpr bool operator<(const char* rhs) const noexcept
-    {
-        return std::strncmp(m_buffer, rhs, length) < 0;
-    }
+    constexpr bool operator==(const small_string& rhs) const noexcept;
+    constexpr bool operator!=(const small_string& rhs) const noexcept;
+    constexpr bool operator>(const small_string& rhs) const noexcept;
+    constexpr bool operator<(const small_string& rhs) const noexcept;
+    constexpr bool operator==(const char* rhs) const noexcept;
+    constexpr bool operator!=(const char* rhs) const noexcept;
+    constexpr bool operator>(const char* rhs) const noexcept;
+    constexpr bool operator<(const char* rhs) const noexcept;
 };
 
 //! @brief A small array of reals.
@@ -7779,8 +7667,240 @@ vector<T>::swap_pop_back(index_type index) noexcept
     }
 }
 
+// template<size_t length = 8>
+// class small_string
 
-////
+template<sz length>
+constexpr small_string<length>::small_string() noexcept
+{
+    clear();
+}
+
+template<sz length>
+constexpr small_string<length>::small_string(
+  const small_string<length>& str) noexcept
+{
+    std::copy_n(str.m_buffer, str.m_size, m_buffer);
+    m_buffer[str.m_size] = '\0';
+    m_size               = str.m_size;
+}
+
+template<sz length>
+constexpr small_string<length>::small_string(
+  small_string<length>&& str) noexcept
+{
+    std::copy_n(str.m_buffer, str.m_size, m_buffer);
+    m_buffer[str.m_size] = '\0';
+    m_size               = str.m_size;
+    str.clear();
+}
+
+template<sz length>
+constexpr small_string<length>&
+small_string<length>::operator=(const small_string<length>& str) noexcept
+{
+    if (&str != this) {
+        std::copy_n(str.m_buffer, str.m_size, m_buffer);
+        m_buffer[str.m_size] = '\0';
+        m_size               = str.m_size;
+    }
+
+    return *this;
+}
+
+template<sz length>
+constexpr small_string<length>&
+small_string<length>::operator=(small_string<length>&& str) noexcept
+{
+    if (&str != this) {
+        std::copy_n(str.m_buffer, str.m_size, m_buffer);
+        m_buffer[str.m_size] = '\0';
+        m_size               = str.m_size;
+    }
+
+    return *this;
+}
+
+template<sz length>
+constexpr small_string<length>::small_string(const char* str) noexcept
+{
+    std::strncpy(m_buffer, str, length - 1);
+    m_buffer[length - 1] = '\0';
+    m_size               = static_cast<u8>(std::strlen(m_buffer));
+}
+
+template<sz length>
+constexpr small_string<length>::small_string(
+  const std::string_view str) noexcept
+{
+    assign(str);
+}
+
+template<sz length>
+void
+small_string<length>::resize(size_type size) noexcept
+{
+    m_size               = size > length ? length : size;
+    m_buffer[m_size - 1] = '\0';
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::empty() const noexcept
+{
+    constexpr unsigned char zero{ 0 };
+
+    return zero == m_size;
+}
+
+template<sz length>
+constexpr sz
+small_string<length>::size() const noexcept
+{
+    return m_size;
+}
+template<sz length>
+constexpr sz
+small_string<length>::capacity() const noexcept
+{
+    return length;
+}
+
+template<sz length>
+constexpr void
+small_string<length>::assign(const std::string_view str) noexcept
+{
+    const auto copy_length = std::min(str.size(), length - 1);
+
+    std::memcpy(m_buffer, str.data(), copy_length);
+    m_buffer[copy_length] = '\0';
+
+    m_size = static_cast<u8>(copy_length);
+}
+
+template<sz length>
+constexpr std::string_view
+small_string<length>::sv() const noexcept
+{
+    return { m_buffer, m_size };
+}
+
+template<sz length>
+constexpr void
+small_string<length>::clear() noexcept
+{
+    std::fill_n(m_buffer, length, '\0');
+    m_size = 0;
+}
+
+template<sz length>
+constexpr small_string<length>::reference
+small_string<length>::operator[](const size_type index) noexcept
+{
+    irt_assert(index < m_size);
+
+    return m_buffer[index];
+}
+
+template<sz length>
+constexpr small_string<length>::const_reference
+small_string<length>::operator[](const size_type index) const noexcept
+{
+    irt_assert(index < m_size);
+
+    return m_buffer[index];
+}
+
+template<sz length>
+constexpr const char*
+small_string<length>::c_str() const noexcept
+{
+    return m_buffer;
+}
+
+template<sz length>
+constexpr small_string<length>::iterator
+small_string<length>::begin() noexcept
+{
+    return m_buffer;
+}
+
+template<sz length>
+constexpr small_string<length>::iterator
+small_string<length>::end() noexcept
+{
+    return m_buffer + m_size;
+}
+
+template<sz length>
+constexpr small_string<length>::const_iterator
+small_string<length>::begin() const noexcept
+{
+    return m_buffer;
+}
+
+template<sz length>
+constexpr small_string<length>::const_iterator
+small_string<length>::end() const noexcept
+{
+    return m_buffer + m_size;
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::operator==(const small_string<length>& rhs) const noexcept
+{
+    return std::strncmp(m_buffer, rhs.m_buffer, length) == 0;
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::operator!=(const small_string<length>& rhs) const noexcept
+{
+    return std::strncmp(m_buffer, rhs.m_buffer, length) != 0;
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::operator>(const small_string<length>& rhs) const noexcept
+{
+    return std::strncmp(m_buffer, rhs.m_buffer, length) > 0;
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::operator<(const small_string<length>& rhs) const noexcept
+{
+    return std::strncmp(m_buffer, rhs.m_buffer, length) < 0;
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::operator==(const char* rhs) const noexcept
+{
+    return std::strncmp(m_buffer, rhs, length) == 0;
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::operator!=(const char* rhs) const noexcept
+{
+    return std::strncmp(m_buffer, rhs, length) != 0;
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::operator>(const char* rhs) const noexcept
+{
+    return std::strncmp(m_buffer, rhs, length) > 0;
+}
+
+template<sz length>
+constexpr bool
+small_string<length>::operator<(const char* rhs) const noexcept
+{
+    return std::strncmp(m_buffer, rhs, length) < 0;
+}
 
 } // namespace irt
 
