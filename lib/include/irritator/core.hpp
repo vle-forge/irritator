@@ -662,7 +662,8 @@ public:
     constexpr small_vector(small_vector&& other) noexcept = delete;
     constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
 
-    constexpr void clear() noexcept;
+    constexpr status init(i32 default_size) noexcept;
+    constexpr void   clear() noexcept;
 
     constexpr reference       front() noexcept;
     constexpr const_reference front() const noexcept;
@@ -720,7 +721,7 @@ public:
     constexpr vector(vector&& other) noexcept                 = delete;
     constexpr vector& operator=(vector&& other) noexcept = delete;
 
-    status         init(sz capacity) noexcept;
+    status         init(sz capacity, int default_size = 0) noexcept;
     void           destroy() noexcept;
     constexpr void clear() noexcept;
 
@@ -7252,6 +7253,20 @@ small_vector<T, length>::operator=(
 }
 
 template<typename T, sz length>
+constexpr status
+small_vector<T, length>::init(i32 default_size) noexcept
+{
+    irt_return_if_fail(default_size > 0 &&
+                         default_size < static_cast<i32>(length),
+                       status::vector_init_capacity_error);
+
+    for (i32 i = 0; i < default_size; ++i)
+        new (&(m_buffer[i])) T{};
+
+    m_size = default_size;
+}
+
+template<typename T, sz length>
 constexpr T*
 small_vector<T, length>::data() noexcept
 {
@@ -7443,10 +7458,13 @@ inline vector<T>::~vector() noexcept
 
 template<typename T>
 inline status
-vector<T>::init(sz capacity) noexcept
+vector<T>::init(sz capacity, int default_size) noexcept
 {
     irt_return_if_fail(capacity > 0u &&
                          capacity < std::numeric_limits<i32>::max(),
+                       status::vector_init_capacity_error);
+
+    irt_return_if_fail(default_size <= static_cast<i32>(capacity),
                        status::vector_init_capacity_error);
 
     destroy();
@@ -7455,8 +7473,16 @@ vector<T>::init(sz capacity) noexcept
     if (!m_data)
         return status::vector_not_enough_memory;
 
-    m_size     = 0;
     m_capacity = static_cast<i32>(capacity);
+
+    if (default_size > 0) {
+        for (i32 i = 0; i < default_size; ++i)
+            new (&(m_data[i])) T{};
+
+        m_size = default_size;
+    } else {
+        m_size = 0;
+    }
 
     return status::success;
 }

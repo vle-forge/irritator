@@ -1044,24 +1044,23 @@ main()
 
     "hierarchy-simple"_test = [] {
         enum class int_id : irt::u64;
-        irt::data_array<int, int_id> data;
+        irt::data_array<int, int_id>        data;
         irt::vector<irt::hierarchy<int_id>> hier;
 
-        data.init(256);
-        hier.init(256);
+        expect((irt::is_success(data.init(256))) >> fatal);
+        expect((irt::is_success(hier.init(256, 256))) >> fatal);
 
-        auto& d1 = data.alloc(0);
-        auto  d1_id = data.get_id(d1);
+        auto& head    = data.alloc(0);
+        auto  head_id = data.get_id(head);
 
-        auto& gd1 = hier.emplace_back();
-        gd1.set_owner(d1_id);
+        hier[irt::get_index(head_id)].set_id(head_id);
 
         for (int i = 0; i < 15; ++i) {
-            auto& d = data.alloc(i + 1);
+            auto& d    = data.alloc(i + 1);
             auto  d_id = data.get_id(d);
-            auto  new_hier = hier.emplace_back();
-            new_hier.set_owner(d_id);
-            new_hier.parent_to(gd1);
+            hier[irt::get_index(head_id)].set_id(d_id);
+            hier[irt::get_index(head_id)].parent_to(
+              hier[irt::get_index(head_id)]);
         }
     };
 
