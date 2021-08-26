@@ -640,126 +640,266 @@ class small_vector
 public:
     static_assert(length >= 1);
 
-    using size_type       = small_storage_size_t<length>;
-    using index_type      = i32;
-    using iterator        = T*;
-    using const_iterator  = const T*;
-    using reference       = T&;
-    using const_reference = const T&;
+    using size_type = small_storage_size_t<length>;
 
 private:
     std::byte m_buffer[length * sizeof(T)];
     size_type m_size;
 
 public:
-    constexpr small_vector() noexcept { m_size = 0; }
+    using index_type      = i32;
+    using iterator        = T*;
+    using const_iterator  = const T*;
+    using reference       = T&;
+    using const_reference = const T&;
+    using pointer         = T*;
+    using const_pointer   = const T*;
 
-    constexpr small_vector(const small_vector& other) noexcept
-      : m_size(other.m_size)
-    {
-        std::copy_n(other.data(), other.m_size, data());
-    }
+    constexpr small_vector() noexcept;
+    constexpr small_vector(const small_vector& other) noexcept;
 
-    constexpr small_vector& operator=(const small_vector& other) noexcept
-    {
-        if (&other != this) {
-            m_size = other.m_size;
-            std::copy_n(other.data(), other.m_size, data());
-        }
-
-        return *this;
-    }
-
+    constexpr small_vector& operator=(const small_vector& other) noexcept;
     constexpr small_vector(small_vector&& other) noexcept = delete;
     constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
 
-    constexpr T* data() noexcept { return reinterpret_cast<T*>(&m_buffer[0]); }
+    constexpr void clear() noexcept;
 
-    constexpr const T* data() const noexcept
-    {
-        return reinterpret_cast<const T*>(&m_buffer[0]);
-    }
+    constexpr reference       front() noexcept;
+    constexpr const_reference front() const noexcept;
+    constexpr reference       back() noexcept;
+    constexpr const_reference back() const noexcept;
 
-    constexpr reference operator[](const index_type index) noexcept
-    {
-        irt_assert(index >= 0);
-        irt_assert(index < m_size);
+    constexpr T*       data() noexcept;
+    constexpr const T* data() const noexcept;
 
-        return data()[index];
-    }
+    constexpr reference       operator[](const index_type index) noexcept;
+    constexpr const_reference operator[](const index_type index) const noexcept;
 
-    constexpr const_reference operator[](const index_type index) const noexcept
-    {
-        irt_assert(index >= 0);
-        irt_assert(index < m_size);
+    constexpr iterator       begin() noexcept;
+    constexpr const_iterator begin() const noexcept;
+    constexpr iterator       end() noexcept;
+    constexpr const_iterator end() const noexcept;
 
-        return data()[index];
-    }
-
-    constexpr iterator       begin() noexcept { return data(); }
-    constexpr const_iterator begin() const noexcept { return data(); }
-    constexpr iterator       end() noexcept { return data() + m_size; }
-    constexpr const_iterator end() const noexcept { return data() + m_size; }
-    constexpr sz             size() const noexcept { return m_size; }
-    constexpr sz             capacity() const noexcept { return length; }
-    constexpr bool           empty() const noexcept { return m_size == 0; }
-    constexpr bool           full() const noexcept { return m_size >= length; }
-
-    constexpr void clear() noexcept
-    {
-        if constexpr (!std::is_trivial_v<T>) {
-            for (i32 i = 0; i != m_size; ++i)
-                data()[i].~T();
-        }
-
-        m_size = 0;
-    }
-
-    constexpr bool can_alloc(size_type number = 1) noexcept
-    {
-        return length - m_size >= number;
-    }
+    constexpr bool can_alloc(int number = 1) noexcept;
+    constexpr sz   size() const noexcept;
+    constexpr i32  ssize() const noexcept;
+    constexpr sz   capacity() const noexcept;
+    constexpr bool empty() const noexcept;
+    constexpr bool full() const noexcept;
 
     template<typename... Args>
-    constexpr reference emplace_back(Args&&... args) noexcept
-    {
-        assert(can_alloc(1) && "check alloc() with full() before using use.");
+    constexpr reference emplace_back(Args&&... args) noexcept;
+    constexpr void      pop_back() noexcept;
+    constexpr void      swap_pop_back(index_type index) noexcept;
+};
 
-        new (&(data()[m_size])) T(std::forward<Args>(args)...);
-        ++m_size;
+template<typename T, sz length>
+constexpr small_vector<T, length>::small_vector() noexcept
+{
+    m_size = 0;
+}
 
-        return data()[m_size - 1];
+template<typename T, sz length>
+constexpr small_vector<T, length>::small_vector(
+  const small_vector<T, length>& other) noexcept
+  : m_size(other.m_size)
+{
+    std::copy_n(other.data(), other.m_size, data());
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>&
+small_vector<T, length>::operator=(
+  const small_vector<T, length>& other) noexcept
+{
+    if (&other != this) {
+        m_size = other.m_size;
+        std::copy_n(other.data(), other.m_size, data());
     }
 
-    constexpr void pop_back() noexcept
-    {
-        if (m_size) {
-            if constexpr (std::is_trivial_v<T>)
-                data()[m_size - 1].~T();
+    return *this;
+}
 
-            --m_size;
-        }
+template<typename T, sz length>
+constexpr T*
+small_vector<T, length>::data() noexcept
+{
+    return reinterpret_cast<T*>(&m_buffer[0]);
+}
+
+template<typename T, sz length>
+constexpr const T*
+small_vector<T, length>::data() const noexcept
+{
+    return reinterpret_cast<const T*>(&m_buffer[0]);
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::reference
+small_vector<T, length>::front() noexcept
+{
+    irt_assert(m_size > 0);
+    return m_buffer[0];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_reference
+small_vector<T, length>::front() const noexcept
+{
+    irt_assert(m_size > 0);
+    return m_buffer[0];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::reference
+small_vector<T, length>::back() noexcept
+{
+    irt_assert(m_size > 0);
+    return m_buffer[m_size - 1];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_reference
+small_vector<T, length>::back() const noexcept
+{
+    irt_assert(m_size > 0);
+    return m_buffer[m_size - 1];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::reference
+small_vector<T, length>::operator[](const index_type index) noexcept
+{
+    irt_assert(index >= 0);
+    irt_assert(index < m_size);
+
+    return data()[index];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_reference
+small_vector<T, length>::operator[](const index_type index) const noexcept
+{
+    irt_assert(index >= 0);
+    irt_assert(index < m_size);
+
+    return data()[index];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::iterator
+small_vector<T, length>::begin() noexcept
+{
+    return data();
+}
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_iterator
+small_vector<T, length>::begin() const noexcept
+{
+    return data();
+}
+template<typename T, sz length>
+constexpr small_vector<T, length>::iterator
+small_vector<T, length>::end() noexcept
+{
+    return data() + m_size;
+}
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_iterator
+small_vector<T, length>::end() const noexcept
+{
+    return data() + m_size;
+}
+template<typename T, sz length>
+constexpr sz
+small_vector<T, length>::size() const noexcept
+{
+    return m_size;
+}
+template<typename T, sz length>
+constexpr sz
+small_vector<T, length>::capacity() const noexcept
+{
+    return length;
+}
+template<typename T, sz length>
+constexpr bool
+small_vector<T, length>::empty() const noexcept
+{
+    return m_size == 0;
+}
+template<typename T, sz length>
+constexpr bool
+small_vector<T, length>::full() const noexcept
+{
+    return m_size >= length;
+}
+
+template<typename T, sz length>
+constexpr void
+small_vector<T, length>::clear() noexcept
+{
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+        for (i32 i = 0; i != m_size; ++i)
+            data()[i].~T();
     }
 
-    constexpr void swap_pop_back(index_type index) noexcept
-    {
-        irt_assert(index >= 0 && index < m_size);
+    m_size = 0;
+}
 
-        if (index == m_size - 1) {
+template<typename T, sz length>
+constexpr bool
+small_vector<T, length>::can_alloc(int number) noexcept
+{
+    return length - m_size >= number;
+}
+
+template<typename T, sz length>
+template<typename... Args>
+constexpr small_vector<T, length>::reference
+small_vector<T, length>::emplace_back(Args&&... args) noexcept
+{
+    assert(can_alloc(1) && "check alloc() with full() before using use.");
+
+    new (&(data()[m_size])) T(std::forward<Args>(args)...);
+
+    ++m_size;
+
+    return data()[m_size - 1];
+}
+
+template<typename T, sz length>
+constexpr void
+small_vector<T, length>::pop_back() noexcept
+{
+    if (m_size) {
+        if constexpr (std::is_trivially_destructible_v<T>)
+            data()[m_size - 1].~T();
+
+        --m_size;
+    }
+}
+
+template<typename T, sz length>
+constexpr void
+small_vector<T, length>::swap_pop_back(index_type index) noexcept
+{
+    irt_assert(index >= 0 && index < m_size);
+
+    if (index == m_size - 1) {
+        pop_back();
+    } else {
+        if constexpr (std::is_trivially_destructible_v<T>) {
+            data()[index] = data()[m_size - 1];
             pop_back();
         } else {
-            if constexpr (std::is_trivial_v<T>) {
-                data()[index] = data()[m_size - 1];
-                pop_back();
-            } else {
-                using std::swap;
+            using std::swap;
 
-                swap(data()[index], data()[m_size - 1]);
-                pop_back();
-            }
+            swap(data()[index], data()[m_size - 1]);
+            pop_back();
         }
     }
-};
+}
 
 //! @brief A vector like class with dynamic allocation.
 //! @tparam T Any type (trivial or not).
@@ -788,8 +928,8 @@ public:
     constexpr vector(vector&& other) noexcept                 = delete;
     constexpr vector& operator=(vector&& other) noexcept = delete;
 
-    status init(sz capacity) noexcept;
-    void destroy() noexcept;
+    status         init(sz capacity) noexcept;
+    void           destroy() noexcept;
     constexpr void clear() noexcept;
 
     constexpr T*       data() noexcept;
@@ -810,15 +950,15 @@ public:
 
     constexpr bool can_alloc(int number = 1) noexcept;
     constexpr sz   size() const noexcept;
-    constexpr i32 ssize() const noexcept;
-    constexpr sz  capacity() const noexcept;
+    constexpr i32  ssize() const noexcept;
+    constexpr sz   capacity() const noexcept;
     constexpr bool empty() const noexcept;
     constexpr bool full() const noexcept;
 
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
-    constexpr void pop_back() noexcept;
-    constexpr void swap_pop_back(index_type index) noexcept;
+    constexpr void      pop_back() noexcept;
+    constexpr void      swap_pop_back(index_type index) noexcept;
 };
 
 template<typename T>
@@ -856,10 +996,9 @@ vector<T>::destroy() noexcept
     if (m_data)
         g_free_fn(m_data);
 
-    m_size = 0;
+    m_size     = 0;
     m_capacity = 0;
 }
-
 
 template<typename T>
 constexpr void
@@ -1026,7 +1165,7 @@ constexpr void
 vector<T>::pop_back() noexcept
 {
     if (m_size) {
-        if constexpr (std::is_trivial_v<T>)
+        if constexpr (std::is_trivially_destructible_v<T>)
             data()[m_size - 1].~T();
 
         --m_size;
@@ -1042,7 +1181,7 @@ vector<T>::swap_pop_back(index_type index) noexcept
     if (index == m_size - 1) {
         pop_back();
     } else {
-        if constexpr (std::is_trivial_v<T>) {
+        if constexpr (std::is_trivially_destructible_v<T>) {
             data()[index] = data()[m_size - 1];
             pop_back();
         } else {
