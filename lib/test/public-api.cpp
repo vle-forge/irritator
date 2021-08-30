@@ -717,6 +717,30 @@ main()
         }
     };
 
+    "vector"_test = [] {
+        struct position
+        {
+
+            float x = 0, y = 0;
+        };
+
+        irt::vector<position> pos;
+        irt::status           ret;
+
+        ret = pos.init(4, 4);
+        expect((irt::is_success(ret)) >> fatal);
+
+        pos[0].x = 0;
+        pos[1].x = 1;
+        pos[2].x = 2;
+        pos[3].x = 3;
+
+        ret = pos.try_emplace_back(4.f, 0.f);
+        expect((irt::is_success(ret)) >> fatal);
+        expect((pos.size() == 5) >> fatal);
+        expect((pos.capacity() == 4 + 4 / 2));
+    };
+
     "data_array_api"_test = [] {
         struct position
         {

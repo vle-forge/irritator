@@ -721,9 +721,14 @@ public:
     constexpr vector(vector&& other) noexcept                 = delete;
     constexpr vector& operator=(vector&& other) noexcept = delete;
 
-    status         init(sz capacity, int default_size = 0) noexcept;
-    void           destroy() noexcept;
-    constexpr void clear() noexcept;
+    status init(i32 capacity, i32 default_size = 0) noexcept;
+    status resize(i32 size);
+    status reserve(i32 new_capacity);
+
+    void destroy() noexcept; // clear all elements and free memory (size = 0,
+                             // capacity = 0 after).
+
+    constexpr void clear() noexcept; // clear all elements (size = 0 after).
 
     constexpr T*       data() noexcept;
     constexpr const T* data() const noexcept;
@@ -741,7 +746,7 @@ public:
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
 
-    constexpr bool can_alloc(int number = 1) noexcept;
+    constexpr bool can_alloc(int number = 1) const noexcept;
     constexpr sz   size() const noexcept;
     constexpr i32  ssize() const noexcept;
     constexpr sz   capacity() const noexcept;
@@ -750,8 +755,14 @@ public:
 
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
-    constexpr void      pop_back() noexcept;
-    constexpr void      swap_pop_back(index_type index) noexcept;
+
+    template<typename... Args>
+    status         try_emplace_back(Args&&... args) noexcept;
+    constexpr void pop_back() noexcept;
+    constexpr void swap_pop_back(index_type index) noexcept;
+
+private:
+    i32 compute_new_capacity(i32 new_capacity) const;
 };
 
 //! @brief A small_string without heap allocation.
@@ -1953,7 +1964,7 @@ public:
     using const_pointer      = vector<map_node>::const_pointer;
     using pair_iterator_bool = std::pair<iterator, bool>;
 
-    status init(sz capacity) noexcept { return m_data.init(capacity); }
+    status init(sz capacity) noexcept { return m_data.init(static_cast<i32>(capacity)); }
 
     bool can_alloc(sz capacity) const noexcept
     {
@@ -6305,131 +6316,21 @@ struct component
 {
     small_string<16> name;
 
-    data_array<model, model_id>           models;
-    block_allocator<list_view_node<node>> node_alloc;
+    vector<model_id>    models;
+    vector<model_id>    parameters;
+    vector<model_id>    observables;
+    vector<input_port>  internal_x;
+    vector<output_port> internal_y;
 
-    small_vector<model_id, 16>    parameters;
-    small_vector<model_id, 16>    observables;
-    small_vector<input_port, 16>  internal_x;
-    small_vector<output_port, 16> internal_y;
-
-    status init(sz model_number) noexcept
+    status init(i32 model_number) noexcept
     {
         irt_return_if_bad(models.init(model_number));
-        irt_return_if_bad(node_alloc.init(model_number * 4u));
+        irt_return_if_bad(parameters.init(8));
+        irt_return_if_bad(observables.init(8));
+        irt_return_if_bad(internal_x.init(8));
+        irt_return_if_bad(internal_y.init(8));
 
         return status::success;
-    }
-
-    bool can_alloc(const int number = 1) const noexcept
-    {
-        return models.can_alloc(number);
-    }
-
-    bool can_connect(const int number = 1) const noexcept
-    {
-        return node_alloc.can_alloc(number);
-    }
-
-    model& alloc(dynamics_type type) noexcept
-    {
-        irt_assert(can_alloc(1u));
-
-        auto& mdl  = models.alloc();
-        mdl.type   = type;
-        mdl.handle = nullptr;
-
-        dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
-            new (&dyn) Dynamics{};
-
-            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                for (int i = 0, e = length(dyn.x); i != e; ++i)
-                    dyn.x[i] = static_cast<u64>(-1);
-
-            if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                for (int i = 0, e = length(dyn.y); i != e; ++i)
-                    dyn.y[i] = static_cast<u64>(-1);
-        });
-
-        return mdl;
-    }
-
-    status deallocate(model_id id) noexcept
-    {
-        auto* mdl = models.try_to_get(id);
-        irt_return_if_fail(mdl, status::unknown_dynamics);
-
-        dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                for (int i = 0, e = length(dyn.y); i != e; ++i)
-                    list_view(this->node_alloc, dyn.y[i]).clear();
-            }
-
-            dyn.~Dynamics();
-        });
-
-        models.free(*mdl);
-        return status::success;
-    }
-
-    status connect(output_port& src, model_id dst, int port_dst) noexcept
-    {
-        auto list = list_view(node_alloc, src);
-
-        for (auto& connection : list) {
-            irt_return_if_fail(
-              !(connection.model == dst && connection.port_index == port_dst),
-              status::model_connect_already_exist);
-        }
-
-        list.emplace_back(dst, static_cast<i8>(port_dst));
-    }
-
-    status connect(model&   src,
-                   int      port_src,
-                   model_id dst,
-                   int      port_dst) noexcept
-    {
-        return dispatch(
-          src,
-          [this, port_src, dst, port_dst]<typename Dynamics>(Dynamics& dyn) {
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  if (length(dyn.y) < port_src)
-                      return this->connect(dyn.y[port_src], dst, port_dst);
-              }
-
-              irt_bad_return(status::model_connect_bad_dynamics);
-          });
-    }
-
-    void disconnect(output_port& src, model_id dst, int port_dst) noexcept
-    {
-        auto list = list_view(node_alloc, src);
-        auto it   = list.begin();
-        auto et   = list.end();
-
-        while (it != et) {
-            if (it->model == dst && it->port_index == port_dst)
-                it = list.erase(it);
-            else
-                ++it;
-        }
-    }
-
-    void disconnect(model&   src,
-                    int      port_src,
-                    model_id dst,
-                    int      port_dst) noexcept
-    {
-        return dispatch(
-          src,
-          [this, port_src, dst, port_dst]<typename Dynamics>(Dynamics& dyn) {
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                  if (length(dyn.y) < port_src)
-                      this->disconnect(
-                        dyn.y[static_cast<u8>(port_src)], dst, port_dst);
-              }
-          });
     }
 };
 
@@ -6706,8 +6607,10 @@ public:
         irt_return_if_bad(node_alloc.init(model_capacity * ten));
         irt_return_if_bad(record_alloc.init(model_capacity * ten));
         irt_return_if_bad(dated_message_alloc.init(model_capacity));
-        irt_return_if_bad(emitting_output_ports.init(model_capacity));
-        irt_return_if_bad(immediate_models.init(model_capacity));
+        irt_return_if_bad(
+          emitting_output_ports.init(static_cast<i32>(model_capacity)));
+        irt_return_if_bad(
+          immediate_models.init(static_cast<i32>(model_capacity)));
         irt_return_if_bad(models.init(model_capacity));
         irt_return_if_bad(observers.init(model_capacity));
         irt_return_if_bad(sched.init(model_capacity));
@@ -7458,13 +7361,10 @@ inline vector<T>::~vector() noexcept
 
 template<typename T>
 inline status
-vector<T>::init(sz capacity, int default_size) noexcept
+vector<T>::init(i32 capacity, i32 default_size) noexcept
 {
-    irt_return_if_fail(capacity > 0u &&
-                         capacity < std::numeric_limits<i32>::max(),
-                       status::vector_init_capacity_error);
-
-    irt_return_if_fail(default_size <= static_cast<i32>(capacity),
+    irt_return_if_fail(capacity > 0 && default_size >= 0 &&
+                         default_size <= capacity,
                        status::vector_init_capacity_error);
 
     destroy();
@@ -7496,6 +7396,7 @@ vector<T>::destroy() noexcept
     if (m_data)
         g_free_fn(m_data);
 
+    m_data     = nullptr;
     m_size     = 0;
     m_capacity = 0;
 }
@@ -7510,6 +7411,43 @@ vector<T>::clear() noexcept
     }
 
     m_size = 0;
+}
+
+template<typename T>
+status
+vector<T>::resize(i32 size)
+{
+    if (size > m_capacity)
+        irt_return_if_bad(reserve(compute_new_capacity(size)));
+
+    for (i32 i = m_size; i != size; ++i)
+        new (&(m_data[i])) T{};
+
+    m_size = size;
+
+    return status::success;
+}
+
+template<typename T>
+status
+vector<T>::reserve(i32 new_capacity)
+{
+    irt_return_if_fail(new_capacity > 0, status::vector_init_capacity_error);
+
+    if (new_capacity <= m_capacity)
+        return status::success;
+
+    T* new_data = reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
+    if (!new_data)
+        return status::vector_not_enough_memory;
+
+    std::copy_n(m_data, m_size, new_data);
+    g_free_fn(m_data);
+
+    m_data     = new_data;
+    m_capacity = new_capacity;
+
+    return status::success;
 }
 
 template<typename T>
@@ -7641,7 +7579,7 @@ vector<T>::full() const noexcept
 
 template<typename T>
 constexpr bool
-vector<T>::can_alloc(int number) noexcept
+vector<T>::can_alloc(int number) const noexcept
 {
     return m_capacity - m_size >= number;
 }
@@ -7658,6 +7596,19 @@ vector<T>::emplace_back(Args&&... args) noexcept
     ++m_size;
 
     return data()[m_size - 1];
+}
+
+template<typename T>
+template<typename... Args>
+status
+vector<T>::try_emplace_back(Args&&... args) noexcept
+{
+    if (m_size >= m_capacity)
+        irt_return_if_bad(reserve(compute_new_capacity(m_size + 1)));
+
+    new (&(data()[m_size])) T(std::forward<Args>(args)...);
+    ++m_size;
+    return status::success;
 }
 
 template<typename T>
@@ -7691,6 +7642,14 @@ vector<T>::swap_pop_back(index_type index) noexcept
             pop_back();
         }
     }
+}
+
+template<typename T>
+i32
+vector<T>::compute_new_capacity(i32 size) const
+{
+    i32 new_capacity = m_capacity ? (m_capacity + m_capacity / 2) : 8;
+    return new_capacity > size ? new_capacity : size;
 }
 
 // template<size_t length = 8>
