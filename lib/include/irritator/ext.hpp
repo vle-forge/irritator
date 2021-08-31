@@ -492,21 +492,21 @@ namespace detail {
 
 } // namespace detail
 
-inline status
-flat_merge(
-  [[maybe_unused]] none&                                      none_mdl,
-  [[maybe_unused]] const data_array<component, component_id>& components,
-  [[maybe_unused]] const data_array<model, model_id>&         component_models,
-  [[maybe_unused]] simulation&                                sim)
-{
-    // irt_return_if_bad(detail::flat_merge_create_models(
-    //   none_mdl, components, component_models, sim));
-
-    // irt_return_if_bad(detail::flat_merge_create_connections(
-    //   none_mdl, components, component_models, sim));
-
-    return status::success;
-}
+//inline status
+//flat_merge(
+//  [[maybe_unused]] none&                                      none_mdl,
+//  [[maybe_unused]] const data_array<component, component_id>& components,
+//  [[maybe_unused]] const data_array<model, model_id>&         component_models,
+//  [[maybe_unused]] simulation&                                sim)
+//{
+//    // irt_return_if_bad(detail::flat_merge_create_models(
+//    //   none_mdl, components, component_models, sim));
+//
+//    // irt_return_if_bad(detail::flat_merge_create_connections(
+//    //   none_mdl, components, component_models, sim));
+//
+//    return status::success;
+//}
 
 } // namespace irt
 

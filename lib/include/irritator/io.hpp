@@ -16,8 +16,7 @@
 
 namespace irt {
 
-static inline const char* dynamics_type_names[] = { "none",
-                                                    "qss1_integrator",
+static inline const char* dynamics_type_names[] = { "qss1_integrator",
                                                     "qss1_multiplier",
                                                     "qss1_cross",
                                                     "qss1_power",
@@ -92,9 +91,6 @@ template<typename Dynamics>
 static constexpr const char**
 get_input_port_names() noexcept
 {
-    if constexpr (std::is_same_v<Dynamics, none>)
-        return str_empty;
-
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss2_integrator> ||
                   std::is_same_v<Dynamics, qss3_integrator>)
@@ -172,9 +168,6 @@ static constexpr const char**
 get_input_port_names(const dynamics_type type) noexcept
 {
     switch (type) {
-    case dynamics_type::none:
-        return str_empty;
-
     case dynamics_type::qss1_integrator:
     case dynamics_type::qss2_integrator:
     case dynamics_type::qss3_integrator:
@@ -258,9 +251,6 @@ template<typename Dynamics>
 static constexpr const char**
 get_output_port_names() noexcept
 {
-    if constexpr (std::is_same_v<Dynamics, none>)
-        return str_empty;
-
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss1_multiplier> ||
                   std::is_same_v<Dynamics, qss1_power> ||
@@ -326,9 +316,6 @@ static constexpr const char**
 get_output_port_names(const dynamics_type type) noexcept
 {
     switch (type) {
-    case dynamics_type::none:
-        return str_empty;
-
     case dynamics_type::qss1_integrator:
     case dynamics_type::qss1_multiplier:
     case dynamics_type::qss1_power:
@@ -971,7 +958,6 @@ private:
             { "mult_2", dynamics_type::mult_2 },
             { "mult_3", dynamics_type::mult_3 },
             { "mult_4", dynamics_type::mult_4 },
-            { "none", dynamics_type::none },
             { "priority_queue", dynamics_type::priority_queue },
             { "qss1_cross", dynamics_type::qss1_cross },
             { "qss1_integrator", dynamics_type::qss1_integrator },
@@ -1054,8 +1040,6 @@ private:
 
         return status::success;
     }
-
-    bool read(simulation& /*sim*/, none& /*dyn*/) noexcept { return true; }
 
     bool read(simulation& /*sim*/, qss1_integrator& dyn) noexcept
     {
@@ -1771,11 +1755,6 @@ private:
             os << src.n;
             break;
         }
-    }
-
-    void write(const simulation& /*sim*/, const none& /*dyn*/) noexcept
-    {
-        os << "none\n";
     }
 
     void write(const simulation& /*sim*/, const qss1_integrator& dyn) noexcept

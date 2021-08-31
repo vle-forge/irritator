@@ -1964,7 +1964,10 @@ public:
     using const_pointer      = vector<map_node>::const_pointer;
     using pair_iterator_bool = std::pair<iterator, bool>;
 
-    status init(sz capacity) noexcept { return m_data.init(static_cast<i32>(capacity)); }
+    status init(sz capacity) noexcept
+    {
+        return m_data.init(static_cast<i32>(capacity));
+    }
 
     bool can_alloc(sz capacity) const noexcept
     {
@@ -2379,8 +2382,6 @@ finalize_source(simulation& sim, source& src) noexcept;
 
 enum class dynamics_type : i32
 {
-    none,
-
     qss1_integrator,
     qss1_multiplier,
     qss1_cross,
@@ -2604,31 +2605,6 @@ using has_input_port_t = decltype(&T::x);
 
 template<typename T>
 using has_output_port_t = decltype(&T::y);
-
-//! @brief Useless for user
-//!
-//! @c none model does not have dynamics. It is use internally to develop the
-//! component part of the irritator gui. @c none is a component. A component
-//! stores children as a list of @c model_id, parameters and observable as a
-//! list of @c model_id and two @c component_port for the input and output
-//! port (the part of the public interface).
-struct none
-{
-    none() noexcept = default;
-
-    none(const none& other) noexcept
-      : sigma(other.sigma)
-      , id(other.id)
-    {}
-
-    time         sigma = time_domain<time>::infinity;
-    component_id id    = undefined<component_id>();
-
-    map<model_id, model_id> dict;
-
-    small_vector<input_port, 8>  x;
-    small_vector<output_port, 8> y;
-};
 
 struct integrator
 {
@@ -5812,8 +5788,7 @@ max(sz a, Args... args)
 constexpr sz
 max_size_in_bytes() noexcept
 {
-    return max(sizeof(none),
-               sizeof(qss1_integrator),
+    return max(sizeof(qss1_integrator),
                sizeof(qss1_multiplier),
                sizeof(qss1_cross),
                sizeof(qss1_power),
@@ -5874,7 +5849,7 @@ struct model
     heap::handle handle = nullptr;
 
     observer_id   obs_id = observer_id{ 0 };
-    dynamics_type type{ dynamics_type::none };
+    dynamics_type type;
 
     std::byte dyn[max_size_in_bytes()];
 };
@@ -5884,9 +5859,6 @@ constexpr auto
 dispatch(const model& mdl, Function&& f, Args... args) noexcept
 {
     switch (mdl.type) {
-    case dynamics_type::none:
-        return f(*reinterpret_cast<const none*>(&mdl.dyn), args...);
-
     case dynamics_type::qss1_integrator:
         return f(*reinterpret_cast<const qss1_integrator*>(&mdl.dyn), args...);
     case dynamics_type::qss1_multiplier:
@@ -6004,9 +5976,6 @@ constexpr auto
 dispatch(model& mdl, Function&& f, Args... args) noexcept
 {
     switch (mdl.type) {
-    case dynamics_type::none:
-        return f(*reinterpret_cast<none*>(&mdl.dyn), args...);
-
     case dynamics_type::qss1_integrator:
         return f(*reinterpret_cast<qss1_integrator*>(&mdl.dyn), args...);
     case dynamics_type::qss1_multiplier:
@@ -6125,20 +6094,9 @@ get_input_port(model& src, int port_src, input_port*& p) noexcept
     return dispatch(
       src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
           if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-              if constexpr (std::is_same_v<none, Dynamics>) {
-                  auto it = dyn.x.begin();
-                  for (int i = 0; i < port_src && it != dyn.x.end(); ++i)
-                      ++it;
-
-                  if (it != dyn.x.end()) {
-                      p = &(*it);
-                      return status::success;
-                  }
-              } else {
-                  if (port_src >= 0 && port_src < length(dyn.x)) {
-                      p = &dyn.x[port_src];
-                      return status::success;
-                  }
+              if (port_src >= 0 && port_src < length(dyn.x)) {
+                  p = &dyn.x[port_src];
+                  return status::success;
               }
           }
 
@@ -6152,21 +6110,10 @@ get_output_port(model& dst, int port_dst, output_port*& p) noexcept
     return dispatch(
       dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              if constexpr (std::is_same_v<none, Dynamics>) {
-                  auto it = dyn.y.begin();
-                  for (int i = 0; i < port_dst && it != dyn.y.end(); ++i)
-                      ++it;
-
-                  if (it != dyn.y.end()) {
-                      p = &(*it);
-                      return status::success;
-                  }
-              } else {
-                  if (port_dst >= 0 && port_dst < length(dyn.y)) {
-                      p = &dyn.y[port_dst];
-                      return status::success;
-                  }
-              }
+                if (port_dst >= 0 && port_dst < length(dyn.y)) {
+                    p = &dyn.y[port_dst];
+                    return status::success;
+                }
           }
 
           return status::model_connect_output_port_unknown;
@@ -6183,9 +6130,6 @@ is_ports_compatible(const model&               mdl_src,
         return false;
 
     switch (mdl_src.type) {
-    case dynamics_type::none:
-        return false;
-
     case dynamics_type::quantifier:
         if (mdl_dst.type == dynamics_type::integrator &&
             i_port_index ==
@@ -6427,9 +6371,6 @@ template<typename Dynamics>
 static constexpr dynamics_type
 dynamics_typeof() noexcept
 {
-    if constexpr (std::is_same_v<Dynamics, none>)
-        return dynamics_type::none;
-
     if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
         return dynamics_type::qss1_integrator;
     if constexpr (std::is_same_v<Dynamics, qss1_multiplier>)
@@ -6537,7 +6478,7 @@ dynamics_typeof() noexcept
     if constexpr (std::is_same_v<Dynamics, flow>)
         return dynamics_type::flow;
 
-    return dynamics_type::none;
+    irt_unreachable();
 }
 
 template<typename Dynamics>

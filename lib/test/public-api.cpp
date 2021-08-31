@@ -269,7 +269,6 @@ main()
     };
 
     "sizeof"_test = [] {
-        fmt::print("none {}\n", sizeof(irt::none));
         fmt::print("qss1_integrator {}\n", sizeof(irt::qss1_integrator));
         fmt::print("qss1_multiplier {}\n", sizeof(irt::qss1_multiplier));
         fmt::print("qss1_cross {}\n", sizeof(irt::qss1_cross));
@@ -1091,7 +1090,7 @@ main()
     "simulation-dispatch"_test = [] {
         irt::simulation sim;
         sim.init(64u, 256u);
-        auto& dyn1 = sim.alloc<irt::none>();
+        auto& dyn1 = sim.alloc<irt::qss1_sum_2>();
         (void)sim.alloc<irt::qss1_integrator>();
         (void)sim.alloc<irt::qss1_multiplier>();
 
@@ -1129,7 +1128,6 @@ main()
             irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 4096lu)));
 
-            sim.alloc<irt::none>();
             sim.alloc<irt::qss1_integrator>();
             sim.alloc<irt::qss1_multiplier>();
             sim.alloc<irt::qss1_cross>();
@@ -1203,7 +1201,7 @@ main()
             irt::reader r(is);
             expect(irt::is_success(r(sim, srcs)));
 
-            expect(sim.models.size() == 52);
+            expect(sim.models.size() == 51);
         }
 
         {
@@ -1217,9 +1215,9 @@ main()
             irt::reader r(is);
             expect(irt::is_success(
               r(sim, srcs, [&i](irt::model_id /*id*/) { ++i; })));
-            expect(i == 52);
+            expect(i == 51);
 
-            expect(sim.models.size() == 52);
+            expect(sim.models.size() == 51);
         }
 
         {

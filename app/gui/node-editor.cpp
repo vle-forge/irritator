@@ -713,10 +713,6 @@ add_output_attribute(editor& ed, const Dynamics& dyn) noexcept
 }
 
 static void
-show_dynamics_values(simulation& /*sim*/, const none& /*dyn*/)
-{}
-
-static void
 show_dynamics_values(simulation& /*sim*/, const qss1_integrator& dyn)
 {
     ImGui::TextFormat("X {}", dyn.X);
@@ -1092,19 +1088,6 @@ show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
     ImGui::TextFormat("value {}", dyn.value);
 }
 
-static void
-show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
-{}
-
-static void
-show_dynamics_values(simulation& /*sim*/, const filter& dyn)
-{
-    ImGui::Text("%.3f", dyn.lower_threshold);
-    ImGui::Text("%.3f", dyn.upper_threshold);
-    ImGui::Text("%.3f", dyn.inValue[0]);
-}
-
-static void
 show_dynamics_values(simulation& /*sim*/, const flow& dyn)
 {
     if (dyn.i < dyn.default_size)
