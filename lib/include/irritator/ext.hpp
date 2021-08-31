@@ -11,6 +11,69 @@
 
 namespace irt {
 
+//! @brief A vector like class but without dynamic allocation.
+//! @tparam T Any type (trivial or not).
+//! @tparam length The capacity of the vector.
+template<typename T, sz length>
+class small_vector
+{
+public:
+    static_assert(length >= 1);
+
+    using size_type = small_storage_size_t<length>;
+
+private:
+    std::byte m_buffer[length * sizeof(T)];
+    size_type m_size;
+
+public:
+    using index_type      = i32;
+    using iterator        = T*;
+    using const_iterator  = const T*;
+    using reference       = T&;
+    using const_reference = const T&;
+    using pointer         = T*;
+    using const_pointer   = const T*;
+
+    constexpr small_vector() noexcept;
+    constexpr small_vector(const small_vector& other) noexcept;
+
+    constexpr small_vector& operator=(const small_vector& other) noexcept;
+    constexpr small_vector(small_vector&& other) noexcept = delete;
+    constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
+
+    constexpr status init(i32 default_size) noexcept;
+    constexpr void   clear() noexcept;
+
+    constexpr reference       front() noexcept;
+    constexpr const_reference front() const noexcept;
+    constexpr reference       back() noexcept;
+    constexpr const_reference back() const noexcept;
+
+    constexpr T*       data() noexcept;
+    constexpr const T* data() const noexcept;
+
+    constexpr reference       operator[](const index_type index) noexcept;
+    constexpr const_reference operator[](const index_type index) const noexcept;
+
+    constexpr iterator       begin() noexcept;
+    constexpr const_iterator begin() const noexcept;
+    constexpr iterator       end() noexcept;
+    constexpr const_iterator end() const noexcept;
+
+    constexpr bool can_alloc(int number = 1) noexcept;
+    constexpr sz   size() const noexcept;
+    constexpr i32  ssize() const noexcept;
+    constexpr sz   capacity() const noexcept;
+    constexpr bool empty() const noexcept;
+    constexpr bool full() const noexcept;
+
+    template<typename... Args>
+    constexpr reference emplace_back(Args&&... args) noexcept;
+    constexpr void      pop_back() noexcept;
+    constexpr void      swap_pop_back(index_type index) noexcept;
+};
+
 template<typename T>
 class hierarchy
 {
@@ -49,6 +112,237 @@ public:
 private:
     hierarchy<T>* get_prior_sibling_node() const noexcept;
 };
+
+/*****************************************************************************
+ *
+ * Containers implementation
+ *
+ ****************************************************************************/
+
+// template<typename T, size_type length>
+// class small_vector;
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::small_vector() noexcept
+{
+    m_size = 0;
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::small_vector(
+  const small_vector<T, length>& other) noexcept
+  : m_size(other.m_size)
+{
+    std::copy_n(other.data(), other.m_size, data());
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>&
+small_vector<T, length>::operator=(
+  const small_vector<T, length>& other) noexcept
+{
+    if (&other != this) {
+        m_size = other.m_size;
+        std::copy_n(other.data(), other.m_size, data());
+    }
+
+    return *this;
+}
+
+template<typename T, sz length>
+constexpr status
+small_vector<T, length>::init(i32 default_size) noexcept
+{
+    irt_return_if_fail(default_size > 0 &&
+                         default_size < static_cast<i32>(length),
+                       status::vector_init_capacity_error);
+
+    for (i32 i = 0; i < default_size; ++i)
+        new (&(m_buffer[i])) T{};
+
+    m_size = default_size;
+}
+
+template<typename T, sz length>
+constexpr T*
+small_vector<T, length>::data() noexcept
+{
+    return reinterpret_cast<T*>(&m_buffer[0]);
+}
+
+template<typename T, sz length>
+constexpr const T*
+small_vector<T, length>::data() const noexcept
+{
+    return reinterpret_cast<const T*>(&m_buffer[0]);
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::reference
+small_vector<T, length>::front() noexcept
+{
+    irt_assert(m_size > 0);
+    return m_buffer[0];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_reference
+small_vector<T, length>::front() const noexcept
+{
+    irt_assert(m_size > 0);
+    return m_buffer[0];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::reference
+small_vector<T, length>::back() noexcept
+{
+    irt_assert(m_size > 0);
+    return m_buffer[m_size - 1];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_reference
+small_vector<T, length>::back() const noexcept
+{
+    irt_assert(m_size > 0);
+    return m_buffer[m_size - 1];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::reference
+small_vector<T, length>::operator[](const index_type index) noexcept
+{
+    irt_assert(index >= 0);
+    irt_assert(index < m_size);
+
+    return data()[index];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_reference
+small_vector<T, length>::operator[](const index_type index) const noexcept
+{
+    irt_assert(index >= 0);
+    irt_assert(index < m_size);
+
+    return data()[index];
+}
+
+template<typename T, sz length>
+constexpr small_vector<T, length>::iterator
+small_vector<T, length>::begin() noexcept
+{
+    return data();
+}
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_iterator
+small_vector<T, length>::begin() const noexcept
+{
+    return data();
+}
+template<typename T, sz length>
+constexpr small_vector<T, length>::iterator
+small_vector<T, length>::end() noexcept
+{
+    return data() + m_size;
+}
+template<typename T, sz length>
+constexpr small_vector<T, length>::const_iterator
+small_vector<T, length>::end() const noexcept
+{
+    return data() + m_size;
+}
+template<typename T, sz length>
+constexpr sz
+small_vector<T, length>::size() const noexcept
+{
+    return m_size;
+}
+template<typename T, sz length>
+constexpr sz
+small_vector<T, length>::capacity() const noexcept
+{
+    return length;
+}
+template<typename T, sz length>
+constexpr bool
+small_vector<T, length>::empty() const noexcept
+{
+    return m_size == 0;
+}
+template<typename T, sz length>
+constexpr bool
+small_vector<T, length>::full() const noexcept
+{
+    return m_size >= length;
+}
+
+template<typename T, sz length>
+constexpr void
+small_vector<T, length>::clear() noexcept
+{
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+        for (i32 i = 0; i != m_size; ++i)
+            data()[i].~T();
+    }
+
+    m_size = 0;
+}
+
+template<typename T, sz length>
+constexpr bool
+small_vector<T, length>::can_alloc(int number) noexcept
+{
+    return length - m_size >= number;
+}
+
+template<typename T, sz length>
+template<typename... Args>
+constexpr small_vector<T, length>::reference
+small_vector<T, length>::emplace_back(Args&&... args) noexcept
+{
+    assert(can_alloc(1) && "check alloc() with full() before using use.");
+
+    new (&(data()[m_size])) T(std::forward<Args>(args)...);
+
+    ++m_size;
+
+    return data()[m_size - 1];
+}
+
+template<typename T, sz length>
+constexpr void
+small_vector<T, length>::pop_back() noexcept
+{
+    if (m_size) {
+        if constexpr (std::is_trivially_destructible_v<T>)
+            data()[m_size - 1].~T();
+
+        --m_size;
+    }
+}
+
+template<typename T, sz length>
+constexpr void
+small_vector<T, length>::swap_pop_back(index_type index) noexcept
+{
+    irt_assert(index >= 0 && index < m_size);
+
+    if (index == m_size - 1) {
+        pop_back();
+    } else {
+        if constexpr (std::is_trivially_destructible_v<T>) {
+            data()[index] = data()[m_size - 1];
+            pop_back();
+        } else {
+            using std::swap;
+
+            swap(data()[index], data()[m_size - 1]);
+            pop_back();
+        }
+    }
+}
 
 template<typename T>
 hierarchy<T>::~hierarchy() noexcept
@@ -492,11 +786,11 @@ namespace detail {
 
 } // namespace detail
 
-//inline status
-//flat_merge(
+// inline status
+// flat_merge(
 //  [[maybe_unused]] none&                                      none_mdl,
 //  [[maybe_unused]] const data_array<component, component_id>& components,
-//  [[maybe_unused]] const data_array<model, model_id>&         component_models,
+//  [[maybe_unused]] const data_array<model, model_id>& component_models,
 //  [[maybe_unused]] simulation&                                sim)
 //{
 //    // irt_return_if_bad(detail::flat_merge_create_models(
