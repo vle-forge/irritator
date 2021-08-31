@@ -1524,7 +1524,6 @@ public:
  *
  ****************************************************************************/
 
-enum class component_id : u64;
 enum class model_id : u64;
 enum class dynamics_id : u64;
 enum class message_id : u64;
@@ -6110,10 +6109,10 @@ get_output_port(model& dst, int port_dst, output_port*& p) noexcept
     return dispatch(
       dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                if (port_dst >= 0 && port_dst < length(dyn.y)) {
-                    p = &dyn.y[port_dst];
-                    return status::success;
-                }
+              if (port_dst >= 0 && port_dst < length(dyn.y)) {
+                  p = &dyn.y[port_dst];
+                  return status::success;
+              }
           }
 
           return status::model_connect_output_port_unknown;
@@ -6255,28 +6254,6 @@ global_disconnect(simulation& sim,
           irt_unreachable();
       });
 }
-
-struct component
-{
-    small_string<16> name;
-
-    vector<model_id>    models;
-    vector<model_id>    parameters;
-    vector<model_id>    observables;
-    vector<input_port>  internal_x;
-    vector<output_port> internal_y;
-
-    status init(i32 model_number) noexcept
-    {
-        irt_return_if_bad(models.init(model_number));
-        irt_return_if_bad(parameters.init(8));
-        irt_return_if_bad(observables.init(8));
-        irt_return_if_bad(internal_x.init(8));
-        irt_return_if_bad(internal_y.init(8));
-
-        return status::success;
-    }
-};
 
 /*****************************************************************************
  *
