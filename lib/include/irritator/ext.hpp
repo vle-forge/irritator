@@ -11,6 +11,44 @@
 
 namespace irt {
 
+//! @brief A helper container to store Identifier -> T relation.
+//! @tparam Identifier Any integer or enum type.
+//! @tparam T Any type (trivial or not).
+template<typename Identifier, typename T>
+class table
+{
+public:
+    static_assert(
+      std::is_enum_v<Identifier> || std::is_integral_v<Identifier>,
+      "Identifier must be a enumeration: enum class id : unsigned {};");
+
+    struct value_type
+    {
+        value_type() noexcept = default;
+        value_type(Identifier id, const T& value) noexcept;
+
+        Identifier id;
+        T          value;
+    };
+
+    using container_type  = vector<value_type>;
+    using size_type       = container_type::size_type;
+    using index_type      = container_type::index_type;
+    using iterator        = container_type::iterator;
+    using const_iterator  = container_type::const_iterator;
+    using reference       = container_type::reference;
+    using const_reference = container_type::const_reference;
+    using pointer         = container_type::pointer;
+    using const_pointer   = container_type::const_pointer;
+
+    container_type data;
+
+    constexpr void     set(Identifier id, T value) noexcept;
+    constexpr T*       get(Identifier id) noexcept;
+    constexpr const T* get(Identifier id) const noexcept;
+    constexpr void     sort() noexcept;
+};
+
 //! @brief A vector like class but without dynamic allocation.
 //! @tparam T Any type (trivial or not).
 //! @tparam length The capacity of the vector.
@@ -118,6 +156,61 @@ private:
  * Containers implementation
  *
  ****************************************************************************/
+
+template<typename Identifier, typename T>
+table<Identifier, T>::value_type::value_type(Identifier id_,
+                                             const T&   value_) noexcept
+  : id(id_)
+  , value(value_)
+{}
+
+template<typename Identifier, typename T>
+constexpr void
+table<Identifier, T>::set(Identifier id, T value) noexcept
+{
+    if (auto* value_found = get(id); value_found) {
+        *value_found = value;
+    } else {
+        data.emplace_back(id, value);
+        sort();
+    }
+}
+
+template<typename Identifier, typename T>
+constexpr T*
+table<Identifier, T>::get(Identifier id) noexcept
+{
+    auto it = std::lower_bound(
+      data.begin(), data.end(), id, [](auto& m, Identifier id) {
+          return m.id < id;
+      });
+
+    return (!(it == data.end()) && (id == it->id)) ? &it->value : nullptr;
+}
+
+template<typename Identifier, typename T>
+constexpr const T*
+table<Identifier, T>::get(Identifier id) const noexcept
+{
+    auto it = std::lower_bound(
+      data.begin(), data.end(), id, [](const auto& m, Identifier id) {
+          return m.id < id;
+      });
+
+    return (!(it == data.end()) && (id == it->id)) ? &it->value : nullptr;
+}
+
+template<typename Identifier, typename T>
+constexpr void
+table<Identifier, T>::sort() noexcept
+{
+    if (data.size() > 1)
+        std::sort(data.begin(),
+                  data.end(),
+                  [](const auto& left, const auto& right) noexcept {
+                      return left.id < right.id;
+                  });
+}
 
 // template<typename T, size_type length>
 // class small_vector;
@@ -294,7 +387,8 @@ template<typename T, sz length>
 constexpr bool
 small_vector<T, length>::can_alloc(int number) noexcept
 {
-    return length - m_size >= number;
+    return static_cast<i64>(length) - static_cast<i64>(m_size) >=
+           static_cast<i64>(number);
 }
 
 template<typename T, sz length>

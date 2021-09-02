@@ -740,6 +740,43 @@ main()
         expect((pos.capacity() == 4 + 4 / 2));
     };
 
+    "table"_test = [] {
+        struct position
+        {
+            position() = default;
+            position(float x_)
+              : x(x_)
+            {}
+
+            float x = 0;
+        };
+
+        irt::table<int, position> tbl;
+        tbl.data.init(10);
+
+        tbl.data.emplace_back(4, 4.f);
+        tbl.data.emplace_back(3, 3.f);
+        tbl.data.emplace_back(2, 2.f);
+        tbl.data.emplace_back(1, 1.f);
+        tbl.sort();
+        expect(tbl.data.size() == 4);
+        expect(tbl.data.capacity() == 10);
+        tbl.set(0, 0.f);
+
+        expect(tbl.data.size() == 5);
+        expect(tbl.data.capacity() == 10);
+        expect(tbl.data[0].id == 0);
+        expect(tbl.data[1].id == 1);
+        expect(tbl.data[2].id == 2);
+        expect(tbl.data[3].id == 3);
+        expect(tbl.data[4].id == 4);
+        expect(tbl.data[0].value.x == 0.f);
+        expect(tbl.data[1].value.x == 1.f);
+        expect(tbl.data[2].value.x == 2.f);
+        expect(tbl.data[3].value.x == 3.f);
+        expect(tbl.data[4].value.x == 4.f);
+    };
+
     "data_array_api"_test = [] {
         struct position
         {
