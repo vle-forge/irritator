@@ -658,7 +658,9 @@ public:
     constexpr vector(vector&& other) noexcept                 = delete;
     constexpr vector& operator=(vector&& other) noexcept = delete;
 
-    status init(i32 capacity, i32 default_size = 0) noexcept;
+    status init(i32 capacity) noexcept;
+    status init(i32 capacity, i32 default_size) noexcept;
+
     status resize(i32 size);
     status reserve(i32 new_capacity);
 
@@ -6991,8 +6993,29 @@ inline vector<T>::~vector() noexcept
 
 template<typename T>
 inline status
+vector<T>::init(i32 capacity) noexcept
+{
+    irt_return_if_fail(capacity > 0, status::vector_init_capacity_error);
+
+    destroy();
+
+    m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
+    if (!m_data)
+        return status::vector_not_enough_memory;
+
+    m_capacity = static_cast<i32>(capacity);
+    m_size     = 0;
+
+    return status::success;
+}
+
+template<typename T>
+inline status
 vector<T>::init(i32 capacity, i32 default_size) noexcept
 {
+    static_assert(std::is_default_constructible_v<T>,
+                  "init with a default size need a default constructor");
+
     irt_return_if_fail(capacity > 0 && default_size >= 0 &&
                          default_size <= capacity,
                        status::vector_init_capacity_error);
