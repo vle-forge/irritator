@@ -7,6 +7,8 @@
 #define WINDOWS_LEAN_AND_MEAN
 #endif
 
+#include <irritator/ext.hpp>
+
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
@@ -352,10 +354,10 @@ editor::compute_automatic_layout() noexcept
 }
 
 static status
-copy_port(simulation&                    sim,
-          const map<model_id, model_id>& mapping,
-          output_port&                   src,
-          output_port&                   dst) noexcept
+copy_port(simulation&                      sim,
+          const table<model_id, model_id>& mapping,
+          output_port&                     src,
+          output_port&                     dst) noexcept
 {
     if (src == static_cast<u64>(-1)) {
         dst = src;
@@ -369,10 +371,10 @@ copy_port(simulation&                    sim,
     auto et = src_list.end();
 
     while (it != et) {
-        if (auto found = mapping.find(it->model); found != mapping.end()) {
+        if (auto* found = mapping.get(it->model); found) {
             irt_return_if_fail(sim.can_connect(1u),
                                status::simulation_not_enough_connection);
-            dst_list.emplace_back(found->v, it->port_index);
+            dst_list.emplace_back(*found, it->port_index);
         } else {
             if (model* mdl = sim.models.try_to_get(it->model); mdl) {
                 irt_return_if_fail(sim.can_connect(1u),
@@ -391,8 +393,8 @@ copy_port(simulation&                    sim,
 status
 editor::copy(const ImVector<int>& nodes) noexcept
 {
-    map<model_id, model_id> mapping;
-    irt_return_if_bad(mapping.init(nodes.size()));
+    table<model_id, model_id> mapping;
+    irt_return_if_bad(mapping.data.init(nodes.size()));
 
     for (int i = 0, e = nodes.size(); i != e; ++i) {
         auto* src_mdl = sim.models.try_to_get(nodes[i]);
@@ -408,14 +410,14 @@ editor::copy(const ImVector<int>& nodes) noexcept
 
         sim.make_initialize(dst_mdl, simulation_current);
 
-        mapping.emplace_back(src_mdl_id, dst_mdl_id);
+        mapping.data.emplace_back(src_mdl_id, dst_mdl_id);
     }
 
     mapping.sort();
 
-    for (int i = 0, e = length(mapping); i != e; ++i) {
-        auto& src_mdl = sim.models.get(mapping[i].u);
-        auto& dst_mdl = sim.models.get(mapping[i].v);
+    for (int i = 0, e = length(mapping.data); i != e; ++i) {
+        auto& src_mdl = sim.models.get(mapping.data[i].id);
+        auto& dst_mdl = sim.models.get(mapping.data[i].value);
 
         dispatch(src_mdl,
                  [this, &mapping, &dst_mdl]<typename Dynamics>(Dynamics& dyn) {
