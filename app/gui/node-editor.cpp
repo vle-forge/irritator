@@ -1792,7 +1792,10 @@ show_dynamics_inputs(editor& /*ed*/, none& /*dyn*/)
 static void
 show_dynamics_values(simulation& /*sim*/, const filter& dyn)
 {
-    ImGui::Text("%.3f * %.3f", dyn.value, dyn.input_coeff);
+    //ImGui::Text("%.3f, %.3f, %.3f", dyn.default_lower_threshold, dyn.default_upper_threshold, dyn.value);
+    ImGui::Text("%.3f", dyn.default_lower_threshold);
+    ImGui::Text("%.3f", dyn.default_upper_threshold);
+    ImGui::Text("%.3f", dyn.inValue);
 }
 
 static void
@@ -2320,7 +2323,9 @@ show_dynamics_inputs(editor& /*ed*/, accumulator_2& /*dyn*/)
 static void
 show_dynamics_inputs(editor& /*ed*/, filter& dyn)
 {
-    ImGui::InputDouble("coeff-0", &dyn.default_input_coeff);
+    ImGui::InputDouble("Lower threshold ", &dyn.default_lower_threshold);
+    ImGui::InputDouble("Upper threshold ", &dyn.default_upper_threshold);
+    ImGui::InputDouble("Value ", &dyn.inValue);
 }
 
 static void

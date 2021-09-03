@@ -1515,7 +1515,8 @@ private:
 
     bool read(simulation& /*sim*/, filter& dyn) noexcept
     {
-        return !!(is >> dyn.default_value >> dyn.default_input_coeff);
+        return !!(is >> dyn.default_lower_threshold >> dyn.default_upper_threshold >>
+                  dyn.inValue);
     }
 
     bool read(simulation& /*sim*/, flow& dyn) noexcept
@@ -2113,7 +2114,9 @@ private:
 
     void write(const simulation& /*sim*/, const filter& dyn) noexcept
     {
-        os << "filter"<<dyn.default_value<<' '<<dyn.default_input_coeff <<'\n';
+        os << "filter " << dyn.default_lower_threshold << ' ' << dyn.default_upper_threshold
+           << ' ' << dyn.inValue
+           << '\n';
     }
 
     void write(const simulation& /*sim*/, const flow& dyn) noexcept
