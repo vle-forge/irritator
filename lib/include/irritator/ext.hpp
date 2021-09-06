@@ -118,21 +118,18 @@ class hierarchy
 public:
     using value_type = T;
 
-    static_assert(std::is_enum<T>::value,
-                  "T must be a enumeration: enum class id : unsigned {};");
-
 private:
     hierarchy* m_parent  = nullptr;
     hierarchy* m_sibling = nullptr;
     hierarchy* m_child   = nullptr;
-    T          m_id      = undefined<T>();
+    T*         m_id      = nullptr;
 
 public:
     hierarchy() noexcept = default;
     ~hierarchy() noexcept;
 
-    void set_id(T object) noexcept;
-    T    id() const noexcept;
+    void set_id(T* object) noexcept;
+    T*   id() const noexcept;
 
     void parent_to(hierarchy& node) noexcept;
     void make_sibling_after(hierarchy& node) noexcept;
@@ -140,12 +137,12 @@ public:
     void remove_from_parent() noexcept;
     void remove_from_hierarchy() noexcept;
 
-    T get_parent() const noexcept;
-    T get_child() const noexcept;
-    T get_sibling() const noexcept;
-    T get_prior_sibling() const noexcept;
-    T get_next() const noexcept;
-    T get_next_leaf() const noexcept;
+    T* get_parent() const noexcept;
+    T* get_child() const noexcept;
+    T* get_sibling() const noexcept;
+    T* get_prior_sibling() const noexcept;
+    T* get_next() const noexcept;
+    T* get_next_leaf() const noexcept;
 
 private:
     hierarchy<T>* get_prior_sibling_node() const noexcept;
@@ -445,7 +442,7 @@ hierarchy<T>::~hierarchy() noexcept
 }
 
 template<typename T>
-T
+T*
 hierarchy<T>::id() const noexcept
 {
     return m_id;
@@ -453,7 +450,7 @@ hierarchy<T>::id() const noexcept
 
 template<typename T>
 void
-hierarchy<T>::set_id(T id) noexcept
+hierarchy<T>::set_id(T* id) noexcept
 {
     m_id = id;
 }
@@ -533,24 +530,24 @@ hierarchy<T>::remove_from_hierarchy() noexcept
 }
 
 template<typename T>
-T
+T*
 hierarchy<T>::get_parent() const noexcept
 {
-    return m_parent ? m_parent->m_id : undefined<T>();
+    return m_parent ? m_parent->m_id : nullptr;
 }
 
 template<typename T>
-T
+T*
 hierarchy<T>::get_child() const noexcept
 {
-    return m_child ? m_child->m_id : undefined<T>();
+    return m_child ? m_child->m_id : nullptr;
 }
 
 template<typename T>
-T
+T*
 hierarchy<T>::get_sibling() const noexcept
 {
-    return m_sibling ? m_sibling->m_id : undefined<T>();
+    return m_sibling ? m_sibling->m_id : nullptr;
 }
 
 template<typename T>
@@ -577,16 +574,16 @@ hierarchy<T>::get_prior_sibling_node() const noexcept
 }
 
 template<typename T>
-T
+T*
 hierarchy<T>::get_prior_sibling() const noexcept
 {
     hierarchy<T>* prior = get_prior_sibling_node();
 
-    return prior ? prior->m_id : undefined<T>();
+    return prior ? prior->m_id : nullptr;
 }
 
 template<typename T>
-T
+T*
 hierarchy<T>::get_next() const noexcept
 {
     if (m_child)
@@ -596,11 +593,11 @@ hierarchy<T>::get_next() const noexcept
     while (node && node->m_sibling == nullptr)
         node = node->m_parent;
 
-    return node ? node->m_sibling->m_id : undefined<T>();
+    return node ? node->m_sibling->m_id : nullptr;
 }
 
 template<typename T>
-T
+T*
 hierarchy<T>::get_next_leaf() const noexcept
 {
     if (m_child) {
