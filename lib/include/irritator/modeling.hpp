@@ -10,11 +10,11 @@
 
 namespace irt {
 
-enum class component_id     = u64;
-enum class component_ref_id = u64;
-enum class parameter_id     = u64;
+enum class component_id : u64;
+enum class component_ref_id : u64;
+enum class parameter_id : u64;
 
-enum class vertice_type : i8
+enum class child_type : i8
 {
     model,
     component
@@ -43,12 +43,27 @@ struct parameter
     real values[8];
 };
 
+template<typename DataArray, typename T, typename Function>
+void for_each(const DataArray& data, vector<T>& vec, Function&& f)
+{
+    i64 i = 0, e = vec.size();
+
+    while (i != e) {
+        if (auto* ptr = data.try_to_get(vec[i]); ptr) {
+            f(*ptr);
+            ++i;
+        } else {
+            vec.swap_pop_back(i);
+        }
+    }
+}
+
 struct connection
 {
     u64             src;      // model_id or component_id
     u64             dst;      // model_id or component_id
-    node_type       type_src; // model or component
-    node_type       type_dst; // model or component
+    child_type      type_src; // model or component
+    child_type      type_dst; // model or component
     i8              port_src; // output port index
     i8              port_dst; // input port index
     connection_type type;
@@ -68,8 +83,8 @@ struct child
     child(model_id model) noexcept;
     child(component_ref_id component) noexcept;
 
-    u64       id;
-    node_type type;
+    u64        id;
+    child_type type;
 };
 
 struct port
@@ -77,9 +92,9 @@ struct port
     port(model_id model, i8 port) noexcept;
     port(component_ref_id component, i8 port) noexcept;
 
-    u64       id;
-    node_type type;
-    i8        port;
+    u64        id;    // model_id or component_ref_id
+    child_type type;  // allow to choose id
+    i8         index; // index of the port
 };
 
 struct component
@@ -96,7 +111,7 @@ struct component
 struct modeling
 {
     data_array<model, model_id>                 models;
-    data_array<component_ref, component_ref_id> components;
+    data_array<component_ref, component_ref_id> component_refs;
     data_array<component, component_id>         components;
     data_array<parameter, parameter_id>         parameters;
     data_array<observer, observer_id>           observers;
@@ -104,7 +119,9 @@ struct modeling
     component_ref_id head = component_ref_id{ 0 };
 };
 
-////
+/*
+ * Implementation
+ */
 
 inline child::child(model_id model) noexcept
   : id{ ordinal(model) }
@@ -116,16 +133,16 @@ inline child::child(component_ref_id component) noexcept
   , type{ child_type::component }
 {}
 
-inline port::port(model_id model, i8 port) noexcept
+inline port::port(model_id model, i8 port_) noexcept
   : id{ ordinal(model) }
   , type{ child_type::model }
-  , port(port_)
+  , index{ port_ }
 {}
 
-inline port::port(component_ref_id component, i8 port) noexcept
+inline port::port(component_ref_id component, i8 port_) noexcept
   : id{ ordinal(component) }
   , type{ child_type::component }
-  , port(port_)
+  , index{ port_ }
 {}
 
 } // namespace irt

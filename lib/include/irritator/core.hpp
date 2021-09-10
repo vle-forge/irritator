@@ -144,8 +144,7 @@ using real = f32;
 //! @param v The floating point number to convert to float, double or long
 //! double.
 //! @return A real.
-inline constexpr real
-to_real(long double v) noexcept
+inline constexpr real to_real(long double v) noexcept
 {
     return static_cast<real>(v);
 }
@@ -171,75 +170,64 @@ constexpr static inline real three = to_real(3.);
 constexpr static inline real four  = to_real(4.);
 constexpr static inline real zero  = to_real(0.);
 
-inline u16
-make_halfword(u8 a, u8 b) noexcept
+inline u16 make_halfword(u8 a, u8 b) noexcept
 {
     return static_cast<u16>((a << 8) | b);
 }
 
-inline void
-unpack_halfword(u16 halfword, u8* a, u8* b) noexcept
+inline void unpack_halfword(u16 halfword, u8* a, u8* b) noexcept
 {
     *a = static_cast<u8>((halfword >> 8) & 0xff);
     *b = static_cast<u8>(halfword & 0xff);
 }
 
-inline u32
-make_word(u16 a, u16 b) noexcept
+inline u32 make_word(u16 a, u16 b) noexcept
 {
     return (static_cast<u32>(a) << 16) | static_cast<u32>(b);
 }
 
-inline void
-unpack_word(u32 word, u16* a, u16* b) noexcept
+inline void unpack_word(u32 word, u16* a, u16* b) noexcept
 {
     *a = static_cast<u16>((word >> 16) & 0xffff);
     *b = static_cast<u16>(word & 0xffff);
 }
 
-inline u64
-make_doubleword(u32 a, u32 b) noexcept
+inline u64 make_doubleword(u32 a, u32 b) noexcept
 {
     return (static_cast<u64>(a) << 32) | static_cast<u64>(b);
 }
 
-inline void
-unpack_doubleword(u64 doubleword, u32* a, u32* b) noexcept
+inline void unpack_doubleword(u64 doubleword, u32* a, u32* b) noexcept
 {
     *a = static_cast<u32>((doubleword >> 32) & 0xffffffff);
     *b = static_cast<u32>(doubleword & 0xffffffff);
 }
 
-inline u32
-unpack_doubleword_left(u64 doubleword) noexcept
+inline u32 unpack_doubleword_left(u64 doubleword) noexcept
 {
     return static_cast<u32>((doubleword >> 32) & 0xffffffff);
 }
 
-inline u32
-unpack_doubleword_right(u64 doubleword) noexcept
+inline u32 unpack_doubleword_right(u64 doubleword) noexcept
 {
     return static_cast<u32>(doubleword & 0xffffffff);
 }
 
 template<typename Integer>
-constexpr typename std::make_unsigned<Integer>::type
-to_unsigned(Integer value)
+constexpr typename std::make_unsigned<Integer>::type to_unsigned(Integer value)
 {
     irt_assert(value >= 0);
     return static_cast<typename std::make_unsigned<Integer>::type>(value);
 }
 
 template<class C>
-constexpr int
-length(const C& c) noexcept
+constexpr int length(const C& c) noexcept
 {
     return static_cast<int>(c.size());
 }
 
 template<class T, size_t N>
-constexpr int
-length(const T (&array)[N]) noexcept
+constexpr int length(const T (&array)[N]) noexcept
 {
     (void)array;
 
@@ -247,8 +235,7 @@ length(const T (&array)[N]) noexcept
 }
 
 template<typename Identifier>
-constexpr Identifier
-undefined() noexcept
+constexpr Identifier undefined() noexcept
 {
     static_assert(
       std::is_enum<Identifier>::value,
@@ -258,8 +245,7 @@ undefined() noexcept
 }
 
 template<typename Identifier>
-constexpr bool
-is_undefined(Identifier id) noexcept
+constexpr bool is_undefined(Identifier id) noexcept
 {
     static_assert(
       std::is_enum<Identifier>::value,
@@ -269,8 +255,7 @@ is_undefined(Identifier id) noexcept
 }
 
 template<typename Identifier>
-constexpr bool
-is_defined(Identifier id) noexcept
+constexpr bool is_defined(Identifier id) noexcept
 {
     static_assert(
       std::is_enum<Identifier>::value,
@@ -285,8 +270,7 @@ is_defined(Identifier id) noexcept
 //! @param e The element in enumeration to convert.
 //! @return An integral.
 template<class Enum, class Integer = typename std::underlying_type<Enum>::type>
-constexpr Integer
-ordinal(Enum e) noexcept
+constexpr Integer ordinal(Enum e) noexcept
 {
     static_assert(std::is_enum<Enum>::value,
                   "Identifier must be a enumeration");
@@ -299,8 +283,7 @@ ordinal(Enum e) noexcept
 //! @param i The integral to convert.
 //! @return A element un enumeration.
 template<class Enum, class Integer = typename std::underlying_type<Enum>::type>
-constexpr Enum
-enum_cast(Integer i) noexcept
+constexpr Enum enum_cast(Integer i) noexcept
 {
     static_assert(std::is_enum<Enum>::value,
                   "Identifier must be a enumeration");
@@ -312,8 +295,7 @@ enum_cast(Integer i) noexcept
 //! Binary search function which returns an iterator to the result or end if
 //! not found using the lower_bound standard function.
 template<typename Iterator, typename T>
-Iterator
-binary_find(Iterator begin, Iterator end, const T& value)
+Iterator binary_find(Iterator begin, Iterator end, const T& value)
 {
     begin = std::lower_bound(begin, end, value);
     return (!(begin == end) && (value == *begin)) ? begin : end;
@@ -324,8 +306,7 @@ binary_find(Iterator begin, Iterator end, const T& value)
 //! Binary search function which returns an iterator to the result or end if
 //! not found using the lower_bound standard function.
 template<typename Iterator, typename T, typename Compare>
-Iterator
-binary_find(Iterator begin, Iterator end, const T& value, Compare comp)
+Iterator binary_find(Iterator begin, Iterator end, const T& value, Compare comp)
 {
     begin = std::lower_bound(begin, end, value, comp);
     return (!(begin == end) && (value == *begin)) ? begin : end;
@@ -390,39 +371,27 @@ enum class status
     filter_threshold_condition_not_satisfied
 };
 
-constexpr i8
-status_last() noexcept
+constexpr i8 status_last() noexcept
 {
     return static_cast<i8>(status::io_file_format_dynamics_init_error);
 }
 
-constexpr sz
-status_size() noexcept
+constexpr sz status_size() noexcept
 {
     return static_cast<sz>(status_last() + static_cast<i8>(1));
 }
 
-constexpr bool
-is_success(status s) noexcept
-{
-    return s == status::success;
-}
+constexpr bool is_success(status s) noexcept { return s == status::success; }
 
-constexpr bool
-is_bad(status s) noexcept
-{
-    return s != status::success;
-}
+constexpr bool is_bad(status s) noexcept { return s != status::success; }
 
 template<typename... Args>
-constexpr bool
-is_status_equal(status s, Args... args) noexcept
+constexpr bool is_status_equal(status s, Args... args) noexcept
 {
     return ((s == args) || ... || false);
 }
 
-inline status
-check_return(status s) noexcept
+inline status check_return(status s) noexcept
 {
     if (s != status::success)
         irt_breakpoint();
@@ -431,15 +400,13 @@ check_return(status s) noexcept
 }
 
 template<typename T, typename... Args>
-constexpr bool
-match(const T& s, Args... args) noexcept
+constexpr bool match(const T& s, Args... args) noexcept
 {
     return ((s == args) || ... || false);
 }
 
 template<class T, class... Rest>
-constexpr bool
-are_all_same() noexcept
+constexpr bool are_all_same() noexcept
 {
     return (std::is_same_v<T, Rest> && ...);
 }
@@ -538,8 +505,8 @@ private:
 
 //! Swaps the referred callables of `lhs` and `rhs`.
 template<typename R, typename... Args>
-constexpr void
-swap(function_ref<R(Args...)>& lhs, function_ref<R(Args...)>& rhs) noexcept
+constexpr void swap(function_ref<R(Args...)>& lhs,
+                    function_ref<R(Args...)>& rhs) noexcept
 {
     lhs.swap(rhs);
 }
@@ -559,14 +526,9 @@ function_ref(R (*)(Args...) noexcept) -> function_ref<R(Args...) noexcept>;
 using global_alloc_function_type = function_ref<void*(sz size)>;
 using global_free_function_type  = function_ref<void(void* ptr)>;
 
-static inline void*
-malloc_wrapper(sz size)
-{
-    return std::malloc(size);
-}
+static inline void* malloc_wrapper(sz size) { return std::malloc(size); }
 
-static inline void
-free_wrapper(void* ptr)
+static inline void free_wrapper(void* ptr)
 {
     if (ptr)
         std::free(ptr);
@@ -1469,8 +1431,7 @@ enum class message_id : u64;
 enum class observer_id : u64;
 
 template<typename T>
-constexpr u32
-get_index(T identifier) noexcept
+constexpr u32 get_index(T identifier) noexcept
 {
     static_assert(std::is_enum<T>::value, "Identifier must be a enumeration");
 
@@ -1479,8 +1440,7 @@ get_index(T identifier) noexcept
 }
 
 template<typename T>
-constexpr u32
-get_key(T identifier) noexcept
+constexpr u32 get_key(T identifier) noexcept
 {
     static_assert(std::is_enum<T>::value, "Identifier must be a enumeration");
 
@@ -1489,29 +1449,25 @@ get_key(T identifier) noexcept
 }
 
 template<typename T>
-constexpr u32
-get_max_size() noexcept
+constexpr u32 get_max_size() noexcept
 {
     return std::numeric_limits<u32>::max();
 }
 
 template<typename T>
-constexpr bool
-is_valid(T identifier) noexcept
+constexpr bool is_valid(T identifier) noexcept
 {
     return get_key(identifier) > 0;
 }
 
 template<typename T>
-constexpr T
-make_id(u32 key, u32 index) noexcept
+constexpr T make_id(u32 key, u32 index) noexcept
 {
     return static_cast<T>(make_doubleword(key, index));
 }
 
 template<typename T>
-constexpr u32
-make_next_key(u32 key) noexcept
+constexpr u32 make_next_key(u32 key) noexcept
 {
     return key == static_cast<u32>(-1) ? 1u : key + 1;
 }
@@ -2210,14 +2166,11 @@ struct source
  * @param src The sources.
  * @return
  */
-inline status
-initialize_source(simulation& sim, source& src) noexcept;
+inline status initialize_source(simulation& sim, source& src) noexcept;
 
-inline status
-update_source(simulation& sim, source& src, double& val) noexcept;
+inline status update_source(simulation& sim, source& src, double& val) noexcept;
 
-inline status
-finalize_source(simulation& sim, source& src) noexcept;
+inline status finalize_source(simulation& sim, source& src) noexcept;
 
 /*****************************************************************************
  *
@@ -2287,14 +2240,12 @@ enum class dynamics_type : i32
     flow
 };
 
-constexpr i8
-dynamics_type_last() noexcept
+constexpr i8 dynamics_type_last() noexcept
 {
     return static_cast<i8>(dynamics_type::flow);
 }
 
-constexpr sz
-dynamics_type_size() noexcept
+constexpr sz dynamics_type_size() noexcept
 {
     return static_cast<sz>(dynamics_type_last() + 1);
 }
@@ -2352,45 +2303,37 @@ struct output_message
 using output_port = u64;
 using input_port  = u64;
 
-inline bool
-have_message(const u64 port) noexcept
+inline bool have_message(const u64 port) noexcept
 {
     return port != static_cast<u64>(-1);
 }
 
-bool
-can_alloc_message(const simulation& sim, int alloc_number) noexcept;
-bool
-can_alloc_node(const simulation& sim, int alloc_number) noexcept;
-bool
-can_alloc_dated_message(const simulation& sim, int alloc_number) noexcept;
+bool can_alloc_message(const simulation& sim, int alloc_number) noexcept;
+bool can_alloc_node(const simulation& sim, int alloc_number) noexcept;
+bool can_alloc_dated_message(const simulation& sim, int alloc_number) noexcept;
 
-list_view<message>
-append_message(simulation& sim, input_port& port) noexcept;
-list_view_const<message>
-get_message(const simulation& sim, const input_port port) noexcept;
+list_view<message> append_message(simulation& sim, input_port& port) noexcept;
+list_view_const<message> get_message(const simulation& sim,
+                                     const input_port  port) noexcept;
 
-list_view<node>
-append_node(simulation& sim, output_port& port) noexcept;
-list_view_const<node>
-get_node(const simulation& sim, const output_port port) noexcept;
+list_view<node>       append_node(simulation& sim, output_port& port) noexcept;
+list_view_const<node> get_node(const simulation& sim,
+                               const output_port port) noexcept;
 
-list_view<record>
-append_archive(simulation& sim, u64& id) noexcept;
-list_view_const<record>
-get_archive(const simulation& sim, const u64 id) noexcept;
+list_view<record>       append_archive(simulation& sim, u64& id) noexcept;
+list_view_const<record> get_archive(const simulation& sim,
+                                    const u64         id) noexcept;
 
-list_view<dated_message>
-append_dated_message(simulation& sim, u64& id) noexcept;
-list_view_const<dated_message>
-get_dated_message(const simulation& sim, const u64 id) noexcept;
+list_view<dated_message>       append_dated_message(simulation& sim,
+                                                    u64&        id) noexcept;
+list_view_const<dated_message> get_dated_message(const simulation& sim,
+                                                 const u64         id) noexcept;
 
-status
-send_message(simulation&  sim,
-             output_port& p,
-             real         r1,
-             real         r2 = zero,
-             real         r3 = zero) noexcept;
+status send_message(simulation&  sim,
+                    output_port& p,
+                    real         r1,
+                    real         r2 = zero,
+                    real         r3 = zero) noexcept;
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -5232,8 +5175,7 @@ using qss1_cross = abstract_cross<1>;
 using qss2_cross = abstract_cross<2>;
 using qss3_cross = abstract_cross<3>;
 
-inline real
-sin_time_function(real t) noexcept
+inline real sin_time_function(real t) noexcept
 {
     constexpr real f0 = to_real(0.1);
 
@@ -5249,17 +5191,9 @@ sin_time_function(real t) noexcept
     return std::sin(mult * t);
 }
 
-inline real
-square_time_function(real t) noexcept
-{
-    return t * t;
-}
+inline real square_time_function(real t) noexcept { return t * t; }
 
-inline real
-time_function(real t) noexcept
-{
-    return t;
-}
+inline real time_function(real t) noexcept { return t; }
 
 struct time_func
 {
@@ -5617,21 +5551,15 @@ public:
     }
 };
 
-constexpr sz
-max(sz a)
-{
-    return a;
-}
+constexpr sz max(sz a) { return a; }
 
 template<typename... Args>
-constexpr sz
-max(sz a, Args... args)
+constexpr sz max(sz a, Args... args)
 {
     return std::max(max(args...), a);
 }
 
-constexpr sz
-max_size_in_bytes() noexcept
+constexpr sz max_size_in_bytes() noexcept
 {
     return max(sizeof(qss1_integrator),
                sizeof(qss1_multiplier),
@@ -5700,8 +5628,7 @@ struct model
 };
 
 template<typename Function, typename... Args>
-constexpr auto
-dispatch(const model& mdl, Function&& f, Args... args) noexcept
+constexpr auto dispatch(const model& mdl, Function&& f, Args... args) noexcept
 {
     switch (mdl.type) {
     case dynamics_type::qss1_integrator:
@@ -5817,8 +5744,7 @@ dispatch(const model& mdl, Function&& f, Args... args) noexcept
 }
 
 template<typename Function, typename... Args>
-constexpr auto
-dispatch(model& mdl, Function&& f, Args... args) noexcept
+constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
 {
     switch (mdl.type) {
     case dynamics_type::qss1_integrator:
@@ -5933,8 +5859,7 @@ dispatch(model& mdl, Function&& f, Args... args) noexcept
     irt_unreachable();
 }
 
-inline status
-get_input_port(model& src, int port_src, input_port*& p) noexcept
+inline status get_input_port(model& src, int port_src, input_port*& p) noexcept
 {
     return dispatch(
       src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -5949,8 +5874,9 @@ get_input_port(model& src, int port_src, input_port*& p) noexcept
       });
 }
 
-inline status
-get_output_port(model& dst, int port_dst, output_port*& p) noexcept
+inline status get_output_port(model&        dst,
+                              int           port_dst,
+                              output_port*& p) noexcept
 {
     return dispatch(
       dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -5965,11 +5891,10 @@ get_output_port(model& dst, int port_dst, output_port*& p) noexcept
       });
 }
 
-inline bool
-is_ports_compatible(const model&               mdl_src,
-                    [[maybe_unused]] const int o_port_index,
-                    const model&               mdl_dst,
-                    const int                  i_port_index) noexcept
+inline bool is_ports_compatible(const model&               mdl_src,
+                                [[maybe_unused]] const int o_port_index,
+                                const model&               mdl_dst,
+                                const int i_port_index) noexcept
 {
     if (&mdl_src == &mdl_dst)
         return false;
@@ -6045,12 +5970,11 @@ is_ports_compatible(const model&               mdl_src,
     return false;
 }
 
-inline status
-global_connect(simulation& sim,
-               model&      src,
-               int         port_src,
-               model_id    dst,
-               int         port_dst) noexcept
+inline status global_connect(simulation& sim,
+                             model&      src,
+                             int         port_src,
+                             model_id    dst,
+                             int         port_dst) noexcept
 {
     return dispatch(
       src,
@@ -6076,12 +6000,11 @@ global_connect(simulation& sim,
       });
 }
 
-inline status
-global_disconnect(simulation& sim,
-                  model&      src,
-                  int         port_src,
-                  model_id    dst,
-                  int         port_dst) noexcept
+inline status global_disconnect(simulation& sim,
+                                model&      src,
+                                int         port_src,
+                                model_id    dst,
+                                int         port_dst) noexcept
 {
     return dispatch(
       src,
@@ -6191,8 +6114,7 @@ public:
  ****************************************************************************/
 
 template<typename Dynamics>
-static constexpr dynamics_type
-dynamics_typeof() noexcept
+static constexpr dynamics_type dynamics_typeof() noexcept
 {
     if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
         return dynamics_type::qss1_integrator;
@@ -6305,32 +6227,28 @@ dynamics_typeof() noexcept
 }
 
 template<typename Dynamics>
-Dynamics&
-get_dyn(model& mdl) noexcept
+Dynamics& get_dyn(model& mdl) noexcept
 {
     irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
     return *reinterpret_cast<Dynamics*>(&mdl.dyn);
 }
 
 template<typename Dynamics>
-const Dynamics&
-get_dyn(const model& mdl) noexcept
+const Dynamics& get_dyn(const model& mdl) noexcept
 {
     irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
     return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
 }
 
 template<typename Dynamics>
-constexpr const model&
-get_model(const Dynamics& d) noexcept
+constexpr const model& get_model(const Dynamics& d) noexcept
 {
     const Dynamics* __mptr = &d;
     return *(const model*)((const char*)__mptr - offsetof(model, dyn));
 }
 
 template<typename Dynamics>
-constexpr model&
-get_model(Dynamics& d) noexcept
+constexpr model& get_model(Dynamics& d) noexcept
 {
     Dynamics* __mptr = &d;
     return *(model*)((char*)__mptr - offsetof(model, dyn));
@@ -6759,14 +6677,12 @@ public:
     }
 };
 
-inline status
-initialize_source(simulation& sim, source& src) noexcept
+inline status initialize_source(simulation& sim, source& src) noexcept
 {
     return sim.source_dispatch(src, source::operation_type::initialize);
 }
 
-inline status
-update_source(simulation& sim, source& src, double& val) noexcept
+inline status update_source(simulation& sim, source& src, double& val) noexcept
 {
     if (src.next(val))
         return status::success;
@@ -6778,84 +6694,78 @@ update_source(simulation& sim, source& src, double& val) noexcept
     return src.next(val) ? status::success : status::source_empty;
 }
 
-inline status
-finalize_source(simulation& sim, source& src) noexcept
+inline status finalize_source(simulation& sim, source& src) noexcept
 {
     return sim.source_dispatch(src, source::operation_type::finalize);
 }
 
-inline bool
-can_alloc_message(const simulation& sim, int alloc_number) noexcept
+inline bool can_alloc_message(const simulation& sim, int alloc_number) noexcept
 {
     return sim.message_alloc.can_alloc(alloc_number);
 }
 
-inline list_view<message>
-append_message(simulation& sim, input_port& port) noexcept
+inline list_view<message> append_message(simulation& sim,
+                                         input_port& port) noexcept
 {
     return list_view<message>(sim.message_alloc, port);
 }
 
-inline list_view_const<message>
-get_message(const simulation& sim, const input_port port) noexcept
+inline list_view_const<message> get_message(const simulation& sim,
+                                            const input_port  port) noexcept
 {
     return list_view_const<message>(sim.message_alloc, port);
 }
 
-inline list_view<node>
-append_node(simulation& sim, output_port& port) noexcept
+inline list_view<node> append_node(simulation& sim, output_port& port) noexcept
 {
     return list_view<node>(sim.node_alloc, port);
 }
 
-inline list_view_const<node>
-get_node(const simulation& sim, const output_port port) noexcept
+inline list_view_const<node> get_node(const simulation& sim,
+                                      const output_port port) noexcept
 {
     return list_view_const<node>(sim.node_alloc, port);
 }
 
-inline list_view_const<record>
-get_archive(const simulation& sim, const u64 id) noexcept
+inline list_view_const<record> get_archive(const simulation& sim,
+                                           const u64         id) noexcept
 {
     return list_view_const<record>(sim.record_alloc, id);
 }
 
-inline list_view<record>
-append_archive(simulation& sim, u64& id) noexcept
+inline list_view<record> append_archive(simulation& sim, u64& id) noexcept
 {
     return list_view<record>(sim.record_alloc, id);
 }
 
-inline bool
-can_alloc_node(const simulation& sim, int alloc_number) noexcept
+inline bool can_alloc_node(const simulation& sim, int alloc_number) noexcept
 {
     return sim.node_alloc.can_alloc(alloc_number);
 }
 
-inline bool
-can_alloc_dated_message(const simulation& sim, int alloc_number) noexcept
+inline bool can_alloc_dated_message(const simulation& sim,
+                                    int               alloc_number) noexcept
 {
     return sim.dated_message_alloc.can_alloc(alloc_number);
 }
 
-inline list_view<dated_message>
-append_dated_message(simulation& sim, u64& id) noexcept
+inline list_view<dated_message> append_dated_message(simulation& sim,
+                                                     u64&        id) noexcept
 {
     return list_view<dated_message>(sim.dated_message_alloc, id);
 }
 
-inline list_view_const<dated_message>
-get_dated_message(const simulation& sim, const u64 id) noexcept
+inline list_view_const<dated_message> get_dated_message(const simulation& sim,
+                                                        const u64 id) noexcept
 {
     return list_view_const<dated_message>(sim.dated_message_alloc, id);
 }
 
-inline status
-send_message(simulation&  sim,
-             output_port& p,
-             real         r1,
-             real         r2,
-             real         r3) noexcept
+inline status send_message(simulation&  sim,
+                           output_port& p,
+                           real         r1,
+                           real         r2,
+                           real         r3) noexcept
 {
     auto list = append_node(sim, p);
     auto it   = list.begin();
@@ -6899,8 +6809,7 @@ inline vector<T>::~vector() noexcept
 }
 
 template<typename T>
-inline status
-vector<T>::init(i32 capacity) noexcept
+inline status vector<T>::init(i32 capacity) noexcept
 {
     irt_return_if_fail(capacity > 0, status::vector_init_capacity_error);
 
@@ -6917,8 +6826,7 @@ vector<T>::init(i32 capacity) noexcept
 }
 
 template<typename T>
-inline status
-vector<T>::init(i32 capacity, i32 default_size) noexcept
+inline status vector<T>::init(i32 capacity, i32 default_size) noexcept
 {
     static_assert(std::is_default_constructible_v<T>,
                   "init with a default size need a default constructor");
@@ -6948,8 +6856,7 @@ vector<T>::init(i32 capacity, i32 default_size) noexcept
 }
 
 template<typename T>
-inline void
-vector<T>::destroy() noexcept
+inline void vector<T>::destroy() noexcept
 {
     clear();
 
@@ -6962,8 +6869,7 @@ vector<T>::destroy() noexcept
 }
 
 template<typename T>
-constexpr void
-vector<T>::clear() noexcept
+constexpr void vector<T>::clear() noexcept
 {
     if constexpr (!std::is_trivially_destructible_v<T>) {
         for (i32 i = 0; i != m_size; ++i)
@@ -6974,8 +6880,7 @@ vector<T>::clear() noexcept
 }
 
 template<typename T>
-status
-vector<T>::resize(i32 size)
+status vector<T>::resize(i32 size)
 {
     if (size > m_capacity)
         irt_return_if_bad(reserve(compute_new_capacity(size)));
@@ -6989,8 +6894,7 @@ vector<T>::resize(i32 size)
 }
 
 template<typename T>
-status
-vector<T>::reserve(i32 new_capacity)
+status vector<T>::reserve(i32 new_capacity)
 {
     irt_return_if_fail(new_capacity > 0, status::vector_init_capacity_error);
 
@@ -7011,54 +6915,48 @@ vector<T>::reserve(i32 new_capacity)
 }
 
 template<typename T>
-constexpr T*
-vector<T>::data() noexcept
+constexpr T* vector<T>::data() noexcept
 {
     return m_data;
 }
 
 template<typename T>
-constexpr const T*
-vector<T>::data() const noexcept
+constexpr const T* vector<T>::data() const noexcept
 {
     return m_data;
 }
 
 template<typename T>
-constexpr vector<T>::reference
-vector<T>::front() noexcept
+constexpr vector<T>::reference vector<T>::front() noexcept
 {
     irt_assert(m_size > 0);
     return m_data[0];
 }
 
 template<typename T>
-constexpr vector<T>::const_reference
-vector<T>::front() const noexcept
+constexpr vector<T>::const_reference vector<T>::front() const noexcept
 {
     irt_assert(m_size > 0);
     return m_data[0];
 }
 
 template<typename T>
-constexpr vector<T>::reference
-vector<T>::back() noexcept
+constexpr vector<T>::reference vector<T>::back() noexcept
 {
     irt_assert(m_size > 0);
     return m_data[m_size - 1];
 }
 
 template<typename T>
-constexpr vector<T>::const_reference
-vector<T>::back() const noexcept
+constexpr vector<T>::const_reference vector<T>::back() const noexcept
 {
     irt_assert(m_size > 0);
     return m_data[m_size - 1];
 }
 
 template<typename T>
-constexpr vector<T>::reference
-vector<T>::operator[](const index_type index) noexcept
+constexpr vector<T>::reference vector<T>::operator[](
+  const index_type index) noexcept
 {
     irt_assert(index >= 0 && index < m_size);
 
@@ -7066,8 +6964,8 @@ vector<T>::operator[](const index_type index) noexcept
 }
 
 template<typename T>
-constexpr vector<T>::const_reference
-vector<T>::operator[](const index_type index) const noexcept
+constexpr vector<T>::const_reference vector<T>::operator[](
+  const index_type index) const noexcept
 {
     irt_assert(index >= 0 && index < m_size);
 
@@ -7075,79 +6973,68 @@ vector<T>::operator[](const index_type index) const noexcept
 }
 
 template<typename T>
-constexpr vector<T>::iterator
-vector<T>::begin() noexcept
+constexpr vector<T>::iterator vector<T>::begin() noexcept
 {
     return data();
 }
 
 template<typename T>
-constexpr vector<T>::const_iterator
-vector<T>::begin() const noexcept
+constexpr vector<T>::const_iterator vector<T>::begin() const noexcept
 {
     return data();
 }
 
 template<typename T>
-constexpr vector<T>::iterator
-vector<T>::end() noexcept
+constexpr vector<T>::iterator vector<T>::end() noexcept
 {
     return data() + m_size;
 }
 
 template<typename T>
-constexpr vector<T>::const_iterator
-vector<T>::end() const noexcept
+constexpr vector<T>::const_iterator vector<T>::end() const noexcept
 {
     return data() + m_size;
 }
 
 template<typename T>
-constexpr sz
-vector<T>::size() const noexcept
+constexpr sz vector<T>::size() const noexcept
 {
     return static_cast<sz>(m_size);
 }
 
 template<typename T>
-constexpr i32
-vector<T>::ssize() const noexcept
+constexpr i32 vector<T>::ssize() const noexcept
 {
     return m_size;
 }
 
 template<typename T>
-constexpr sz
-vector<T>::capacity() const noexcept
+constexpr sz vector<T>::capacity() const noexcept
 {
     return static_cast<sz>(m_capacity);
 }
 
 template<typename T>
-constexpr bool
-vector<T>::empty() const noexcept
+constexpr bool vector<T>::empty() const noexcept
 {
     return m_size == 0;
 }
 
 template<typename T>
-constexpr bool
-vector<T>::full() const noexcept
+constexpr bool vector<T>::full() const noexcept
 {
     return m_size >= m_capacity;
 }
 
 template<typename T>
-constexpr bool
-vector<T>::can_alloc(int number) const noexcept
+constexpr bool vector<T>::can_alloc(int number) const noexcept
 {
     return m_capacity - m_size >= number;
 }
 
 template<typename T>
 template<typename... Args>
-constexpr vector<T>::reference
-vector<T>::emplace_back(Args&&... args) noexcept
+constexpr vector<T>::reference vector<T>::emplace_back(Args&&... args) noexcept
 {
     irt_assert(can_alloc(1) && "check alloc() with full() before using use.");
 
@@ -7160,8 +7047,7 @@ vector<T>::emplace_back(Args&&... args) noexcept
 
 template<typename T>
 template<typename... Args>
-status
-vector<T>::try_emplace_back(Args&&... args) noexcept
+status vector<T>::try_emplace_back(Args&&... args) noexcept
 {
     if (m_size >= m_capacity)
         irt_return_if_bad(reserve(compute_new_capacity(m_size + 1)));
@@ -7172,8 +7058,7 @@ vector<T>::try_emplace_back(Args&&... args) noexcept
 }
 
 template<typename T>
-constexpr void
-vector<T>::pop_back() noexcept
+constexpr void vector<T>::pop_back() noexcept
 {
     if (m_size) {
         if constexpr (std::is_trivially_destructible_v<T>)
@@ -7184,8 +7069,7 @@ vector<T>::pop_back() noexcept
 }
 
 template<typename T>
-constexpr void
-vector<T>::swap_pop_back(index_type index) noexcept
+constexpr void vector<T>::swap_pop_back(index_type index) noexcept
 {
     irt_assert(index < m_size);
 
@@ -7205,8 +7089,7 @@ vector<T>::swap_pop_back(index_type index) noexcept
 }
 
 template<typename T>
-i32
-vector<T>::compute_new_capacity(i32 size) const
+i32 vector<T>::compute_new_capacity(i32 size) const
 {
     i32 new_capacity = m_capacity ? (m_capacity + m_capacity / 2) : 8;
     return new_capacity > size ? new_capacity : size;
@@ -7241,8 +7124,8 @@ constexpr small_string<length>::small_string(
 }
 
 template<sz length>
-constexpr small_string<length>&
-small_string<length>::operator=(const small_string<length>& str) noexcept
+constexpr small_string<length>& small_string<length>::operator=(
+  const small_string<length>& str) noexcept
 {
     if (&str != this) {
         std::copy_n(str.m_buffer, str.m_size, m_buffer);
@@ -7254,8 +7137,8 @@ small_string<length>::operator=(const small_string<length>& str) noexcept
 }
 
 template<sz length>
-constexpr small_string<length>&
-small_string<length>::operator=(small_string<length>&& str) noexcept
+constexpr small_string<length>& small_string<length>::operator=(
+  small_string<length>&& str) noexcept
 {
     if (&str != this) {
         std::copy_n(str.m_buffer, str.m_size, m_buffer);
@@ -7282,16 +7165,14 @@ constexpr small_string<length>::small_string(
 }
 
 template<sz length>
-void
-small_string<length>::resize(size_type size) noexcept
+void small_string<length>::resize(size_type size) noexcept
 {
     m_size               = size > length ? length : size;
     m_buffer[m_size - 1] = '\0';
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::empty() const noexcept
+constexpr bool small_string<length>::empty() const noexcept
 {
     constexpr unsigned char zero{ 0 };
 
@@ -7299,21 +7180,18 @@ small_string<length>::empty() const noexcept
 }
 
 template<sz length>
-constexpr sz
-small_string<length>::size() const noexcept
+constexpr sz small_string<length>::size() const noexcept
 {
     return m_size;
 }
 template<sz length>
-constexpr sz
-small_string<length>::capacity() const noexcept
+constexpr sz small_string<length>::capacity() const noexcept
 {
     return length;
 }
 
 template<sz length>
-constexpr void
-small_string<length>::assign(const std::string_view str) noexcept
+constexpr void small_string<length>::assign(const std::string_view str) noexcept
 {
     const auto copy_length = std::min(str.size(), length - 1);
 
@@ -7324,23 +7202,21 @@ small_string<length>::assign(const std::string_view str) noexcept
 }
 
 template<sz length>
-constexpr std::string_view
-small_string<length>::sv() const noexcept
+constexpr std::string_view small_string<length>::sv() const noexcept
 {
     return { m_buffer, m_size };
 }
 
 template<sz length>
-constexpr void
-small_string<length>::clear() noexcept
+constexpr void small_string<length>::clear() noexcept
 {
     std::fill_n(m_buffer, length, '\0');
     m_size = 0;
 }
 
 template<sz length>
-constexpr small_string<length>::reference
-small_string<length>::operator[](const size_type index) noexcept
+constexpr small_string<length>::reference small_string<length>::operator[](
+  const size_type index) noexcept
 {
     irt_assert(index < m_size);
 
@@ -7357,92 +7233,85 @@ small_string<length>::operator[](const size_type index) const noexcept
 }
 
 template<sz length>
-constexpr const char*
-small_string<length>::c_str() const noexcept
+constexpr const char* small_string<length>::c_str() const noexcept
 {
     return m_buffer;
 }
 
 template<sz length>
-constexpr small_string<length>::iterator
-small_string<length>::begin() noexcept
+constexpr small_string<length>::iterator small_string<length>::begin() noexcept
 {
     return m_buffer;
 }
 
 template<sz length>
-constexpr small_string<length>::iterator
-small_string<length>::end() noexcept
+constexpr small_string<length>::iterator small_string<length>::end() noexcept
 {
     return m_buffer + m_size;
 }
 
 template<sz length>
-constexpr small_string<length>::const_iterator
-small_string<length>::begin() const noexcept
+constexpr small_string<length>::const_iterator small_string<length>::begin()
+  const noexcept
 {
     return m_buffer;
 }
 
 template<sz length>
-constexpr small_string<length>::const_iterator
-small_string<length>::end() const noexcept
+constexpr small_string<length>::const_iterator small_string<length>::end()
+  const noexcept
 {
     return m_buffer + m_size;
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::operator==(const small_string<length>& rhs) const noexcept
+constexpr bool small_string<length>::operator==(
+  const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) == 0;
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::operator!=(const small_string<length>& rhs) const noexcept
+constexpr bool small_string<length>::operator!=(
+  const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) != 0;
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::operator>(const small_string<length>& rhs) const noexcept
+constexpr bool small_string<length>::operator>(
+  const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) > 0;
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::operator<(const small_string<length>& rhs) const noexcept
+constexpr bool small_string<length>::operator<(
+  const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) < 0;
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::operator==(const char* rhs) const noexcept
+constexpr bool small_string<length>::operator==(const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) == 0;
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::operator!=(const char* rhs) const noexcept
+constexpr bool small_string<length>::operator!=(const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) != 0;
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::operator>(const char* rhs) const noexcept
+constexpr bool small_string<length>::operator>(const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) > 0;
 }
 
 template<sz length>
-constexpr bool
-small_string<length>::operator<(const char* rhs) const noexcept
+constexpr bool small_string<length>::operator<(const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) < 0;
 }

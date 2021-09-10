@@ -5,7 +5,7 @@ set(gui_sources
     application.cpp application.hpp dialog.cpp dialog.hpp imnodes.cpp
     imnodes.h imnodes_internal.h implot.h implot.cpp internal.hpp internal.cpp
     node-editor.cpp simulation-editor.cpp sources.cpp window-logger.cpp
-    ${PROJECT_SOURCE_DIR}/../../lib/modeling.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/modeling.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.h
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_demo.cpp

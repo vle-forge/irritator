@@ -6,18 +6,17 @@
 
 namespace irt {
 
-static status
-build_models_recursively(const modeling&      mod,
-                         const component_ref& comp_ref,
-                         simulation&          sim)
+static status build_models_recursively(const modeling& mod,
+                                       component_ref&  comp_ref,
+                                       simulation&     sim)
 {
-    comp_ref.mappers.clear();
+    comp_ref.mappers.data.clear();
 
     auto* comp = mod.components.try_to_get(comp_ref.id);
     if (!comp)
         return status::success; /* @TODO certainly an error in API */
 
-    for (i64 i = 0, e = comp->children.size(); i != e; ++i) {
+    for (i32 i = 0, e = comp->children.ssize(); i != e; ++i) {
         u64 id = comp->children[i].id;
 
         if (comp->children[i].type == child_type::model) {
@@ -29,7 +28,7 @@ build_models_recursively(const modeling&      mod,
             irt_return_if_fail(sim.models.can_alloc(1),
                                status::simulation_not_enough_model);
 
-            auto& dst    = sim.models.clone(*src);
+            auto& dst    = sim.clone(*src);
             auto  dst_id = sim.models.get_id(dst);
 
             irt_return_if_bad(
@@ -47,115 +46,267 @@ build_models_recursively(const modeling&      mod,
     return status::success;
 }
 
-static status
-build_simulation_connection(const component& src,
-                            model_id         mdl_src,
-                            i8               port_src,
-                            const component& dst,
-                            model_id         mdl_dst,
-                            i8               port_dst,
-                            simulation&      sim)
+static status build_model_to_model_connection(component_ref& comp_ref,
+                                              component&     comp,
+                                              simulation&    sim,
+                                              int            i)
 {
-    auto* src_map_id = src.mappers.get(mdl_src);
-    auto* dst_map_id = dst.mappers.get(mdl_dst);
+    irt_assert(comp.connections[i].type_src == child_type::model);
+    irt_assert(comp.connections[i].type_dst == child_type::model);
+    irt_assert(i >= 0 && i < comp.connections.ssize());
 
-    irt_return_if_fail(src_map_id && dst_map_id,
-                       status::model_connect_unknown_dynamics);
+    auto  src_id     = enum_cast<model_id>(comp.connections[i].src);
+    auto  dst_id     = enum_cast<model_id>(comp.connections[i].dst);
+    auto* src_mdl_id = comp_ref.mappers.get(src_id);
+    auto* dst_mdl_id = comp_ref.mappers.get(dst_id);
 
-    auto* src_sim = sim.models.try_to_get(*src_map_id);
-    auto* dst_sim = sim.models.try_to_get(*dst_map_id);
+    if (!src_mdl_id || !dst_mdl_id)
+        return status::success;
 
-    irt_return_if_fail(src_sim && dst_sim,
-                       status::model_connect_unknown_dynamics);
+    auto* src = sim.models.try_to_get(*src_mdl_id);
+    auto* dst = sim.models.try_to_get(*dst_mdl_id);
 
-    return sim.connect(*src_sim, port_src, *dst_sim, port_dst);
+    if (!src || !dst)
+        return status::success;
+
+    return global_connect(sim,
+                          *src,
+                          comp.connections[i].port_src,
+                          *dst_mdl_id,
+                          comp.connections[i].port_dst);
 }
 
-static status
-build_model_to_model_connection(const modeling&      mod,
-                                const component_ref& comp_ref,
-                                simulation&          sim,
-                                int                  i)
+static bool found_input_port(const modeling&  mod,
+                             component_ref_id compo_ref,
+                             i8               port,
+                             model_id&        model_found,
+                             i8&              port_found)
 {
-    irt_assert(comp_ref.connections[i].type_src == child_type::model);
-    irt_assert(comp_ref.connections[i].type_dst == child_type::model);
-    irt_assert(i >= 0 && i < comp_ref.connections.size());
+    for (;;) {
+        auto* c_ref = mod.component_refs.try_to_get(compo_ref);
+        if (!c_ref)
+            return false;
 
-    auto src_id = enum_cast<model_id>(comp_ref.connections[i].src);
-    auto dst_id = enum_cast<model_id>(comp_ref.connections[i].dst);
+        auto* c = mod.components.try_to_get(c_ref->id);
+        if (!c)
+            return false;
 
-    return build_simulation_connection(comp_ref,
-                                       src_id,
-                                       comp.connections[i].port_src,
-                                       comp_ref,
-                                       dst_id,
-                                       comp.connections[i].port_dst,
-                                       sim);
-}
+        if (!(0 <= port && port < c->x.ssize()))
+            return false;
 
-static status
-build_model_to_component_connection(const modeling&      mod,
-                                    const component_ref& compo_ref,
-                                    simulation&          sim,
-                                    int                  index)
-{
-    irt_assert(comp_ref.connections[i].type_src == child_type::model);
-    irt_assert(comp_ref.connections[i].type_dst == child_type::component);
-    irt_assert(i >= 0 && i < comp_ref.connections.size());
+        if (c->x[port].type == child_type::model) {
+            auto  id        = enum_cast<model_id>(c->x[port].id);
+            auto* mapped_id = c_ref->mappers.get(id);
 
-    auto* compo = m.components.try_to_get(compo_ref.id);
-    if (!compo)
-        return status::success; // @todo certainly an error
+            if (mapped_id) {
+                model_found = *mapped_id;
+                port_found  = c->x[port].index;
+                return true;
+            } else {
+                return false;
+            }
+        }
 
-    if (comp.connections[index].port_dst >= length(compo->x))
-        return status::success; // @todo certainly an error
-
-    if (comp.connections[index].type == child_type::model) {
-        // classic connection between compo_ref
-    } else {
+        compo_ref = enum_cast<component_ref_id>(c->x[port].id);
+        port      = c->x[port].index;
     }
 }
 
-static status
-build_connections_recursively(const modeling&      mod,
-                              const component_ref& compo_ref,
-                              simulation&          sim)
+static bool found_output_port(const modeling&  mod,
+                              component_ref_id compo_ref,
+                              i8               port,
+                              model_id&        model_found,
+                              i8&              port_found)
 {
-    auto* compo = m.components.try_to_get(compo_ref.id);
-    if (!compo)
-        return status::success; // @todo certainly an error
+    for (;;) {
+        auto* c_ref = mod.component_refs.try_to_get(compo_ref);
+        if (!c_ref)
+            return false;
 
-    for (i64 i = 0, e = compo->children.size(); i != e; ++i) {
-        if (compo->children[i].type == child_type::component) {
-            u64   id             = compo->children[i].id;
-            auto  child_c_ref_id = enum_cast<component_ref_id>(id);
-            auto* child_c_ref = mod.component_refs.try_to_get(child_c_ref_id);
-            if (!child_c_ref)
-                continue;
+        auto* c = mod.components.try_to_get(c_ref->id);
+        if (!c)
+            return false;
 
-            build_connections_recursively(mod, *child_c_ref, sim);
+        if (!(0 <= port && port < c->y.ssize()))
+            return false;
+
+        if (c->y[port].type == child_type::model) {
+            auto  id        = enum_cast<model_id>(c->y[port].id);
+            auto* mapped_id = c_ref->mappers.get(id);
+
+            if (mapped_id) {
+                model_found = *mapped_id;
+                port_found  = c->y[port].index;
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        compo_ref = enum_cast<component_ref_id>(c->y[port].id);
+        port      = c->y[port].index;
+    }
+}
+
+static status build_model_to_component_connection(
+  const modeling&      mod,
+  const component_ref& compo_ref,
+  component&           compo,
+  simulation&          sim,
+  int                  index)
+{
+    irt_assert(index >= 0 && index < compo.connections.ssize());
+    irt_assert(compo.connections[index].type_src == child_type::model);
+    irt_assert(compo.connections[index].type_dst == child_type::component);
+
+    model_id model_found;
+    i8       port_found;
+
+    bool found = found_input_port(
+      mod,
+      enum_cast<component_ref_id>(compo.connections[index].dst),
+      compo.connections[index].port_dst,
+      model_found,
+      port_found);
+
+    if (found) {
+        auto  id         = enum_cast<model_id>(compo.connections[index].src);
+        auto* src_mdl_id = compo_ref.mappers.get(id);
+
+        if (src_mdl_id) {
+            auto* src_mdl = sim.models.try_to_get(*src_mdl_id);
+
+            if (src_mdl) {
+                auto src_port = compo.connections[index].port_src;
+                return global_connect(
+                  sim, *src_mdl, src_port, model_found, port_found);
+            }
         }
     }
 
-    for (i64 i = 0, e = compo->connections.size(); i != e; ++i) {
-        auto src = compo->connections[i].src;
-        auto dst = compo->connections[i].dst;
+    return status::success; // @todo fail
+}
 
+static status build_component_to_model_connection(
+  const modeling&      mod,
+  const component_ref& compo_ref,
+  component&           compo,
+  simulation&          sim,
+  int                  index)
+{
+    irt_assert(index >= 0 && index < compo.connections.ssize());
+    irt_assert(compo.connections[index].type_src == child_type::component);
+    irt_assert(compo.connections[index].type_dst == child_type::model);
+
+    model_id model_found;
+    i8       port_found;
+
+    bool found = found_output_port(
+      mod,
+      enum_cast<component_ref_id>(compo.connections[index].src),
+      compo.connections[index].port_src,
+      model_found,
+      port_found);
+
+    if (found) {
+        auto  id         = enum_cast<model_id>(compo.connections[index].dst);
+        auto* dst_mdl_id = compo_ref.mappers.get(id);
+
+        if (dst_mdl_id) {
+            auto* src_mdl  = sim.models.try_to_get(model_found);
+            auto  dst_port = compo.connections[index].port_dst;
+
+            return global_connect(
+              sim, *src_mdl, port_found, *dst_mdl_id, dst_port);
+        }
+    }
+
+    return status::success; // @todo fail
+}
+
+static status build_component_to_component_connection(
+  const modeling&      mod,
+  const component_ref& compo_ref,
+  component&           compo,
+  simulation&          sim,
+  int                  index)
+{
+    irt_assert(index >= 0 && index < compo.connections.ssize());
+    irt_assert(compo.connections[index].type_src == child_type::component);
+    irt_assert(compo.connections[index].type_dst == child_type::component);
+
+    model_id src_model_found, dst_model_found;
+    i8       src_port_found, dst_port_found;
+
+    bool found_src = found_output_port(
+      mod,
+      enum_cast<component_ref_id>(compo.connections[index].src),
+      compo.connections[index].port_src,
+      src_model_found,
+      src_port_found);
+
+    bool found_dst = found_input_port(
+      mod,
+      enum_cast<component_ref_id>(compo.connections[index].dst),
+      compo.connections[index].port_dst,
+      dst_model_found,
+      dst_port_found);
+
+    if (found_src && found_dst) {
+        auto* src_mdl_id = compo_ref.mappers.get(src_model_found);
+        auto* dst_mdl_id = compo_ref.mappers.get(dst_model_found);
+
+        if (src_mdl_id && dst_mdl_id) {
+            auto* src_mdl = sim.models.try_to_get(*src_mdl_id);
+            auto* dst_mdl = sim.models.try_to_get(*dst_mdl_id);
+
+            if (src_mdl && dst_mdl)
+                return global_connect(
+                  sim, *src_mdl, src_port_found, *dst_mdl_id, dst_port_found);
+        }
+    }
+
+    return status::success; // @todo fail
+}
+
+static status build_connections_recursively(modeling&      mod,
+                                            component_ref& c_ref,
+                                            simulation&    sim)
+{
+    auto* compo = mod.components.try_to_get(c_ref.id);
+    if (!compo)
+        return status::success; // @todo certainly an error
+
+    // Build connections from the leaf to the head of the component
+    // hierarchy.
+    for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
+        if (compo->children[i].type == child_type::component) {
+            u64   id       = compo->children[i].id;
+            auto  child_id = enum_cast<component_ref_id>(id);
+            auto* child    = mod.component_refs.try_to_get(child_id);
+            if (!child)
+                continue;
+
+            build_connections_recursively(mod, *child, sim);
+        }
+    }
+
+    for (i32 i = 0, e = compo->connections.ssize(); i != e; ++i) {
         if (compo->connections[i].type_src == child_type::model) {
             if (compo->connections[i].type_dst == child_type::model) {
                 irt_return_if_bad(
-                  build_model_to_model_connection(mod, comp, sim, i));
+                  build_model_to_model_connection(c_ref, *compo, sim, i));
             } else {
-                irt_return_if_bad(
-                  build_model_to_component_connection(mod, comp, sim, i));
+                irt_return_if_bad(build_model_to_component_connection(
+                  mod, c_ref, *compo, sim, i));
             }
         } else {
             if (compo->connections[i].type_dst == child_type::model) {
-                irt_return_if_bad(
-                  buid_component_to_model_connection(mod, comp, sim, i));
+                irt_return_if_bad(build_component_to_model_connection(
+                  mod, c_ref, *compo, sim, i));
             } else {
-                irt_return_if_bad(
-                  buid_component_to_component_connection(mod, comp, sim, i));
+                irt_return_if_bad(build_component_to_component_connection(
+                  mod, c_ref, *compo, sim, i));
             }
         }
     }
@@ -163,21 +314,20 @@ build_connections_recursively(const modeling&      mod,
     return status::success;
 }
 
-static status
-build_models(const modeling& mod, const component_ref& comp, simulation& sim)
+static status build_models(modeling& mod, component_ref& c_ref, simulation& sim)
 {
-    irt_return_if_bad(build_models_recursively(mod, component_ref, sim));
-    irt_return_if_bad(build_connections_recursively(mod, component_ref, sim));
+    irt_return_if_bad(build_models_recursively(mod, c_ref, sim));
+    irt_return_if_bad(build_connections_recursively(mod, c_ref, sim));
+
+    return status::success;
 }
 
-status
-build_simulation(const modeling& mod, simulation& sim)
+status build_simulation(modeling& mod, simulation& sim)
 {
-    auto* component_ref = mod.component_refs.try_to_get(mod.head);
-    if (!component_refs)
-        return status::success;
+    if (auto* c_ref = mod.component_refs.try_to_get(mod.head); c_ref)
+        return build_models(mod, *c_ref, sim);
 
-    return build_models_from_component(mod, *component_ref, sim);
+    return status::success;
 }
 
 } // namespace irt
