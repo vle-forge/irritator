@@ -113,20 +113,17 @@ static inline std::string_view main_status_str[] = {
 };
 
 //! Show help message in console.
-void
-show_help() noexcept;
+void show_help() noexcept;
 
 //! Show current version in console.
-void
-show_version() noexcept;
+void show_version() noexcept;
 
 //! Run simulation from simulation file.
-void
-run_simulation(irt::real   begin,
-               irt::real   duration,
-               int         models,
-               int         messages,
-               const char* file_name) noexcept;
+void run_simulation(irt::real   begin,
+                    irt::real   duration,
+                    int         models,
+                    int         messages,
+                    const char* file_name) noexcept;
 
 struct main_parameters
 {
@@ -145,8 +142,7 @@ struct main_parameters
     bool        parse(int argc, char* argv[]) noexcept;
 };
 
-int
-main(int argc, char* argv[])
+int main(int argc, char* argv[])
 {
     main_parameters params;
 
@@ -191,20 +187,17 @@ main_action::main_action(action_type      type_,
   , argument(argument_)
 {}
 
-bool
-main_action::operator<(const std::string_view other) const noexcept
+bool main_action::operator<(const std::string_view other) const noexcept
 {
     return long_string < other;
 }
 
-bool
-main_action::operator==(const std::string_view other) const noexcept
+bool main_action::operator==(const std::string_view other) const noexcept
 {
     return long_string == other;
 }
 
-bool
-main_parameters::parse_real(const char* param, irt::real& out) noexcept
+bool main_parameters::parse_real(const char* param, irt::real& out) noexcept
 {
     long double result = 0;
     if (auto read = std::sscanf(param, "%Lf", &result); read) {
@@ -215,8 +208,7 @@ main_parameters::parse_real(const char* param, irt::real& out) noexcept
     return false;
 }
 
-bool
-main_parameters::parse_integer(const char* param, int& out) noexcept
+bool main_parameters::parse_integer(const char* param, int& out) noexcept
 {
     int result = 0;
     if (auto read = std::sscanf(param, "%d", &result); read) {
@@ -227,8 +219,7 @@ main_parameters::parse_integer(const char* param, int& out) noexcept
     return false;
 }
 
-bool
-main_parameters::parse(int argc, char* argv[]) noexcept
+bool main_parameters::parse(int argc, char* argv[]) noexcept
 {
     if (argc <= 1)
         return true;
@@ -277,8 +268,7 @@ main_parameters::parse(int argc, char* argv[]) noexcept
     return true;
 }
 
-void
-show_help() noexcept
+void show_help() noexcept
 {
     fmt::print(
       "irritator-cli action-name action-argument [files...]\n"
@@ -296,8 +286,7 @@ show_help() noexcept
       "\n\n");
 }
 
-void
-show_version() noexcept
+void show_version() noexcept
 {
     fmt::print("irritator-cli {}.{}.{}-{}\n\n",
                VERSION_MAJOR,
@@ -306,12 +295,11 @@ show_version() noexcept
                VERSION_TWEAK);
 }
 
-void
-run_simulation(irt::real   begin,
-               irt::real   duration,
-               int         models,
-               int         messages,
-               const char* file_name) noexcept
+void run_simulation(irt::real   begin,
+                    irt::real   duration,
+                    int         models,
+                    int         messages,
+                    const char* file_name) noexcept
 {
     fmt::print("Run simulation from `{}' to `{}' for file {}\n",
                begin,
