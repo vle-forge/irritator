@@ -19,9 +19,7 @@ MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 SpacesInSquareBrackets: false
 AlwaysBreakTemplateDeclarations: true
-# BreakBeforeConceptDeclarations: true
-# IndentRequires: false
-# BeforeLambdaBody: false
 SpacesInSquareBrackets: false
 AllowShortEnumsOnASingleLine: true
-AlwaysBreakAfterReturnType: AllDefinitions 
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
