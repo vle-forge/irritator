@@ -5221,76 +5221,69 @@ struct constant
 };
 
 struct filter {
-    static const size_t nPort=3;
     port x[1];
     port y[1];
     time sigma;
 
-    double default_lower_threshold ;
-    double default_upper_threshold ;
-    double inValue ;
-    double defaultValues[nPort];
+    irt::message default_lower_threshold;
+    irt::message default_upper_threshold;
+
+    irt::message lower_threshold;
+    irt::message upper_threshold;
+    irt::message inValue ;
+
+
+    filter() noexcept {
+        default_lower_threshold[0] = -0.5;
+        default_upper_threshold[0] = 0.5;
+    }
 
     status initialize() noexcept { 
-        default_lower_threshold=-0.05;
-        default_upper_threshold=1.0;
-        inValue=0.0;
-        defaultValues[0] = default_lower_threshold;
-        defaultValues[1] = default_upper_threshold;
-        defaultValues[2] = inValue;
-
-        //std::fill_n(
-        //  std::begin(defaultValues),
-        //            nPort,
-        //            1.0 / static_cast<double>(nPort));
-
-        //std::copy_n(std::begin(inPortValues), nPort, std::begin(values));
         sigma = time_domain<time>::infinity;
+        lower_threshold[0]=default_lower_threshold[0];
+        upper_threshold[0]=default_upper_threshold[0];
+        //inValue[0]=0.0;
+
         return status::success;
     }
 
     status lambda() noexcept {
-        double to_send=0.0;
-        if (inValue > default_lower_threshold &&
-            inValue < default_upper_threshold) {
-            to_send = inValue;
-            y[0].messages.emplace_front(to_send);
-        } else if (inValue < default_lower_threshold &&
-                   inValue < default_upper_threshold) {
-            to_send = (default_lower_threshold + default_upper_threshold) / 2;
-            y[0].messages.emplace_front(to_send);
-        } 
-        else if (inValue > default_lower_threshold &&
-                   inValue > default_upper_threshold) {
-            to_send = (default_lower_threshold + default_upper_threshold) / 2;
-            y[0].messages.emplace_front(to_send);
-        }
+        y[0].messages.emplace_front(inValue[0]);
         return status::success;
     }
 
     status transition(time, time, time) noexcept {
-        bool have_message = false;
 
-        for (const auto& msg : x[0].messages) {
-            inValue = msg.real[0];
+        bool have_message = false;
+        //sigma =
+        //  have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+
+        //for (const auto& msg : x[0].messages) {
+        //    inValue[0] = msg.real[0];
+        //    have_message = true;
+        //}
+
+        if (inValue[0] > lower_threshold[0] &&
+            inValue[0] < upper_threshold[0]) {
+            y[0].messages.emplace_front(inValue[0]);
+            have_message=true;
+        } else if (inValue[0] < lower_threshold[0] &&
+                   inValue[0] < upper_threshold[0]) {
+            y[0].messages.emplace_front(lower_threshold[0]);
+            have_message = true;
+        } else {
+            y[0].messages.emplace_front(upper_threshold[0]);
             have_message = true;
         }
 
-        sigma =
-          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
 
         return status::success;
     }
 
     message observation(const time) const noexcept {
-        double ret = 0.0; 
-        //for (size_t ii = 0; ii != nPort; ++ii) {
-        //    ret += defaultValues[ii];
-        //    //return ret;
-        //    return { ret }; // if returning an array
-        //}
-        ret = inValue;
-        return ret;
+        //double ret = 0.0; 
+        //ret = inValue[0];
+        return inValue[0];
 
     }
 };
