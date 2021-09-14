@@ -7,6 +7,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/external_source.hpp>
+#include <irritator/modeling.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -27,6 +28,7 @@ struct window_logger;
 struct plot_output;
 struct file_output;
 struct file_discrete_output;
+struct component_editor;
 
 static inline constexpr int not_found = -1;
 
@@ -34,6 +36,7 @@ enum class editor_id : u64;
 enum class plot_output_id : u64;
 enum class file_output_id : u64;
 enum class file_discrete_output_id : u64;
+enum class component_editor_id : u64;
 
 using observation_output = std::variant<std::monostate,
                                         plot_output_id,
@@ -329,15 +332,35 @@ struct window_logger
 
 const char* log_string(const log_status s) noexcept;
 
-struct component
-{};
+enum class component_editor_status
+{
+    modeling,
+    simulating
+};
+
+struct component_editor
+{
+    small_string<16>      name;
+    std::filesystem::path path;
+
+    modeling        mod;
+    simulation      sim;
+    external_source srcs;
+
+    component_editor_status status = component_editor_status::modeling;
+
+    ImNodesEditorContext* context      = nullptr;
+    bool                  show         = true;
+    bool                  show_minimap = true;
+};
 
 struct application
 {
-    data_array<editor, editor_id> editors;
-    std::filesystem::path         home_dir;
-    std::filesystem::path         executable_dir;
-    std::vector<long long int>    simulation_duration;
+    data_array<editor, editor_id>                     editors;
+    data_array<component_editor, component_editor_id> component_editors;
+    std::filesystem::path                             home_dir;
+    std::filesystem::path                             executable_dir;
+    std::vector<long long int>                        simulation_duration;
 
     bool show_log        = true;
     bool show_simulation = true;

@@ -83,7 +83,7 @@ make install
 
 == File format
 
-Simple file
+Simple simulation file `.irt`:
 
 [source]
 ''''
@@ -104,4 +104,35 @@ Simple file
 0 0 2 0                              # Model 'A' output port '0' connected to model 'Add' input port '0'
 1 0 2 1                              # Model 'A' output port '0' connected to model 'Add' input port '0'
 2 0 3 0                              # Model 'Add' output port '0' connected to model 'C' input port '0'
+''''
+
+Component file `.irt`:
+
+[source]
+''''
+2                                    # Number of constant source generator
+0 10 1 2 3 4 5 6 7 8 9 10            # The first constant generator with id: 0 have ten values
+1 5 0 0 1 1 2                        # The second constant generator with id: 1 have five values
+0                                    # Number of binary file source generator
+1                                    # Number of text file source generator
+0 "data/big-random-data.dat"         # The only text file generator with id: 0 with a relative file (relative to the irt file).
+1                                    # Number of random source generator
+0 normal 0.5 0.1                     # The only random source generator with id: 0 with a normal law and two parameters 0.5 and 0.1 for mean and standard deviation
+3                                    # 4 models will be allocated
+0 15.0 17.0 generator 2 0.0 100.0 0  # Model 0, in position x = 15.0 y = 17.0, is a generator with one double real message
+1 12.0 5.0 component cpp qss1_lotka_volterra
+2 -5.0 0.0 component file "qss1/lotka_volterra.irt"
+2                                    # input ports
+1 0                                  # `-> first input port of the cpp component
+2 0                                  #     first input port of the file component
+1                                    # output ports
+1 0                                  # `-> first output port of the cpp component
+1                                    # observable models number
+2                                    # `-> second children
+1                                    # configurable models number
+2                                    # `-> second children
+3                                    # 3 connections
+0 0 2 0                              #
+1 0 2 1                              #
+2 0 3 0                              #
 ''''

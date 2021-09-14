@@ -7,6 +7,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/external_source.hpp>
+#include <irritator/modeling.hpp>
 
 #include <algorithm>
 #include <istream>
@@ -16,58 +17,44 @@
 
 namespace irt {
 
-static inline const char* dynamics_type_names[] = { "qss1_integrator",
-                                                    "qss1_multiplier",
-                                                    "qss1_cross",
-                                                    "qss1_power",
-                                                    "qss1_square",
-                                                    "qss1_sum_2",
-                                                    "qss1_sum_3",
-                                                    "qss1_sum_4",
-                                                    "qss1_wsum_2",
-                                                    "qss1_wsum_3",
-                                                    "qss1_wsum_4",
-                                                    "qss2_integrator",
-                                                    "qss2_multiplier",
-                                                    "qss2_cross",
-                                                    "qss2_power",
-                                                    "qss2_square",
-                                                    "qss2_sum_2",
-                                                    "qss2_sum_3",
-                                                    "qss2_sum_4",
-                                                    "qss2_wsum_2",
-                                                    "qss2_wsum_3",
-                                                    "qss2_wsum_4",
-                                                    "qss3_integrator",
-                                                    "qss3_multiplier",
-                                                    "qss3_cross",
-                                                    "qss3_power",
-                                                    "qss3_square",
-                                                    "qss3_sum_2",
-                                                    "qss3_sum_3",
-                                                    "qss3_sum_4",
-                                                    "qss3_wsum_2",
-                                                    "qss3_wsum_3",
-                                                    "qss3_wsum_4",
-                                                    "integrator",
-                                                    "quantifier",
-                                                    "adder_2",
-                                                    "adder_3",
-                                                    "adder_4",
-                                                    "mult_2",
-                                                    "mult_3",
-                                                    "mult_4",
-                                                    "counter",
-                                                    "queue",
-                                                    "dynamic_queue",
-                                                    "priority_queue",
-                                                    "generator",
-                                                    "constant",
-                                                    "cross",
-                                                    "time_func",
-                                                    "accumulator_2",
-                                                    "filter",
-                                                    "flow" };
+static inline const char* dynamics_type_names[] = {
+    "qss1_integrator", "qss1_multiplier", "qss1_cross",      "qss1_power",
+    "qss1_square",     "qss1_sum_2",      "qss1_sum_3",      "qss1_sum_4",
+    "qss1_wsum_2",     "qss1_wsum_3",     "qss1_wsum_4",     "qss2_integrator",
+    "qss2_multiplier", "qss2_cross",      "qss2_power",      "qss2_square",
+    "qss2_sum_2",      "qss2_sum_3",      "qss2_sum_4",      "qss2_wsum_2",
+    "qss2_wsum_3",     "qss2_wsum_4",     "qss3_integrator", "qss3_multiplier",
+    "qss3_cross",      "qss3_power",      "qss3_square",     "qss3_sum_2",
+    "qss3_sum_3",      "qss3_sum_4",      "qss3_wsum_2",     "qss3_wsum_3",
+    "qss3_wsum_4",     "integrator",      "quantifier",      "adder_2",
+    "adder_3",         "adder_4",         "mult_2",          "mult_3",
+    "mult_4",          "counter",         "queue",           "dynamic_queue",
+    "priority_queue",  "generator",       "constant",        "cross",
+    "time_func",       "accumulator_2",   "filter",          "flow"
+};
+
+static inline const char* component_type_names[] = { "qss1_izhikevich",
+                                                     "qss1_lif",
+                                                     "qss1_lotka_volterra",
+                                                     "qss1_negative_lif",
+                                                     "qss1_seir_lineaire",
+                                                     "qss1_seir_nonlineaire",
+                                                     "qss1_van_der_pol",
+                                                     "qss2_izhikevich",
+                                                     "qss2_lif",
+                                                     "qss2_lotka_volterra",
+                                                     "qss2_negative_lif",
+                                                     "qss2_seir_lineaire",
+                                                     "qss2_seir_nonlineaire",
+                                                     "qss2_van_der_pol",
+                                                     "qss3_izhikevich",
+                                                     "qss3_lif",
+                                                     "qss3_lotka_volterra",
+                                                     "qss3_negative_lif",
+                                                     "qss3_seir_lineaire",
+                                                     "qss3_seir_nonlineaire",
+                                                     "qss3_van_der_pol",
+                                                     "file" };
 
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
@@ -88,8 +75,7 @@ static inline const char* str_value_if_else[] = { "value",
 static inline const char* str_in_2_nb_2[] = { "in-1", "in-2", "nb-1", "nb-2" };
 
 template<typename Dynamics>
-static constexpr const char**
-get_input_port_names() noexcept
+static constexpr const char** get_input_port_names() noexcept
 {
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss2_integrator> ||
@@ -164,8 +150,8 @@ get_input_port_names() noexcept
     irt_unreachable();
 }
 
-static constexpr const char**
-get_input_port_names(const dynamics_type type) noexcept
+static constexpr const char** get_input_port_names(
+  const dynamics_type type) noexcept
 {
     switch (type) {
     case dynamics_type::qss1_integrator:
@@ -248,8 +234,7 @@ static inline const char* str_out_cross[] = { "if-value",
                                               "event" };
 
 template<typename Dynamics>
-static constexpr const char**
-get_output_port_names() noexcept
+static constexpr const char** get_output_port_names() noexcept
 {
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss1_multiplier> ||
@@ -312,8 +297,8 @@ get_output_port_names() noexcept
     irt_unreachable();
 }
 
-static constexpr const char**
-get_output_port_names(const dynamics_type type) noexcept
+static constexpr const char** get_output_port_names(
+  const dynamics_type type) noexcept
 {
     switch (type) {
     case dynamics_type::qss1_integrator:
@@ -478,25 +463,6 @@ private:
     streambuf    buf;
     std::istream is;
 
-    struct mapping
-    {
-        mapping(int index_, u64 value_)
-          : index(index_)
-          , value(value_)
-        {}
-
-        int index = 0;
-        u64 value = 0u;
-
-        bool operator<(const mapping& other) const noexcept
-        {
-            return index < other.index;
-        }
-
-        bool operator<(int i) const noexcept { return index < i; }
-        bool operator==(int i) const noexcept { return index == i; }
-    };
-
     struct position
     {
         position() noexcept = default;
@@ -509,12 +475,12 @@ private:
         float x, y;
     };
 
-    std::vector<model_id> map;
-    std::vector<position> positions; /* Stores positions of the models. */
-    std::vector<mapping>  constant_mapping;
-    std::vector<mapping>  binary_file_mapping;
-    std::vector<mapping>  random_mapping;
-    std::vector<mapping>  text_file_mapping;
+    table<int, u64>  map;
+    table<int, u64>  constant_mapping;
+    table<int, u64>  binary_file_mapping;
+    table<int, u64>  random_mapping;
+    table<int, u64>  text_file_mapping;
+    vector<position> positions; /* Stores positions of the models. */
 
     int source_number = 0;
     int model_number  = 0;
@@ -526,7 +492,14 @@ public:
     reader(std::istream& is_) noexcept
       : buf(is_.rdbuf())
       , is(&buf)
-    {}
+    {
+        map.data.init(64);
+        constant_mapping.data.init(64);
+        binary_file_mapping.data.init(64);
+        random_mapping.data.init(64);
+        text_file_mapping.data.init(64);
+        positions.init(64);
+    }
 
     ~reader() noexcept = default;
 
@@ -534,13 +507,12 @@ public:
     int connection_error = 0;
 
     int line_error() const noexcept { return buf.m_line_number; }
-
     int column_error() const noexcept { return buf.m_column; }
 
-    position get_position(const sz index) const noexcept
+    position get_position(const i32 index) const noexcept
     {
-        return index < positions.size() ? positions[index]
-                                        : position{ 0.f, 0.f };
+        return index < positions.ssize() ? positions[index]
+                                         : position{ 0.f, 0.f };
     }
 
     status operator()(simulation& sim, external_source& srcs) noexcept
@@ -568,10 +540,30 @@ public:
         for (int i = 0; i != model_number; ++i, ++model_error) {
             int id;
             irt_return_if_bad(do_read_model(sim, &id));
-            f(map[id]);
+            if (auto* ptr = map.get(id); ptr)
+                f(enum_cast<model_id>(*ptr));
         }
 
         irt_return_if_bad(do_read_connections(sim));
+
+        return status::success;
+    }
+
+    status operator()(modeling&        mod,
+                      component&       compo,
+                      external_source& srcs) noexcept
+    {
+        irt_return_if_bad(do_read_data_source(srcs));
+
+        irt_return_if_bad(do_read_model_number());
+        for (int i = 0; i != model_number; ++i, ++model_error) {
+            int id;
+            irt_return_if_bad(do_read_model(mod, compo, &id));
+        }
+
+        irt_return_if_bad(do_read_ports(compo.children, compo.x));
+        irt_return_if_bad(do_read_ports(compo.children, compo.y));
+        irt_return_if_bad(do_read_connections(mod, compo));
 
         return status::success;
     }
@@ -598,7 +590,7 @@ private:
             return status::io_file_format_error;
 
         elem.file_path = file_path;
-        binary_file_mapping.emplace_back(id, ordinal(elem_id));
+        binary_file_mapping.data.emplace_back(id, ordinal(elem_id));
 
         return status::success;
     }
@@ -624,7 +616,7 @@ private:
             return status::io_file_format_error;
 
         elem.file_path = file_path;
-        text_file_mapping.emplace_back(id, ordinal(elem_id));
+        text_file_mapping.data.emplace_back(id, ordinal(elem_id));
 
         return status::success;
     }
@@ -646,7 +638,7 @@ private:
         auto cst_id = srcs.constant_sources.get_id(cst);
 
         try {
-            constant_mapping.emplace_back(id, ordinal(cst_id));
+            constant_mapping.data.emplace_back(id, ordinal(cst_id));
         } catch (const std::bad_alloc& /*e*/) {
             return status::io_not_enough_memory;
         }
@@ -693,7 +685,7 @@ private:
         auto elem_id = srcs.random_sources.get_id(elem);
 
         try {
-            random_mapping.emplace_back(id, ordinal(elem_id));
+            random_mapping.data.emplace_back(id, ordinal(elem_id));
         } catch (const std::bad_alloc& /*e*/) {
             return status::io_not_enough_memory;
         }
@@ -843,11 +835,10 @@ private:
             }
         }
 
-        std::sort(std::begin(constant_mapping), std::end(constant_mapping));
-        std::sort(std::begin(binary_file_mapping),
-                  std::end(binary_file_mapping));
-        std::sort(std::begin(text_file_mapping), std::end(text_file_mapping));
-        std::sort(std::begin(random_mapping), std::end(random_mapping));
+        constant_mapping.sort();
+        binary_file_mapping.sort();
+        text_file_mapping.sort();
+        random_mapping.sort();
 
         return status::success;
     }
@@ -861,17 +852,17 @@ private:
         irt_return_if_fail(model_number > 0,
                            status::io_file_format_model_number_error);
 
-        try {
-            map.resize(model_number, model_id{ 0 });
-            positions.resize(model_number);
-        } catch (const std::bad_alloc& /*e*/) {
-            return status::io_not_enough_memory;
-        }
+        irt_return_if_bad(map.data.init(model_number));
+        irt_return_if_bad(constant_mapping.data.init(model_number));
+        irt_return_if_bad(binary_file_mapping.data.init(model_number));
+        irt_return_if_bad(random_mapping.data.init(model_number));
+        irt_return_if_bad(text_file_mapping.data.init(model_number));
+        irt_return_if_bad(positions.init(model_number));
 
         return status::success;
     }
 
-    status do_read_model(simulation& sim, int* id) noexcept
+    status do_read_model_pre(int* id) noexcept
     {
         irt_return_if_fail((is >> *id), status::io_file_format_model_error);
 
@@ -883,7 +874,89 @@ private:
 
         irt_return_if_fail((is >> temp_1), status::io_file_format_model_error);
 
+        return status::success;
+    }
+
+    status do_read_model(simulation& sim, int* id) noexcept
+    {
+        irt_return_if_bad(do_read_model_pre(id));
         irt_return_if_bad(do_read_dynamics(sim, *id, temp_1));
+
+        return status::success;
+    }
+
+    status do_read_model(modeling& mod, component& compo, int* id) noexcept
+    {
+        irt_return_if_bad(do_read_model_pre(id));
+        irt_return_if_bad(do_read_dynamics(mod, compo, *id, temp_1));
+
+        return status::success;
+    }
+
+    status do_read_ports(const vector<child>& children,
+                         vector<port>&        ports) noexcept
+    {
+        int nb = 0;
+
+        irt_return_if_fail((is >> nb), status::io_file_format_model_error);
+        irt_return_if_fail(0 <= nb && nb < children.ssize(),
+                           status::io_file_format_model_error);
+
+        for (int i = 0; i < nb; ++i) {
+            int child_index, port_index;
+
+            irt_return_if_fail((is >> child_index >> port_index),
+                               status::io_file_format_model_error);
+
+            irt_return_if_fail(0 <= child_index &&
+                                 child_index < children.ssize(),
+                               status::io_file_format_model_error);
+            irt_return_if_fail(0 <= port_index && port_index < INT8_MAX,
+                               status::io_file_format_model_error);
+
+            ports.emplace_back(children[child_index].id,
+                               children[child_index].type,
+                               static_cast<i8>(port_index));
+        }
+    }
+
+    status do_read_connections(modeling& mod, component& compo) noexcept
+    {
+        while (is) {
+            int mdl_src_id, port_src_index, mdl_dst_id, port_dst_index;
+
+            if (!(is >> mdl_src_id >> port_src_index >> mdl_dst_id >>
+                  port_dst_index)) {
+                if (is.eof())
+                    break;
+
+                irt_bad_return(status::io_file_format_error);
+            }
+
+            irt_return_if_fail(0 <= mdl_src_id && mdl_src_id < model_number,
+                               status::io_file_format_model_error);
+            irt_return_if_fail(0 <= mdl_dst_id && mdl_dst_id < model_number,
+                               status::io_file_format_model_error);
+
+            auto* m_src_id = map.get(mdl_src_id);
+            irt_return_if_fail(m_src_id, status::io_file_format_model_unknown);
+
+            auto* m_dst_id = map.get(mdl_dst_id);
+            irt_return_if_fail(m_dst_id, status::io_file_format_model_unknown);
+
+            irt_return_if_fail(0 <= port_src_index && port_src_index < INT8_MAX,
+                               status::io_file_format_model_unknown);
+            irt_return_if_fail(0 <= port_dst_index && port_dst_index < INT8_MAX,
+                               status::io_file_format_model_unknown);
+
+            irt_return_if_bad(mod.connect(compo,
+                                          mdl_src_id,
+                                          static_cast<i8>(port_src_index),
+                                          mdl_dst_id,
+                                          static_cast<i8>(port_dst_index)));
+
+            ++connection_error;
+        }
 
         return status::success;
     }
@@ -906,10 +979,17 @@ private:
             irt_return_if_fail(0 <= mdl_dst_id && mdl_dst_id < model_number,
                                status::io_file_format_model_error);
 
-            auto* mdl_src = sim.models.try_to_get(map[mdl_src_id]);
+            auto* mapped_mdl_src_id = map.get(mdl_src_id);
+            irt_return_if_fail(mapped_mdl_src_id,
+                               status::io_file_format_model_unknown);
+
+            auto* mdl_src =
+              sim.models.try_to_get(enum_cast<model_id>(*mapped_mdl_src_id));
             irt_return_if_fail(mdl_src, status::io_file_format_model_unknown);
 
-            auto* mdl_dst = sim.models.try_to_get(map[mdl_dst_id]);
+            auto* mapped_mdl_dst_id = map.get(mdl_dst_id);
+            auto* mdl_dst =
+              sim.models.try_to_get(enum_cast<model_id>(*mapped_mdl_dst_id));
             irt_return_if_fail(mdl_dst, status::io_file_format_model_unknown);
 
             output_port* out = nullptr;
@@ -1015,6 +1095,44 @@ private:
         return false;
     }
 
+    status do_read_component(int id, modeling& mod, component& compo)
+    {
+        char temp[64];
+
+        if (!(is >> temp))
+            return status::io_file_format_error;
+
+        if (std::strcmp(temp, "cpp") == 0) {
+            if (!(is >> temp))
+                return status::io_file_format_error;
+
+            irt_return_if_fail(mod.component_refs.can_alloc(),
+                               status::io_file_format_error);
+            auto& compo_ref = mod.component_refs.alloc();
+
+            irt_return_if_bad(
+              add_cpp_component_ref(temp, mod, compo, compo_ref));
+
+            map.set(id, ordinal(mod.component_refs.get_id(compo_ref)));
+        } else if (std::strcmp(temp, "file") == 0) {
+            std::string file_path;
+            if (!(is >> file_path))
+                return status::io_file_format_error;
+
+            irt_return_if_fail(mod.component_refs.can_alloc(),
+                               status::io_file_format_error);
+
+            auto& compo_ref = mod.component_refs.alloc();
+
+            irt_return_if_bad(
+              add_file_component_ref(temp, mod, compo, compo_ref));
+
+            map.set(id, ordinal(mod.component_refs.get_id(compo_ref)));
+        } else {
+            return status::io_file_format_error;
+        }
+    }
+
     status do_read_dynamics(simulation& sim,
                             int         id,
                             const char* dynamics_name) noexcept
@@ -1028,20 +1146,52 @@ private:
 
         auto ret = dispatch(
           mdl, [this, &sim]<typename Dynamics>(Dynamics& dyn) -> status {
-              irt_return_if_fail(this->read(sim, dyn),
+              irt_return_if_fail(this->read(dyn),
                                  status::io_file_format_dynamics_init_error);
 
               return status::success;
           });
 
         irt_return_if_bad(ret);
-
-        map[id] = sim.models.get_id(mdl);
+        map.set(id, ordinal(sim.models.get_id(mdl)));
 
         return status::success;
     }
 
-    bool read(simulation& /*sim*/, qss1_integrator& dyn) noexcept
+    status do_read_dynamics(modeling&   mod,
+                            component&  compo,
+                            int         id,
+                            const char* dynamics_name) noexcept
+    {
+        dynamics_type type;
+
+        if (std::strcmp(dynamics_name, "component") == 0) {
+            irt_return_if_bad(do_read_component(id, mod, compo));
+        } else {
+            irt_return_if_fail(convert(dynamics_name, &type),
+                               status::io_file_format_dynamics_unknown);
+
+            auto& mdl = mod.alloc(compo, type);
+
+            auto ret =
+              dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
+                  irt_return_if_fail(
+                    this->read(dyn),
+                    status::io_file_format_dynamics_init_error);
+
+                  return status::success;
+              });
+
+            compo.children.emplace_back(mod.models.get_id(mdl));
+
+            irt_return_if_bad(ret);
+        }
+        map.set(id, compo.children.size());
+
+        return status::success;
+    }
+
+    bool read(qss1_integrator& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_X));
         real& x2 = *(const_cast<real*>(&dyn.default_dQ));
@@ -1049,7 +1199,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(simulation& /*sim*/, qss2_integrator& dyn) noexcept
+    bool read(qss2_integrator& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_X));
         real& x2 = *(const_cast<real*>(&dyn.default_dQ));
@@ -1057,7 +1207,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(simulation& /*sim*/, qss3_integrator& dyn) noexcept
+    bool read(qss3_integrator& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_X));
         real& x2 = *(const_cast<real*>(&dyn.default_dQ));
@@ -1065,27 +1215,15 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(simulation& /*sim*/, qss1_multiplier& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss1_multiplier& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss1_sum_2& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss1_sum_2& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss1_sum_3& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss1_sum_3& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss1_sum_4& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss1_sum_4& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss1_wsum_2& dyn) noexcept
+    bool read(qss1_wsum_2& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1093,7 +1231,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(simulation& /*sim*/, qss1_wsum_3& dyn) noexcept
+    bool read(qss1_wsum_3& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1102,7 +1240,7 @@ private:
         return !!(is >> x1 >> x2 >> x3);
     }
 
-    bool read(simulation& /*sim*/, qss1_wsum_4& dyn) noexcept
+    bool read(qss1_wsum_4& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1112,27 +1250,15 @@ private:
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }
 
-    bool read(simulation& /*sim*/, qss2_multiplier& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss2_multiplier& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss2_sum_2& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss2_sum_2& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss2_sum_3& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss2_sum_3& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss2_sum_4& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss2_sum_4& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss2_wsum_2& dyn) noexcept
+    bool read(qss2_wsum_2& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1140,7 +1266,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(simulation& /*sim*/, qss2_wsum_3& dyn) noexcept
+    bool read(qss2_wsum_3& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1149,7 +1275,7 @@ private:
         return !!(is >> x1 >> x2 >> x3);
     }
 
-    bool read(simulation& /*sim*/, qss2_wsum_4& dyn) noexcept
+    bool read(qss2_wsum_4& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1159,27 +1285,15 @@ private:
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }
 
-    bool read(simulation& /*sim*/, qss3_multiplier& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss3_multiplier& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss3_sum_2& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss3_sum_2& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss3_sum_3& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss3_sum_3& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss3_sum_4& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss3_sum_4& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss3_wsum_2& dyn) noexcept
+    bool read(qss3_wsum_2& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1187,7 +1301,7 @@ private:
         return !!(is >> x1 >> x2);
     }
 
-    bool read(simulation& /*sim*/, qss3_wsum_3& dyn) noexcept
+    bool read(qss3_wsum_3& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1196,7 +1310,7 @@ private:
         return !!(is >> x1 >> x2 >> x3);
     }
 
-    bool read(simulation& /*sim*/, qss3_wsum_4& dyn) noexcept
+    bool read(qss3_wsum_4& dyn) noexcept
     {
         real& x1 = *(const_cast<real*>(&dyn.default_input_coeffs[0]));
         real& x2 = *(const_cast<real*>(&dyn.default_input_coeffs[1]));
@@ -1206,12 +1320,12 @@ private:
         return !!(is >> x1 >> x2 >> x3 >> x4);
     }
 
-    bool read(simulation& /*sim*/, integrator& dyn) noexcept
+    bool read(integrator& dyn) noexcept
     {
         return !!(is >> dyn.default_current_value >> dyn.default_reset_value);
     }
 
-    bool read(simulation& /*sim*/, quantifier& dyn) noexcept
+    bool read(quantifier& dyn) noexcept
     {
         if (!(is >> dyn.default_step_size >> dyn.default_past_length >>
               temp_1 >> temp_2))
@@ -1236,20 +1350,20 @@ private:
         return true;
     }
 
-    bool read(simulation& /*sim*/, adder_2& dyn) noexcept
+    bool read(adder_2& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_input_coeffs[0] >> dyn.default_input_coeffs[1]);
     }
 
-    bool read(simulation& /*sim*/, adder_3& dyn) noexcept
+    bool read(adder_3& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_values[2] >> dyn.default_input_coeffs[0] >>
                   dyn.default_input_coeffs[1] >> dyn.default_input_coeffs[2]);
     }
 
-    bool read(simulation& /*sim*/, adder_4& dyn) noexcept
+    bool read(adder_4& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_values[2] >> dyn.default_values[3] >>
@@ -1257,20 +1371,20 @@ private:
                   dyn.default_input_coeffs[2] >> dyn.default_input_coeffs[3]);
     }
 
-    bool read(simulation& /*sim*/, mult_2& dyn) noexcept
+    bool read(mult_2& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_input_coeffs[0] >> dyn.default_input_coeffs[1]);
     }
 
-    bool read(simulation& /*sim*/, mult_3& dyn) noexcept
+    bool read(mult_3& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_values[2] >> dyn.default_input_coeffs[0] >>
                   dyn.default_input_coeffs[1] >> dyn.default_input_coeffs[2]);
     }
 
-    bool read(simulation& /*sim*/, mult_4& dyn) noexcept
+    bool read(mult_4& dyn) noexcept
     {
         return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
                   dyn.default_values[2] >> dyn.default_values[3] >>
@@ -1278,69 +1392,57 @@ private:
                   dyn.default_input_coeffs[2] >> dyn.default_input_coeffs[3]);
     }
 
-    bool read(simulation& /*sim*/, counter& /*dyn*/) noexcept { return true; }
+    bool read(counter& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, queue& dyn) noexcept
-    {
-        return !!(is >> dyn.default_ta);
-    }
+    bool read(queue& dyn) noexcept { return !!(is >> dyn.default_ta); }
 
-    bool read_source(simulation& /*sim*/,
-                     source&              src,
-                     int                  index,
-                     external_source_type type)
+    bool read_source(source& src, int index, external_source_type type)
     {
         switch (type) {
         case external_source_type::binary_file: {
-            auto it = binary_find(
-              binary_file_mapping.begin(), binary_file_mapping.end(), index);
+            if (auto* ptr = binary_file_mapping.get(index); ptr) {
+                src.type = ordinal(type);
+                src.id   = *ptr;
+                return true;
+            }
 
-            if (it == binary_file_mapping.end())
-                return false;
-
-            src.type = ordinal(type);
-            src.id   = it->value;
-            return true;
-        };
+            return false;
+        }
 
         case external_source_type::constant: {
-            auto it = binary_find(
-              constant_mapping.begin(), constant_mapping.end(), index);
-            if (it == constant_mapping.end())
-                return false;
+            if (auto* ptr = constant_mapping.get(index); ptr) {
+                src.type = ordinal(type);
+                src.id   = *ptr;
+                return true;
+            }
 
-            src.type = ordinal(type);
-            src.id   = it->value;
-            return true;
+            return false;
         };
 
         case external_source_type::text_file: {
-            auto it = binary_find(
-              text_file_mapping.begin(), text_file_mapping.end(), index);
-            if (it == text_file_mapping.end())
-                return false;
+            if (auto* ptr = text_file_mapping.get(index); ptr) {
+                src.type = ordinal(type);
+                src.id   = *ptr;
+                return true;
+            }
 
-            src.type = ordinal(type);
-            src.id   = it->value;
-            return true;
+            return false;
         };
 
         case external_source_type::random: {
-            auto it =
-              binary_find(random_mapping.begin(), random_mapping.end(), index);
-            if (it == random_mapping.end())
-                return false;
-
-            src.type = ordinal(type);
-            src.id   = it->value;
-            return true;
+            if (auto* ptr = random_mapping.get(index); ptr) {
+                src.type = ordinal(type);
+                src.id   = *ptr;
+                return true;
+            }
+            return false;
         };
         }
 
         irt_unreachable();
     }
 
-    bool read(simulation& sim, dynamic_queue& dyn) noexcept
+    bool read(dynamic_queue& dyn) noexcept
     {
         int index;
         int type;
@@ -1350,14 +1452,14 @@ private:
 
         external_source_type source_type;
         if (external_source_type_cast(type, &source_type)) {
-            if (!read_source(sim, dyn.default_source_ta, index, source_type))
+            if (!read_source(dyn.default_source_ta, index, source_type))
                 return false;
         }
 
         return true;
     }
 
-    bool read(simulation& sim, priority_queue& dyn) noexcept
+    bool read(priority_queue& dyn) noexcept
     {
         int index;
         int type;
@@ -1367,14 +1469,14 @@ private:
 
         external_source_type source_type;
         if (external_source_type_cast(type, &source_type)) {
-            if (!read_source(sim, dyn.default_source_ta, index, source_type))
+            if (!read_source(dyn.default_source_ta, index, source_type))
                 return false;
         }
 
         return true;
     }
 
-    bool read(simulation& sim, generator& dyn) noexcept
+    bool read(generator& dyn) noexcept
     {
         int index[2];
         int type[2];
@@ -1385,80 +1487,52 @@ private:
 
         external_source_type source_type;
         if (external_source_type_cast(type[0], &source_type)) {
-            if (!read_source(sim, dyn.default_source_ta, index[0], source_type))
+            if (!read_source(dyn.default_source_ta, index[0], source_type))
                 return false;
         }
 
         if (external_source_type_cast(type[1], &source_type)) {
-            if (!read_source(
-                  sim, dyn.default_source_value, index[1], source_type))
+            if (!read_source(dyn.default_source_value, index[1], source_type))
                 return false;
         }
 
         return true;
     }
 
-    bool read(simulation& /*sim*/, constant& dyn) noexcept
-    {
-        return !!(is >> dyn.default_value);
-    }
+    bool read(constant& dyn) noexcept { return !!(is >> dyn.default_value); }
 
-    bool read(simulation& /*sim*/, qss1_cross& dyn) noexcept
+    bool read(qss1_cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
     }
 
-    bool read(simulation& /*sim*/, qss2_cross& dyn) noexcept
+    bool read(qss2_cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
     }
 
-    bool read(simulation& /*sim*/, qss3_cross& dyn) noexcept
+    bool read(qss3_cross& dyn) noexcept
     {
         return !!(is >> dyn.default_threshold);
     }
 
-    bool read(simulation& /*sim*/, qss1_power& dyn) noexcept
-    {
-        return !!(is >> dyn.default_n);
-    }
+    bool read(qss1_power& dyn) noexcept { return !!(is >> dyn.default_n); }
 
-    bool read(simulation& /*sim*/, qss2_power& dyn) noexcept
-    {
-        return !!(is >> dyn.default_n);
-    }
+    bool read(qss2_power& dyn) noexcept { return !!(is >> dyn.default_n); }
 
-    bool read(simulation& /*sim*/, qss3_power& dyn) noexcept
-    {
-        return !!(is >> dyn.default_n);
-    }
+    bool read(qss3_power& dyn) noexcept { return !!(is >> dyn.default_n); }
 
-    bool read(simulation& /*sim*/, qss1_square& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss1_square& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss2_square& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss2_square& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, qss3_square& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(qss3_square& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, cross& dyn) noexcept
-    {
-        return !!(is >> dyn.default_threshold);
-    }
+    bool read(cross& dyn) noexcept { return !!(is >> dyn.default_threshold); }
 
-    bool read(simulation& /*sim*/, accumulator_2& /*dyn*/) noexcept
-    {
-        return true;
-    }
+    bool read(accumulator_2& /*dyn*/) noexcept { return true; }
 
-    bool read(simulation& /*sim*/, time_func& dyn) noexcept
+    bool read(time_func& dyn) noexcept
     {
         if (!(is >> temp_1))
             return false;
@@ -1473,22 +1547,22 @@ private:
         return true;
     }
 
-    bool read(simulation& /*sim*/, filter& dyn) noexcept
+    bool read(filter& dyn) noexcept
     {
         return !!(is >> dyn.default_lower_threshold >>
                   dyn.default_upper_threshold);
     }
 
-    bool read(simulation& /*sim*/, flow& dyn) noexcept
-    {
-        return !!(is >> dyn.default_samplerate);
-    }
+    bool read(flow& dyn) noexcept { return !!(is >> dyn.default_samplerate); }
 };
 
 struct writer
 {
     std::ostream&         os;
     std::vector<model_id> map;
+
+    table<model_id, int>         modeling_model_map;
+    table<component_ref_id, int> modeling_component_ref_map;
 
     writer(std::ostream& os_) noexcept
       : os(os_)
@@ -1611,10 +1685,37 @@ struct writer
 
             os << id << " 0.0 0.0 ";
 
-            dispatch(
-              *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
+            dispatch(*mdl, [this](auto& dyn) -> void { this->write(dyn); });
 
             ++id;
+        }
+    }
+
+    void do_write_model_dynamics(const model& mdl,
+                                 const int    id,
+                                 const float  x,
+                                 const float  y)
+    {
+        os << id << ' ' << x << ' ' << y << ' ';
+
+        dispatch(mdl, [this](auto& dyn) -> void { this->write(dyn); });
+    }
+
+    void do_write_component_dynamics(const modeling&      mod,
+                                     const component_ref& compo_ref,
+                                     const int            id,
+                                     const float          x,
+                                     const float          y)
+    {
+        auto* compo = mod.components.try_to_get(compo_ref.id);
+        if (compo) {
+            os << id << ' ' << x << ' ' << y << " component ";
+
+            if (compo->type == component_type::file) {
+                os << mod.file_paths.get(compo->path).path.c_str() << '\n';
+            } else {
+                os << component_type_names[ordinal(compo->type)] << '\n';
+            }
         }
     }
 
@@ -1628,13 +1729,11 @@ struct writer
             const auto mdl_id = sim.models.get_id(mdl);
             map[id]           = mdl_id;
 
-            float x = 0., y = 0.;
-            get_pos(mdl_id, x, y);
-            os << id << ' ' << x << ' ' << y << ' ';
+            float x = 0.f, y = 0.f;
+            if (!get_pos.empty())
+                get_pos(mdl_id, x, y);
 
-            dispatch(
-              *mdl, [this, &sim](auto& dyn) -> void { this->write(sim, dyn); });
-
+            do_write_model_dynamics(*mdl, id, x, y);
             ++id;
         }
     }
@@ -1683,7 +1782,99 @@ struct writer
         return status::success;
     }
 
+    status operator()(const modeling&        mod,
+                      const component&       compo,
+                      const external_source& srcs) noexcept
+    {
+        write_constant_sources(srcs.constant_sources);
+        write_binary_file_sources(srcs.binary_file_sources);
+        write_text_file_sources(srcs.text_file_sources);
+        write_random_sources(srcs.random_sources);
+
+        os << compo.children.size() << '\n';
+        do_write_children(mod, compo);
+        do_write_ports(compo.x);
+        do_write_ports(compo.y);
+        do_write_connection(compo.connections);
+
+        return status::success;
+    }
+
 private:
+    void do_write_connection(const vector<connection>& connections) noexcept
+    {
+        os << connections.size() << '\n';
+
+        for (int i = 0, e = connections.ssize(); i != e; ++i) {
+            if (connections[i].type_src == child_type::component) {
+                auto cpn_id = enum_cast<component_ref_id>(connections[i].src);
+                if (int* child = modeling_component_ref_map.get(cpn_id); child)
+                    os << *child << connections[i].port_src << ' ';
+            } else {
+                auto mdl_id = enum_cast<model_id>(connections[i].src);
+                if (int* child = modeling_model_map.get(mdl_id); child)
+                    os << *child << connections[i].port_src << ' ';
+            }
+
+            if (connections[i].type_dst == child_type::component) {
+                auto cpn_id = enum_cast<component_ref_id>(connections[i].dst);
+                if (int* child = modeling_component_ref_map.get(cpn_id); child)
+                    os << *child << connections[i].port_dst << ' ';
+            } else {
+                auto mdl_id = enum_cast<model_id>(connections[i].dst);
+                if (int* child = modeling_model_map.get(mdl_id); child)
+                    os << *child << connections[i].port_dst << ' ';
+            }
+
+            os << '\n';
+        }
+    }
+
+    void do_write_ports(const vector<port>& ports) noexcept
+    {
+        os << ports.size() << '\n';
+
+        for (int i = 0, e = ports.ssize(); i != e; ++i) {
+            if (ports[i].type == child_type::component) {
+                auto cpn_id = enum_cast<component_ref_id>(ports[i].id);
+                if (int* child = modeling_component_ref_map.get(cpn_id); child)
+                    os << *child << ports[i].index << '\n';
+            } else {
+                auto mdl_id = enum_cast<model_id>(ports[i].id);
+                if (int* child = modeling_model_map.get(mdl_id); child)
+                    os << *child << ports[i].index << '\n';
+            }
+        }
+    }
+
+    void do_write_children(const modeling& mod, const component& compo) noexcept
+    {
+        for (int i = 0, e = compo.children.ssize(); i != e; ++i) {
+            if (compo.children[i].type == child_type::component) {
+                auto cpn_id = enum_cast<component_ref_id>(compo.children[i].id);
+                auto* cpn   = mod.component_refs.try_to_get(cpn_id);
+                if (cpn) {
+                    do_write_component_dynamics(
+                      mod, *cpn, i, compo.children[i].x, compo.children[i].y);
+
+                    modeling_component_ref_map.data.emplace_back(cpn_id, i);
+                }
+            } else {
+                auto  mdl_id = enum_cast<model_id>(compo.children[i].id);
+                auto* mdl    = mod.models.try_to_get(mdl_id);
+                if (mdl) {
+                    do_write_model_dynamics(
+                      *mdl, i, compo.children[i].x, compo.children[i].y);
+
+                    modeling_model_map.data.emplace_back(mdl_id, i);
+                }
+            }
+        }
+
+        modeling_model_map.sort();
+        modeling_component_ref_map.sort();
+    }
+
     void write(const random_source& src) noexcept
     {
         switch (src.distribution) {
@@ -1757,154 +1948,124 @@ private:
         }
     }
 
-    void write(const simulation& /*sim*/, const qss1_integrator& dyn) noexcept
+    void write(const qss1_integrator& dyn) noexcept
     {
         os << "qss1_integrator " << dyn.default_X << ' ' << dyn.default_dQ
            << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss2_integrator& dyn) noexcept
+    void write(const qss2_integrator& dyn) noexcept
     {
         os << "qss2_integrator " << dyn.default_X << ' ' << dyn.default_dQ
            << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss3_integrator& dyn) noexcept
+    void write(const qss3_integrator& dyn) noexcept
     {
         os << "qss3_integrator " << dyn.default_X << ' ' << dyn.default_dQ
            << '\n';
     }
 
-    void write(const simulation& /*sim*/,
-               const qss1_multiplier& /*dyn*/) noexcept
+    void write(const qss1_multiplier& /*dyn*/) noexcept
     {
         os << "qss1_multiplier\n";
     }
 
-    void write(const simulation& /*sim*/, const qss1_sum_2& /*dyn*/) noexcept
-    {
-        os << "qss1_sum_2\n";
-    }
+    void write(const qss1_sum_2& /*dyn*/) noexcept { os << "qss1_sum_2\n"; }
 
-    void write(const simulation& /*sim*/, const qss1_sum_3& /*dyn*/) noexcept
-    {
-        os << "qss1_sum_3\n";
-    }
+    void write(const qss1_sum_3& /*dyn*/) noexcept { os << "qss1_sum_3\n"; }
 
-    void write(const simulation& /*sim*/, const qss1_sum_4& /*dyn*/) noexcept
-    {
-        os << "qss1_sum_4\n";
-    }
+    void write(const qss1_sum_4& /*dyn*/) noexcept { os << "qss1_sum_4\n"; }
 
-    void write(const simulation& /*sim*/, const qss1_wsum_2& dyn) noexcept
+    void write(const qss1_wsum_2& dyn) noexcept
     {
         os << "qss1_wsum_2 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss1_wsum_3& dyn) noexcept
+    void write(const qss1_wsum_3& dyn) noexcept
     {
         os << "qss1_wsum_3 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss1_wsum_4& dyn) noexcept
+    void write(const qss1_wsum_4& dyn) noexcept
     {
         os << "qss1_wsum_4 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const simulation& /*sim*/,
-               const qss2_multiplier& /*dyn*/) noexcept
+    void write(const qss2_multiplier& /*dyn*/) noexcept
     {
         os << "qss2_multiplier\n";
     }
 
-    void write(const simulation& /*sim*/, const qss2_sum_2& /*dyn*/) noexcept
-    {
-        os << "qss2_sum_2\n";
-    }
+    void write(const qss2_sum_2& /*dyn*/) noexcept { os << "qss2_sum_2\n"; }
 
-    void write(const simulation& /*sim*/, const qss2_sum_3& /*dyn*/) noexcept
-    {
-        os << "qss2_sum_3\n";
-    }
+    void write(const qss2_sum_3& /*dyn*/) noexcept { os << "qss2_sum_3\n"; }
 
-    void write(const simulation& /*sim*/, const qss2_sum_4& /*dyn*/) noexcept
-    {
-        os << "qss2_sum_4\n";
-    }
+    void write(const qss2_sum_4& /*dyn*/) noexcept { os << "qss2_sum_4\n"; }
 
-    void write(const simulation& /*sim*/, const qss2_wsum_2& dyn) noexcept
+    void write(const qss2_wsum_2& dyn) noexcept
     {
         os << "qss2_wsum_2 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss2_wsum_3& dyn) noexcept
+    void write(const qss2_wsum_3& dyn) noexcept
     {
         os << "qss2_wsum_3 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss2_wsum_4& dyn) noexcept
+    void write(const qss2_wsum_4& dyn) noexcept
     {
         os << "qss2_wsum_4 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const simulation& /*sim*/,
-               const qss3_multiplier& /*dyn*/) noexcept
+    void write(const qss3_multiplier& /*dyn*/) noexcept
     {
         os << "qss3_multiplier\n";
     }
 
-    void write(const simulation& /*sim*/, const qss3_sum_2& /*dyn*/) noexcept
-    {
-        os << "qss3_sum_2\n";
-    }
+    void write(const qss3_sum_2& /*dyn*/) noexcept { os << "qss3_sum_2\n"; }
 
-    void write(const simulation& /*sim*/, const qss3_sum_3& /*dyn*/) noexcept
-    {
-        os << "qss3_sum_3\n";
-    }
+    void write(const qss3_sum_3& /*dyn*/) noexcept { os << "qss3_sum_3\n"; }
 
-    void write(const simulation& /*sim*/, const qss3_sum_4& /*dyn*/) noexcept
-    {
-        os << "qss3_sum_4\n";
-    }
+    void write(const qss3_sum_4& /*dyn*/) noexcept { os << "qss3_sum_4\n"; }
 
-    void write(const simulation& /*sim*/, const qss3_wsum_2& dyn) noexcept
+    void write(const qss3_wsum_2& dyn) noexcept
     {
         os << "qss3_wsum_2 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss3_wsum_3& dyn) noexcept
+    void write(const qss3_wsum_3& dyn) noexcept
     {
         os << "qss3_wsum_3 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss3_wsum_4& dyn) noexcept
+    void write(const qss3_wsum_4& dyn) noexcept
     {
         os << "qss3_wsum_4 " << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << ' ' << dyn.default_input_coeffs[2]
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const integrator& dyn) noexcept
+    void write(const integrator& dyn) noexcept
     {
         os << "integrator " << dyn.default_current_value << ' '
            << dyn.default_reset_value << '\n';
     }
 
-    void write(const simulation& /*sim*/, const quantifier& dyn) noexcept
+    void write(const quantifier& dyn) noexcept
     {
         os << "quantifier " << dyn.default_step_size << ' '
            << dyn.default_past_length << ' '
@@ -1916,14 +2077,14 @@ private:
            << (dyn.default_zero_init_offset == true ? "true\n" : "false\n");
     }
 
-    void write(const simulation& /*sim*/, const adder_2& dyn) noexcept
+    void write(const adder_2& dyn) noexcept
     {
         os << "adder_2 " << dyn.default_values[0] << ' '
            << dyn.default_values[1] << ' ' << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const adder_3& dyn) noexcept
+    void write(const adder_3& dyn) noexcept
     {
         os << "adder_3 " << dyn.default_values[0] << ' '
            << dyn.default_values[1] << ' ' << dyn.default_values[2] << ' '
@@ -1931,7 +2092,7 @@ private:
            << ' ' << dyn.default_input_coeffs[2] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const adder_4& dyn) noexcept
+    void write(const adder_4& dyn) noexcept
     {
         os << "adder_4 " << dyn.default_values[0] << ' '
            << dyn.default_values[1] << ' ' << dyn.default_values[2] << ' '
@@ -1940,14 +2101,14 @@ private:
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const mult_2& dyn) noexcept
+    void write(const mult_2& dyn) noexcept
     {
         os << "mult_2 " << dyn.default_values[0] << ' ' << dyn.default_values[1]
            << ' ' << dyn.default_input_coeffs[0] << ' '
            << dyn.default_input_coeffs[1] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const mult_3& dyn) noexcept
+    void write(const mult_3& dyn) noexcept
     {
         os << "mult_3 " << dyn.default_values[0] << ' ' << dyn.default_values[1]
            << ' ' << dyn.default_values[2] << ' ' << dyn.default_input_coeffs[0]
@@ -1955,7 +2116,7 @@ private:
            << dyn.default_input_coeffs[2] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const mult_4& dyn) noexcept
+    void write(const mult_4& dyn) noexcept
     {
         os << "mult_4 " << dyn.default_values[0] << ' ' << dyn.default_values[1]
            << ' ' << dyn.default_values[2] << ' ' << dyn.default_values[3]
@@ -1964,10 +2125,7 @@ private:
            << ' ' << dyn.default_input_coeffs[3] << '\n';
     }
 
-    void write(const simulation& /*sim*/, const counter& /*dyn*/) noexcept
-    {
-        os << "counter\n";
-    }
+    void write(const counter& /*dyn*/) noexcept { os << "counter\n"; }
 
     void write(const source& src) noexcept
     {
@@ -1976,26 +2134,26 @@ private:
         os << b << ' ' << src.type;
     }
 
-    void write(const simulation& /*sim*/, const queue& dyn) noexcept
+    void write(const queue& dyn) noexcept
     {
         os << "queue " << dyn.default_ta << '\n';
     }
 
-    void write(const simulation& /*sim*/, const dynamic_queue& dyn) noexcept
+    void write(const dynamic_queue& dyn) noexcept
     {
         os << "dynamic_queue ";
         write(dyn.default_source_ta);
         os << '\n';
     }
 
-    void write(const simulation& /*sim*/, const priority_queue& dyn) noexcept
+    void write(const priority_queue& dyn) noexcept
     {
         os << "priority_queue ";
         write(dyn.default_source_ta);
         os << '\n';
     }
 
-    void write(const simulation& /*sim*/, const generator& dyn) noexcept
+    void write(const generator& dyn) noexcept
     {
         os << "generator " << dyn.default_offset << ' ';
 
@@ -2005,80 +2163,70 @@ private:
         os << '\n';
     }
 
-    void write(const simulation& /*sim*/, const constant& dyn) noexcept
+    void write(const constant& dyn) noexcept
     {
         os << "constant " << dyn.default_value << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss1_cross& dyn) noexcept
+    void write(const qss1_cross& dyn) noexcept
     {
         os << "qss1_cross " << dyn.default_threshold << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss2_cross& dyn) noexcept
+    void write(const qss2_cross& dyn) noexcept
     {
         os << "qss2_cross " << dyn.default_threshold << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss3_cross& dyn) noexcept
+    void write(const qss3_cross& dyn) noexcept
     {
         os << "qss3_cross " << dyn.default_threshold << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss1_power& dyn) noexcept
+    void write(const qss1_power& dyn) noexcept
     {
         os << "qss1_power " << dyn.default_n << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss2_power& dyn) noexcept
+    void write(const qss2_power& dyn) noexcept
     {
         os << "qss2_power " << dyn.default_n << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss3_power& dyn) noexcept
+    void write(const qss3_power& dyn) noexcept
     {
         os << "qss3_power " << dyn.default_n << '\n';
     }
 
-    void write(const simulation& /*sim*/, const qss1_square& /*dyn*/) noexcept
-    {
-        os << "qss1_square\n";
-    }
+    void write(const qss1_square& /*dyn*/) noexcept { os << "qss1_square\n"; }
 
-    void write(const simulation& /*sim*/, const qss2_square& /*dyn*/) noexcept
-    {
-        os << "qss2_square\n";
-    }
+    void write(const qss2_square& /*dyn*/) noexcept { os << "qss2_square\n"; }
 
-    void write(const simulation& /*sim*/, const qss3_square& /*dyn*/) noexcept
-    {
-        os << "qss3_square\n";
-    }
+    void write(const qss3_square& /*dyn*/) noexcept { os << "qss3_square\n"; }
 
-    void write(const simulation& /*sim*/, const cross& dyn) noexcept
+    void write(const cross& dyn) noexcept
     {
         os << "cross " << dyn.default_threshold << '\n';
     }
 
-    void write(const simulation& /*sim*/, const accumulator_2& /*dyn*/) noexcept
+    void write(const accumulator_2& /*dyn*/) noexcept
     {
         os << "accumulator_2\n";
     }
 
-    void write(const simulation& /*sim*/, const time_func& dyn) noexcept
+    void write(const time_func& dyn) noexcept
     {
         os << "time_func "
            << (dyn.default_f == &time_function ? "time\n" : "square\n");
     }
 
-    void write(const simulation& /*sim*/, const filter& dyn) noexcept
+    void write(const filter& dyn) noexcept
     {
         os << "filter " << dyn.default_lower_threshold << ' '
-           << dyn.default_upper_threshold
-           << '\n';
+           << dyn.default_upper_threshold << '\n';
     }
 
-    void write(const simulation& /*sim*/, const flow& dyn) noexcept
+    void write(const flow& dyn) noexcept
     {
         os << "flow " << dyn.default_samplerate << '\n';
     }

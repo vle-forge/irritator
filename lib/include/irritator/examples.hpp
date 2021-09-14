@@ -20,8 +20,7 @@ namespace irt {
  * @return
  */
 template<int QssLevel, typename F>
-status
-example_qss_lotka_volterra(simulation& sim, F f) noexcept
+status example_qss_lotka_volterra(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -30,21 +29,21 @@ example_qss_lotka_volterra(simulation& sim, F f) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_a.default_X = 18.0_r;
+    auto& integrator_a      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_a.default_X  = 18.0_r;
     integrator_a.default_dQ = 0.1_r;
 
-    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_b.default_X = 7.0_r;
+    auto& integrator_b      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_b.default_X  = 7.0_r;
     integrator_b.default_dQ = 0.1_r;
 
     auto& product = sim.alloc<abstract_multiplier<QssLevel>>();
 
-    auto& sum_a = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_a                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_a.default_input_coeffs[0] = 2.0_r;
     sum_a.default_input_coeffs[1] = -0.4_r;
 
-    auto& sum_b = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_b                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_b.default_input_coeffs[0] = -1.0_r;
     sum_b.default_input_coeffs[1] = 0.1_r;
 
@@ -67,8 +66,7 @@ example_qss_lotka_volterra(simulation& sim, F f) noexcept
 }
 
 template<int QssLevel, typename F>
-status
-example_qss_lif(simulation& sim, F f) noexcept
+status example_qss_lif(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -80,25 +78,25 @@ example_qss_lif(simulation& sim, F f) noexcept
     using namespace irt::literals;
 
     constexpr irt::real tau = 10.0_r;
-    constexpr irt::real Vt = 1.0_r;
-    constexpr irt::real V0 = 10.0_r;
-    constexpr irt::real Vr = -V0;
+    constexpr irt::real Vt  = 1.0_r;
+    constexpr irt::real V0  = 10.0_r;
+    constexpr irt::real Vr  = -V0;
 
-    auto& cst = sim.alloc<constant>();
+    auto& cst         = sim.alloc<constant>();
     cst.default_value = 1.0;
 
-    auto& cst_cross = sim.alloc<constant>();
+    auto& cst_cross         = sim.alloc<constant>();
     cst_cross.default_value = Vr;
 
-    auto& sum = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum.default_input_coeffs[0] = -irt::one / tau;
     sum.default_input_coeffs[1] = V0 / tau;
 
-    auto& integrator = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator.default_X = 0._r;
+    auto& integrator      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator.default_X  = 0._r;
     integrator.default_dQ = 0.001_r;
 
-    auto& cross = sim.alloc<abstract_cross<QssLevel>>();
+    auto& cross             = sim.alloc<abstract_cross<QssLevel>>();
     cross.default_threshold = Vt;
 
     sim.connect(cross, 0, integrator, 1);
@@ -119,45 +117,44 @@ example_qss_lif(simulation& sim, F f) noexcept
 }
 
 template<int QssLevel, typename F>
-status
-example_qss_izhikevich(simulation& sim, F f) noexcept
+status example_qss_izhikevich(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
     bool success = sim.can_alloc(12) && sim.can_connect(22);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& cst = sim.alloc<constant>();
-    auto& cst2 = sim.alloc<constant>();
-    auto& cst3 = sim.alloc<constant>();
-    auto& sum_a = sim.alloc<abstract_wsum<QssLevel, 2>>();
-    auto& sum_b = sim.alloc<abstract_wsum<QssLevel, 2>>();
-    auto& sum_c = sim.alloc<abstract_wsum<QssLevel, 4>>();
-    auto& sum_d = sim.alloc<abstract_wsum<QssLevel, 2>>();
-    auto& product = sim.alloc<abstract_multiplier<QssLevel>>();
+    auto& cst          = sim.alloc<constant>();
+    auto& cst2         = sim.alloc<constant>();
+    auto& cst3         = sim.alloc<constant>();
+    auto& sum_a        = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_b        = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_c        = sim.alloc<abstract_wsum<QssLevel, 4>>();
+    auto& sum_d        = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& product      = sim.alloc<abstract_multiplier<QssLevel>>();
     auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
     auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
-    auto& cross = sim.alloc<abstract_cross<QssLevel>>();
-    auto& cross2 = sim.alloc<abstract_cross<QssLevel>>();
+    auto& cross        = sim.alloc<abstract_cross<QssLevel>>();
+    auto& cross2       = sim.alloc<abstract_cross<QssLevel>>();
 
-    constexpr irt::real a = 0.2_r;
-    constexpr irt::real b = 2.0_r;
-    constexpr irt::real c = -56.0_r;
-    constexpr irt::real d = -16.0_r;
-    constexpr irt::real I = -99.0_r;
+    constexpr irt::real a  = 0.2_r;
+    constexpr irt::real b  = 2.0_r;
+    constexpr irt::real c  = -56.0_r;
+    constexpr irt::real d  = -16.0_r;
+    constexpr irt::real I  = -99.0_r;
     constexpr irt::real vt = 30.0_r;
 
-    cst.default_value = 1.0_r;
+    cst.default_value  = 1.0_r;
     cst2.default_value = c;
     cst3.default_value = I;
 
-    cross.default_threshold = vt;
+    cross.default_threshold  = vt;
     cross2.default_threshold = vt;
 
-    integrator_a.default_X = 0.0_r;
+    integrator_a.default_X  = 0.0_r;
     integrator_a.default_dQ = 0.01_r;
 
-    integrator_b.default_X = 0.0_r;
+    integrator_b.default_X  = 0.0_r;
     integrator_b.default_dQ = 0.01_r;
 
     sum_a.default_input_coeffs[0] = 1.0_r;
@@ -216,27 +213,26 @@ example_qss_izhikevich(simulation& sim, F f) noexcept
 }
 
 template<int QssLevel, typename F>
-status
-example_qss_van_der_pol(simulation& sim, F f) noexcept
+status example_qss_van_der_pol(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
     bool success = sim.can_alloc(5) && sim.can_connect(9);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum = sim.alloc<abstract_wsum<QssLevel, 3>>();
-    auto& product1 = sim.alloc<abstract_multiplier<QssLevel>>();
-    auto& product2 = sim.alloc<abstract_multiplier<QssLevel>>();
+    auto& sum          = sim.alloc<abstract_wsum<QssLevel, 3>>();
+    auto& product1     = sim.alloc<abstract_multiplier<QssLevel>>();
+    auto& product2     = sim.alloc<abstract_multiplier<QssLevel>>();
     auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
     auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
 
-    integrator_a.default_X = 0.0_r;
+    integrator_a.default_X  = 0.0_r;
     integrator_a.default_dQ = 0.001_r;
 
-    integrator_b.default_X = 10.0_r;
+    integrator_b.default_X  = 10.0_r;
     integrator_b.default_dQ = 0.001_r;
 
-    constexpr double mu = 4.0_r;
+    constexpr double mu         = 4.0_r;
     sum.default_input_coeffs[0] = mu;
     sum.default_input_coeffs[1] = -mu;
     sum.default_input_coeffs[2] = -1.0_r;
@@ -261,32 +257,31 @@ example_qss_van_der_pol(simulation& sim, F f) noexcept
 }
 
 template<int QssLevel, typename F>
-status
-example_qss_negative_lif(simulation& sim, F f) noexcept
+status example_qss_negative_lif(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
     bool success = sim.can_alloc(5) && sim.can_connect(7);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum        = sim.alloc<abstract_wsum<QssLevel, 2>>();
     auto& integrator = sim.alloc<abstract_integrator<QssLevel>>();
-    auto& cross = sim.alloc<abstract_cross<QssLevel>>();
-    auto& cst = sim.alloc<constant>();
-    auto& cst_cross = sim.alloc<constant>();
+    auto& cross      = sim.alloc<abstract_cross<QssLevel>>();
+    auto& cst        = sim.alloc<constant>();
+    auto& cst_cross  = sim.alloc<constant>();
 
     constexpr real tau = 10.0_r;
-    constexpr real Vt = -1.0_r;
-    constexpr real V0 = -10.0_r;
-    constexpr real Vr = 0.0_r;
+    constexpr real Vt  = -1.0_r;
+    constexpr real V0  = -10.0_r;
+    constexpr real Vr  = 0.0_r;
 
     sum.default_input_coeffs[0] = -1.0_r / tau;
     sum.default_input_coeffs[1] = V0 / tau;
 
-    cst.default_value = 1.0_r;
+    cst.default_value       = 1.0_r;
     cst_cross.default_value = Vr;
 
-    integrator.default_X = 0.0_r;
+    integrator.default_X  = 0.0_r;
     integrator.default_dQ = 0.001_r;
 
     cross.default_threshold = Vt;
@@ -310,19 +305,18 @@ example_qss_negative_lif(simulation& sim, F f) noexcept
 }
 
 template<int QssLevel, typename F>
-status
-example_qss_seir_nonlinear(simulation& sim, F f) noexcept
+status example_qss_seir_nonlinear(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
     bool success = sim.can_alloc(10) && sim.can_connect(12);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum_a = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_a                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_a.default_input_coeffs[0] = -0.005_r;
     sum_a.default_input_coeffs[1] = -0.4_r;
 
-    auto& sum_b = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_b                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_b.default_input_coeffs[0] = -0.135_r;
     sum_b.default_input_coeffs[1] = 0.1_r;
 
@@ -330,26 +324,26 @@ example_qss_seir_nonlinear(simulation& sim, F f) noexcept
 
     auto& product_b = sim.alloc<abstract_multiplier<QssLevel>>();
 
-    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_a.default_X = 10.0_r;
+    auto& integrator_a      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_a.default_X  = 10.0_r;
     integrator_a.default_dQ = 0.01_r;
 
-    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_b.default_X = 15.0_r;
+    auto& integrator_b      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_b.default_X  = 15.0_r;
     integrator_b.default_dQ = 0.01_r;
 
-    auto& integrator_c = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_c.default_X = 10.0_r;
+    auto& integrator_c      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_c.default_X  = 10.0_r;
     integrator_c.default_dQ = 0.01_r;
 
-    auto& integrator_d = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_d.default_X = 18.0_r;
+    auto& integrator_d      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_d.default_X  = 18.0_r;
     integrator_d.default_dQ = 0.01_r;
 
-    auto& constant_a = sim.alloc<constant>();
+    auto& constant_a         = sim.alloc<constant>();
     constant_a.default_value = -0.005_r;
 
-    auto& constant_b = sim.alloc<constant>();
+    auto& constant_b         = sim.alloc<constant>();
     constant_b.default_value = -0.135_r;
 
     sim.connect(constant_a, 0, product_a, 0);
@@ -380,29 +374,28 @@ example_qss_seir_nonlinear(simulation& sim, F f) noexcept
 }
 
 template<int QssLevel, typename F>
-status
-example_qss_seir_nonlineaire(simulation& sim, F f) noexcept
+status example_qss_seir_nonlineaire(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
     bool success = sim.can_alloc(27) && sim.can_connect(32);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum_a = sim.alloc<abstract_wsum<QssLevel, 3>>();
+    auto& sum_a                   = sim.alloc<abstract_wsum<QssLevel, 3>>();
     sum_a.default_input_coeffs[0] = 0.5_r;
     sum_a.default_input_coeffs[1] = 1.0_r;
     sum_a.default_input_coeffs[2] = 1.0_r;
 
-    auto& sum_b = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_b                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_b.default_input_coeffs[0] = 1.0_r;
     sum_b.default_input_coeffs[1] = 1.0_r;
 
-    auto& sum_c = sim.alloc<abstract_wsum<QssLevel, 3>>();
+    auto& sum_c                   = sim.alloc<abstract_wsum<QssLevel, 3>>();
     sum_c.default_input_coeffs[0] = 1.5_r;
     sum_c.default_input_coeffs[1] = 0.698_r;
     sum_c.default_input_coeffs[2] = 0.387_r;
 
-    auto& sum_d = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    auto& sum_d                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
     sum_d.default_input_coeffs[0] = 1.0_r;
     sum_d.default_input_coeffs[1] = 1.5_r;
 
@@ -416,52 +409,51 @@ example_qss_seir_nonlineaire(simulation& sim, F f) noexcept
     auto& product_h = sim.alloc<abstract_multiplier<QssLevel>>();
     auto& product_i = sim.alloc<abstract_multiplier<QssLevel>>();
 
-    auto& product_j = sim.alloc<abstract_multiplier<QssLevel>>();
-
-    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_a.default_X = 10.0_r;
+    auto& product_j         = sim.alloc<abstract_multiplier<QssLevel>>();
+    auto& integrator_a      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_a.default_X  = 10.0_r;
     integrator_a.default_dQ = 0.01_r;
 
-    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_b.default_X = 12.0_r;
+    auto& integrator_b      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_b.default_X  = 12.0_r;
     integrator_b.default_dQ = 0.01_r;
 
-    auto& integrator_c = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_c.default_X = 13.50_r;
+    auto& integrator_c      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_c.default_X  = 13.50_r;
     integrator_c.default_dQ = 0.01_r;
 
-    auto& integrator_d = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_d.default_X = 15.0_r;
+    auto& integrator_d      = sim.alloc<abstract_integrator<QssLevel>>();
+    integrator_d.default_X  = 15.0_r;
     integrator_d.default_dQ = 0.01_r;
 
-    auto& constant_a = sim.alloc<constant>();
+    auto& constant_a         = sim.alloc<constant>();
     constant_a.default_value = 0.005_r;
 
-    auto& constant_b = sim.alloc<constant>();
+    auto& constant_b         = sim.alloc<constant>();
     constant_b.default_value = -0.0057_r;
 
-    auto& constant_c = sim.alloc<constant>();
+    auto& constant_c         = sim.alloc<constant>();
     constant_c.default_value = -0.005_r;
 
-    auto& constant_d = sim.alloc<constant>();
+    auto& constant_d         = sim.alloc<constant>();
     constant_d.default_value = 0.0057_r;
 
-    auto& constant_e = sim.alloc<constant>();
+    auto& constant_e         = sim.alloc<constant>();
     constant_e.default_value = -0.135_r;
 
-    auto& constant_f = sim.alloc<constant>();
+    auto& constant_f         = sim.alloc<constant>();
     constant_f.default_value = 0.135_r;
 
-    auto& constant_g = sim.alloc<constant>();
+    auto& constant_g         = sim.alloc<constant>();
     constant_g.default_value = -0.072_r;
 
-    auto& constant_h = sim.alloc<constant>();
+    auto& constant_h         = sim.alloc<constant>();
     constant_h.default_value = 0.005_r;
 
-    auto& constant_i = sim.alloc<constant>();
+    auto& constant_i         = sim.alloc<constant>();
     constant_i.default_value = 0.067_r;
 
-    auto& constant_j = sim.alloc<constant>();
+    auto& constant_j         = sim.alloc<constant>();
     constant_j.default_value = -0.005_r;
 
     sim.connect(constant_a, 0, sum_a, 0);
@@ -535,6 +527,7 @@ example_qss_seir_nonlineaire(simulation& sim, F f) noexcept
 
     return status::success;
 }
+
 } // namespace irritator
 
 #endif
