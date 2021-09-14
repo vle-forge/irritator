@@ -161,8 +161,7 @@ struct editor
     editor() noexcept;
     ~editor() noexcept;
 
-    bool
-    is_running() const noexcept
+    bool is_running() const noexcept
     {
         return match(st,
                      editor_status::running,
@@ -181,8 +180,9 @@ struct editor
     std::vector<observation_output> observation_outputs;
 
     template<typename Function, typename... Args>
-    constexpr void
-    observation_dispatch(const u32 index, Function&& f, Args... args) noexcept
+    constexpr void observation_dispatch(const u32  index,
+                                        Function&& f,
+                                        Args... args) noexcept
     {
         switch (observation_outputs[index].index()) {
         case 1:
@@ -208,8 +208,7 @@ struct editor
         }
     }
 
-    void
-    observation_outputs_free(const u32 index) noexcept
+    void observation_outputs_free(const u32 index) noexcept
     {
         observation_dispatch(
           index, [](auto& outs, auto out_id) { outs.free(out_id); });
@@ -283,8 +282,7 @@ struct editor
         int         port_index = 0;
     };
 
-    gport
-    get_in(const int index) noexcept
+    gport get_in(const int index) noexcept
     {
         const auto model_index_port = get_model_input_port(index);
         auto*      mdl = sim.models.try_to_get(model_index_port.first);
@@ -292,8 +290,7 @@ struct editor
         return { mdl, static_cast<int>(model_index_port.second) };
     }
 
-    gport
-    get_out(const int index) noexcept
+    gport get_out(const int index) noexcept
     {
         const auto model_index_port = get_model_output_port(index);
         auto*      mdl = sim.models.try_to_get(model_index_port.first);
