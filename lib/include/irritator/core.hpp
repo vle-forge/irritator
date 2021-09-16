@@ -357,7 +357,8 @@ enum class status
     io_file_format_model_unknown,
     io_file_format_dynamics_unknown,
     io_file_format_dynamics_limit_reach,
-    io_file_format_dynamics_init_error
+    io_file_format_dynamics_init_error,
+    filter_threshold_condition_not_satisfied
 };
 
 constexpr i8
@@ -5236,6 +5237,7 @@ struct filter {
     filter() noexcept {
         default_lower_threshold[0] = -0.5;
         default_upper_threshold[0] = 0.5;
+        sigma=time_domain<time>::infinity;
     }
 
     status initialize() noexcept { 
@@ -5243,7 +5245,11 @@ struct filter {
         lower_threshold[0]=default_lower_threshold[0];
         upper_threshold[0]=default_upper_threshold[0];
         //inValue[0]=0.0;
-
+        irt_return_if_fail(default_lower_threshold[0] < default_upper_threshold[0],
+                           status::filter_threshold_condition_not_satisfied);
+        if (!(lower_threshold[0] < upper_threshold[0])) {
+            irt_return_if_bad(status::filter_threshold_condition_not_satisfied);
+        }
         return status::success;
     }
 
@@ -5254,36 +5260,31 @@ struct filter {
 
     status transition(time, time, time) noexcept {
 
-        bool have_message = false;
-        //sigma =
-        //  have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+        sigma = time_domain<time>::infinity;
+        if (!x[0].messages.empty()) {
+            auto& msg=x[0].messages.front();
+            if (inValue[0] > lower_threshold[0] &&
+                inValue[0] < upper_threshold[0]) {
+                inValue[0] = msg[0];
+            } else if (inValue[0] < lower_threshold[0] &&
+                       inValue[0] < upper_threshold[0]) {
+                lower_threshold[0]=msg[1];
+                inValue[0]=lower_threshold[0];
+            } else {
+                upper_threshold[0]=msg[2];
+                inValue[0]=upper_threshold[0];
+            }
 
-        //for (const auto& msg : x[0].messages) {
-        //    inValue[0] = msg.real[0];
-        //    have_message = true;
-        //}
-
-        if (inValue[0] > lower_threshold[0] &&
-            inValue[0] < upper_threshold[0]) {
-            y[0].messages.emplace_front(inValue[0]);
-            have_message=true;
-        } else if (inValue[0] < lower_threshold[0] &&
-                   inValue[0] < upper_threshold[0]) {
-            y[0].messages.emplace_front(lower_threshold[0]);
-            have_message = true;
-        } else {
-            y[0].messages.emplace_front(upper_threshold[0]);
-            have_message = true;
+            sigma = time_domain<time>::zero;
         }
-
 
         return status::success;
     }
 
     message observation(const time) const noexcept {
         //double ret = 0.0; 
-        //ret = inValue[0];
         return inValue[0];
+        //return {inValue[0]};
 
     }
 };
