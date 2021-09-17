@@ -1515,8 +1515,8 @@ private:
 
     bool read(simulation& /*sim*/, filter& dyn) noexcept
     {
-        return !!(is >> dyn.default_lower_threshold[0] >>
-                  dyn.default_upper_threshold[0]);
+        return !!(is >> dyn.default_lower_threshold >>
+                  dyn.default_upper_threshold);
     }
 
     bool read(simulation& /*sim*/, flow& dyn) noexcept
@@ -2114,8 +2114,8 @@ private:
 
     void write(const simulation& /*sim*/, const filter& dyn) noexcept
     {
-        os << "filter " << dyn.default_lower_threshold[0] << ' '
-           << dyn.default_upper_threshold[0]
+        os << "filter " << dyn.default_lower_threshold << ' '
+           << dyn.default_upper_threshold
            << '\n';
     }
 

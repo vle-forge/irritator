@@ -5226,30 +5226,28 @@ struct filter {
     port y[1];
     time sigma;
 
-    irt::message default_lower_threshold;
-    irt::message default_upper_threshold;
+    double default_lower_threshold;
+    double default_upper_threshold;
 
-    irt::message lower_threshold;
-    irt::message upper_threshold;
+    double lower_threshold;
+    double upper_threshold;
     irt::message inValue ;
 
 
     filter() noexcept {
-        default_lower_threshold[0] = -0.5;
-        default_upper_threshold[0] = 0.5;
+        default_lower_threshold = -0.5;
+        default_upper_threshold = 0.5;
         sigma=time_domain<time>::infinity;
     }
 
     status initialize() noexcept { 
         sigma = time_domain<time>::infinity;
-        lower_threshold[0]=default_lower_threshold[0];
-        upper_threshold[0]=default_upper_threshold[0];
+        lower_threshold=default_lower_threshold;
+        upper_threshold=default_upper_threshold;
         //inValue[0]=0.0;
-        irt_return_if_fail(default_lower_threshold[0] < default_upper_threshold[0],
+        irt_return_if_fail(default_lower_threshold < default_upper_threshold,
                            status::filter_threshold_condition_not_satisfied);
-        if (!(lower_threshold[0] < upper_threshold[0])) {
-            irt_return_if_bad(status::filter_threshold_condition_not_satisfied);
-        }
+
         return status::success;
     }
 
@@ -5263,16 +5261,16 @@ struct filter {
         sigma = time_domain<time>::infinity;
         if (!x[0].messages.empty()) {
             auto& msg=x[0].messages.front();
-            if (inValue[0] > lower_threshold[0] &&
-                inValue[0] < upper_threshold[0]) {
+
+            if (msg[0] > lower_threshold &&
+                msg[0] < upper_threshold) {
                 inValue[0] = msg[0];
-            } else if (inValue[0] < lower_threshold[0] &&
-                       inValue[0] < upper_threshold[0]) {
-                lower_threshold[0]=msg[1];
-                inValue[0]=lower_threshold[0];
+            }
+            else if (msg[1] < lower_threshold &&
+                       msg[1] < upper_threshold) {
+                inValue[0] = msg[1];
             } else {
-                upper_threshold[0]=msg[2];
-                inValue[0]=upper_threshold[0];
+                inValue[0] = msg[2];
             }
 
             sigma = time_domain<time>::zero;
