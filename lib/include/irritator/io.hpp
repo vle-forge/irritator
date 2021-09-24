@@ -46,7 +46,7 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "qss3_square",
                                                     "qss3_sum_2",
                                                     "qss3_sum_3",
-                                                    "qss3_sum_4",
+                                                    "qss3_sum_4", 
                                                     "qss3_wsum_2",
                                                     "qss3_wsum_3",
                                                     "qss3_wsum_4",
@@ -62,13 +62,14 @@ static inline const char* dynamics_type_names[] = { "none",
                                                     "queue",
                                                     "dynamic_queue",
                                                     "priority_queue",
+                                                    "pwr_inverse",
                                                     "generator",
                                                     "constant",
                                                     "cross",
                                                     "time_func",
                                                     "accumulator_2",
                                                     "filter",
-                                                    "flow" };
+                                                    "flow"};
 
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
@@ -142,6 +143,7 @@ get_input_port_names() noexcept
                   std::is_same_v<Dynamics, queue> ||
                   std::is_same_v<Dynamics, dynamic_queue> ||
                   std::is_same_v<Dynamics, priority_queue> ||
+                  std::is_same_v<Dynamics, pwr_inverse> ||
                   std::is_same_v<Dynamics, qss1_power> ||
                   std::is_same_v<Dynamics, qss2_power> ||
                   std::is_same_v<Dynamics, qss3_power> ||
@@ -222,6 +224,7 @@ get_input_port_names(const dynamics_type type) noexcept
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
+    case dynamics_type::pwr_inverse:
     case dynamics_type::qss1_power:
     case dynamics_type::qss2_power:
     case dynamics_type::qss3_power:
@@ -303,6 +306,7 @@ get_output_port_names() noexcept
                   std::is_same_v<Dynamics, queue> ||
                   std::is_same_v<Dynamics, dynamic_queue> ||
                   std::is_same_v<Dynamics, priority_queue> ||
+                  std::is_same_v<Dynamics, pwr_inverse> ||
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
@@ -371,6 +375,7 @@ get_output_port_names(const dynamics_type type) noexcept
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
+    case dynamics_type::pwr_inverse:
     case dynamics_type::generator:
     case dynamics_type::constant:
     case dynamics_type::time_func:
@@ -979,6 +984,7 @@ private:
             { "mult_4", dynamics_type::mult_4 },
             { "none", dynamics_type::none },
             { "priority_queue", dynamics_type::priority_queue },
+            { "pwr_inverse", dynamics_type::pwr_inverse },
             { "qss1_cross", dynamics_type::qss1_cross },
             { "qss1_integrator", dynamics_type::qss1_integrator },
             { "qss1_multiplier", dynamics_type::qss1_multiplier },
@@ -1412,6 +1418,11 @@ private:
         }
 
         return true;
+    }
+
+    bool read(simulation& sim, pwr_inverse& dyn) noexcept
+    {
+        return !!(is >> dyn.default_value);
     }
 
     bool read(simulation& sim, generator& dyn) noexcept
@@ -2034,6 +2045,11 @@ private:
         os << "priority_queue ";
         write(dyn.default_source_ta);
         os << '\n';
+    }
+
+    void write(const simulation& /*sim*/, const pwr_inverse& dyn) noexcept
+    {
+        os << "pwr_inverse " << dyn.default_value << ' ';
     }
 
     void write(const simulation& /*sim*/, const generator& dyn) noexcept

@@ -1699,6 +1699,12 @@ show_dynamics_values(simulation& /*sim*/, const priority_queue& dyn)
 }
 
 static void
+show_dynamics_values(simulation& /*sim*/, const pwr_inverse& dyn)
+{
+    ImGui::Text("Value %.3f", dyn.inValue[0]);
+}
+
+static void
 show_dynamics_values(simulation& /*sim*/, const generator& dyn)
 {
     ImGui::Text("next %.3f", dyn.sigma);
@@ -2223,6 +2229,12 @@ show_dynamics_inputs(editor& ed, priority_queue& dyn)
 }
 
 static void
+show_dynamics_inputs(editor& ed, pwr_inverse& dyn)
+{
+    ImGui::InputDouble("Value",&dyn.default_value);
+}
+
+static void
 show_dynamics_inputs(editor& ed, generator& dyn)
 {
     ImGui::InputDouble("offset", &dyn.default_offset);
@@ -2687,6 +2699,7 @@ editor::show_editor() noexcept
             add_popup_menuitem(*this, dynamics_type::dynamic_queue, &new_model);
             add_popup_menuitem(
               *this, dynamics_type::priority_queue, &new_model);
+            add_popup_menuitem(*this, dynamics_type::pwr_inverse, &new_model);
             add_popup_menuitem(*this, dynamics_type::generator, &new_model);
             add_popup_menuitem(*this, dynamics_type::constant, &new_model);
             add_popup_menuitem(*this, dynamics_type::time_func, &new_model);

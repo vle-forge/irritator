@@ -3059,14 +3059,14 @@ enum class dynamics_type : i32
     dynamic_queue,
     priority_queue,
 
+    pwr_inverse,
     generator,
     constant,
     cross,
     time_func,
     accumulator_2,
     filter,
-    flow
-};
+    flow};
 
 constexpr i8
 dynamics_type_last() noexcept
@@ -5126,6 +5126,61 @@ struct counter
     }
 };
 
+struct pwr_inverse
+{
+
+    port x[1];
+    port y[1];
+    time sigma;
+
+    double default_value;
+    double value;
+    irt::message inValue;
+
+    pwr_inverse() noexcept
+    {
+        sigma = time_domain<time>::zero;
+        default_value = 1.0;
+    }
+
+    status initialize() noexcept
+    {
+        sigma = time_domain<time>::infinity;
+        value = default_value;
+
+        return status::success;
+    }
+
+    status lambda() noexcept
+    {
+        y[0].messages.emplace_front(inValue[0]);
+
+        return status::success;
+    }
+
+    status transition(time /*t*/, time /*e*/, time /*r*/) noexcept
+    {
+        sigma = time_domain<time>::infinity;
+
+        if (!x[0].messages.empty()) {
+            auto& msg = x[0].messages.front();
+            if (msg[0] != 0) {
+                inValue[0] = 1 / msg[0];
+            } else if (msg[0] == 0) {
+                inValue[0] = 1 / (msg[0] + 1.0);
+            }
+            sigma = time_domain<time>::zero;
+        }
+
+        return status::success;
+    }
+
+    message observation(const time) const noexcept
+    {
+        return inValue[0];
+    }
+};
+
 struct generator
 {
     port y[1];
@@ -6078,6 +6133,7 @@ max_size_in_bytes() noexcept
                sizeof(queue),
                sizeof(dynamic_queue),
                sizeof(priority_queue),
+               sizeof(pwr_inverse),
                sizeof(generator),
                sizeof(constant),
                sizeof(cross),
@@ -6320,6 +6376,8 @@ dynamics_typeof() noexcept
         return dynamics_type::dynamic_queue;
     if constexpr (std::is_same_v<Dynamics, priority_queue>)
         return dynamics_type::priority_queue;
+    if constexpr (std::is_same_v<Dynamics, pwr_inverse>)
+        return dynamics_type::pwr_inverse;
     if constexpr (std::is_same_v<Dynamics, generator>)
         return dynamics_type::generator;
     if constexpr (std::is_same_v<Dynamics, constant>)
@@ -6501,6 +6559,8 @@ struct simulation
             return f(*reinterpret_cast<dynamic_queue*>(&mdl.dyn), args...);
         case dynamics_type::priority_queue:
             return f(*reinterpret_cast<priority_queue*>(&mdl.dyn), args...);
+        case dynamics_type::pwr_inverse:
+            return f(*reinterpret_cast<pwr_inverse*>(&mdl.dyn), args...);
         case dynamics_type::generator:
             return f(*reinterpret_cast<generator*>(&mdl.dyn), args...);
         case dynamics_type::constant:
@@ -6630,6 +6690,8 @@ struct simulation
         case dynamics_type::priority_queue:
             return f(*reinterpret_cast<const priority_queue*>(&mdl.dyn),
                      args...);
+        case dynamics_type::pwr_inverse:
+            return f(*reinterpret_cast<const pwr_inverse*>(&mdl.dyn), args...);
         case dynamics_type::generator:
             return f(*reinterpret_cast<const generator*>(&mdl.dyn), args...);
         case dynamics_type::constant:
@@ -6942,6 +7004,7 @@ public:
         case dynamics_type::queue:
         case dynamics_type::dynamic_queue:
         case dynamics_type::priority_queue:
+        case dynamics_type::pwr_inverse:
         case dynamics_type::generator:
         case dynamics_type::constant:
         case dynamics_type::cross:
