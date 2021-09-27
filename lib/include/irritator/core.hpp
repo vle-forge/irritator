@@ -5221,7 +5221,8 @@ struct constant
     }
 };
 
-struct filter {
+struct filter
+{
     port x[1];
     port y[1];
     time sigma;
@@ -5231,43 +5232,42 @@ struct filter {
 
     double lower_threshold;
     double upper_threshold;
-    irt::message inValue ;
+    irt::message inValue;
 
-
-    filter() noexcept {
+    filter() noexcept
+    {
         default_lower_threshold = -0.5;
         default_upper_threshold = 0.5;
-        sigma=time_domain<time>::infinity;
+        sigma = time_domain<time>::infinity;
     }
 
-    status initialize() noexcept { 
+    status initialize() noexcept
+    {
         sigma = time_domain<time>::infinity;
-        lower_threshold=default_lower_threshold;
-        upper_threshold=default_upper_threshold;
-        //inValue[0]=0.0;
+        lower_threshold = default_lower_threshold;
+        upper_threshold = default_upper_threshold;
+
         irt_return_if_fail(default_lower_threshold < default_upper_threshold,
                            status::filter_threshold_condition_not_satisfied);
 
         return status::success;
     }
 
-    status lambda() noexcept {
+    status lambda() noexcept
+    {
         y[0].messages.emplace_front(inValue[0]);
         return status::success;
     }
 
-    status transition(time, time, time) noexcept {
-
+    status transition(time, time, time) noexcept
+    {
         sigma = time_domain<time>::infinity;
         if (!x[0].messages.empty()) {
-            auto& msg=x[0].messages.front();
+            auto& msg = x[0].messages.front();
 
-            if (msg[0] > lower_threshold &&
-                msg[0] < upper_threshold) {
+            if (msg[0] > lower_threshold && msg[0] < upper_threshold) {
                 inValue[0] = msg[0];
-            }
-            else if (msg[1] < lower_threshold &&
-                       msg[1] < upper_threshold) {
+            } else if (msg[1] < lower_threshold && msg[1] < upper_threshold) {
                 inValue[0] = msg[1];
             } else {
                 inValue[0] = msg[2];
@@ -5279,11 +5279,9 @@ struct filter {
         return status::success;
     }
 
-    message observation(const time) const noexcept {
-        //double ret = 0.0; 
+    message observation(const time) const noexcept
+    {
         return inValue[0];
-        //return {inValue[0]};
-
     }
 };
 
@@ -7284,7 +7282,6 @@ public:
             source_dispatch(dyn.default_source_value,
                             source::operation_type::finalize);
         }
-
     }
 
     /**

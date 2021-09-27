@@ -2324,7 +2324,6 @@ show_dynamics_inputs(editor& /*ed*/, filter& dyn)
 {
     ImGui::InputDouble("Lower threshold ", &dyn.default_lower_threshold);
     ImGui::InputDouble("Upper threshold ", &dyn.default_upper_threshold);
-    //ImGui::InputDouble("Value ", &dyn.inValue[0]);
 }
 
 static void
@@ -2497,8 +2496,8 @@ editor::show_top() noexcept
                 //}
 
                 ImGui::Text("%zu\n%s",
-                  i,
-                  dynamics_type_names[static_cast<int>(mdl->type)]);
+                            i,
+                            dynamics_type_names[static_cast<int>(mdl->type)]);
 
                 ImNodes::EndNodeTitleBar();
                 show_model_dynamics(*mdl);
