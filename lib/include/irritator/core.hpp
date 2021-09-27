@@ -3034,9 +3034,9 @@ enum class dynamics_type : i32
 
     qss3_integrator,
     qss3_multiplier,
+    qss3_cross,
     qss3_power,
     qss3_square,
-    qss3_cross,
     qss3_sum_2,
     qss3_sum_3,
     qss3_sum_4,
