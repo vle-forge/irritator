@@ -493,12 +493,12 @@ public:
       : buf(is_.rdbuf())
       , is(&buf)
     {
-        map.data.init(64);
-        constant_mapping.data.init(64);
-        binary_file_mapping.data.init(64);
-        random_mapping.data.init(64);
-        text_file_mapping.data.init(64);
-        positions.init(64);
+        map.data.reserve(64);
+        constant_mapping.data.reserve(64);
+        binary_file_mapping.data.reserve(64);
+        random_mapping.data.reserve(64);
+        text_file_mapping.data.reserve(64);
+        positions.resize(64);
     }
 
     ~reader() noexcept = default;
@@ -852,12 +852,12 @@ private:
         irt_return_if_fail(model_number > 0,
                            status::io_file_format_model_number_error);
 
-        irt_return_if_bad(map.data.init(model_number));
-        irt_return_if_bad(constant_mapping.data.init(model_number));
-        irt_return_if_bad(binary_file_mapping.data.init(model_number));
-        irt_return_if_bad(random_mapping.data.init(model_number));
-        irt_return_if_bad(text_file_mapping.data.init(model_number));
-        irt_return_if_bad(positions.init(model_number));
+        map.data.reserve(model_number);
+        constant_mapping.data.reserve(model_number);
+        binary_file_mapping.data.reserve(model_number);
+        random_mapping.data.reserve(model_number);
+        text_file_mapping.data.reserve(model_number);
+        positions.resize(model_number);
 
         return status::success;
     }

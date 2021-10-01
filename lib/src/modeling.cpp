@@ -458,9 +458,7 @@ static status build_models_recursively(const modeling& mod,
 
             auto& dst    = sim.clone(*src);
             auto  dst_id = sim.models.get_id(dst);
-
-            irt_return_if_bad(
-              comp_ref.mappers.data.try_emplace_back(src_id, dst_id));
+            comp_ref.mappers.data.emplace_back(src_id, dst_id);
         } else {
             auto  src_id = enum_cast<component_ref_id>(id);
             auto* src    = mod.component_refs.try_to_get(src_id);

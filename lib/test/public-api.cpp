@@ -36,12 +36,11 @@ struct file_output
     }
 };
 
-void
-file_output_callback(const irt::observer& obs,
-                     const irt::dynamics_type /*type*/,
-                     const irt::time /*tl*/,
-                     const irt::time             t,
-                     const irt::observer::status s) noexcept
+void file_output_callback(const irt::observer& obs,
+                          const irt::dynamics_type /*type*/,
+                          const irt::time /*tl*/,
+                          const irt::time             t,
+                          const irt::observer::status s) noexcept
 {
     auto* fo = reinterpret_cast<file_output*>(obs.user_data);
 
@@ -62,11 +61,7 @@ file_output_callback(const irt::observer& obs,
 
 bool function_ref_called = false;
 
-void
-function_ref_f()
-{
-    function_ref_called = true;
-}
+void function_ref_f() { function_ref_called = true; }
 
 struct function_ref_class
 {
@@ -90,8 +85,7 @@ struct function_ref_multiple_operator
 
 static void empty_fun(irt::model_id /*id*/) noexcept {}
 
-static irt::status
-run_simulation(irt::simulation& sim, const double duration_p)
+static irt::status run_simulation(irt::simulation& sim, const double duration_p)
 {
     using namespace boost::ut;
 
@@ -118,6 +112,11 @@ struct global_alloc
         allocation_size += size;
         allocation_number++;
 
+        fmt::print("global_alloc {} (global size: {}, number: {})\n",
+                   size,
+                   allocation_size,
+                   allocation_number);
+
         return std::malloc(size);
     }
 };
@@ -128,21 +127,19 @@ struct global_free
 
     void operator()(void* ptr)
     {
-        free_number++;
-
-        if (ptr)
+        if (ptr) {
+            free_number++;
+            fmt::print("global_free {} (number: {})\n", ptr, free_number);
             std::free(ptr);
+        }
     }
 };
 
 static void* null_alloc(size_t /*sz*/) { return nullptr; }
 
-static void
-null_free(void*)
-{}
+static void null_free(void*) {}
 
-inline int
-make_input_node_id(const irt::model_id mdl, const int port) noexcept
+inline int make_input_node_id(const irt::model_id mdl, const int port) noexcept
 {
     fmt::print("make_input_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
     irt_assert(port >= 0 && port < 8);
@@ -162,8 +159,7 @@ make_input_node_id(const irt::model_id mdl, const int port) noexcept
     return static_cast<int>(index);
 }
 
-inline int
-make_output_node_id(const irt::model_id mdl, const int port) noexcept
+inline int make_output_node_id(const irt::model_id mdl, const int port) noexcept
 {
     fmt::print(
       "make_output_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
@@ -185,8 +181,8 @@ make_output_node_id(const irt::model_id mdl, const int port) noexcept
     return static_cast<int>(index);
 }
 
-inline std::pair<irt::u32, irt::u32>
-get_model_input_port(const int node_id) noexcept
+inline std::pair<irt::u32, irt::u32> get_model_input_port(
+  const int node_id) noexcept
 {
     fmt::print("get_model_input_port {}\n", node_id);
 
@@ -206,8 +202,8 @@ get_model_input_port(const int node_id) noexcept
     return std::make_pair(index, port);
 }
 
-inline std::pair<irt::u32, irt::u32>
-get_model_output_port(const int node_id) noexcept
+inline std::pair<irt::u32, irt::u32> get_model_output_port(
+  const int node_id) noexcept
 {
     fmt::print("get_model_output_port {}\n", node_id);
 
@@ -232,8 +228,7 @@ get_model_output_port(const int node_id) noexcept
     return std::make_pair(index, port);
 }
 
-int
-main()
+int main()
 {
     using namespace boost::ut;
 
@@ -550,6 +545,62 @@ main()
         expect(v2[5] == 5);
     };
 
+    "vector<T>"_test = [] {
+        irt::vector<int> v(8);
+        expect(v.empty());
+        expect(v.capacity() == 8);
+        v.emplace_back(0);
+        v.emplace_back(1);
+        v.emplace_back(2);
+        v.emplace_back(3);
+        v.emplace_back(4);
+        v.emplace_back(5);
+        v.emplace_back(6);
+        v.emplace_back(7);
+        expect(v.size() == 8);
+        expect(v.full());
+        expect(!v.empty());
+        expect(v[0] == 0);
+        expect(v[1] == 1);
+        expect(v[2] == 2);
+        expect(v[3] == 3);
+        expect(v[4] == 4);
+        expect(v[5] == 5);
+        expect(v[6] == 6);
+        expect(v[7] == 7);
+        v.swap_pop_back(0);
+        expect(v.size() == 7);
+        expect(!v.full());
+        expect(!v.empty());
+        expect(v[0] == 7);
+        expect(v[1] == 1);
+        expect(v[2] == 2);
+        expect(v[3] == 3);
+        expect(v[4] == 4);
+        expect(v[5] == 5);
+        expect(v[6] == 6);
+        v.swap_pop_back(6);
+        expect(v.size() == 6);
+        expect(!v.full());
+        expect(!v.empty());
+        expect(v[0] == 7);
+        expect(v[1] == 1);
+        expect(v[2] == 2);
+        expect(v[3] == 3);
+        expect(v[4] == 4);
+        expect(v[5] == 5);
+
+        irt::vector<int> v2(8);
+        v2 = v;
+        v2[0] *= 2;
+        expect(v2[0] == 14);
+        expect(v2[1] == 1);
+        expect(v2[2] == 2);
+        expect(v2[3] == 3);
+        expect(v2[4] == 4);
+        expect(v2[5] == 5);
+    };
+
     "small-vector-no-trivial"_test = [] {
         struct toto
         {
@@ -723,19 +774,13 @@ main()
             float x = 0, y = 0;
         };
 
-        irt::vector<position> pos;
-        irt::status           ret;
-
-        ret = pos.init(4, 4);
-        expect((irt::is_success(ret)) >> fatal);
-
+        irt::vector<position> pos(4, 4);
         pos[0].x = 0;
         pos[1].x = 1;
         pos[2].x = 2;
         pos[3].x = 3;
 
-        ret = pos.try_emplace_back(4.f, 0.f);
-        expect((irt::is_success(ret)) >> fatal);
+        pos.emplace_back(4.f, 0.f);
         expect((pos.size() == 5) >> fatal);
         expect((pos.capacity() == 4 + 4 / 2));
     };
@@ -752,7 +797,7 @@ main()
         };
 
         irt::table<int, position> tbl;
-        tbl.data.init(10);
+        tbl.data.reserve(10);
 
         tbl.data.emplace_back(4, 4.f);
         tbl.data.emplace_back(3, 3.f);
@@ -1113,16 +1158,17 @@ main()
             irt::hierarchy<data_type> d;
         };
 
-        irt::vector<data_type> data;
-        expect((irt::is_success(data.init(256))) >> fatal);
+        irt::vector<data_type> data(256);
+        data_type              parent(999);
+        parent.d.set_id(&parent);
 
         data.emplace_back(0);
-        data[0].d.set_id(&data[0]);
+        data[0].d.set_id(&parent);
 
         for (int i = 0; i < 15; ++i) {
             data.emplace_back(i + 1);
             data[i].d.set_id(&data[i]);
-            data[i].d.parent_to(data[0].d);
+            data[i].d.parent_to(parent.d);
         }
     };
 
@@ -2889,6 +2935,7 @@ main()
             expect(sim.init(30u, 30u) == irt::status::success);
         }
 
+        fmt::print("memory: {}/{}\n", g_a.allocation_number, g_b.free_number);
         expect(g_a.allocation_size > 0);
         expect(g_a.allocation_number == g_b.free_number);
 

@@ -613,18 +613,17 @@ public:
     using const_pointer   = const T*;
 
     constexpr vector() noexcept = default;
+    vector(i32 capacity) noexcept;
+    vector(i32 capacity, i32 size) noexcept;
     ~vector() noexcept;
 
-    constexpr vector(const vector& other) noexcept = delete;
-    constexpr vector& operator=(const vector& other) noexcept = delete;
-    constexpr vector(vector&& other) noexcept                 = delete;
-    constexpr vector& operator=(vector&& other) noexcept = delete;
+    constexpr vector(const vector& other) noexcept;
+    constexpr vector& operator=(const vector& other) noexcept;
+    constexpr vector(vector&& other) noexcept;
+    constexpr vector& operator=(vector&& other) noexcept;
 
-    status init(i32 capacity) noexcept;
-    status init(i32 capacity, i32 default_size) noexcept;
-
-    status resize(i32 size);
-    status reserve(i32 new_capacity);
+    void resize(i32 size) noexcept;
+    void reserve(i32 new_capacity) noexcept;
 
     void destroy() noexcept; // clear all elements and free memory (size = 0,
                              // capacity = 0 after).
@@ -657,8 +656,6 @@ public:
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
 
-    template<typename... Args>
-    status         try_emplace_back(Args&&... args) noexcept;
     constexpr void pop_back() noexcept;
     constexpr void swap_pop_back(index_type index) noexcept;
 
@@ -6289,13 +6286,12 @@ public:
         irt_return_if_bad(node_alloc.init(model_capacity * ten));
         irt_return_if_bad(record_alloc.init(model_capacity * ten));
         irt_return_if_bad(dated_message_alloc.init(model_capacity));
-        irt_return_if_bad(
-          emitting_output_ports.init(static_cast<i32>(model_capacity)));
-        irt_return_if_bad(
-          immediate_models.init(static_cast<i32>(model_capacity)));
         irt_return_if_bad(models.init(model_capacity));
         irt_return_if_bad(observers.init(model_capacity));
         irt_return_if_bad(sched.init(model_capacity));
+
+        emitting_output_ports.reserve(static_cast<i32>(model_capacity));
+        immediate_models.reserve(static_cast<i32>(model_capacity));
 
         return status::success;
     }
@@ -6803,56 +6799,79 @@ inline status send_message(simulation&  sim,
 // class vector;
 
 template<typename T>
+inline vector<T>::vector(i32 capacity) noexcept
+{
+    if (capacity > 0) {
+        m_data     = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
+        m_capacity = capacity;
+        m_size     = 0;
+    }
+}
+
+template<typename T>
+inline vector<T>::vector(i32 capacity, i32 size) noexcept
+{
+    static_assert(std::is_default_constructible_v<T>,
+                  "init with a default size need a default constructor");
+
+    capacity = std::max(capacity, size);
+
+    if (capacity > 0) {
+        m_data     = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
+        m_capacity = capacity;
+        m_size     = size;
+    }
+}
+
+template<typename T>
 inline vector<T>::~vector() noexcept
 {
     destroy();
 }
 
 template<typename T>
-inline status vector<T>::init(i32 capacity) noexcept
+constexpr vector<T>::vector(const vector& other) noexcept
+  : m_data(nullptr)
+  , m_size(0)
+  , m_capacity(0)
 {
-    irt_return_if_fail(capacity > 0, status::vector_init_capacity_error);
-
-    destroy();
-
-    m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
-    if (!m_data)
-        return status::vector_not_enough_memory;
-
-    m_capacity = static_cast<i32>(capacity);
-    m_size     = 0;
-
-    return status::success;
+    operator=(other);
 }
 
 template<typename T>
-inline status vector<T>::init(i32 capacity, i32 default_size) noexcept
+constexpr vector<T>& vector<T>::operator=(const vector& other) noexcept
 {
-    static_assert(std::is_default_constructible_v<T>,
-                  "init with a default size need a default constructor");
+    clear();
 
-    irt_return_if_fail(capacity > 0 && default_size >= 0 &&
-                         default_size <= capacity,
-                       status::vector_init_capacity_error);
+    resize(other.m_size);
+    std::copy_n(other.m_data, other.m_size, m_data);
+    return *this;
+}
 
+template<typename T>
+constexpr vector<T>::vector(vector&& other) noexcept
+  : m_data(other.m_data)
+  , m_size(other.m_size)
+  , m_capacity(other.m_capacity)
+{
+    other.m_data     = 0;
+    other.m_size     = 0;
+    other.m_capacity = nullptr;
+}
+
+template<typename T>
+constexpr vector<T>& vector<T>::operator=(vector&& other) noexcept
+{
     destroy();
 
-    m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
-    if (!m_data)
-        return status::vector_not_enough_memory;
+    m_data           = other.m_data;
+    m_size           = other.m_size;
+    m_capacity       = other.m_capacity;
+    other.m_data     = 0;
+    other.m_size     = 0;
+    other.m_capacity = nullptr;
 
-    m_capacity = static_cast<i32>(capacity);
-
-    if (default_size > 0) {
-        for (i32 i = 0; i < default_size; ++i)
-            new (&(m_data[i])) T{};
-
-        m_size = default_size;
-    } else {
-        m_size = 0;
-    }
-
-    return status::success;
+    return *this;
 }
 
 template<typename T>
@@ -6880,38 +6899,35 @@ constexpr void vector<T>::clear() noexcept
 }
 
 template<typename T>
-status vector<T>::resize(i32 size)
+void vector<T>::resize(i32 size) noexcept
 {
-    if (size > m_capacity)
-        irt_return_if_bad(reserve(compute_new_capacity(size)));
+    static_assert(std::is_default_constructible_v<T>,
+                  "init with a default size need a default constructor");
 
-    for (i32 i = m_size; i != size; ++i)
+    if (size > m_capacity)
+        reserve(compute_new_capacity(size));
+
+    for (i32 i = 0; i != size; ++i)
         new (&(m_data[i])) T{};
 
     m_size = size;
-
-    return status::success;
 }
 
 template<typename T>
-status vector<T>::reserve(i32 new_capacity)
+void vector<T>::reserve(i32 new_capacity) noexcept
 {
-    irt_return_if_fail(new_capacity > 0, status::vector_init_capacity_error);
+    irt_assert(new_capacity > 0);
 
-    if (new_capacity <= m_capacity)
-        return status::success;
+    if (new_capacity > m_capacity) {
+        T* new_data =
+          reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
 
-    T* new_data = reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
-    if (!new_data)
-        return status::vector_not_enough_memory;
+        std::copy_n(m_data, m_size, new_data);
+        g_free_fn(m_data);
 
-    std::copy_n(m_data, m_size, new_data);
-    g_free_fn(m_data);
-
-    m_data     = new_data;
-    m_capacity = new_capacity;
-
-    return status::success;
+        m_data     = new_data;
+        m_capacity = new_capacity;
+    }
 }
 
 template<typename T>
@@ -7036,25 +7052,14 @@ template<typename T>
 template<typename... Args>
 constexpr vector<T>::reference vector<T>::emplace_back(Args&&... args) noexcept
 {
-    irt_assert(can_alloc(1) && "check alloc() with full() before using use.");
+    if (m_size >= m_capacity)
+        reserve(compute_new_capacity(m_size + 1));
 
     new (&(data()[m_size])) T(std::forward<Args>(args)...);
 
     ++m_size;
 
     return data()[m_size - 1];
-}
-
-template<typename T>
-template<typename... Args>
-status vector<T>::try_emplace_back(Args&&... args) noexcept
-{
-    if (m_size >= m_capacity)
-        irt_return_if_bad(reserve(compute_new_capacity(m_size + 1)));
-
-    new (&(data()[m_size])) T(std::forward<Args>(args)...);
-    ++m_size;
-    return status::success;
 }
 
 template<typename T>
