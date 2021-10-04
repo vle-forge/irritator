@@ -345,6 +345,8 @@ struct component_editor
     modeling   mod;
     simulation sim;
 
+    bool is_saved = true;
+
     component_editor_status status = component_editor_status::modeling;
 
     ImNodesEditorContext* context = nullptr;

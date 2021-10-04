@@ -476,6 +476,7 @@ private:
     };
 
     table<int, u64>  map;
+    table<int, int>  component_ref_map;
     table<int, u64>  constant_mapping;
     table<int, u64>  binary_file_mapping;
     table<int, u64>  random_mapping;
@@ -494,6 +495,7 @@ public:
       , is(&buf)
     {
         map.data.reserve(64);
+        component_ref_map.data.reserve(64);
         constant_mapping.data.reserve(64);
         binary_file_mapping.data.reserve(64);
         random_mapping.data.reserve(64);
@@ -553,6 +555,8 @@ public:
                       component&       compo,
                       external_source& srcs) noexcept
     {
+        component_ref_map.data.clear();
+
         irt_return_if_bad(do_read_data_source(srcs));
 
         irt_return_if_bad(do_read_model_number());
@@ -918,6 +922,8 @@ private:
                                children[child_index].type,
                                static_cast<i8>(port_index));
         }
+
+        return status::success;
     }
 
     status do_read_connections(modeling& mod, component& compo) noexcept
@@ -938,10 +944,10 @@ private:
             irt_return_if_fail(0 <= mdl_dst_id && mdl_dst_id < model_number,
                                status::io_file_format_model_error);
 
-            auto* m_src_id = map.get(mdl_src_id);
+            auto* m_src_id = component_ref_map.get(mdl_src_id);
             irt_return_if_fail(m_src_id, status::io_file_format_model_unknown);
 
-            auto* m_dst_id = map.get(mdl_dst_id);
+            auto* m_dst_id = component_ref_map.get(mdl_dst_id);
             irt_return_if_fail(m_dst_id, status::io_file_format_model_unknown);
 
             irt_return_if_fail(0 <= port_src_index && port_src_index < INT8_MAX,
@@ -949,11 +955,12 @@ private:
             irt_return_if_fail(0 <= port_dst_index && port_dst_index < INT8_MAX,
                                status::io_file_format_model_unknown);
 
-            irt_return_if_bad(mod.connect(compo,
-                                          mdl_src_id,
-                                          static_cast<i8>(port_src_index),
-                                          mdl_dst_id,
-                                          static_cast<i8>(port_dst_index)));
+            irt_return_if_bad(
+              mod.connect_by_index(compo,
+                                   *m_src_id,
+                                   static_cast<i8>(port_src_index),
+                                   *m_dst_id,
+                                   static_cast<i8>(port_dst_index)));
 
             ++connection_error;
         }
@@ -1095,7 +1102,7 @@ private:
         return false;
     }
 
-    status do_read_component(int id, modeling& mod, component& compo)
+    status do_read_component(modeling& mod, component& compo)
     {
         char temp[64];
 
@@ -1112,8 +1119,6 @@ private:
 
             irt_return_if_bad(
               add_cpp_component_ref(temp, mod, compo, compo_ref));
-
-            map.set(id, ordinal(mod.component_refs.get_id(compo_ref)));
         } else if (std::strcmp(temp, "file") == 0) {
             std::string file_path;
             if (!(is >> file_path))
@@ -1126,11 +1131,11 @@ private:
 
             irt_return_if_bad(
               add_file_component_ref(temp, mod, compo, compo_ref));
-
-            map.set(id, ordinal(mod.component_refs.get_id(compo_ref)));
         } else {
             return status::io_file_format_error;
         }
+
+        return status::success;
     }
 
     status do_read_dynamics(simulation& sim,
@@ -1166,7 +1171,7 @@ private:
         dynamics_type type;
 
         if (std::strcmp(dynamics_name, "component") == 0) {
-            irt_return_if_bad(do_read_component(id, mod, compo));
+            irt_return_if_bad(do_read_component(mod, compo));
         } else {
             irt_return_if_fail(convert(dynamics_name, &type),
                                status::io_file_format_dynamics_unknown);
@@ -1186,7 +1191,8 @@ private:
 
             irt_return_if_bad(ret);
         }
-        map.set(id, compo.children.size());
+
+        component_ref_map.set(id, compo.children.ssize() - 1);
 
         return status::success;
     }

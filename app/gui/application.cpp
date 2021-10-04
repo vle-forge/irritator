@@ -20,7 +20,7 @@ bool application::init()
     modeling_initializer m_init = { .model_capacity              = 64 * 16,
                                     .component_ref_capacity      = 16,
                                     .description_capacity        = 16,
-                                    .component_capacity          = 16,
+                                    .component_capacity          = 128,
                                     .observer_capacity           = 16,
                                     .dir_path_capacity           = 16,
                                     .file_path_capacity          = 256,
@@ -37,8 +37,37 @@ bool application::init()
         return false;
     }
 
-    if (auto ret = c_editor.mod.fill_component(); is_bad(ret)) {
+    if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
         log_w.log(2, "Fail to fill component list: %s\n", status_string(ret));
+    }
+
+    if (auto path = get_system_component_dir(); path) {
+        if (auto ret =
+              c_editor.mod.fill_components(path.value().string().c_str());
+            is_bad(ret)) {
+            log_w.log(2,
+                      "Fail to fill system component list: %s from %s\n",
+                      status_string(ret),
+                      path.value().string().c_str());
+        }
+    }
+
+    if (auto path = get_default_user_component_dir(); path) {
+        if (auto ret =
+              c_editor.mod.fill_components(path.value().string().c_str());
+            is_bad(ret)) {
+            log_w.log(2,
+                      "Fail to fill user component list: %s from %s\n",
+                      status_string(ret),
+                      path.value().string().c_str());
+        }
+    }
+
+    if (c_editor.mod.components.can_alloc()) {
+        auto& new_compo = c_editor.mod.components.alloc();
+        new_compo.name.assign("New component");
+        new_compo.type    = component_type::file;
+        c_editor.mod.head = c_editor.mod.components.get_id(new_compo);
     }
 
     // if (auto* ed = alloc_editor(); !ed) {

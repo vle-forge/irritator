@@ -37,11 +37,13 @@
 #include <windows.h>
 #endif
 
+#define irritator_to_string(s) to_string(s)
+#define to_string(s) #s
+
 namespace irt {
 
 #if defined(__linux__) || defined(__APPLE__)
-std::optional<std::filesystem::path>
-get_home_directory()
+std::optional<std::filesystem::path> get_home_directory()
 {
     if (auto* home = std::getenv("HOME"); home)
         return std::filesystem::path{ home };
@@ -51,8 +53,8 @@ get_home_directory()
         size = 16384u;
 
     std::vector<char> buf(size, '\0');
-    struct passwd pwd;
-    struct passwd* result = nullptr;
+    struct passwd     pwd;
+    struct passwd*    result = nullptr;
 
     const auto s = getpwuid_r(getpid(), &pwd, buf.data(), size, &result);
     if (s || !result)
@@ -61,10 +63,9 @@ get_home_directory()
     return std::filesystem::path{ std::string_view{ buf.data() } };
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path>
-get_home_directory()
+std::optional<std::filesystem::path> get_home_directory()
 {
-    PWSTR path{ nullptr };
+    PWSTR      path{ nullptr };
     const auto hr =
       ::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path);
 
@@ -80,11 +81,10 @@ get_home_directory()
 #endif
 
 #if defined(__linux__)
-std::optional<std::filesystem::path>
-get_executable_directory()
+std::optional<std::filesystem::path> get_executable_directory()
 {
     std::vector<char> buf(PATH_MAX, '\0');
-    const auto ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
+    const auto        ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
 
     if (ssize <= 0)
         return std::nullopt;
@@ -94,11 +94,10 @@ get_executable_directory()
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(__APPLE__)
-std::optional<std::filesystem::path>
-get_executable_directory()
+std::optional<std::filesystem::path> get_executable_directory()
 {
     std::vector<char> buf(MAXPATHLEN, '\0');
-    uint32_t size{ 0 };
+    uint32_t          size{ 0 };
 
     if (_NSGetExecutablePath(buf.data(), &size))
         return std::nullopt;
@@ -106,11 +105,10 @@ get_executable_directory()
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path>
-get_executable_directory()
+std::optional<std::filesystem::path> get_executable_directory()
 {
     std::wstring filepath;
-    auto size = ::GetModuleFileNameW(NULL, &filepath[0], 0u);
+    auto         size = ::GetModuleFileNameW(NULL, &filepath[0], 0u);
 
     while (static_cast<size_t>(size) > filepath.size()) {
         filepath.resize(size, '\0');
@@ -125,18 +123,83 @@ get_executable_directory()
 }
 #endif
 
+#if defined(__linux__) || defined(__APPLE__)
+std::optional<std::filesystem::path> get_system_component_dir()
+{
+    if (auto executable_path = get_executable_directory(); executable_path) {
+        auto install_path = executable_path.value().parent_path();
+        install_path /= "share";
+        install_path /= "irritator-" irritator_to_string(
+          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+        install_path /= "components";
+
+        std::error_code ec;
+        if (std::filesystem::exists(install_path, ec))
+            return install_path;
+    }
+
+    return std::nullopt;
+}
+#elif defined(_WIN32)
+std::optional<std::filesystem::path> get_system_component_dir()
+{
+    if (auto executable_path = get_executable_directory(); executable_path) {
+        auto install_path = executable_path.value().parent_path();
+        install_path /= "components";
+
+        std::error_code ec;
+        if (std::filesystem::exists(install_path, ec))
+            return install_path;
+    }
+
+    return std::nullopt;
+}
+#endif
+
+#if defined(__linux__) || defined(__APPLE__)
+std::optional<std::filesystem::path> get_default_user_component_dir()
+{
+    if (auto home_path = get_home_directory(); home_path) {
+        auto compo_path = home_path.value();
+        compo_path /= ".irritator-" irritator_to_string(
+          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+        compo_path /= "components";
+
+        std::error_code ec;
+        if (std::filesystem::exists(compo_path, ec))
+            return compo_path;
+    }
+
+    return std::nullopt;
+}
+#elif defined(_WIN32)
+std::optional<std::filesystem::path> get_default_user_component_dir()
+{
+    if (auto home_path = get_home_directory(); home_path) {
+        auto compo_path = home_path.value();
+        compo_path /= "irritator-" irritator_to_string(
+          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+        compo_path /= "components";
+
+        std::error_code ec;
+        if (std::filesystem::exists(compo_path, ec))
+            return compo_path;
+    }
+}
+#endif
+
 struct file_dialog
 {
     std::vector<std::filesystem::path> paths;
-    std::filesystem::path current;
-    std::filesystem::path selected;
+    std::filesystem::path              current;
+    std::filesystem::path              selected;
 #if defined(__APPLE__)
     // @TODO Remove this part when XCode allows u8string concatenation.
     std::string temp;
-    char buffer[512];
+    char        buffer[512];
 #else
     std::u8string temp;
-    char8_t buffer[512];
+    char8_t       buffer[512];
 #endif
 
     bool is_open = true;
@@ -146,15 +209,15 @@ struct file_dialog
 
     void fill_drives()
     {
-        DWORD mask = ::GetLogicalDrives();
-        uint32_t ret = { 0 };
+        DWORD    mask = ::GetLogicalDrives();
+        uint32_t ret  = { 0 };
 
         for (int i = 0; i < 26; ++i) {
             if (!(mask & (1 << i)))
                 continue;
 
             char rootName[4] = { static_cast<char>('A' + i), ':', '\\', '\0' };
-            UINT type = ::GetDriveTypeA(rootName);
+            UINT type        = ::GetDriveTypeA(rootName);
             if (type == DRIVE_REMOVABLE || type == DRIVE_FIXED)
                 ret |= (1 << i);
         }
@@ -162,8 +225,7 @@ struct file_dialog
         drives = ret;
     }
 #else
-    void fill_drives()
-    {}
+    void          fill_drives() {}
 #endif
 
     const char8_t** file_filters;
@@ -274,11 +336,11 @@ struct file_dialog
         current.clear();
     }
 
-    void show_drives([[maybe_unused]] bool* path_click,
+    void show_drives([[maybe_unused]] bool*                  path_click,
                      [[maybe_unused]] std::filesystem::path* next)
     {
 #ifdef _WIN32
-        char current_drive = static_cast<char>(current.c_str()[0]);
+        char current_drive  = static_cast<char>(current.c_str()[0]);
         char drive_string[] = { current_drive, ':', '\0' };
 
         ImGui::PushItemWidth(4 * ImGui::GetFontSize());
@@ -287,9 +349,9 @@ struct file_dialog
                 if (!(drives & (1 << i)))
                     continue;
 
-                char drive_char = static_cast<char>('A' + i);
+                char drive_char          = static_cast<char>('A' + i);
                 char selectable_string[] = { drive_char, ':', '\0' };
-                bool is_selected = current_drive == drive_char;
+                bool is_selected         = current_drive == drive_char;
                 if (ImGui::Selectable(selectable_string, is_selected) &&
                     !is_selected) {
                     char new_current[] = { drive_char, ':', '\\', '\0' };
@@ -298,7 +360,7 @@ struct file_dialog
                     if (!err) {
                         selected.clear();
                         *path_click = true;
-                        *next = std::filesystem::current_path(err);
+                        *next       = std::filesystem::current_path(err);
                     }
                 }
             }
@@ -337,10 +399,9 @@ struct file_dialog
 file_dialog fd;
 
 // static const char8_t* filters[] = { u8".irt", nullptr };
-bool
-load_file_dialog(std::filesystem::path& out,
-                 const char* title,
-                 const char8_t** filters)
+bool load_file_dialog(std::filesystem::path& out,
+                      const char*            title,
+                      const char8_t**        filters)
 {
     if (fd.current.empty()) {
         fd.fill_drives();
@@ -350,7 +411,7 @@ load_file_dialog(std::filesystem::path& out,
     }
 
     std::filesystem::path next;
-    bool res = false;
+    bool                  res = false;
 
     if (ImGui::BeginPopupModal(title)) {
         bool path_click = false;
@@ -414,7 +475,7 @@ load_file_dialog(std::filesystem::path& out,
         if (path_click) {
             fd.paths.clear();
             fd.extension_filters = filters;
-            fd.file_filters = nullptr;
+            fd.file_filters      = nullptr;
 
             fd.copy_files_and_directories(next);
             fd.sort();
@@ -455,10 +516,9 @@ load_file_dialog(std::filesystem::path& out,
 }
 
 // static const char8_t* filters[] = { u8".irt", nullptr };
-bool
-save_file_dialog(std::filesystem::path& out,
-                 const char* title,
-                 const char8_t** filters)
+bool save_file_dialog(std::filesystem::path& out,
+                      const char*            title,
+                      const char8_t**        filters)
 {
     if (fd.current.empty()) {
         fd.fill_drives();
@@ -467,7 +527,7 @@ save_file_dialog(std::filesystem::path& out,
         fd.current = std::filesystem::current_path(error);
 
         static const std::u8string default_file_name = u8"file-name.irt";
-        const size_t max_size =
+        const size_t               max_size =
           std::min(std::size(default_file_name), std::size(fd.buffer) - 1);
 
         std::copy_n(std::begin(default_file_name), max_size, fd.buffer);
@@ -475,7 +535,7 @@ save_file_dialog(std::filesystem::path& out,
     }
 
     std::filesystem::path next;
-    bool res = false;
+    bool                  res = false;
 
     if (ImGui::BeginPopupModal(title)) {
         bool path_click = false;
@@ -547,7 +607,7 @@ save_file_dialog(std::filesystem::path& out,
         if (path_click) {
             fd.paths.clear();
             fd.extension_filters = filters;
-            fd.file_filters = nullptr;
+            fd.file_filters      = nullptr;
 
             fd.copy_files_and_directories(next);
             fd.sort();
@@ -589,8 +649,7 @@ save_file_dialog(std::filesystem::path& out,
     return res;
 }
 
-bool
-select_directory_dialog(std::filesystem::path& out)
+bool select_directory_dialog(std::filesystem::path& out)
 {
     if (fd.current.empty()) {
         fd.fill_drives();
@@ -600,7 +659,7 @@ select_directory_dialog(std::filesystem::path& out)
     }
 
     std::filesystem::path next;
-    bool res = false;
+    bool                  res = false;
 
     if (ImGui::BeginPopupModal("Select directory")) {
         bool path_click = false;
@@ -660,7 +719,7 @@ select_directory_dialog(std::filesystem::path& out)
         if (path_click) {
             fd.paths.clear();
             fd.extension_filters = nullptr;
-            fd.file_filters = nullptr;
+            fd.file_filters      = nullptr;
 
             fd.copy_files_and_directories(next);
             fd.sort();

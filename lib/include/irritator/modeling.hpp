@@ -211,11 +211,12 @@ struct modeling
     data_array<dir_path, dir_path_id>           dir_paths;
     data_array<file_path, file_path_id>         file_paths;
     irt::external_source                        srcs;
-    component_ref_id                            head{ 0 };
+    component_id                                head{ 0 };
 
     status init(const modeling_initializer& params) noexcept;
 
-    status fill_component() noexcept;
+    status fill_internal_components() noexcept;
+    status fill_components(const char* dir_path) noexcept;
 
     template<typename Dynamics>
     Dynamics& alloc(component& c) noexcept;
@@ -229,11 +230,11 @@ struct modeling
                    DynamicsDst& dst,
                    i8           port_dst) noexcept;
 
-    status connect(component& parent,
-                   i32        src,
-                   i8         port_src,
-                   i32        dst,
-                   i8         port_dst) noexcept;
+    status connect_by_index(component& parent,
+                            i32        src,
+                            i8         port_src,
+                            i32        dst,
+                            i8         port_dst) noexcept;
 
     template<typename Dynamics>
     model_id get_id(const Dynamics& dyn) const;

@@ -7,6 +7,8 @@
 
 #include <filesystem>
 
+#include <fmt/format.h>
+
 namespace irt {
 
 template<int QssLevel>
@@ -738,110 +740,14 @@ static status build_connections_recursively(modeling&      mod,
     return status::success;
 }
 
-static status build_models(modeling& mod, component_ref& c_ref, simulation& sim)
+static status build_models(modeling& /*mod*/,
+                           component& /*compo*/,
+                           simulation& /*sim*/)
 {
-    irt_return_if_bad(build_models_recursively(mod, c_ref, sim));
-    irt_return_if_bad(build_connections_recursively(mod, c_ref, sim));
+    // irt_return_if_bad(build_models_recursively(mod, c_ref, sim));
+    // irt_return_if_bad(build_connections_recursively(mod, c_ref, sim));
 
-    return status::success;
-}
-
-static status modeling_fill_cpp_component(modeling& mod) noexcept
-{
-    irt_return_if_fail(mod.components.can_alloc(15), status::success);
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS1 lotka volterra");
-        if (auto ret = add_lotka_volterra<1>(mod, c); is_bad(ret))
-            return ret;
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS2 lotka volterra");
-        irt_return_if_bad(add_lotka_volterra<2>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS3 lotka volterra");
-        irt_return_if_bad(add_lotka_volterra<3>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS1 lif");
-        irt_return_if_bad(add_lif<1>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS2 lif");
-        irt_return_if_bad(add_lif<2>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS3 lif");
-        irt_return_if_bad(add_lif<3>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS1 izhikevich");
-        irt_return_if_bad(add_izhikevich<1>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS2 izhikevich");
-        irt_return_if_bad(add_izhikevich<2>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS3 izhikevich");
-        irt_return_if_bad(add_izhikevich<3>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS1 van der pol");
-        irt_return_if_bad(add_van_der_pol<1>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS2 van der pol");
-        irt_return_if_bad(add_van_der_pol<2>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS3 van der pol");
-        irt_return_if_bad(add_van_der_pol<3>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS1 negative lif");
-        irt_return_if_bad(add_negative_lif<1>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS2 negative lif");
-        irt_return_if_bad(add_negative_lif<2>(mod, c));
-    }
-
-    {
-        auto& c = mod.components.alloc();
-        c.name.assign("QSS3 negative lif");
-        irt_return_if_bad(add_negative_lif<3>(mod, c));
-    }
-
-    return status::success;
+    irt_bad_return(status::success);
 }
 
 static status modeling_fill_file_component(
@@ -849,17 +755,14 @@ static status modeling_fill_file_component(
   component&                   compo,
   const std::filesystem::path& path) noexcept
 {
-    (void)mod;
-    (void)compo;
-
     std::ifstream ifs{ path };
     irt_return_if_fail(ifs.is_open(), status::io_file_source_full);
 
     reader r{ ifs };
-    // if (auto ret = r(mod, compo, mod.srcs); is_bad(ret)) {
-    //    // log line_error, column error mode
-    //    irt_bad_return(status::io_file_source_full);
-    //}
+    if (auto ret = r(mod, compo, mod.srcs); is_bad(ret)) {
+        // log line_error, column error mode
+        irt_bad_return(status::io_file_source_full);
+    }
 
     return status::success;
 }
@@ -877,11 +780,13 @@ static status modeling_fill_file_component(
             if (entry.is_regular_file() && entry.path().extension() == ".irt") {
                 if (mod.components.can_alloc()) {
                     auto& compo = mod.components.alloc();
+                    compo.name.assign(entry.path().filename().string().c_str());
+                    compo.type = component_type::file;
 
                     auto ret =
                       modeling_fill_file_component(mod, compo, entry.path());
+
                     if (is_bad(ret)) {
-                        // @todo log
                         mod.components.free(compo);
                     }
                 }
@@ -930,16 +835,112 @@ status modeling::init(const modeling_initializer& params) noexcept
     return status::success;
 }
 
-status modeling::fill_component() noexcept
+status modeling::fill_internal_components() noexcept
 {
-    irt_return_if_bad(modeling_fill_cpp_component(*this));
+    irt_return_if_fail(components.can_alloc(15), status::success);
 
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS1 lotka volterra");
+        if (auto ret = add_lotka_volterra<1>(*this, c); is_bad(ret))
+            return ret;
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS2 lotka volterra");
+        irt_return_if_bad(add_lotka_volterra<2>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS3 lotka volterra");
+        irt_return_if_bad(add_lotka_volterra<3>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS1 lif");
+        irt_return_if_bad(add_lif<1>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS2 lif");
+        irt_return_if_bad(add_lif<2>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS3 lif");
+        irt_return_if_bad(add_lif<3>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS1 izhikevich");
+        irt_return_if_bad(add_izhikevich<1>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS2 izhikevich");
+        irt_return_if_bad(add_izhikevich<2>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS3 izhikevich");
+        irt_return_if_bad(add_izhikevich<3>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS1 van der pol");
+        irt_return_if_bad(add_van_der_pol<1>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS2 van der pol");
+        irt_return_if_bad(add_van_der_pol<2>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS3 van der pol");
+        irt_return_if_bad(add_van_der_pol<3>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS1 negative lif");
+        irt_return_if_bad(add_negative_lif<1>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS2 negative lif");
+        irt_return_if_bad(add_negative_lif<2>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name.assign("QSS3 negative lif");
+        irt_return_if_bad(add_negative_lif<3>(*this, c));
+    }
+
+    return status::success;
+}
+
+status modeling::fill_components(const char* dir_path) noexcept
+{
     try {
-        std::error_code ec;
-        auto            p = std::filesystem::current_path(ec);
+        std::filesystem::path path(dir_path);
+        std::error_code       ec;
 
-        if (ec) {
-            irt_return_if_bad(modeling_fill_file_component(*this, p));
+        if (std::filesystem::exists(path, ec)) {
+            irt_return_if_bad(modeling_fill_file_component(*this, path));
         }
     } catch (...) {
     }
@@ -947,11 +948,11 @@ status modeling::fill_component() noexcept
     return status::success;
 }
 
-status modeling::connect(component& parent,
-                         i32        src,
-                         i8         port_src,
-                         i32        dst,
-                         i8         port_dst) noexcept
+status modeling::connect_by_index(component& parent,
+                                  i32        src,
+                                  i8         port_src,
+                                  i32        dst,
+                                  i8         port_dst) noexcept
 {
     irt_return_if_fail(0 <= src && src < parent.children.ssize(),
                        status::model_connect_bad_dynamics);
@@ -1104,10 +1105,10 @@ status add_cpp_component_ref(const char*    buffer,
 
 status build_simulation(modeling& mod, simulation& sim) noexcept
 {
-    if (auto* c_ref = mod.component_refs.try_to_get(mod.head); c_ref)
+    if (auto* c_ref = mod.components.try_to_get(mod.head); c_ref)
         return build_models(mod, *c_ref, sim);
 
-    return status::success;
+    irt_bad_return(status::success);
 }
 
 } // namespace irt

@@ -8,26 +8,22 @@
 #include <filesystem>
 #include <optional>
 
-namespace  irt {
+namespace irt {
 
-std::optional<std::filesystem::path>
-get_home_directory();
+std::optional<std::filesystem::path> get_home_directory();
+std::optional<std::filesystem::path> get_executable_directory();
+std::optional<std::filesystem::path> get_system_component_dir();
+std::optional<std::filesystem::path> get_default_user_component_dir();
 
-std::optional<std::filesystem::path>
-get_executable_directory();
+bool load_file_dialog(std::filesystem::path& out,
+                      const char*            title,
+                      const char8_t**        filters);
 
-bool
-load_file_dialog(std::filesystem::path& out,
-                 const char* title,
-                 const char8_t** filters);
+bool save_file_dialog(std::filesystem::path& out,
+                      const char*            title,
+                      const char8_t**        filters);
 
-bool
-save_file_dialog(std::filesystem::path& out,
-                 const char* title,
-                 const char8_t** filters);
-
-bool
-select_directory_dialog(std::filesystem::path& out);
+bool select_directory_dialog(std::filesystem::path& out);
 
 }
 
