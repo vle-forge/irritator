@@ -15,7 +15,7 @@ status add_lotka_volterra(modeling& mod, component& com) noexcept
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = mod.models.can_alloc(5) && com.connections.can_alloc(8);
+    bool success = mod.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
     auto& integrator_a      = mod.alloc<abstract_integrator<QssLevel>>(com);
@@ -54,7 +54,7 @@ status add_lif(modeling& mod, component& com) noexcept
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = mod.models.can_alloc(5) && com.connections.can_alloc(7);
+    bool success = mod.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
     constexpr irt::real tau = 10.0_r;
@@ -94,7 +94,7 @@ template<int QssLevel>
 status add_izhikevich(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(12) && com.connections.can_alloc(22);
+    bool success = mod.models.can_alloc(12);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -177,8 +177,7 @@ template<int QssLevel>
 status add_van_der_pol(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(5) && com.children.can_alloc(5) &&
-                   com.connections.can_alloc(9);
+    bool success = mod.models.can_alloc(5);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -216,8 +215,7 @@ template<int QssLevel>
 status add_negative_lif(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(5) && com.children.can_alloc(5) &&
-                   com.connections.can_alloc(7);
+    bool success = mod.models.can_alloc(5);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -906,7 +904,7 @@ static bool check(const modeling_initializer& params) noexcept
            params.random_source_capacity > 0;
 }
 
-inline status modeling::init(const modeling_initializer& params) noexcept
+status modeling::init(const modeling_initializer& params) noexcept
 {
     // In the future, these allocations will have to be replaced by an
     // allocator who can exit if the allocation fails.
@@ -959,7 +957,6 @@ status modeling::connect(component& parent,
                        status::model_connect_bad_dynamics);
     irt_return_if_fail(0 <= dst && dst < parent.children.ssize(),
                        status::model_connect_bad_dynamics);
-    irt_assert(!parent.connections.full());
 
     auto src_child = parent.children[src];
     auto dst_child = parent.children[dst];

@@ -340,32 +340,31 @@ enum class component_editor_status
 
 struct component_editor
 {
-    small_string<16>      name;
-    std::filesystem::path path;
+    small_string<16> name;
 
-    modeling        mod;
-    simulation      sim;
-    external_source srcs;
+    modeling   mod;
+    simulation sim;
 
     component_editor_status status = component_editor_status::modeling;
 
-    ImNodesEditorContext* context      = nullptr;
-    bool                  show         = true;
-    bool                  show_minimap = true;
+    ImNodesEditorContext* context = nullptr;
+
+    void show(bool* is_show) noexcept;
 };
 
 struct application
 {
-    data_array<editor, editor_id>                     editors;
-    data_array<component_editor, component_editor_id> component_editors;
-    std::filesystem::path                             home_dir;
-    std::filesystem::path                             executable_dir;
-    std::vector<long long int>                        simulation_duration;
+    data_array<editor, editor_id> editors;
+    component_editor              c_editor;
+    std::filesystem::path         home_dir;
+    std::filesystem::path         executable_dir;
+    std::vector<long long int>    simulation_duration;
 
-    bool show_log        = true;
-    bool show_simulation = true;
+    bool show_modeling   = true;
+    bool show_log        = false;
+    bool show_simulation = false;
     bool show_demo       = false;
-    bool show_plot       = true;
+    bool show_plot       = false;
     bool show_settings   = false;
 
     bool init();

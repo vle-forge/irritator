@@ -8,8 +8,7 @@
 
 namespace irt {
 
-bool
-application::init()
+bool application::init()
 {
     if (auto ret = editors.init(50u); is_bad(ret)) {
         log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
@@ -18,10 +17,34 @@ application::init()
         return false;
     }
 
-    if (auto* ed = alloc_editor(); !ed) {
-        std::fprintf(stderr, "Fail to initialize editor\n");
+    modeling_initializer m_init = { .model_capacity              = 64 * 16,
+                                    .component_ref_capacity      = 16,
+                                    .description_capacity        = 16,
+                                    .component_capacity          = 16,
+                                    .observer_capacity           = 16,
+                                    .dir_path_capacity           = 16,
+                                    .file_path_capacity          = 256,
+                                    .constant_source_capacity    = 16,
+                                    .binary_file_source_capacity = 16,
+                                    .text_file_source_capacity   = 16,
+                                    .random_source_capacity      = 16,
+                                    .random_generator_seed       = 123456789u };
+
+    if (auto ret = c_editor.mod.init(m_init); is_bad(ret)) {
+        log_w.log(2,
+                  "Fail to initialize modeling components: %s\n",
+                  status_string(ret));
         return false;
     }
+
+    if (auto ret = c_editor.mod.fill_component(); is_bad(ret)) {
+        log_w.log(2, "Fail to fill component list: %s\n", status_string(ret));
+    }
+
+    // if (auto* ed = alloc_editor(); !ed) {
+    //     std::fprintf(stderr, "Fail to initialize editor\n");
+    //     return false;
+    // }
 
     try {
         simulation_duration.resize(editors.capacity(), 0);
@@ -61,8 +84,7 @@ application::init()
     }
 }
 
-bool
-application::show()
+bool application::show()
 {
     bool ret = true;
 
@@ -131,11 +153,13 @@ application::show()
     if (show_demo)
         ImGui::ShowDemoWindow();
 
+    if (show_modeling)
+        c_editor.show(&show_modeling);
+
     return ret;
 }
 
-editor*
-application::alloc_editor()
+editor* application::alloc_editor()
 {
     if (!editors.can_alloc(1u)) {
         log_w.log(2, "Too many open editor\n");
@@ -153,15 +177,13 @@ application::alloc_editor()
     return &ed;
 }
 
-void
-application::free_editor(editor& ed)
+void application::free_editor(editor& ed)
 {
     log_w.log(5, "Close editor %s\n", ed.name.c_str());
     editors.free(ed);
 }
 
-void
-application::show_plot_window()
+void application::show_plot_window()
 {
     ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
@@ -192,8 +214,7 @@ application::show_plot_window()
     ImGui::End();
 }
 
-void
-application::show_settings_window()
+void application::show_settings_window()
 {
     ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
@@ -208,24 +229,22 @@ application::show_settings_window()
     ImGui::End();
 }
 
-void
-application::shutdown()
+void application::shutdown()
 {
     editors.clear();
     log_w.clear();
 }
 
-static void
-run_for(editor& ed, long long int duration_in_microseconds) noexcept
+static void run_for(editor& ed, long long int duration_in_microseconds) noexcept
 {
     namespace stdc = std::chrono;
 
-    auto start_at = stdc::high_resolution_clock::now();
+    auto          start_at             = stdc::high_resolution_clock::now();
     long long int duration_since_start = 0;
 
     if (ed.simulation_bag_id < 0) {
         ed.sim.clean();
-        ed.simulation_current = ed.simulation_begin;
+        ed.simulation_current     = ed.simulation_begin;
         ed.simulation_during_date = ed.simulation_begin;
         ed.models_make_transition.resize(ed.sim.models.capacity(), false);
 
@@ -240,7 +259,7 @@ run_for(editor& ed, long long int duration_in_microseconds) noexcept
         ed.simulation_next_time = ed.sim.sched.empty()
                                     ? time_domain<time>::infinity
                                     : ed.sim.sched.tn();
-        ed.simulation_bag_id = 0;
+        ed.simulation_bag_id    = 0;
     }
 
     if (ed.st == editor_status::running) {
@@ -259,7 +278,7 @@ run_for(editor& ed, long long int duration_in_microseconds) noexcept
                 return;
             }
 
-            auto end_at = stdc::high_resolution_clock::now();
+            auto end_at   = stdc::high_resolution_clock::now();
             auto duration = end_at - start_at;
             auto duration_cast =
               stdc::duration_cast<stdc::microseconds>(duration);
@@ -290,8 +309,7 @@ run_for(editor& ed, long long int duration_in_microseconds) noexcept
     ed.st = editor_status::running_pause;
 }
 
-void
-application::run_simulations()
+void application::run_simulations()
 {
     auto running_simulation = 0.f;
 
@@ -313,8 +331,7 @@ application::run_simulations()
               static_cast<long long int>(duration * ed->synchronize_timestep));
 }
 
-editor*
-application::make_combo_editor_name(editor_id& current) noexcept
+editor* application::make_combo_editor_name(editor_id& current) noexcept
 {
     editor* first = editors.try_to_get(current);
     if (first == nullptr) {

@@ -148,7 +148,7 @@ struct component
 
     description_id   desc = description_id{ 0 };
     file_path_id     path = file_path_id{ 0 };
-    small_string<16> name;
+    small_string<32> name;
     component_type   type;
 };
 
@@ -361,8 +361,6 @@ status modeling::connect(component&   c,
                          DynamicsDst& dst,
                          i8           port_dst) noexcept
 {
-    irt_assert(!c.connections.full());
-
     model&   src_model    = get_model(src);
     model&   dst_model    = get_model(dst);
     model_id model_src_id = get_id(dst);
