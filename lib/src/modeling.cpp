@@ -894,16 +894,40 @@ static status modeling_fill_file_component(
     return status::success;
 }
 
-inline status modeling::init() noexcept
+static bool check(const modeling_initializer& params) noexcept
 {
-    irt_return_if_bad(models.init(1024));
-    irt_return_if_bad(component_refs.init(256));
-    irt_return_if_bad(descriptions.init(256));
-    irt_return_if_bad(components.init(256));
-    irt_return_if_bad(dir_paths.init(16));
-    irt_return_if_bad(file_paths.init(256));
+    return params.model_capacity > 0 && params.component_ref_capacity > 0 &&
+           params.description_capacity > 0 && params.component_capacity > 0 &&
+           params.observer_capacity > 0 && params.dir_path_capacity > 0 &&
+           params.file_path_capacity > 0 &&
+           params.constant_source_capacity > 0 &&
+           params.binary_file_source_capacity > 0 &&
+           params.text_file_source_capacity > 0 &&
+           params.random_source_capacity > 0;
+}
 
-    //    irt::external_source srcs;
+inline status modeling::init(const modeling_initializer& params) noexcept
+{
+    // In the future, these allocations will have to be replaced by an
+    // allocator who can exit if the allocation fails.
+
+    irt_return_if_fail(check(params), status::gui_not_enough_memory);
+
+    irt_return_if_bad(models.init(params.model_capacity));
+    irt_return_if_bad(component_refs.init(params.component_ref_capacity));
+    irt_return_if_bad(descriptions.init(params.description_capacity));
+    irt_return_if_bad(components.init(params.component_capacity));
+    irt_return_if_bad(observers.init(params.observer_capacity));
+    irt_return_if_bad(dir_paths.init(params.dir_path_capacity));
+    irt_return_if_bad(file_paths.init(params.file_path_capacity));
+
+    irt_return_if_bad(
+      srcs.constant_sources.init(params.constant_source_capacity));
+    irt_return_if_bad(
+      srcs.binary_file_sources.init(params.binary_file_source_capacity));
+    irt_return_if_bad(
+      srcs.text_file_sources.init(params.text_file_source_capacity));
+    irt_return_if_bad(srcs.random_sources.init(params.random_source_capacity));
 
     return status::success;
 }

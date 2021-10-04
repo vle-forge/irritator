@@ -24,7 +24,6 @@ enum class child_type : i8
     component
 };
 
-struct parameter;
 struct connection;
 struct child;
 struct port;
@@ -47,12 +46,6 @@ status build_simulation(const modeling& mod, simulation& sim) noexcept;
 struct description
 {
     small_string<1024> data;
-};
-
-struct parameter
-{
-    u64  integer[8];
-    real values[8];
 };
 
 template<typename DataArray, typename T, typename Function>
@@ -190,20 +183,37 @@ struct file_path
     status_option status = status_option::none;
 };
 
+struct modeling_initializer
+{
+    int model_capacity;
+    int component_ref_capacity;
+    int description_capacity;
+    int component_capacity;
+    int observer_capacity;
+    int dir_path_capacity;
+    int file_path_capacity;
+
+    int constant_source_capacity;
+    int binary_file_source_capacity;
+    int text_file_source_capacity;
+    int random_source_capacity;
+
+    u64 random_generator_seed;
+};
+
 struct modeling
 {
     data_array<model, model_id>                 models;
     data_array<component_ref, component_ref_id> component_refs;
     data_array<description, description_id>     descriptions;
     data_array<component, component_id>         components;
-    data_array<parameter, parameter_id>         parameters;
     data_array<observer, observer_id>           observers;
     data_array<dir_path, dir_path_id>           dir_paths;
     data_array<file_path, file_path_id>         file_paths;
     irt::external_source                        srcs;
     component_ref_id                            head{ 0 };
 
-    status init() noexcept;
+    status init(const modeling_initializer& params) noexcept;
 
     status fill_component() noexcept;
 
