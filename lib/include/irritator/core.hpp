@@ -4603,27 +4603,27 @@ struct constant
 
 struct filter
 {
-    port x[1];
-    port y[1];
-    time sigma;
+    input_port  x[1];
+    output_port y[1];
+    time        sigma;
 
-    double default_lower_threshold;
-    double default_upper_threshold;
+    real default_lower_threshold;
+    real default_upper_threshold;
 
-    double lower_threshold;
-    double upper_threshold;
+    real         lower_threshold;
+    real         upper_threshold;
     irt::message inValue;
 
     filter() noexcept
     {
         default_lower_threshold = -0.5;
         default_upper_threshold = 0.5;
-        sigma = time_domain<time>::infinity;
+        sigma                   = time_domain<time>::infinity;
     }
 
     status initialize() noexcept
     {
-        sigma = time_domain<time>::infinity;
+        sigma           = time_domain<time>::infinity;
         lower_threshold = default_lower_threshold;
         upper_threshold = default_upper_threshold;
 
@@ -4633,18 +4633,17 @@ struct filter
         return status::success;
     }
 
-    status lambda() noexcept
+    status lambda(simulation& sim) noexcept
     {
-        y[0].messages.emplace_front(inValue[0]);
-        return status::success;
+        return send_message(sim, y[0], inValue[0]);
     }
 
-    status transition(time, time, time) noexcept
+    status transition(simulation& sim, time, time, time) noexcept
     {
         sigma = time_domain<time>::infinity;
-        if (!x[0].messages.empty()) {
-            auto& msg = x[0].messages.front();
 
+        auto span = get_message(sim, x[0]);
+        for (const auto& msg : span) {
             if (msg[0] > lower_threshold && msg[0] < upper_threshold) {
                 inValue[0] = msg[0];
             } else if (msg[1] < lower_threshold && msg[1] < upper_threshold) {
@@ -4659,10 +4658,7 @@ struct filter
         return status::success;
     }
 
-    message observation(const time) const noexcept
-    {
-        return inValue[0];
-    }
+    message observation(const time) const noexcept { return inValue[0]; }
 };
 
 struct flow
