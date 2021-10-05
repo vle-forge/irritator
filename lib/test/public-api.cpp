@@ -770,6 +770,12 @@ int main()
     "vector"_test = [] {
         struct position
         {
+            position() noexcept = default;
+
+            position(float x_, float y_) noexcept
+              : x(x_)
+              , y(y_)
+            {}
 
             float x = 0, y = 0;
         };
