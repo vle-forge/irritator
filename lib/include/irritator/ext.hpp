@@ -32,14 +32,14 @@ public:
     };
 
     using container_type  = vector<value_type>;
-    using size_type       = container_type::size_type;
-    using index_type      = container_type::index_type;
-    using iterator        = container_type::iterator;
-    using const_iterator  = container_type::const_iterator;
-    using reference       = container_type::reference;
-    using const_reference = container_type::const_reference;
-    using pointer         = container_type::pointer;
-    using const_pointer   = container_type::const_pointer;
+    using size_type       = typename container_type::size_type;
+    using index_type      = typename container_type::index_type;
+    using iterator        = typename container_type::iterator;
+    using const_iterator  = typename container_type::const_iterator;
+    using reference       = typename container_type::reference;
+    using const_reference = typename container_type::const_reference;
+    using pointer         = typename container_type::pointer;
+    using const_pointer   = typename container_type::const_pointer;
 
     container_type data;
 
@@ -162,8 +162,7 @@ table<Identifier, T>::value_type::value_type(Identifier id_,
 {}
 
 template<typename Identifier, typename T>
-constexpr void
-table<Identifier, T>::set(Identifier id, T value) noexcept
+constexpr void table<Identifier, T>::set(Identifier id, T value) noexcept
 {
     if (auto* value_found = get(id); value_found) {
         *value_found = value;
@@ -174,8 +173,7 @@ table<Identifier, T>::set(Identifier id, T value) noexcept
 }
 
 template<typename Identifier, typename T>
-constexpr T*
-table<Identifier, T>::get(Identifier id) noexcept
+constexpr T* table<Identifier, T>::get(Identifier id) noexcept
 {
     auto it = std::lower_bound(
       data.begin(), data.end(), id, [](auto& m, Identifier id) {
@@ -186,8 +184,7 @@ table<Identifier, T>::get(Identifier id) noexcept
 }
 
 template<typename Identifier, typename T>
-constexpr const T*
-table<Identifier, T>::get(Identifier id) const noexcept
+constexpr const T* table<Identifier, T>::get(Identifier id) const noexcept
 {
     auto it = std::lower_bound(
       data.begin(), data.end(), id, [](const auto& m, Identifier id) {
@@ -198,8 +195,7 @@ table<Identifier, T>::get(Identifier id) const noexcept
 }
 
 template<typename Identifier, typename T>
-constexpr void
-table<Identifier, T>::sort() noexcept
+constexpr void table<Identifier, T>::sort() noexcept
 {
     if (data.size() > 1)
         std::sort(data.begin(),
@@ -227,8 +223,7 @@ constexpr small_vector<T, length>::small_vector(
 }
 
 template<typename T, sz length>
-constexpr small_vector<T, length>&
-small_vector<T, length>::operator=(
+constexpr small_vector<T, length>& small_vector<T, length>::operator=(
   const small_vector<T, length>& other) noexcept
 {
     if (&other != this) {
@@ -240,8 +235,7 @@ small_vector<T, length>::operator=(
 }
 
 template<typename T, sz length>
-constexpr status
-small_vector<T, length>::init(i32 default_size) noexcept
+constexpr status small_vector<T, length>::init(i32 default_size) noexcept
 {
     irt_return_if_fail(default_size > 0 &&
                          default_size < static_cast<i32>(length),
@@ -254,21 +248,19 @@ small_vector<T, length>::init(i32 default_size) noexcept
 }
 
 template<typename T, sz length>
-constexpr T*
-small_vector<T, length>::data() noexcept
+constexpr T* small_vector<T, length>::data() noexcept
 {
     return reinterpret_cast<T*>(&m_buffer[0]);
 }
 
 template<typename T, sz length>
-constexpr const T*
-small_vector<T, length>::data() const noexcept
+constexpr const T* small_vector<T, length>::data() const noexcept
 {
     return reinterpret_cast<const T*>(&m_buffer[0]);
 }
 
 template<typename T, sz length>
-constexpr small_vector<T, length>::reference
+constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::front() noexcept
 {
     irt_assert(m_size > 0);
@@ -276,7 +268,7 @@ small_vector<T, length>::front() noexcept
 }
 
 template<typename T, sz length>
-constexpr small_vector<T, length>::const_reference
+constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::front() const noexcept
 {
     irt_assert(m_size > 0);
@@ -284,7 +276,7 @@ small_vector<T, length>::front() const noexcept
 }
 
 template<typename T, sz length>
-constexpr small_vector<T, length>::reference
+constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::back() noexcept
 {
     irt_assert(m_size > 0);
@@ -292,7 +284,7 @@ small_vector<T, length>::back() noexcept
 }
 
 template<typename T, sz length>
-constexpr small_vector<T, length>::const_reference
+constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::back() const noexcept
 {
     irt_assert(m_size > 0);
@@ -300,7 +292,7 @@ small_vector<T, length>::back() const noexcept
 }
 
 template<typename T, sz length>
-constexpr small_vector<T, length>::reference
+constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::operator[](const index_type index) noexcept
 {
     irt_assert(index >= 0);
@@ -310,7 +302,7 @@ small_vector<T, length>::operator[](const index_type index) noexcept
 }
 
 template<typename T, sz length>
-constexpr small_vector<T, length>::const_reference
+constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::operator[](const index_type index) const noexcept
 {
     irt_assert(index >= 0);
@@ -320,57 +312,52 @@ small_vector<T, length>::operator[](const index_type index) const noexcept
 }
 
 template<typename T, sz length>
-constexpr small_vector<T, length>::iterator
+constexpr typename small_vector<T, length>::iterator
 small_vector<T, length>::begin() noexcept
 {
     return data();
 }
 template<typename T, sz length>
-constexpr small_vector<T, length>::const_iterator
+constexpr typename small_vector<T, length>::const_iterator
 small_vector<T, length>::begin() const noexcept
 {
     return data();
 }
 template<typename T, sz length>
-constexpr small_vector<T, length>::iterator
+constexpr typename small_vector<T, length>::iterator
 small_vector<T, length>::end() noexcept
 {
     return data() + m_size;
 }
 template<typename T, sz length>
-constexpr small_vector<T, length>::const_iterator
+constexpr typename small_vector<T, length>::const_iterator
 small_vector<T, length>::end() const noexcept
 {
     return data() + m_size;
 }
 template<typename T, sz length>
-constexpr sz
-small_vector<T, length>::size() const noexcept
+constexpr sz small_vector<T, length>::size() const noexcept
 {
     return m_size;
 }
 template<typename T, sz length>
-constexpr sz
-small_vector<T, length>::capacity() const noexcept
+constexpr sz small_vector<T, length>::capacity() const noexcept
 {
     return length;
 }
 template<typename T, sz length>
-constexpr bool
-small_vector<T, length>::empty() const noexcept
+constexpr bool small_vector<T, length>::empty() const noexcept
 {
     return m_size == 0;
 }
 template<typename T, sz length>
-constexpr bool
-small_vector<T, length>::full() const noexcept
+constexpr bool small_vector<T, length>::full() const noexcept
 {
     return m_size >= length;
 }
 
 template<typename T, sz length>
-constexpr void
-small_vector<T, length>::clear() noexcept
+constexpr void small_vector<T, length>::clear() noexcept
 {
     if constexpr (!std::is_trivially_destructible_v<T>) {
         for (i32 i = 0; i != m_size; ++i)
@@ -381,8 +368,7 @@ small_vector<T, length>::clear() noexcept
 }
 
 template<typename T, sz length>
-constexpr bool
-small_vector<T, length>::can_alloc(int number) noexcept
+constexpr bool small_vector<T, length>::can_alloc(int number) noexcept
 {
     return static_cast<i64>(length) - static_cast<i64>(m_size) >=
            static_cast<i64>(number);
@@ -390,7 +376,7 @@ small_vector<T, length>::can_alloc(int number) noexcept
 
 template<typename T, sz length>
 template<typename... Args>
-constexpr small_vector<T, length>::reference
+constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::emplace_back(Args&&... args) noexcept
 {
     assert(can_alloc(1) && "check alloc() with full() before using use.");
@@ -403,8 +389,7 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
 }
 
 template<typename T, sz length>
-constexpr void
-small_vector<T, length>::pop_back() noexcept
+constexpr void small_vector<T, length>::pop_back() noexcept
 {
     if (m_size) {
         if constexpr (std::is_trivially_destructible_v<T>)
@@ -415,8 +400,7 @@ small_vector<T, length>::pop_back() noexcept
 }
 
 template<typename T, sz length>
-constexpr void
-small_vector<T, length>::swap_pop_back(index_type index) noexcept
+constexpr void small_vector<T, length>::swap_pop_back(index_type index) noexcept
 {
     irt_assert(index >= 0 && index < m_size);
 
@@ -442,22 +426,19 @@ hierarchy<T>::~hierarchy() noexcept
 }
 
 template<typename T>
-T*
-hierarchy<T>::id() const noexcept
+T* hierarchy<T>::id() const noexcept
 {
     return m_id;
 }
 
 template<typename T>
-void
-hierarchy<T>::set_id(T* id) noexcept
+void hierarchy<T>::set_id(T* id) noexcept
 {
     m_id = id;
 }
 
 template<typename T>
-bool
-hierarchy<T>::parented_by(const hierarchy& node) const noexcept
+bool hierarchy<T>::parented_by(const hierarchy& node) const noexcept
 {
     if (m_parent == &node)
         return true;
@@ -469,8 +450,7 @@ hierarchy<T>::parented_by(const hierarchy& node) const noexcept
 }
 
 template<typename T>
-void
-hierarchy<T>::parent_to(hierarchy& node) noexcept
+void hierarchy<T>::parent_to(hierarchy& node) noexcept
 {
     remove_from_parent();
 
@@ -480,8 +460,7 @@ hierarchy<T>::parent_to(hierarchy& node) noexcept
 }
 
 template<typename T>
-void
-hierarchy<T>::make_sibling_after(hierarchy& node) noexcept
+void hierarchy<T>::make_sibling_after(hierarchy& node) noexcept
 {
     remove_from_parent();
 
@@ -491,8 +470,7 @@ hierarchy<T>::make_sibling_after(hierarchy& node) noexcept
 }
 
 template<typename T>
-void
-hierarchy<T>::remove_from_parent() noexcept
+void hierarchy<T>::remove_from_parent() noexcept
 {
     if (m_parent) {
         hierarchy<T>* prev = get_prior_sibling_node();
@@ -509,8 +487,7 @@ hierarchy<T>::remove_from_parent() noexcept
 }
 
 template<typename T>
-void
-hierarchy<T>::remove_from_hierarchy() noexcept
+void hierarchy<T>::remove_from_hierarchy() noexcept
 {
     hierarchy<T>* parent_node = m_parent;
 
@@ -530,29 +507,25 @@ hierarchy<T>::remove_from_hierarchy() noexcept
 }
 
 template<typename T>
-T*
-hierarchy<T>::get_parent() const noexcept
+T* hierarchy<T>::get_parent() const noexcept
 {
     return m_parent ? m_parent->m_id : nullptr;
 }
 
 template<typename T>
-T*
-hierarchy<T>::get_child() const noexcept
+T* hierarchy<T>::get_child() const noexcept
 {
     return m_child ? m_child->m_id : nullptr;
 }
 
 template<typename T>
-T*
-hierarchy<T>::get_sibling() const noexcept
+T* hierarchy<T>::get_sibling() const noexcept
 {
     return m_sibling ? m_sibling->m_id : nullptr;
 }
 
 template<typename T>
-hierarchy<T>*
-hierarchy<T>::get_prior_sibling_node() const noexcept
+hierarchy<T>* hierarchy<T>::get_prior_sibling_node() const noexcept
 {
     if (!m_parent || (m_parent->m_child == this))
         return nullptr;
@@ -574,8 +547,7 @@ hierarchy<T>::get_prior_sibling_node() const noexcept
 }
 
 template<typename T>
-T*
-hierarchy<T>::get_prior_sibling() const noexcept
+T* hierarchy<T>::get_prior_sibling() const noexcept
 {
     hierarchy<T>* prior = get_prior_sibling_node();
 
@@ -583,8 +555,7 @@ hierarchy<T>::get_prior_sibling() const noexcept
 }
 
 template<typename T>
-T*
-hierarchy<T>::get_next() const noexcept
+T* hierarchy<T>::get_next() const noexcept
 {
     if (m_child)
         return m_child->m_id;
@@ -597,8 +568,7 @@ hierarchy<T>::get_next() const noexcept
 }
 
 template<typename T>
-T*
-hierarchy<T>::get_next_leaf() const noexcept
+T* hierarchy<T>::get_next_leaf() const noexcept
 {
     if (m_child) {
         const hierarchy<T>* node = m_child;
