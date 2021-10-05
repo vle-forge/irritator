@@ -6942,35 +6942,35 @@ constexpr const T* vector<T>::data() const noexcept
 }
 
 template<typename T>
-constexpr vector<T>::reference vector<T>::front() noexcept
+constexpr typename vector<T>::reference vector<T>::front() noexcept
 {
     irt_assert(m_size > 0);
     return m_data[0];
 }
 
 template<typename T>
-constexpr vector<T>::const_reference vector<T>::front() const noexcept
+constexpr typename vector<T>::const_reference vector<T>::front() const noexcept
 {
     irt_assert(m_size > 0);
     return m_data[0];
 }
 
 template<typename T>
-constexpr vector<T>::reference vector<T>::back() noexcept
+constexpr typename vector<T>::reference vector<T>::back() noexcept
 {
     irt_assert(m_size > 0);
     return m_data[m_size - 1];
 }
 
 template<typename T>
-constexpr vector<T>::const_reference vector<T>::back() const noexcept
+constexpr typename vector<T>::const_reference vector<T>::back() const noexcept
 {
     irt_assert(m_size > 0);
     return m_data[m_size - 1];
 }
 
 template<typename T>
-constexpr vector<T>::reference vector<T>::operator[](
+constexpr typename vector<T>::reference vector<T>::operator[](
   const index_type index) noexcept
 {
     irt_assert(index >= 0 && index < m_size);
@@ -6979,7 +6979,7 @@ constexpr vector<T>::reference vector<T>::operator[](
 }
 
 template<typename T>
-constexpr vector<T>::const_reference vector<T>::operator[](
+constexpr typename vector<T>::const_reference vector<T>::operator[](
   const index_type index) const noexcept
 {
     irt_assert(index >= 0 && index < m_size);
@@ -6988,25 +6988,25 @@ constexpr vector<T>::const_reference vector<T>::operator[](
 }
 
 template<typename T>
-constexpr vector<T>::iterator vector<T>::begin() noexcept
+constexpr typename vector<T>::iterator vector<T>::begin() noexcept
 {
     return data();
 }
 
 template<typename T>
-constexpr vector<T>::const_iterator vector<T>::begin() const noexcept
+constexpr typename vector<T>::const_iterator vector<T>::begin() const noexcept
 {
     return data();
 }
 
 template<typename T>
-constexpr vector<T>::iterator vector<T>::end() noexcept
+constexpr typename vector<T>::iterator vector<T>::end() noexcept
 {
     return data() + m_size;
 }
 
 template<typename T>
-constexpr vector<T>::const_iterator vector<T>::end() const noexcept
+constexpr typename vector<T>::const_iterator vector<T>::end() const noexcept
 {
     return data() + m_size;
 }
@@ -7049,7 +7049,8 @@ constexpr bool vector<T>::can_alloc(int number) const noexcept
 
 template<typename T>
 template<typename... Args>
-constexpr vector<T>::reference vector<T>::emplace_back(Args&&... args) noexcept
+constexpr typename vector<T>::reference vector<T>::emplace_back(
+  Args&&... args) noexcept
 {
     if (m_size >= m_capacity)
         reserve(compute_new_capacity(m_size + 1));
@@ -7219,8 +7220,8 @@ constexpr void small_string<length>::clear() noexcept
 }
 
 template<sz length>
-constexpr small_string<length>::reference small_string<length>::operator[](
-  const size_type index) noexcept
+constexpr typename small_string<length>::reference
+small_string<length>::operator[](const size_type index) noexcept
 {
     irt_assert(index < m_size);
 
@@ -7228,7 +7229,7 @@ constexpr small_string<length>::reference small_string<length>::operator[](
 }
 
 template<sz length>
-constexpr small_string<length>::const_reference
+constexpr typename small_string<length>::const_reference
 small_string<length>::operator[](const size_type index) const noexcept
 {
     irt_assert(index < m_size);
@@ -7243,27 +7244,29 @@ constexpr const char* small_string<length>::c_str() const noexcept
 }
 
 template<sz length>
-constexpr small_string<length>::iterator small_string<length>::begin() noexcept
+constexpr typename small_string<length>::iterator
+small_string<length>::begin() noexcept
 {
     return m_buffer;
 }
 
 template<sz length>
-constexpr small_string<length>::iterator small_string<length>::end() noexcept
+constexpr typename small_string<length>::iterator
+small_string<length>::end() noexcept
 {
     return m_buffer + m_size;
 }
 
 template<sz length>
-constexpr small_string<length>::const_iterator small_string<length>::begin()
-  const noexcept
+constexpr typename small_string<length>::const_iterator
+small_string<length>::begin() const noexcept
 {
     return m_buffer;
 }
 
 template<sz length>
-constexpr small_string<length>::const_iterator small_string<length>::end()
-  const noexcept
+constexpr typename small_string<length>::const_iterator
+small_string<length>::end() const noexcept
 {
     return m_buffer + m_size;
 }
