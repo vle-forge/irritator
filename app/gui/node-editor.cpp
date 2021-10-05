@@ -983,6 +983,11 @@ static void show_dynamics_values(simulation& /*sim*/, const accumulator_2& dyn)
     ImGui::TextFormat("- 1: {}", dyn.numbers[1]);
 }
 
+static void show_dynamics_values(simulation& /*sim*/, const filter& dyn)
+{
+    ImGui::TextFormat("value {}", dyn.inValue[0]);
+}
+
 static void show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
 {
     ImGui::TextFormat("value {}", dyn.value);

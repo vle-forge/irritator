@@ -169,6 +169,7 @@ void show_dynamics_inputs(external_source& srcs, qss2_square& dyn);
 void show_dynamics_inputs(external_source& srcs, qss3_square& dyn);
 void show_dynamics_inputs(external_source& srcs, cross& dyn);
 void show_dynamics_inputs(external_source& srcs, accumulator_2& dyn);
+void show_dynamics_inputs(external_source& srcs, filter& dyn);
 void show_dynamics_inputs(external_source& srcs, flow& dyn);
 void show_dynamics_inputs(external_source& srcs, time_func& dyn);
 

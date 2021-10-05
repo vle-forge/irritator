@@ -440,6 +440,12 @@ void show_dynamics_inputs(external_source& /*srcs*/, cross& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, accumulator_2& /*dyn*/) {}
 
+void show_dynamics_inputs(external_source& /*srcs*/, filter& dyn)
+{
+    ImGui::InputReal("lower threshold", &dyn.default_lower_threshold);
+    ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
+}
+
 void show_dynamics_inputs(external_source& /*srcs*/, flow& /*dyn*/) {}
 
 void show_dynamics_inputs(external_source& /*srcs*/, time_func& dyn)
