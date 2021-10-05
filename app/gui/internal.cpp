@@ -8,8 +8,7 @@
 
 namespace irt {
 
-void
-HelpMarker(const char* desc) noexcept
+void HelpMarker(const char* desc) noexcept
 {
     try {
         ImGui::TextDisabled("(?)");
@@ -24,8 +23,7 @@ HelpMarker(const char* desc) noexcept
     }
 }
 
-const char*
-status_string(const status s) noexcept
+const char* status_string(const status s) noexcept
 {
     static const char* str[] = {
         "success",

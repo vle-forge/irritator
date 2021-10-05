@@ -3,8 +3,9 @@ project(irritator-gui VERSION 0.1.0 LANGUAGES CXX)
 
 set(gui_sources
     application.cpp application.hpp component.cpp component.cpp dialog.cpp
-    dialog.hpp imnodes.cpp imnodes.h imnodes_internal.h implot.h implot.cpp
-    internal.hpp internal.cpp node-editor.cpp simulation-editor.cpp sources.cpp
+    dialog.hpp editor.cpp editor.hpp  imnodes.cpp imnodes.h
+    imnodes_internal.h implot.h implot.cpp internal.hpp internal.cpp
+    node-editor.cpp simulation-editor.cpp sources.cpp
     window-logger.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/modeling.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.cpp

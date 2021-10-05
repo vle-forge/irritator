@@ -16,17 +16,14 @@ namespace irt {
 /// Helper to display a little (?) mark which shows a tooltip when hovered. In
 /// your own code you may want to display an actual icon if you are using a
 /// merged icon fonts (see docs/FONTS.md)
-void
-HelpMarker(const char* desc) noexcept;
+void HelpMarker(const char* desc) noexcept;
 
 /// Return the description string for each status.
-const char*
-status_string(const status s) noexcept;
+const char* status_string(const status s) noexcept;
 
 /// Helper to assign fmtlib format string to a small_string.
 template<size_t N, typename... Args>
-void
-format(small_string<N>& str, const char* fmt, const Args&... args)
+void format(small_string<N>& str, const char* fmt, const Args&... args)
 {
     using size_type = typename small_string<N>::size_type;
 
@@ -39,13 +36,12 @@ format(small_string<N>& str, const char* fmt, const Args&... args)
 namespace ImGui {
 
 template<typename RealType>
-bool
-InputReal(const char* label,
-          RealType* v,
-          RealType step = irt::zero,
-          RealType step_fast = irt::zero,
-          const char* format = "%.6f",
-          ImGuiInputTextFlags flags = 0)
+bool InputReal(const char*         label,
+               RealType*           v,
+               RealType            step      = irt::zero,
+               RealType            step_fast = irt::zero,
+               const char*         format    = "%.6f",
+               ImGuiInputTextFlags flags     = 0)
 {
     if constexpr (std::is_same_v<RealType, float>) {
         return InputFloat(label, v, step, step_fast, format, flags);
@@ -57,8 +53,7 @@ InputReal(const char* label,
 }
 
 template<typename... Args>
-void
-TextFormat(const char* fmt, const Args&... args)
+void TextFormat(const char* fmt, const Args&... args)
 {
     irt::small_string<64> buffer;
     irt::format(buffer, fmt, args...);

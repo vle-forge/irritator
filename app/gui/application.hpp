@@ -247,6 +247,8 @@ struct editor
 
         ImU32 gui_hovered_model_color;
         ImU32 gui_selected_model_color;
+        ImU32 gui_hovered_component_color;
+        ImU32 gui_selected_component_color;
         ImU32 gui_hovered_model_transition_color;
         ImU32 gui_selected_model_transition_color;
 
@@ -260,7 +262,6 @@ struct editor
 
         void compute_colors() noexcept;
         void show(bool* is_open);
-
     } settings;
 
     status initialize(u32 id) noexcept;
@@ -340,16 +341,42 @@ enum class component_editor_status
 
 struct component_editor
 {
-    small_string<16> name;
+    component_editor() noexcept;
+    ~component_editor() noexcept;
 
-    modeling   mod;
-    simulation sim;
+    struct settings_manager
+    {
+        ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
+        ImVec4 gui_component_color{ .54f, .27f, .27f, 1.f };
+        ImVec4 gui_model_transition_color{ .27f, .54f, .54f, 1.f };
+        ImU32  gui_hovered_model_color;
+        ImU32  gui_selected_model_color;
+        ImU32  gui_hovered_component_color;
+        ImU32  gui_selected_component_color;
+        ImU32  gui_hovered_model_transition_color;
+        ImU32  gui_selected_model_transition_color;
 
-    bool is_saved = true;
+        int   automatic_layout_iteration_limit = 200;
+        float automatic_layout_x_distance      = 350.f;
+        float automatic_layout_y_distance      = 350.f;
+        float grid_layout_x_distance           = 250.f;
+        float grid_layout_y_distance           = 250.f;
 
-    component_editor_status status = component_editor_status::modeling;
+        bool show_dynamics_inputs_in_editor = false;
 
-    ImNodesEditorContext* context = nullptr;
+        void show(bool* is_open) noexcept;
+    };
+
+    settings_manager        settings;
+    small_string<16>        name;
+    modeling                mod;
+    simulation              sim;
+    component_ref_id        selected_component{ 0 };
+    ImNodesEditorContext*   context       = nullptr;
+    bool                    is_saved      = true;
+    bool                    show_minimap  = true;
+    bool                    show_settings = false;
+    component_editor_status status        = component_editor_status::modeling;
 
     void show(bool* is_show) noexcept;
 };
