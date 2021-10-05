@@ -6386,7 +6386,7 @@ public:
         mdl.type   = type;
         mdl.handle = nullptr;
 
-        dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
+        dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
             new (&dyn) Dynamics{};
 
             if constexpr (is_detected_v<has_input_port_t, Dynamics>)
