@@ -1149,8 +1149,8 @@ private:
 
         auto& mdl = sim.alloc(type);
 
-        auto ret = dispatch(
-          mdl, [this, &sim]<typename Dynamics>(Dynamics& dyn) -> status {
+        auto ret =
+          dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
               irt_return_if_fail(this->read(dyn),
                                  status::io_file_format_dynamics_init_error);
 
