@@ -6361,19 +6361,18 @@ public:
         new_mdl.type   = mdl.type;
         new_mdl.handle = nullptr;
 
-        dispatch(new_mdl,
-                 [this, &mdl]<typename Dynamics>(Dynamics& dyn) -> void {
-                     const auto& src_dyn = get_dyn<Dynamics>(mdl);
-                     new (&dyn) Dynamics(src_dyn);
+        dispatch(new_mdl, [&mdl]<typename Dynamics>(Dynamics& dyn) -> void {
+            const auto& src_dyn = get_dyn<Dynamics>(mdl);
+            new (&dyn) Dynamics(src_dyn);
 
-                     if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                         for (int i = 0, e = length(dyn.x); i != e; ++i)
-                             dyn.x[i] = static_cast<u64>(-1);
+            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                for (int i = 0, e = length(dyn.x); i != e; ++i)
+                    dyn.x[i] = static_cast<u64>(-1);
 
-                     if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                         for (int i = 0, e = length(dyn.y); i != e; ++i)
-                             dyn.y[i] = static_cast<u64>(-1);
-                 });
+            if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                for (int i = 0, e = length(dyn.y); i != e; ++i)
+                    dyn.y[i] = static_cast<u64>(-1);
+        });
 
         return new_mdl;
     }
