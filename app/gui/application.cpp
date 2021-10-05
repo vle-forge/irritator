@@ -102,10 +102,11 @@ bool application::init()
             executable_dir = std::filesystem::current_path();
         }
 
-        log_w.log(5,
-                  "home: %s\ninstall: %s\n",
-                  home_dir.u8string().c_str(),
-                  executable_dir.u8string().c_str());
+        log_w.log(
+          5,
+          "home: %s\ninstall: %s\n",
+          reinterpret_cast<const char*>(home_dir.u8string().c_str()),
+          reinterpret_cast<const char*>(executable_dir.u8string().c_str()));
         return true;
     } catch (const std::exception& /*e*/) {
         log_w.log(2, "Fail to initialize application\n");
@@ -252,8 +253,11 @@ void application::show_settings_window()
         return;
     }
 
-    ImGui::Text("Home.......: %s", home_dir.u8string().c_str());
-    ImGui::Text("Executable.: %s", executable_dir.u8string().c_str());
+    ImGui::Text("Home.......: %s",
+                reinterpret_cast<const char*>(home_dir.u8string().c_str()));
+    ImGui::Text(
+      "Executable.: %s",
+      reinterpret_cast<const char*>(executable_dir.u8string().c_str()));
 
     ImGui::End();
 }
