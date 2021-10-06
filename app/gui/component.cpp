@@ -227,28 +227,165 @@ static void show_opened_component_top(component_editor& ed,
     }
 }
 
-static void show_opened_component_ref(component_editor& /*ed*/,
+static void show_opened_component_ref(component_editor& ed,
                                       component& /*head*/,
-                                      component_ref& /*ref*/) noexcept
-{}
+                                      component_ref& /*ref*/,
+                                      component& compo) noexcept
+{
+    for (int i = 0, e = compo.children.ssize(); i != e; ++i) {
+        if (compo.children[i].type == child_type::model) {
+            auto id = enum_cast<model_id>(compo.children[i].id);
+            if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
+                show(ed, *mdl, i);
+            }
+        } else {
+            auto id = enum_cast<component_ref_id>(compo.children[i].id);
+            if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
+                if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
+                    show(ed, *c, i);
+                }
+            }
+        }
+    }
+}
+
+static void add_popup_menuitem(component_editor& ed,
+                               component&        parent,
+                               dynamics_type     type,
+                               int*              new_model)
+{
+    if (!ed.mod.models.can_alloc(1)) {
+        log_w.log(2, "can not allocate a new model");
+        return;
+    }
+
+    if (ImGui::MenuItem(get_dynamics_type_name(type))) {
+        auto& mdl  = ed.mod.alloc(parent, type);
+        *new_model = parent.children.ssize() - 1;
+
+        log_w.log(7, "new model %zu\n", ordinal(ed.mod.get_id(mdl)));
+    }
+}
+
+static void add_popup_menuitem(component_editor& ed,
+                               component&        parent,
+                               int               type,
+                               int*              new_model)
+{
+    auto d_type = enum_cast<dynamics_type>(type);
+    add_popup_menuitem(ed, parent, d_type, new_model);
+}
+
+static void show_popup_menuitem(component_editor& ed,
+                                component&        parent,
+                                ImVec2*           click_pos,
+                                int*              new_model) noexcept
+{
+    const bool open_popup =
+      ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+      ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
+
+    *new_model = -1;
+    *click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
+    if (!ImGui::IsAnyItemHovered() && open_popup)
+        ImGui::OpenPopup("Context menu");
+
+    if (ImGui::BeginPopup("Context menu")) {
+        if (ImGui::BeginMenu("QSS1")) {
+            auto       i = ordinal(dynamics_type::qss1_integrator);
+            const auto e = ordinal(dynamics_type::qss1_wsum_4);
+            for (; i != e; ++i)
+                add_popup_menuitem(ed, parent, i, new_model);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("QSS2")) {
+            auto       i = ordinal(dynamics_type::qss2_integrator);
+            const auto e = ordinal(dynamics_type::qss2_wsum_4);
+
+            for (; i != e; ++i)
+                add_popup_menuitem(ed, parent, i, new_model);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("QSS3")) {
+            auto       i = ordinal(dynamics_type::qss3_integrator);
+            const auto e = ordinal(dynamics_type::qss3_wsum_4);
+
+            for (; i != e; ++i)
+                add_popup_menuitem(ed, parent, i, new_model);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("AQSS (experimental)")) {
+            add_popup_menuitem(
+              ed, parent, dynamics_type::integrator, new_model);
+            add_popup_menuitem(
+              ed, parent, dynamics_type::quantifier, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::adder_2, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::adder_3, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::adder_4, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::mult_2, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::mult_3, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::mult_4, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::cross, new_model);
+            ImGui::EndMenu();
+        }
+
+        add_popup_menuitem(ed, parent, dynamics_type::counter, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::queue, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::dynamic_queue, new_model);
+        add_popup_menuitem(
+          ed, parent, dynamics_type::priority_queue, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::generator, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::constant, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::time_func, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::accumulator_2, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::filter, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::flow, new_model);
+
+        ImGui::EndPopup();
+    }
+
+    ImGui::PopStyleVar();
+}
 
 static void show_opened_component(component_editor& ed)
 {
-    if (auto* head = ed.mod.components.try_to_get(ed.mod.head); head) {
-        ImNodes::EditorContextSet(ed.context);
-        ImNodes::BeginNodeEditor();
+    auto* head = ed.mod.components.try_to_get(ed.mod.head);
+    irt_assert(head);
 
-        auto* ref = ed.mod.component_refs.try_to_get(ed.selected_component);
-        if (!ref) {
-            show_opened_component_top(ed, *head);
-        } else {
-            show_opened_component_ref(ed, *head, *ref);
+    ImVec2 click_pos;
+    int    new_model = -1;
+
+    ImNodes::EditorContextSet(ed.context);
+    ImNodes::BeginNodeEditor();
+
+    auto*      ref   = ed.mod.component_refs.try_to_get(ed.selected_component);
+    component* compo = nullptr;
+    if (!ref) {
+        show_opened_component_top(ed, *head);
+        show_popup_menuitem(ed, *head, &click_pos, &new_model);
+    } else {
+        if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
+            show_opened_component_ref(ed, *head, *ref, *compo);
+            show_popup_menuitem(ed, *compo, &click_pos, &new_model);
         }
+    }
 
-        ImGui::PopStyleVar();
-        if (ed.show_minimap)
-            ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
-        ImNodes::EndNodeEditor();
+    if (ed.show_minimap)
+        ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
+
+    ImNodes::EndNodeEditor();
+
+    if (new_model != -1) {
+        auto* parent = ref ? compo : head;
+
+        ImNodes::SetNodeScreenSpacePos(new_model, click_pos);
+        parent->children[new_model].x = click_pos.x;
+        parent->children[new_model].y = click_pos.y;
     }
 }
 

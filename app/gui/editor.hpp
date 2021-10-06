@@ -14,25 +14,32 @@ namespace irt {
 
 inline const char* get_dynamics_type_name(dynamics_type type) noexcept
 {
-    static const char* names[] = {
-        "qss1_integrator", "qss1_multiplier", "qss1_cross",
-        "qss1_power",      "qss1_square",     "qss1_sum_2",
-        "qss1_sum_3",      "qss1_sum_4",      "qss1_wsum_2",
-        "qss1_wsum_3",     "qss1_wsum_4",     "qss2_integrator",
-        "qss2_multiplier", "qss2_cross",      "qss2_power",
-        "qss2_square",     "qss2_sum_2",      "qss2_sum_3",
-        "qss2_sum_4",      "qss2_wsum_2",     "qss2_wsum_3",
-        "qss2_wsum_4",     "qss3_integrator", "qss3_multiplier",
-        "qss3_cross",      "qss3_power",      "qss3_square",
-        "qss3_sum_2",      "qss3_sum_3",      "qss3_sum_4",
-        "qss3_wsum_2",     "qss3_wsum_3",     "qss3_wsum_4",
-        "integrator",      "quantifier",      "adder_2",
-        "adder_3",         "adder_4",         "mult_2",
-        "mult_3",          "mult_4",          "counter",
-        "queue",           "dynamic_queue",   "priority_queue",
-        "generator",       "constant",        "cross",
-        "time_func",       "accumulator_2",   "flow"
-    };
+    static const char* names[] = { "qss1_integrator", "qss1_multiplier",
+                                   "qss1_cross",      "qss1_power",
+                                   "qss1_square",     "qss1_sum_2",
+                                   "qss1_sum_3",      "qss1_sum_4",
+                                   "qss1_wsum_2",     "qss1_wsum_3",
+                                   "qss1_wsum_4",     "qss2_integrator",
+                                   "qss2_multiplier", "qss2_cross",
+                                   "qss2_power",      "qss2_square",
+                                   "qss2_sum_2",      "qss2_sum_3",
+                                   "qss2_sum_4",      "qss2_wsum_2",
+                                   "qss2_wsum_3",     "qss2_wsum_4",
+                                   "qss3_integrator", "qss3_multiplier",
+                                   "qss3_cross",      "qss3_power",
+                                   "qss3_square",     "qss3_sum_2",
+                                   "qss3_sum_3",      "qss3_sum_4",
+                                   "qss3_wsum_2",     "qss3_wsum_3",
+                                   "qss3_wsum_4",     "integrator",
+                                   "quantifier",      "adder_2",
+                                   "adder_3",         "adder_4",
+                                   "mult_2",          "mult_3",
+                                   "mult_4",          "counter",
+                                   "queue",           "dynamic_queue",
+                                   "priority_queue",  "generator",
+                                   "constant",        "cross",
+                                   "time_func",       "accumulator_2",
+                                   "filter",          "flow" };
 
     return names[ordinal(type)];
 }
