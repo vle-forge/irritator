@@ -15,25 +15,58 @@ static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
 
-static void show_all_components(modeling& mod)
+static void add_component_to_current(component_editor& ed, component& compo)
+{
+    auto* ref = ed.mod.component_refs.try_to_get(ed.selected_component);
+    if (!ref) {
+        if (auto* head = ed.mod.components.try_to_get(ed.mod.head); head) {
+            auto& new_ref = ed.mod.component_refs.alloc();
+            new_ref.id    = ed.mod.components.get_id(compo);
+            head->children.emplace_back(ed.mod.component_refs.get_id(new_ref));
+        }
+    } else {
+        if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
+            auto& new_ref = ed.mod.component_refs.alloc();
+            new_ref.id    = ed.mod.components.get_id(compo);
+            compo->children.emplace_back(ed.mod.component_refs.get_id(new_ref));
+        }
+    }
+}
+
+static void show_all_components(component_editor& ed)
 {
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
+
     if (ImGui::CollapsingHeader("Components", flags)) {
         if (ImGui::TreeNodeEx("Internal", ImGuiTreeNodeFlags_DefaultOpen)) {
             component* compo = nullptr;
-            while (mod.components.next(compo))
-                if (compo->type != component_type::file)
-                    ImGui::Text(compo->name.c_str());
+            while (ed.mod.components.next(compo)) {
+                if (compo->type != component_type::file) {
+                    if (ImGui::Selectable(
+                          compo->name.c_str(),
+                          false,
+                          ImGuiSelectableFlags_AllowDoubleClick)) {
+                        add_component_to_current(ed, *compo);
+                    }
+                }
+            }
 
             ImGui::TreePop();
         }
 
         if (ImGui::TreeNodeEx("File", ImGuiTreeNodeFlags_DefaultOpen)) {
             component* compo = nullptr;
-            while (mod.components.next(compo))
-                if (compo->type == component_type::file)
-                    ImGui::Text(compo->name.c_str());
+            while (ed.mod.components.next(compo)) {
+                if (compo->type == component_type::file) {
+                    if (ImGui::Selectable(
+                          compo->name.c_str(),
+                          false,
+                          ImGuiSelectableFlags_AllowDoubleClick)) {
+                        add_component_to_current(ed, *compo);
+                    }
+                }
+            }
 
             ImGui::TreePop();
         }
@@ -73,12 +106,14 @@ static void show_component_hierarchy_component(component_editor& ed,
         return;
     }
 
-    if (ImGui::TreeNodeEx(compo->name.c_str())) {
+    if (ImGui::TreeNodeEx(compo, 0, "%s", compo->name.c_str())) {
         for (int j = 0, e = compo->children.ssize(); j != e; ++j) {
+            ImGui::PushID(j);
             if (compo->children[j].type == child_type::model)
                 show_component_hierarchy_model(ed, *compo, j);
             else
                 show_component_hierarchy_component(ed, *compo, j);
+            ImGui::PopID();
         }
 
         ImGui::TreePop();
@@ -88,15 +123,15 @@ static void show_component_hierarchy_component(component_editor& ed,
 static void show_component_hierarchy(component_editor& ed)
 {
     if (auto* compo = ed.mod.components.try_to_get(ed.mod.head); compo) {
-        if (ImGui::TreeNodeEx(compo->name.c_str(),
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
-
+        if (ImGui::TreeNodeEx(compo->name.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
             for (int i = 0, e = compo->children.ssize(); i != e; ++i) {
+                ImGui::PushID(i);
                 if (compo->children[i].type == child_type::model) {
                     show_component_hierarchy_model(ed, *compo, i);
                 } else {
                     show_component_hierarchy_component(ed, *compo, i);
                 }
+                ImGui::PopID();
             }
             ImGui::TreePop();
         }
@@ -210,6 +245,7 @@ static void show(component_editor& ed, component& compo, int mdl_index)
 static void show_opened_component_top(component_editor& ed,
                                       component&        head) noexcept
 {
+    int push_id_number = 0;
     for (int i = 0, e = head.children.ssize(); i != e; ++i) {
         if (head.children[i].type == child_type::model) {
             auto id = enum_cast<model_id>(head.children[i].id);
@@ -509,7 +545,7 @@ void component_editor::show(bool* /*is_show*/) noexcept
     ImGui::SetNextWindowPos(component_list_pos);
     ImGui::SetNextWindowSize(component_list_size);
     if (ImGui::Begin("Components list", 0, flag)) {
-        show_all_components(mod);
+        show_all_components(*this);
         ImGui::End();
     }
 }

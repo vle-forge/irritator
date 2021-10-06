@@ -66,6 +66,7 @@ void for_each(const DataArray& data, vector<T>& vec, Function&& f)
 struct component_ref
 {
     component_id              id; // the component reference
+    small_string<32>          name;
     table<model_id, model_id> mappers;
     hierarchy<component_ref>  tree;
 };
