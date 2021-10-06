@@ -43,32 +43,58 @@ static void show_all_components(component_editor& ed)
             component* compo = nullptr;
             while (ed.mod.components.next(compo)) {
                 if (compo->type != component_type::file) {
-                    if (ImGui::Selectable(
-                          compo->name.c_str(),
-                          false,
-                          ImGuiSelectableFlags_AllowDoubleClick)) {
-                        add_component_to_current(ed, *compo);
+                    ImGui::Selectable(compo->name.c_str(),
+                                      false,
+                                      ImGuiSelectableFlags_AllowDoubleClick);
+
+                    if (ImGui::IsItemHovered()) {
+                        if (ImGui::IsMouseDoubleClicked(
+                              ImGuiMouseButton_Left)) {
+                            add_component_to_current(ed, *compo);
+                        } else if (ImGui::IsMouseClicked(
+                                     ImGuiMouseButton_Right)) {
+                            ImGui::OpenPopup("Internal Component menu");
+                        }
                     }
                 }
             }
 
             ImGui::TreePop();
+
+            if (ImGui::BeginPopupContextWindow("Internal component menu")) {
+                ImGui::MenuItem("Copy");
+                ImGui::MenuItem("delete");
+                ImGui::EndPopup();
+            }
         }
 
         if (ImGui::TreeNodeEx("File", ImGuiTreeNodeFlags_DefaultOpen)) {
             component* compo = nullptr;
             while (ed.mod.components.next(compo)) {
                 if (compo->type == component_type::file) {
-                    if (ImGui::Selectable(
-                          compo->name.c_str(),
-                          false,
-                          ImGuiSelectableFlags_AllowDoubleClick)) {
-                        add_component_to_current(ed, *compo);
+                    ImGui::Selectable(compo->name.c_str(),
+                                      false,
+                                      ImGuiSelectableFlags_AllowDoubleClick);
+
+                    if (ImGui::IsItemHovered()) {
+                        if (ImGui::IsMouseDoubleClicked(
+                              ImGuiMouseButton_Left)) {
+                            add_component_to_current(ed, *compo);
+                        } else if (ImGui::IsMouseClicked(
+                                     ImGuiMouseButton_Right)) {
+                            ImGui::OpenPopup("Component menu");
+                        }
                     }
                 }
             }
 
             ImGui::TreePop();
+
+            if (ImGui::BeginPopupContextWindow("Component menu")) {
+                ImGui::MenuItem("Copy");
+                ImGui::MenuItem("delete");
+                ImGui::EndPopup();
+            }
         }
     }
 }
@@ -123,7 +149,8 @@ static void show_component_hierarchy_component(component_editor& ed,
 static void show_component_hierarchy(component_editor& ed)
 {
     if (auto* compo = ed.mod.components.try_to_get(ed.mod.head); compo) {
-        if (ImGui::TreeNodeEx(compo->name.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::TreeNodeEx(compo->name.c_str(),
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
             for (int i = 0, e = compo->children.ssize(); i != e; ++i) {
                 ImGui::PushID(i);
                 if (compo->children[i].type == child_type::model) {
