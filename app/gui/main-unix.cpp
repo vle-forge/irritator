@@ -41,8 +41,7 @@
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
 
-static void
-glfw_error_callback(int error, const char* description)
+static void glfw_error_callback(int error, const char* description)
 {
     fprintf(
       stderr,
@@ -53,8 +52,7 @@ glfw_error_callback(int error, const char* description)
       description);
 }
 
-int
-main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
+int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
@@ -121,6 +119,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     irt::application app;
 
     if (!app.init()) {
+        app.shutdown();
         ImNodes::DestroyContext();
 
         ImGui_ImplOpenGL3_Shutdown();
@@ -129,6 +128,7 @@ main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
         glfwDestroyWindow(window);
         glfwTerminate();
+        return EXIT_FAILURE;
     }
 
     // Load Fonts

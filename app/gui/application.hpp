@@ -341,9 +341,6 @@ enum class component_editor_status
 
 struct component_editor
 {
-    component_editor() noexcept;
-    ~component_editor() noexcept;
-
     struct settings_manager
     {
         ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
@@ -378,13 +375,15 @@ struct component_editor
     bool                    show_settings = false;
     component_editor_status status        = component_editor_status::modeling;
 
+    void init() noexcept;
     void show(bool* is_show) noexcept;
+    void shutdown() noexcept;
 };
 
 struct application
 {
-    data_array<editor, editor_id> editors;
     component_editor              c_editor;
+    data_array<editor, editor_id> editors;
     std::filesystem::path         home_dir;
     std::filesystem::path         executable_dir;
     std::vector<long long int>    simulation_duration;

@@ -10,6 +10,39 @@ namespace irt {
 
 bool application::init()
 {
+    try {
+        if (auto home = get_home_directory(); home) {
+            home_dir = home.value();
+            home_dir /= "irritator";
+        } else {
+            log_w.log(3,
+                      "Fail to retrieve home directory. Use current directory "
+                      "instead\n");
+            home_dir = std::filesystem::current_path();
+        }
+
+        if (auto install = get_executable_directory(); install) {
+            executable_dir = install.value();
+        } else {
+            log_w.log(
+              3,
+              "Fail to retrieve executable directory. Use current directory "
+              "instead\n");
+            executable_dir = std::filesystem::current_path();
+        }
+
+        log_w.log(
+          5,
+          "home: %s\ninstall: %s\n",
+          reinterpret_cast<const char*>(home_dir.u8string().c_str()),
+          reinterpret_cast<const char*>(executable_dir.u8string().c_str()));
+    } catch (const std::exception& /*e*/) {
+        log_w.log(2, "Fail to initialize application\n");
+        return false;
+    }
+
+    c_editor.init();
+
     if (auto ret = editors.init(50u); is_bad(ret)) {
         log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
         std::fprintf(
@@ -81,37 +114,7 @@ bool application::init()
         return false;
     }
 
-    try {
-        if (auto home = get_home_directory(); home) {
-            home_dir = home.value();
-            home_dir /= "irritator";
-        } else {
-            log_w.log(3,
-                      "Fail to retrieve home directory. Use current directory "
-                      "instead\n");
-            home_dir = std::filesystem::current_path();
-        }
-
-        if (auto install = get_executable_directory(); install) {
-            executable_dir = install.value();
-        } else {
-            log_w.log(
-              3,
-              "Fail to retrieve executable directory. Use current directory "
-              "instead\n");
-            executable_dir = std::filesystem::current_path();
-        }
-
-        log_w.log(
-          5,
-          "home: %s\ninstall: %s\n",
-          reinterpret_cast<const char*>(home_dir.u8string().c_str()),
-          reinterpret_cast<const char*>(executable_dir.u8string().c_str()));
-        return true;
-    } catch (const std::exception& /*e*/) {
-        log_w.log(2, "Fail to initialize application\n");
-        return false;
-    }
+    return true;
 }
 
 bool application::show()
@@ -264,6 +267,7 @@ void application::show_settings_window()
 
 void application::shutdown()
 {
+    c_editor.shutdown();
     editors.clear();
     log_w.clear();
 }

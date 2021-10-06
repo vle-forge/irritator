@@ -161,6 +161,7 @@ main(int, char**)
     ImNodes::CreateContext();
     irt::application app;
     if (!app.init()) {
+        app.shutdown();
         ImNodes::DestroyContext();
 
         ImGui_ImplDX12_Shutdown();

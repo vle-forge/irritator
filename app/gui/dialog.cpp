@@ -185,6 +185,8 @@ std::optional<std::filesystem::path> get_default_user_component_dir()
         if (std::filesystem::exists(compo_path, ec))
             return compo_path;
     }
+
+    return std::nullopt;
 }
 #endif
 

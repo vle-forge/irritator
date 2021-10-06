@@ -311,23 +311,26 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
     ImGui::End();
 }
 
-component_editor::component_editor() noexcept
+void component_editor::init() noexcept
 {
-    context = ImNodes::EditorContextCreate();
-    ImNodes::PushAttributeFlag(
-      ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
-    ImNodesIO& io                           = ImNodes::GetIO();
-    io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
+    if (!context) {
+        context = ImNodes::EditorContextCreate();
+        ImNodes::PushAttributeFlag(
+          ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
+        ImNodesIO& io                           = ImNodes::GetIO();
+        io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
 
-    settings_compute_colors(settings);
+        settings_compute_colors(settings);
+    }
 }
 
-component_editor::~component_editor() noexcept
+void component_editor::shutdown() noexcept
 {
     if (context) {
         ImNodes::EditorContextSet(context);
         ImNodes::PopAttributeFlag();
         ImNodes::EditorContextFree(context);
+        context = nullptr;
     }
 }
 
