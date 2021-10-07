@@ -38,9 +38,6 @@ static void show_all_components(component_editor& ed)
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
-    static component*     selected_compo = nullptr;
-    static component_type selected_type  = component_type::file;
-
     if (ImGui::CollapsingHeader("Components", flags)) {
         if (ImGui::TreeNodeEx("Internal", ImGuiTreeNodeFlags_DefaultOpen)) {
             component* compo = nullptr;
@@ -57,8 +54,8 @@ static void show_all_components(component_editor& ed)
                             add_component_to_current(ed, *compo);
                         } else if (ImGui::IsMouseClicked(
                                      ImGuiMouseButton_Right)) {
-                            selected_compo = compo;
-                            selected_type  = compo->type;
+                            ed.selected_component_list      = compo;
+                            ed.selected_component_type_list = compo->type;
                             ImGui::OpenPopup("Component Menu");
                         }
                     }
@@ -82,8 +79,8 @@ static void show_all_components(component_editor& ed)
                             add_component_to_current(ed, *compo);
                         } else if (ImGui::IsMouseClicked(
                                      ImGuiMouseButton_Right)) {
-                            selected_compo = compo;
-                            selected_type  = compo->type;
+                            ed.selected_component_list      = compo;
+                            ed.selected_component_type_list = compo->type;
                             ImGui::OpenPopup("Component Menu");
                         }
                     }
@@ -107,8 +104,8 @@ static void show_all_components(component_editor& ed)
                             add_component_to_current(ed, *compo);
                         } else if (ImGui::IsMouseClicked(
                                      ImGuiMouseButton_Right)) {
-                            selected_compo = compo;
-                            selected_type  = compo->type;
+                            ed.selected_component_list      = compo;
+                            ed.selected_component_type_list = compo->type;
                             ImGui::OpenPopup("Component Menu");
                         }
                     }
@@ -131,17 +128,17 @@ static void show_all_components(component_editor& ed)
                 if (ed.mod.components.can_alloc()) {
                     auto& new_c = ed.mod.components.alloc();
                     new_c.type  = component_type::memory;
-                    new_c.name  = selected_compo->name;
-                    ed.mod.copy(*selected_compo, new_c);
+                    new_c.name  = ed.selected_component_list->name;
+                    ed.mod.copy(*ed.selected_component_list, new_c);
                 } else {
                     log_w.log(3, "Can not alloc a new component");
                 }
             }
 
             if (ImGui::MenuItem("Delete")) {
-                if (selected_type == component_type::memory) {
-                    ed.mod.free(*selected_compo);
-                    selected_compo = nullptr;
+                if (ed.selected_component_type_list == component_type::memory) {
+                    ed.mod.free(*ed.selected_component_list);
+                    ed.selected_component_list = nullptr;
                 }
             }
             ImGui::EndPopup();
