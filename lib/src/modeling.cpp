@@ -1120,8 +1120,11 @@ void modeling::free(component& c) noexcept
         }
     }
 
-    descriptions.free(c.desc);
-    file_paths.free(c.path);
+    if (auto* desc = descriptions.try_to_get(c.desc); desc)
+        descriptions.free(*desc);
+
+    if (auto* path = file_paths.try_to_get(c.path); path)
+        file_paths.free(*path);
 
     components.free(c);
 }

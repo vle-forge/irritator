@@ -139,8 +139,10 @@ static void show_all_components(component_editor& ed)
             }
 
             if (ImGui::MenuItem("Delete")) {
-                printf("delete\n");
-                log_w.log(3, "Can not delete component");
+                if (selected_type == component_type::memory) {
+                    ed.mod.free(*selected_compo);
+                    selected_compo = nullptr;
+                }
             }
             ImGui::EndPopup();
         }
