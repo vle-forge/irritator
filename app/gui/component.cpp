@@ -38,11 +38,15 @@ static void show_all_components(component_editor& ed)
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
+    static component*     selected_compo = nullptr;
+    static component_type selected_type  = component_type::file;
+
     if (ImGui::CollapsingHeader("Components", flags)) {
         if (ImGui::TreeNodeEx("Internal", ImGuiTreeNodeFlags_DefaultOpen)) {
             component* compo = nullptr;
             while (ed.mod.components.next(compo)) {
-                if (compo->type != component_type::file) {
+                if (compo->type != component_type::file &&
+                    compo->type != component_type::memory) {
                     ImGui::Selectable(compo->name.c_str(),
                                       false,
                                       ImGuiSelectableFlags_AllowDoubleClick);
@@ -53,19 +57,15 @@ static void show_all_components(component_editor& ed)
                             add_component_to_current(ed, *compo);
                         } else if (ImGui::IsMouseClicked(
                                      ImGuiMouseButton_Right)) {
-                            ImGui::OpenPopup("Internal Component menu");
+                            selected_compo = compo;
+                            selected_type  = compo->type;
+                            ImGui::OpenPopup("Component Menu");
                         }
                     }
                 }
             }
 
             ImGui::TreePop();
-
-            if (ImGui::BeginPopupContextWindow("Internal component menu")) {
-                ImGui::MenuItem("Copy");
-                ImGui::MenuItem("delete");
-                ImGui::EndPopup();
-            }
         }
 
         if (ImGui::TreeNodeEx("File", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -82,19 +82,67 @@ static void show_all_components(component_editor& ed)
                             add_component_to_current(ed, *compo);
                         } else if (ImGui::IsMouseClicked(
                                      ImGuiMouseButton_Right)) {
-                            ImGui::OpenPopup("Component menu");
+                            selected_compo = compo;
+                            selected_type  = compo->type;
+                            ImGui::OpenPopup("Component Menu");
                         }
                     }
                 }
             }
 
             ImGui::TreePop();
+        }
 
-            if (ImGui::BeginPopupContextWindow("Component menu")) {
-                ImGui::MenuItem("Copy");
-                ImGui::MenuItem("delete");
-                ImGui::EndPopup();
+        if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
+            component* compo = nullptr;
+            while (ed.mod.components.next(compo)) {
+                if (compo->type == component_type::memory) {
+                    ImGui::Selectable(compo->name.c_str(),
+                                      false,
+                                      ImGuiSelectableFlags_AllowDoubleClick);
+
+                    if (ImGui::IsItemHovered()) {
+                        if (ImGui::IsMouseDoubleClicked(
+                              ImGuiMouseButton_Left)) {
+                            add_component_to_current(ed, *compo);
+                        } else if (ImGui::IsMouseClicked(
+                                     ImGuiMouseButton_Right)) {
+                            selected_compo = compo;
+                            selected_type  = compo->type;
+                            ImGui::OpenPopup("Component Menu");
+                        }
+                    }
+                }
             }
+
+            ImGui::TreePop();
+        }
+
+        if (ImGui::BeginPopupContextWindow("Component Menu")) {
+            if (ImGui::MenuItem("Open")) {
+                printf("open\n");
+            }
+
+            if (ImGui::MenuItem("Open as main")) {
+                printf("open as main\n");
+            }
+
+            if (ImGui::MenuItem("Copy")) {
+                if (ed.mod.components.can_alloc()) {
+                    auto& new_c = ed.mod.components.alloc();
+                    new_c.type  = component_type::memory;
+                    new_c.name  = selected_compo->name;
+                    ed.mod.copy(*selected_compo, new_c);
+                } else {
+                    log_w.log(3, "Can not alloc a new component");
+                }
+            }
+
+            if (ImGui::MenuItem("Delete")) {
+                printf("delete\n");
+                log_w.log(3, "Can not delete component");
+            }
+            ImGui::EndPopup();
         }
     }
 }

@@ -136,7 +136,8 @@ enum class component_type
     qss3_seir_lineaire,
     qss3_seir_nonlineaire,
     qss3_van_der_pol,
-    file
+    file,
+    memory,
 };
 
 struct component
@@ -219,10 +220,14 @@ struct modeling
     status fill_internal_components() noexcept;
     status fill_components(const char* dir_path) noexcept;
 
+    void free(component& c) noexcept;
+
     template<typename Dynamics>
     Dynamics& alloc(component& c) noexcept;
 
     model& alloc(component& parent, dynamics_type type) noexcept;
+
+    status copy(component& src, component& dst) noexcept;
 
     template<typename DynamicsSrc, typename DynamicsDst>
     status connect(component&   c,

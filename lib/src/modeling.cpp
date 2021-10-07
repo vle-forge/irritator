@@ -1111,4 +1111,43 @@ status build_simulation(modeling& mod, simulation& sim) noexcept
     irt_bad_return(status::success);
 }
 
+void modeling::free(component& c) noexcept
+{
+    for (int i = 0, e = c.children.ssize(); i != e; ++i) {
+        if (c.children[i].type == child_type::model) {
+            auto id = enum_cast<model_id>(c.children[i].id);
+            models.free(id);
+        }
+    }
+
+    descriptions.free(c.desc);
+    file_paths.free(c.path);
+
+    components.free(c);
+}
+
+status modeling::copy(component& src, component& dst) noexcept
+{
+    for (int i = 0, e = src.children.ssize(); i != e; ++i) {
+        if (src.children[i].type == child_type::model) {
+            auto id = enum_cast<model_id>(src.children[i].id);
+            if (auto* mdl = models.try_to_get(id); mdl) {
+                auto& new_mdl = alloc(dst, mdl->type);
+            }
+        } else {
+            auto id = enum_cast<component_ref_id>(src.children[i].id);
+            if (auto* c_ref = component_refs.try_to_get(id); c_ref) {
+                auto compo_id = enum_cast<component_id>(c_ref->id);
+                if (auto* compo = components.try_to_get(compo_id); compo) {
+                    auto& new_c_ref = component_refs.alloc();
+                    new_c_ref.id    = c_ref->id;
+                    new_c_ref.name  = c_ref->name;
+                }
+            }
+        }
+    }
+
+    return status::success;
+}
+
 } // namespace irt
