@@ -319,7 +319,6 @@ static void show(component_editor& ed, component& compo, int mdl_index)
 static void show_opened_component_top(component_editor& ed,
                                       component&        head) noexcept
 {
-    int push_id_number = 0;
     for (int i = 0, e = head.children.ssize(); i != e; ++i) {
         if (head.children[i].type == child_type::model) {
             auto id = enum_cast<model_id>(head.children[i].id);
