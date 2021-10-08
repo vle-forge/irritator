@@ -121,7 +121,11 @@ static void show_all_components(component_editor& ed)
             }
 
             if (ImGui::MenuItem("Open as main")) {
-                printf("open as main\n");
+                log_w.log(
+                  7, "@todo be sure to save before opening a new component");
+
+                ed.mod.head =
+                  ed.mod.components.get_id(*ed.selected_component_list);
             }
 
             if (ImGui::MenuItem("Copy")) {
