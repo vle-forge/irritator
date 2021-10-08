@@ -10,6 +10,78 @@
 
 namespace irt {
 
+int pack_in(const model_id mdl, const i8 port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+    u32 port_index = static_cast<u32>(port);
+
+    u32 index = get_index(mdl);
+    irt_assert(index < 134217728u);
+
+    return static_cast<int>((index << 5u) | port_index);
+}
+
+int pack_out(const model_id mdl, const i8 port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+    u32 port_index = 8u + static_cast<u32>(port);
+
+    u32 index = get_index(mdl);
+    irt_assert(index < 134217728u);
+
+    return static_cast<int>((index << 5u) | port_index);
+}
+
+int pack_in(const component_ref_id cmp, const i8 port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+    u32 port_index = 16u + static_cast<u32>(port);
+
+    u32 index = get_index(cmp);
+    irt_assert(index < 134217728u);
+
+    return static_cast<int>((index << 5u) | port_index);
+}
+
+int pack_out(const component_ref_id cmp, const i8 port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+    u32 port_index = 16u + 8u + static_cast<u32>(port);
+
+    u32 index = get_index(cmp);
+    irt_assert(index < 134217728u);
+
+    return static_cast<int>((index << 5u) | port_index);
+}
+
+void unpack_in(const int   node_id,
+               u32*        index,
+               i8*         port,
+               child_type* type) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    *port  = static_cast<i8>(real_node_id & 7u);
+    *type  = enum_cast<child_type>((real_node_id & 16) ? 1 : 0);
+    *index = static_cast<u32>(real_node_id >> 5u);
+
+    irt_assert((real_node_id & 8u) == 0);
+}
+
+void unpack_out(const int   node_id,
+                u32*        index,
+                i8*         port,
+                child_type* type) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    *port  = static_cast<i8>(real_node_id & 7u);
+    *type  = enum_cast<child_type>((real_node_id & 16) ? 1 : 0);
+    *index = static_cast<u32>(real_node_id >> 5u);
+
+    irt_assert((real_node_id & 8u) != 0);
+}
+
 static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
@@ -219,7 +291,7 @@ static void show_component_hierarchy(component_editor& ed)
 }
 
 template<typename Dynamics>
-static void add_input_attribute(const Dynamics& dyn, int mdl_index) noexcept
+static void add_input_attribute(const Dynamics& dyn, model_id id) noexcept
 {
     if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
         const auto** names = get_input_port_names<Dynamics>();
@@ -227,7 +299,7 @@ static void add_input_attribute(const Dynamics& dyn, int mdl_index) noexcept
         irt_assert(length(dyn.x) < 8);
 
         for (int i = 0, e = length(dyn.x); i != e; ++i) {
-            ImNodes::BeginInputAttribute(make_input_node_id(mdl_index, i),
+            ImNodes::BeginInputAttribute(pack_in(id, static_cast<i8>(i)),
                                          ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndInputAttribute();
@@ -236,7 +308,7 @@ static void add_input_attribute(const Dynamics& dyn, int mdl_index) noexcept
 }
 
 template<typename Dynamics>
-static void add_output_attribute(const Dynamics& dyn, int mdl_index) noexcept
+static void add_output_attribute(const Dynamics& dyn, model_id id) noexcept
 {
     if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
         const auto** names = get_output_port_names<Dynamics>();
@@ -244,7 +316,7 @@ static void add_output_attribute(const Dynamics& dyn, int mdl_index) noexcept
         irt_assert(length(dyn.y) < 8);
 
         for (int i = 0, e = length(dyn.y); i != e; ++i) {
-            ImNodes::BeginOutputAttribute(make_output_node_id(mdl_index, i),
+            ImNodes::BeginOutputAttribute(pack_out(id, static_cast<i8>(i)),
                                           ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndOutputAttribute();
@@ -252,7 +324,30 @@ static void add_output_attribute(const Dynamics& dyn, int mdl_index) noexcept
     }
 }
 
-static void show(component_editor& ed, model& mdl, int mdl_index)
+static void show_connections(component_editor& /*ed*/,
+                             const component& parent,
+                             int              con_index) noexcept
+{
+    const int out =
+      (parent.connections[con_index].type_src == child_type::model)
+        ? pack_out(enum_cast<model_id>(parent.connections[con_index].src),
+                   parent.connections[con_index].port_src)
+        : pack_out(
+            enum_cast<component_ref_id>(parent.connections[con_index].src),
+            parent.connections[con_index].port_src);
+
+    const int in =
+      (parent.connections[con_index].type_dst == child_type::model)
+        ? pack_in(enum_cast<model_id>(parent.connections[con_index].dst),
+                  parent.connections[con_index].port_dst)
+        : pack_in(
+            enum_cast<component_ref_id>(parent.connections[con_index].dst),
+            parent.connections[con_index].port_dst);
+
+    ImNodes::Link(con_index, out, in);
+}
+
+static void show(component_editor& ed, model& mdl, model_id id, int mdl_index)
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -265,17 +360,15 @@ static void show(component_editor& ed, model& mdl, int mdl_index)
 
     ImNodes::BeginNode(mdl_index);
     ImNodes::BeginNodeTitleBar();
-
     ImGui::TextFormat("{}\n{}", mdl_index, get_dynamics_type_name(mdl.type));
-
     ImNodes::EndNodeTitleBar();
 
-    dispatch(mdl, [&ed, mdl_index](auto& dyn) {
-        add_input_attribute(dyn, mdl_index);
+    dispatch(mdl, [&ed, id](auto& dyn) {
+        add_input_attribute(dyn, id);
         ImGui::PushItemWidth(120.0f);
         show_dynamics_inputs(ed.mod.srcs, dyn);
         ImGui::PopItemWidth();
-        add_output_attribute(dyn, mdl_index);
+        add_output_attribute(dyn, id);
     });
 
     ImNodes::EndNode();
@@ -284,7 +377,10 @@ static void show(component_editor& ed, model& mdl, int mdl_index)
     ImNodes::PopColorStyle();
 }
 
-static void show(component_editor& ed, component& compo, int mdl_index)
+static void show(component_editor& ed,
+                 component&        compo,
+                 component_ref_id  id,
+                 int               mdl_index)
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -300,15 +396,18 @@ static void show(component_editor& ed, component& compo, int mdl_index)
     ImGui::TextFormat("{}\n{}", mdl_index, compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
+    irt_assert(length(compo.x) < INT8_MAX);
+    irt_assert(length(compo.y) < INT8_MAX);
+
     for (int i = 0, e = length(compo.x); i != e; ++i) {
-        ImNodes::BeginInputAttribute(make_input_node_id(mdl_index, i),
+        ImNodes::BeginInputAttribute(pack_in(id, static_cast<i8>(i)),
                                      ImNodesPinShape_TriangleFilled);
         ImGui::TextFormat("{}", i);
         ImNodes::EndInputAttribute();
     }
 
     for (int i = 0, e = length(compo.y); i != e; ++i) {
-        ImNodes::BeginInputAttribute(make_input_node_id(mdl_index, i),
+        ImNodes::BeginInputAttribute(pack_out(id, static_cast<i8>(i)),
                                      ImNodesPinShape_TriangleFilled);
         ImGui::TextFormat("{}", i);
         ImNodes::EndInputAttribute();
@@ -327,17 +426,20 @@ static void show_opened_component_top(component_editor& ed,
         if (head.children[i].type == child_type::model) {
             auto id = enum_cast<model_id>(head.children[i].id);
             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
-                show(ed, *mdl, i);
+                show(ed, *mdl, id, i);
             }
         } else {
             auto id = enum_cast<component_ref_id>(head.children[i].id);
             if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
                 if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
-                    show(ed, *c, i);
+                    show(ed, *c, id, i);
                 }
             }
         }
     }
+
+    for (int i = 0, e = head.connections.ssize(); i != e; ++i)
+        show_connections(ed, head, i);
 }
 
 static void show_opened_component_ref(component_editor& ed,
@@ -349,17 +451,20 @@ static void show_opened_component_ref(component_editor& ed,
         if (compo.children[i].type == child_type::model) {
             auto id = enum_cast<model_id>(compo.children[i].id);
             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
-                show(ed, *mdl, i);
+                show(ed, *mdl, id, i);
             }
         } else {
             auto id = enum_cast<component_ref_id>(compo.children[i].id);
             if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
                 if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
-                    show(ed, *c, i);
+                    show(ed, *c, id, i);
                 }
             }
         }
     }
+
+    for (int i = 0, e = compo.connections.ssize(); i != e; ++i)
+        show_connections(ed, compo, i);
 }
 
 static void add_popup_menuitem(component_editor& ed,
@@ -376,7 +481,7 @@ static void add_popup_menuitem(component_editor& ed,
         auto& mdl  = ed.mod.alloc(parent, type);
         *new_model = parent.children.ssize() - 1;
 
-        log_w.log(7, "new model %zu\n", ordinal(ed.mod.get_id(mdl)));
+        log_w.log(7, "new model %zu\n", ordinal(ed.mod.models.get_id(mdl)));
     }
 }
 
@@ -465,7 +570,52 @@ static void show_popup_menuitem(component_editor& ed,
     ImGui::PopStyleVar();
 }
 
-static void show_opened_component(component_editor& ed)
+component* get_current_component(component_editor& ed) noexcept
+{
+    if (auto* ref = ed.mod.component_refs.try_to_get(ed.selected_component);
+        ref)
+        if (auto* compo = ed.mod.components.try_to_get(ref->id); compo)
+            return compo;
+
+    return ed.mod.components.try_to_get(ed.mod.head);
+}
+
+static void is_link_created(component_editor& ed, component& parent) noexcept
+{
+    int start = 0, end = 0;
+    if (ImNodes::IsLinkCreated(&start, &end)) {
+        u32        index_src, index_dst;
+        i8         port_src, port_dst;
+        child_type type_src, type_dst;
+
+        unpack_out(start, &index_src, &port_src, &type_src);
+        unpack_in(end, &index_dst, &port_dst, &type_dst);
+
+        u64 src = 0, dst = 0;
+
+        if (type_src == child_type::model) {
+            if (auto* mdl = ed.mod.models.try_to_get(index_src); mdl)
+                src = ordinal(ed.mod.models.get_id(*mdl));
+        } else {
+            if (auto* c = ed.mod.component_refs.try_to_get(index_src); c)
+                src = ordinal(ed.mod.component_refs.get_id(*c));
+        }
+
+        if (type_dst == child_type::model) {
+            if (auto* mdl = ed.mod.models.try_to_get(index_dst); mdl)
+                dst = ordinal(ed.mod.models.get_id(*mdl));
+        } else {
+            if (auto* c = ed.mod.component_refs.try_to_get(index_dst); c)
+                dst = ordinal(ed.mod.component_refs.get_id(*c));
+        }
+
+        if (src != 0 && dst != 0)
+            parent.connections.emplace_back(
+              src, dst, type_src, type_dst, port_src, port_dst);
+    }
+}
+
+static void show_opened_component(component_editor& ed) noexcept
 {
     auto* head = ed.mod.components.try_to_get(ed.mod.head);
     irt_assert(head);
@@ -495,11 +645,12 @@ static void show_opened_component(component_editor& ed)
 
     if (new_model != -1) {
         auto* parent = ref ? compo : head;
-
         ImNodes::SetNodeScreenSpacePos(new_model, click_pos);
         parent->children[new_model].x = click_pos.x;
         parent->children[new_model].y = click_pos.y;
     }
+
+    is_link_created(ed, ref ? *compo : *head);
 }
 
 static void settings_compute_colors(

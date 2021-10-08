@@ -104,6 +104,12 @@ struct connection
     connection(Src src, i8 port_src_, Dst dst, i8 port_dst_) noexcept;
 
     connection(child src_, i8 port_src_, child dst_, i8 port_dst_) noexcept;
+    connection(u64        src_,
+               u64        dst_,
+               child_type type_src_,
+               child_type type_dst_,
+               i8         port_src_,
+               i8         port_dst_) noexcept;
 
     u64        src;      // model_id or component_id
     u64        dst;      // model_id or component_id
@@ -241,9 +247,6 @@ struct modeling
                             i8         port_src,
                             i32        dst,
                             i8         port_dst) noexcept;
-
-    template<typename Dynamics>
-    model_id get_id(const Dynamics& dyn) const;
 };
 
 /*
@@ -278,6 +281,20 @@ inline connection::connection(child src_,
   , dst(dst_.id)
   , type_src(src_.type)
   , type_dst(dst_.type)
+  , port_src(port_src_)
+  , port_dst(port_dst_)
+{}
+
+inline connection::connection(u64        src_,
+                              u64        dst_,
+                              child_type type_src_,
+                              child_type type_dst_,
+                              i8         port_src_,
+                              i8         port_dst_) noexcept
+  : src(src_)
+  , dst(dst_)
+  , type_src(type_src_)
+  , type_dst(type_dst_)
   , port_src(port_src_)
   , port_dst(port_dst_)
 {}
@@ -370,8 +387,8 @@ status modeling::connect(component&   c,
 {
     model&   src_model    = get_model(src);
     model&   dst_model    = get_model(dst);
-    model_id model_src_id = get_id(dst);
-    model_id model_dst_id = get_id(dst);
+    model_id model_src_id = models.get_id(src_model);
+    model_id model_dst_id = models.get_id(dst_model);
 
     irt_return_if_fail(
       is_ports_compatible(src_model, port_src, dst_model, port_dst),
@@ -380,12 +397,6 @@ status modeling::connect(component&   c,
     c.connections.emplace_back(model_src_id, port_src, model_dst_id, port_dst);
 
     return status::success;
-}
-
-template<typename Dynamics>
-model_id modeling::get_id(const Dynamics& dyn) const
-{
-    return models.get_id(get_model(dyn));
 }
 
 } // namespace irt

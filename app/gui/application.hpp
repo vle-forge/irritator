@@ -375,7 +375,7 @@ struct component_editor
     bool                    show_settings = false;
     component_editor_status status        = component_editor_status::modeling;
 
-    component*     selected_component_list = nullptr;
+    component*     selected_component_list      = nullptr;
     component_type selected_component_type_list = component_type::file;
 
     void init() noexcept;
