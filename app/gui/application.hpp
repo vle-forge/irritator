@@ -378,6 +378,9 @@ struct component_editor
     component*     selected_component_list      = nullptr;
     component_type selected_component_type_list = component_type::file;
 
+    vector<int> selected_links;
+    vector<int> selected_nodes;
+
     void init() noexcept;
     void show(bool* is_show) noexcept;
     void shutdown() noexcept;

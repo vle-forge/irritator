@@ -256,7 +256,7 @@ static void show_component_hierarchy_component(component_editor& ed,
     }
 
     if (ImGui::TreeNodeEx(compo, 0, "%s", compo->name.c_str())) {
-        for (int j = 0, e = compo->children.ssize(); j != e; ++j) {
+        for (int j = 0; j != compo->children.ssize(); ++j) {
             ImGui::PushID(j);
             if (compo->children[j].type == child_type::model)
                 show_component_hierarchy_model(ed, *compo, j);
@@ -274,7 +274,7 @@ static void show_component_hierarchy(component_editor& ed)
     if (auto* compo = ed.mod.components.try_to_get(ed.mod.head); compo) {
         if (ImGui::TreeNodeEx(compo->name.c_str(),
                               ImGuiTreeNodeFlags_DefaultOpen)) {
-            for (int i = 0, e = compo->children.ssize(); i != e; ++i) {
+            for (int i = 0; i < compo->children.ssize(); ++i) {
                 ImGui::PushID(i);
                 if (compo->children[i].type == child_type::model) {
                     show_component_hierarchy_model(ed, *compo, i);
@@ -298,7 +298,7 @@ static void add_input_attribute(const Dynamics& dyn, model_id id) noexcept
 
         irt_assert(length(dyn.x) < 8);
 
-        for (int i = 0, e = length(dyn.x); i != e; ++i) {
+        for (int i = 0; i < length(dyn.x); ++i) {
             ImNodes::BeginInputAttribute(pack_in(id, static_cast<i8>(i)),
                                          ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
@@ -315,7 +315,7 @@ static void add_output_attribute(const Dynamics& dyn, model_id id) noexcept
 
         irt_assert(length(dyn.y) < 8);
 
-        for (int i = 0, e = length(dyn.y); i != e; ++i) {
+        for (int i = 0; i < length(dyn.y); ++i) {
             ImNodes::BeginOutputAttribute(pack_out(id, static_cast<i8>(i)),
                                           ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
@@ -324,27 +324,64 @@ static void add_output_attribute(const Dynamics& dyn, model_id id) noexcept
     }
 }
 
-static void show_connections(component_editor& /*ed*/,
-                             const component& parent,
-                             int              con_index) noexcept
+static bool show_connection(component_editor& ed,
+                            const component&  parent,
+                            int               con_index) noexcept
 {
-    const int out =
-      (parent.connections[con_index].type_src == child_type::model)
-        ? pack_out(enum_cast<model_id>(parent.connections[con_index].src),
-                   parent.connections[con_index].port_src)
-        : pack_out(
-            enum_cast<component_ref_id>(parent.connections[con_index].src),
-            parent.connections[con_index].port_src);
+    if (parent.connections[con_index].type_src == child_type::model) {
+        auto id = enum_cast<model_id>(parent.connections[con_index].src);
+        if (auto* mdl = ed.mod.models.try_to_get(id); !mdl)
+            return false;
 
-    const int in =
-      (parent.connections[con_index].type_dst == child_type::model)
-        ? pack_in(enum_cast<model_id>(parent.connections[con_index].dst),
-                  parent.connections[con_index].port_dst)
-        : pack_in(
-            enum_cast<component_ref_id>(parent.connections[con_index].dst),
-            parent.connections[con_index].port_dst);
+        if (parent.connections[con_index].type_dst == child_type::model) {
+            auto d_id = enum_cast<model_id>(parent.connections[con_index].dst);
+            if (auto* mdl = ed.mod.models.try_to_get(d_id); !mdl)
+                return false;
 
-    ImNodes::Link(con_index, out, in);
+            ImNodes::Link(
+              con_index,
+              pack_out(id, parent.connections[con_index].port_src),
+              pack_in(d_id, parent.connections[con_index].port_dst));
+        } else {
+            auto d_id =
+              enum_cast<component_ref_id>(parent.connections[con_index].dst);
+            if (auto* mdl = ed.mod.component_refs.try_to_get(d_id); !mdl)
+                return false;
+
+            ImNodes::Link(
+              con_index,
+              pack_out(id, parent.connections[con_index].port_src),
+              pack_in(d_id, parent.connections[con_index].port_dst));
+        }
+    } else {
+        auto id =
+          enum_cast<component_ref_id>(parent.connections[con_index].src);
+        if (auto* compo = ed.mod.component_refs.try_to_get(id); !compo)
+            return false;
+
+        if (parent.connections[con_index].type_dst == child_type::model) {
+            auto d_id = enum_cast<model_id>(parent.connections[con_index].dst);
+            if (auto* mdl = ed.mod.models.try_to_get(d_id); !mdl)
+                return false;
+
+            ImNodes::Link(
+              con_index,
+              pack_out(id, parent.connections[con_index].port_src),
+              pack_in(d_id, parent.connections[con_index].port_dst));
+        } else {
+            auto d_id =
+              enum_cast<component_ref_id>(parent.connections[con_index].dst);
+            if (auto* mdl = ed.mod.component_refs.try_to_get(d_id); !mdl)
+                return false;
+
+            ImNodes::Link(
+              con_index,
+              pack_out(id, parent.connections[con_index].port_src),
+              pack_in(d_id, parent.connections[con_index].port_dst));
+        }
+    }
+
+    return true;
 }
 
 static void show(component_editor& ed, model& mdl, model_id id, int mdl_index)
@@ -399,14 +436,14 @@ static void show(component_editor& ed,
     irt_assert(length(compo.x) < INT8_MAX);
     irt_assert(length(compo.y) < INT8_MAX);
 
-    for (int i = 0, e = length(compo.x); i != e; ++i) {
+    for (int i = 0; i < length(compo.x); ++i) {
         ImNodes::BeginInputAttribute(pack_in(id, static_cast<i8>(i)),
                                      ImNodesPinShape_TriangleFilled);
         ImGui::TextFormat("{}", i);
         ImNodes::EndInputAttribute();
     }
 
-    for (int i = 0, e = length(compo.y); i != e; ++i) {
+    for (int i = 0; i < length(compo.y); ++i) {
         ImNodes::BeginInputAttribute(pack_out(id, static_cast<i8>(i)),
                                      ImNodesPinShape_TriangleFilled);
         ImGui::TextFormat("{}", i);
@@ -422,7 +459,7 @@ static void show(component_editor& ed,
 static void show_opened_component_top(component_editor& ed,
                                       component&        head) noexcept
 {
-    for (int i = 0, e = head.children.ssize(); i != e; ++i) {
+    for (int i = 0; i < head.children.ssize(); ++i) {
         if (head.children[i].type == child_type::model) {
             auto id = enum_cast<model_id>(head.children[i].id);
             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
@@ -438,8 +475,13 @@ static void show_opened_component_top(component_editor& ed,
         }
     }
 
-    for (int i = 0, e = head.connections.ssize(); i != e; ++i)
-        show_connections(ed, head, i);
+    int i = 0;
+    while (i < head.connections.ssize()) {
+        if (!show_connection(ed, head, i))
+            head.connections.swap_pop_back(i);
+        else
+            ++i;
+    }
 }
 
 static void show_opened_component_ref(component_editor& ed,
@@ -447,7 +489,7 @@ static void show_opened_component_ref(component_editor& ed,
                                       component_ref& /*ref*/,
                                       component& compo) noexcept
 {
-    for (int i = 0, e = compo.children.ssize(); i != e; ++i) {
+    for (int i = 0; i < compo.children.ssize(); ++i) {
         if (compo.children[i].type == child_type::model) {
             auto id = enum_cast<model_id>(compo.children[i].id);
             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
@@ -463,8 +505,13 @@ static void show_opened_component_ref(component_editor& ed,
         }
     }
 
-    for (int i = 0, e = compo.connections.ssize(); i != e; ++i)
-        show_connections(ed, compo, i);
+    int i = 0;
+    while (i < compo.connections.ssize()) {
+        if (!show_connection(ed, compo, i))
+            compo.connections.swap_pop_back(i);
+        else
+            ++i;
+    }
 }
 
 static void add_popup_menuitem(component_editor& ed,
@@ -514,7 +561,7 @@ static void show_popup_menuitem(component_editor& ed,
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = ordinal(dynamics_type::qss1_integrator);
             const auto e = ordinal(dynamics_type::qss1_wsum_4);
-            for (; i != e; ++i)
+            for (; i < e; ++i)
                 add_popup_menuitem(ed, parent, i, new_model);
             ImGui::EndMenu();
         }
@@ -523,7 +570,7 @@ static void show_popup_menuitem(component_editor& ed,
             auto       i = ordinal(dynamics_type::qss2_integrator);
             const auto e = ordinal(dynamics_type::qss2_wsum_4);
 
-            for (; i != e; ++i)
+            for (; i < e; ++i)
                 add_popup_menuitem(ed, parent, i, new_model);
             ImGui::EndMenu();
         }
@@ -532,7 +579,7 @@ static void show_popup_menuitem(component_editor& ed,
             auto       i = ordinal(dynamics_type::qss3_integrator);
             const auto e = ordinal(dynamics_type::qss3_wsum_4);
 
-            for (; i != e; ++i)
+            for (; i < e; ++i)
                 add_popup_menuitem(ed, parent, i, new_model);
             ImGui::EndMenu();
         }
@@ -615,6 +662,42 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
     }
 }
 
+void remove_nodes(component_editor& ed, component& parent) noexcept
+{
+    ImNodes::GetSelectedNodes(ed.selected_nodes.begin());
+
+    for (int i = 0; i < ed.selected_nodes.ssize(); ++i) {
+        irt_assert(ed.selected_nodes[i] < parent.children.ssize());
+
+        if (parent.children[i].type == child_type::model) {
+            auto id = enum_cast<model_id>(parent.children[i].id);
+            if (auto* mdl = ed.mod.models.try_to_get(id); mdl)
+                ed.mod.models.free(*mdl);
+        } else {
+            auto id = enum_cast<component_ref_id>(parent.children[i].id);
+            if (auto* c = ed.mod.component_refs.try_to_get(id); c)
+                ed.mod.component_refs.free(*c);
+        }
+    }
+
+    //std::sort(
+    //  ed.selected_nodes.begin(), ed.selected_nodes.end(), std::greater<int>());
+
+    //for (int i = 0; i < ed.selected_nodes.ssize(); ++i)
+    //    parent.children.swap_pop_back(ed.selected_nodes[i]);
+
+    ed.selected_nodes.clear();
+    ImNodes::ClearNodeSelection();
+}
+
+void remove_links(component_editor& ed, component& parent) noexcept
+{
+    ImNodes::GetSelectedLinks(ed.selected_links.begin());
+
+    ed.selected_links.clear();
+    ImNodes::ClearLinkSelection();
+}
+
 static void show_opened_component(component_editor& ed) noexcept
 {
     auto* head = ed.mod.components.try_to_get(ed.mod.head);
@@ -651,6 +734,22 @@ static void show_opened_component(component_editor& ed) noexcept
     }
 
     is_link_created(ed, ref ? *compo : *head);
+
+    int num_selected_links = ImNodes::NumSelectedLinks();
+    int num_selected_nodes = ImNodes::NumSelectedNodes();
+
+    if (num_selected_links > 0)
+        ed.selected_links.resize(num_selected_links);
+
+    if (num_selected_nodes > 0)
+        ed.selected_nodes.resize(num_selected_nodes);
+
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
+        if (num_selected_nodes > 0)
+            remove_nodes(ed, ref ? *compo : *head);
+        else if (num_selected_links > 0)
+            remove_links(ed, ref ? *compo : *head);
+    }
 }
 
 static void settings_compute_colors(
