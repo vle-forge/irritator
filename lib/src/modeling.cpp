@@ -11,6 +11,55 @@
 
 namespace irt {
 
+template<typename Dynamics>
+std::pair<Dynamics*, child_id> alloc(modeling& mod, component& parent) noexcept
+{
+    irt_assert(!mod.models.full());
+
+    auto& mdl  = mod.models.alloc();
+    mdl.type   = dynamics_typeof<Dynamics>();
+    mdl.handle = nullptr;
+
+    new (&mdl.dyn) Dynamics{};
+    auto& dyn = get_dyn<Dynamics>(mdl);
+
+    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+        for (int i = 0, e = length(dyn.x); i != e; ++i)
+            dyn.x[i] = static_cast<u64>(-1);
+
+    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+        for (int i = 0, e = length(dyn.y); i != e; ++i)
+            dyn.y[i] = static_cast<u64>(-1);
+
+    auto& child = mod.children.alloc(mod.models.get_id(mdl));
+    parent.children.emplace_back(mod.children.get_id(child));
+
+    return std::make_pair(&dyn, mod.children.get_id(child));
+}
+
+template<typename DynamicsSrc, typename DynamicsDst>
+status connect(modeling&    mod,
+               component&   c,
+               DynamicsSrc& src,
+               i8           port_src,
+               DynamicsDst& dst,
+               i8           port_dst) noexcept
+{
+    model& src_model = get_model(*src.first);
+    model& dst_model = get_model(*dst.first);
+
+    irt_return_if_fail(
+      is_ports_compatible(src_model, port_src, dst_model, port_dst),
+      status::model_connect_bad_dynamics);
+
+    irt_return_if_fail(mod.connections.can_alloc(1),
+                       status::simulation_not_enough_connection);
+
+    mod.connect(c, src.second, port_src, dst.second, port_dst);
+
+    return status::success;
+}
+
 template<int QssLevel>
 status add_lotka_volterra(modeling& mod, component& com) noexcept
 {
@@ -20,32 +69,32 @@ status add_lotka_volterra(modeling& mod, component& com) noexcept
     bool success = mod.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& integrator_a      = mod.alloc<abstract_integrator<QssLevel>>(com);
-    integrator_a.default_X  = 18.0_r;
-    integrator_a.default_dQ = 0.1_r;
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
+    integrator_a.first->default_X  = 18.0_r;
+    integrator_a.first->default_dQ = 0.1_r;
 
-    auto& integrator_b      = mod.alloc<abstract_integrator<QssLevel>>(com);
-    integrator_b.default_X  = 7.0_r;
-    integrator_b.default_dQ = 0.1_r;
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
+    integrator_b.first->default_X  = 7.0_r;
+    integrator_b.first->default_dQ = 0.1_r;
 
-    auto& product = mod.alloc<abstract_multiplier<QssLevel>>(com);
+    auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
 
-    auto& sum_a                   = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    sum_a.default_input_coeffs[0] = 2.0_r;
-    sum_a.default_input_coeffs[1] = -0.4_r;
+    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    sum_a.first->default_input_coeffs[0] = 2.0_r;
+    sum_a.first->default_input_coeffs[1] = -0.4_r;
 
-    auto& sum_b                   = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    sum_b.default_input_coeffs[0] = -1.0_r;
-    sum_b.default_input_coeffs[1] = 0.1_r;
+    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    sum_b.first->default_input_coeffs[0] = -1.0_r;
+    sum_b.first->default_input_coeffs[1] = 0.1_r;
 
-    mod.connect(com, sum_a, 0, integrator_a, 0);
-    mod.connect(com, sum_b, 0, integrator_b, 0);
-    mod.connect(com, integrator_a, 0, sum_a, 0);
-    mod.connect(com, integrator_b, 0, sum_b, 0);
-    mod.connect(com, integrator_a, 0, product, 0);
-    mod.connect(com, integrator_b, 0, product, 1);
-    mod.connect(com, product, 0, sum_a, 1);
-    mod.connect(com, product, 0, sum_b, 1);
+    connect(mod, com, sum_a, 0, integrator_a, 0);
+    connect(mod, com, sum_b, 0, integrator_b, 0);
+    connect(mod, com, integrator_a, 0, sum_a, 0);
+    connect(mod, com, integrator_b, 0, sum_b, 0);
+    connect(mod, com, integrator_a, 0, product, 0);
+    connect(mod, com, integrator_b, 0, product, 1);
+    connect(mod, com, product, 0, sum_a, 1);
+    connect(mod, com, product, 0, sum_b, 1);
 
     return status::success;
 }
@@ -64,30 +113,30 @@ status add_lif(modeling& mod, component& com) noexcept
     constexpr irt::real V0  = 10.0_r;
     constexpr irt::real Vr  = -V0;
 
-    auto& cst         = mod.alloc<constant>(com);
-    cst.default_value = 1.0;
+    auto cst                 = alloc<constant>(mod, com);
+    cst.first->default_value = 1.0;
 
-    auto& cst_cross         = mod.alloc<constant>(com);
-    cst_cross.default_value = Vr;
+    auto cst_cross                 = alloc<constant>(mod, com);
+    cst_cross.first->default_value = Vr;
 
-    auto& sum                   = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    sum.default_input_coeffs[0] = -irt::one / tau;
-    sum.default_input_coeffs[1] = V0 / tau;
+    auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    sum.first->default_input_coeffs[0] = -irt::one / tau;
+    sum.first->default_input_coeffs[1] = V0 / tau;
 
-    auto& integrator      = mod.alloc<abstract_integrator<QssLevel>>(com);
-    integrator.default_X  = 0._r;
-    integrator.default_dQ = 0.001_r;
+    auto integrator = alloc<abstract_integrator<QssLevel>>(mod, com);
+    integrator.first->default_X  = 0._r;
+    integrator.first->default_dQ = 0.001_r;
 
-    auto& cross             = mod.alloc<abstract_cross<QssLevel>>(com);
-    cross.default_threshold = Vt;
+    auto cross                     = alloc<abstract_cross<QssLevel>>(mod, com);
+    cross.first->default_threshold = Vt;
 
-    mod.connect(com, cross, 0, integrator, 1);
-    mod.connect(com, cross, 1, sum, 0);
-    mod.connect(com, integrator, 0, cross, 0);
-    mod.connect(com, integrator, 0, cross, 2);
-    mod.connect(com, cst_cross, 0, cross, 1);
-    mod.connect(com, cst, 0, sum, 1);
-    mod.connect(com, sum, 0, integrator, 0);
+    connect(mod, com, cross, 0, integrator, 1);
+    connect(mod, com, cross, 1, sum, 0);
+    connect(mod, com, integrator, 0, cross, 0);
+    connect(mod, com, integrator, 0, cross, 2);
+    connect(mod, com, cst_cross, 0, cross, 1);
+    connect(mod, com, cst, 0, sum, 1);
+    connect(mod, com, sum, 0, integrator, 0);
 
     return status::success;
 }
@@ -100,18 +149,18 @@ status add_izhikevich(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& cst          = mod.alloc<constant>(com);
-    auto& cst2         = mod.alloc<constant>(com);
-    auto& cst3         = mod.alloc<constant>(com);
-    auto& sum_a        = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto& sum_b        = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto& sum_c        = mod.alloc<abstract_wsum<QssLevel, 4>>(com);
-    auto& sum_d        = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto& product      = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& integrator_a = mod.alloc<abstract_integrator<QssLevel>>(com);
-    auto& integrator_b = mod.alloc<abstract_integrator<QssLevel>>(com);
-    auto& cross        = mod.alloc<abstract_cross<QssLevel>>(com);
-    auto& cross2       = mod.alloc<abstract_cross<QssLevel>>(com);
+    auto cst          = alloc<constant>(mod, com);
+    auto cst2         = alloc<constant>(mod, com);
+    auto cst3         = alloc<constant>(mod, com);
+    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_c        = alloc<abstract_wsum<QssLevel, 4>>(mod, com);
+    auto sum_d        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto product      = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto cross        = alloc<abstract_cross<QssLevel>>(mod, com);
+    auto cross2       = alloc<abstract_cross<QssLevel>>(mod, com);
 
     constexpr irt::real a  = 0.2_r;
     constexpr irt::real b  = 2.0_r;
@@ -120,57 +169,57 @@ status add_izhikevich(modeling& mod, component& com) noexcept
     constexpr irt::real I  = -99.0_r;
     constexpr irt::real vt = 30.0_r;
 
-    cst.default_value  = 1.0_r;
-    cst2.default_value = c;
-    cst3.default_value = I;
+    cst.first->default_value  = 1.0_r;
+    cst2.first->default_value = c;
+    cst3.first->default_value = I;
 
-    cross.default_threshold  = vt;
-    cross2.default_threshold = vt;
+    cross.first->default_threshold  = vt;
+    cross2.first->default_threshold = vt;
 
-    integrator_a.default_X  = 0.0_r;
-    integrator_a.default_dQ = 0.01_r;
+    integrator_a.first->default_X  = 0.0_r;
+    integrator_a.first->default_dQ = 0.01_r;
 
-    integrator_b.default_X  = 0.0_r;
-    integrator_b.default_dQ = 0.01_r;
+    integrator_b.first->default_X  = 0.0_r;
+    integrator_b.first->default_dQ = 0.01_r;
 
-    sum_a.default_input_coeffs[0] = 1.0_r;
-    sum_a.default_input_coeffs[1] = -1.0_r;
-    sum_b.default_input_coeffs[0] = -a;
-    sum_b.default_input_coeffs[1] = a * b;
-    sum_c.default_input_coeffs[0] = 0.04_r;
-    sum_c.default_input_coeffs[1] = 5.0_r;
-    sum_c.default_input_coeffs[2] = 140.0_r;
-    sum_c.default_input_coeffs[3] = 1.0_r;
-    sum_d.default_input_coeffs[0] = 1.0_r;
-    sum_d.default_input_coeffs[1] = d;
+    sum_a.first->default_input_coeffs[0] = 1.0_r;
+    sum_a.first->default_input_coeffs[1] = -1.0_r;
+    sum_b.first->default_input_coeffs[0] = -a;
+    sum_b.first->default_input_coeffs[1] = a * b;
+    sum_c.first->default_input_coeffs[0] = 0.04_r;
+    sum_c.first->default_input_coeffs[1] = 5.0_r;
+    sum_c.first->default_input_coeffs[2] = 140.0_r;
+    sum_c.first->default_input_coeffs[3] = 1.0_r;
+    sum_d.first->default_input_coeffs[0] = 1.0_r;
+    sum_d.first->default_input_coeffs[1] = d;
 
-    mod.connect(com, integrator_a, 0, cross, 0);
-    mod.connect(com, cst2, 0, cross, 1);
-    mod.connect(com, integrator_a, 0, cross, 2);
+    connect(mod, com, integrator_a, 0, cross, 0);
+    connect(mod, com, cst2, 0, cross, 1);
+    connect(mod, com, integrator_a, 0, cross, 2);
 
-    mod.connect(com, cross, 1, product, 0);
-    mod.connect(com, cross, 1, product, 1);
-    mod.connect(com, product, 0, sum_c, 0);
-    mod.connect(com, cross, 1, sum_c, 1);
-    mod.connect(com, cross, 1, sum_b, 1);
+    connect(mod, com, cross, 1, product, 0);
+    connect(mod, com, cross, 1, product, 1);
+    connect(mod, com, product, 0, sum_c, 0);
+    connect(mod, com, cross, 1, sum_c, 1);
+    connect(mod, com, cross, 1, sum_b, 1);
 
-    mod.connect(com, cst, 0, sum_c, 2);
-    mod.connect(com, cst3, 0, sum_c, 3);
+    connect(mod, com, cst, 0, sum_c, 2);
+    connect(mod, com, cst3, 0, sum_c, 3);
 
-    mod.connect(com, sum_c, 0, sum_a, 0);
-    mod.connect(com, cross2, 1, sum_a, 1);
-    mod.connect(com, sum_a, 0, integrator_a, 0);
-    mod.connect(com, cross, 0, integrator_a, 1);
+    connect(mod, com, sum_c, 0, sum_a, 0);
+    connect(mod, com, cross2, 1, sum_a, 1);
+    connect(mod, com, sum_a, 0, integrator_a, 0);
+    connect(mod, com, cross, 0, integrator_a, 1);
 
-    mod.connect(com, cross2, 1, sum_b, 0);
-    mod.connect(com, sum_b, 0, integrator_b, 0);
+    connect(mod, com, cross2, 1, sum_b, 0);
+    connect(mod, com, sum_b, 0, integrator_b, 0);
 
-    mod.connect(com, cross2, 0, integrator_b, 1);
-    mod.connect(com, integrator_a, 0, cross2, 0);
-    mod.connect(com, integrator_b, 0, cross2, 2);
-    mod.connect(com, sum_d, 0, cross2, 1);
-    mod.connect(com, integrator_b, 0, sum_d, 0);
-    mod.connect(com, cst, 0, sum_d, 1);
+    connect(mod, com, cross2, 0, integrator_b, 1);
+    connect(mod, com, integrator_a, 0, cross2, 0);
+    connect(mod, com, integrator_b, 0, cross2, 2);
+    connect(mod, com, sum_d, 0, cross2, 1);
+    connect(mod, com, integrator_b, 0, sum_d, 0);
+    connect(mod, com, cst, 0, sum_d, 1);
 
     return status::success;
 }
@@ -183,32 +232,32 @@ status add_van_der_pol(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum          = mod.alloc<abstract_wsum<QssLevel, 3>>(com);
-    auto& product1     = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product2     = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& integrator_a = mod.alloc<abstract_integrator<QssLevel>>(com);
-    auto& integrator_b = mod.alloc<abstract_integrator<QssLevel>>(com);
+    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
+    auto product1     = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product2     = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
 
-    integrator_a.default_X  = 0.0_r;
-    integrator_a.default_dQ = 0.001_r;
+    integrator_a.first->default_X  = 0.0_r;
+    integrator_a.first->default_dQ = 0.001_r;
 
-    integrator_b.default_X  = 10.0_r;
-    integrator_b.default_dQ = 0.001_r;
+    integrator_b.first->default_X  = 10.0_r;
+    integrator_b.first->default_dQ = 0.001_r;
 
-    constexpr double mu         = 4.0_r;
-    sum.default_input_coeffs[0] = mu;
-    sum.default_input_coeffs[1] = -mu;
-    sum.default_input_coeffs[2] = -1.0_r;
+    constexpr double mu                = 4.0_r;
+    sum.first->default_input_coeffs[0] = mu;
+    sum.first->default_input_coeffs[1] = -mu;
+    sum.first->default_input_coeffs[2] = -1.0_r;
 
-    mod.connect(com, integrator_b, 0, integrator_a, 0);
-    mod.connect(com, sum, 0, integrator_b, 0);
-    mod.connect(com, integrator_b, 0, sum, 0);
-    mod.connect(com, product2, 0, sum, 1);
-    mod.connect(com, integrator_a, 0, sum, 2);
-    mod.connect(com, integrator_b, 0, product1, 0);
-    mod.connect(com, integrator_a, 0, product1, 1);
-    mod.connect(com, product1, 0, product2, 0);
-    mod.connect(com, integrator_a, 0, product2, 1);
+    connect(mod, com, integrator_b, 0, integrator_a, 0);
+    connect(mod, com, sum, 0, integrator_b, 0);
+    connect(mod, com, integrator_b, 0, sum, 0);
+    connect(mod, com, product2, 0, sum, 1);
+    connect(mod, com, integrator_a, 0, sum, 2);
+    connect(mod, com, integrator_b, 0, product1, 0);
+    connect(mod, com, integrator_a, 0, product1, 1);
+    connect(mod, com, product1, 0, product2, 0);
+    connect(mod, com, integrator_a, 0, product2, 1);
 
     return status::success;
 }
@@ -221,36 +270,36 @@ status add_negative_lif(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum        = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto& integrator = mod.alloc<abstract_integrator<QssLevel>>(com);
-    auto& cross      = mod.alloc<abstract_cross<QssLevel>>(com);
-    auto& cst        = mod.alloc<constant>(com);
-    auto& cst_cross  = mod.alloc<constant>(com);
+    auto sum        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto integrator = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto cross      = alloc<abstract_cross<QssLevel>>(mod, com);
+    auto cst        = alloc<constant>(mod, com);
+    auto cst_cross  = alloc<constant>(mod, com);
 
     constexpr real tau = 10.0_r;
     constexpr real Vt  = -1.0_r;
     constexpr real V0  = -10.0_r;
     constexpr real Vr  = 0.0_r;
 
-    sum.default_input_coeffs[0] = -1.0_r / tau;
-    sum.default_input_coeffs[1] = V0 / tau;
+    sum.first->default_input_coeffs[0] = -1.0_r / tau;
+    sum.first->default_input_coeffs[1] = V0 / tau;
 
-    cst.default_value       = 1.0_r;
-    cst_cross.default_value = Vr;
+    cst.first->default_value       = 1.0_r;
+    cst_cross.first->default_value = Vr;
 
-    integrator.default_X  = 0.0_r;
-    integrator.default_dQ = 0.001_r;
+    integrator.first->default_X  = 0.0_r;
+    integrator.first->default_dQ = 0.001_r;
 
-    cross.default_threshold = Vt;
-    cross.default_detect_up = false;
+    cross.first->default_threshold = Vt;
+    cross.first->default_detect_up = false;
 
-    mod.connect(com, cross, 0, integrator, 1);
-    mod.connect(com, cross, 1, sum, 0);
-    mod.connect(com, integrator, 0, cross, 0);
-    mod.connect(com, integrator, 0, cross, 2);
-    mod.connect(com, cst_cross, 0, cross, 1);
-    mod.connect(com, cst, 0, sum, 1);
-    mod.connect(com, sum, 0, integrator, 0);
+    connect(mod, com, cross, 0, integrator, 1);
+    connect(mod, com, cross, 1, sum, 0);
+    connect(mod, com, integrator, 0, cross, 0);
+    connect(mod, com, integrator, 0, cross, 2);
+    connect(mod, com, cst_cross, 0, cross, 1);
+    connect(mod, com, cst, 0, sum, 1);
+    connect(mod, com, sum, 0, integrator, 0);
 
     return status::success;
 }
@@ -264,51 +313,51 @@ status add_seir_lineaire(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum_a        = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto& sum_b        = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto& product_a    = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_b    = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& integrator_a = mod.alloc<abstract_integrator<QssLevel>>(com);
-    auto& integrator_b = mod.alloc<abstract_integrator<QssLevel>>(com);
-    auto& integrator_c = mod.alloc<abstract_integrator<QssLevel>>(com);
-    auto& integrator_d = mod.alloc<abstract_integrator<QssLevel>>(com);
-    auto& constant_a   = mod.alloc<constant>(com);
-    auto& constant_b   = mod.alloc<constant>(com);
+    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto product_a    = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_b    = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_c = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_d = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto constant_a   = alloc<constant>(mod, com);
+    auto constant_b   = alloc<constant>(mod, com);
 
-    sum_a.default_input_coeffs[0] = -0.005_r;
-    sum_a.default_input_coeffs[1] = -0.4_r;
+    sum_a.first->input_coeffs[0] = -0.005_r;
+    sum_a.first->input_coeffs[1] = -0.4_r;
 
-    sum_b.default_input_coeffs[0] = -0.135_r;
-    sum_b.default_input_coeffs[1] = 0.1_r;
+    sum_b.first->input_coeffs[0] = -0.135_r;
+    sum_b.first->input_coeffs[1] = 0.1_r;
 
-    integrator_a.default_X  = 10.0_r;
-    integrator_a.default_dQ = 0.01_r;
+    integrator_a.first->X  = 10.0_r;
+    integrator_a.first->dQ = 0.01_r;
 
-    integrator_b.default_X  = 15.0_r;
-    integrator_b.default_dQ = 0.01_r;
+    integrator_b.first->X  = 15.0_r;
+    integrator_b.first->dQ = 0.01_r;
 
-    integrator_c.default_X  = 10.0_r;
-    integrator_c.default_dQ = 0.01_r;
+    integrator_c.first->X  = 10.0_r;
+    integrator_c.first->dQ = 0.01_r;
 
-    integrator_d.default_X  = 18.0_r;
-    integrator_d.default_dQ = 0.01_r;
+    integrator_d.first->X  = 18.0_r;
+    integrator_d.first->dQ = 0.01_r;
 
-    constant_a.default_value = -0.005_r;
+    constant_a.first->value = -0.005_r;
 
-    constant_b.default_value = -0.135_r;
+    constant_b.first->value = -0.135_r;
 
-    mod.connect(com, constant_a, 0, product_a, 0);
-    mod.connect(com, constant_b, 0, product_b, 0);
-    mod.connect(com, sum_a, 0, integrator_c, 0);
-    mod.connect(com, sum_b, 0, integrator_d, 0);
-    mod.connect(com, integrator_b, 0, sum_a, 0);
-    mod.connect(com, integrator_c, 0, sum_a, 1);
-    mod.connect(com, integrator_c, 0, sum_b, 0);
-    mod.connect(com, integrator_d, 0, sum_b, 1);
-    mod.connect(com, integrator_a, 0, product_a, 1);
-    mod.connect(com, integrator_b, 0, product_b, 1);
-    mod.connect(com, product_a, 0, sum_a, 1);
-    mod.connect(com, product_b, 0, sum_b, 1);
+    connect(mod, com, constant_a, 0, product_a, 0);
+    connect(mod, com, constant_b, 0, product_b, 0);
+    connect(mod, com, sum_a, 0, integrator_c, 0);
+    connect(mod, com, sum_b, 0, integrator_d, 0);
+    connect(mod, com, integrator_b, 0, sum_a, 0);
+    connect(mod, com, integrator_c, 0, sum_a, 1);
+    connect(mod, com, integrator_c, 0, sum_b, 0);
+    connect(mod, com, integrator_d, 0, sum_b, 1);
+    connect(mod, com, integrator_a, 0, product_a, 1);
+    connect(mod, com, integrator_b, 0, product_b, 1);
+    connect(mod, com, product_a, 0, sum_a, 1);
+    connect(mod, com, product_b, 0, sum_b, 1);
 
     return status::success;
 }
@@ -322,114 +371,114 @@ status add_seir_nonlineaire(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto& sum_a                   = mod.alloc<abstract_wsum<QssLevel, 3>>(com);
-    sum_a.default_input_coeffs[0] = 0.5_r;
-    sum_a.default_input_coeffs[1] = 1.0_r;
-    sum_a.default_input_coeffs[2] = 1.0_r;
+    auto sum_a = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
+    sum_a.first->default_input_coeffs[0] = 0.5_r;
+    sum_a.first->default_input_coeffs[1] = 1.0_r;
+    sum_a.first->default_input_coeffs[2] = 1.0_r;
 
-    auto& sum_b                   = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    sum_b.default_input_coeffs[0] = 1.0_r;
-    sum_b.default_input_coeffs[1] = 1.0_r;
+    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    sum_b.first->default_input_coeffs[0] = 1.0_r;
+    sum_b.first->default_input_coeffs[1] = 1.0_r;
 
-    auto& sum_c                   = mod.alloc<abstract_wsum<QssLevel, 3>>(com);
-    sum_c.default_input_coeffs[0] = 1.5_r;
-    sum_c.default_input_coeffs[1] = 0.698_r;
-    sum_c.default_input_coeffs[2] = 0.387_r;
+    auto sum_c = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
+    sum_c.first->default_input_coeffs[0] = 1.5_r;
+    sum_c.first->default_input_coeffs[1] = 0.698_r;
+    sum_c.first->default_input_coeffs[2] = 0.387_r;
 
-    auto& sum_d                   = mod.alloc<abstract_wsum<QssLevel, 2>>(com);
-    sum_d.default_input_coeffs[0] = 1.0_r;
-    sum_d.default_input_coeffs[1] = 1.5_r;
+    auto sum_d = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    sum_d.first->default_input_coeffs[0] = 1.0_r;
+    sum_d.first->default_input_coeffs[1] = 1.5_r;
 
-    auto& product_a = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_b = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_c = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_d = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_e = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_f = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_g = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_h = mod.alloc<abstract_multiplier<QssLevel>>(com);
-    auto& product_i = mod.alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_a = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_b = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_c = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_d = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_e = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_f = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_g = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_h = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_i = alloc<abstract_multiplier<QssLevel>>(mod, com);
 
-    auto& integrator_a      = mod.alloc<abstract_integrator<QssLevel>>(com);
-    integrator_a.default_X  = 10.0_r;
-    integrator_a.default_dQ = 0.01_r;
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
+    integrator_a.first->default_X  = 10.0_r;
+    integrator_a.first->default_dQ = 0.01_r;
 
-    auto& integrator_b      = mod.alloc<abstract_integrator<QssLevel>>(com);
-    integrator_b.default_X  = 12.0_r;
-    integrator_b.default_dQ = 0.01_r;
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
+    integrator_b.first->default_X  = 12.0_r;
+    integrator_b.first->default_dQ = 0.01_r;
 
-    auto& integrator_c      = mod.alloc<abstract_integrator<QssLevel>>(com);
-    integrator_c.default_X  = 13.50_r;
-    integrator_c.default_dQ = 0.01_r;
+    auto integrator_c = alloc<abstract_integrator<QssLevel>>(mod, com);
+    integrator_c.first->default_X  = 13.50_r;
+    integrator_c.first->default_dQ = 0.01_r;
 
-    auto& integrator_d      = mod.alloc<abstract_integrator<QssLevel>>(com);
-    integrator_d.default_X  = 15.0_r;
-    integrator_d.default_dQ = 0.01_r;
+    auto integrator_d = alloc<abstract_integrator<QssLevel>>(mod, com);
+    integrator_d.first->default_X  = 15.0_r;
+    integrator_d.first->default_dQ = 0.01_r;
 
     // The values used here are from Singh et al., 2017
 
-    auto& constant_a         = mod.alloc<constant>(com);
-    constant_a.default_value = 0.005_r;
+    auto constant_a                 = alloc<constant>(mod, com);
+    constant_a.first->default_value = 0.005_r;
 
-    auto& constant_b         = mod.alloc<constant>(com);
-    constant_b.default_value = -0.0057_r;
+    auto constant_b                 = alloc<constant>(mod, com);
+    constant_b.first->default_value = -0.0057_r;
 
-    auto& constant_c         = mod.alloc<constant>(com);
-    constant_c.default_value = -0.005_r;
+    auto constant_c                 = alloc<constant>(mod, com);
+    constant_c.first->default_value = -0.005_r;
 
-    auto& constant_d         = mod.alloc<constant>(com);
-    constant_d.default_value = 0.0057_r;
+    auto constant_d                 = alloc<constant>(mod, com);
+    constant_d.first->default_value = 0.0057_r;
 
-    auto& constant_e         = mod.alloc<constant>(com);
-    constant_e.default_value = -0.135_r;
+    auto constant_e                 = alloc<constant>(mod, com);
+    constant_e.first->default_value = -0.135_r;
 
-    auto& constant_f         = mod.alloc<constant>(com);
-    constant_f.default_value = 0.135_r;
+    auto constant_f                 = alloc<constant>(mod, com);
+    constant_f.first->default_value = 0.135_r;
 
-    auto& constant_g         = mod.alloc<constant>(com);
-    constant_g.default_value = -0.072_r;
+    auto constant_g                 = alloc<constant>(mod, com);
+    constant_g.first->default_value = -0.072_r;
 
-    auto& constant_h         = mod.alloc<constant>(com);
-    constant_h.default_value = 0.005_r;
+    auto constant_h                 = alloc<constant>(mod, com);
+    constant_h.first->default_value = 0.005_r;
 
-    auto& constant_i         = mod.alloc<constant>(com);
-    constant_i.default_value = 0.067_r;
+    auto constant_i                 = alloc<constant>(mod, com);
+    constant_i.first->default_value = 0.067_r;
 
-    auto& constant_j         = mod.alloc<constant>(com);
-    constant_j.default_value = -0.005_r;
+    auto constant_j                 = alloc<constant>(mod, com);
+    constant_j.first->default_value = -0.005_r;
 
-    mod.connect(com, constant_a, 0, sum_a, 0);
-    mod.connect(com, constant_h, 0, sum_c, 2);
-    mod.connect(com, constant_b, 0, product_a, 0);
-    mod.connect(com, constant_c, 0, product_b, 0);
-    mod.connect(com, constant_d, 0, product_c, 0);
-    mod.connect(com, constant_e, 0, product_d, 0);
-    mod.connect(com, constant_f, 0, product_e, 0);
-    mod.connect(com, constant_g, 0, product_f, 0);
-    mod.connect(com, constant_h, 0, product_g, 0);
-    mod.connect(com, constant_i, 0, product_h, 0);
-    mod.connect(com, product_i, 0, product_a, 1);
-    mod.connect(com, product_i, 0, product_c, 1);
-    mod.connect(com, sum_a, 0, integrator_a, 0);
-    mod.connect(com, sum_b, 0, integrator_b, 0);
-    mod.connect(com, sum_c, 0, integrator_c, 0);
-    mod.connect(com, sum_d, 0, integrator_d, 0);
-    mod.connect(com, product_a, 0, sum_a, 1);
-    mod.connect(com, product_b, 0, sum_a, 2);
-    mod.connect(com, product_c, 0, sum_b, 0);
-    mod.connect(com, product_d, 0, sum_b, 1);
-    mod.connect(com, product_e, 0, sum_c, 0);
-    mod.connect(com, product_f, 0, sum_c, 1);
-    mod.connect(com, product_g, 0, sum_d, 0);
-    mod.connect(com, product_h, 0, sum_d, 1);
-    mod.connect(com, integrator_a, 0, product_b, 1);
-    mod.connect(com, integrator_b, 0, product_d, 1);
-    mod.connect(com, integrator_b, 0, product_e, 1);
-    mod.connect(com, integrator_c, 0, product_f, 1);
-    mod.connect(com, integrator_c, 0, product_g, 1);
-    mod.connect(com, integrator_d, 0, product_h, 1);
-    mod.connect(com, integrator_a, 0, product_i, 0);
-    mod.connect(com, integrator_c, 0, product_i, 1);
+    connect(mod, com, constant_a, 0, sum_a, 0);
+    connect(mod, com, constant_h, 0, sum_c, 2);
+    connect(mod, com, constant_b, 0, product_a, 0);
+    connect(mod, com, constant_c, 0, product_b, 0);
+    connect(mod, com, constant_d, 0, product_c, 0);
+    connect(mod, com, constant_e, 0, product_d, 0);
+    connect(mod, com, constant_f, 0, product_e, 0);
+    connect(mod, com, constant_g, 0, product_f, 0);
+    connect(mod, com, constant_h, 0, product_g, 0);
+    connect(mod, com, constant_i, 0, product_h, 0);
+    connect(mod, com, product_i, 0, product_a, 1);
+    connect(mod, com, product_i, 0, product_c, 1);
+    connect(mod, com, sum_a, 0, integrator_a, 0);
+    connect(mod, com, sum_b, 0, integrator_b, 0);
+    connect(mod, com, sum_c, 0, integrator_c, 0);
+    connect(mod, com, sum_d, 0, integrator_d, 0);
+    connect(mod, com, product_a, 0, sum_a, 1);
+    connect(mod, com, product_b, 0, sum_a, 2);
+    connect(mod, com, product_c, 0, sum_b, 0);
+    connect(mod, com, product_d, 0, sum_b, 1);
+    connect(mod, com, product_e, 0, sum_c, 0);
+    connect(mod, com, product_f, 0, sum_c, 1);
+    connect(mod, com, product_g, 0, sum_d, 0);
+    connect(mod, com, product_h, 0, sum_d, 1);
+    connect(mod, com, integrator_a, 0, product_b, 1);
+    connect(mod, com, integrator_b, 0, product_d, 1);
+    connect(mod, com, integrator_b, 0, product_e, 1);
+    connect(mod, com, integrator_c, 0, product_f, 1);
+    connect(mod, com, integrator_c, 0, product_g, 1);
+    connect(mod, com, integrator_d, 0, product_h, 1);
+    connect(mod, com, integrator_a, 0, product_i, 0);
+    connect(mod, com, integrator_c, 0, product_i, 1);
 
     return status::success;
 }
@@ -445,9 +494,13 @@ static status build_models_recursively(const modeling& mod,
         return status::success; /* @TODO certainly an error in API */
 
     for (i32 i = 0, e = comp->children.ssize(); i != e; ++i) {
-        u64 id = comp->children[i].id;
+        auto* child = mod.children.try_to_get(comp->children[i]);
+        if (!child)
+            continue;
 
-        if (comp->children[i].type == child_type::model) {
+        u64 id = child->id;
+
+        if (child->type == child_type::model) {
             auto  src_id = enum_cast<model_id>(id);
             auto* src    = mod.models.try_to_get(src_id);
             if (!src)
@@ -473,33 +526,21 @@ static status build_models_recursively(const modeling& mod,
 }
 
 static status build_model_to_model_connection(component_ref& comp_ref,
-                                              component&     comp,
                                               simulation&    sim,
-                                              int            i)
+                                              model_id       src,
+                                              i8             port_src,
+                                              model_id       dst,
+                                              i8             port_dst) noexcept
 {
-    irt_assert(comp.connections[i].type_src == child_type::model);
-    irt_assert(comp.connections[i].type_dst == child_type::model);
-    irt_assert(i >= 0 && i < comp.connections.ssize());
+    auto* src_mdl_id = comp_ref.mappers.get(enum_cast<model_id>(src));
+    auto* dst_mdl_id = comp_ref.mappers.get(enum_cast<model_id>(dst));
+    irt_assert(src_mdl_id && !dst_mdl_id);
 
-    auto  src_id     = enum_cast<model_id>(comp.connections[i].src);
-    auto  dst_id     = enum_cast<model_id>(comp.connections[i].dst);
-    auto* src_mdl_id = comp_ref.mappers.get(src_id);
-    auto* dst_mdl_id = comp_ref.mappers.get(dst_id);
+    auto* mdl_src = sim.models.try_to_get(*src_mdl_id);
+    auto* mdl_dst = sim.models.try_to_get(*dst_mdl_id);
+    irt_assert(mdl_src && mdl_dst);
 
-    if (!src_mdl_id || !dst_mdl_id)
-        return status::success;
-
-    auto* src = sim.models.try_to_get(*src_mdl_id);
-    auto* dst = sim.models.try_to_get(*dst_mdl_id);
-
-    if (!src || !dst)
-        return status::success;
-
-    return global_connect(sim,
-                          *src,
-                          comp.connections[i].port_src,
-                          *dst_mdl_id,
-                          comp.connections[i].port_dst);
+    return global_connect(sim, *mdl_src, port_src, *dst_mdl_id, port_dst);
 }
 
 static bool found_input_port(const modeling&  mod,
@@ -520,21 +561,29 @@ static bool found_input_port(const modeling&  mod,
         if (!(0 <= port && port < c->x.ssize()))
             return false;
 
-        if (c->x[port].type == child_type::model) {
-            auto  id        = enum_cast<model_id>(c->x[port].id);
+        auto* p = mod.ports.try_to_get(c->x[port]);
+        if (!p)
+            return false;
+
+        auto* child = mod.children.try_to_get(p->id);
+        if (!child)
+            return false;
+
+        if (child->type == child_type::model) {
+            auto  id        = enum_cast<model_id>(child->id);
             auto* mapped_id = c_ref->mappers.get(id);
 
             if (mapped_id) {
                 model_found = *mapped_id;
-                port_found  = c->x[port].index;
+                port_found  = p->index;
                 return true;
             } else {
                 return false;
             }
         }
 
-        compo_ref = enum_cast<component_ref_id>(c->x[port].id);
-        port      = c->x[port].index;
+        compo_ref = enum_cast<component_ref_id>(child->id);
+        port      = p->index;
     }
 }
 
@@ -556,59 +605,49 @@ static bool found_output_port(const modeling&  mod,
         if (!(0 <= port && port < c->y.ssize()))
             return false;
 
-        if (c->y[port].type == child_type::model) {
-            auto  id        = enum_cast<model_id>(c->y[port].id);
+        auto* p = mod.ports.try_to_get(c->y[port]);
+        if (!p)
+            return false;
+
+        auto* child = mod.children.try_to_get(p->id);
+        if (!child)
+            return false;
+
+        if (child->type == child_type::model) {
+            auto  id        = enum_cast<model_id>(child->id);
             auto* mapped_id = c_ref->mappers.get(id);
 
             if (mapped_id) {
                 model_found = *mapped_id;
-                port_found  = c->y[port].index;
+                port_found  = p->index;
                 return true;
             } else {
                 return false;
             }
         }
 
-        compo_ref = enum_cast<component_ref_id>(c->y[port].id);
-        port      = c->y[port].index;
+        compo_ref = enum_cast<component_ref_id>(child->id);
+        port      = p->index;
     }
 }
 
 static status build_model_to_component_connection(
   const modeling&      mod,
   const component_ref& compo_ref,
-  component&           compo,
   simulation&          sim,
-  int                  index)
+  model_id             src,
+  i8                   port_src,
+  component_ref_id     dst,
+  i8                   port_dst)
 {
-    irt_assert(index >= 0 && index < compo.connections.ssize());
-    irt_assert(compo.connections[index].type_src == child_type::model);
-    irt_assert(compo.connections[index].type_dst == child_type::component);
-
     model_id model_found;
     i8       port_found;
 
-    bool found = found_input_port(
-      mod,
-      enum_cast<component_ref_id>(compo.connections[index].dst),
-      compo.connections[index].port_dst,
-      model_found,
-      port_found);
-
-    if (found) {
-        auto  id         = enum_cast<model_id>(compo.connections[index].src);
-        auto* src_mdl_id = compo_ref.mappers.get(id);
-
-        if (src_mdl_id) {
-            auto* src_mdl = sim.models.try_to_get(*src_mdl_id);
-
-            if (src_mdl) {
-                auto src_port = compo.connections[index].port_src;
+    if (found_input_port(mod, dst, port_dst, model_found, port_found))
+        if (auto* src_mdl_id = compo_ref.mappers.get(src); src_mdl_id)
+            if (auto* src_mdl = sim.models.try_to_get(*src_mdl_id); src_mdl)
                 return global_connect(
-                  sim, *src_mdl, src_port, model_found, port_found);
-            }
-        }
-    }
+                  sim, *src_mdl, port_src, model_found, port_found);
 
     return status::success; // @todo fail
 }
@@ -616,83 +655,54 @@ static status build_model_to_component_connection(
 static status build_component_to_model_connection(
   const modeling&      mod,
   const component_ref& compo_ref,
-  component&           compo,
   simulation&          sim,
-  int                  index)
+  component_ref_id     src,
+  i8                   port_src,
+  model_id             dst,
+  i8                   port_dst)
 {
-    irt_assert(index >= 0 && index < compo.connections.ssize());
-    irt_assert(compo.connections[index].type_src == child_type::component);
-    irt_assert(compo.connections[index].type_dst == child_type::model);
-
     model_id model_found;
     i8       port_found;
 
-    bool found = found_output_port(
-      mod,
-      enum_cast<component_ref_id>(compo.connections[index].src),
-      compo.connections[index].port_src,
-      model_found,
-      port_found);
+    if (found_output_port(mod, src, port_src, model_found, port_found)) {
+        auto* dst_mdl_id = compo_ref.mappers.get(dst);
+        irt_return_if_fail(
+          dst_mdl_id,
+          status::model_connect_bad_dynamics); // @todo Fix connection
 
-    if (found) {
-        auto  id         = enum_cast<model_id>(compo.connections[index].dst);
-        auto* dst_mdl_id = compo_ref.mappers.get(id);
+        if (auto* src_mdl_id = compo_ref.mappers.get(model_found); src_mdl_id)
+            if (auto* src_mdl = sim.models.try_to_get(*src_mdl_id); src_mdl)
 
-        if (dst_mdl_id) {
-            auto* src_mdl  = sim.models.try_to_get(model_found);
-            auto  dst_port = compo.connections[index].port_dst;
-
-            return global_connect(
-              sim, *src_mdl, port_found, *dst_mdl_id, dst_port);
-        }
+                return global_connect(
+                  sim, *src_mdl, port_found, *dst_mdl_id, port_dst);
     }
 
-    return status::success; // @todo fail
+    return status::success;
 }
 
-static status build_component_to_component_connection(
-  const modeling&      mod,
-  const component_ref& compo_ref,
-  component&           compo,
-  simulation&          sim,
-  int                  index)
+static status build_component_to_component_connection(const modeling&  mod,
+                                                      simulation&      sim,
+                                                      component_ref_id src,
+                                                      i8               port_src,
+                                                      component_ref_id dst,
+                                                      i8               port_dst)
 {
-    irt_assert(index >= 0 && index < compo.connections.ssize());
-    irt_assert(compo.connections[index].type_src == child_type::component);
-    irt_assert(compo.connections[index].type_dst == child_type::component);
-
     model_id src_model_found, dst_model_found;
     i8       src_port_found, dst_port_found;
 
-    bool found_src = found_output_port(
-      mod,
-      enum_cast<component_ref_id>(compo.connections[index].src),
-      compo.connections[index].port_src,
-      src_model_found,
-      src_port_found);
+    model* src_mdl = nullptr;
 
-    bool found_dst = found_input_port(
-      mod,
-      enum_cast<component_ref_id>(compo.connections[index].dst),
-      compo.connections[index].port_dst,
-      dst_model_found,
-      dst_port_found);
+    if (found_input_port(mod, dst, port_dst, dst_model_found, dst_port_found))
+        if (found_output_port(
+              mod, src, port_src, src_model_found, src_port_found))
+            if (src_mdl = sim.models.try_to_get(src_model_found); src_mdl)
+                return global_connect(sim,
+                                      *src_mdl,
+                                      src_port_found,
+                                      dst_model_found,
+                                      dst_port_found);
 
-    if (found_src && found_dst) {
-        auto* src_mdl_id = compo_ref.mappers.get(src_model_found);
-        auto* dst_mdl_id = compo_ref.mappers.get(dst_model_found);
-
-        if (src_mdl_id && dst_mdl_id) {
-            auto* src_mdl = sim.models.try_to_get(*src_mdl_id);
-            auto* dst_mdl = sim.models.try_to_get(*dst_mdl_id);
-
-            if (src_mdl && dst_mdl)
-                return global_connect(
-                  sim, *src_mdl, src_port_found, *dst_mdl_id, dst_port_found);
-        }
-    }
-
-    return status::success; // @todo fail
+    return status::model_connect_bad_dynamics; // @todo Fix connection
 }
 
 static status build_connections_recursively(modeling&      mod,
@@ -706,33 +716,64 @@ static status build_connections_recursively(modeling&      mod,
     // Build connections from the leaf to the head of the component
     // hierarchy.
     for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
-        if (compo->children[i].type == child_type::component) {
-            u64   id       = compo->children[i].id;
-            auto  child_id = enum_cast<component_ref_id>(id);
-            auto* child    = mod.component_refs.try_to_get(child_id);
-            if (!child)
-                continue;
+        if (auto* child = mod.children.try_to_get(compo->children[i]); child) {
+            if (child->type == child_type::component) {
+                u64   id       = child->id;
+                auto  child_id = enum_cast<component_ref_id>(id);
+                auto* child    = mod.component_refs.try_to_get(child_id);
+                if (!child)
+                    continue;
 
-            build_connections_recursively(mod, *child, sim);
+                build_connections_recursively(mod, *child, sim);
+            }
         }
     }
 
     for (i32 i = 0, e = compo->connections.ssize(); i != e; ++i) {
-        if (compo->connections[i].type_src == child_type::model) {
-            if (compo->connections[i].type_dst == child_type::model) {
+        auto* con = mod.connections.try_to_get(compo->connections[i]);
+        if (!con)
+            continue;
+
+        auto* src = mod.children.try_to_get(con->src);
+        auto* dst = mod.children.try_to_get(con->dst);
+
+        if (src->type == child_type::model) {
+            if (dst->type == child_type::model) {
                 irt_return_if_bad(
-                  build_model_to_model_connection(c_ref, *compo, sim, i));
+                  build_model_to_model_connection(c_ref,
+                                                  sim,
+                                                  enum_cast<model_id>(src->id),
+                                                  con->index_src,
+                                                  enum_cast<model_id>(dst->id),
+                                                  con->index_dst));
             } else {
                 irt_return_if_bad(build_model_to_component_connection(
-                  mod, c_ref, *compo, sim, i));
+                  mod,
+                  c_ref,
+                  sim,
+                  enum_cast<model_id>(src->id),
+                  con->index_src,
+                  enum_cast<component_ref_id>(dst->id),
+                  con->index_dst));
             }
         } else {
-            if (compo->connections[i].type_dst == child_type::model) {
+            if (dst->type == child_type::model) {
                 irt_return_if_bad(build_component_to_model_connection(
-                  mod, c_ref, *compo, sim, i));
+                  mod,
+                  c_ref,
+                  sim,
+                  enum_cast<component_ref_id>(src->id),
+                  con->index_src,
+                  enum_cast<model_id>(dst->id),
+                  con->index_dst));
             } else {
                 irt_return_if_bad(build_component_to_component_connection(
-                  mod, c_ref, *compo, sim, i));
+                  mod,
+                  sim,
+                  enum_cast<component_ref_id>(src->id),
+                  con->index_src,
+                  enum_cast<component_ref_id>(dst->id),
+                  con->index_dst));
             }
         }
     }
@@ -802,7 +843,8 @@ static bool check(const modeling_initializer& params) noexcept
     return params.model_capacity > 0 && params.component_ref_capacity > 0 &&
            params.description_capacity > 0 && params.component_capacity > 0 &&
            params.observer_capacity > 0 && params.dir_path_capacity > 0 &&
-           params.file_path_capacity > 0 &&
+           params.file_path_capacity > 0 && params.children_capacity > 0 &&
+           params.connection_capacity > 0 && params.port_capacity > 0 &&
            params.constant_source_capacity > 0 &&
            params.binary_file_source_capacity > 0 &&
            params.text_file_source_capacity > 0 &&
@@ -823,6 +865,9 @@ status modeling::init(const modeling_initializer& params) noexcept
     irt_return_if_bad(observers.init(params.observer_capacity));
     irt_return_if_bad(dir_paths.init(params.dir_path_capacity));
     irt_return_if_bad(file_paths.init(params.file_path_capacity));
+    irt_return_if_bad(children.init(params.children_capacity));
+    irt_return_if_bad(connections.init(params.connection_capacity));
+    irt_return_if_bad(ports.init(params.port_capacity));
 
     irt_return_if_bad(
       srcs.constant_sources.init(params.constant_source_capacity));
@@ -948,64 +993,19 @@ status modeling::fill_components(const char* dir_path) noexcept
     return status::success;
 }
 
-status modeling::connect_by_index(component& parent,
-                                  i32        src,
-                                  i8         port_src,
-                                  i32        dst,
-                                  i8         port_dst) noexcept
+status modeling::connect(component& parent,
+                         child_id   src,
+                         i8         port_src,
+                         child_id   dst,
+                         i8         port_dst) noexcept
 {
-    irt_return_if_fail(0 <= src && src < parent.children.ssize(),
-                       status::model_connect_bad_dynamics);
-    irt_return_if_fail(0 <= dst && dst < parent.children.ssize(),
-                       status::model_connect_bad_dynamics);
+    irt_return_if_fail(connections.can_alloc(1),
+                       status::data_array_not_enough_memory);
 
-    auto src_child = parent.children[src];
-    auto dst_child = parent.children[dst];
+    auto& c = connections.alloc(src, port_src, dst, port_dst);
+    parent.connections.emplace_back(connections.get_id(c));
 
-    model_id real_src_id, real_dst_id;
-    i8       real_src_port, real_dst_port;
-
-    if (src_child.type == child_type::component) {
-        irt_return_if_fail(
-          found_output_port(*this,
-                            enum_cast<component_ref_id>(src_child.id),
-                            port_src,
-                            real_src_id,
-                            real_src_port),
-          status::model_connect_bad_dynamics);
-    } else {
-        real_src_id   = enum_cast<model_id>(src_child.id);
-        real_src_port = port_src;
-    }
-
-    if (dst_child.type == child_type::component) {
-        irt_return_if_fail(
-          found_input_port(*this,
-                           enum_cast<component_ref_id>(dst_child.id),
-                           port_dst,
-                           real_dst_id,
-                           real_dst_port),
-          status::model_connect_bad_dynamics);
-    } else {
-        real_dst_id   = enum_cast<model_id>(dst_child.id);
-        real_dst_port = port_dst;
-    }
-
-    if (auto* mdl_src = models.try_to_get(real_src_id); mdl_src) {
-        if (auto* mdl_dst = models.try_to_get(real_dst_id); mdl_dst) {
-            irt_return_if_fail(
-              is_ports_compatible(
-                *mdl_src, real_src_port, *mdl_dst, real_dst_port),
-              status::model_connect_bad_dynamics);
-
-            parent.connections.emplace_back(
-              parent.children[src], port_src, parent.children[dst], port_dst);
-
-            return status::success;
-        }
-    }
-
-    return status::model_connect_bad_dynamics;
+    return status::success;
 }
 
 static component* find_file_component(modeling&   mod,
@@ -1043,7 +1043,8 @@ status add_file_component_ref(const char*    file_path,
     auto* file_compo = find_file_component(mod, file_path);
     compo_ref.id     = mod.components.get_id(*file_compo);
 
-    parent.children.emplace_back(mod.component_refs.get_id(compo_ref));
+    auto& child = mod.children.alloc(mod.component_refs.get_id(compo_ref));
+    parent.children.emplace_back(mod.children.get_id(child));
 
     return status::success;
 }
@@ -1098,7 +1099,8 @@ status add_cpp_component_ref(const char*    buffer,
     auto* cpp_compo = find_cpp_component(mod, it->type);
     compo_ref.id    = mod.components.get_id(*cpp_compo);
 
-    parent.children.emplace_back(mod.component_refs.get_id(compo_ref));
+    auto& child = mod.children.alloc(mod.component_refs.get_id(compo_ref));
+    parent.children.emplace_back(mod.children.get_id(child));
 
     return status::success;
 }
@@ -1111,14 +1113,50 @@ status build_simulation(modeling& mod, simulation& sim) noexcept
     irt_bad_return(status::success);
 }
 
+static void free_child(
+  data_array<child, child_id>&                 children,
+  data_array<model, model_id>&                 models,
+  data_array<component_ref, component_ref_id>& component_refs,
+  child&                                       c) noexcept
+{
+    if (c.type == child_type::component) {
+        auto id = enum_cast<component_ref_id>(c.id);
+        if (auto* c_ref = component_refs.try_to_get(id); c_ref)
+            component_refs.free(*c_ref);
+    } else {
+        auto id = enum_cast<model_id>(c.id);
+        if (auto* mdl = models.try_to_get(id); mdl)
+            models.free(*mdl);
+    }
+
+    children.free(c);
+}
+
+static void free_connection(data_array<connection, connection_id>& connections,
+                            connection&                            con) noexcept
+{
+    connections.free(con);
+}
+
 void modeling::free(component& c) noexcept
 {
-    for (int i = 0, e = c.children.ssize(); i != e; ++i) {
-        if (c.children[i].type == child_type::model) {
-            auto id = enum_cast<model_id>(c.children[i].id);
-            models.free(id);
-        }
-    }
+    for (int i = 0, e = c.children.ssize(); i != e; ++i)
+        if (auto* child = children.try_to_get(c.children[i]); child)
+            free_child(children, models, component_refs, *child);
+    c.children.clear();
+
+    for (int i = 0, e = c.connections.ssize(); i != e; ++i)
+        if (auto* cnt = connections.try_to_get(c.connections[i]); cnt)
+            free_connection(connections, *cnt);
+    c.connections.clear();
+
+    for (int i = 0, e = c.x.ssize(); i != e; ++i)
+        if (auto* p = ports.try_to_get(c.x[i]); p)
+            ports.free(*p);
+
+    for (int i = 0, e = c.y.ssize(); i != e; ++i)
+        if (auto* p = ports.try_to_get(c.y[i]); p)
+            ports.free(*p);
 
     if (auto* desc = descriptions.try_to_get(c.desc); desc)
         descriptions.free(*desc);
@@ -1129,22 +1167,52 @@ void modeling::free(component& c) noexcept
     components.free(c);
 }
 
+void modeling::free(component& parent, child& c) noexcept
+{
+    auto child_id = children.get_id(c);
+    if (auto index = parent.children.find(child_id);
+        index < parent.children.ssize()) {
+        parent.children.swap_pop_back(index);
+    }
+
+    free_child(children, models, component_refs, c);
+}
+
+void modeling::free(component& parent, connection& c) noexcept
+{
+    auto con_id = connections.get_id(c);
+    if (auto index = parent.connections.find(con_id);
+        index < parent.connections.ssize()) {
+        parent.connections.swap_pop_back(index);
+    }
+
+    free_connection(connections, c);
+}
+
 status modeling::copy(component& src, component& dst) noexcept
 {
-    for (int i = 0, e = src.children.ssize(); i != e; ++i) {
-        if (src.children[i].type == child_type::model) {
-            auto id = enum_cast<model_id>(src.children[i].id);
-            if (auto* mdl = models.try_to_get(id); mdl) {
-                auto& new_mdl = alloc(dst, mdl->type);
-            }
-        } else {
-            auto id = enum_cast<component_ref_id>(src.children[i].id);
-            if (auto* c_ref = component_refs.try_to_get(id); c_ref) {
-                auto compo_id = enum_cast<component_id>(c_ref->id);
-                if (auto* compo = components.try_to_get(compo_id); compo) {
-                    auto& new_c_ref = component_refs.alloc();
-                    new_c_ref.id    = c_ref->id;
-                    new_c_ref.name  = c_ref->name;
+    for (i32 i = 0, e = src.children.ssize(); i != e; ++i) {
+        if (auto* child = children.try_to_get(src.children[i])) {
+            if (child->type == child_type::model) {
+                auto id = enum_cast<model_id>(child->id);
+                if (auto* mdl = models.try_to_get(id); mdl) {
+                    auto& new_child = alloc(dst, mdl->type);
+                    new_child.x     = child->x;
+                    new_child.y     = child->y;
+                }
+            } else {
+                auto id = enum_cast<component_ref_id>(child->id);
+                if (auto* c_ref = component_refs.try_to_get(id); c_ref) {
+                    auto compo_id = enum_cast<component_id>(c_ref->id);
+                    if (auto* compo = components.try_to_get(compo_id); compo) {
+                        auto& new_c_ref = component_refs.alloc();
+                        new_c_ref.id    = c_ref->id;
+                        new_c_ref.name  = c_ref->name;
+
+                        auto& child =
+                          children.alloc(component_refs.get_id(new_c_ref));
+                        dst.children.emplace_back(children.get_id(child));
+                    }
                 }
             }
         }

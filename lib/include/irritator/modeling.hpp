@@ -17,6 +17,9 @@ enum class parameter_id : u64;
 enum class description_id : u64;
 enum class dir_path_id : u64;
 enum class file_path_id : u64;
+enum class child_id : u64;
+enum class connection_id : u64;
+enum class port_id : u64;
 
 enum class child_type : i8
 {
@@ -51,9 +54,9 @@ struct description
 template<typename DataArray, typename T, typename Function>
 void for_each(const DataArray& data, vector<T>& vec, Function&& f)
 {
-    i64 i = 0, e = vec.size();
+    i64 i = 0;
 
-    while (i != e) {
+    while (i != vec.ssize()) {
         if (auto* ptr = data.try_to_get(vec[i]); ptr) {
             f(*ptr);
             ++i;
@@ -87,36 +90,26 @@ struct child
 
 struct port
 {
-    port(model_id model, i8 port) noexcept;
-    port(component_ref_id component, i8 port) noexcept;
-    port(u64 id_, child_type type_, i8 port_) noexcept;
+    port() noexcept = default;
+    port(child_id child, i8 port) noexcept;
 
-    u64        id;    // model_id or component_ref_id
-    child_type type;  // allow to choose id
-    i8         index; // index of the port
+    child_id id;
+    i8       index;
 };
 
 struct connection
 {
     connection() noexcept = default;
 
-    template<typename Src, typename Dst>
-    connection(Src src, i8 port_src_, Dst dst, i8 port_dst_) noexcept;
+    connection(child_id src_,
+               i8       index_src_,
+               child_id dst_,
+               i8       index_dst_) noexcept;
 
-    connection(child src_, i8 port_src_, child dst_, i8 port_dst_) noexcept;
-    connection(u64        src_,
-               u64        dst_,
-               child_type type_src_,
-               child_type type_dst_,
-               i8         port_src_,
-               i8         port_dst_) noexcept;
-
-    u64        src;      // model_id or component_id
-    u64        dst;      // model_id or component_id
-    child_type type_src; // model or component
-    child_type type_dst; // model or component
-    i8         port_src; // output port index
-    i8         port_dst; // input port index
+    child_id src;
+    child_id dst;
+    i8       index_src;
+    i8       index_dst;
 };
 
 enum class component_type
@@ -148,11 +141,11 @@ enum class component_type
 
 struct component
 {
-    vector<child>      children;
-    vector<connection> connections;
+    vector<child_id>      children;
+    vector<connection_id> connections;
 
-    vector<port> x;
-    vector<port> y;
+    vector<port_id> x;
+    vector<port_id> y;
 
     description_id   desc = description_id{ 0 };
     file_path_id     path = file_path_id{ 0 };
@@ -200,6 +193,9 @@ struct modeling_initializer
     int observer_capacity;
     int dir_path_capacity;
     int file_path_capacity;
+    int children_capacity;
+    int connection_capacity;
+    int port_capacity;
 
     int constant_source_capacity;
     int binary_file_source_capacity;
@@ -218,8 +214,12 @@ struct modeling
     data_array<observer, observer_id>           observers;
     data_array<dir_path, dir_path_id>           dir_paths;
     data_array<file_path, file_path_id>         file_paths;
-    irt::external_source                        srcs;
-    component_id                                head{ 0 };
+    data_array<child, child_id>                 children;
+    data_array<connection, connection_id>       connections;
+    data_array<port, port_id>                   ports;
+
+    irt::external_source srcs;
+    component_id         head{ 0 };
 
     status init(const modeling_initializer& params) noexcept;
 
@@ -227,76 +227,32 @@ struct modeling
     status fill_components(const char* dir_path) noexcept;
 
     void free(component& c) noexcept;
+    void free(component& parent, child& c) noexcept;
+    void free(component& parent, connection& c) noexcept;
 
-    template<typename Dynamics>
-    Dynamics& alloc(component& c) noexcept;
-
-    model& alloc(component& parent, dynamics_type type) noexcept;
+    child& alloc(component& parent, dynamics_type type) noexcept;
 
     status copy(component& src, component& dst) noexcept;
 
-    template<typename DynamicsSrc, typename DynamicsDst>
-    status connect(component&   c,
-                   DynamicsSrc& src,
-                   i8           port_src,
-                   DynamicsDst& dst,
-                   i8           port_dst) noexcept;
-
-    status connect_by_index(component& parent,
-                            i32        src,
-                            i8         port_src,
-                            i32        dst,
-                            i8         port_dst) noexcept;
+    status connect(component& parent,
+                   child_id   src,
+                   i8         port_src,
+                   child_id   dst,
+                   i8         port_dst) noexcept;
 };
 
 /*
  * Implementation
  */
 
-template<typename Src, typename Dst>
-connection::connection(Src src, i8 port_src_, Dst dst, i8 port_dst_) noexcept
-  : src(ordinal(src))
-  , dst(ordinal(dst))
-  , port_src(port_src_)
-  , port_dst(port_dst_)
-{
-    if constexpr (std::is_same_v<Src, model_id>) {
-        type_src = child_type::model;
-    } else {
-        type_src = child_type::component;
-    }
-
-    if constexpr (std::is_same_v<Dst, model_id>) {
-        type_dst = child_type::model;
-    } else {
-        type_dst = child_type::component;
-    }
-}
-
-inline connection::connection(child src_,
-                              i8    port_src_,
-                              child dst_,
-                              i8    port_dst_) noexcept
-  : src(src_.id)
-  , dst(dst_.id)
-  , type_src(src_.type)
-  , type_dst(dst_.type)
-  , port_src(port_src_)
-  , port_dst(port_dst_)
-{}
-
-inline connection::connection(u64        src_,
-                              u64        dst_,
-                              child_type type_src_,
-                              child_type type_dst_,
-                              i8         port_src_,
-                              i8         port_dst_) noexcept
+inline connection::connection(child_id src_,
+                              i8       index_src_,
+                              child_id dst_,
+                              i8       index_dst_) noexcept
   : src(src_)
   , dst(dst_)
-  , type_src(type_src_)
-  , type_dst(type_dst_)
-  , port_src(port_src_)
-  , port_dst(port_dst_)
+  , index_src(index_src_)
+  , index_dst(index_dst_)
 {}
 
 inline child::child(model_id model) noexcept
@@ -309,51 +265,12 @@ inline child::child(component_ref_id component) noexcept
   , type{ child_type::component }
 {}
 
-inline port::port(model_id model, i8 port_) noexcept
-  : id{ ordinal(model) }
-  , type{ child_type::model }
+inline port::port(child_id child_, i8 port_) noexcept
+  : id{ child_ }
   , index{ port_ }
 {}
 
-inline port::port(component_ref_id component, i8 port_) noexcept
-  : id{ ordinal(component) }
-  , type{ child_type::component }
-  , index{ port_ }
-{}
-
-inline port::port(u64 id_, child_type type_, i8 port_) noexcept
-  : id{ id_ }
-  , type{ type_ }
-  , index{ port_ }
-{}
-
-template<typename Dynamics>
-Dynamics& modeling::alloc(component& parent) noexcept
-{
-    irt_assert(!models.full());
-
-    auto& mdl  = models.alloc();
-    mdl.type   = dynamics_typeof<Dynamics>();
-    mdl.handle = nullptr;
-
-    new (&mdl.dyn) Dynamics{};
-    auto& dyn = get_dyn<Dynamics>(mdl);
-
-    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-        for (int i = 0, e = length(dyn.x); i != e; ++i)
-            dyn.x[i] = static_cast<u64>(-1);
-
-    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-        for (int i = 0, e = length(dyn.y); i != e; ++i)
-            dyn.y[i] = static_cast<u64>(-1);
-
-    parent.children.emplace_back(models.get_id(mdl));
-
-    return dyn;
-}
-
-inline auto modeling::alloc(component& parent, dynamics_type type) noexcept
-  -> model&
+inline child& modeling::alloc(component& parent, dynamics_type type) noexcept
 {
     irt_assert(!models.full());
 
@@ -373,30 +290,11 @@ inline auto modeling::alloc(component& parent, dynamics_type type) noexcept
                 dyn.y[i] = static_cast<u64>(-1);
     });
 
-    parent.children.emplace_back(models.get_id(mdl));
+    auto  mdl_id = models.get_id(mdl);
+    auto& child  = children.alloc(mdl_id);
+    parent.children.emplace_back(children.get_id(child));
 
-    return mdl;
-}
-
-template<typename DynamicsSrc, typename DynamicsDst>
-status modeling::connect(component&   c,
-                         DynamicsSrc& src,
-                         i8           port_src,
-                         DynamicsDst& dst,
-                         i8           port_dst) noexcept
-{
-    model&   src_model    = get_model(src);
-    model&   dst_model    = get_model(dst);
-    model_id model_src_id = models.get_id(src_model);
-    model_id model_dst_id = models.get_id(dst_model);
-
-    irt_return_if_fail(
-      is_ports_compatible(src_model, port_src, dst_model, port_dst),
-      status::model_connect_bad_dynamics);
-
-    c.connections.emplace_back(model_src_id, port_src, model_dst_id, port_dst);
-
-    return status::success;
+    return child;
 }
 
 } // namespace irt

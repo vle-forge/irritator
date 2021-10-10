@@ -656,6 +656,8 @@ public:
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
 
+    constexpr i32 find(const T& t) const noexcept;
+
     constexpr void pop_back() noexcept;
     constexpr void swap_pop_back(index_type index) noexcept;
 
@@ -7041,6 +7043,16 @@ template<typename T>
 constexpr bool vector<T>::can_alloc(int number) const noexcept
 {
     return m_capacity - m_size >= number;
+}
+
+template<typename T>
+constexpr i32 vector<T>::find(const T& t) const noexcept
+{
+    for (i32 i = 0, e = ssize(); i != e; ++i)
+        if (m_data[i] == t)
+            return i;
+
+    return m_size;
 }
 
 template<typename T>

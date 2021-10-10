@@ -10,76 +10,55 @@
 
 namespace irt {
 
-int pack_in(const model_id mdl, const i8 port) noexcept
+int pack_in(const child_id id, const i8 port) noexcept
 {
     irt_assert(port >= 0 && port < 8);
+
     u32 port_index = static_cast<u32>(port);
-
-    u32 index = get_index(mdl);
-    irt_assert(index < 134217728u);
+    u32 index      = get_index(id);
 
     return static_cast<int>((index << 5u) | port_index);
 }
 
-int pack_out(const model_id mdl, const i8 port) noexcept
+int pack_out(const child_id id, const i8 port) noexcept
 {
     irt_assert(port >= 0 && port < 8);
+
     u32 port_index = 8u + static_cast<u32>(port);
-
-    u32 index = get_index(mdl);
-    irt_assert(index < 134217728u);
+    u32 index      = get_index(id);
 
     return static_cast<int>((index << 5u) | port_index);
 }
 
-int pack_in(const component_ref_id cmp, const i8 port) noexcept
-{
-    irt_assert(port >= 0 && port < 8);
-    u32 port_index = 16u + static_cast<u32>(port);
-
-    u32 index = get_index(cmp);
-    irt_assert(index < 134217728u);
-
-    return static_cast<int>((index << 5u) | port_index);
-}
-
-int pack_out(const component_ref_id cmp, const i8 port) noexcept
-{
-    irt_assert(port >= 0 && port < 8);
-    u32 port_index = 16u + 8u + static_cast<u32>(port);
-
-    u32 index = get_index(cmp);
-    irt_assert(index < 134217728u);
-
-    return static_cast<int>((index << 5u) | port_index);
-}
-
-void unpack_in(const int   node_id,
-               u32*        index,
-               i8*         port,
-               child_type* type) noexcept
+void unpack_in(const int node_id, u32* index, i8* port) noexcept
 {
     const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
 
     *port  = static_cast<i8>(real_node_id & 7u);
-    *type  = enum_cast<child_type>((real_node_id & 16) ? 1 : 0);
     *index = static_cast<u32>(real_node_id >> 5u);
 
     irt_assert((real_node_id & 8u) == 0);
 }
 
-void unpack_out(const int   node_id,
-                u32*        index,
-                i8*         port,
-                child_type* type) noexcept
+void unpack_out(const int node_id, u32* index, i8* port) noexcept
 {
     const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
 
     *port  = static_cast<i8>(real_node_id & 7u);
-    *type  = enum_cast<child_type>((real_node_id & 16) ? 1 : 0);
     *index = static_cast<u32>(real_node_id >> 5u);
 
     irt_assert((real_node_id & 8u) != 0);
+}
+
+int pack_node(const child_id id) noexcept
+{
+    return static_cast<int>(get_index(id));
+}
+
+child* unpack_node(const int                          node_id,
+                   const data_array<child, child_id>& data) noexcept
+{
+    return data.try_to_get(static_cast<u32>(node_id));
 }
 
 static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
@@ -92,15 +71,25 @@ static void add_component_to_current(component_editor& ed, component& compo)
     auto* ref = ed.mod.component_refs.try_to_get(ed.selected_component);
     if (!ref) {
         if (auto* head = ed.mod.components.try_to_get(ed.mod.head); head) {
-            auto& new_ref = ed.mod.component_refs.alloc();
-            new_ref.id    = ed.mod.components.get_id(compo);
-            head->children.emplace_back(ed.mod.component_refs.get_id(new_ref));
+            auto& new_ref    = ed.mod.component_refs.alloc();
+            auto  new_ref_id = ed.mod.component_refs.get_id(new_ref);
+            new_ref.id       = ed.mod.components.get_id(compo);
+
+            auto& child    = ed.mod.children.alloc(new_ref_id);
+            auto  child_id = ed.mod.children.get_id(child);
+
+            head->children.emplace_back(child_id);
         }
     } else {
         if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
-            auto& new_ref = ed.mod.component_refs.alloc();
-            new_ref.id    = ed.mod.components.get_id(compo);
-            compo->children.emplace_back(ed.mod.component_refs.get_id(new_ref));
+            auto& new_ref    = ed.mod.component_refs.alloc();
+            auto  new_ref_id = ed.mod.component_refs.get_id(new_ref);
+            new_ref.id       = ed.mod.components.get_id(compo);
+
+            auto& child    = ed.mod.children.alloc(new_ref_id);
+            auto  child_id = ed.mod.children.get_id(child);
+
+            compo->children.emplace_back(child_id);
         }
     }
 }
@@ -226,46 +215,55 @@ static void show_component_hierarchy_model(component_editor& ed,
                                            component&        c,
                                            int               i)
 {
-    auto  id  = enum_cast<model_id>(c.children[i].id);
-    auto* mdl = ed.mod.models.try_to_get(id);
+    if (auto* child = ed.mod.children.try_to_get(c.children[i]); child) {
+        auto  id  = enum_cast<model_id>(child->id);
+        auto* mdl = ed.mod.models.try_to_get(id);
 
-    if (!mdl) {
-        c.children.swap_pop_back(i);
-        return;
+        if (!mdl) {
+            c.children.swap_pop_back(i);
+            return;
+        }
+
+        ImGui::Text("%d (%s)", i, get_dynamics_type_name(mdl->type));
     }
-
-    ImGui::Text("%d (%s)", i, get_dynamics_type_name(mdl->type));
 }
 
 static void show_component_hierarchy_component(component_editor& ed,
                                                component&        c,
                                                int               i)
 {
-    auto  id    = enum_cast<component_ref_id>(c.children[i].id);
-    auto* c_ref = ed.mod.component_refs.try_to_get(id);
+    if (auto* child = ed.mod.children.try_to_get(c.children[i]); child) {
+        auto  id    = enum_cast<component_ref_id>(child->id);
+        auto* c_ref = ed.mod.component_refs.try_to_get(id);
 
-    if (!c_ref) {
-        c.children.swap_pop_back(i);
-        return;
-    }
-
-    auto* compo = ed.mod.components.try_to_get(c_ref->id);
-    if (!compo) {
-        c.children.swap_pop_back(i);
-        return;
-    }
-
-    if (ImGui::TreeNodeEx(compo, 0, "%s", compo->name.c_str())) {
-        for (int j = 0; j != compo->children.ssize(); ++j) {
-            ImGui::PushID(j);
-            if (compo->children[j].type == child_type::model)
-                show_component_hierarchy_model(ed, *compo, j);
-            else
-                show_component_hierarchy_component(ed, *compo, j);
-            ImGui::PopID();
+        if (!c_ref) {
+            c.children.swap_pop_back(i);
+            return;
         }
 
-        ImGui::TreePop();
+        auto* compo = ed.mod.components.try_to_get(c_ref->id);
+        if (!compo) {
+            c.children.swap_pop_back(i);
+            return;
+        }
+
+        if (ImGui::TreeNodeEx(compo, 0, "%s", compo->name.c_str())) {
+            for (int j = 0; j != compo->children.ssize(); ++j) {
+                auto* subchild = ed.mod.children.try_to_get(compo->children[j]);
+                if (!subchild)
+                    continue;
+
+                ImGui::PushID(j);
+
+                if (subchild->type == child_type::model)
+                    show_component_hierarchy_model(ed, *compo, j);
+                else
+                    show_component_hierarchy_component(ed, *compo, j);
+                ImGui::PopID();
+            }
+
+            ImGui::TreePop();
+        }
     }
 }
 
@@ -275,8 +273,12 @@ static void show_component_hierarchy(component_editor& ed)
         if (ImGui::TreeNodeEx(compo->name.c_str(),
                               ImGuiTreeNodeFlags_DefaultOpen)) {
             for (int i = 0; i < compo->children.ssize(); ++i) {
+                auto* child = ed.mod.children.try_to_get(compo->children[i]);
+                if (!child)
+                    continue;
+
                 ImGui::PushID(i);
-                if (compo->children[i].type == child_type::model) {
+                if (child->type == child_type::model) {
                     show_component_hierarchy_model(ed, *compo, i);
                 } else {
                     show_component_hierarchy_component(ed, *compo, i);
@@ -291,7 +293,7 @@ static void show_component_hierarchy(component_editor& ed)
 }
 
 template<typename Dynamics>
-static void add_input_attribute(const Dynamics& dyn, model_id id) noexcept
+static void add_input_attribute(const Dynamics& dyn, child_id id) noexcept
 {
     if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
         const auto** names = get_input_port_names<Dynamics>();
@@ -308,7 +310,7 @@ static void add_input_attribute(const Dynamics& dyn, model_id id) noexcept
 }
 
 template<typename Dynamics>
-static void add_output_attribute(const Dynamics& dyn, model_id id) noexcept
+static void add_output_attribute(const Dynamics& dyn, child_id id) noexcept
 {
     if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
         const auto** names = get_output_port_names<Dynamics>();
@@ -328,63 +330,34 @@ static bool show_connection(component_editor& ed,
                             const component&  parent,
                             int               con_index) noexcept
 {
-    if (parent.connections[con_index].type_src == child_type::model) {
-        auto id = enum_cast<model_id>(parent.connections[con_index].src);
-        if (auto* mdl = ed.mod.models.try_to_get(id); !mdl)
-            return false;
+    auto  con_id = parent.connections[con_index];
+    auto* con    = ed.mod.connections.try_to_get(con_id);
+    if (!con)
+        return false;
 
-        if (parent.connections[con_index].type_dst == child_type::model) {
-            auto d_id = enum_cast<model_id>(parent.connections[con_index].dst);
-            if (auto* mdl = ed.mod.models.try_to_get(d_id); !mdl)
-                return false;
-
-            ImNodes::Link(
-              con_index,
-              pack_out(id, parent.connections[con_index].port_src),
-              pack_in(d_id, parent.connections[con_index].port_dst));
-        } else {
-            auto d_id =
-              enum_cast<component_ref_id>(parent.connections[con_index].dst);
-            if (auto* mdl = ed.mod.component_refs.try_to_get(d_id); !mdl)
-                return false;
-
-            ImNodes::Link(
-              con_index,
-              pack_out(id, parent.connections[con_index].port_src),
-              pack_in(d_id, parent.connections[con_index].port_dst));
-        }
-    } else {
-        auto id =
-          enum_cast<component_ref_id>(parent.connections[con_index].src);
-        if (auto* compo = ed.mod.component_refs.try_to_get(id); !compo)
-            return false;
-
-        if (parent.connections[con_index].type_dst == child_type::model) {
-            auto d_id = enum_cast<model_id>(parent.connections[con_index].dst);
-            if (auto* mdl = ed.mod.models.try_to_get(d_id); !mdl)
-                return false;
-
-            ImNodes::Link(
-              con_index,
-              pack_out(id, parent.connections[con_index].port_src),
-              pack_in(d_id, parent.connections[con_index].port_dst));
-        } else {
-            auto d_id =
-              enum_cast<component_ref_id>(parent.connections[con_index].dst);
-            if (auto* mdl = ed.mod.component_refs.try_to_get(d_id); !mdl)
-                return false;
-
-            ImNodes::Link(
-              con_index,
-              pack_out(id, parent.connections[con_index].port_src),
-              pack_in(d_id, parent.connections[con_index].port_dst));
-        }
+    auto* src = ed.mod.children.try_to_get(con->src);
+    if (!src) {
+        ed.mod.connections.free(*con);
+        return false;
     }
+
+    auto* dst = ed.mod.children.try_to_get(con->dst);
+    if (!dst) {
+        ed.mod.connections.free(*con);
+        return false;
+    }
+
+    ImNodes::Link(con_index,
+                  pack_out(con->src, con->index_src),
+                  pack_in(con->dst, con->index_dst));
 
     return true;
 }
 
-static void show(component_editor& ed, model& mdl, model_id id, int mdl_index)
+static void show(component_editor& ed,
+                 model&            mdl,
+                 child_id          id,
+                 int               mdl_index) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -395,7 +368,7 @@ static void show(component_editor& ed, model& mdl, model_id id, int mdl_index)
     ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
                             ed.settings.gui_selected_model_color);
 
-    ImNodes::BeginNode(mdl_index);
+    ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}", mdl_index, get_dynamics_type_name(mdl.type));
     ImNodes::EndNodeTitleBar();
@@ -416,8 +389,8 @@ static void show(component_editor& ed, model& mdl, model_id id, int mdl_index)
 
 static void show(component_editor& ed,
                  component&        compo,
-                 component_ref_id  id,
-                 int               mdl_index)
+                 child_id          id,
+                 int               mdl_index) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -428,7 +401,7 @@ static void show(component_editor& ed,
     ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
                             ed.settings.gui_selected_component_color);
 
-    ImNodes::BeginNode(mdl_index);
+    ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}", mdl_index, compo.name.c_str());
     ImNodes::EndNodeTitleBar();
@@ -460,16 +433,21 @@ static void show_opened_component_top(component_editor& ed,
                                       component&        head) noexcept
 {
     for (int i = 0; i < head.children.ssize(); ++i) {
-        if (head.children[i].type == child_type::model) {
-            auto id = enum_cast<model_id>(head.children[i].id);
+        const auto child_id = head.children[i];
+        auto*      child    = ed.mod.children.try_to_get(child_id);
+        if (!child)
+            continue;
+
+        if (child->type == child_type::model) {
+            auto id = enum_cast<model_id>(child->id);
             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
-                show(ed, *mdl, id, i);
+                show(ed, *mdl, child_id, i);
             }
         } else {
-            auto id = enum_cast<component_ref_id>(head.children[i].id);
+            auto id = enum_cast<component_ref_id>(child->id);
             if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
                 if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
-                    show(ed, *c, id, i);
+                    show(ed, *c, child_id, i);
                 }
             }
         }
@@ -490,16 +468,21 @@ static void show_opened_component_ref(component_editor& ed,
                                       component& compo) noexcept
 {
     for (int i = 0; i < compo.children.ssize(); ++i) {
-        if (compo.children[i].type == child_type::model) {
-            auto id = enum_cast<model_id>(compo.children[i].id);
+        const auto child_id = compo.children[i];
+        auto*      child    = ed.mod.children.try_to_get(child_id);
+        if (!child)
+            continue;
+
+        if (child->type == child_type::model) {
+            auto id = enum_cast<model_id>(child->id);
             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
-                show(ed, *mdl, id, i);
+                show(ed, *mdl, child_id, i);
             }
         } else {
-            auto id = enum_cast<component_ref_id>(compo.children[i].id);
+            auto id = enum_cast<component_ref_id>(child->id);
             if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
                 if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
-                    show(ed, *c, id, i);
+                    show(ed, *c, child_id, i);
                 }
             }
         }
@@ -525,10 +508,10 @@ static void add_popup_menuitem(component_editor& ed,
     }
 
     if (ImGui::MenuItem(get_dynamics_type_name(type))) {
-        auto& mdl  = ed.mod.alloc(parent, type);
-        *new_model = parent.children.ssize() - 1;
+        auto& child = ed.mod.alloc(parent, type);
+        *new_model  = parent.children.ssize() - 1;
 
-        log_w.log(7, "new model %zu\n", ordinal(ed.mod.models.get_id(mdl)));
+        log_w.log(7, "new model %zu\n", ordinal(ed.mod.children.get_id(child)));
     }
 }
 
@@ -631,34 +614,43 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
 {
     int start = 0, end = 0;
     if (ImNodes::IsLinkCreated(&start, &end)) {
-        u32        index_src, index_dst;
-        i8         port_src, port_dst;
-        child_type type_src, type_dst;
+        u32 index_src, index_dst;
+        i8  port_src_index, port_dst_index;
 
-        unpack_out(start, &index_src, &port_src, &type_src);
-        unpack_in(end, &index_dst, &port_dst, &type_dst);
+        unpack_out(start, &index_src, &port_src_index);
+        unpack_in(end, &index_dst, &port_dst_index);
 
-        u64 src = 0, dst = 0;
+        auto* child_src = ed.mod.children.try_to_get(index_src);
+        auto* child_dst = ed.mod.children.try_to_get(index_dst);
 
-        if (type_src == child_type::model) {
-            if (auto* mdl = ed.mod.models.try_to_get(index_src); mdl)
-                src = ordinal(ed.mod.models.get_id(*mdl));
-        } else {
-            if (auto* c = ed.mod.component_refs.try_to_get(index_src); c)
-                src = ordinal(ed.mod.component_refs.get_id(*c));
+        if (child_src != nullptr && child_dst != nullptr) {
+            auto  child_src_id = ed.mod.children.get_id(*child_src);
+            auto  child_dst_id = ed.mod.children.get_id(*child_dst);
+            auto& con          = ed.mod.connections.alloc(
+              child_src_id, port_src_index, child_dst_id, port_dst_index);
+            auto con_id = ed.mod.connections.get_id(con);
+            parent.connections.emplace_back(con_id);
         }
 
-        if (type_dst == child_type::model) {
-            if (auto* mdl = ed.mod.models.try_to_get(index_dst); mdl)
-                dst = ordinal(ed.mod.models.get_id(*mdl));
-        } else {
-            if (auto* c = ed.mod.component_refs.try_to_get(index_dst); c)
-                dst = ordinal(ed.mod.component_refs.get_id(*c));
-        }
+        // if (type_src == child_type::model) {
+        //     if (auto* mdl = ed.mod.models.try_to_get(index_src); mdl)
+        //         src = ordinal(ed.mod.models.get_id(*mdl));
+        // } else {
+        //     if (auto* c = ed.mod.component_refs.try_to_get(index_src); c)
+        //         src = ordinal(ed.mod.component_refs.get_id(*c));
+        // }
 
-        if (src != 0 && dst != 0)
-            parent.connections.emplace_back(
-              src, dst, type_src, type_dst, port_src, port_dst);
+        // if (type_dst == child_type::model) {
+        //     if (auto* mdl = ed.mod.models.try_to_get(index_dst); mdl)
+        //         dst = ordinal(ed.mod.models.get_id(*mdl));
+        // } else {
+        //     if (auto* c = ed.mod.component_refs.try_to_get(index_dst); c)
+        //         dst = ordinal(ed.mod.component_refs.get_id(*c));
+        // }
+
+        // if (src != 0 && dst != 0)
+        //     parent.connections.emplace_back(
+        //       src, dst, type_src, type_dst, port_src, port_dst);
     }
 }
 
@@ -666,25 +658,11 @@ void remove_nodes(component_editor& ed, component& parent) noexcept
 {
     ImNodes::GetSelectedNodes(ed.selected_nodes.begin());
 
-    for (int i = 0; i < ed.selected_nodes.ssize(); ++i) {
-        irt_assert(ed.selected_nodes[i] < parent.children.ssize());
-
-        if (parent.children[i].type == child_type::model) {
-            auto id = enum_cast<model_id>(parent.children[i].id);
-            if (auto* mdl = ed.mod.models.try_to_get(id); mdl)
-                ed.mod.models.free(*mdl);
-        } else {
-            auto id = enum_cast<component_ref_id>(parent.children[i].id);
-            if (auto* c = ed.mod.component_refs.try_to_get(id); c)
-                ed.mod.component_refs.free(*c);
-        }
+    for (i32 i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
+        if (auto* child = unpack_node(ed.selected_nodes[i], ed.mod.children);
+            child)
+            ed.mod.free(parent, *child);
     }
-
-    //std::sort(
-    //  ed.selected_nodes.begin(), ed.selected_nodes.end(), std::greater<int>());
-
-    //for (int i = 0; i < ed.selected_nodes.ssize(); ++i)
-    //    parent.children.swap_pop_back(ed.selected_nodes[i]);
 
     ed.selected_nodes.clear();
     ImNodes::ClearNodeSelection();
@@ -693,6 +671,8 @@ void remove_nodes(component_editor& ed, component& parent) noexcept
 void remove_links(component_editor& ed, component& parent) noexcept
 {
     ImNodes::GetSelectedLinks(ed.selected_links.begin());
+
+    (void)parent;
 
     ed.selected_links.clear();
     ImNodes::ClearLinkSelection();
@@ -727,10 +707,12 @@ static void show_opened_component(component_editor& ed) noexcept
     ImNodes::EndNodeEditor();
 
     if (new_model != -1) {
-        auto* parent = ref ? compo : head;
+        // auto* parent = ref ? compo : head;
         ImNodes::SetNodeScreenSpacePos(new_model, click_pos);
-        parent->children[new_model].x = click_pos.x;
-        parent->children[new_model].y = click_pos.y;
+
+        auto* child = unpack_node(new_model, ed.mod.children);
+        child->x    = click_pos.x;
+        child->y    = click_pos.y;
     }
 
     is_link_created(ed, ref ? *compo : *head);

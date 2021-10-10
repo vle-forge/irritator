@@ -54,7 +54,8 @@ static inline const char* component_type_names[] = { "qss1_izhikevich",
                                                      "qss3_seir_lineaire",
                                                      "qss3_seir_nonlineaire",
                                                      "qss3_van_der_pol",
-                                                     "file" };
+                                                     "file",
+                                                     "memory" };
 
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
@@ -475,13 +476,13 @@ private:
         float x, y;
     };
 
-    table<int, u64>  map;
-    table<int, int>  component_ref_map;
-    table<int, u64>  constant_mapping;
-    table<int, u64>  binary_file_mapping;
-    table<int, u64>  random_mapping;
-    table<int, u64>  text_file_mapping;
-    vector<position> positions; /* Stores positions of the models. */
+    table<int, model_id> map;           // used by simulation reader
+    table<int, child_id> child_mapping; // used by component reader
+    table<int, u64>      constant_mapping;
+    table<int, u64>      binary_file_mapping;
+    table<int, u64>      random_mapping;
+    table<int, u64>      text_file_mapping;
+    vector<position>     positions; // store position model in simulation reader
 
     int source_number = 0;
     int model_number  = 0;
@@ -494,8 +495,9 @@ public:
       : buf(is_.rdbuf())
       , is(&buf)
     {
-        map.data.reserve(64);
-        component_ref_map.data.reserve(64);
+        // map.data.reserve(64);
+        child_mapping.data.reserve(64);
+        // component_ref_map.data.reserve(64);
         constant_mapping.data.reserve(64);
         binary_file_mapping.data.reserve(64);
         random_mapping.data.reserve(64);
@@ -555,7 +557,7 @@ public:
                       component&       compo,
                       external_source& srcs) noexcept
     {
-        component_ref_map.data.clear();
+        child_mapping.data.clear();
 
         irt_return_if_bad(do_read_data_source(srcs));
 
@@ -565,8 +567,8 @@ public:
             irt_return_if_bad(do_read_model(mod, compo, &id));
         }
 
-        irt_return_if_bad(do_read_ports(compo.children, compo.x));
-        irt_return_if_bad(do_read_ports(compo.children, compo.y));
+        irt_return_if_bad(do_read_ports(mod, compo.y));
+        irt_return_if_bad(do_read_ports(mod, compo.x));
         irt_return_if_bad(do_read_connections(mod, compo));
 
         return status::success;
@@ -897,14 +899,12 @@ private:
         return status::success;
     }
 
-    status do_read_ports(const vector<child>& children,
-                         vector<port>&        ports) noexcept
+    status do_read_ports(modeling& mod, vector<port_id>& ports) noexcept
     {
         int nb = 0;
 
         irt_return_if_fail((is >> nb), status::io_file_format_model_error);
-        irt_return_if_fail(0 <= nb && nb < children.ssize(),
-                           status::io_file_format_model_error);
+        irt_return_if_fail(nb >= 0, status::io_file_format_model_error);
 
         for (int i = 0; i < nb; ++i) {
             int child_index, port_index;
@@ -912,15 +912,18 @@ private:
             irt_return_if_fail((is >> child_index >> port_index),
                                status::io_file_format_model_error);
 
-            irt_return_if_fail(0 <= child_index &&
-                                 child_index < children.ssize(),
-                               status::io_file_format_model_error);
+            auto* c = child_mapping.get(child_index);
+            irt_return_if_fail(c, status::io_file_format_model_error);
             irt_return_if_fail(0 <= port_index && port_index < INT8_MAX,
                                status::io_file_format_model_error);
 
-            ports.emplace_back(children[child_index].id,
-                               children[child_index].type,
-                               static_cast<i8>(port_index));
+            auto* child = mod.children.try_to_get(*c);
+            irt_return_if_fail(child, status::io_file_format_model_error);
+
+            auto& newport   = mod.ports.alloc(*c, static_cast<i8>(port_index));
+            auto  newportid = mod.ports.get_id(newport);
+
+            ports.emplace_back(newportid);
         }
 
         return status::success;
@@ -944,10 +947,10 @@ private:
             irt_return_if_fail(0 <= mdl_dst_id && mdl_dst_id < model_number,
                                status::io_file_format_model_error);
 
-            auto* m_src_id = component_ref_map.get(mdl_src_id);
+            auto* m_src_id = child_mapping.get(mdl_src_id);
             irt_return_if_fail(m_src_id, status::io_file_format_model_unknown);
 
-            auto* m_dst_id = component_ref_map.get(mdl_dst_id);
+            auto* m_dst_id = child_mapping.get(mdl_dst_id);
             irt_return_if_fail(m_dst_id, status::io_file_format_model_unknown);
 
             irt_return_if_fail(0 <= port_src_index && port_src_index < INT8_MAX,
@@ -955,12 +958,11 @@ private:
             irt_return_if_fail(0 <= port_dst_index && port_dst_index < INT8_MAX,
                                status::io_file_format_model_unknown);
 
-            irt_return_if_bad(
-              mod.connect_by_index(compo,
-                                   *m_src_id,
-                                   static_cast<i8>(port_src_index),
-                                   *m_dst_id,
-                                   static_cast<i8>(port_dst_index)));
+            irt_return_if_bad(mod.connect(compo,
+                                          *m_src_id,
+                                          static_cast<i8>(port_src_index),
+                                          *m_dst_id,
+                                          static_cast<i8>(port_dst_index)));
 
             ++connection_error;
         }
@@ -1158,7 +1160,7 @@ private:
           });
 
         irt_return_if_bad(ret);
-        map.set(id, ordinal(sim.models.get_id(mdl)));
+        map.set(id, sim.models.get_id(mdl));
 
         return status::success;
     }
@@ -1176,7 +1178,8 @@ private:
             irt_return_if_fail(convert(dynamics_name, &type),
                                status::io_file_format_dynamics_unknown);
 
-            auto& mdl = mod.alloc(compo, type);
+            auto& child = mod.alloc(compo, type);
+            auto& mdl   = mod.models.get(enum_cast<model_id>(child.id));
 
             auto ret =
               dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -1187,12 +1190,10 @@ private:
                   return status::success;
               });
 
-            compo.children.emplace_back(mod.models.get_id(mdl));
-
             irt_return_if_bad(ret);
         }
 
-        component_ref_map.set(id, compo.children.ssize() - 1);
+        child_mapping.set(id, compo.children.back());
 
         return status::success;
     }
@@ -1567,6 +1568,8 @@ struct writer
     std::ostream&         os;
     std::vector<model_id> map;
 
+    table<child_id, i32> child_mapping;
+
     table<model_id, int>         modeling_model_map;
     table<component_ref_id, int> modeling_component_ref_map;
 
@@ -1752,6 +1755,8 @@ struct writer
         write_text_file_sources(srcs.text_file_sources);
         write_random_sources(srcs.random_sources);
 
+        child_mapping.data.reserve(64);
+
         try {
             map.resize(sim.models.size(), undefined<model_id>());
         } catch (const std::bad_alloc& /*e*/) {
@@ -1775,6 +1780,8 @@ struct writer
         write_text_file_sources(srcs.text_file_sources);
         write_random_sources(srcs.random_sources);
 
+        child_mapping.data.reserve(64);
+
         try {
             map.resize(sim.models.size(), undefined<model_id>());
         } catch (const std::bad_alloc& /*e*/) {
@@ -1797,88 +1804,77 @@ struct writer
         write_text_file_sources(srcs.text_file_sources);
         write_random_sources(srcs.random_sources);
 
+        child_mapping.data.reserve(64);
+
         os << compo.children.size() << '\n';
         do_write_children(mod, compo);
-        do_write_ports(compo.x);
-        do_write_ports(compo.y);
-        do_write_connection(compo.connections);
+        do_write_ports(mod, compo.x);
+        do_write_ports(mod, compo.y);
+        do_write_connection(mod, compo.connections);
 
         return status::success;
     }
 
 private:
-    void do_write_connection(const vector<connection>& connections) noexcept
+    void do_write_connection(const modeling&              mod,
+                             const vector<connection_id>& connections) noexcept
     {
         os << connections.size() << '\n';
 
         for (int i = 0, e = connections.ssize(); i != e; ++i) {
-            if (connections[i].type_src == child_type::component) {
-                auto cpn_id = enum_cast<component_ref_id>(connections[i].src);
-                if (int* child = modeling_component_ref_map.get(cpn_id); child)
-                    os << *child << connections[i].port_src << ' ';
-            } else {
-                auto mdl_id = enum_cast<model_id>(connections[i].src);
-                if (int* child = modeling_model_map.get(mdl_id); child)
-                    os << *child << connections[i].port_src << ' ';
-            }
+            auto* c = mod.connections.try_to_get(connections[i]);
+            irt_assert(c && "cleanup all component vectors before save");
 
-            if (connections[i].type_dst == child_type::component) {
-                auto cpn_id = enum_cast<component_ref_id>(connections[i].dst);
-                if (int* child = modeling_component_ref_map.get(cpn_id); child)
-                    os << *child << connections[i].port_dst << ' ';
-            } else {
-                auto mdl_id = enum_cast<model_id>(connections[i].dst);
-                if (int* child = modeling_model_map.get(mdl_id); child)
-                    os << *child << connections[i].port_dst << ' ';
-            }
+            auto* child_src = mod.children.try_to_get(c->src);
+            irt_assert(child_src &&
+                       "cleanup all component vectors before save");
 
-            os << '\n';
+            auto* child_dst = mod.children.try_to_get(c->dst);
+            irt_assert(child_dst &&
+                       "cleanup all component vectors before save");
+
+            os << get_index(c->src) << ' ' << c->index_src << ' '
+               << get_index(c->dst) << ' ' << c->index_dst << '\n';
         }
     }
 
-    void do_write_ports(const vector<port>& ports) noexcept
+    void do_write_ports(const modeling&        mod,
+                        const vector<port_id>& ports) noexcept
     {
-        os << ports.size() << '\n';
+        os << ports.ssize() << '\n';
 
-        for (int i = 0, e = ports.ssize(); i != e; ++i) {
-            if (ports[i].type == child_type::component) {
-                auto cpn_id = enum_cast<component_ref_id>(ports[i].id);
-                if (int* child = modeling_component_ref_map.get(cpn_id); child)
-                    os << *child << ports[i].index << '\n';
-            } else {
-                auto mdl_id = enum_cast<model_id>(ports[i].id);
-                if (int* child = modeling_model_map.get(mdl_id); child)
-                    os << *child << ports[i].index << '\n';
-            }
+        for (int i = 0; i != ports.ssize(); ++i) {
+            auto* p = mod.ports.try_to_get(ports[i]);
+            irt_assert(p && "cleanup all component vectors before save");
+
+            os << get_index(p->id) << ' ' << p->index << '\n';
         }
     }
 
     void do_write_children(const modeling& mod, const component& compo) noexcept
     {
-        for (int i = 0, e = compo.children.ssize(); i != e; ++i) {
-            if (compo.children[i].type == child_type::component) {
-                auto cpn_id = enum_cast<component_ref_id>(compo.children[i].id);
-                auto* cpn   = mod.component_refs.try_to_get(cpn_id);
-                if (cpn) {
-                    do_write_component_dynamics(
-                      mod, *cpn, i, compo.children[i].x, compo.children[i].y);
+        for (i32 i = 0, e = compo.children.ssize(); i != e; ++i) {
+            auto* c = mod.children.try_to_get(compo.children[i]);
+            irt_assert(c && "cleanup all component vectors before save");
 
-                    modeling_component_ref_map.data.emplace_back(cpn_id, i);
-                }
+            if (c->type == child_type::component) {
+                auto  cpn_id = enum_cast<component_ref_id>(c->id);
+                auto* cpn    = mod.component_refs.try_to_get(cpn_id);
+                irt_assert(cpn && "cleanup all component vectors before save");
+
+                do_write_component_dynamics(mod, *cpn, i, c->x, c->y);
             } else {
-                auto  mdl_id = enum_cast<model_id>(compo.children[i].id);
+                auto  mdl_id = enum_cast<model_id>(c->id);
                 auto* mdl    = mod.models.try_to_get(mdl_id);
-                if (mdl) {
-                    do_write_model_dynamics(
-                      *mdl, i, compo.children[i].x, compo.children[i].y);
+                irt_assert(mdl && "cleanup all component vectors before save");
 
-                    modeling_model_map.data.emplace_back(mdl_id, i);
-                }
+                do_write_model_dynamics(*mdl, i, c->x, c->y);
             }
+
+            child_mapping.set(compo.children[i], i);
         }
 
-        modeling_model_map.sort();
-        modeling_component_ref_map.sort();
+        child_mapping.sort();
     }
 
     void write(const random_source& src) noexcept
