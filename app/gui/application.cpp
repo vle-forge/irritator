@@ -153,7 +153,8 @@ bool application::show()
 
         if (ImGui::BeginMenu("Help")) {
             ImGui::MenuItem("Demo window", nullptr, &show_demo);
-
+            ImGui::Separator();
+            ImGui::MenuItem("Component memory", nullptr, &c_editor.show_memory);
             ImGui::EndMenu();
         }
 

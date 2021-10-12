@@ -373,6 +373,7 @@ struct component_editor
     bool                    is_saved      = true;
     bool                    show_minimap  = true;
     bool                    show_settings = false;
+    bool                    show_memory   = false;
     component_editor_status status        = component_editor_status::modeling;
 
     component*     selected_component_list      = nullptr;
@@ -383,6 +384,7 @@ struct component_editor
 
     void init() noexcept;
     void show(bool* is_show) noexcept;
+    void show_memory_box(bool* is_show) noexcept;
     void shutdown() noexcept;
 };
 

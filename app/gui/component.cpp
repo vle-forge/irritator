@@ -808,6 +808,76 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
     ImGui::End();
 }
 
+void component_editor::show_memory_box(bool* is_open) noexcept
+{
+    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
+    if (!ImGui::Begin("Component memory", is_open)) {
+        ImGui::End();
+        return;
+    }
+
+    ImGui::TextFormat("models: {} / {} / {}",
+                      mod.models.size(),
+                      mod.models.max_used(),
+                      mod.models.capacity());
+    ImGui::TextFormat("component_refs: {} / {} / {}",
+                      mod.component_refs.size(),
+                      mod.component_refs.max_used(),
+                      mod.component_refs.capacity());
+    ImGui::TextFormat("descriptions: {} / {} / {}",
+                      mod.descriptions.size(),
+                      mod.descriptions.max_used(),
+                      mod.descriptions.capacity());
+    ImGui::TextFormat("components: {} / {} / {}",
+                      mod.components.size(),
+                      mod.components.max_used(),
+                      mod.components.capacity());
+    ImGui::TextFormat("observers: {} / {} / {}",
+                      mod.observers.size(),
+                      mod.observers.max_used(),
+                      mod.observers.capacity());
+    ImGui::TextFormat("dir_paths: {} / {} / {}",
+                      mod.dir_paths.size(),
+                      mod.dir_paths.max_used(),
+                      mod.dir_paths.capacity());
+    ImGui::TextFormat("file_paths: {} / {} / {}",
+                      mod.file_paths.size(),
+                      mod.file_paths.max_used(),
+                      mod.file_paths.capacity());
+    ImGui::TextFormat("children: {} / {} / {}",
+                      mod.children.size(),
+                      mod.children.max_used(),
+                      mod.children.capacity());
+    ImGui::TextFormat("connections: {} / {} / {}",
+                      mod.connections.size(),
+                      mod.connections.max_used(),
+                      mod.connections.capacity());
+
+    if (ImGui::CollapsingHeader("Components")) {
+        component* compo = nullptr;
+        while (mod.components.next(compo)) {
+            ImGui::PushID(compo);
+            if (ImGui::TreeNode(compo->name.c_str())) {
+                ImGui::TextFormat("children: {}", compo->children.ssize());
+                ImGui::TextFormat("connections: {}",
+                                  compo->connections.ssize());
+                ImGui::TextFormat("x: {}", compo->x.ssize());
+                ImGui::TextFormat("y: {}", compo->y.ssize());
+
+                ImGui::TextFormat("description: {}", ordinal(compo->desc));
+                ImGui::TextFormat("path: {}", ordinal(compo->path));
+                ImGui::TextFormat("type: {}",
+                                  component_type_names[ordinal(compo->type)]);
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+    }
+
+    ImGui::End();
+}
+
 void component_editor::init() noexcept
 {
     if (!context) {
@@ -872,6 +942,9 @@ void component_editor::show(bool* /*is_show*/) noexcept
         show_all_components(*this);
         ImGui::End();
     }
+
+    if (show_memory)
+        show_memory_box(&show_memory);
 }
 
 } // irt
