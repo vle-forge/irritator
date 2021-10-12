@@ -672,7 +672,22 @@ void remove_links(component_editor& ed, component& parent) noexcept
 {
     ImNodes::GetSelectedLinks(ed.selected_links.begin());
 
-    (void)parent;
+    std::sort(
+      ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
+
+    for (i32 i = 0, e = ed.selected_links.ssize(); i != e; ++i) {
+        if (i < parent.connections.ssize()) {
+            auto* con = ed.mod.connections.try_to_get(parent.connections[i]);
+            if (con)
+                ed.mod.connections.free(*con);
+        }
+    }
+
+    std::sort(
+      ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
+
+    for (i32 i = 0, e = ed.selected_links.ssize(); i != e; ++i)
+        parent.connections.swap_pop_back(ed.selected_links[i]);
 
     ed.selected_links.clear();
     ImNodes::ClearLinkSelection();
