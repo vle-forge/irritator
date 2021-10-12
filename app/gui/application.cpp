@@ -99,17 +99,7 @@ bool application::init()
         }
     }
 
-    if (c_editor.mod.components.can_alloc()) {
-        auto& new_compo = c_editor.mod.components.alloc();
-        new_compo.name.assign("New component");
-        new_compo.type    = component_type::file;
-        c_editor.mod.head = c_editor.mod.components.get_id(new_compo);
-    }
-
-    // if (auto* ed = alloc_editor(); !ed) {
-    //     std::fprintf(stderr, "Fail to initialize editor\n");
-    //     return false;
-    // }
+    c_editor.mod.head = c_editor.add_empty_component();
 
     try {
         simulation_duration.resize(editors.capacity(), 0);

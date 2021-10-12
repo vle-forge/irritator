@@ -382,6 +382,8 @@ struct component_editor
     vector<int> selected_links;
     vector<int> selected_nodes;
 
+    component_id add_empty_component() noexcept;
+
     void init() noexcept;
     void show(bool* is_show) noexcept;
     void show_memory_box(bool* is_show) noexcept;

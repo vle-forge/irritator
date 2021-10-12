@@ -177,8 +177,9 @@ static void show_all_components(component_editor& ed)
         }
 
         if (ImGui::BeginPopupContextWindow("Component Menu")) {
-            if (ImGui::MenuItem("Open")) {
-                printf("open\n");
+            if (ImGui::MenuItem("New component")) {
+                log_w.log(7, "adding a new component");
+                ed.add_empty_component();
             }
 
             if (ImGui::MenuItem("Open as main")) {
@@ -876,6 +877,19 @@ void component_editor::show_memory_box(bool* is_open) noexcept
     }
 
     ImGui::End();
+}
+
+component_id component_editor::add_empty_component() noexcept
+{
+    if (mod.components.can_alloc()) {
+        auto& new_compo = mod.components.alloc();
+        new_compo.name.assign("New component");
+        new_compo.type = component_type::memory;
+
+        return mod.components.get_id(new_compo);
+    }
+
+    return undefined<component_id>();
 }
 
 void component_editor::init() noexcept
