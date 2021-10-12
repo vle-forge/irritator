@@ -139,6 +139,14 @@ enum class component_type
     memory,
 };
 
+enum class component_status
+{
+    empty,
+    read,
+    read_only,
+    modified,
+};
+
 struct component
 {
     vector<child_id>      children;
@@ -148,9 +156,11 @@ struct component
     vector<port_id> y;
 
     description_id   desc = description_id{ 0 };
-    file_path_id     path = file_path_id{ 0 };
+    dir_path_id      dir  = dir_path_id{ 0 };
+    file_path_id     file = file_path_id{ 0 };
     small_string<32> name;
-    component_type   type;
+    component_type   type   = component_type::memory;
+    component_status status = component_status::empty;
 };
 
 struct dir_path
@@ -161,6 +171,7 @@ struct dir_path
     {
         none,
         read_in_progress,
+        read_only,
         usable,
         unusable
     };
@@ -172,16 +183,6 @@ struct file_path
 {
     small_string<256> path;
     dir_path_id       parent{ 0 };
-
-    enum class status_option
-    {
-        none,
-        read_in_progress,
-        readable,
-        unreadable
-    };
-
-    status_option status = status_option::none;
 };
 
 struct modeling_initializer
@@ -224,7 +225,8 @@ struct modeling
     status init(const modeling_initializer& params) noexcept;
 
     status fill_internal_components() noexcept;
-    status fill_components(const char* dir_path) noexcept;
+    status fill_components() noexcept;
+    status fill_components(dir_path& path) noexcept;
 
     void free(component& c) noexcept;
     void free(component& parent, child& c) noexcept;

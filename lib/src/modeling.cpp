@@ -810,6 +810,7 @@ static status modeling_fill_file_component(
 
 static status modeling_fill_file_component(
   modeling&                    mod,
+  dir_path&                    d_path,
   const std::filesystem::path& path) noexcept
 {
     namespace fs = std::filesystem;
@@ -822,13 +823,25 @@ static status modeling_fill_file_component(
                 if (mod.components.can_alloc()) {
                     auto& compo = mod.components.alloc();
                     compo.name.assign(entry.path().filename().string().c_str());
+                    compo.dir  = mod.dir_paths.get_id(d_path);
                     compo.type = component_type::file;
 
                     auto ret =
                       modeling_fill_file_component(mod, compo, entry.path());
 
                     if (is_bad(ret)) {
-                        mod.components.free(compo);
+                        mod.free(compo);
+                    } else {
+                        auto file =
+                          std::filesystem::relative(entry.path(), path, ec);
+
+                        if (ec) {
+                            mod.free(compo);
+                        } else {
+                            auto& file_path = mod.file_paths.alloc();
+                            file_path.path  = file.string().c_str();
+                            compo.file      = mod.file_paths.get_id(file_path);
+                        }
                     }
                 }
             }
@@ -885,107 +898,146 @@ status modeling::fill_internal_components() noexcept
     irt_return_if_fail(components.can_alloc(15), status::success);
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS1 lotka volterra");
+        auto& c  = components.alloc();
+        c.name   = "QSS1 lotka volterra";
+        c.type   = component_type::qss1_lotka_volterra;
+        c.status = component_status::read_only;
         if (auto ret = add_lotka_volterra<1>(*this, c); is_bad(ret))
             return ret;
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS2 lotka volterra");
+        auto& c  = components.alloc();
+        c.name   = "QSS2 lotka volterra";
+        c.type   = component_type::qss2_lotka_volterra;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_lotka_volterra<2>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS3 lotka volterra");
+        auto& c  = components.alloc();
+        c.name   = "QSS3 lotka volterra";
+        c.type   = component_type::qss2_lotka_volterra;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_lotka_volterra<3>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS1 lif");
+        auto& c  = components.alloc();
+        c.name   = "QSS1 lif";
+        c.type   = component_type::qss1_lif;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_lif<1>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS2 lif");
+        auto& c  = components.alloc();
+        c.name   = "QSS2 lif";
+        c.type   = component_type::qss2_lif;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_lif<2>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS3 lif");
+        auto& c  = components.alloc();
+        c.name   = "QSS3 lif";
+        c.type   = component_type::qss3_lif;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_lif<3>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS1 izhikevich");
+        auto& c  = components.alloc();
+        c.name   = "QSS1 izhikevich";
+        c.type   = component_type::qss1_izhikevich;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_izhikevich<1>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS2 izhikevich");
+        auto& c  = components.alloc();
+        c.name   = "QSS2 izhikevich";
+        c.type   = component_type::qss2_izhikevich;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_izhikevich<2>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS3 izhikevich");
+        auto& c  = components.alloc();
+        c.name   = "QSS3 izhikevich";
+        c.type   = component_type::qss3_izhikevich;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_izhikevich<3>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS1 van der pol");
+        auto& c  = components.alloc();
+        c.name   = "QSS1 van der pol";
+        c.type   = component_type::qss1_van_der_pol;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_van_der_pol<1>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS2 van der pol");
+        auto& c  = components.alloc();
+        c.name   = "QSS2 van der pol";
+        c.type   = component_type::qss2_van_der_pol;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_van_der_pol<2>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS3 van der pol");
+        auto& c  = components.alloc();
+        c.name   = "QSS3 van der pol";
+        c.type   = component_type::qss3_van_der_pol;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_van_der_pol<3>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS1 negative lif");
+        auto& c  = components.alloc();
+        c.name   = "QSS1 negative lif";
+        c.type   = component_type::qss1_lif;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_negative_lif<1>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS2 negative lif");
+        auto& c  = components.alloc();
+        c.name   = "QSS2 negative lif";
+        c.type   = component_type::qss2_lif;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_negative_lif<2>(*this, c));
     }
 
     {
-        auto& c = components.alloc();
-        c.name.assign("QSS3 negative lif");
+        auto& c  = components.alloc();
+        c.name   = "QSS3 negative lif";
+        c.type   = component_type::qss3_lif;
+        c.status = component_status::read_only;
         irt_return_if_bad(add_negative_lif<3>(*this, c));
     }
 
     return status::success;
 }
 
-status modeling::fill_components(const char* dir_path) noexcept
+status modeling::fill_components() noexcept
+{
+    dir_path* path = nullptr;
+    while (dir_paths.next(path))
+        fill_components(*path);
+
+    return status::success;
+}
+
+status modeling::fill_components(dir_path& path) noexcept
 {
     try {
-        std::filesystem::path path(dir_path);
+        std::filesystem::path p(path.path.c_str());
         std::error_code       ec;
 
-        if (std::filesystem::exists(path, ec)) {
-            irt_return_if_bad(modeling_fill_file_component(*this, path));
+        if (std::filesystem::exists(p, ec)) {
+            irt_return_if_bad(modeling_fill_file_component(*this, path, p));
         }
     } catch (...) {
     }
@@ -1161,7 +1213,10 @@ void modeling::free(component& c) noexcept
     if (auto* desc = descriptions.try_to_get(c.desc); desc)
         descriptions.free(*desc);
 
-    if (auto* path = file_paths.try_to_get(c.path); path)
+    if (auto* path = dir_paths.try_to_get(c.dir); path)
+        dir_paths.free(*path);
+
+    if (auto* path = file_paths.try_to_get(c.file); path)
         file_paths.free(*path);
 
     components.free(c);

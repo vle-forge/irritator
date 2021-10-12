@@ -222,7 +222,8 @@ static void show_all_components(component_editor& ed)
         if (parent) {
             ImGui::InputText(
               "name", parent->name.begin(), parent->name.capacity());
-            if (parent->type == component_type::memory) {
+            if (parent->type == component_type::memory ||
+                parent->type == component_type::file) {
                 auto* desc = ed.mod.descriptions.try_to_get(parent->desc);
                 if (!desc && ed.mod.descriptions.can_alloc(1)) {
                     if (ImGui::Button("Add description")) {
@@ -244,6 +245,22 @@ static void show_all_components(component_editor& ed)
                         ed.mod.descriptions.free(*desc);
                         parent->desc = undefined<description_id>();
                     }
+                }
+
+                auto* dir = ed.mod.dir_paths.try_to_get(parent->dir);
+                if (dir) {
+                    ImGui::InputText("Dir##text",
+                                     const_cast<char*>(dir->path.c_str()),
+                                     dir->path.capacity(),
+                                     ImGuiInputTextFlags_ReadOnly);
+                }
+
+                auto* file = ed.mod.file_paths.try_to_get(parent->file);
+                if (file) {
+                    ImGui::InputText("File##text",
+                                     const_cast<char*>(file->path.c_str()),
+                                     file->path.capacity(),
+                                     ImGuiInputTextFlags_ReadOnly);
                 }
             }
         }
@@ -906,7 +923,8 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                 ImGui::TextFormat("y: {}", compo->y.ssize());
 
                 ImGui::TextFormat("description: {}", ordinal(compo->desc));
-                ImGui::TextFormat("path: {}", ordinal(compo->path));
+                ImGui::TextFormat("dir: {}", ordinal(compo->dir));
+                ImGui::TextFormat("file: {}", ordinal(compo->file));
                 ImGui::TextFormat("type: {}",
                                   component_type_names[ordinal(compo->type)]);
                 ImGui::TreePop();

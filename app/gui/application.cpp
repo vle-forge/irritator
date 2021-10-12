@@ -10,37 +10,6 @@ namespace irt {
 
 bool application::init()
 {
-    try {
-        if (auto home = get_home_directory(); home) {
-            home_dir = home.value();
-            home_dir /= "irritator";
-        } else {
-            log_w.log(3,
-                      "Fail to retrieve home directory. Use current directory "
-                      "instead\n");
-            home_dir = std::filesystem::current_path();
-        }
-
-        if (auto install = get_executable_directory(); install) {
-            executable_dir = install.value();
-        } else {
-            log_w.log(
-              3,
-              "Fail to retrieve executable directory. Use current directory "
-              "instead\n");
-            executable_dir = std::filesystem::current_path();
-        }
-
-        log_w.log(
-          5,
-          "home: %s\ninstall: %s\n",
-          reinterpret_cast<const char*>(home_dir.u8string().c_str()),
-          reinterpret_cast<const char*>(executable_dir.u8string().c_str()));
-    } catch (const std::exception& /*e*/) {
-        log_w.log(2, "Fail to initialize application\n");
-        return false;
-    }
-
     c_editor.init();
 
     if (auto ret = editors.init(50u); is_bad(ret)) {
@@ -78,27 +47,18 @@ bool application::init()
     }
 
     if (auto path = get_system_component_dir(); path) {
-        if (auto ret =
-              c_editor.mod.fill_components(path.value().string().c_str());
-            is_bad(ret)) {
-            log_w.log(2,
-                      "Fail to fill system component list: %s from %s\n",
-                      status_string(ret),
-                      path.value().string().c_str());
-        }
+        auto& new_dir = c_editor.mod.dir_paths.alloc();
+        new_dir.path  = path.value().string().c_str();
+        log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
     }
 
     if (auto path = get_default_user_component_dir(); path) {
-        if (auto ret =
-              c_editor.mod.fill_components(path.value().string().c_str());
-            is_bad(ret)) {
-            log_w.log(2,
-                      "Fail to fill user component list: %s from %s\n",
-                      status_string(ret),
-                      path.value().string().c_str());
-        }
+        auto& new_dir = c_editor.mod.dir_paths.alloc();
+        new_dir.path  = path.value().string().c_str();
+        log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
     }
 
+    c_editor.mod.fill_components();
     c_editor.mod.head = c_editor.add_empty_component();
 
     try {

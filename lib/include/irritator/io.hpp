@@ -1721,7 +1721,7 @@ struct writer
             os << id << ' ' << x << ' ' << y << " component ";
 
             if (compo->type == component_type::file) {
-                os << mod.file_paths.get(compo->path).path.c_str() << '\n';
+                os << mod.file_paths.get(compo->file).path.c_str() << '\n';
             } else {
                 os << component_type_names[ordinal(compo->type)] << '\n';
             }
