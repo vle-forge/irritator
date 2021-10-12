@@ -210,6 +210,44 @@ static void show_all_components(component_editor& ed)
             ImGui::EndPopup();
         }
     }
+
+    if (ImGui::CollapsingHeader("Attributes", flags)) {
+        auto* head = ed.mod.components.try_to_get(ed.mod.head);
+        auto* ref  = ed.mod.component_refs.try_to_get(ed.selected_component);
+        component* compo = nullptr;
+        if (ref)
+            compo = ed.mod.components.try_to_get(ref->id);
+        auto* parent = ref ? compo : head;
+
+        if (parent) {
+            ImGui::InputText(
+              "name", parent->name.begin(), parent->name.capacity());
+            if (parent->type == component_type::memory) {
+                auto* desc = ed.mod.descriptions.try_to_get(parent->desc);
+                if (!desc && ed.mod.descriptions.can_alloc(1)) {
+                    if (ImGui::Button("Add description")) {
+                        auto& new_desc = ed.mod.descriptions.alloc();
+                        parent->desc   = ed.mod.descriptions.get_id(new_desc);
+                    }
+                } else {
+                    constexpr ImGuiInputTextFlags flags =
+                      ImGuiInputTextFlags_AllowTabInput;
+
+                    ImGui::InputTextMultiline(
+                      "##source",
+                      desc->data.begin(),
+                      desc->data.capacity(),
+                      ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
+                      flags);
+
+                    if (ImGui::Button("Remove")) {
+                        ed.mod.descriptions.free(*desc);
+                        parent->desc = undefined<description_id>();
+                    }
+                }
+            }
+        }
+    }
 }
 
 static void show_component_hierarchy_model(component_editor& ed,
@@ -697,7 +735,8 @@ void remove_links(component_editor& ed, component& parent) noexcept
 static void show_opened_component(component_editor& ed) noexcept
 {
     auto* head = ed.mod.components.try_to_get(ed.mod.head);
-    irt_assert(head);
+    if (!head)
+        return;
 
     ImVec2 click_pos;
     int    new_model = -1;
