@@ -136,6 +136,9 @@ std::optional<std::filesystem::path> get_system_component_dir()
         std::error_code ec;
         if (std::filesystem::exists(install_path, ec))
             return install_path;
+
+        if (std::filesystem::create_directories(install_path, ec))
+            return install_path;
     }
 
     return std::nullopt;
@@ -149,6 +152,9 @@ std::optional<std::filesystem::path> get_system_component_dir()
 
         std::error_code ec;
         if (std::filesystem::exists(install_path, ec))
+            return install_path;
+
+        if (std::filesystem::create_directories(install_path, ec))
             return install_path;
     }
 
@@ -168,6 +174,9 @@ std::optional<std::filesystem::path> get_default_user_component_dir()
         std::error_code ec;
         if (std::filesystem::exists(compo_path, ec))
             return compo_path;
+
+        if (std::filesystem::create_directories(compo_path, ec))
+            return compo_path;
     }
 
     return std::nullopt;
@@ -183,6 +192,9 @@ std::optional<std::filesystem::path> get_default_user_component_dir()
 
         std::error_code ec;
         if (std::filesystem::exists(compo_path, ec))
+            return compo_path;
+
+        if (std::filesystem::create_directories(compo_path, ec))
             return compo_path;
     }
 

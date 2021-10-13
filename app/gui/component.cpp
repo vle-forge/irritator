@@ -224,6 +224,35 @@ static void show_all_components(component_editor& ed)
               "name", parent->name.begin(), parent->name.capacity());
             if (parent->type == component_type::memory ||
                 parent->type == component_type::file) {
+                static constexpr const char* empty = "";
+
+                auto*       dir     = ed.mod.dir_paths.try_to_get(parent->dir);
+                const char* preview = dir ? dir->path.c_str() : empty;
+                if (ImGui::BeginCombo(
+                      "Select directory", preview, ImGuiComboFlags_None)) {
+                    dir_path* list = nullptr;
+                    while (ed.mod.dir_paths.next(list)) {
+                        if (ImGui::Selectable(list->path.c_str(),
+                                              preview == list->path.c_str(),
+                                              ImGuiSelectableFlags_None)) {
+                            parent->dir = ed.mod.dir_paths.get_id(list);
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+
+                auto* file = ed.mod.file_paths.try_to_get(parent->file);
+                if (file) {
+                    ImGui::InputText(
+                      "File##text", file->path.begin(), file->path.capacity());
+                } else {
+                    ImGui::Text("File not saved.");
+                    if (ImGui::Button("Add file")) {
+                        auto& f      = ed.mod.file_paths.alloc();
+                        parent->file = ed.mod.file_paths.get_id(f);
+                    }
+                }
+
                 auto* desc = ed.mod.descriptions.try_to_get(parent->desc);
                 if (!desc && ed.mod.descriptions.can_alloc(1)) {
                     if (ImGui::Button("Add description")) {
@@ -247,20 +276,9 @@ static void show_all_components(component_editor& ed)
                     }
                 }
 
-                auto* dir = ed.mod.dir_paths.try_to_get(parent->dir);
-                if (dir) {
-                    ImGui::InputText("Dir##text",
-                                     const_cast<char*>(dir->path.c_str()),
-                                     dir->path.capacity(),
-                                     ImGuiInputTextFlags_ReadOnly);
-                }
-
-                auto* file = ed.mod.file_paths.try_to_get(parent->file);
                 if (file) {
-                    ImGui::InputText("File##text",
-                                     const_cast<char*>(file->path.c_str()),
-                                     file->path.capacity(),
-                                     ImGuiInputTextFlags_ReadOnly);
+                    if (ImGui::Button("Save")) {
+                    }
                 }
             }
         }
