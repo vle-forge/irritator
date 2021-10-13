@@ -1720,6 +1720,8 @@ struct writer
         if (compo) {
             os << id << ' ' << x << ' ' << y << " component ";
 
+            irt_assert(compo->type != component_type::memory);
+
             if (compo->type == component_type::file) {
                 os << mod.file_paths.get(compo->file).path.c_str() << '\n';
             } else {
@@ -1804,9 +1806,6 @@ struct writer
         write_text_file_sources(srcs.text_file_sources);
         write_random_sources(srcs.random_sources);
 
-        child_mapping.data.reserve(64);
-
-        os << compo.children.size() << '\n';
         do_write_children(mod, compo);
         do_write_ports(mod, compo.x);
         do_write_ports(mod, compo.y);
@@ -1822,19 +1821,18 @@ private:
         os << connections.size() << '\n';
 
         for (int i = 0, e = connections.ssize(); i != e; ++i) {
-            auto* c = mod.connections.try_to_get(connections[i]);
-            irt_assert(c && "cleanup all component vectors before save");
+            auto& c         = mod.connections.get(connections[i]);
+            auto& child_src = mod.children.get(c.src);
+            auto& child_dst = mod.children.get(c.dst);
 
-            auto* child_src = mod.children.try_to_get(c->src);
-            irt_assert(child_src &&
-                       "cleanup all component vectors before save");
+            auto* src_index = child_mapping.get(c.src);
+            irt_assert(src_index && "child_mapping error");
 
-            auto* child_dst = mod.children.try_to_get(c->dst);
-            irt_assert(child_dst &&
-                       "cleanup all component vectors before save");
+            auto* dst_index = child_mapping.get(c.dst);
+            irt_assert(dst_index && "child_mapping error");
 
-            os << get_index(c->src) << ' ' << c->index_src << ' '
-               << get_index(c->dst) << ' ' << c->index_dst << '\n';
+            os << *src_index << ' ' << static_cast<int>(c.index_src) << ' '
+               << *dst_index << ' ' << static_cast<int>(c.index_dst) << '\n';
         }
     }
 
@@ -1853,6 +1851,7 @@ private:
 
     void do_write_children(const modeling& mod, const component& compo) noexcept
     {
+        os << compo.children.size() << '\n';
         for (i32 i = 0, e = compo.children.ssize(); i != e; ++i) {
             auto* c = mod.children.try_to_get(compo.children[i]);
             irt_assert(c && "cleanup all component vectors before save");
@@ -1871,7 +1870,7 @@ private:
                 do_write_model_dynamics(*mdl, i, c->x, c->y);
             }
 
-            child_mapping.set(compo.children[i], i);
+            child_mapping.data.emplace_back(compo.children[i], i);
         }
 
         child_mapping.sort();

@@ -276,8 +276,14 @@ static void show_all_components(component_editor& ed)
                     }
                 }
 
-                if (file) {
+                if (file && dir) {
                     if (ImGui::Button("Save")) {
+                        if (auto ret = ed.mod.save(*parent); is_bad(ret)) {
+                            log_w.log(2,
+                                      "Fail to save file %s in directory %s\n",
+                                      file->path.c_str(),
+                                      dir->path.c_str());
+                        }
                     }
                 }
             }

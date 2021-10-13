@@ -241,6 +241,9 @@ struct modeling
                    i8         port_src,
                    child_id   dst,
                    i8         port_dst) noexcept;
+
+    status clean(component& c) noexcept; // clean empty vectors
+    status save(component& c) noexcept;  // will call clean(component&) first.
 };
 
 /*

@@ -1276,4 +1276,137 @@ status modeling::copy(component& src, component& dst) noexcept
     return status::success;
 }
 
+status modeling::clean(component& c) noexcept
+{
+    int  i              = 0;
+    bool need_more_loop = false;
+
+    do {
+        need_more_loop = false;
+
+        while (i < c.children.ssize()) {
+            auto  child_id = c.children[i];
+            auto* child    = children.try_to_get(child_id);
+
+            if (!child) {
+                c.children.swap_pop_back(i);
+                continue;
+            }
+
+            if (child->type == child_type::model) {
+                auto id = enum_cast<model_id>(child->id);
+                if (auto* model = models.try_to_get(id); !model) {
+                    children.free(*child);
+                    c.children.swap_pop_back(i);
+                    need_more_loop = true;
+                    continue;
+                }
+            } else {
+                auto id = enum_cast<component_ref_id>(child->id);
+                if (auto* compo = component_refs.try_to_get(id); !compo) {
+                    children.free(*child);
+                    c.children.swap_pop_back(i);
+                    need_more_loop = true;
+                    continue;
+                }
+            }
+
+            ++i;
+        }
+
+        while (i < c.connections.ssize()) {
+            auto  con_id = c.connections[i];
+            auto* con    = connections.try_to_get(con_id);
+
+            if (!con) {
+                c.connections.swap_pop_back(i);
+                continue;
+            }
+
+            auto* src = children.try_to_get(con->src);
+            auto* dst = children.try_to_get(con->dst);
+            if (!src || !dst) {
+                connections.free(*con);
+                c.connections.swap_pop_back(i);
+                need_more_loop = true;
+                continue;
+            }
+
+            if (src->type == child_type::model) {
+                auto id = enum_cast<model_id>(src->id);
+                if (auto* model = models.try_to_get(id); !model) {
+                    children.free(*src);
+                    connections.free(*con);
+                    c.connections.swap_pop_back(i);
+                    need_more_loop = true;
+                    continue;
+                }
+            } else {
+                auto id = enum_cast<component_ref_id>(src->id);
+                if (auto* compo = component_refs.try_to_get(id); !compo) {
+                    children.free(*src);
+                    connections.free(*con);
+                    c.connections.swap_pop_back(i);
+                    need_more_loop = true;
+                    continue;
+                }
+            }
+
+            if (dst->type == child_type::model) {
+                auto id = enum_cast<model_id>(dst->id);
+                if (auto* model = models.try_to_get(id); !model) {
+                    children.free(*dst);
+                    connections.free(*con);
+                    c.connections.swap_pop_back(i);
+                    need_more_loop = true;
+                    continue;
+                }
+            } else {
+                auto id = enum_cast<component_ref_id>(dst->id);
+                if (auto* compo = component_refs.try_to_get(id); !compo) {
+                    children.free(*dst);
+                    connections.free(*con);
+                    c.connections.swap_pop_back(i);
+                    need_more_loop = true;
+                    continue;
+                }
+            }
+        }
+    } while (need_more_loop);
+
+    return status::success;
+}
+
+status modeling::save(component& c) noexcept
+{
+    auto* dir  = dir_paths.try_to_get(c.dir);
+    auto* file = file_paths.try_to_get(c.file);
+
+    // @todo Use a better status
+    irt_return_if_fail(dir && file, status::gui_not_enough_memory);
+
+    {
+        std::filesystem::path p{ dir->path.c_str() };
+        p /= file->path.c_str();
+        p.replace_extension(".irt");
+
+        std::ofstream ofs{ p };
+        // @todo Use a better status
+        irt_return_if_fail(ofs.is_open(), status::gui_not_enough_memory);
+
+        writer w{ ofs };
+        irt_return_if_bad(w(*this, c, srcs));
+    }
+
+    if (auto* desc = descriptions.try_to_get(c.desc); desc) {
+        std::filesystem::path p{ dir->path.c_str() };
+        p /= file->path.c_str();
+        p.replace_extension(".desc");
+        std::ofstream ofs{ p };
+        ofs.write(desc->data.c_str(), desc->data.size());
+    }
+
+    return status::success;
+}
+
 } // namespace irt
