@@ -6,8 +6,6 @@
 #include "editor.hpp"
 #include "internal.hpp"
 
-#include <fmt/format.h>
-
 namespace irt {
 
 int pack_in(const child_id id, const i8 port) noexcept

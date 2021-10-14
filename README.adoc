@@ -100,7 +100,6 @@ Simple simulation file `.irt`:
 1 12.0 5.0 generator 2 0.0 100.0 0   # Model 1, in position x = 12.0 y = 5.0, is a generator with one double real message
 2 -5.0 0.0 adder_2 2 1.0 1.0 0       # Model 2, in position x = -5.0 y = 0.0, is a adder_2 with one double real message
 3 0.0 1.0 counter 1 0.0 0            # Model 3, in position x = 12.0 y = 1.0, is a counter with one real message
-3                                    # 3 internal connections
 0 0 2 0                              # Model 'A' output port '0' connected to model 'Add' input port '0'
 1 0 2 1                              # Model 'A' output port '0' connected to model 'Add' input port '0'
 2 0 3 0                              # Model 'Add' output port '0' connected to model 'C' input port '0'
@@ -131,7 +130,6 @@ Component file `.irt`:
 2                                    # `-> second children
 1                                    # configurable models number
 2                                    # `-> second children
-3                                    # 3 connections
 0 0 2 0                              #
 1 0 2 1                              #
 2 0 3 0                              #

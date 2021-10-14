@@ -563,9 +563,10 @@ public:
 
         irt_return_if_bad(do_read_model_number());
         for (int i = 0; i != model_number; ++i, ++model_error) {
-            int id;
-            irt_return_if_bad(do_read_model(mod, compo, &id));
+            irt_return_if_bad(do_read_model(mod, compo));
         }
+
+        child_mapping.sort();
 
         irt_return_if_bad(do_read_ports(mod, compo.y));
         irt_return_if_bad(do_read_ports(mod, compo.x));
@@ -891,15 +892,17 @@ private:
         return status::success;
     }
 
-    status do_read_model(modeling& mod, component& compo, int* id) noexcept
+    status do_read_model(modeling& mod, component& compo) noexcept
     {
-        irt_return_if_bad(do_read_model_pre(id));
-        irt_return_if_bad(do_read_dynamics(mod, compo, *id, temp_1));
+        int id = 0;
+        irt_return_if_bad(do_read_model_pre(&id));
+        irt_return_if_bad(do_read_dynamics(mod, compo, id, temp_1));
 
         return status::success;
     }
 
-    status do_read_ports(modeling& mod, small_vector<port_id, 8>& ports) noexcept
+    status do_read_ports(modeling&                 mod,
+                         small_vector<port_id, 8>& ports) noexcept
     {
         int nb = 0;
 
@@ -1104,7 +1107,7 @@ private:
         return false;
     }
 
-    status do_read_component(modeling& mod, component& compo)
+    status do_read_component(modeling& mod, component& compo, int i)
     {
         char temp[64];
 
@@ -1173,13 +1176,19 @@ private:
         dynamics_type type;
 
         if (std::strcmp(dynamics_name, "component") == 0) {
-            irt_return_if_bad(do_read_component(mod, compo));
+            irt_return_if_bad(do_read_component(mod, compo, id));
         } else {
             irt_return_if_fail(convert(dynamics_name, &type),
                                status::io_file_format_dynamics_unknown);
 
             auto& child = mod.alloc(compo, type);
-            auto& mdl   = mod.models.get(enum_cast<model_id>(child.id));
+            child.x     = positions[id].x;
+            child.y     = positions[id].y;
+
+            irt_assert(mod.models.try_to_get(enum_cast<model_id>(child.id)) !=
+                       nullptr);
+
+            auto& mdl = mod.models.get(enum_cast<model_id>(child.id));
 
             auto ret =
               dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -1818,8 +1827,6 @@ private:
     void do_write_connection(const modeling&              mod,
                              const vector<connection_id>& connections) noexcept
     {
-        os << connections.size() << '\n';
-
         for (int i = 0, e = connections.ssize(); i != e; ++i) {
             auto& c         = mod.connections.get(connections[i]);
             auto& child_src = mod.children.get(c.src);
@@ -1836,7 +1843,7 @@ private:
         }
     }
 
-    void do_write_ports(const modeling&        mod,
+    void do_write_ports(const modeling&                 mod,
                         const small_vector<port_id, 8>& ports) noexcept
     {
         os << ports.ssize() << '\n';
