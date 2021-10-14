@@ -1246,28 +1246,63 @@ void modeling::free(component& parent, connection& c) noexcept
 
 status modeling::copy(component& src, component& dst) noexcept
 {
+    table<child_id, child_id> mapping;
+
     for (i32 i = 0, e = src.children.ssize(); i != e; ++i) {
         if (auto* child = children.try_to_get(src.children[i])) {
             if (child->type == child_type::model) {
                 auto id = enum_cast<model_id>(child->id);
                 if (auto* mdl = models.try_to_get(id); mdl) {
-                    auto& new_child = alloc(dst, mdl->type);
-                    new_child.x     = child->x;
-                    new_child.y     = child->y;
+                    irt_return_if_fail(models.can_alloc(1),
+                                       status::data_array_not_enough_memory);
+
+                    auto& new_child    = alloc(dst, mdl->type);
+                    auto  new_child_id = children.get_id(new_child);
+                    new_child.x        = child->x;
+                    new_child.y        = child->y;
+
+                    mapping.data.emplace_back(src.children[i], new_child_id);
                 }
             } else {
                 auto id = enum_cast<component_ref_id>(child->id);
                 if (auto* c_ref = component_refs.try_to_get(id); c_ref) {
                     auto compo_id = enum_cast<component_id>(c_ref->id);
                     if (auto* compo = components.try_to_get(compo_id); compo) {
+                        irt_return_if_fail(
+                          component_refs.can_alloc(1),
+                          status::data_array_not_enough_memory);
+
                         auto& new_c_ref = component_refs.alloc();
                         new_c_ref.id    = c_ref->id;
                         new_c_ref.name  = c_ref->name;
 
-                        auto& child =
+                        auto& new_child =
                           children.alloc(component_refs.get_id(new_c_ref));
-                        dst.children.emplace_back(children.get_id(child));
+                        auto new_child_id = children.get_id(new_child);
+                        dst.children.emplace_back(children.get_id(new_child));
+
+                        mapping.data.emplace_back(src.children[i],
+                                                  new_child_id);
                     }
+                }
+            }
+        }
+    }
+
+    mapping.sort();
+
+    for (i32 i = 0, e = src.connections.ssize(); i != e; ++i) {
+        if (auto* con = connections.try_to_get(src.connections[i]); con) {
+            if (auto* child_src = mapping.get(con->src); child_src) {
+                if (auto* child_dst = mapping.get(con->dst); child_dst) {
+                    irt_return_if_fail(connections.can_alloc(1),
+                                       status::data_array_not_enough_memory);
+
+                    auto& new_con = connections.alloc(
+                      *child_src, con->index_src, *child_dst, con->index_dst);
+                    auto new_con_id = connections.get_id(new_con);
+
+                    dst.connections.emplace_back(new_con_id);
                 }
             }
         }
