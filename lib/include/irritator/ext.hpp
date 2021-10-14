@@ -317,39 +317,52 @@ small_vector<T, length>::begin() noexcept
 {
     return data();
 }
+
 template<typename T, sz length>
 constexpr typename small_vector<T, length>::const_iterator
 small_vector<T, length>::begin() const noexcept
 {
     return data();
 }
+
 template<typename T, sz length>
 constexpr typename small_vector<T, length>::iterator
 small_vector<T, length>::end() noexcept
 {
     return data() + m_size;
 }
+
 template<typename T, sz length>
 constexpr typename small_vector<T, length>::const_iterator
 small_vector<T, length>::end() const noexcept
 {
     return data() + m_size;
 }
+
 template<typename T, sz length>
 constexpr sz small_vector<T, length>::size() const noexcept
 {
     return m_size;
 }
+
+template<typename T, sz length>
+constexpr i32 small_vector<T, length>::ssize() const noexcept
+{
+    return static_cast<i32>(m_size);
+}
+
 template<typename T, sz length>
 constexpr sz small_vector<T, length>::capacity() const noexcept
 {
     return length;
 }
+
 template<typename T, sz length>
 constexpr bool small_vector<T, length>::empty() const noexcept
 {
     return m_size == 0;
 }
+
 template<typename T, sz length>
 constexpr bool small_vector<T, length>::full() const noexcept
 {

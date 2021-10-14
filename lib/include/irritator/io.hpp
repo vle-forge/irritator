@@ -899,7 +899,7 @@ private:
         return status::success;
     }
 
-    status do_read_ports(modeling& mod, vector<port_id>& ports) noexcept
+    status do_read_ports(modeling& mod, small_vector<port_id, 8>& ports) noexcept
     {
         int nb = 0;
 
@@ -1837,7 +1837,7 @@ private:
     }
 
     void do_write_ports(const modeling&        mod,
-                        const vector<port_id>& ports) noexcept
+                        const small_vector<port_id, 8>& ports) noexcept
     {
         os << ports.ssize() << '\n';
 

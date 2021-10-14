@@ -152,8 +152,8 @@ struct component
     vector<child_id>      children;
     vector<connection_id> connections;
 
-    vector<port_id> x;
-    vector<port_id> y;
+    small_vector<port_id, 8> x;
+    small_vector<port_id, 8> y;
 
     description_id   desc = description_id{ 0 };
     dir_path_id      dir  = dir_path_id{ 0 };
