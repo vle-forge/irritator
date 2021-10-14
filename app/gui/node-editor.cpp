@@ -2639,7 +2639,7 @@ editor::show_editor() noexcept
 
             if (ImGui::BeginMenu("QSS1")) {
                 auto i = static_cast<int>(dynamics_type::qss1_integrator);
-                const auto e = static_cast<int>(dynamics_type::qss1_wsum_4);
+                const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
                 for (; i != e; ++i)
                     add_popup_menuitem(
                       *this, static_cast<dynamics_type>(i), &new_model);
@@ -2648,7 +2648,7 @@ editor::show_editor() noexcept
 
             if (ImGui::BeginMenu("QSS2")) {
                 auto i = static_cast<int>(dynamics_type::qss2_integrator);
-                const auto e = static_cast<int>(dynamics_type::qss2_wsum_4);
+                const auto e = static_cast<int>(dynamics_type::qss2_wsum_4) + 1;
 
                 for (; i != e; ++i)
                     add_popup_menuitem(
@@ -2658,7 +2658,7 @@ editor::show_editor() noexcept
 
             if (ImGui::BeginMenu("QSS3")) {
                 auto i = static_cast<int>(dynamics_type::qss3_integrator);
-                const auto e = static_cast<int>(dynamics_type::qss3_wsum_4);
+                const auto e = static_cast<int>(dynamics_type::qss3_wsum_4) + 1;
 
                 for (; i != e; ++i)
                     add_popup_menuitem(
