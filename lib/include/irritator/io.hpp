@@ -1834,13 +1834,10 @@ private:
     {
         for (int i = 0, e = connections.ssize(); i != e; ++i) {
             auto& c         = mod.connections.get(connections[i]);
-            auto& child_src = mod.children.get(c.src);
-            auto& child_dst = mod.children.get(c.dst);
-
             auto* src_index = child_mapping.get(c.src);
-            irt_assert(src_index && "child_mapping error");
-
             auto* dst_index = child_mapping.get(c.dst);
+
+            irt_assert(src_index && "child_mapping error");
             irt_assert(dst_index && "child_mapping error");
 
             os << *src_index << ' ' << static_cast<int>(c.index_src) << ' '
