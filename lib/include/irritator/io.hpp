@@ -1140,6 +1140,11 @@ private:
             return status::io_file_format_error;
         }
 
+        auto  child_id = compo.children.back();
+        auto& child    = mod.children.get(child_id);
+        child.x        = positions[i].x;
+        child.y        = positions[i].y;
+
         return status::success;
     }
 
