@@ -370,7 +370,20 @@ static void show_component_hierarchy_component(component_editor& ed,
             return;
         }
 
-        if (ImGui::TreeNodeEx(compo, 0, "%s", compo->name.c_str())) {
+        if (ImGui::TreeNodeEx(compo,
+                              ImGuiTreeNodeFlags_DefaultOpen |
+                                ImGuiTreeNodeFlags_OpenOnDoubleClick,
+                              "%s",
+                              compo->name.c_str())) {
+            if (ImGui::IsItemHovered() &&
+                ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                ed.selected_component = id;
+                ImNodes::ClearLinkSelection();
+                ImNodes::ClearNodeSelection();
+                ed.selected_links.clear();
+                ed.selected_nodes.clear();
+            }
+
             for (int j = 0; j != compo->children.ssize(); ++j) {
                 auto* subchild = ed.mod.children.try_to_get(compo->children[j]);
                 if (!subchild)
@@ -394,7 +407,18 @@ static void show_component_hierarchy(component_editor& ed)
 {
     if (auto* compo = ed.mod.components.try_to_get(ed.mod.head); compo) {
         if (ImGui::TreeNodeEx(compo->name.c_str(),
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
+                              ImGuiTreeNodeFlags_DefaultOpen |
+                                ImGuiTreeNodeFlags_OpenOnDoubleClick)) {
+
+            if (ImGui::IsItemHovered() &&
+                ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                ed.selected_component = undefined<component_ref_id>();
+                ImNodes::ClearLinkSelection();
+                ImNodes::ClearNodeSelection();
+                ed.selected_links.clear();
+                ed.selected_nodes.clear();
+            }
+
             for (int i = 0; i < compo->children.ssize(); ++i) {
                 auto* child = ed.mod.children.try_to_get(compo->children[i]);
                 if (!child)
