@@ -186,6 +186,7 @@ static void show_all_components(component_editor& ed)
 
                 ed.mod.head =
                   ed.mod.components.get_id(*ed.selected_component_list);
+                ed.force_node_position = true;
             }
 
             if (ImGui::MenuItem("Copy")) {
@@ -520,16 +521,37 @@ static void show_opened_component_top(component_editor& ed,
             auto id = enum_cast<model_id>(child->id);
             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
                 show(ed, *mdl, child_id, i);
+                if (ed.force_node_position) {
+                    ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
+                                                   ImVec2(child->x, child->y));
+                } else {
+                    auto pos =
+                      ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+                    child->x = pos.x;
+                    child->y = pos.y;
+                }
             }
         } else {
             auto id = enum_cast<component_ref_id>(child->id);
             if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
                 if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
                     show(ed, *c, child_id, i);
+
+                    if (ed.force_node_position) {
+                        ImNodes::SetNodeEditorSpacePos(
+                          pack_node(child_id), ImVec2(child->x, child->y));
+                    } else {
+                        auto pos =
+                          ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+                        child->x = pos.x;
+                        child->y = pos.y;
+                    }
                 }
             }
         }
     }
+
+    ed.force_node_position = false;
 
     int i = 0;
     while (i < head.connections.ssize()) {

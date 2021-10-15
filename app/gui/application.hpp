@@ -369,12 +369,13 @@ struct component_editor
     modeling                mod;
     simulation              sim;
     component_ref_id        selected_component{ 0 };
-    ImNodesEditorContext*   context       = nullptr;
-    bool                    is_saved      = true;
-    bool                    show_minimap  = true;
-    bool                    show_settings = false;
-    bool                    show_memory   = false;
-    component_editor_status status        = component_editor_status::modeling;
+    ImNodesEditorContext*   context             = nullptr;
+    bool                    is_saved            = true;
+    bool                    show_minimap        = true;
+    bool                    show_settings       = false;
+    bool                    show_memory         = false;
+    bool                    force_node_position = false;
+    component_editor_status status = component_editor_status::modeling;
 
     component*     selected_component_list      = nullptr;
     component_type selected_component_type_list = component_type::file;

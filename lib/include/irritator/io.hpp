@@ -1182,14 +1182,12 @@ private:
 
         if (std::strcmp(dynamics_name, "component") == 0) {
             irt_return_if_bad(do_read_component(mod, compo, id));
+
         } else {
             irt_return_if_fail(convert(dynamics_name, &type),
                                status::io_file_format_dynamics_unknown);
 
             auto& child = mod.alloc(compo, type);
-            child.x     = positions[id].x;
-            child.y     = positions[id].y;
-
             irt_assert(mod.models.try_to_get(enum_cast<model_id>(child.id)) !=
                        nullptr);
 
@@ -1208,6 +1206,9 @@ private:
         }
 
         child_mapping.set(id, compo.children.back());
+        auto& child = mod.children.get(compo.children.back());
+        child.x     = positions[id].x;
+        child.y     = positions[id].y;
 
         return status::success;
     }
