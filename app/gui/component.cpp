@@ -540,8 +540,8 @@ static void show(component_editor& ed,
     }
 
     for (int i = 0; i < length(compo.y); ++i) {
-        ImNodes::BeginInputAttribute(pack_out(id, static_cast<i8>(i)),
-                                     ImNodesPinShape_TriangleFilled);
+        ImNodes::BeginOutputAttribute(pack_out(id, static_cast<i8>(i)),
+                                      ImNodesPinShape_TriangleFilled);
         ImGui::TextFormat("{}", i);
         ImNodes::EndInputAttribute();
     }
