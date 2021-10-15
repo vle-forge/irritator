@@ -796,12 +796,32 @@ static status modeling_fill_file_component(
   component&                   compo,
   const std::filesystem::path& path) noexcept
 {
-    std::ifstream ifs{ path };
-    irt_return_if_fail(ifs.is_open(), status::io_file_source_full);
+    try {
+        std::ifstream ifs{ path };
+        irt_return_if_fail(ifs.is_open(), status::io_file_source_full);
 
-    reader r{ ifs };
-    if (auto ret = r(mod, compo, mod.srcs); is_bad(ret)) {
-        // log line_error, column error mode
+        reader r{ ifs };
+        if (auto ret = r(mod, compo, mod.srcs); is_bad(ret)) {
+            // log line_error, column error mode
+            irt_bad_return(status::io_file_source_full);
+        }
+    } catch (const std::exception& e) {
+        irt_bad_return(status::io_file_source_full);
+    }
+
+    try {
+        auto desc_file = path;
+        desc_file.replace_extension(".desc");
+
+        if (std::ifstream ifs{ desc_file }; ifs) {
+            auto& desc = mod.descriptions.alloc();
+            if (ifs.read(desc.data.begin(), desc.data.capacity())) {
+                compo.desc = mod.descriptions.get_id(desc);
+            } else {
+                mod.descriptions.free(desc);
+            }
+        }
+    } catch (const std::exception& e) {
         irt_bad_return(status::io_file_source_full);
     }
 
