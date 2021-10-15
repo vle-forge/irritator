@@ -901,8 +901,7 @@ private:
         return status::success;
     }
 
-    status do_read_ports(modeling&                 mod,
-                         small_vector<port_id, 8>& ports) noexcept
+    status do_read_ports(modeling& mod, small_vector<port, 8>& ports) noexcept
     {
         int nb = 0;
 
@@ -923,10 +922,7 @@ private:
             auto* child = mod.children.try_to_get(*c);
             irt_return_if_fail(child, status::io_file_format_model_error);
 
-            auto& newport   = mod.ports.alloc(*c, static_cast<i8>(port_index));
-            auto  newportid = mod.ports.get_id(newport);
-
-            ports.emplace_back(newportid);
+            ports.emplace_back(*c, static_cast<i8>(port_index));
         }
 
         return status::success;
@@ -1822,8 +1818,8 @@ struct writer
         write_random_sources(srcs.random_sources);
 
         do_write_children(mod, compo);
-        do_write_ports(mod, compo.x);
-        do_write_ports(mod, compo.y);
+        do_write_ports(compo.x);
+        do_write_ports(compo.y);
         do_write_connection(mod, compo.connections);
 
         return status::success;
@@ -1846,17 +1842,12 @@ private:
         }
     }
 
-    void do_write_ports(const modeling&                 mod,
-                        const small_vector<port_id, 8>& ports) noexcept
+    void do_write_ports(const small_vector<port, 8>& ports) noexcept
     {
         os << ports.ssize() << '\n';
 
-        for (int i = 0; i != ports.ssize(); ++i) {
-            auto* p = mod.ports.try_to_get(ports[i]);
-            irt_assert(p && "cleanup all component vectors before save");
-
-            os << get_index(p->id) << ' ' << p->index << '\n';
-        }
+        for (int i = 0; i != ports.ssize(); ++i)
+            os << get_index(ports[i].id) << ' ' << ports[i].index << '\n';
     }
 
     void do_write_children(const modeling& mod, const component& compo) noexcept

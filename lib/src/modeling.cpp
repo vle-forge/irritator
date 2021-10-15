@@ -60,6 +60,14 @@ status connect(modeling&    mod,
     return status::success;
 }
 
+status add_integrator_component_port(component& com, child_id id) noexcept
+{
+    com.x.emplace_back(id, i8(0));
+    com.y.emplace_back(id, i8(0));
+
+    return status::success;
+}
+
 template<int QssLevel>
 status add_lotka_volterra(modeling& mod, component& com) noexcept
 {
@@ -95,6 +103,9 @@ status add_lotka_volterra(modeling& mod, component& com) noexcept
     connect(mod, com, integrator_b, 0, product, 1);
     connect(mod, com, product, 0, sum_a, 1);
     connect(mod, com, product, 0, sum_b, 1);
+
+    add_integrator_component_port(com, integrator_a.second);
+    add_integrator_component_port(com, integrator_b.second);
 
     return status::success;
 }
@@ -137,6 +148,8 @@ status add_lif(modeling& mod, component& com) noexcept
     connect(mod, com, cst_cross, 0, cross, 1);
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
+
+    add_integrator_component_port(com, integrator.second);
 
     return status::success;
 }
@@ -221,6 +234,9 @@ status add_izhikevich(modeling& mod, component& com) noexcept
     connect(mod, com, integrator_b, 0, sum_d, 0);
     connect(mod, com, cst, 0, sum_d, 1);
 
+    add_integrator_component_port(com, integrator_a.second);
+    add_integrator_component_port(com, integrator_b.second);
+
     return status::success;
 }
 
@@ -258,6 +274,9 @@ status add_van_der_pol(modeling& mod, component& com) noexcept
     connect(mod, com, integrator_a, 0, product1, 1);
     connect(mod, com, product1, 0, product2, 0);
     connect(mod, com, integrator_a, 0, product2, 1);
+
+    add_integrator_component_port(com, integrator_a.second);
+    add_integrator_component_port(com, integrator_b.second);
 
     return status::success;
 }
@@ -300,6 +319,8 @@ status add_negative_lif(modeling& mod, component& com) noexcept
     connect(mod, com, cst_cross, 0, cross, 1);
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
+
+    add_integrator_component_port(com, integrator.second);
 
     return status::success;
 }
@@ -358,6 +379,11 @@ status add_seir_lineaire(modeling& mod, component& com) noexcept
     connect(mod, com, integrator_b, 0, product_b, 1);
     connect(mod, com, product_a, 0, sum_a, 1);
     connect(mod, com, product_b, 0, sum_b, 1);
+
+    add_integrator_component_port(com, integrator_a.second);
+    add_integrator_component_port(com, integrator_b.second);
+    add_integrator_component_port(com, integrator_c.second);
+    add_integrator_component_port(com, integrator_d.second);
 
     return status::success;
 }
@@ -480,6 +506,11 @@ status add_seir_nonlineaire(modeling& mod, component& com) noexcept
     connect(mod, com, integrator_a, 0, product_i, 0);
     connect(mod, com, integrator_c, 0, product_i, 1);
 
+    add_integrator_component_port(com, integrator_a.second);
+    add_integrator_component_port(com, integrator_b.second);
+    add_integrator_component_port(com, integrator_c.second);
+    add_integrator_component_port(com, integrator_d.second);
+
     return status::success;
 }
 
@@ -561,11 +592,7 @@ static bool found_input_port(const modeling&  mod,
         if (!(0 <= port && port < c->x.ssize()))
             return false;
 
-        auto* p = mod.ports.try_to_get(c->x[port]);
-        if (!p)
-            return false;
-
-        auto* child = mod.children.try_to_get(p->id);
+        auto* child = mod.children.try_to_get(c->x[port].id);
         if (!child)
             return false;
 
@@ -575,7 +602,7 @@ static bool found_input_port(const modeling&  mod,
 
             if (mapped_id) {
                 model_found = *mapped_id;
-                port_found  = p->index;
+                port_found  = c->x[port].index;
                 return true;
             } else {
                 return false;
@@ -583,7 +610,7 @@ static bool found_input_port(const modeling&  mod,
         }
 
         compo_ref = enum_cast<component_ref_id>(child->id);
-        port      = p->index;
+        port      = c->x[port].index;
     }
 }
 
@@ -605,11 +632,7 @@ static bool found_output_port(const modeling&  mod,
         if (!(0 <= port && port < c->y.ssize()))
             return false;
 
-        auto* p = mod.ports.try_to_get(c->y[port]);
-        if (!p)
-            return false;
-
-        auto* child = mod.children.try_to_get(p->id);
+        auto* child = mod.children.try_to_get(c->y[port].id);
         if (!child)
             return false;
 
@@ -619,7 +642,7 @@ static bool found_output_port(const modeling&  mod,
 
             if (mapped_id) {
                 model_found = *mapped_id;
-                port_found  = p->index;
+                port_found  = c->y[port].index;
                 return true;
             } else {
                 return false;
@@ -627,7 +650,7 @@ static bool found_output_port(const modeling&  mod,
         }
 
         compo_ref = enum_cast<component_ref_id>(child->id);
-        port      = p->index;
+        port      = c->y[port].index;
     }
 }
 
@@ -877,7 +900,7 @@ static bool check(const modeling_initializer& params) noexcept
            params.description_capacity > 0 && params.component_capacity > 0 &&
            params.observer_capacity > 0 && params.dir_path_capacity > 0 &&
            params.file_path_capacity > 0 && params.children_capacity > 0 &&
-           params.connection_capacity > 0 && params.port_capacity > 0 &&
+           params.connection_capacity > 0 &&
            params.constant_source_capacity > 0 &&
            params.binary_file_source_capacity > 0 &&
            params.text_file_source_capacity > 0 &&
@@ -900,7 +923,6 @@ status modeling::init(const modeling_initializer& params) noexcept
     irt_return_if_bad(file_paths.init(params.file_path_capacity));
     irt_return_if_bad(children.init(params.children_capacity));
     irt_return_if_bad(connections.init(params.connection_capacity));
-    irt_return_if_bad(ports.init(params.port_capacity));
 
     irt_return_if_bad(
       srcs.constant_sources.init(params.constant_source_capacity));
@@ -1221,14 +1243,6 @@ void modeling::free(component& c) noexcept
         if (auto* cnt = connections.try_to_get(c.connections[i]); cnt)
             free_connection(connections, *cnt);
     c.connections.clear();
-
-    for (int i = 0, e = c.x.ssize(); i != e; ++i)
-        if (auto* p = ports.try_to_get(c.x[i]); p)
-            ports.free(*p);
-
-    for (int i = 0, e = c.y.ssize(); i != e; ++i)
-        if (auto* p = ports.try_to_get(c.y[i]); p)
-            ports.free(*p);
 
     if (auto* desc = descriptions.try_to_get(c.desc); desc)
         descriptions.free(*desc);

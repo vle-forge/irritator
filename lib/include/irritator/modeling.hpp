@@ -19,7 +19,6 @@ enum class dir_path_id : u64;
 enum class file_path_id : u64;
 enum class child_id : u64;
 enum class connection_id : u64;
-enum class port_id : u64;
 
 enum class child_type : i8
 {
@@ -152,8 +151,8 @@ struct component
     vector<child_id>      children;
     vector<connection_id> connections;
 
-    small_vector<port_id, 8> x;
-    small_vector<port_id, 8> y;
+    small_vector<port, 8> x;
+    small_vector<port, 8> y;
 
     description_id   desc = description_id{ 0 };
     dir_path_id      dir  = dir_path_id{ 0 };
@@ -217,7 +216,6 @@ struct modeling
     data_array<file_path, file_path_id>         file_paths;
     data_array<child, child_id>                 children;
     data_array<connection, connection_id>       connections;
-    data_array<port, port_id>                   ports;
 
     irt::external_source srcs;
     component_id         head{ 0 };
