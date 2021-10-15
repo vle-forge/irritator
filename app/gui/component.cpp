@@ -177,16 +177,16 @@ static void show_all_components(component_editor& ed)
         if (ImGui::BeginPopupContextWindow("Component Menu")) {
             if (ImGui::MenuItem("New component")) {
                 log_w.log(7, "adding a new component");
-                ed.add_empty_component();
+                auto id = ed.add_empty_component();
+                ed.select(id);
             }
 
             if (ImGui::MenuItem("Open as main")) {
                 log_w.log(
                   7, "@todo be sure to save before opening a new component");
 
-                ed.mod.head =
-                  ed.mod.components.get_id(*ed.selected_component_list);
-                ed.force_node_position = true;
+                auto id = ed.mod.components.get_id(*ed.selected_component_list);
+                ed.select(id);
             }
 
             if (ImGui::MenuItem("Copy")) {
@@ -377,11 +377,7 @@ static void show_component_hierarchy_component(component_editor& ed,
                               compo->name.c_str())) {
             if (ImGui::IsItemHovered() &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                ed.selected_component = id;
-                ImNodes::ClearLinkSelection();
-                ImNodes::ClearNodeSelection();
-                ed.selected_links.clear();
-                ed.selected_nodes.clear();
+                ed.select(id);
             }
 
             for (int j = 0; j != compo->children.ssize(); ++j) {
@@ -412,11 +408,7 @@ static void show_component_hierarchy(component_editor& ed)
 
             if (ImGui::IsItemHovered() &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                ed.selected_component = undefined<component_ref_id>();
-                ImNodes::ClearLinkSelection();
-                ImNodes::ClearNodeSelection();
-                ed.selected_links.clear();
-                ed.selected_nodes.clear();
+                ed.select(ed.mod.head);
             }
 
             for (int i = 0; i < compo->children.ssize(); ++i) {
@@ -1062,6 +1054,27 @@ component_id component_editor::add_empty_component() noexcept
     }
 
     return undefined<component_id>();
+}
+
+void component_editor::select(component_ref_id id) noexcept
+{
+    selected_component = id;
+    ImNodes::ClearLinkSelection();
+    ImNodes::ClearNodeSelection();
+    selected_links.clear();
+    selected_nodes.clear();
+    force_node_position = true;
+}
+
+void component_editor::select(component_id id) noexcept
+{
+    selected_component = undefined<component_ref_id>();
+    mod.head           = id;
+    ImNodes::ClearLinkSelection();
+    ImNodes::ClearNodeSelection();
+    selected_links.clear();
+    selected_nodes.clear();
+    force_node_position = true;
 }
 
 void component_editor::init() noexcept

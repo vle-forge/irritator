@@ -384,6 +384,8 @@ struct component_editor
     vector<int> selected_nodes;
 
     component_id add_empty_component() noexcept;
+    void         select(component_ref_id id) noexcept;
+    void         select(component_id id) noexcept;
 
     void init() noexcept;
     void show(bool* is_show) noexcept;
