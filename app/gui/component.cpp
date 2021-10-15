@@ -210,6 +210,8 @@ static void show_all_components(component_editor& ed)
         }
     }
 
+    ImGui::Separator();
+
     if (ImGui::CollapsingHeader("Attributes", flags)) {
         auto* head = ed.mod.components.try_to_get(ed.mod.head);
         auto* ref  = ed.mod.component_refs.try_to_get(ed.selected_component);
@@ -285,6 +287,48 @@ static void show_all_components(component_editor& ed)
                         }
                     }
                 }
+            }
+        }
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::CollapsingHeader("Selected children", flags)) {
+        for (int i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
+            auto* child = unpack_node(ed.selected_nodes[i], ed.mod.children);
+            if (!child)
+                continue;
+
+            if (ImGui::TreeNodeEx(child,
+                                  ImGuiTreeNodeFlags_DefaultOpen,
+                                  "%d",
+                                  ed.selected_nodes[i])) {
+                ImGui::Text("position %f %f",
+                            static_cast<double>(child->x),
+                            static_cast<double>(child->y));
+                ImGui::Checkbox("configurable", &child->configurable);
+                ImGui::Checkbox("observables", &child->observable);
+
+                if (child->type == child_type::model) {
+                    auto  child_id = enum_cast<model_id>(child->id);
+                    auto& mdl      = ed.mod.models.get(child_id);
+
+                    ImGui::Text("type: %s",
+                                dynamics_type_names[ordinal(mdl.type)]);
+                } else {
+                    auto  c_ref_id = enum_cast<component_ref_id>(child->id);
+                    auto& c_ref    = ed.mod.component_refs.get(c_ref_id);
+                    auto* compo    = ed.mod.components.try_to_get(c_ref.id);
+
+                    ImGui::InputText(
+                      "name", c_ref.name.begin(), c_ref.name.capacity());
+                    if (compo) {
+                        ImGui::Text("type: %s",
+                                    component_type_names[ordinal(compo->type)]);
+                    }
+                }
+
+                ImGui::TreePop();
             }
         }
     }
@@ -756,8 +800,6 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
 
 void remove_nodes(component_editor& ed, component& parent) noexcept
 {
-    ImNodes::GetSelectedNodes(ed.selected_nodes.begin());
-
     for (i32 i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
         if (auto* child = unpack_node(ed.selected_nodes[i], ed.mod.children);
             child)
@@ -770,8 +812,6 @@ void remove_nodes(component_editor& ed, component& parent) noexcept
 
 void remove_links(component_editor& ed, component& parent) noexcept
 {
-    ImNodes::GetSelectedLinks(ed.selected_links.begin());
-
     std::sort(
       ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
 
@@ -835,12 +875,19 @@ static void show_opened_component(component_editor& ed) noexcept
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
-
-    if (num_selected_links > 0)
-        ed.selected_links.resize(num_selected_links);
-
-    if (num_selected_nodes > 0)
+    if (num_selected_nodes > 0) {
         ed.selected_nodes.resize(num_selected_nodes);
+        ImNodes::GetSelectedNodes(ed.selected_nodes.begin());
+    } else {
+        ed.selected_nodes.clear();
+    }
+
+    if (num_selected_links > 0) {
+        ed.selected_links.resize(num_selected_links);
+        ImNodes::GetSelectedLinks(ed.selected_links.begin());
+    } else {
+        ed.selected_links.clear();
+    }
 
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
         if (num_selected_nodes > 0)
