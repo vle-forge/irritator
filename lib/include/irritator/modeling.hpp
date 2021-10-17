@@ -218,7 +218,7 @@ struct modeling
     data_array<connection, connection_id>       connections;
 
     irt::external_source srcs;
-    component_id         head{ 0 };
+    component_ref_id     head{ 0 };
 
     status init(const modeling_initializer& params) noexcept;
 

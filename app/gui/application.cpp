@@ -59,7 +59,8 @@ bool application::init()
     }
 
     c_editor.mod.fill_components();
-    c_editor.mod.head = c_editor.add_empty_component();
+    c_editor.mod.head           = c_editor.add_empty_component();
+    c_editor.selected_component = c_editor.mod.head;
 
     try {
         simulation_duration.resize(editors.capacity(), 0);

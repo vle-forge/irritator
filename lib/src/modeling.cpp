@@ -1201,8 +1201,9 @@ status add_cpp_component_ref(const char*    buffer,
 
 status build_simulation(modeling& mod, simulation& sim) noexcept
 {
-    if (auto* c_ref = mod.components.try_to_get(mod.head); c_ref)
-        return build_models(mod, *c_ref, sim);
+    if (auto* c_ref = mod.component_refs.try_to_get(mod.head); c_ref)
+        if (auto* compo = mod.components.try_to_get(c_ref->id); compo)
+            return build_models(mod, *compo, sim);
 
     irt_bad_return(status::success);
 }
@@ -1354,7 +1355,7 @@ static void make_tree_recursive(
 {
     if (auto* c_ref = component_refs.try_to_get(child); c_ref) {
         c_ref->tree.set_id(c_ref);
-        parent.tree.parent_to(c_ref->tree);
+        c_ref->tree.parent_to(parent.tree);
 
         if (auto* compo = components.try_to_get(parent.id); compo) {
             for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {

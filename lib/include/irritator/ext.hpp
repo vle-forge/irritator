@@ -137,9 +137,9 @@ public:
     void remove_from_parent() noexcept;
     void remove_from_hierarchy() noexcept;
 
-    T* get_parent() const noexcept;
-    T* get_child() const noexcept;
-    T* get_sibling() const noexcept;
+    T* get_parent() const noexcept;  // parent of this node
+    T* get_child() const noexcept;   // first child of this ndoe
+    T* get_sibling() const noexcept; // next node with the same parent
     T* get_prior_sibling() const noexcept;
     T* get_next() const noexcept;
     T* get_next_leaf() const noexcept;

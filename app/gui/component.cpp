@@ -64,32 +64,33 @@ static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
 
-static void add_component_to_current(component_editor& ed, component& compo)
+static void add_component_to_current(component_editor& ed,
+                                     component&        compo) noexcept
 {
-    auto* ref = ed.mod.component_refs.try_to_get(ed.selected_component);
-    if (!ref) {
-        if (auto* head = ed.mod.components.try_to_get(ed.mod.head); head) {
-            auto& new_ref    = ed.mod.component_refs.alloc();
-            auto  new_ref_id = ed.mod.component_refs.get_id(new_ref);
-            new_ref.id       = ed.mod.components.get_id(compo);
+    component_ref* parent =
+      ed.mod.component_refs.try_to_get(ed.selected_component);
+    if (!parent)
+        return;
 
-            auto& child    = ed.mod.children.alloc(new_ref_id);
-            auto  child_id = ed.mod.children.get_id(child);
+    component* parent_compo = ed.mod.components.try_to_get(parent->id);
+    if (!parent_compo)
+        return;
 
-            head->children.emplace_back(child_id);
-        }
-    } else {
-        if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
-            auto& new_ref    = ed.mod.component_refs.alloc();
-            auto  new_ref_id = ed.mod.component_refs.get_id(new_ref);
-            new_ref.id       = ed.mod.components.get_id(compo);
+    if (!ed.mod.component_refs.can_alloc(1))
+        return;
 
-            auto& child    = ed.mod.children.alloc(new_ref_id);
-            auto  child_id = ed.mod.children.get_id(child);
+    auto& new_ref    = ed.mod.component_refs.alloc();
+    auto  new_ref_id = ed.mod.component_refs.get_id(new_ref);
+    new_ref.id       = ed.mod.components.get_id(compo);
+    new_ref.tree.set_id(&new_ref);
+    new_ref.tree.parent_to(parent->tree);
 
-            compo->children.emplace_back(child_id);
-        }
-    }
+    irt_assert(new_ref.tree.parented_by(parent->tree));
+
+    auto& child    = ed.mod.children.alloc(new_ref_id);
+    auto  child_id = ed.mod.children.get_id(child);
+
+    parent_compo->children.emplace_back(child_id);
 }
 
 static void show_all_components(component_editor& ed)
@@ -186,7 +187,7 @@ static void show_all_components(component_editor& ed)
                   7, "@todo be sure to save before opening a new component");
 
                 auto id = ed.mod.components.get_id(*ed.selected_component_list);
-                ed.select(id);
+                ed.open_as_main(id);
             }
 
             if (ImGui::MenuItem("Copy")) {
@@ -213,77 +214,75 @@ static void show_all_components(component_editor& ed)
     ImGui::Separator();
 
     if (ImGui::CollapsingHeader("Attributes", flags)) {
-        auto* head = ed.mod.components.try_to_get(ed.mod.head);
-        auto* ref  = ed.mod.component_refs.try_to_get(ed.selected_component);
-        component* compo = nullptr;
-        if (ref)
-            compo = ed.mod.components.try_to_get(ref->id);
-        auto* parent = ref ? compo : head;
+        auto* ref = ed.mod.component_refs.try_to_get(ed.selected_component);
+        if (ref) {
+            if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
+                ImGui::InputText(
+                  "name", compo->name.begin(), compo->name.capacity());
+                if (compo->type == component_type::memory ||
+                    compo->type == component_type::file) {
+                    static constexpr const char* empty = "";
 
-        if (parent) {
-            ImGui::InputText(
-              "name", parent->name.begin(), parent->name.capacity());
-            if (parent->type == component_type::memory ||
-                parent->type == component_type::file) {
-                static constexpr const char* empty = "";
+                    auto*       dir = ed.mod.dir_paths.try_to_get(compo->dir);
+                    const char* preview = dir ? dir->path.c_str() : empty;
+                    if (ImGui::BeginCombo(
+                          "Select directory", preview, ImGuiComboFlags_None)) {
+                        dir_path* list = nullptr;
+                        while (ed.mod.dir_paths.next(list)) {
+                            if (ImGui::Selectable(list->path.c_str(),
+                                                  preview == list->path.c_str(),
+                                                  ImGuiSelectableFlags_None)) {
+                                compo->dir = ed.mod.dir_paths.get_id(list);
+                            }
+                        }
+                        ImGui::EndCombo();
+                    }
 
-                auto*       dir     = ed.mod.dir_paths.try_to_get(parent->dir);
-                const char* preview = dir ? dir->path.c_str() : empty;
-                if (ImGui::BeginCombo(
-                      "Select directory", preview, ImGuiComboFlags_None)) {
-                    dir_path* list = nullptr;
-                    while (ed.mod.dir_paths.next(list)) {
-                        if (ImGui::Selectable(list->path.c_str(),
-                                              preview == list->path.c_str(),
-                                              ImGuiSelectableFlags_None)) {
-                            parent->dir = ed.mod.dir_paths.get_id(list);
+                    auto* file = ed.mod.file_paths.try_to_get(compo->file);
+                    if (file) {
+                        ImGui::InputText("File##text",
+                                         file->path.begin(),
+                                         file->path.capacity());
+                    } else {
+                        ImGui::Text("File not saved.");
+                        if (ImGui::Button("Add file")) {
+                            auto& f     = ed.mod.file_paths.alloc();
+                            compo->file = ed.mod.file_paths.get_id(f);
                         }
                     }
-                    ImGui::EndCombo();
-                }
 
-                auto* file = ed.mod.file_paths.try_to_get(parent->file);
-                if (file) {
-                    ImGui::InputText(
-                      "File##text", file->path.begin(), file->path.capacity());
-                } else {
-                    ImGui::Text("File not saved.");
-                    if (ImGui::Button("Add file")) {
-                        auto& f      = ed.mod.file_paths.alloc();
-                        parent->file = ed.mod.file_paths.get_id(f);
+                    auto* desc = ed.mod.descriptions.try_to_get(compo->desc);
+                    if (!desc && ed.mod.descriptions.can_alloc(1)) {
+                        if (ImGui::Button("Add description")) {
+                            auto& new_desc = ed.mod.descriptions.alloc();
+                            compo->desc = ed.mod.descriptions.get_id(new_desc);
+                        }
+                    } else {
+                        constexpr ImGuiInputTextFlags flags =
+                          ImGuiInputTextFlags_AllowTabInput;
+
+                        ImGui::InputTextMultiline(
+                          "##source",
+                          desc->data.begin(),
+                          desc->data.capacity(),
+                          ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
+                          flags);
+
+                        if (ImGui::Button("Remove")) {
+                            ed.mod.descriptions.free(*desc);
+                            compo->desc = undefined<description_id>();
+                        }
                     }
-                }
 
-                auto* desc = ed.mod.descriptions.try_to_get(parent->desc);
-                if (!desc && ed.mod.descriptions.can_alloc(1)) {
-                    if (ImGui::Button("Add description")) {
-                        auto& new_desc = ed.mod.descriptions.alloc();
-                        parent->desc   = ed.mod.descriptions.get_id(new_desc);
-                    }
-                } else {
-                    constexpr ImGuiInputTextFlags flags =
-                      ImGuiInputTextFlags_AllowTabInput;
-
-                    ImGui::InputTextMultiline(
-                      "##source",
-                      desc->data.begin(),
-                      desc->data.capacity(),
-                      ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
-                      flags);
-
-                    if (ImGui::Button("Remove")) {
-                        ed.mod.descriptions.free(*desc);
-                        parent->desc = undefined<description_id>();
-                    }
-                }
-
-                if (file && dir) {
-                    if (ImGui::Button("Save")) {
-                        if (auto ret = ed.mod.save(*parent); is_bad(ret)) {
-                            log_w.log(2,
-                                      "Fail to save file %s in directory %s\n",
-                                      file->path.c_str(),
-                                      dir->path.c_str());
+                    if (file && dir) {
+                        if (ImGui::Button("Save")) {
+                            if (auto ret = ed.mod.save(*compo); is_bad(ret)) {
+                                log_w.log(
+                                  2,
+                                  "Fail to save file %s in directory %s\n",
+                                  file->path.c_str(),
+                                  dir->path.c_str());
+                            }
                         }
                     }
                 }
@@ -334,100 +333,93 @@ static void show_all_components(component_editor& ed)
     }
 }
 
-static void show_component_hierarchy_model(component_editor& ed,
-                                           component&        c,
-                                           int               i)
+static void show_component_hierarchy_model(component_editor& /*ed*/, model& mdl)
 {
-    if (auto* child = ed.mod.children.try_to_get(c.children[i]); child) {
-        auto  id  = enum_cast<model_id>(child->id);
-        auto* mdl = ed.mod.models.try_to_get(id);
-
-        if (!mdl) {
-            c.children.swap_pop_back(i);
-            return;
-        }
-
-        ImGui::Text("%d (%s)", i, get_dynamics_type_name(mdl->type));
-    }
+    ImGui::Text("%s", get_dynamics_type_name(mdl.type));
 }
 
 static void show_component_hierarchy_component(component_editor& ed,
-                                               component&        c,
-                                               int               i)
+                                               component_ref&    c_ref)
 {
-    if (auto* child = ed.mod.children.try_to_get(c.children[i]); child) {
-        auto  id    = enum_cast<component_ref_id>(child->id);
-        auto* c_ref = ed.mod.component_refs.try_to_get(id);
+    auto* compo = ed.mod.components.try_to_get(c_ref.id);
+    if (!compo)
+        return;
 
-        if (!c_ref) {
-            c.children.swap_pop_back(i);
-            return;
+    if (ImGui::TreeNodeEx(compo,
+                          ImGuiTreeNodeFlags_DefaultOpen |
+                            ImGuiTreeNodeFlags_OpenOnDoubleClick,
+                          "%s",
+                          compo->name.c_str())) {
+        if (ImGui::IsItemHovered() &&
+            ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+            ed.mod.component_refs.get_id(c_ref) != ed.selected_component) {
+            ed.select(ed.mod.component_refs.get_id(c_ref));
         }
 
-        auto* compo = ed.mod.components.try_to_get(c_ref->id);
-        if (!compo) {
-            c.children.swap_pop_back(i);
-            return;
-        }
+        for (int j = 0; j != compo->children.ssize(); ++j) {
+            auto* subchild = ed.mod.children.try_to_get(compo->children[j]);
+            if (!subchild)
+                continue;
 
-        if (ImGui::TreeNodeEx(compo,
-                              ImGuiTreeNodeFlags_DefaultOpen |
-                                ImGuiTreeNodeFlags_OpenOnDoubleClick,
-                              "%s",
-                              compo->name.c_str())) {
-            if (ImGui::IsItemHovered() &&
-                ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                ed.select(id);
+            ImGui::PushID(j);
+
+            if (subchild->type == child_type::model) {
+                auto  id  = enum_cast<model_id>(subchild->id);
+                auto* mdl = ed.mod.models.try_to_get(id);
+                if (mdl)
+                    show_component_hierarchy_model(ed, *mdl);
+            } else {
+                auto  id = enum_cast<component_ref_id>(subchild->id);
+                auto* c  = ed.mod.component_refs.try_to_get(id);
+                if (c)
+                    show_component_hierarchy_component(ed, *c);
             }
-
-            for (int j = 0; j != compo->children.ssize(); ++j) {
-                auto* subchild = ed.mod.children.try_to_get(compo->children[j]);
-                if (!subchild)
-                    continue;
-
-                ImGui::PushID(j);
-
-                if (subchild->type == child_type::model)
-                    show_component_hierarchy_model(ed, *compo, j);
-                else
-                    show_component_hierarchy_component(ed, *compo, j);
-                ImGui::PopID();
-            }
-
-            ImGui::TreePop();
+            ImGui::PopID();
         }
+
+        ImGui::TreePop();
     }
 }
 
 static void show_component_hierarchy(component_editor& ed)
 {
-    if (auto* compo = ed.mod.components.try_to_get(ed.mod.head); compo) {
-        if (ImGui::TreeNodeEx(compo->name.c_str(),
-                              ImGuiTreeNodeFlags_DefaultOpen |
-                                ImGuiTreeNodeFlags_OpenOnDoubleClick)) {
+    if (auto* c_ref = ed.mod.component_refs.try_to_get(ed.mod.head); c_ref) {
+        if (auto* compo = ed.mod.components.try_to_get(c_ref->id); compo) {
+            if (ImGui::TreeNodeEx(compo->name.c_str(),
+                                  ImGuiTreeNodeFlags_DefaultOpen |
+                                    ImGuiTreeNodeFlags_OpenOnDoubleClick)) {
 
-            if (ImGui::IsItemHovered() &&
-                ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                ed.select(ed.mod.head);
-            }
-
-            for (int i = 0; i < compo->children.ssize(); ++i) {
-                auto* child = ed.mod.children.try_to_get(compo->children[i]);
-                if (!child)
-                    continue;
-
-                ImGui::PushID(i);
-                if (child->type == child_type::model) {
-                    show_component_hierarchy_model(ed, *compo, i);
-                } else {
-                    show_component_hierarchy_component(ed, *compo, i);
+                if (ImGui::IsItemHovered() &&
+                    ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+                    ed.mod.head != ed.selected_component) {
+                    ed.select(ed.mod.head);
                 }
-                ImGui::PopID();
+
+                for (int i = 0; i < compo->children.ssize(); ++i) {
+                    auto* child =
+                      ed.mod.children.try_to_get(compo->children[i]);
+                    if (!child)
+                        continue;
+
+                    ImGui::PushID(i);
+                    if (child->type == child_type::model) {
+                        auto  id  = enum_cast<model_id>(child->id);
+                        auto* mdl = ed.mod.models.try_to_get(id);
+                        if (mdl)
+                            show_component_hierarchy_model(ed, *mdl);
+                    } else {
+                        auto  id = enum_cast<component_ref_id>(child->id);
+                        auto* c  = ed.mod.component_refs.try_to_get(id);
+                        if (c)
+                            show_component_hierarchy_component(ed, *c);
+                    }
+                    ImGui::PopID();
+                }
+                ImGui::TreePop();
             }
-            ImGui::TreePop();
+        } else {
+            ImGui::Text("No component load");
         }
-    } else {
-        ImGui::Text("No component load");
     }
 }
 
@@ -568,11 +560,67 @@ static void show(component_editor& ed,
     ImNodes::PopColorStyle();
 }
 
-static void show_opened_component_top(component_editor& ed,
-                                      component&        head) noexcept
+// static void show_opened_component_top(component_editor& ed,
+//                                       component&        head) noexcept
+// {
+//     for (int i = 0; i < head.children.ssize(); ++i) {
+//         const auto child_id = head.children[i];
+//         auto*      child    = ed.mod.children.try_to_get(child_id);
+//         if (!child)
+//             continue;
+
+//         if (child->type == child_type::model) {
+//             auto id = enum_cast<model_id>(child->id);
+//             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
+//                 show(ed, *mdl, child_id, i);
+//                 if (ed.force_node_position) {
+//                     ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
+//                                                    ImVec2(child->x,
+//                                                    child->y));
+//                 } else {
+//                     auto pos =
+//                       ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+//                     child->x = pos.x;
+//                     child->y = pos.y;
+//                 }
+//             }
+//         } else {
+//             auto id = enum_cast<component_ref_id>(child->id);
+//             if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
+//                 if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
+//                     show(ed, *c, child_id, i);
+
+//                     if (ed.force_node_position) {
+//                         ImNodes::SetNodeEditorSpacePos(
+//                           pack_node(child_id), ImVec2(child->x, child->y));
+//                     } else {
+//                         auto pos =
+//                           ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+//                         child->x = pos.x;
+//                         child->y = pos.y;
+//                     }
+//                 }
+//             }
+//         }
+//     }
+
+//     ed.force_node_position = false;
+
+//     int i = 0;
+//     while (i < head.connections.ssize()) {
+//         if (!show_connection(ed, head, i))
+//             head.connections.swap_pop_back(i);
+//         else
+//             ++i;
+//     }
+// }
+
+static void show_opened_component_ref(component_editor& ed,
+                                      component_ref& /*ref*/,
+                                      component& compo) noexcept
 {
-    for (int i = 0; i < head.children.ssize(); ++i) {
-        const auto child_id = head.children[i];
+    for (int i = 0; i < compo.children.ssize(); ++i) {
+        const auto child_id = compo.children[i];
         auto*      child    = ed.mod.children.try_to_get(child_id);
         if (!child)
             continue;
@@ -581,9 +629,11 @@ static void show_opened_component_top(component_editor& ed,
             auto id = enum_cast<model_id>(child->id);
             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
                 show(ed, *mdl, child_id, i);
+
                 if (ed.force_node_position) {
                     ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
                                                    ImVec2(child->x, child->y));
+                    ed.force_node_position = false;
                 } else {
                     auto pos =
                       ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
@@ -600,49 +650,13 @@ static void show_opened_component_top(component_editor& ed,
                     if (ed.force_node_position) {
                         ImNodes::SetNodeEditorSpacePos(
                           pack_node(child_id), ImVec2(child->x, child->y));
+                        ed.force_node_position = false;
                     } else {
                         auto pos =
                           ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
                         child->x = pos.x;
                         child->y = pos.y;
                     }
-                }
-            }
-        }
-    }
-
-    ed.force_node_position = false;
-
-    int i = 0;
-    while (i < head.connections.ssize()) {
-        if (!show_connection(ed, head, i))
-            head.connections.swap_pop_back(i);
-        else
-            ++i;
-    }
-}
-
-static void show_opened_component_ref(component_editor& ed,
-                                      component& /*head*/,
-                                      component_ref& /*ref*/,
-                                      component& compo) noexcept
-{
-    for (int i = 0; i < compo.children.ssize(); ++i) {
-        const auto child_id = compo.children[i];
-        auto*      child    = ed.mod.children.try_to_get(child_id);
-        if (!child)
-            continue;
-
-        if (child->type == child_type::model) {
-            auto id = enum_cast<model_id>(child->id);
-            if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
-                show(ed, *mdl, child_id, i);
-            }
-        } else {
-            auto id = enum_cast<component_ref_id>(child->id);
-            if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
-                if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
-                    show(ed, *c, child_id, i);
                 }
             }
         }
@@ -767,7 +781,11 @@ component* get_current_component(component_editor& ed) noexcept
         if (auto* compo = ed.mod.components.try_to_get(ref->id); compo)
             return compo;
 
-    return ed.mod.components.try_to_get(ed.mod.head);
+    if (auto* ref = ed.mod.component_refs.try_to_get(ed.mod.head); ref)
+        if (auto* compo = ed.mod.components.try_to_get(ref->id); compo)
+            return compo;
+
+    return nullptr;
 }
 
 static void is_link_created(component_editor& ed, component& parent) noexcept
@@ -851,8 +869,13 @@ void remove_links(component_editor& ed, component& parent) noexcept
 
 static void show_opened_component(component_editor& ed) noexcept
 {
-    auto* head = ed.mod.components.try_to_get(ed.mod.head);
-    if (!head)
+    component_ref* c_ref =
+      ed.mod.component_refs.try_to_get(ed.selected_component);
+    if (!c_ref)
+        return;
+
+    component* compo = ed.mod.components.try_to_get(c_ref->id);
+    if (!compo)
         return;
 
     ImVec2 click_pos;
@@ -861,17 +884,18 @@ static void show_opened_component(component_editor& ed) noexcept
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();
 
-    auto*      ref   = ed.mod.component_refs.try_to_get(ed.selected_component);
-    component* compo = nullptr;
-    if (!ref) {
-        show_opened_component_top(ed, *head);
-        show_popup_menuitem(ed, *head, &click_pos, &new_model);
-    } else {
-        if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
-            show_opened_component_ref(ed, *head, *ref, *compo);
-            show_popup_menuitem(ed, *compo, &click_pos, &new_model);
-        }
-    }
+    show_opened_component_ref(ed, *c_ref, *compo);
+    show_popup_menuitem(ed, *compo, &click_pos, &new_model);
+
+    // if (!ref) {
+    //     show_opened_component_top(ed, *head);
+    //     show_popup_menuitem(ed, *head, &click_pos, &new_model);
+    // } else {
+    //     if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
+    //         show_opened_component_ref(ed, *head, *ref, *compo);
+    //         show_popup_menuitem(ed, *compo, &click_pos, &new_model);
+    //     }
+    // }
 
     if (ed.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
@@ -879,7 +903,6 @@ static void show_opened_component(component_editor& ed) noexcept
     ImNodes::EndNodeEditor();
 
     if (new_model != -1) {
-        // auto* parent = ref ? compo : head;
         ImNodes::SetNodeScreenSpacePos(new_model, click_pos);
 
         auto* child = unpack_node(new_model, ed.mod.children);
@@ -887,7 +910,7 @@ static void show_opened_component(component_editor& ed) noexcept
         child->y    = click_pos.y;
     }
 
-    is_link_created(ed, ref ? *compo : *head);
+    is_link_created(ed, *compo);
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
@@ -907,9 +930,9 @@ static void show_opened_component(component_editor& ed) noexcept
 
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
         if (num_selected_nodes > 0)
-            remove_nodes(ed, ref ? *compo : *head);
+            remove_nodes(ed, *compo);
         else if (num_selected_links > 0)
-            remove_links(ed, ref ? *compo : *head);
+            remove_links(ed, *compo);
     }
 }
 
@@ -1043,38 +1066,72 @@ void component_editor::show_memory_box(bool* is_open) noexcept
     ImGui::End();
 }
 
-component_id component_editor::add_empty_component() noexcept
+component_ref_id component_editor::add_empty_component() noexcept
 {
     if (mod.components.can_alloc()) {
-        auto& new_compo = mod.components.alloc();
-        new_compo.name.assign("New component");
-        new_compo.type = component_type::memory;
+        if (mod.component_refs.can_alloc(1)) {
+            auto& new_compo = mod.components.alloc();
+            new_compo.name.assign("New component");
+            new_compo.type = component_type::memory;
 
-        return mod.components.get_id(new_compo);
+            auto& new_c_ref = mod.component_refs.alloc();
+            new_c_ref.id    = mod.components.get_id(new_compo);
+            new_c_ref.name  = "top";
+            new_c_ref.tree.set_id(&new_c_ref);
+
+            return mod.component_refs.get_id(new_c_ref);
+        }
     }
 
-    return undefined<component_id>();
+    return undefined<component_ref_id>();
+}
+
+static void unselect_editor_component_ref(component_editor& ed) noexcept
+{
+    ed.selected_component = undefined<component_ref_id>();
+
+    ImNodes::ClearLinkSelection();
+    ImNodes::ClearNodeSelection();
+    ed.selected_links.clear();
+    ed.selected_nodes.clear();
+}
+
+void component_editor::unselect() noexcept
+{
+    mod.head = undefined<component_ref_id>();
+
+    unselect_editor_component_ref(*this);
 }
 
 void component_editor::select(component_ref_id id) noexcept
 {
-    selected_component = id;
-    ImNodes::ClearLinkSelection();
-    ImNodes::ClearNodeSelection();
-    selected_links.clear();
-    selected_nodes.clear();
-    force_node_position = true;
+    if (auto* c_ref = mod.component_refs.try_to_get(id); c_ref) {
+        if (auto* compo = mod.components.try_to_get(c_ref->id); compo) {
+            unselect_editor_component_ref(*this);
+
+            selected_component  = id;
+            force_node_position = true;
+        }
+    }
 }
 
-void component_editor::select(component_id id) noexcept
+void component_editor::open_as_main(component_id id) noexcept
 {
-    selected_component = undefined<component_ref_id>();
-    mod.head           = id;
-    ImNodes::ClearLinkSelection();
-    ImNodes::ClearNodeSelection();
-    selected_links.clear();
-    selected_nodes.clear();
-    force_node_position = true;
+    if (auto* compo = mod.components.try_to_get(id); compo) {
+        if (mod.component_refs.can_alloc(1)) {
+            unselect();
+
+            auto& c_ref    = mod.component_refs.alloc();
+            auto  c_ref_id = mod.component_refs.get_id(c_ref);
+            c_ref.id       = id;
+
+            mod.head            = c_ref_id;
+            selected_component  = c_ref_id;
+            force_node_position = true;
+
+            mod.make_tree_from(c_ref);
+        }
+    }
 }
 
 void component_editor::init() noexcept
