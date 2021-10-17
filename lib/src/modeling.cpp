@@ -828,7 +828,7 @@ static status modeling_fill_file_component(
             // log line_error, column error mode
             irt_bad_return(status::io_file_source_full);
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception& /*e*/) {
         irt_bad_return(status::io_file_source_full);
     }
 
@@ -844,7 +844,7 @@ static status modeling_fill_file_component(
                 mod.descriptions.free(desc);
             }
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception& /*e*/) {
         irt_bad_return(status::io_file_source_full);
     }
 
