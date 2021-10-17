@@ -1345,6 +1345,55 @@ status modeling::copy(component& src, component& dst) noexcept
     return status::success;
 }
 
+static void make_tree_recursive(
+  data_array<child, child_id>&                 children,
+  data_array<component, component_id>&         components,
+  data_array<component_ref, component_ref_id>& component_refs,
+  component_ref&                               parent,
+  component_ref_id                             child) noexcept
+{
+    if (auto* c_ref = component_refs.try_to_get(child); c_ref) {
+        c_ref->tree.set_id(c_ref);
+        parent.tree.parent_to(c_ref->tree);
+
+        if (auto* compo = components.try_to_get(parent.id); compo) {
+            for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
+                auto child_id = compo->children[i];
+                if (auto* child = children.try_to_get(child_id); child) {
+                    if (child->type == child_type::component) {
+                        make_tree_recursive(
+                          children,
+                          components,
+                          component_refs,
+                          *c_ref,
+                          enum_cast<component_ref_id>(child->id));
+                    }
+                }
+            }
+        }
+    }
+}
+
+void modeling::make_tree_from(component_ref& parent) noexcept
+{
+    parent.tree.set_id(&parent);
+
+    if (auto* compo = components.try_to_get(parent.id); compo) {
+        for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
+            auto child_id = compo->children[i];
+            if (auto* child = children.try_to_get(child_id); child) {
+                if (child->type == child_type::component) {
+                    make_tree_recursive(children,
+                                        components,
+                                        component_refs,
+                                        parent,
+                                        enum_cast<component_ref_id>(child->id));
+                }
+            }
+        }
+    }
+}
+
 status modeling::clean(component& c) noexcept
 {
     int  i              = 0;

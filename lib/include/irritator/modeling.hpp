@@ -240,6 +240,9 @@ struct modeling
                    child_id   dst,
                    i8         port_dst) noexcept;
 
+    /// Build the @c hierarchy<component_ref> of from @c id
+    void make_tree_from(component_ref& id) noexcept;
+
     status clean(component& c) noexcept; // clean empty vectors
     status save(component& c) noexcept;  // will call clean(component&) first.
 };
