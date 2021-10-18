@@ -383,6 +383,9 @@ struct component_editor
     vector<int> selected_links;
     vector<int> selected_nodes;
 
+    real simulation_begin;
+    real simulation_end;
+
     component_ref_id add_empty_component() noexcept;
     void             select(component_ref_id id) noexcept;
     void             open_as_main(component_id id) noexcept;

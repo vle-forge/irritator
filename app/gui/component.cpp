@@ -1145,6 +1145,34 @@ void component_editor::shutdown() noexcept
     }
 }
 
+static void show_simulation(component_editor& ed) noexcept
+{
+    if (ImGui::CollapsingHeader("Simulation",
+                                ImGuiTreeNodeFlags_CollapsingHeader)) {
+        ImGui::InputReal("Begin", &ed.simulation_begin);
+        ImGui::InputReal("End", &ed.simulation_end);
+        ImGui::TextFormat("Current time {:.6f}", ed.simulation_begin);
+
+        if (ImGui::Button("[]")) {
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("||")) {
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(">")) {
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+1")) {
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+10")) {
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+100")) {
+        }
+    }
+}
+
 void component_editor::show(bool* /*is_show*/) noexcept
 {
     constexpr ImGuiWindowFlags flag =
@@ -1157,11 +1185,13 @@ void component_editor::show(bool* /*is_show*/) noexcept
     const auto  region     = viewport->WorkSize;
     const float width_1_10 = region.x / 10.f;
 
-    ImVec2 current_component_size(width_1_10 * 2.f, region.y);
+    ImVec2 current_component_size(width_1_10 * 2.f, region.y / 2.f);
+    ImVec2 simulation_size(width_1_10 * 2.f, region.y / 2.f);
     ImVec2 drawing_zone_size(width_1_10 * 6.f, region.y);
     ImVec2 component_list_size(width_1_10 * 2.f, region.y);
 
     ImVec2 current_component_pos(0.f, viewport->WorkPos.y);
+    ImVec2 simulation_pos(0.f, viewport->WorkPos.y + region.y / 2.f);
     ImVec2 drawing_zone_pos(current_component_size.x, viewport->WorkPos.y);
     ImVec2 component_list_pos(current_component_size.x + drawing_zone_size.x,
                               viewport->WorkPos.y);
@@ -1170,6 +1200,13 @@ void component_editor::show(bool* /*is_show*/) noexcept
     ImGui::SetNextWindowSize(current_component_size);
     if (ImGui::Begin("Modeling component", 0, flag)) {
         show_component_hierarchy(*this);
+    }
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(simulation_pos);
+    ImGui::SetNextWindowSize(simulation_size);
+    if (ImGui::Begin("Simulation", 0, flag)) {
+        show_simulation(*this);
     }
     ImGui::End();
 
