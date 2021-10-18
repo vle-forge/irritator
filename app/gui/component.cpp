@@ -674,7 +674,7 @@ static void show_opened_component_ref(component_editor& ed,
 static void add_popup_menuitem(component_editor& ed,
                                component&        parent,
                                dynamics_type     type,
-                               int*              new_model)
+                               child_id*         new_model)
 {
     if (!ed.mod.models.can_alloc(1)) {
         log_w.log(2, "can not allocate a new model");
@@ -683,7 +683,7 @@ static void add_popup_menuitem(component_editor& ed,
 
     if (ImGui::MenuItem(get_dynamics_type_name(type))) {
         auto& child = ed.mod.alloc(parent, type);
-        *new_model  = parent.children.ssize() - 1;
+        *new_model  = ed.mod.children.get_id(child);
 
         log_w.log(7, "new model %zu\n", ordinal(ed.mod.children.get_id(child)));
     }
@@ -692,7 +692,7 @@ static void add_popup_menuitem(component_editor& ed,
 static void add_popup_menuitem(component_editor& ed,
                                component&        parent,
                                int               type,
-                               int*              new_model)
+                               child_id*         new_model)
 {
     auto d_type = enum_cast<dynamics_type>(type);
     add_popup_menuitem(ed, parent, d_type, new_model);
@@ -701,13 +701,13 @@ static void add_popup_menuitem(component_editor& ed,
 static void show_popup_menuitem(component_editor& ed,
                                 component&        parent,
                                 ImVec2*           click_pos,
-                                int*              new_model) noexcept
+                                child_id*         new_model) noexcept
 {
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
       ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
 
-    *new_model = -1;
+    *new_model = undefined<child_id>();
     *click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
@@ -878,36 +878,24 @@ static void show_opened_component(component_editor& ed) noexcept
     if (!compo)
         return;
 
-    ImVec2 click_pos;
-    int    new_model = -1;
-
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();
 
+    ImVec2   click_pos;
+    child_id new_model;
+
     show_opened_component_ref(ed, *c_ref, *compo);
     show_popup_menuitem(ed, *compo, &click_pos, &new_model);
-
-    // if (!ref) {
-    //     show_opened_component_top(ed, *head);
-    //     show_popup_menuitem(ed, *head, &click_pos, &new_model);
-    // } else {
-    //     if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
-    //         show_opened_component_ref(ed, *head, *ref, *compo);
-    //         show_popup_menuitem(ed, *compo, &click_pos, &new_model);
-    //     }
-    // }
 
     if (ed.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
 
     ImNodes::EndNodeEditor();
 
-    if (new_model != -1) {
-        ImNodes::SetNodeScreenSpacePos(new_model, click_pos);
-
-        auto* child = unpack_node(new_model, ed.mod.children);
-        child->x    = click_pos.x;
-        child->y    = click_pos.y;
+    if (auto* child = ed.mod.children.try_to_get(new_model); child) {
+        ImNodes::SetNodeScreenSpacePos(pack_node(new_model), click_pos);
+        child->x = click_pos.x;
+        child->y = click_pos.y;
     }
 
     is_link_created(ed, *compo);
