@@ -1794,6 +1794,7 @@ show_dynamics_values(simulation& /*sim*/, const filter& dyn)
 {
     ImGui::Text("%.3f", dyn.lower_threshold);
     ImGui::Text("%.3f", dyn.upper_threshold);
+    ImGui::Text("%.3f", dyn.default_init);
     ImGui::Text("%.3f", dyn.inValue[0]);
 }
 
@@ -2324,6 +2325,7 @@ show_dynamics_inputs(editor& /*ed*/, filter& dyn)
 {
     ImGui::InputDouble("Lower threshold ", &dyn.default_lower_threshold);
     ImGui::InputDouble("Upper threshold ", &dyn.default_upper_threshold);
+    ImGui::InputDouble("Value ", &dyn.default_init);
 }
 
 static void

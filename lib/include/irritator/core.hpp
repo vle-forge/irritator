@@ -5232,12 +5232,16 @@ struct filter
 
     double lower_threshold;
     double upper_threshold;
+    double default_init;
+
     irt::message inValue;
 
     filter() noexcept
     {
-        default_lower_threshold = -0.5;
-        default_upper_threshold = 0.5;
+        default_lower_threshold = -0.05;
+        default_upper_threshold = 0.05;
+        default_init=0.0;
+        //inValue[0]=0.0;
         sigma = time_domain<time>::infinity;
     }
 
@@ -5246,6 +5250,7 @@ struct filter
         sigma = time_domain<time>::infinity;
         lower_threshold = default_lower_threshold;
         upper_threshold = default_upper_threshold;
+        inValue[0] = default_init;
 
         irt_return_if_fail(default_lower_threshold < default_upper_threshold,
                            status::filter_threshold_condition_not_satisfied);
@@ -5265,15 +5270,11 @@ struct filter
         if (!x[0].messages.empty()) {
             auto& msg = x[0].messages.front();
 
-            if (msg[0] > lower_threshold && msg[0] < upper_threshold) {
+            if ((msg[0] > lower_threshold) && (msg[0] < upper_threshold)) {
                 inValue[0] = msg[0];
-            } else if (msg[1] < lower_threshold && msg[1] < upper_threshold) {
-                inValue[0] = msg[1];
-            } else {
-                inValue[0] = msg[2];
             }
 
-            sigma = time_domain<time>::zero;
+            //sigma = time_domain<time>::zero;
         }
 
         return status::success;

@@ -2115,7 +2115,7 @@ private:
     void write(const simulation& /*sim*/, const filter& dyn) noexcept
     {
         os << "filter " << dyn.default_lower_threshold << ' '
-           << dyn.default_upper_threshold
+           << dyn.default_upper_threshold <<' '
            << '\n';
     }
 
