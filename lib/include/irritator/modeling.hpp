@@ -12,7 +12,7 @@
 namespace irt {
 
 enum class component_id : u64;
-enum class component_ref_id : u64;
+enum class tree_node_id : u64;
 enum class parameter_id : u64;
 enum class description_id : u64;
 enum class dir_path_id : u64;
@@ -30,18 +30,16 @@ struct connection;
 struct child;
 struct port;
 struct component;
-struct component_ref;
+// struct component_ref;
 struct modeling;
 struct description;
 
-status add_cpp_component_ref(const char*    buffer,
-                             modeling&      mod,
-                             component&     parent,
-                             component_ref& compo_ref) noexcept;
-status add_file_component_ref(const char*    buffer,
-                              modeling&      mod,
-                              component&     parent,
-                              component_ref& compo_ref) noexcept;
+status add_cpp_component_ref(const char* buffer,
+                             modeling&   mod,
+                             component&  parent) noexcept;
+status add_file_component_ref(const char* buffer,
+                              modeling&   mod,
+                              component&  parent) noexcept;
 
 status build_simulation(const modeling& mod, simulation& sim) noexcept;
 
@@ -65,17 +63,10 @@ void for_each(const DataArray& data, vector<T>& vec, Function&& f)
     }
 }
 
-struct component_ref
-{
-    component_id              id; // the component reference
-    table<model_id, model_id> mappers;
-    hierarchy<component_ref>  tree;
-};
-
 struct child
 {
     child(model_id model) noexcept;
-    child(component_ref_id component) noexcept;
+    child(component_id component) noexcept;
 
     small_string<32> name;
     u64              id;
@@ -187,7 +178,7 @@ struct file_path
 struct modeling_initializer
 {
     int model_capacity;
-    int component_ref_capacity;
+    int tree_capacity;
     int description_capacity;
     int component_capacity;
     int observer_capacity;
@@ -205,22 +196,33 @@ struct modeling_initializer
     u64 random_generator_seed;
 };
 
+struct tree_node
+{
+    tree_node(component_id id_) noexcept;
+
+    component_id              id;
+    hierarchy<tree_node>      tree;
+    table<model_id, model_id> mappers;
+};
+
 struct modeling
 {
-    data_array<model, model_id>                 models;
-    data_array<component_ref, component_ref_id> component_refs;
-    data_array<description, description_id>     descriptions;
-    data_array<component, component_id>         components;
-    data_array<observer, observer_id>           observers;
-    data_array<dir_path, dir_path_id>           dir_paths;
-    data_array<file_path, file_path_id>         file_paths;
-    data_array<child, child_id>                 children;
-    data_array<connection, connection_id>       connections;
+    data_array<model, model_id>             models;
+    data_array<tree_node, tree_node_id>     tree_nodes;
+    data_array<description, description_id> descriptions;
+    data_array<component, component_id>     components;
+    data_array<observer, observer_id>       observers;
+    data_array<dir_path, dir_path_id>       dir_paths;
+    data_array<file_path, file_path_id>     file_paths;
+    data_array<child, child_id>             children;
+    data_array<connection, connection_id>   connections;
 
     irt::external_source srcs;
-    component_ref_id     head{ 0 };
+    tree_node_id         head;
 
     status init(const modeling_initializer& params) noexcept;
+
+    component_id search_component(const char* name, const char* hint) noexcept;
 
     status fill_internal_components() noexcept;
     status fill_components() noexcept;
@@ -240,8 +242,8 @@ struct modeling
                    child_id   dst,
                    i8         port_dst) noexcept;
 
-    /// Build the @c hierarchy<component_ref> of from @c id
-    void make_tree_from(component_ref& id) noexcept;
+    /// Build the @c hierarchy<component_ref> of from the component @c id
+    status make_tree_from(component& id, tree_node_id* out) noexcept;
 
     status clean(component& c) noexcept; // clean empty vectors
     status save(component& c) noexcept;  // will call clean(component&) first.
@@ -266,7 +268,7 @@ inline child::child(model_id model) noexcept
   , type{ child_type::model }
 {}
 
-inline child::child(component_ref_id component) noexcept
+inline child::child(component_id component) noexcept
   : id{ ordinal(component) }
   , type{ child_type::component }
 {}
@@ -274,6 +276,10 @@ inline child::child(component_ref_id component) noexcept
 inline port::port(child_id child_, i8 port_) noexcept
   : id{ child_ }
   , index{ port_ }
+{}
+
+inline tree_node::tree_node(component_id id_) noexcept
+  : id(id_)
 {}
 
 inline child& modeling::alloc(component& parent, dynamics_type type) noexcept

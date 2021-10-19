@@ -1105,41 +1105,28 @@ private:
 
     status do_read_component(modeling& mod, component& compo, int i)
     {
-        char temp[64];
+        char        arg_1[64];
+        std::string arg_2;
 
-        if (!(is >> temp))
+        if (!(is >> arg_1))
             return status::io_file_format_error;
 
-        if (std::strcmp(temp, "cpp") == 0) {
-            if (!(is >> temp))
-                return status::io_file_format_error;
-
-            irt_return_if_fail(mod.component_refs.can_alloc(),
-                               status::io_file_format_error);
-            auto& compo_ref = mod.component_refs.alloc();
-
-            irt_return_if_bad(
-              add_cpp_component_ref(temp, mod, compo, compo_ref));
-        } else if (std::strcmp(temp, "file") == 0) {
-            std::string file_path;
-            if (!(is >> file_path))
-                return status::io_file_format_error;
-
-            irt_return_if_fail(mod.component_refs.can_alloc(),
-                               status::io_file_format_error);
-
-            auto& compo_ref = mod.component_refs.alloc();
-
-            irt_return_if_bad(
-              add_file_component_ref(temp, mod, compo, compo_ref));
-        } else {
+        if (!(is >> std::quoted(arg_2)))
             return status::io_file_format_error;
-        }
 
-        auto  child_id = compo.children.back();
-        auto& child    = mod.children.get(child_id);
-        child.x        = positions[i].x;
-        child.y        = positions[i].y;
+        auto  compo_id  = mod.search_component(arg_2.c_str(), arg_1);
+        auto* sub_compo = mod.components.try_to_get(compo_id);
+        irt_return_if_fail(sub_compo, status::io_file_format_error);
+
+        irt_return_if_fail(mod.children.can_alloc(),
+                           status::io_not_enough_memory);
+
+        auto& child = mod.children.alloc(compo_id);
+        child.x     = positions[i].x;
+        child.y     = positions[i].y;
+
+        auto child_id = mod.children.get_id(child);
+        compo.children.emplace_back(child_id);
 
         return status::success;
     }
@@ -1581,8 +1568,8 @@ struct writer
 
     table<child_id, i32> child_mapping;
 
-    table<model_id, int>         modeling_model_map;
-    table<component_ref_id, int> modeling_component_ref_map;
+    table<model_id, int>     modeling_model_map;
+    table<component_id, int> modeling_component_ref_map;
 
     writer(std::ostream& os_) noexcept
       : os(os_)
@@ -1721,23 +1708,21 @@ struct writer
         dispatch(mdl, [this](auto& dyn) -> void { this->write(dyn); });
     }
 
-    void do_write_component_dynamics(const modeling&      mod,
-                                     const component_ref& compo_ref,
-                                     const int            id,
-                                     const float          x,
-                                     const float          y)
+    void do_write_component_dynamics(const modeling&  mod,
+                                     const component& compo,
+                                     const int        id,
+                                     const float      x,
+                                     const float      y)
     {
-        auto* compo = mod.components.try_to_get(compo_ref.id);
-        if (compo) {
-            os << id << ' ' << x << ' ' << y << " component ";
+        os << id << ' ' << x << ' ' << y << " component ";
 
-            irt_assert(compo->type != component_type::memory);
-
-            if (compo->type == component_type::file) {
-                os << mod.file_paths.get(compo->file).path.c_str() << '\n';
-            } else {
-                os << component_type_names[ordinal(compo->type)] << '\n';
-            }
+        if (compo.type == component_type::file ||
+            compo.type == component_type::memory) {
+            os << "file "
+               << std::quoted(mod.file_paths.get(compo.file).path.c_str())
+               << '\n';
+        } else {
+            os << "cpp " << component_type_names[ordinal(compo.type)] << '\n';
         }
     }
 
@@ -1858,8 +1843,8 @@ private:
             irt_assert(c && "cleanup all component vectors before save");
 
             if (c->type == child_type::component) {
-                auto  cpn_id = enum_cast<component_ref_id>(c->id);
-                auto* cpn    = mod.component_refs.try_to_get(cpn_id);
+                auto  cpn_id = enum_cast<component_id>(c->id);
+                auto* cpn    = mod.components.try_to_get(cpn_id);
                 irt_assert(cpn && "cleanup all component vectors before save");
 
                 do_write_component_dynamics(mod, *cpn, i, c->x, c->y);

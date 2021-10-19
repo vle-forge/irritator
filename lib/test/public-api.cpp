@@ -1175,7 +1175,24 @@ int main()
             data.emplace_back(i + 1);
             data[i].d.set_id(&data[i]);
             data[i].d.parent_to(parent.d);
+            expect(data[i].d.parented_by(parent.d));
         }
+
+        expect(parent.d.get_parent() == nullptr);
+        expect(parent.d.get_child() != nullptr);
+
+        auto* child = parent.d.get_child();
+        expect(child->d.get_child() == nullptr);
+
+        int   i       = 1;
+        auto* sibling = child->d.get_sibling();
+        while (sibling) {
+            ++i;
+
+            sibling = sibling->d.get_sibling();
+        }
+
+        expect(i == 15);
     };
 
     "simulation-dispatch"_test = [] {

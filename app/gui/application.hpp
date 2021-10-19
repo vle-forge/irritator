@@ -368,7 +368,7 @@ struct component_editor
     small_string<16>        name;
     modeling                mod;
     simulation              sim;
-    component_ref_id        selected_component{ 0 };
+    tree_node_id            selected_component  = undefined<tree_node_id>();
     ImNodesEditorContext*   context             = nullptr;
     bool                    is_saved            = true;
     bool                    show_minimap        = true;
@@ -386,10 +386,9 @@ struct component_editor
     real simulation_begin;
     real simulation_end;
 
-    component_ref_id add_empty_component() noexcept;
-    void             select(component_ref_id id) noexcept;
-    void             open_as_main(component_id id) noexcept;
-    void             unselect() noexcept;
+    void select(tree_node_id id) noexcept;
+    void open_as_main(component_id id) noexcept;
+    void unselect() noexcept;
 
     void init() noexcept;
     void show(bool* is_show) noexcept;

@@ -514,305 +514,320 @@ status add_seir_nonlineaire(modeling& mod, component& com) noexcept
     return status::success;
 }
 
-static status build_models_recursively(const modeling& mod,
-                                       component_ref&  comp_ref,
-                                       simulation&     sim)
-{
-    comp_ref.mappers.data.clear();
+// static status build_models_recursively(const modeling& /*mod*/,
+//                                        component& /*comp_ref*/,
+//                                        simulation& /*sim*/)
+// {
+//     // comp_ref.mappers.data.clear();
 
-    auto* comp = mod.components.try_to_get(comp_ref.id);
-    if (!comp)
-        return status::success; /* @TODO certainly an error in API */
+//     // auto* comp = mod.components.try_to_get(comp_ref.id);
+//     // if (!comp)
+//     //     return status::success; /* @TODO certainly an error in API */
 
-    for (i32 i = 0, e = comp->children.ssize(); i != e; ++i) {
-        auto* child = mod.children.try_to_get(comp->children[i]);
-        if (!child)
-            continue;
+//     // for (i32 i = 0, e = comp->children.ssize(); i != e; ++i) {
+//     //     auto* child = mod.children.try_to_get(comp->children[i]);
+//     //     if (!child)
+//     //         continue;
 
-        u64 id = child->id;
+//     //     u64 id = child->id;
 
-        if (child->type == child_type::model) {
-            auto  src_id = enum_cast<model_id>(id);
-            auto* src    = mod.models.try_to_get(src_id);
-            if (!src)
-                continue;
+//     //     if (child->type == child_type::model) {
+//     //         auto  src_id = enum_cast<model_id>(id);
+//     //         auto* src    = mod.models.try_to_get(src_id);
+//     //         if (!src)
+//     //             continue;
 
-            irt_return_if_fail(sim.models.can_alloc(1),
-                               status::simulation_not_enough_model);
+//     //         irt_return_if_fail(sim.models.can_alloc(1),
+//     //                            status::simulation_not_enough_model);
 
-            auto& dst    = sim.clone(*src);
-            auto  dst_id = sim.models.get_id(dst);
-            comp_ref.mappers.data.emplace_back(src_id, dst_id);
-        } else {
-            auto  src_id = enum_cast<component_ref_id>(id);
-            auto* src    = mod.component_refs.try_to_get(src_id);
-            if (!src)
-                continue;
+//     //         auto& dst    = sim.clone(*src);
+//     //         auto  dst_id = sim.models.get_id(dst);
+//     //         comp_ref.mappers.data.emplace_back(src_id, dst_id);
+//     //     } else {
+//     //         auto  src_id = enum_cast<component_ref_id>(id);
+//     //         auto* src    = mod.component_refs.try_to_get(src_id);
+//     //         if (!src)
+//     //             continue;
 
-            irt_return_if_bad(build_models_recursively(mod, *src, sim));
-        }
-    }
+//     //         irt_return_if_bad(build_models_recursively(mod, *src, sim));
+//     //     }
+//     // }
 
-    return status::success;
-}
+//     return status::success;
+// }
 
-static status build_model_to_model_connection(component_ref& comp_ref,
-                                              simulation&    sim,
-                                              model_id       src,
-                                              i8             port_src,
-                                              model_id       dst,
-                                              i8             port_dst) noexcept
-{
-    auto* src_mdl_id = comp_ref.mappers.get(enum_cast<model_id>(src));
-    auto* dst_mdl_id = comp_ref.mappers.get(enum_cast<model_id>(dst));
-    irt_assert(src_mdl_id && !dst_mdl_id);
+// static status build_model_to_model_connection(component& /*comp_ref*/,
+//                                               simulation& /*sim*/,
+//                                               model_id /*src*/,
+//                                               i8 /*port_src*/,
+//                                               model_id /*dst*/,
+//                                               i8 /*port_dst*/) noexcept
+// {
+//     // auto* src_mdl_id = comp_ref.mappers.get(enum_cast<model_id>(src));
+//     // auto* dst_mdl_id = comp_ref.mappers.get(enum_cast<model_id>(dst));
+//     // irt_assert(src_mdl_id && !dst_mdl_id);
 
-    auto* mdl_src = sim.models.try_to_get(*src_mdl_id);
-    auto* mdl_dst = sim.models.try_to_get(*dst_mdl_id);
-    irt_assert(mdl_src && mdl_dst);
+//     // auto* mdl_src = sim.models.try_to_get(*src_mdl_id);
+//     // auto* mdl_dst = sim.models.try_to_get(*dst_mdl_id);
+//     // irt_assert(mdl_src && mdl_dst);
 
-    return global_connect(sim, *mdl_src, port_src, *dst_mdl_id, port_dst);
-}
+//     // return global_connect(sim, *mdl_src, port_src, *dst_mdl_id, port_dst);
 
-static bool found_input_port(const modeling&  mod,
-                             component_ref_id compo_ref,
-                             i8               port,
-                             model_id&        model_found,
-                             i8&              port_found)
-{
-    for (;;) {
-        auto* c_ref = mod.component_refs.try_to_get(compo_ref);
-        if (!c_ref)
-            return false;
+//     return status::success;
+// }
 
-        auto* c = mod.components.try_to_get(c_ref->id);
-        if (!c)
-            return false;
+// static bool found_input_port(const modeling& /*mod*/,
+//                              component_id /*compo_ref*/,
+//                              i8 /*port*/,
+//                              model_id& /*model_found*/,
+//                              i8& /*port_found*/)
+// {
+//     // for (;;) {
+//     //     auto* c_ref = mod.component_refs.try_to_get(compo_ref);
+//     //     if (!c_ref)
+//     //         return false;
 
-        if (!(0 <= port && port < c->x.ssize()))
-            return false;
+//     //     auto* c = mod.components.try_to_get(c_ref->id);
+//     //     if (!c)
+//     //         return false;
 
-        auto* child = mod.children.try_to_get(c->x[port].id);
-        if (!child)
-            return false;
+//     //     if (!(0 <= port && port < c->x.ssize()))
+//     //         return false;
 
-        if (child->type == child_type::model) {
-            auto  id        = enum_cast<model_id>(child->id);
-            auto* mapped_id = c_ref->mappers.get(id);
+//     //     auto* child = mod.children.try_to_get(c->x[port].id);
+//     //     if (!child)
+//     //         return false;
 
-            if (mapped_id) {
-                model_found = *mapped_id;
-                port_found  = c->x[port].index;
-                return true;
-            } else {
-                return false;
-            }
-        }
+//     //     if (child->type == child_type::model) {
+//     //         auto  id        = enum_cast<model_id>(child->id);
+//     //         auto* mapped_id = c_ref->mappers.get(id);
 
-        compo_ref = enum_cast<component_ref_id>(child->id);
-        port      = c->x[port].index;
-    }
-}
+//     //         if (mapped_id) {
+//     //             model_found = *mapped_id;
+//     //             port_found  = c->x[port].index;
+//     //             return true;
+//     //         } else {
+//     //             return false;
+//     //         }
+//     //     }
 
-static bool found_output_port(const modeling&  mod,
-                              component_ref_id compo_ref,
-                              i8               port,
-                              model_id&        model_found,
-                              i8&              port_found)
-{
-    for (;;) {
-        auto* c_ref = mod.component_refs.try_to_get(compo_ref);
-        if (!c_ref)
-            return false;
+//     //     compo_ref = enum_cast<component_ref_id>(child->id);
+//     //     port      = c->x[port].index;
+//     // }
 
-        auto* c = mod.components.try_to_get(c_ref->id);
-        if (!c)
-            return false;
+//     return true;
+// }
 
-        if (!(0 <= port && port < c->y.ssize()))
-            return false;
+// static bool found_output_port(const modeling& /*mod*/,
+//                               component_id /*compo_ref*/,
+//                               i8 /*port*/,
+//                               model_id& /*model_found*/,
+//                               i8& /*port_found*/)
+// {
+//     // for (;;) {
+//     //     auto* c_ref = mod.component_refs.try_to_get(compo_ref);
+//     //     if (!c_ref)
+//     //         return false;
 
-        auto* child = mod.children.try_to_get(c->y[port].id);
-        if (!child)
-            return false;
+//     //     auto* c = mod.components.try_to_get(c_ref->id);
+//     //     if (!c)
+//     //         return false;
 
-        if (child->type == child_type::model) {
-            auto  id        = enum_cast<model_id>(child->id);
-            auto* mapped_id = c_ref->mappers.get(id);
+//     //     if (!(0 <= port && port < c->y.ssize()))
+//     //         return false;
 
-            if (mapped_id) {
-                model_found = *mapped_id;
-                port_found  = c->y[port].index;
-                return true;
-            } else {
-                return false;
-            }
-        }
+//     //     auto* child = mod.children.try_to_get(c->y[port].id);
+//     //     if (!child)
+//     //         return false;
 
-        compo_ref = enum_cast<component_ref_id>(child->id);
-        port      = c->y[port].index;
-    }
-}
+//     //     if (child->type == child_type::model) {
+//     //         auto  id        = enum_cast<model_id>(child->id);
+//     //         auto* mapped_id = c_ref->mappers.get(id);
 
-static status build_model_to_component_connection(
-  const modeling&      mod,
-  const component_ref& compo_ref,
-  simulation&          sim,
-  model_id             src,
-  i8                   port_src,
-  component_ref_id     dst,
-  i8                   port_dst)
-{
-    model_id model_found;
-    i8       port_found;
+//     //         if (mapped_id) {
+//     //             model_found = *mapped_id;
+//     //             port_found  = c->y[port].index;
+//     //             return true;
+//     //         } else {
+//     //             return false;
+//     //         }
+//     //     }
 
-    if (found_input_port(mod, dst, port_dst, model_found, port_found))
-        if (auto* src_mdl_id = compo_ref.mappers.get(src); src_mdl_id)
-            if (auto* src_mdl = sim.models.try_to_get(*src_mdl_id); src_mdl)
-                return global_connect(
-                  sim, *src_mdl, port_src, model_found, port_found);
+//     //     compo_ref = enum_cast<component_ref_id>(child->id);
+//     //     port      = c->y[port].index;
+//     // }
 
-    return status::success; // @todo fail
-}
+//     return true;
+// }
 
-static status build_component_to_model_connection(
-  const modeling&      mod,
-  const component_ref& compo_ref,
-  simulation&          sim,
-  component_ref_id     src,
-  i8                   port_src,
-  model_id             dst,
-  i8                   port_dst)
-{
-    model_id model_found;
-    i8       port_found;
+// static status build_model_to_component_connection(
+//   const modeling& /*mod*/,
+//   const component& /*compo_ref*/,
+//   simulation& /*sim*/,
+//   model_id /*src*/,
+//   i8 /*port_src*/,
+//   component_id /*dst*/,
+//   i8 /*port_dst*/)
+// {
+//     // model_id model_found;
+//     // i8       port_found;
 
-    if (found_output_port(mod, src, port_src, model_found, port_found)) {
-        auto* dst_mdl_id = compo_ref.mappers.get(dst);
-        irt_return_if_fail(
-          dst_mdl_id,
-          status::model_connect_bad_dynamics); // @todo Fix connection
+//     // if (found_input_port(mod, dst, port_dst, model_found, port_found))
+//     //     if (auto* src_mdl_id = compo_ref.mappers.get(src); src_mdl_id)
+//     //         if (auto* src_mdl = sim.models.try_to_get(*src_mdl_id);
+//     src_mdl)
+//     //             return global_connect(
+//     //               sim, *src_mdl, port_src, model_found, port_found);
 
-        if (auto* src_mdl_id = compo_ref.mappers.get(model_found); src_mdl_id)
-            if (auto* src_mdl = sim.models.try_to_get(*src_mdl_id); src_mdl)
+//     return status::success; // @todo fail
+// }
 
-                return global_connect(
-                  sim, *src_mdl, port_found, *dst_mdl_id, port_dst);
-    }
+// static status build_component_to_model_connection(
+//   const modeling& /*mod*/,
+//   const component& /*compo_ref*/,
+//   simulation& /*sim*/,
+//   component_id /*src*/,
+//   i8 /*port_src*/,
+//   model_id /*dst*/,
+//   i8 /*port_dst*/)
+// {
+//     // model_id model_found;
+//     // i8       port_found;
 
-    return status::success;
-}
+//     // if (found_output_port(mod, src, port_src, model_found, port_found)) {
+//     //     auto* dst_mdl_id = compo_ref.mappers.get(dst);
+//     //     irt_return_if_fail(
+//     //       dst_mdl_id,
+//     //       status::model_connect_bad_dynamics); // @todo Fix connection
 
-static status build_component_to_component_connection(const modeling&  mod,
-                                                      simulation&      sim,
-                                                      component_ref_id src,
-                                                      i8               port_src,
-                                                      component_ref_id dst,
-                                                      i8               port_dst)
-{
-    model_id src_model_found, dst_model_found;
-    i8       src_port_found, dst_port_found;
+//     //     if (auto* src_mdl_id = compo_ref.mappers.get(model_found);
+//     //     src_mdl_id)
+//     //         if (auto* src_mdl = sim.models.try_to_get(*src_mdl_id);
+//     src_mdl)
 
-    model* src_mdl = nullptr;
+//     //             return global_connect(
+//     //               sim, *src_mdl, port_found, *dst_mdl_id, port_dst);
+//     // }
 
-    if (found_input_port(mod, dst, port_dst, dst_model_found, dst_port_found))
-        if (found_output_port(
-              mod, src, port_src, src_model_found, src_port_found))
-            if (src_mdl = sim.models.try_to_get(src_model_found); src_mdl)
-                return global_connect(sim,
-                                      *src_mdl,
-                                      src_port_found,
-                                      dst_model_found,
-                                      dst_port_found);
+//     return status::success;
+// }
 
-    return status::model_connect_bad_dynamics; // @todo Fix connection
-}
+// static status build_component_to_component_connection(const modeling&
+// /*mod*/,
+//                                                       simulation& /*sim*/,
+//                                                       component_id /*src*/,
+//                                                       i8 /*port_src*/,
+//                                                       component_id /*dst*/,
+//                                                       i8 /*port_dst*/)
+// {
+//     // model_id src_model_found, dst_model_found;
+//     // i8       src_port_found, dst_port_found;
 
-static status build_connections_recursively(modeling&      mod,
-                                            component_ref& c_ref,
-                                            simulation&    sim)
-{
-    auto* compo = mod.components.try_to_get(c_ref.id);
-    if (!compo)
-        return status::success; // @todo certainly an error
+//     // model* src_mdl = nullptr;
 
-    // Build connections from the leaf to the head of the component
-    // hierarchy.
-    for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
-        if (auto* child = mod.children.try_to_get(compo->children[i]); child) {
-            if (child->type == child_type::component) {
-                u64   id       = child->id;
-                auto  child_id = enum_cast<component_ref_id>(id);
-                auto* child    = mod.component_refs.try_to_get(child_id);
-                if (!child)
-                    continue;
+//     // if (found_input_port(mod, dst, port_dst, dst_model_found,
+//     // dst_port_found))
+//     //     if (found_output_port(
+//     //           mod, src, port_src, src_model_found, src_port_found))
+//     //         if (src_mdl = sim.models.try_to_get(src_model_found); src_mdl)
+//     //             return global_connect(sim,
+//     //                                   *src_mdl,
+//     //                                   src_port_found,
+//     //                                   dst_model_found,
+//     //                                   dst_port_found);
 
-                build_connections_recursively(mod, *child, sim);
-            }
-        }
-    }
+//     // return status::model_connect_bad_dynamics; // @todo Fix connection
 
-    for (i32 i = 0, e = compo->connections.ssize(); i != e; ++i) {
-        auto* con = mod.connections.try_to_get(compo->connections[i]);
-        if (!con)
-            continue;
+//     return status::success;
+// }
 
-        auto* src = mod.children.try_to_get(con->src);
-        auto* dst = mod.children.try_to_get(con->dst);
+// static status build_connections_recursively(modeling& /*mod*/,
+//                                             component& /*c_ref*/,
+//                                             simulation& /*sim*/)
+// {
+//     // auto* compo = mod.components.try_to_get(c_ref.id);
+//     // if (!compo)
+//     //     return status::success; // @todo certainly an error
 
-        if (src->type == child_type::model) {
-            if (dst->type == child_type::model) {
-                irt_return_if_bad(
-                  build_model_to_model_connection(c_ref,
-                                                  sim,
-                                                  enum_cast<model_id>(src->id),
-                                                  con->index_src,
-                                                  enum_cast<model_id>(dst->id),
-                                                  con->index_dst));
-            } else {
-                irt_return_if_bad(build_model_to_component_connection(
-                  mod,
-                  c_ref,
-                  sim,
-                  enum_cast<model_id>(src->id),
-                  con->index_src,
-                  enum_cast<component_ref_id>(dst->id),
-                  con->index_dst));
-            }
-        } else {
-            if (dst->type == child_type::model) {
-                irt_return_if_bad(build_component_to_model_connection(
-                  mod,
-                  c_ref,
-                  sim,
-                  enum_cast<component_ref_id>(src->id),
-                  con->index_src,
-                  enum_cast<model_id>(dst->id),
-                  con->index_dst));
-            } else {
-                irt_return_if_bad(build_component_to_component_connection(
-                  mod,
-                  sim,
-                  enum_cast<component_ref_id>(src->id),
-                  con->index_src,
-                  enum_cast<component_ref_id>(dst->id),
-                  con->index_dst));
-            }
-        }
-    }
+//     // // Build connections from the leaf to the head of the component
+//     // // hierarchy.
+//     // for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
+//     //     if (auto* child = mod.children.try_to_get(compo->children[i]);
+//     child)
+//     //     {
+//     //         if (child->type == child_type::component) {
+//     //             u64   id       = child->id;
+//     //             auto  child_id = enum_cast<component_ref_id>(id);
+//     //             auto* child    = mod.component_refs.try_to_get(child_id);
+//     //             if (!child)
+//     //                 continue;
 
-    return status::success;
-}
+//     //             build_connections_recursively(mod, *child, sim);
+//     //         }
+//     //     }
+//     // }
 
-static status build_models(modeling& /*mod*/,
-                           component& /*compo*/,
-                           simulation& /*sim*/)
-{
-    // irt_return_if_bad(build_models_recursively(mod, c_ref, sim));
-    // irt_return_if_bad(build_connections_recursively(mod, c_ref, sim));
+//     // for (i32 i = 0, e = compo->connections.ssize(); i != e; ++i) {
+//     //     auto* con = mod.connections.try_to_get(compo->connections[i]);
+//     //     if (!con)
+//     //         continue;
 
-    irt_bad_return(status::success);
-}
+//     //     auto* src = mod.children.try_to_get(con->src);
+//     //     auto* dst = mod.children.try_to_get(con->dst);
+
+//     //     if (src->type == child_type::model) {
+//     //         if (dst->type == child_type::model) {
+//     //             irt_return_if_bad(
+//     //               build_model_to_model_connection(c_ref,
+//     //                                               sim,
+//     // enum_cast<model_id>(src->id),
+//     //                                               con->index_src,
+//     // enum_cast<model_id>(dst->id),
+//     //                                               con->index_dst));
+//     //         } else {
+//     //             irt_return_if_bad(build_model_to_component_connection(
+//     //               mod,
+//     //               c_ref,
+//     //               sim,
+//     //               enum_cast<model_id>(src->id),
+//     //               con->index_src,
+//     //               enum_cast<component_ref_id>(dst->id),
+//     //               con->index_dst));
+//     //         }
+//     //     } else {
+//     //         if (dst->type == child_type::model) {
+//     //             irt_return_if_bad(build_component_to_model_connection(
+//     //               mod,
+//     //               c_ref,
+//     //               sim,
+//     //               enum_cast<component_ref_id>(src->id),
+//     //               con->index_src,
+//     //               enum_cast<model_id>(dst->id),
+//     //               con->index_dst));
+//     //         } else {
+//     //             irt_return_if_bad(build_component_to_component_connection(
+//     //               mod,
+//     //               sim,
+//     //               enum_cast<component_ref_id>(src->id),
+//     //               con->index_src,
+//     //               enum_cast<component_ref_id>(dst->id),
+//     //               con->index_dst));
+//     //         }
+//     //     }
+//     // }
+
+//     return status::success;
+// }
+
+// static status build_models(modeling& /*mod*/,
+//                            component& /*compo*/,
+//                            simulation& /*sim*/)
+// {
+//     // irt_return_if_bad(build_models_recursively(mod, c_ref, sim));
+//     // irt_return_if_bad(build_connections_recursively(mod, c_ref, sim));
+
+//     irt_bad_return(status::success);
+// }
 
 static status modeling_fill_file_component(
   modeling&                    mod,
@@ -894,9 +909,115 @@ static status modeling_fill_file_component(
     return status::success;
 }
 
+static bool get_component_type(const char*     type_string,
+                               component_type* type_found) noexcept
+{
+    struct cpp_component_entry
+    {
+        const char*    name;
+        component_type type;
+    };
+
+    static const cpp_component_entry tab[] = {
+        { "qss1_izhikevich", component_type::qss1_izhikevich },
+        { "qss1_lif", component_type::qss1_lif },
+        { "qss1_lotka_volterra", component_type::qss1_lotka_volterra },
+        { "qss1_negative_lif", component_type::qss1_negative_lif },
+        { "qss1_seir_lineaire", component_type::qss1_seir_lineaire },
+        { "qss1_seir_nonlineaire", component_type::qss1_seir_nonlineaire },
+        { "qss1_van_der_pol", component_type::qss1_van_der_pol },
+        { "qss2_izhikevich", component_type::qss2_izhikevich },
+        { "qss2_lif", component_type::qss2_lif },
+        { "qss2_lotka_volterra", component_type::qss2_lotka_volterra },
+        { "qss2_negative_lif", component_type::qss2_negative_lif },
+        { "qss2_seir_lineaire", component_type::qss2_seir_lineaire },
+        { "qss2_seir_nonlineaire", component_type::qss2_seir_nonlineaire },
+        { "qss2_van_der_pol", component_type::qss2_van_der_pol },
+        { "qss3_izhikevich", component_type::qss3_izhikevich },
+        { "qss3_lif", component_type::qss3_lif },
+        { "qss3_lotka_volterra", component_type::qss3_lotka_volterra },
+        { "qss3_negative_lif", component_type::qss3_negative_lif },
+        { "qss3_seir_lineaire", component_type::qss3_seir_lineaire },
+        { "qss3_seir_nonlineaire", component_type::qss3_seir_nonlineaire },
+        { "qss3_van_der_pol", component_type::qss3_van_der_pol },
+        { "file", component_type::file },
+        { "memory", component_type::memory }
+    };
+
+    auto it = std::lower_bound(std::begin(tab),
+                               std::end(tab),
+                               type_string,
+                               [](const auto& entry, const char* buffer) {
+                                   return 0 == std::strcmp(entry.name, buffer);
+                               });
+
+    if (it == std::end(tab) || std::strcmp(it->name, type_string))
+        return false;
+
+    *type_found = it->type;
+
+    return true;
+}
+
+static component* find_file_component(modeling&  mod,
+                                      dir_path&  dir,
+                                      file_path& file) noexcept
+{
+    auto dir_id  = mod.dir_paths.get_id(dir);
+    auto file_id = mod.file_paths.get_id(file);
+
+    component* compo = nullptr;
+    while (mod.components.next(compo)) {
+        if (compo->dir == dir_id && compo->file == file_id)
+            return compo;
+    }
+
+    return nullptr;
+}
+
+static component* load_component(modeling&   mod,
+                                 dir_path&   dir,
+                                 const char* file) noexcept
+{
+    component* ret = nullptr;
+
+    try {
+        std::filesystem::path irt_file(dir.path.c_str());
+        irt_file /= file;
+
+        std::error_code ec;
+        if (std::filesystem::is_regular_file(irt_file, ec)) {
+            if (std::ifstream ifs(irt_file); ifs) {
+                auto&  compo = mod.components.alloc();
+                reader r(ifs);
+                if (is_success(r(mod, compo, mod.srcs)))
+                    ret = &compo;
+            }
+        }
+    } catch (const std::exception& /*e*/) {
+    }
+
+    return ret;
+}
+
+static component* find_cpp_component(modeling&   mod,
+                                     const char* type_str) noexcept
+{
+    component_type type;
+    if (get_component_type(type_str, &type)) {
+        component* compo = nullptr;
+        while (mod.components.next(compo)) {
+            if (compo->type == type)
+                return compo;
+        }
+    }
+
+    irt_unreachable();
+}
+
 static bool check(const modeling_initializer& params) noexcept
 {
-    return params.model_capacity > 0 && params.component_ref_capacity > 0 &&
+    return params.model_capacity > 0 && params.tree_capacity > 0 &&
            params.description_capacity > 0 && params.component_capacity > 0 &&
            params.observer_capacity > 0 && params.dir_path_capacity > 0 &&
            params.file_path_capacity > 0 && params.children_capacity > 0 &&
@@ -915,7 +1036,7 @@ status modeling::init(const modeling_initializer& params) noexcept
     irt_return_if_fail(check(params), status::gui_not_enough_memory);
 
     irt_return_if_bad(models.init(params.model_capacity));
-    irt_return_if_bad(component_refs.init(params.component_ref_capacity));
+    irt_return_if_bad(tree_nodes.init(params.tree_capacity));
     irt_return_if_bad(descriptions.init(params.description_capacity));
     irt_return_if_bad(components.init(params.component_capacity));
     irt_return_if_bad(observers.init(params.observer_capacity));
@@ -933,6 +1054,41 @@ status modeling::init(const modeling_initializer& params) noexcept
     irt_return_if_bad(srcs.random_sources.init(params.random_source_capacity));
 
     return status::success;
+}
+
+component_id modeling::search_component(const char* name,
+                                        const char* hint) noexcept
+{
+    component* ret = nullptr;
+
+    if (hint) {
+        if (0 == std::strcmp(hint, "cpp")) {
+            ret = find_cpp_component(*this, name);
+        } else if (0 == std::strcmp(hint, "file")) {
+            file_path* file = nullptr;
+            while (file_paths.next(file))
+                if (file->path == name)
+                    break;
+
+            if (!file) {
+                dir_path* dir = nullptr;
+                while (dir_paths.next(dir)) {
+                    if (ret = load_component(*this, *dir, name); ret) {
+                        break;
+                    }
+                }
+            } else {
+                dir_path* dir = nullptr;
+                while (dir_paths.next(dir)) {
+                    if (ret = find_file_component(*this, *dir, *file); ret) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return ret ? components.get_id(*ret) : undefined<component_id>();
 }
 
 status modeling::fill_internal_components() noexcept
@@ -1102,123 +1258,54 @@ status modeling::connect(component& parent,
     return status::success;
 }
 
-static component* find_file_component(modeling&   mod,
-                                      const char* file_path) noexcept
+// status add_file_component_ref(const char*    file_path,
+//                               modeling&      mod,
+//                               component&     parent,
+//                               component_ref& compo_ref) noexcept
+// {
+//     irt_return_if_fail(parent.children.can_alloc(),
+//                        status::io_file_format_error);
+
+//     auto* file_compo = find_file_component(mod, file_path);
+//     compo_ref.id     = mod.components.get_id(*file_compo);
+
+//     auto& child = mod.children.alloc(mod.component_refs.get_id(compo_ref));
+//     parent.children.emplace_back(mod.children.get_id(child));
+
+//     return status::success;
+// }
+
+// status add_cpp_component_ref(const char* buffer,
+//                              modeling&   mod,
+//                              component&  parent) noexcept
+// {
+
+//     irt_return_if_fail(parent.children.can_alloc(),
+//                        status::io_file_format_error);
+
+//     auto* cpp_compo = find_cpp_component(mod, it->type);
+//     compo_ref.id    = mod.components.get_id(*cpp_compo);
+
+//     auto& child = mod.children.alloc(mod.component_refs.get_id(compo_ref));
+//     parent.children.emplace_back(mod.children.get_id(child));
+
+//     return status::success;
+// }
+
+status build_simulation(modeling& /*mod*/, simulation& /*sim*/) noexcept
 {
-    component* compo = nullptr;
-    while (mod.components.next(compo)) {
-        if ((compo->type == component_type::file) && compo->name == file_path)
-            return compo;
-    }
-
-    return nullptr;
-}
-
-static component* find_cpp_component(modeling&      mod,
-                                     component_type type) noexcept
-{
-    component* compo = nullptr;
-    while (mod.components.next(compo)) {
-        if (compo->type == type)
-            return compo;
-    }
-
-    irt_unreachable();
-}
-
-status add_file_component_ref(const char*    file_path,
-                              modeling&      mod,
-                              component&     parent,
-                              component_ref& compo_ref) noexcept
-{
-    irt_return_if_fail(parent.children.can_alloc(),
-                       status::io_file_format_error);
-
-    auto* file_compo = find_file_component(mod, file_path);
-    compo_ref.id     = mod.components.get_id(*file_compo);
-
-    auto& child = mod.children.alloc(mod.component_refs.get_id(compo_ref));
-    parent.children.emplace_back(mod.children.get_id(child));
-
-    return status::success;
-}
-
-status add_cpp_component_ref(const char*    buffer,
-                             modeling&      mod,
-                             component&     parent,
-                             component_ref& compo_ref) noexcept
-{
-    struct cpp_component_entry
-    {
-        const char*    name;
-        component_type type;
-    };
-
-    static const cpp_component_entry tab[] = {
-        { "qss1_izhikevich", component_type::qss1_izhikevich },
-        { "qss1_lif", component_type::qss1_lif },
-        { "qss1_lotka_volterra", component_type::qss1_lotka_volterra },
-        { "qss1_negative_lif", component_type::qss1_negative_lif },
-        { "qss1_seir_lineaire", component_type::qss1_seir_lineaire },
-        { "qss1_seir_nonlineaire", component_type::qss1_seir_nonlineaire },
-        { "qss1_van_der_pol", component_type::qss1_van_der_pol },
-        { "qss2_izhikevich", component_type::qss2_izhikevich },
-        { "qss2_lif", component_type::qss2_lif },
-        { "qss2_lotka_volterra", component_type::qss2_lotka_volterra },
-        { "qss2_negative_lif", component_type::qss2_negative_lif },
-        { "qss2_seir_lineaire", component_type::qss2_seir_lineaire },
-        { "qss2_seir_nonlineaire", component_type::qss2_seir_nonlineaire },
-        { "qss2_van_der_pol", component_type::qss2_van_der_pol },
-        { "qss3_izhikevich", component_type::qss3_izhikevich },
-        { "qss3_lif", component_type::qss3_lif },
-        { "qss3_lotka_volterra", component_type::qss3_lotka_volterra },
-        { "qss3_negative_lif", component_type::qss3_negative_lif },
-        { "qss3_seir_lineaire", component_type::qss3_seir_lineaire },
-        { "qss3_seir_nonlineaire", component_type::qss3_seir_nonlineaire },
-        { "qss3_van_der_pol", component_type::qss3_van_der_pol }
-    };
-
-    auto it = std::lower_bound(std::begin(tab),
-                               std::end(tab),
-                               buffer,
-                               [](const auto& entry, const char* buffer) {
-                                   return 0 == std::strcmp(entry.name, buffer);
-                               });
-    if (it == std::end(tab) || std::strcmp(it->name, buffer))
-        return status::io_file_format_error;
-
-    irt_return_if_fail(parent.children.can_alloc(),
-                       status::io_file_format_error);
-
-    auto* cpp_compo = find_cpp_component(mod, it->type);
-    compo_ref.id    = mod.components.get_id(*cpp_compo);
-
-    auto& child = mod.children.alloc(mod.component_refs.get_id(compo_ref));
-    parent.children.emplace_back(mod.children.get_id(child));
-
-    return status::success;
-}
-
-status build_simulation(modeling& mod, simulation& sim) noexcept
-{
-    if (auto* c_ref = mod.component_refs.try_to_get(mod.head); c_ref)
-        if (auto* compo = mod.components.try_to_get(c_ref->id); compo)
-            return build_models(mod, *compo, sim);
+    // if (auto* c_ref = mod.component_refs.try_to_get(mod.head); c_ref)
+    //     if (auto* compo = mod.components.try_to_get(c_ref->id); compo)
+    //         return build_models(mod, *compo, sim);
 
     irt_bad_return(status::success);
 }
 
-static void free_child(
-  data_array<child, child_id>&                 children,
-  data_array<model, model_id>&                 models,
-  data_array<component_ref, component_ref_id>& component_refs,
-  child&                                       c) noexcept
+static void free_child(data_array<child, child_id>& children,
+                       data_array<model, model_id>& models,
+                       child&                       c) noexcept
 {
-    if (c.type == child_type::component) {
-        auto id = enum_cast<component_ref_id>(c.id);
-        if (auto* c_ref = component_refs.try_to_get(id); c_ref)
-            component_refs.free(*c_ref);
-    } else {
+    if (c.type == child_type::model) {
         auto id = enum_cast<model_id>(c.id);
         if (auto* mdl = models.try_to_get(id); mdl)
             models.free(*mdl);
@@ -1237,7 +1324,7 @@ void modeling::free(component& c) noexcept
 {
     for (int i = 0, e = c.children.ssize(); i != e; ++i)
         if (auto* child = children.try_to_get(c.children[i]); child)
-            free_child(children, models, component_refs, *child);
+            free_child(children, models, *child);
     c.children.clear();
 
     for (int i = 0, e = c.connections.ssize(); i != e; ++i)
@@ -1265,7 +1352,7 @@ void modeling::free(component& parent, child& c) noexcept
         parent.children.swap_pop_back(index);
     }
 
-    free_child(children, models, component_refs, c);
+    free_child(children, models, c);
 }
 
 void modeling::free(component& parent, connection& c) noexcept
@@ -1293,32 +1380,21 @@ status modeling::copy(component& src, component& dst) noexcept
 
                     auto& new_child    = alloc(dst, mdl->type);
                     auto  new_child_id = children.get_id(new_child);
+                    new_child.name     = child->name;
                     new_child.x        = child->x;
                     new_child.y        = child->y;
 
                     mapping.data.emplace_back(src.children[i], new_child_id);
                 }
             } else {
-                auto id = enum_cast<component_ref_id>(child->id);
-                if (auto* c_ref = component_refs.try_to_get(id); c_ref) {
-                    auto compo_id = enum_cast<component_id>(c_ref->id);
-                    if (auto* compo = components.try_to_get(compo_id); compo) {
-                        irt_return_if_fail(
-                          component_refs.can_alloc(1),
-                          status::data_array_not_enough_memory);
+                auto compo_id = enum_cast<component_id>(child->id);
+                if (auto* compo = components.try_to_get(compo_id); compo) {
+                    auto& new_child    = children.alloc(compo_id);
+                    auto  new_child_id = children.get_id(new_child);
+                    new_child.name     = child->name;
+                    dst.children.emplace_back(children.get_id(new_child));
 
-                        auto& new_c_ref = component_refs.alloc();
-                        new_c_ref.id    = c_ref->id;
-
-                        auto& new_child =
-                          children.alloc(component_refs.get_id(new_c_ref));
-                        auto new_child_id = children.get_id(new_child);
-                        new_child.name    = child->name;
-                        dst.children.emplace_back(children.get_id(new_child));
-
-                        mapping.data.emplace_back(src.children[i],
-                                                  new_child_id);
-                    }
+                    mapping.data.emplace_back(src.children[i], new_child_id);
                 }
             }
         }
@@ -1346,53 +1422,68 @@ status modeling::copy(component& src, component& dst) noexcept
     return status::success;
 }
 
-static void make_tree_recursive(
-  data_array<child, child_id>&                 children,
-  data_array<component, component_id>&         components,
-  data_array<component_ref, component_ref_id>& component_refs,
-  component_ref&                               parent,
-  component_ref_id                             child) noexcept
+static status make_tree_recursive(
+  data_array<child, child_id>&         children,
+  data_array<component, component_id>& components,
+  data_array<tree_node, tree_node_id>& trees,
+  tree_node&                           parent,
+  component_id                         child) noexcept
 {
-    if (auto* c_ref = component_refs.try_to_get(child); c_ref) {
-        c_ref->tree.set_id(c_ref);
-        c_ref->tree.parent_to(parent.tree);
+    if (auto* compo = components.try_to_get(child); compo) {
+        irt_return_if_fail(trees.can_alloc(),
+                           status::data_array_not_enough_memory);
 
-        if (auto* compo = components.try_to_get(parent.id); compo) {
-            for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
-                auto child_id = compo->children[i];
-                if (auto* child = children.try_to_get(child_id); child) {
-                    if (child->type == child_type::component) {
-                        make_tree_recursive(
-                          children,
-                          components,
-                          component_refs,
-                          *c_ref,
-                          enum_cast<component_ref_id>(child->id));
-                    }
-                }
-            }
-        }
-    }
-}
+        auto& new_tree = trees.alloc(child);
+        new_tree.tree.set_id(&new_tree);
+        new_tree.tree.parent_to(parent.tree);
 
-void modeling::make_tree_from(component_ref& parent) noexcept
-{
-    parent.tree.set_id(&parent);
-
-    if (auto* compo = components.try_to_get(parent.id); compo) {
         for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
             auto child_id = compo->children[i];
+
             if (auto* child = children.try_to_get(child_id); child) {
                 if (child->type == child_type::component) {
-                    make_tree_recursive(children,
-                                        components,
-                                        component_refs,
-                                        parent,
-                                        enum_cast<component_ref_id>(child->id));
+                    irt_return_if_bad(
+                      make_tree_recursive(children,
+                                          components,
+                                          trees,
+                                          new_tree,
+                                          enum_cast<component_id>(child->id)));
                 }
             }
         }
     }
+
+    return status::success;
+}
+
+status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
+{
+    irt_return_if_fail(tree_nodes.can_alloc(),
+                       status::data_array_not_enough_memory);
+
+    auto  compo_id    = components.get_id(parent);
+    auto& tree_parent = tree_nodes.alloc(compo_id);
+
+    tree_parent.tree.set_id(&tree_parent);
+
+    for (i32 i = 0, e = parent.children.ssize(); i != e; ++i) {
+        const auto child_id = parent.children[i];
+
+        if (auto* child = children.try_to_get(child_id); child) {
+            if (child->type == child_type::component) {
+                irt_return_if_bad(
+                  make_tree_recursive(children,
+                                      components,
+                                      tree_nodes,
+                                      tree_parent,
+                                      enum_cast<component_id>(child->id)));
+            }
+        }
+    }
+
+    *out = tree_nodes.get_id(tree_parent);
+
+    return status::success;
 }
 
 status modeling::clean(component& c) noexcept
@@ -1421,8 +1512,8 @@ status modeling::clean(component& c) noexcept
                     continue;
                 }
             } else {
-                auto id = enum_cast<component_ref_id>(child->id);
-                if (auto* compo = component_refs.try_to_get(id); !compo) {
+                auto id = enum_cast<component_id>(child->id);
+                if (auto* compo = components.try_to_get(id); !compo) {
                     children.free(*child);
                     c.children.swap_pop_back(i);
                     need_more_loop = true;
@@ -1461,8 +1552,8 @@ status modeling::clean(component& c) noexcept
                     continue;
                 }
             } else {
-                auto id = enum_cast<component_ref_id>(src->id);
-                if (auto* compo = component_refs.try_to_get(id); !compo) {
+                auto id = enum_cast<component_id>(src->id);
+                if (auto* compo = components.try_to_get(id); !compo) {
                     children.free(*src);
                     connections.free(*con);
                     c.connections.swap_pop_back(i);
@@ -1481,8 +1572,8 @@ status modeling::clean(component& c) noexcept
                     continue;
                 }
             } else {
-                auto id = enum_cast<component_ref_id>(dst->id);
-                if (auto* compo = component_refs.try_to_get(id); !compo) {
+                auto id = enum_cast<component_id>(dst->id);
+                if (auto* compo = components.try_to_get(id); !compo) {
                     children.free(*dst);
                     connections.free(*con);
                     c.connections.swap_pop_back(i);

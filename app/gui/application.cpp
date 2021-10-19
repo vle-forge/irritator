@@ -20,7 +20,7 @@ bool application::init()
     }
 
     modeling_initializer m_init = { .model_capacity           = 256 * 64 * 16,
-                                    .component_ref_capacity   = 256 * 16,
+                                    .tree_capacity            = 256 * 16,
                                     .description_capacity     = 256 * 16,
                                     .component_capacity       = 256 * 128,
                                     .observer_capacity        = 256 * 16,
@@ -59,8 +59,8 @@ bool application::init()
     }
 
     c_editor.mod.fill_components();
-    c_editor.mod.head           = c_editor.add_empty_component();
-    c_editor.selected_component = c_editor.mod.head;
+    c_editor.mod.head           = undefined<tree_node_id>();
+    c_editor.selected_component = undefined<tree_node_id>();
 
     try {
         simulation_duration.resize(editors.capacity(), 0);
