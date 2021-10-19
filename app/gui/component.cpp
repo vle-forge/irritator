@@ -307,6 +307,8 @@ static void show_all_components(component_editor& ed)
                             static_cast<double>(child->y));
                 ImGui::Checkbox("configurable", &child->configurable);
                 ImGui::Checkbox("observables", &child->observable);
+                ImGui::InputText(
+                  "name", child->name.begin(), child->name.capacity());
 
                 if (child->type == child_type::model) {
                     auto  child_id = enum_cast<model_id>(child->id);
@@ -319,8 +321,6 @@ static void show_all_components(component_editor& ed)
                     auto& c_ref    = ed.mod.component_refs.get(c_ref_id);
                     auto* compo    = ed.mod.components.try_to_get(c_ref.id);
 
-                    ImGui::InputText(
-                      "name", c_ref.name.begin(), c_ref.name.capacity());
                     if (compo) {
                         ImGui::Text("type: %s",
                                     component_type_names[ordinal(compo->type)]);
@@ -1064,7 +1064,6 @@ component_ref_id component_editor::add_empty_component() noexcept
 
             auto& new_c_ref = mod.component_refs.alloc();
             new_c_ref.id    = mod.components.get_id(new_compo);
-            new_c_ref.name  = "top";
             new_c_ref.tree.set_id(&new_c_ref);
 
             return mod.component_refs.get_id(new_c_ref);

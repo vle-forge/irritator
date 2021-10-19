@@ -1309,11 +1309,11 @@ status modeling::copy(component& src, component& dst) noexcept
 
                         auto& new_c_ref = component_refs.alloc();
                         new_c_ref.id    = c_ref->id;
-                        new_c_ref.name  = c_ref->name;
 
                         auto& new_child =
                           children.alloc(component_refs.get_id(new_c_ref));
                         auto new_child_id = children.get_id(new_child);
+                        new_child.name    = child->name;
                         dst.children.emplace_back(children.get_id(new_child));
 
                         mapping.data.emplace_back(src.children[i],

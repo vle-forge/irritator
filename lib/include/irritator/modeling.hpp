@@ -68,7 +68,6 @@ void for_each(const DataArray& data, vector<T>& vec, Function&& f)
 struct component_ref
 {
     component_id              id; // the component reference
-    small_string<32>          name;
     table<model_id, model_id> mappers;
     hierarchy<component_ref>  tree;
 };
@@ -78,8 +77,9 @@ struct child
     child(model_id model) noexcept;
     child(component_ref_id component) noexcept;
 
-    u64        id;
-    child_type type;
+    small_string<32> name;
+    u64              id;
+    child_type       type;
 
     float x            = 0.f;
     float y            = 0.f;
