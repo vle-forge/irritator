@@ -200,9 +200,13 @@ struct tree_node
 {
     tree_node(component_id id_) noexcept;
 
-    component_id              id;
-    hierarchy<tree_node>      tree;
-    table<model_id, model_id> mappers;
+    component_id         id;
+    hierarchy<tree_node> tree;
+
+    table<model_id, model_id> parameters;
+    vector<model_id>          observables;
+
+    table<model_id, model_id> sim;
 };
 
 struct modeling
@@ -231,6 +235,7 @@ struct modeling
     void free(component& c) noexcept;
     void free(component& parent, child& c) noexcept;
     void free(component& parent, connection& c) noexcept;
+    void free(tree_node& node) noexcept;
 
     child& alloc(component& parent, dynamics_type type) noexcept;
 

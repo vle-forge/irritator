@@ -1344,6 +1344,17 @@ void modeling::free(component& c) noexcept
     components.free(c);
 }
 
+void modeling::free(tree_node& node) noexcept
+{
+    for (i32 i = 0, e = node.parameters.data.ssize(); i != e; ++i) {
+        auto mdl_id = node.parameters.data[i].value;
+        if (auto* mdl = models.try_to_get(mdl_id); mdl)
+            models.free(*mdl);
+    }
+
+    tree_nodes.free(node);
+}
+
 void modeling::free(component& parent, child& c) noexcept
 {
     auto child_id = children.get_id(c);
