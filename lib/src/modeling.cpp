@@ -1627,6 +1627,9 @@ status modeling::save(component& c) noexcept
         ofs.write(desc->data.c_str(), desc->data.size());
     }
 
+    c.status = component_status::unmodified;
+    c.type   = component_type::file;
+
     return status::success;
 }
 

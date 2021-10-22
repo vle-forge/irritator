@@ -856,15 +856,17 @@ private:
 
         irt_return_if_fail((is >> model_number), status::io_file_format_error);
 
-        irt_return_if_fail(model_number > 0,
+        irt_return_if_fail(model_number >= 0,
                            status::io_file_format_model_number_error);
 
-        map.data.reserve(model_number);
-        constant_mapping.data.reserve(model_number);
-        binary_file_mapping.data.reserve(model_number);
-        random_mapping.data.reserve(model_number);
-        text_file_mapping.data.reserve(model_number);
-        positions.resize(model_number);
+        if (model_number > 0) {
+            map.data.reserve(model_number);
+            constant_mapping.data.reserve(model_number);
+            binary_file_mapping.data.reserve(model_number);
+            random_mapping.data.reserve(model_number);
+            text_file_mapping.data.reserve(model_number);
+            positions.resize(model_number);
+        }
 
         return status::success;
     }

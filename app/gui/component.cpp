@@ -125,12 +125,41 @@ static component_id add_empty_component(component_editor& ed) noexcept
         auto& new_compo    = ed.mod.components.alloc();
         auto  new_compo_id = ed.mod.components.get_id(new_compo);
         new_compo.name.assign("New component");
-        new_compo.type = component_type::memory;
+        new_compo.type   = component_type::memory;
+        new_compo.status = component_status::modified;
 
         return new_compo_id;
     }
 
     return undefined<component_id>();
+}
+
+struct save_component_data
+{
+    modeling*    mod;
+    component_id id;
+};
+
+static void show_component(component_editor& ed, component& c) noexcept
+{
+    ImGui::Selectable(
+      c.name.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick);
+    if (ImGui::IsItemHovered()) {
+        if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+            add_component_to_current(ed, c);
+        } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            ed.selected_component_list      = &c;
+            ed.selected_component_type_list = c.type;
+            ImGui::OpenPopup("Component Menu");
+        }
+    }
+
+    if (c.status == component_status::modified) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton("save")) {
+            ed.mod.save(c);
+        }
+    }
 }
 
 static void show_all_components(component_editor& ed)
@@ -144,21 +173,7 @@ static void show_all_components(component_editor& ed)
             while (ed.mod.components.next(compo)) {
                 if (compo->type != component_type::file &&
                     compo->type != component_type::memory) {
-                    ImGui::Selectable(compo->name.c_str(),
-                                      false,
-                                      ImGuiSelectableFlags_AllowDoubleClick);
-
-                    if (ImGui::IsItemHovered()) {
-                        if (ImGui::IsMouseDoubleClicked(
-                              ImGuiMouseButton_Left)) {
-                            add_component_to_current(ed, *compo);
-                        } else if (ImGui::IsMouseClicked(
-                                     ImGuiMouseButton_Right)) {
-                            ed.selected_component_list      = compo;
-                            ed.selected_component_type_list = compo->type;
-                            ImGui::OpenPopup("Component Menu");
-                        }
-                    }
+                    show_component(ed, *compo);
                 }
             }
 
@@ -169,21 +184,7 @@ static void show_all_components(component_editor& ed)
             component* compo = nullptr;
             while (ed.mod.components.next(compo)) {
                 if (compo->type == component_type::file) {
-                    ImGui::Selectable(compo->name.c_str(),
-                                      false,
-                                      ImGuiSelectableFlags_AllowDoubleClick);
-
-                    if (ImGui::IsItemHovered()) {
-                        if (ImGui::IsMouseDoubleClicked(
-                              ImGuiMouseButton_Left)) {
-                            add_component_to_current(ed, *compo);
-                        } else if (ImGui::IsMouseClicked(
-                                     ImGuiMouseButton_Right)) {
-                            ed.selected_component_list      = compo;
-                            ed.selected_component_type_list = compo->type;
-                            ImGui::OpenPopup("Component Menu");
-                        }
-                    }
+                    show_component(ed, *compo);
                 }
             }
 
@@ -194,21 +195,7 @@ static void show_all_components(component_editor& ed)
             component* compo = nullptr;
             while (ed.mod.components.next(compo)) {
                 if (compo->type == component_type::memory) {
-                    ImGui::Selectable(compo->name.c_str(),
-                                      false,
-                                      ImGuiSelectableFlags_AllowDoubleClick);
-
-                    if (ImGui::IsItemHovered()) {
-                        if (ImGui::IsMouseDoubleClicked(
-                              ImGuiMouseButton_Left)) {
-                            add_component_to_current(ed, *compo);
-                        } else if (ImGui::IsMouseClicked(
-                                     ImGuiMouseButton_Right)) {
-                            ed.selected_component_list      = compo;
-                            ed.selected_component_type_list = compo->type;
-                            ImGui::OpenPopup("Component Menu");
-                        }
-                    }
+                    show_component(ed, *compo);
                 }
             }
 
@@ -232,9 +219,10 @@ static void show_all_components(component_editor& ed)
 
             if (ImGui::MenuItem("Copy")) {
                 if (ed.mod.components.can_alloc()) {
-                    auto& new_c = ed.mod.components.alloc();
-                    new_c.type  = component_type::memory;
-                    new_c.name  = ed.selected_component_list->name;
+                    auto& new_c  = ed.mod.components.alloc();
+                    new_c.type   = component_type::memory;
+                    new_c.name   = ed.selected_component_list->name;
+                    new_c.status = component_status::modified;
                     ed.mod.copy(*ed.selected_component_list, new_c);
                 } else {
                     log_w.log(3, "Can not alloc a new component");
@@ -649,8 +637,9 @@ static void add_popup_menuitem(component_editor& ed,
     }
 
     if (ImGui::MenuItem(get_dynamics_type_name(type))) {
-        auto& child = ed.mod.alloc(parent, type);
-        *new_model  = ed.mod.children.get_id(child);
+        auto& child   = ed.mod.alloc(parent, type);
+        *new_model    = ed.mod.children.get_id(child);
+        parent.status = component_status::modified;
 
         log_w.log(7, "new model %zu\n", ordinal(ed.mod.children.get_id(child)));
     }
@@ -761,6 +750,7 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
               child_src_id, port_src_index, child_dst_id, port_dst_index);
             auto con_id = ed.mod.connections.get_id(con);
             parent.connections.emplace_back(con_id);
+            parent.status = component_status::modified;
         }
     }
 }
@@ -775,6 +765,8 @@ void remove_nodes(component_editor& ed, component& parent) noexcept
 
     ed.selected_nodes.clear();
     ImNodes::ClearNodeSelection();
+
+    parent.status = component_status::modified;
 }
 
 void remove_links(component_editor& ed, component& parent) noexcept
@@ -798,6 +790,8 @@ void remove_links(component_editor& ed, component& parent) noexcept
 
     ed.selected_links.clear();
     ImNodes::ClearLinkSelection();
+
+    parent.status = component_status::modified;
 }
 
 static void show_opened_component(component_editor& ed) noexcept
@@ -825,6 +819,7 @@ static void show_opened_component(component_editor& ed) noexcept
     ImNodes::EndNodeEditor();
 
     if (auto* child = ed.mod.children.try_to_get(new_model); child) {
+        compo->status = component_status::modified;
         ImNodes::SetNodeScreenSpacePos(pack_node(new_model), click_pos);
         child->x = click_pos.x;
         child->y = click_pos.y;

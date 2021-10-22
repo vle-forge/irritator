@@ -131,10 +131,9 @@ enum class component_type
 
 enum class component_status
 {
-    empty,
-    read,
     read_only,
     modified,
+    unmodified,
 };
 
 struct component
@@ -150,7 +149,7 @@ struct component
     file_path_id     file = file_path_id{ 0 };
     small_string<32> name;
     component_type   type   = component_type::memory;
-    component_status status = component_status::empty;
+    component_status status = component_status::modified;
 };
 
 struct dir_path
