@@ -64,11 +64,45 @@ static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
 
+static bool can_add_this_component(const tree_node*   top,
+                                   const component_id id) noexcept
+{
+    if (top->id == id)
+        return false;
+
+    if (auto* parent = top->tree.get_parent(); parent) {
+        do {
+            if (parent->id == id)
+                return false;
+
+            parent = parent->tree.get_parent();
+        } while (parent);
+    }
+
+    return true;
+}
+
+static bool can_add_this_component(component_editor&  ed,
+                                   const component_id id) noexcept
+{
+    auto* tree = ed.mod.tree_nodes.try_to_get(ed.mod.head);
+    if (!tree)
+        return false;
+
+    if (!can_add_this_component(tree, id))
+        return false;
+
+    return true;
+}
+
 static status add_component_to_current(component_editor& ed,
                                        component&        compo) noexcept
 {
     auto& parent       = ed.mod.tree_nodes.get(ed.selected_component);
     auto& parent_compo = ed.mod.components.get(parent.id);
+
+    if (!can_add_this_component(ed, ed.mod.components.get_id(compo)))
+        return status::gui_not_enough_memory;
 
     tree_node_id tree_id;
 
