@@ -372,6 +372,49 @@ static void show_all_components(component_editor& ed)
     }
 }
 
+static void print_tree(const data_array<component, component_id>& components,
+                       tree_node* top_id) noexcept
+{
+    struct node
+    {
+        node(tree_node* tree_)
+          : tree(tree_)
+          , i(0)
+        {}
+
+        node(tree_node* tree_, int i_)
+          : tree(tree_)
+          , i(i_)
+        {}
+
+        tree_node* tree;
+        int        i = 0;
+    };
+
+    vector<node> stack;
+    stack.emplace_back(top_id);
+
+    while (!stack.empty()) {
+        auto cur = stack.back();
+        stack.pop_back();
+
+        auto  compo_id = cur.tree->id;
+        auto* compo    = components.try_to_get(compo_id);
+
+        if (compo) {
+            fmt::print("{:{}} {}\n", " ", cur.i, fmt::ptr(compo));
+        }
+
+        if (auto* sibling = cur.tree->tree.get_sibling(); sibling) {
+            stack.emplace_back(sibling, cur.i);
+        }
+
+        if (auto* child = cur.tree->tree.get_child(); child) {
+            stack.emplace_back(child, cur.i + 1);
+        }
+    }
+}
+
 static void show_component_hierarchy(component_editor& ed, tree_node& parent)
 {
     constexpr ImGuiTreeNodeFlags flags =
