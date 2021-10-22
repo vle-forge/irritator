@@ -584,61 +584,6 @@ static void show(component_editor& ed,
     ImNodes::PopColorStyle();
 }
 
-// static void show_opened_component_top(component_editor& ed,
-//                                       component&        head) noexcept
-// {
-//     for (int i = 0; i < head.children.ssize(); ++i) {
-//         const auto child_id = head.children[i];
-//         auto*      child    = ed.mod.children.try_to_get(child_id);
-//         if (!child)
-//             continue;
-
-//         if (child->type == child_type::model) {
-//             auto id = enum_cast<model_id>(child->id);
-//             if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
-//                 show(ed, *mdl, child_id, i);
-//                 if (ed.force_node_position) {
-//                     ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
-//                                                    ImVec2(child->x,
-//                                                    child->y));
-//                 } else {
-//                     auto pos =
-//                       ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
-//                     child->x = pos.x;
-//                     child->y = pos.y;
-//                 }
-//             }
-//         } else {
-//             auto id = enum_cast<component_ref_id>(child->id);
-//             if (auto* c_ref = ed.mod.component_refs.try_to_get(id); c_ref) {
-//                 if (auto* c = ed.mod.components.try_to_get(c_ref->id); c) {
-//                     show(ed, *c, child_id, i);
-
-//                     if (ed.force_node_position) {
-//                         ImNodes::SetNodeEditorSpacePos(
-//                           pack_node(child_id), ImVec2(child->x, child->y));
-//                     } else {
-//                         auto pos =
-//                           ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
-//                         child->x = pos.x;
-//                         child->y = pos.y;
-//                     }
-//                 }
-//             }
-//         }
-//     }
-
-//     ed.force_node_position = false;
-
-//     int i = 0;
-//     while (i < head.connections.ssize()) {
-//         if (!show_connection(ed, head, i))
-//             head.connections.swap_pop_back(i);
-//         else
-//             ++i;
-//     }
-// }
-
 static void show_opened_component_ref(component_editor& ed,
                                       tree_node& /*ref*/,
                                       component& compo) noexcept
@@ -796,20 +741,6 @@ static void show_popup_menuitem(component_editor& ed,
     ImGui::PopStyleVar();
 }
 
-// component* get_current_component(component_editor& ed) noexcept
-// {
-//     if (auto* ref = ed.mod.component_refs.try_to_get(ed.selected_component);
-//         ref)
-//         if (auto* compo = ed.mod.components.try_to_get(ref->id); compo)
-//             return compo;
-
-//     if (auto* ref = ed.mod.component_refs.try_to_get(ed.mod.head); ref)
-//         if (auto* compo = ed.mod.components.try_to_get(ref->id); compo)
-//             return compo;
-
-//     return nullptr;
-// }
-
 static void is_link_created(component_editor& ed, component& parent) noexcept
 {
     int start = 0, end = 0;
@@ -831,26 +762,6 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
             auto con_id = ed.mod.connections.get_id(con);
             parent.connections.emplace_back(con_id);
         }
-
-        // if (type_src == child_type::model) {
-        //     if (auto* mdl = ed.mod.models.try_to_get(index_src); mdl)
-        //         src = ordinal(ed.mod.models.get_id(*mdl));
-        // } else {
-        //     if (auto* c = ed.mod.component_refs.try_to_get(index_src); c)
-        //         src = ordinal(ed.mod.component_refs.get_id(*c));
-        // }
-
-        // if (type_dst == child_type::model) {
-        //     if (auto* mdl = ed.mod.models.try_to_get(index_dst); mdl)
-        //         dst = ordinal(ed.mod.models.get_id(*mdl));
-        // } else {
-        //     if (auto* c = ed.mod.component_refs.try_to_get(index_dst); c)
-        //         dst = ordinal(ed.mod.component_refs.get_id(*c));
-        // }
-
-        // if (src != 0 && dst != 0)
-        //     parent.connections.emplace_back(
-        //       src, dst, type_src, type_dst, port_src, port_dst);
     }
 }
 
