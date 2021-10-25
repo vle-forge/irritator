@@ -58,7 +58,7 @@ install(DIRECTORY include/irritator
   ${CMAKE_INSTALL_INCLUDEDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 function(irritator_add_test test_name)
-  add_executable(${test_name} ${ARGN} "include/irritator/external_source.hpp")
+  add_executable(${test_name} ${ARGN} "include/irritator/external_source.hpp;src/file.cpp")
 
   set_target_properties(${test_name} PROPERTIES
     COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"

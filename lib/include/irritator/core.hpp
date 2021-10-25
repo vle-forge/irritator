@@ -6851,9 +6851,9 @@ constexpr vector<T>::vector(vector&& other) noexcept
   , m_size(other.m_size)
   , m_capacity(other.m_capacity)
 {
-    other.m_data     = 0;
+    other.m_data     = nullptr;
     other.m_size     = 0;
-    other.m_capacity = nullptr;
+    other.m_capacity = 0;
 }
 
 template<typename T>
@@ -6864,9 +6864,9 @@ constexpr vector<T>& vector<T>::operator=(vector&& other) noexcept
     m_data           = other.m_data;
     m_size           = other.m_size;
     m_capacity       = other.m_capacity;
-    other.m_data     = 0;
+    other.m_data     = nullptr;
     other.m_size     = 0;
-    other.m_capacity = nullptr;
+    other.m_capacity = 0;
 
     return *this;
 }

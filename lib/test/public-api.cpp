@@ -6,10 +6,12 @@
 #include <irritator/examples.hpp>
 #include <irritator/ext.hpp>
 #include <irritator/external_source.hpp>
+#include <irritator/file.hpp>
 #include <irritator/io.hpp>
 
 #include <fmt/format.h>
 
+#include <filesystem>
 #include <iostream>
 #include <random>
 #include <sstream>
@@ -2996,5 +2998,100 @@ int main()
 
         auto str_t = ofs_b.str();
         expect(str_t.size() > 1024 * 2);
+    };
+
+    "binary-memory-io"_test = [] {
+        irt::memory f(256, irt::open_mode::write);
+
+        expect(f.data.ssize() == 256);
+        expect(f.data.capacity() == 256);
+        expect(f.length() == 0);
+
+        irt::u8  a = 0xfe;
+        irt::u16 b = 0xfedc;
+        irt::u32 c = 0xfedcba98;
+        irt::u64 d = 0xfedcba9876543210;
+
+        f.write(a);
+        f.write(b);
+        f.write(c);
+        f.write(d);
+
+        expect(f.data.ssize() == 256);
+        expect(f.data.capacity() == 256);
+        expect(f.tell() == 0);
+        expect(f.length() == 256);
+
+        irt::u8  a_w = f.data[0];
+        irt::u16 b_w = *(reinterpret_cast<irt::u16*>(&f.data[1]));
+        irt::u32 c_w = *(reinterpret_cast<irt::u32*>(&f.data[3]));
+        irt::u64 d_w = *(reinterpret_cast<irt::u64*>(&f.data[7]));
+
+        expect(a == a_w);
+        expect(b == b_w);
+        expect(c == c_w);
+        expect(d == d_w);
+
+        f.rewind();
+
+        expect(f.tell() == 0);
+    };
+
+    "binary-file-io"_test = [] {
+        std::error_code ec;
+        auto            file_path = std::filesystem::temp_directory_path(ec);
+
+        file_path /= "irritator.txt";
+
+        {
+            irt::file f(file_path.string().c_str(), irt::open_mode::write);
+
+            expect(f.length() == 0);
+
+            irt::u8  a = 0xfe;
+            irt::u16 b = 0xfedc;
+            irt::u32 c = 0xfedcba98;
+            irt::u64 d = 0xfedcba9876543210;
+
+            f.write(a);
+            f.write(b);
+            f.write(c);
+            f.write(d);
+
+            expect(f.tell() == 15);
+        }
+
+        {
+            irt::file f(file_path.string().c_str(), irt::open_mode::read);
+
+            expect(f.length() == 0);
+
+            irt::u8  a   = 0xfe;
+            irt::u16 b   = 0xfedc;
+            irt::u32 c   = 0xfedcba98;
+            irt::u64 d   = 0xfedcba9876543210;
+            irt::u8  a_w = 0;
+            irt::u16 b_w = 0;
+            irt::u32 c_w = 0;
+            irt::u64 d_w = 0;
+
+            f.read(a_w);
+            f.read(b_w);
+            f.read(c_w);
+            f.read(d_w);
+
+            expect(a == a_w);
+            expect(b == b_w);
+            expect(c == c_w);
+            expect(d == d_w);
+
+            expect(f.tell() == 15);
+
+            f.rewind();
+
+            expect(f.tell() == 0);
+        }
+
+        std::filesystem::remove(file_path, ec);
     };
 }
