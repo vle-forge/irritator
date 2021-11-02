@@ -128,6 +128,7 @@ function(irritator_add_benchmark test_name)
   target_link_libraries(${test_name} libirritator threads)
 endfunction()
 
+irritator_add_test(thread test/threading.cpp)
 irritator_add_test(test-api test/public-api.cpp)
 irritator_add_test(simulations test/simulations.cpp)
 # irritator_add_test(auditory test/auditory.cpp)
