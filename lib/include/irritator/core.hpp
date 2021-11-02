@@ -598,6 +598,13 @@ using small_storage_size_t = std::conditional_t<
 template<typename T>
 class vector
 {
+    static_assert(std::is_copy_assignable_v<T> ||
+                  std::is_copy_constructible_v<T> ||
+                  std::is_nothrow_constructible_v<T> ||
+                  std::is_move_assignable_v<T> ||
+                  std::is_move_constructible_v<T> ||
+                  std::is_nothrow_move_constructible_v<T>);
+
     T*  m_data     = nullptr;
     i32 m_size     = 0;
     i32 m_capacity = 0;
@@ -6919,7 +6926,16 @@ void vector<T>::reserve(i32 new_capacity) noexcept
         T* new_data =
           reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
 
-        std::copy_n(m_data, m_size, new_data);
+        if constexpr (std::is_copy_assignable_v<T> ||
+                      std::is_copy_constructible_v<T> ||
+                      std::is_nothrow_copy_constructible_v<T>)
+            std::copy_n(m_data, m_size, new_data);
+        else if constexpr (std::is_move_assignable_v<T> ||
+                           std::is_move_constructible_v<T> ||
+                           std::is_nothrow_move_assignable_v<T>)
+            for (i32 i = 0; i != size; ++i)
+                new_data[i] = std::move(m_data[i]);
+
         g_free_fn(m_data);
 
         m_data     = new_data;
