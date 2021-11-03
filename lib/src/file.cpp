@@ -22,77 +22,109 @@ inline void* to_void(std::FILE* f) noexcept
 template<typename File>
 bool read_from_file(File& f, i8& value) noexcept
 {
-    const auto temp = static_cast<u8>(value);
-
-    if (f.read(&temp)) {
-        value = static_cast<i8>(temp);
-        return true;
-    }
-
-    return false;
+    return f.read(&value, 1);
 }
 
 template<typename File>
 bool write_to_file(File& f, const i8 value) noexcept
 {
-    return f.write(static_cast<u8>(value));
+    return f.write(&value, 1);
 }
 
 template<typename File>
 bool read_from_file(File& f, i16& value) noexcept
 {
-    const auto temp = static_cast<u16>(value);
+    if (!f.read(&value, 2))
+        return false;
 
-    if (f.read(&temp)) {
-        value = static_cast<i16>(temp);
-        return true;
+    if constexpr (std::endian::native == std::endian::big) {
+#if defined(__GNUC__) || defined(__clang__)
+        value = __builtin_bswap16(value);
+#elif defined(_MSC_VER)
+        value     = _byteswap_ushort(value);
+#endif
     }
 
-    return false;
+    return true;
 }
 
 template<typename File>
 bool write_to_file(File& f, const i16 value) noexcept
 {
-    return f.write(static_cast<u16>(value));
+    if constexpr (std::endian::native == std::endian::big) {
+#if defined(__GNUC__) || defined(__clang__)
+        auto temp = __builtin_bswap16(value);
+#elif defined(_MSC_VER)
+        auto temp = _byteswap_ushort(value);
+#endif
+        return f.write(&temp, 2);
+    } else {
+        return f.write(&value, 2);
+    }
 }
 
 template<typename File>
 bool read_from_file(File& f, i32& value) noexcept
 {
-    const auto temp = static_cast<u32>(value);
+    if (!f.read(&value, 4))
+        return false;
 
-    if (f.read(&temp)) {
-        value = static_cast<i32>(temp);
-        return true;
+    if constexpr (std::endian::native == std::endian::big) {
+#if defined(__GNUC__) || defined(__clang__)
+        value = __builtin_bswap32(value);
+#elif defined(_MSC_VER)
+        value     = _byteswap_ulong(value);
+#endif
     }
 
-    return false;
+    return true;
 }
 
 template<typename File>
 bool write_to_file(File& f, const i32 value) noexcept
 {
-    return f.write(static_cast<u32>(value));
+    if constexpr (std::endian::native == std::endian::big) {
+#if defined(__GNUC__) || defined(__clang__)
+        auto temp = __builtin_bswap32(value);
+#elif defined(_MSC_VER)
+        auto temp = _byteswap_ulong(value);
+#endif
+        return f.write(&temp, 4);
+    } else {
+        return f.write(&value, 4);
+    }
 }
 
 template<typename File>
 bool read_from_file(File& f, i64& value) noexcept
 {
-    const auto temp = static_cast<u64>(value);
+    if (!f.read(&value, 8))
+        return false;
 
-    if (f.read(&temp)) {
-        value = static_cast<i64>(temp);
-        return true;
+    if constexpr (std::endian::native == std::endian::big) {
+#if defined(__GNUC__) || defined(__clang__)
+        value = __builtin_bswap64(value);
+#elif defined(_MSC_VER)
+        value     = _byteswap_uint64(value);
+#endif
     }
 
-    return false;
+    return true;
 }
 
 template<typename File>
 bool write_to_file(File& f, const i64 value) noexcept
 {
-    return f.write(static_cast<u64>(value));
+    if constexpr (std::endian::native == std::endian::big) {
+#if defined(__GNUC__) || defined(__clang__)
+        auto temp = __builtin_bswap64(value);
+#elif defined(_MSC_VER)
+        auto temp = _byteswap_uint64(value);
+#endif
+        return f.write(&temp, 8);
+    } else {
+        return f.write(&value, 8);
+    }
 }
 
 template<typename File>
@@ -172,38 +204,6 @@ bool write_to_file(File& f, const u32 value) noexcept
 }
 
 template<typename File>
-bool read_from_file(File& f, float& value) noexcept
-{
-    if (!f.read(reinterpret_cast<void*>(&value), 4))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap32(value);
-#elif defined(_MSC_VER)
-        value     = _byteswap_ulong(value);
-#endif
-    }
-
-    return true;
-}
-
-template<typename File>
-bool write_to_file(File& f, const float value) noexcept
-{
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap32(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_ulong(value);
-#endif
-        return f.write(&temp, 4);
-    } else {
-        return f.write(&value, 4);
-    }
-}
-
-template<typename File>
 bool read_from_file(File& f, u64& value) noexcept
 {
     if (!f.read(&value, 8))
@@ -232,6 +232,38 @@ bool write_to_file(File& f, const u64 value) noexcept
         return f.write(&temp, 8);
     } else {
         return f.write(&value, 8);
+    }
+}
+
+template<typename File>
+bool read_from_file(File& f, float& value) noexcept
+{
+    if (!f.read(reinterpret_cast<void*>(&value), 4))
+        return false;
+
+    if constexpr (std::endian::native == std::endian::big) {
+#if defined(__GNUC__) || defined(__clang__)
+        value = __builtin_bswap32(value);
+#elif defined(_MSC_VER)
+        value     = _byteswap_ulong(value);
+#endif
+    }
+
+    return true;
+}
+
+template<typename File>
+bool write_to_file(File& f, const float value) noexcept
+{
+    if constexpr (std::endian::native == std::endian::big) {
+#if defined(__GNUC__) || defined(__clang__)
+        auto temp = __builtin_bswap32(value);
+#elif defined(_MSC_VER)
+        auto temp = _byteswap_ulong(value);
+#endif
+        return f.write(&temp, 4);
+    } else {
+        return f.write(&value, 4);
     }
 }
 
@@ -347,21 +379,21 @@ void file::rewind() noexcept
     std::rewind(to_handle(file_handle));
 }
 
-bool file::read(u8& value) noexcept { return write_to_file(*this, value); }
+bool file::read(u8& value) noexcept { return read_from_file(*this, value); }
 
-bool file::read(u16& value) noexcept { return write_to_file(*this, value); }
+bool file::read(u16& value) noexcept { return read_from_file(*this, value); }
 
-bool file::read(u32& value) noexcept { return write_to_file(*this, value); }
+bool file::read(u32& value) noexcept { return read_from_file(*this, value); }
 
-bool file::read(u64& value) noexcept { return write_to_file(*this, value); }
+bool file::read(u64& value) noexcept { return read_from_file(*this, value); }
 
-bool file::read(i8& value) noexcept { return write_to_file(*this, value); }
+bool file::read(i8& value) noexcept { return read_from_file(*this, value); }
 
-bool file::read(i16& value) noexcept { return write_to_file(*this, value); }
+bool file::read(i16& value) noexcept { return read_from_file(*this, value); }
 
-bool file::read(i32& value) noexcept { return write_to_file(*this, value); }
+bool file::read(i32& value) noexcept { return read_from_file(*this, value); }
 
-bool file::read(i64& value) noexcept { return write_to_file(*this, value); }
+bool file::read(i64& value) noexcept { return read_from_file(*this, value); }
 
 bool file::write(const u8 value) noexcept
 {

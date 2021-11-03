@@ -3031,9 +3031,10 @@ int main()
     "binary-memory-io"_test = [] {
         irt::memory f(256, irt::open_mode::write);
 
-        expect(f.data.ssize() == 256);
-        expect(f.data.capacity() == 256);
-        expect(f.length() == 0);
+        assert(f.data.ssize() == 256);
+        assert(f.data.capacity() == 256);
+        assert(f.tell() == 0);
+        assert(f.length() == 256);
 
         irt::u8  a = 0xfe;
         irt::u16 b = 0xfedc;
@@ -3045,24 +3046,24 @@ int main()
         f.write(c);
         f.write(d);
 
-        expect(f.data.ssize() == 256);
-        expect(f.data.capacity() == 256);
-        expect(f.tell() == 0);
-        expect(f.length() == 256);
+        assert(f.data.ssize() == 256);
+        assert(f.data.capacity() == 256);
+        assert(f.tell() == 8 + 4 + 2 + 1);
+        assert(f.length() == 256);
 
         irt::u8  a_w = f.data[0];
         irt::u16 b_w = *(reinterpret_cast<irt::u16*>(&f.data[1]));
         irt::u32 c_w = *(reinterpret_cast<irt::u32*>(&f.data[3]));
         irt::u64 d_w = *(reinterpret_cast<irt::u64*>(&f.data[7]));
 
-        expect(a == a_w);
-        expect(b == b_w);
-        expect(c == c_w);
-        expect(d == d_w);
+        assert(a == a_w);
+        assert(b == b_w);
+        assert(c == c_w);
+        assert(d == d_w);
 
         f.rewind();
 
-        expect(f.tell() == 0);
+        assert(f.tell() == 0);
     };
 
     "binary-file-io"_test = [] {
@@ -3073,8 +3074,7 @@ int main()
 
         {
             irt::file f(file_path.string().c_str(), irt::open_mode::write);
-
-            expect(f.length() == 0);
+            assert(f.length() == 0);
 
             irt::u8  a = 0xfe;
             irt::u16 b = 0xfedc;
@@ -3086,13 +3086,12 @@ int main()
             f.write(c);
             f.write(d);
 
-            expect(f.tell() == 15);
+            assert(f.tell() == 15);
         }
 
         {
             irt::file f(file_path.string().c_str(), irt::open_mode::read);
-
-            expect(f.length() == 0);
+            assert(f.length() == 15);
 
             irt::u8  a   = 0xfe;
             irt::u16 b   = 0xfedc;
@@ -3108,16 +3107,16 @@ int main()
             f.read(c_w);
             f.read(d_w);
 
-            expect(a == a_w);
-            expect(b == b_w);
-            expect(c == c_w);
-            expect(d == d_w);
+            assert(a == a_w);
+            assert(b == b_w);
+            assert(c == c_w);
+            assert(d == d_w);
 
-            expect(f.tell() == 15);
+            assert(f.tell() == 15);
 
             f.rewind();
 
-            expect(f.tell() == 0);
+            assert(f.tell() == 0);
         }
 
         std::filesystem::remove(file_path, ec);
