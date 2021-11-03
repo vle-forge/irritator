@@ -13,6 +13,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <numeric>
 #include <random>
 #include <sstream>
 
@@ -601,6 +602,33 @@ int main()
         expect(v2[3] == 3);
         expect(v2[4] == 4);
         expect(v2[5] == 5);
+    };
+
+    "vector-erase"_test = [] {
+        struct t_1
+        {
+            int x = 0;
+
+            t_1() noexcept = default;
+
+            t_1(int x_) noexcept
+              : x(x_)
+            {}
+        };
+
+        irt::vector<t_1> v_1(10, 10);
+        std::iota(v_1.begin(), v_1.end(), 0);
+
+        assert(v_1[0].x == 0);
+        assert(v_1[9].x == 9);
+        v_1.erase(v_1.begin());
+        assert(v_1[0].x == 1);
+        assert(v_1[8].x == 9);
+        assert(v_1.ssize() == 9);
+        v_1.erase(v_1.begin(), v_1.begin() + 5);
+        assert(v_1[0].x == 6);
+        assert(v_1[3].x == 9);
+        assert(v_1.ssize() == 4);
     };
 
     "small-vector-no-trivial"_test = [] {

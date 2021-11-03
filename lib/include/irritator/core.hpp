@@ -668,6 +668,9 @@ public:
     constexpr void pop_back() noexcept;
     constexpr void swap_pop_back(index_type index) noexcept;
 
+    constexpr void erase(iterator it) noexcept;
+    constexpr void erase(iterator begin, iterator end) noexcept;
+
 private:
     i32 compute_new_capacity(i32 new_capacity) const;
 };
@@ -7114,6 +7117,78 @@ constexpr void vector<T>::swap_pop_back(index_type index) noexcept
             swap(data()[index], data()[m_size - 1]);
             pop_back();
         }
+    }
+}
+
+template<typename T>
+constexpr void vector<T>::erase(iterator it) noexcept
+{
+    irt_assert(it >= data() && it < data() + m_size);
+
+    if constexpr (std::is_trivially_copyable_v<T>) {
+        const ptrdiff_t off = it - data();
+        std::memmove(data() + off,
+                     data() + off + 1,
+                     (static_cast<sz>(m_size) - static_cast<sz>(off) - 1) *
+                       sizeof(T));
+        --m_size;
+    } else if (std::is_nothrow_move_constructible_v<T>) {
+        (*it).~T();
+
+        auto prev = it++;
+        for (; it != end(); ++it, ++prev)
+            (*prev) = std::move(*it);
+
+        pop_back();
+    } else if (std::is_nothrow_constructible_v<T>) {
+        (*it).~T();
+
+        auto prev = it++;
+        for (; it != end(); ++it, ++prev)
+            (*prev) = (*it);
+
+        pop_back();
+    }
+}
+
+template<typename T>
+constexpr void vector<T>::erase(iterator first, iterator last) noexcept
+{
+    irt_assert(first >= data() && first < data() + m_size && last > first &&
+               last <= data() + m_size);
+
+    const ptrdiff_t count = last - first;
+
+    if constexpr (std::is_trivially_copyable_v<T>) {
+        const ptrdiff_t off = first - data();
+        std::memmove(data() + off,
+                     data() + off + count,
+                     (static_cast<sz>(m_size) - static_cast<sz>(off) -
+                      static_cast<sz>(count)) *
+                       sizeof(T));
+        m_size -= static_cast<i32>(count);
+    } else if (std::is_nothrow_move_constructible_v<T>) {
+        for (auto jt = first; jt < last; ++jt)
+            (*jt).~T();
+
+        auto prev = first;
+        first     = last;
+        for (; last != end(); ++first, ++prev)
+            (*prev) = std::move(*first);
+
+        m_size -= static_cast<i32>(count);
+    } else if (std::is_nothrow_constructible_v<T>) {
+        (*first).~T();
+
+        auto prev = first;
+        first     = last;
+        for (; last != end(); ++first, ++prev)
+            (*prev) = *first;
+
+        m_size -= static_cast<i32>(count);
+
+        for (ptrdiff_t i = 0; i < count; ++i)
+            pop_back();
     }
 }
 
