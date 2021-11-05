@@ -112,6 +112,39 @@ public:
     constexpr void      swap_pop_back(index_type index) noexcept;
 };
 
+template<class T, i32 Size>
+class ring_buffer
+{
+    static_assert(std::is_nothrow_constructible_v<T> ||
+                  std::is_nothrow_move_constructible_v<T>);
+
+private:
+    T   buffer[Size];
+    i32 head   = 0;
+    i32 tail   = 0;
+    i32 number = 0;
+
+public:
+    constexpr ring_buffer() noexcept = default;
+    constexpr ~ring_buffer() noexcept;
+
+    constexpr void clear() noexcept;
+
+    template<typename... Args>
+    constexpr bool emplace_enqueue(Args&&... args) noexcept;
+
+    constexpr bool enqueue(const T& item) noexcept;
+    constexpr T    dequeue() noexcept;
+
+    constexpr T&       front() noexcept;
+    constexpr const T& front() const noexcept;
+
+    constexpr size_t size() const noexcept;
+    constexpr i32    ssize() const noexcept;
+    constexpr bool   empty() const noexcept;
+    constexpr bool   full() const noexcept;
+};
+
 template<typename T>
 class hierarchy
 {
@@ -430,6 +463,101 @@ constexpr void small_vector<T, length>::swap_pop_back(index_type index) noexcept
             pop_back();
         }
     }
+}
+
+template<class T, i32 Size>
+constexpr ring_buffer<T, Size>::~ring_buffer() noexcept
+{
+    clear();
+}
+
+template<class T, i32 Size>
+constexpr void ring_buffer<T, Size>::clear() noexcept
+{
+    while (!empty())
+        dequeue();
+
+    head   = 0;
+    tail   = 0;
+    number = 0;
+}
+
+template<class T, i32 Size>
+template<typename... Args>
+constexpr bool ring_buffer<T, Size>::emplace_enqueue(Args&&... args) noexcept
+{
+    if (full())
+        return false;
+
+    new (&buffer[tail]) T(std::forward<Args>(args)...);
+    tail = (tail + 1) % Size;
+    ++number;
+
+    return true;
+}
+
+template<class T, i32 Size>
+constexpr bool ring_buffer<T, Size>::enqueue(const T& item) noexcept
+{
+    if (full())
+        return false;
+
+    buffer[tail] = item;
+    tail         = (tail + 1) % Size;
+    ++number;
+
+    return true;
+}
+
+template<class T, i32 Size>
+constexpr T ring_buffer<T, Size>::dequeue() noexcept
+{
+    irt_assert(!empty());
+
+    T item = buffer[head];
+
+    if constexpr (!std::is_trivially_destructible_v<T>)
+        buffer[head].~T();
+
+    head = (head + 1) % Size;
+    --number;
+
+    return item;
+}
+
+template<class T, i32 Size>
+constexpr T& ring_buffer<T, Size>::front() noexcept
+{
+    return buffer[head];
+}
+template<class T, i32 Size>
+constexpr const T& ring_buffer<T, Size>::front() const noexcept
+{
+    return buffer[head];
+}
+
+template<class T, i32 Size>
+constexpr bool ring_buffer<T, Size>::empty() const noexcept
+{
+    return number == 0;
+}
+
+template<class T, i32 Size>
+constexpr bool ring_buffer<T, Size>::full() const noexcept
+{
+    return number == Size;
+}
+
+template<class T, i32 Size>
+constexpr size_t ring_buffer<T, Size>::size() const noexcept
+{
+    return static_cast<sz>(ssize());
+}
+
+template<class T, i32 Size>
+constexpr i32 ring_buffer<T, Size>::ssize() const noexcept
+{
+    return (tail >= head) ? tail - head : Size - head - tail;
 }
 
 template<typename T>
