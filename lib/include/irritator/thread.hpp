@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_2021_THREAD_HPP
 
 #include <irritator/core.hpp>
+#include <irritator/ext.hpp>
 
 #include <atomic>
 #include <barrier>
@@ -206,29 +207,29 @@ static inline constexpr i32 max_threads   = 8;
 //! @brief Simple task list access by only one thread
 struct task_list
 {
-    vector<task> tasks;
-    worker*      worker = nullptr;
-    spin_lock    spin;
+    ring_buffer<task, 256> tasks;
+    worker*                worker = nullptr;
+    spin_lock              spin;
 
     i32 task_number = 0;   // number of task since task_list constructor
-    i32 task_submit = 0;   // number of task add since last submit
     i8  priority    = 127; // task_list priority (-127 better than 127).
 
     task_list() noexcept = default;
 
     void add(task_function function, void* parameter) noexcept
     {
-        scoped_spin_lock lock(spin);
-        tasks.emplace_back(function, parameter);
-        ++task_number;
-    }
+        for (;;) {
+            {
+                scoped_spin_lock lock(spin);
+                if (!tasks.full()) {
+                    tasks.emplace_enqueue(function, parameter);
+                    ++task_number;
+                    return;
+                }
+            }
 
-    bool submit() noexcept
-    {
-        task_submit = task_number;
-        task_number = 0;
-
-        return true;
+            std::this_thread::yield();
+        }
     }
 
     void wait() noexcept
@@ -237,7 +238,7 @@ struct task_list
             {
                 scoped_spin_lock lock(spin);
                 if (tasks.empty()) {
-                    task_submit = 0;
+                    tasks.clear();
                     return;
                 }
             }
@@ -265,33 +266,44 @@ struct worker
                       return left->priority < right->priority;
                   });
 
-        task buffer[8];
-        i32  task_size = 0;
+        for (;;) {
+            while (!tasks.empty()) {
+                auto task = tasks.dequeue();
+                task.function(task.parameter);
+            }
 
-        while (!is_terminating) {
-            if (task_size > 0) {
-                for (i32 i = 0; i < task_size; ++i)
-                    buffer[i].function(buffer[i].parameter);
+            for (auto& lst : task_lists) {
+                scoped_spin_lock lock(lst->spin);
+                if (lst->tasks.empty())
+                    continue;
 
-                task_size = 0;
-            } else {
+                while (!tasks.full() && !lst->tasks.empty())
+                    tasks.enqueue(lst->tasks.dequeue());
+            }
+
+            if (tasks.empty() && is_terminating) {
+                bool all_empty = true;
+
                 for (auto& lst : task_lists) {
                     scoped_spin_lock lock(lst->spin);
-                    if (lst->tasks.empty())
-                        continue;
-
-                    task_size = std::min(length(buffer), lst->tasks.ssize());
-                    std::copy_n(lst->tasks.data(), task_size, buffer);
-                    lst->tasks.erase(lst->tasks.begin(),
-                                     lst->tasks.begin() + task_size);
+                    if (!lst->tasks.empty()) {
+                        all_empty = false;
+                        break;
+                    }
                 }
+
+                if (all_empty)
+                    return;
             }
         }
     }
 
-    std::jthread       thread;
-    vector<task_list*> task_lists;
-    bool               is_terminating = false;
+    void join() noexcept { thread.join(); }
+
+    std::jthread         thread;
+    vector<task_list*>   task_lists;
+    ring_buffer<task, 8> tasks;
+    bool                 is_terminating = false;
 };
 
 struct task_manager_parameters
@@ -351,6 +363,12 @@ inline void task_manager::finalize() noexcept
 {
     for (auto& e : workers)
         e.terminate();
+
+    for (auto& e : workers)
+        e.join();
+
+    task_lists.clear();
+    workers.clear();
 }
 
 /*****************************************************************************
