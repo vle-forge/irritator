@@ -43,9 +43,18 @@ status add_file_component_ref(const char* buffer,
 
 status build_simulation(const modeling& mod, simulation& sim) noexcept;
 
+enum class description_status
+{
+    unread,
+    read_only,
+    modified,
+    unmodified,
+};
+
 struct description
 {
     small_string<1024> data;
+    description_status status = description_status::unread;
 };
 
 template<typename DataArray, typename T, typename Function>
@@ -131,6 +140,7 @@ enum class component_type
 
 enum class component_status
 {
+    unread,
     read_only,
     modified,
     unmodified,
@@ -148,14 +158,13 @@ struct component
     dir_path_id      dir  = dir_path_id{ 0 };
     file_path_id     file = file_path_id{ 0 };
     small_string<32> name;
+
     component_type   type   = component_type::memory;
     component_status status = component_status::modified;
 };
 
 struct dir_path
 {
-    small_string<256 * 16> path;
-
     enum class status_option
     {
         none,
@@ -165,7 +174,9 @@ struct dir_path
         unusable
     };
 
-    status_option status = status_option::none;
+    small_string<256 * 16> path;
+    status_option          status   = status_option::none;
+    i8                     priority = 0;
 };
 
 struct file_path
@@ -208,6 +219,16 @@ struct tree_node
     table<model_id, model_id> sim;
 };
 
+// static void refresh_component(void *param) noexcept
+// {
+//     auto *mod = reinterpret_cast<modeling*>(param);
+
+//     // mod->status = modeling::read_only;
+//     mod->status =
+//     mod->refresh_component();
+//     mod->status = modeling::done;
+// }
+
 struct modeling
 {
     data_array<model, model_id>             models;
@@ -220,6 +241,7 @@ struct modeling
     data_array<child, child_id>             children;
     data_array<connection, connection_id>   connections;
 
+    vector<dir_path_id>  component_repertories;
     irt::external_source srcs;
     tree_node_id         head;
 

@@ -459,7 +459,7 @@ bool file::write(const void* buffer, i64 length) noexcept
     return written == 1;
 }
 
-memory::memory(const i64 length, const open_mode mode) noexcept
+memory::memory(const i64 length, const open_mode /*mode*/) noexcept
   : data(static_cast<i32>(length), static_cast<i32>(length))
   , pos(0)
 {}

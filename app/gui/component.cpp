@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
+#include "dialog.hpp"
 #include "editor.hpp"
 #include "internal.hpp"
 
@@ -889,15 +890,86 @@ static void settings_compute_colors(
                                      1.5f);
 }
 
+#define container_of(ptr, type, member)                                        \
+    ({                                                                         \
+        const typeof(((type*)0)->member)* __mptr = (ptr);                      \
+        (type*)((char*)__mptr - offsetof(type, member));                       \
+    })
+
 void component_editor::settings_manager::show(bool* is_open) noexcept
 {
     ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(550, 400), ImGuiCond_Once);
     if (!ImGui::Begin("Component settings", is_open)) {
         ImGui::End();
         return;
     }
 
+    ImGui::Separator();
+    ImGui::TextUnformatted("Dir paths");
+
+    static const char* dir_status[] = {
+        "none", "read_in_progress", "read_only", "usable", "unusable"
+    };
+
+    auto* c_ed = container_of(this, component_editor, settings);
+    if (ImGui::BeginTable("Component directories", 5)) {
+        ImGui::TableSetupColumn(
+          "Path", ImGuiTableColumnFlags_WidthStretch, -FLT_MIN);
+        ImGui::TableSetupColumn("Priority", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("Refresh", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableHeadersRow();
+
+        dir_path* dir       = nullptr;
+        dir_path* to_delete = nullptr;
+        while (c_ed->mod.dir_paths.next(dir)) {
+            if (to_delete) {
+                c_ed->mod.dir_paths.free(*to_delete);
+                to_delete = nullptr;
+            }
+
+            ImGui::PushID(dir);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1);
+            ImGui::InputText("##name",
+                             const_cast<char*>(dir->path.begin()),
+                             dir->path.size(),
+                             ImGuiInputTextFlags_ReadOnly);
+            ImGui::PopItemWidth();
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1);
+            constexpr i8 p_min = INT8_MIN;
+            constexpr i8 p_max = INT8_MAX;
+            ImGui::SliderScalar(
+              "##input", ImGuiDataType_S8, &dir->priority, &p_min, &p_max);
+            ImGui::PopItemWidth();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(dir_status[ordinal(dir->status)]);
+            ImGui::TableNextColumn();
+            if (ImGui::SmallButton("Refresh"))
+                fmt::print("TODO\n");
+            ImGui::TableNextColumn();
+            if (ImGui::SmallButton("Delete"))
+                to_delete = dir;
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+
+        if (c_ed->mod.dir_paths.can_alloc(1) &&
+            ImGui::Button("Add directory")) {
+            auto& dir                          = c_ed->mod.dir_paths.alloc();
+            dir.status                         = dir_path::status_option::none;
+            dir.path                           = "";
+            dir.priority                       = 127;
+            c_ed->show_select_directory_dialog = true;
+            c_ed->select_dir_path = c_ed->mod.dir_paths.get_id(dir);
+        }
+    }
+
+    ImGui::Separator();
     ImGui::Text("Graphics");
     if (ImGui::ColorEdit3(
           "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
@@ -910,6 +982,7 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
                           ImGuiColorEditFlags_NoOptions))
         settings_compute_colors(*this);
 
+    ImGui::Separator();
     ImGui::Text("Automatic layout parameters");
     ImGui::DragInt(
       "max iteration", &automatic_layout_iteration_limit, 1.f, 0, 1000);
@@ -918,6 +991,7 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
     ImGui::DragFloat(
       "a-y-distance", &automatic_layout_y_distance, 1.f, 150.f, 500.f);
 
+    ImGui::Separator();
     ImGui::Text("Grid layout parameters");
     ImGui::DragFloat(
       "g-x-distance", &grid_layout_x_distance, 1.f, 150.f, 500.f);
@@ -1146,6 +1220,24 @@ void component_editor::show(bool* /*is_show*/) noexcept
 
     if (show_memory)
         show_memory_box(&show_memory);
+
+    if (show_settings)
+        settings.show(&show_settings);
+
+    if (show_select_directory_dialog) {
+        ImGui::OpenPopup("Select directory");
+        if (select_directory_dialog(select_directory)) {
+            auto* dir_path = mod.dir_paths.try_to_get(select_dir_path);
+            if (dir_path) {
+                auto str = select_directory.string();
+                dir_path->path.assign(str);
+            }
+
+            show_select_directory_dialog = false;
+            select_dir_path              = undefined<dir_path_id>();
+            select_directory.clear();
+        }
+    }
 }
 
 } // irt

@@ -47,14 +47,20 @@ bool application::init()
     }
 
     if (auto path = get_system_component_dir(); path) {
-        auto& new_dir = c_editor.mod.dir_paths.alloc();
-        new_dir.path  = path.value().string().c_str();
+        auto& new_dir    = c_editor.mod.dir_paths.alloc();
+        auto  new_dir_id = c_editor.mod.dir_paths.get_id(new_dir);
+        new_dir.path     = path.value().string().c_str();
+        c_editor.mod.component_repertories.emplace_back(new_dir_id);
+
         log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
     }
 
     if (auto path = get_default_user_component_dir(); path) {
-        auto& new_dir = c_editor.mod.dir_paths.alloc();
-        new_dir.path  = path.value().string().c_str();
+        auto& new_dir    = c_editor.mod.dir_paths.alloc();
+        auto  new_dir_id = c_editor.mod.dir_paths.get_id(new_dir);
+        new_dir.path     = path.value().string().c_str();
+        c_editor.mod.component_repertories.emplace_back(new_dir_id);
+
         log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
     }
 
@@ -106,6 +112,8 @@ bool application::show()
             ImGui::MenuItem("Demo window", nullptr, &show_demo);
             ImGui::Separator();
             ImGui::MenuItem("Component memory", nullptr, &c_editor.show_memory);
+            ImGui::MenuItem(
+              "Component settings", nullptr, &c_editor.show_settings);
             ImGui::EndMenu();
         }
 

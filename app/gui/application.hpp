@@ -368,13 +368,14 @@ struct component_editor
     small_string<16>        name;
     modeling                mod;
     simulation              sim;
-    tree_node_id            selected_component  = undefined<tree_node_id>();
-    ImNodesEditorContext*   context             = nullptr;
-    bool                    is_saved            = true;
-    bool                    show_minimap        = true;
-    bool                    show_settings       = false;
-    bool                    show_memory         = false;
-    bool                    force_node_position = false;
+    tree_node_id            selected_component = undefined<tree_node_id>();
+    ImNodesEditorContext*   context            = nullptr;
+    bool                    is_saved           = true;
+    bool                    show_minimap       = true;
+    bool                    show_settings      = false;
+    bool                    show_memory        = false;
+    bool                    show_select_directory_dialog = false;
+    bool                    force_node_position          = false;
     component_editor_status status = component_editor_status::modeling;
 
     component*     selected_component_list      = nullptr;
@@ -382,6 +383,9 @@ struct component_editor
 
     vector<int> selected_links;
     vector<int> selected_nodes;
+
+    std::filesystem::path select_directory;
+    dir_path_id           select_dir_path = undefined<dir_path_id>();
 
     real simulation_begin;
     real simulation_end;
