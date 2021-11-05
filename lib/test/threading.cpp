@@ -126,4 +126,78 @@ int main()
 
         assert(counter == 101 * 100 * 4);
     };
+
+    "1-worker-2-task-lists"_test = [] {
+        irt::task_manager_parameters init{ .thread_number           = 1,
+                                           .simple_task_list_number = 2,
+                                           .multi_task_list_number  = 0 };
+
+        irt::task_manager tm;
+        irt::status       ret = tm.init(init);
+        assert(irt::is_success(ret));
+
+        assert(tm.task_lists.ssize() == 2);
+        assert(tm.workers.ssize() == 1);
+
+        tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
+        tm.workers[0].task_lists.emplace_back(&tm.task_lists[1]);
+        tm.task_lists[0].worker = &tm.workers[0];
+        tm.task_lists[1].worker = &tm.workers[0];
+
+        tm.start();
+        int counter_1 = 0;
+        int counter_2 = 0;
+
+        tm.task_lists[0].add(&function_1, &counter_1);
+        tm.task_lists[1].add(&function_100, &counter_2);
+        tm.task_lists[0].add(&function_1, &counter_1);
+        tm.task_lists[1].add(&function_100, &counter_2);
+        tm.task_lists[0].add(&function_1, &counter_1);
+        tm.task_lists[1].add(&function_100, &counter_2);
+        tm.task_lists[0].add(&function_1, &counter_1);
+        tm.task_lists[1].add(&function_100, &counter_2);
+
+        tm.task_lists[0].wait();
+        tm.finalize();
+
+        assert(counter_1 == 4);
+        assert(counter_2 == 400);
+    };
+
+    "2-worker-2-task-lists"_test = [] {
+        irt::task_manager_parameters init{ .thread_number           = 2,
+                                           .simple_task_list_number = 2,
+                                           .multi_task_list_number  = 0 };
+
+        irt::task_manager tm;
+        irt::status       ret = tm.init(init);
+        assert(irt::is_success(ret));
+
+        assert(tm.task_lists.ssize() == 2);
+        assert(tm.workers.ssize() == 2);
+
+        tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
+        tm.workers[1].task_lists.emplace_back(&tm.task_lists[1]);
+        tm.task_lists[0].worker = &tm.workers[0];
+        tm.task_lists[1].worker = &tm.workers[1];
+
+        tm.start();
+        int counter_1 = 0;
+        int counter_2 = 0;
+
+        tm.task_lists[0].add(&function_1, &counter_1);
+        tm.task_lists[1].add(&function_100, &counter_2);
+        tm.task_lists[0].add(&function_1, &counter_1);
+        tm.task_lists[1].add(&function_100, &counter_2);
+        tm.task_lists[0].add(&function_1, &counter_1);
+        tm.task_lists[1].add(&function_100, &counter_2);
+        tm.task_lists[0].add(&function_1, &counter_1);
+        tm.task_lists[1].add(&function_100, &counter_2);
+
+        tm.task_lists[0].wait();
+        tm.finalize();
+
+        assert(counter_1 == 4);
+        assert(counter_2 == 400);
+    };
 }
