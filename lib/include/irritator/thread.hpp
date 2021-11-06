@@ -139,35 +139,6 @@ public:
     }
 };
 
-enum class task_type : i8
-{
-    sync,
-
-    modeling_load_irt,
-    modeling_save_irt,
-    modeling_load_desc,
-    modeling_save_desc,
-    modeling_remove_childen,
-    modeling_copy_children,
-    modeling_clear,
-
-    simulation_change_child,
-    simulation_remove_childen,
-    simulation_copy_children,
-    simulation_clear,
-
-    simulation_transition,
-};
-
-enum class task_state : i8
-{
-    undefined,
-    todo,
-    running,
-    stalled,
-    done,
-};
-
 // Simplicity key to scalability
 // – Job has well defined input and output
 // – Independent stateless, no stalls, always completes
@@ -186,14 +157,10 @@ struct task
     task(task_function function_, void* parameter_) noexcept
       : function(function_)
       , parameter(parameter_)
-      , state(task_state::todo)
-      , operation_status(status::success)
     {}
 
     task_function function         = nullptr;
     void*         parameter        = nullptr;
-    task_state    state            = task_state::undefined;
-    status        operation_status = status::success;
 };
 
 struct task;
