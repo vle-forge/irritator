@@ -631,8 +631,6 @@ template<typename T>
 void hierarchy<T>::remove_from_hierarchy() noexcept
 {
     hierarchy<T>* parent_node = m_parent;
-
-    parent_node = m_parent;
     remove_from_parent();
 
     if (parent_node) {
