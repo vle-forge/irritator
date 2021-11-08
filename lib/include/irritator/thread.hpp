@@ -159,8 +159,8 @@ struct task
       , parameter(parameter_)
     {}
 
-    task_function function         = nullptr;
-    void*         parameter        = nullptr;
+    task_function function  = nullptr;
+    void*         parameter = nullptr;
 };
 
 struct task;
@@ -175,7 +175,6 @@ static inline constexpr i32 max_threads   = 8;
 struct task_list
 {
     ring_buffer<task, 256> tasks;
-    worker*                worker = nullptr;
     spin_lock              spin;
 
     i32 task_number = 0;   // number of task since task_list constructor
@@ -314,12 +313,6 @@ inline status task_manager::init(task_manager_parameters& params) noexcept
 
 inline status task_manager::start() noexcept
 {
-    i32 worker_index = 0;
-    for (auto& lst : task_lists) {
-        lst.worker = &workers[worker_index++];
-        worker_index %= workers.ssize();
-    }
-
     for (auto& e : workers)
         e.start();
 

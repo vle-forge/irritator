@@ -67,7 +67,6 @@ int main()
         assert(tm.workers.ssize() == 1);
 
         tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
-        tm.task_lists[0].worker = &tm.workers[0];
 
         tm.start();
         int counter = 0;
@@ -96,7 +95,6 @@ int main()
         assert(tm.workers.ssize() == 1);
 
         tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
-        tm.task_lists[0].worker = &tm.workers[0];
 
         tm.start();
         int counter = 0;
@@ -141,8 +139,6 @@ int main()
 
         tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
         tm.workers[0].task_lists.emplace_back(&tm.task_lists[1]);
-        tm.task_lists[0].worker = &tm.workers[0];
-        tm.task_lists[1].worker = &tm.workers[0];
 
         tm.start();
         int counter_1 = 0;
@@ -178,8 +174,6 @@ int main()
 
         tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
         tm.workers[1].task_lists.emplace_back(&tm.task_lists[1]);
-        tm.task_lists[0].worker = &tm.workers[0];
-        tm.task_lists[1].worker = &tm.workers[1];
 
         tm.start();
         int counter_1 = 0;
