@@ -755,12 +755,29 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
     }
 }
 
-void remove_nodes(component_editor& ed, component& parent) noexcept
+void remove_nodes(component_editor& ed,
+                  tree_node&        tree,
+                  component&        parent) noexcept
 {
     for (i32 i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
         if (auto* child = unpack_node(ed.selected_nodes[i], ed.mod.children);
-            child)
+            child) {
+            if (child->type == child_type::component) {
+                // search the tree_node
+                if (auto* c = tree.tree.get_child(); c) {
+                    do {
+                        if (c->id == enum_cast<component_id>(child->id)) {
+                            c->tree.remove_from_hierarchy();
+                            c = nullptr;
+                        } else {
+                            c = c->tree.get_sibling();
+                        }
+                    } while (c);
+                }
+            }
+
             ed.mod.free(parent, *child);
+        }
     }
 
     ed.selected_nodes.clear();
@@ -845,7 +862,7 @@ static void show_opened_component(component_editor& ed) noexcept
 
     if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
         if (num_selected_nodes > 0)
-            remove_nodes(ed, *compo);
+            remove_nodes(ed, *tree, *compo);
         else if (num_selected_links > 0)
             remove_links(ed, *compo);
     }
