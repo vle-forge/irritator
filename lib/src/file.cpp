@@ -4,6 +4,8 @@
 
 #include <irritator/file.hpp>
 
+#include <bit>
+
 #include <cstdio>
 #include <cstdlib>
 
