@@ -242,7 +242,7 @@ application::show_plot_window()
 
         if (show_shaded_plot) {
             if (ImPlot::BeginPlot("simulation shaded plot", "t", "s")) {
-                        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 5.f);
                         plot_output* out = nullptr;
                         //for (const int& i : out->ys) {
                         //    out->y0.push_back(i) = 0.0;
@@ -309,7 +309,7 @@ application::show_plot_window()
 
         if (show_heat_map) {
             if (ImPlot::BeginPlot("simulation heat map", "t", "s")) {
-                ImPlot::PushStyleVar(ImPlotColormap_Plasma,5);
+                ImPlot::PushStyleVar(ImPlotColormap_Hot,6);
                 plot_output* out = nullptr;
                 while (ed->plot_outs.next(out)) {
                     if (!out->xs.empty() && !out->ys.empty()) {
@@ -321,7 +321,7 @@ application::show_plot_window()
                                           1.0f,// float scale max
                                           "%.1f",// const char* label_fmt
                                           ImPlotPoint(0, 0),//const ImPlotPoint& bounds_min = 
-                                          ImPlotPoint(1, 1));//const ImPlotPoint& bounds_max = 
+                                          ImPlotPoint(100, 100));//const ImPlotPoint& bounds_max = 
                     }
                 }
 
