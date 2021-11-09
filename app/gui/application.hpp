@@ -86,6 +86,7 @@ struct plot_output
     editor* ed = nullptr;
     std::vector<float> xs;
     std::vector<float> ys;
+    std::vector<float> y0;// added this for shader plot minimum which is most time 0.0
     small_string<24u> name;
     double tl = 0.0;
     double time_step = 0.01;
@@ -467,6 +468,13 @@ struct application
     bool show_plot = true;
     bool show_settings = false;
 
+    //adding these for my different result visualizations++++++++++
+    bool show_scatter_plot = false;
+    bool show_shaded_plot = false;
+    bool show_bar_chart = false;
+    bool show_pie_chart = false;
+    bool show_heat_map = false;
+
     bool init();
     bool show();
     void shutdown();
@@ -478,6 +486,13 @@ struct application
     void show_plot_window();
     void show_simulation_window();
     void show_settings_window();
+
+    //adding these too to run simulation for the different plot types
+    void show_scatter_plot_window();
+    void show_shaded_plot_window();
+    void show_bar_chart_window();
+    void show_pie_chart_window();
+    void show_heat_map_window();
 
     editor* alloc_editor();
     void free_editor(editor& ed);

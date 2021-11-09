@@ -62,6 +62,7 @@ enum ImPlotAxisFlags_ {
     ImPlotAxisFlags_LockMax    = 1 << 5, // the axis maximum value will be locked when panning/zooming
     ImPlotAxisFlags_LogScale   = 1 << 6, // a logartithmic (base 10) axis scale will be used
     ImPlotAxisFlags_Scientific = 1 << 7, // scientific notation will be used for tick labels if displayed (WIP, not very good yet)
+    ImPlotAxisFlags_AutoFit    = 1 << 8, // axis will be auto-fitting to data extents.....Ese added this...........
     ImPlotAxisFlags_Default    = ImPlotAxisFlags_GridLines | ImPlotAxisFlags_TickMarks | ImPlotAxisFlags_TickLabels,
     ImPlotAxisFlags_Auxiliary  = ImPlotAxisFlags_Default & ~ImPlotAxisFlags_GridLines,
 };
@@ -247,6 +248,7 @@ void PlotBars(const char* label_id, const double* values, int count, double widt
 void PlotBars(const char* label_id, const float* xs, const float* ys, int count, float width, int offset = 0, int stride = sizeof(float));
 void PlotBars(const char* label_id, const double* xs, const double* ys, int count, double width, int offset = 0, int stride = sizeof(double));
 void PlotBars(const char* label_id, ImPlotPoint (*getter)(void* data, int idx), void* data, int count, double width, int offset = 0);
+//void PlotBars(const char* label_id, const float* values, int count);
 
 // Plots a horizontal bar graph.
 void PlotBarsH(const char* label_id, const float* values, int count, float height = 0.67f, float shift = 0, int offset = 0, int stride = sizeof(float));

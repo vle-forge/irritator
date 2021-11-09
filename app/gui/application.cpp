@@ -159,38 +159,324 @@ application::free_editor(editor& ed)
     log_w.log(5, "Close editor %s\n", ed.name.c_str());
     editors.free(ed);
 }
-
+/// <summary>
+/// my plotter modificatiosn start here and only in this part of the ImGui or ImPlot mode
+/// </summary>
 void
 application::show_plot_window()
 {
     ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
-    if (!ImGui::Begin("Plot", &show_plot)) {
+    //ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
+    //ImGui::SetNextWindowContentSize(ImVec2(400, 0.0f));
+    ImPlotFlags flag_option = ImPlotFlags_Query;
+    //static auto flag_opt = ImPlotFlags_Query;
+
+    if (!ImGui::Begin("Plot", &show_plot,flag_option)) {
         ImGui::End();
         return;
     }
 
+    //editor* ed = nullptr;
+
+    if (ImGui::BeginMenu("Visualization")) {
+        ImGui::MenuItem("Scatter plot", nullptr, &show_scatter_plot);
+        ImGui::MenuItem("Shader plot", nullptr, &show_shaded_plot);
+        ImGui::MenuItem("Bar chart", nullptr, &show_bar_chart);
+        ImGui::MenuItem("Pie chart", nullptr, &show_pie_chart);
+        ImGui::MenuItem("Heat Map", nullptr, &show_heat_map);
+
+        ImGui::EndMenu();
+    }
+
+        
+    // if (show_scatter_plot)
+    //    show_scatter_plot_window();
+    // if (show_shaded_plot)
+    //    show_shaded_plot_window();
+    // if (show_bar_chart)
+    //    show_bar_chart_window();
+    // if (show_pie_chart)
+    //    show_pie_chart_window();
+    // if (show_heat_map)
+    //    show_heat_map_window(); 
+
+
     static editor_id current = undefined<editor_id>();
-    if (auto* ed = make_combo_editor_name(current); ed) {
-        if (ImPlot::BeginPlot("simulation", "t", "s")) {
+    if (auto* ed = make_combo_editor_name(current); ed) {//////covers all the plot options in single editor...default editor-0
+        if (ImPlot::BeginPlot("simulation default plot", "t", "s")) {
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
 
             plot_output* out = nullptr;
             while (ed->plot_outs.next(out)) {
-                if (!out->xs.empty() && !out->ys.empty())
+                if (!out->xs.empty() && !out->ys.empty()) {
                     ImPlot::PlotLine(out->name.c_str(),
                                      out->xs.data(),
                                      out->ys.data(),
                                      static_cast<int>(out->xs.size()));
+                }
             }
 
             ImPlot::PopStyleVar(1);
             ImPlot::EndPlot();
         }
+
+        if (show_scatter_plot) {
+            if (ImPlot::BeginPlot("simulation scatter plot", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);// whats the right style to use for scatter plot
+                plot_output* out = nullptr;
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty()) {
+                        ImPlot::PlotScatter(out->name.c_str(),
+                                            out->xs.data(),
+                                            out->ys.data(),
+                                            1,// int count represents whats
+                                            1,// int offset
+                                            static_cast<int>(out->xs.size()));
+                    }
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        }// ends scatter plot
+
+        if (show_shaded_plot) {
+            if (ImPlot::BeginPlot("simulation shaded plot", "t", "s")) {
+                        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                        plot_output* out = nullptr;
+                        //for (const int& i : out->ys) {
+                        //    out->y0.push_back(i) = 0.0;
+                        //}
+
+                        while (ed->plot_outs.next(out)) {
+                            if (!out->xs.empty() && !out->ys.empty() && !out->y0.empty()) {
+                                ImPlot::PlotShaded(out->name.c_str(),
+                                                   out->xs.data(),
+                                                   out->ys.data(),// what value should be used here for minimum
+                                                   4,
+                                                   0.f,
+                                                   1,
+                                                   static_cast<int>(out->xs.size()));
+                            }
+                        }
+
+                        ImPlot::PopStyleVar(1);
+                        ImPlot::EndPlot();
+                    }        
+        }// ends shader plot
+
+        if (show_bar_chart) {
+            if (ImPlot::BeginPlot("simulation bar chart", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarWeight, 2);
+
+                plot_output* out = nullptr;
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty()) {
+                        ImPlot::PlotBars(out->name.c_str(),
+                                        //out->xs.data(),
+                                        out->ys.data(),
+                                        4,// int count
+                                        0.67f,// float width
+                                        0.0,
+                                        1,//int offset = 0
+                                        static_cast<int>(out->xs.size()));// int stride
+                    }
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ends bar chart
+
+        if (show_pie_chart) {
+            if (ImPlot::BeginPlot("simulation pie chart", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.f);
+
+                plot_output* out = nullptr;
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty()) {
+                        ImPlot::PlotLine(out->name.c_str(),
+                                         out->xs.data(),
+                                         out->ys.data(),
+                                         static_cast<int>(out->xs.size()));
+                    }
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ends pie chart
+
+        if (show_heat_map) {
+            if (ImPlot::BeginPlot("simulation heat map", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotColormap_Plasma,5);
+                plot_output* out = nullptr;
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty()) {
+                        ImPlot::PlotHeatmap(out->name.c_str(),
+                                            out->ys.data(),
+                                          50,// int rows
+                                          50,// int columns
+                                          0.1f,// float scale min
+                                          1.0f,// float scale max
+                                          "%.1f",// const char* label_fmt
+                                          ImPlotPoint(0, 0),//const ImPlotPoint& bounds_min = 
+                                          ImPlotPoint(1, 1));//const ImPlotPoint& bounds_max = 
+                    }
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ends heat map
+
     }
 
+            
+    //if (show_scatter_plot)
+    //    show_scatter_plot_window();
+    //if (show_shaded_plot)
+    //    show_shaded_plot_window();
+    //if (show_bar_chart)
+    //    show_bar_chart_window();
+    //if (show_pie_chart)
+    //    show_pie_chart_window();
+    //if (show_heat_map)
+    //    show_heat_map_window(); 
+
     ImGui::End();
-}
+} // Ese the plotter ends here and all my modificatiuons will come here
+
+
+//void
+//application::show_scatter_plot_window()
+//{
+//    static editor_id current = undefined<editor_id>();
+//    if (auto* ed = make_combo_editor_name(current); ed) {
+//        if (ImPlot::BeginPlot("simulation scatter plot", "t", "s")) {
+//            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 3.f);
+//
+//            plot_output* out = nullptr;
+//            while (ed->plot_outs.next(out)) {
+//                if (!out->xs.empty() && !out->ys.empty()) {
+//                    ImPlot::PlotLine(out->name.c_str(),
+//                                     out->xs.data(),
+//                                     out->ys.data(),
+//                                     static_cast<int>(out->xs.size()));
+//                }
+//            }
+//
+//            ImPlot::PopStyleVar(1);
+//            ImPlot::EndPlot();
+//        }
+//    }
+//}
+//
+//void
+//application::show_shaded_plot_window()
+//{
+//    static editor_id current = undefined<editor_id>();
+//    if (auto* ed = make_combo_editor_name(current); ed) {
+//        if (ImPlot::BeginPlot("simulation vertical bar-chart", "t", "s")) {
+//            //ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarWeight, 3.f);
+//
+//            plot_output* out = nullptr;
+//            while (ed->plot_outs.next(out)) {
+//                if (!out->xs.empty() && !out->ys.empty()) {
+//                    double yval = 0;
+//                    double* ptryval = &yval;
+//                    ImPlot::PlotShaded(out->name.c_str(),
+//                                       out->xs.data(),
+//                                       ptryval,
+//                                       out->ys.data(),
+//                                       0,
+//                                       0,
+//                                       static_cast<int>(out->xs.size()));
+//                }
+//            }
+//
+//            ImPlot::PopStyleVar(1);
+//            ImPlot::EndPlot();
+//        }
+//    }
+//
+//}
+//
+//void
+//application::show_bar_chart_window()
+//{
+//    static editor_id current4 = undefined<editor_id>();
+//    if (auto* ed = make_combo_editor_name(current4); ed) {
+//        if (ImPlot::BeginPlot("simulation horizontal bar-chart", "t", "s")) {
+//           // ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarWeight, 3.f);
+//
+//            plot_output* out = nullptr;
+//            while (ed->plot_outs.next(out)) {
+//                if (!out->xs.empty() && !out->ys.empty()) {
+//                    ImPlot::PlotBars(out->name.c_str(),
+//                                      out->ys.data(),
+//                                      out->xs.size(),
+//                                      0.67f,
+//                                      0,
+//                                      0,
+//                                      static_cast<int>(out->xs.size()));
+//            }
+//
+//            ImPlot::PopStyleVar(1);
+//            ImPlot::EndPlot();
+//        }
+//    }
+//
+//}
+//
+//void
+//application::show_pie_chart_window()
+//{
+//    static editor_id current = undefined<editor_id>();
+//    if (auto* ed = make_combo_editor_name(current); ed) {
+//        if (ImPlot::BeginPlot("simulation Pie plot", "t", "s")) {
+//            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 5.f);
+//
+//            plot_output* out = nullptr;
+//            while (ed->plot_outs.next(out)) {
+//                if (!out->xs.empty() && !out->ys.empty()) {
+//                    ImPlot::PlotLine(out->name.c_str(),
+//                                     out->xs.data(),
+//                                     out->ys.data(),
+//                                     static_cast<int>(out->xs.size()));
+//                }
+//            }
+//
+//            ImPlot::PopStyleVar(1);
+//            ImPlot::EndPlot();
+//        }
+//    }
+//}
+//
+//void
+//application::show_heat_map_window()
+//{
+//    static editor_id current = undefined<editor_id>();
+//    if (auto* ed = make_combo_editor_name(current); ed) {
+//        if (ImPlot::BeginPlot("simulation heat map", "t", "s")) {
+//            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+//
+//            plot_output* out = nullptr;
+//            while (ed->plot_outs.next(out)) {
+//                if (!out->xs.empty() && !out->ys.empty()) {
+//                    ImPlot::PlotLine(out->name.c_str(),
+//                                     out->xs.data(),
+//                                     out->ys.data(),
+//                                     static_cast<int>(out->xs.size()));
+//                }
+//            }
+//
+//            ImPlot::PopStyleVar(1);
+//            ImPlot::EndPlot();
+//        }
+//    }
+//
+//}
 
 void
 application::show_settings_window()
