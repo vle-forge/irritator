@@ -691,6 +691,18 @@ int main()
         f3 = f2;
         expect(f3 == "okok123");
         expect(f3.size() == 7_ul);
+
+        irt::small_string<8> f4;
+        std::string_view     t0 = "012345678";
+        std::string_view     t1 = "okok123";
+
+        f4 = t0;
+        expect(f4 == "0123456");
+        expect(f4.size() == 7_ul);
+
+        f4 = t1;
+        expect(f4 == "okok123");
+        expect(f4.size() == 7_ul);
     };
 
     "list"_test = [] {

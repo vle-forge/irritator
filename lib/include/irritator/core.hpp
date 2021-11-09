@@ -702,6 +702,8 @@ public:
 
     constexpr small_string& operator=(const small_string& str) noexcept;
     constexpr small_string& operator=(small_string&& str) noexcept;
+    constexpr small_string& operator=(const char* str) noexcept;
+    constexpr small_string& operator=(const std::string_view str) noexcept;
 
     constexpr void assign(const std::string_view str) noexcept;
     constexpr void clear() noexcept;
@@ -7249,6 +7251,27 @@ constexpr small_string<length>& small_string<length>::operator=(
         m_buffer[str.m_size] = '\0';
         m_size               = str.m_size;
     }
+
+    return *this;
+}
+
+template<sz length>
+constexpr small_string<length>& small_string<length>::operator=(
+  const char* str) noexcept
+{
+    if (m_buffer != str) {
+        std::strncpy(m_buffer, str, length - 1);
+        m_buffer[length - 1] = '\0';
+        m_size               = static_cast<u8>(std::strlen(m_buffer));
+    }
+    return *this;
+}
+
+template<sz length>
+constexpr small_string<length>& small_string<length>::operator=(
+  const std::string_view str) noexcept
+{
+    assign(str);
 
     return *this;
 }
