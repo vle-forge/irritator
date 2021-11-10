@@ -955,8 +955,9 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(dir_status[ordinal(dir->status)]);
             ImGui::TableNextColumn();
-            if (ImGui::Button("Refresh"))
-                fmt::print("TODO\n");
+            if (ImGui::Button("Refresh")) {
+                c_ed->mod.fill_components(*dir);
+            }
             ImGui::TableNextColumn();
             if (ImGui::Button("Delete"))
                 to_delete = dir;

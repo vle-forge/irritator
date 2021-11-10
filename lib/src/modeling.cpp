@@ -1174,14 +1174,19 @@ static void prepare_component_loading(modeling&              mod,
 
     std::error_code ec;
     if (fs::is_directory(path, ec)) {
-        for (const auto& entry : fs::recursive_directory_iterator(path, ec)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".irt") {
+        auto it = fs::recursive_directory_iterator{ path, ec };
+        auto et = fs::recursive_directory_iterator{};
+
+        while (it != et) {
+            if (it->is_regular_file() && it->path().extension() == ".irt") {
                 if (mod.components.can_alloc()) {
-                    auto file = entry.path();
+                    auto file = it->path();
                     file      = std::filesystem::relative(file, path, ec);
                     prepare_component_loading(mod, d_path_id, file);
                 }
             }
+
+            it = it.increment(ec);
         }
     }
 }
