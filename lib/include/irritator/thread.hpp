@@ -15,63 +15,14 @@
 
 namespace irt {
 
-// - main thread (default) for gui
-//
-// affect chamge from other thread
-//
-//
-//
-// - modeling job list
-//   - remove
-//   - copy
-//   - load irt
-//   - save irt
-//   - load desc
-//   - save desc
-//   - clear
-//
-// - simulation job list
-//   - remove
-//   - copy
-//   - load irt
-//   - save irt
-//   - load desc
-//   - save desc
-//   - clear
-//
-//
-//
-// task = { void(function*)(void*); void* data; status s; int state };
-// task_list = data_array<task, task_id> + hierarchy<task>;
-//
-//
-// task = { enum task_type, void *data, status s, int state };
-// ring-buffer = { vector<task> + begin + last}
-// Ex. :
-// for(x : ...)
-//    tl.add(...)
-// tl.submit
-// tl.wait
-//
-// tl.add(modeling_copy_children, args)
-// tl.add(sync, nullptr);
-// tl.submit()
-// tl.wait()
-//
-// for (child : selected_children)
-//   tl.add(modeling_copy_child, child);
-// tl.add(sync, nullptr);
-// tl.submit()
-// tl.wait()
-//
-// for (child : bag)
-//   tl.add(simulation_make_transition, child);
-// tl.submit()
-// tl.wait()
-//
-// std::shared_mutex + std::shared_lock
-// - multiple reader one writer
-//   (shared_lock    unique_lock)
+class spin_lock;
+class scoped_spin_lock;
+
+struct worker;
+
+struct task;
+struct task_list;
+class task_manager;
 
 class spin_lock
 {
@@ -94,51 +45,6 @@ public:
     ~scoped_spin_lock() noexcept;
 };
 
-class latch
-{
-    std::atomic<i32> counter;
-
-public:
-    inline constexpr latch(i32 expected) noexcept
-      : counter(expected)
-    {}
-
-    ~latch() noexcept            = default;
-    latch(const latch&) noexcept = delete;
-    latch& operator=(const latch&) noexcept = delete;
-    latch(latch&&) noexcept                 = delete;
-    latch& operator=(latch&&) noexcept = delete;
-
-    void count_down(i32 update = 1) noexcept
-    {
-        const auto old = counter.fetch_sub(update, std::memory_order_release);
-        if (old == update)
-            counter.notify_all();
-    }
-
-    bool try_wait() const noexcept
-    {
-        return counter.load(std::memory_order_acquire) == 0;
-    }
-
-    void wait() const noexcept
-    {
-        for (;;) {
-            const auto old = counter.load(std::memory_order_acquire);
-            if (old == 0)
-                break;
-
-            counter.wait(old, std::memory_order_acquire);
-        }
-    }
-
-    void arrive_and_wait(i32 update = 1) noexcept
-    {
-        count_down(update);
-        wait();
-    }
-};
-
 // Simplicity key to scalability
 // – Job has well defined input and output
 // – Independent stateless, no stalls, always completes
@@ -146,30 +52,18 @@ public:
 // – Multiple job lists
 // – Job lists fully independent
 // – Simple synchronization of jobs within list through "signal" and
-// "synchronize" tokens
+//   "synchronize" tokens
 
 using task_function = void (*)(void*) noexcept;
 
 struct task
 {
-    task() noexcept = default;
-
-    task(task_function function_, void* parameter_) noexcept
-      : function(function_)
-      , parameter(parameter_)
-    {}
+    constexpr task() noexcept = default;
+    constexpr task(task_function function_, void* parameter_) noexcept;
 
     task_function function  = nullptr;
     void*         parameter = nullptr;
 };
-
-struct task;
-struct task_list;
-struct worker;
-class task_manager;
-
-static inline constexpr i32 max_task_list = 4;
-static inline constexpr i32 max_threads   = 8;
 
 //! @brief Simple task list access by only one thread
 struct task_list
@@ -182,89 +76,22 @@ struct task_list
 
     task_list() noexcept = default;
 
-    void add(task_function function, void* parameter) noexcept
-    {
-        for (;;) {
-            {
-                scoped_spin_lock lock(spin);
-                if (!tasks.full()) {
-                    tasks.emplace_enqueue(function, parameter);
-                    ++task_number;
-                    return;
-                }
-            }
-
-            std::this_thread::yield();
-        }
-    }
-
-    void wait() noexcept
-    {
-        for (;;) {
-            {
-                scoped_spin_lock lock(spin);
-                if (tasks.empty()) {
-                    tasks.clear();
-                    return;
-                }
-            }
-
-            std::this_thread::yield();
-        }
-    }
+    void add(task_function function, void* parameter) noexcept;
+    void wait() noexcept;
 };
 
 struct worker
 {
-    void start() noexcept { thread = std::jthread{ &worker::run, this }; }
-    void terminate() noexcept { is_terminating = true; }
+    void start() noexcept;
+    void terminate() noexcept;
 
     worker() noexcept = default;
 
     worker(const worker& other) = delete;
     worker& operator=(const worker& other) = delete;
 
-    void run() noexcept
-    {
-        std::sort(task_lists.begin(),
-                  task_lists.end(),
-                  [](const task_list* left, const task_list* right) -> bool {
-                      return left->priority < right->priority;
-                  });
-
-        for (;;) {
-            while (!tasks.empty()) {
-                auto task = tasks.dequeue();
-                task.function(task.parameter);
-            }
-
-            for (auto& lst : task_lists) {
-                scoped_spin_lock lock(lst->spin);
-                if (lst->tasks.empty())
-                    continue;
-
-                while (!tasks.full() && !lst->tasks.empty())
-                    tasks.enqueue(lst->tasks.dequeue());
-            }
-
-            if (tasks.empty() && is_terminating) {
-                bool all_empty = true;
-
-                for (auto& lst : task_lists) {
-                    scoped_spin_lock lock(lst->spin);
-                    if (!lst->tasks.empty()) {
-                        all_empty = false;
-                        break;
-                    }
-                }
-
-                if (all_empty)
-                    return;
-            }
-        }
-    }
-
-    void join() noexcept { thread.join(); }
+    void run() noexcept;
+    void join() noexcept;
 
     std::jthread         thread;
     vector<task_list*>   task_lists;
@@ -274,9 +101,9 @@ struct worker
 
 struct task_manager_parameters
 {
-    int thread_number           = 3;
-    int simple_task_list_number = 1;
-    int multi_task_list_number  = 1;
+    i32 thread_number           = 3;
+    i32 simple_task_list_number = 1;
+    i32 multi_task_list_number  = 1;
 };
 
 class task_manager
@@ -298,6 +125,12 @@ public:
     status start() noexcept;
     void   finalize() noexcept;
 };
+
+/*****************************************************************************
+ *
+ * Implementation
+ *
+ ****************************************************************************/
 
 inline status task_manager::init(task_manager_parameters& params) noexcept
 {
@@ -331,12 +164,6 @@ inline void task_manager::finalize() noexcept
     workers.clear();
 }
 
-/*****************************************************************************
- *
- * Implementation
- *
- ****************************************************************************/
-
 inline spin_lock::spin_lock() noexcept { flag.clear(); }
 
 inline bool spin_lock::try_lock() noexcept
@@ -363,6 +190,91 @@ inline scoped_spin_lock::scoped_spin_lock(spin_lock& spin_) noexcept
 }
 
 inline scoped_spin_lock::~scoped_spin_lock() noexcept { spin.unlock(); }
+
+constexpr task::task(task_function function_, void* parameter_) noexcept
+  : function(function_)
+  , parameter(parameter_)
+{}
+
+inline void task_list::add(task_function function, void* parameter) noexcept
+{
+    for (;;) {
+        {
+            scoped_spin_lock lock(spin);
+            if (!tasks.full()) {
+                tasks.emplace_enqueue(function, parameter);
+                ++task_number;
+                return;
+            }
+        }
+
+        std::this_thread::yield();
+    }
+}
+
+inline void task_list::wait() noexcept
+{
+    for (;;) {
+        {
+            scoped_spin_lock lock(spin);
+            if (tasks.empty()) {
+                tasks.clear();
+                return;
+            }
+        }
+
+        std::this_thread::yield();
+    }
+}
+
+inline void worker::start() noexcept
+{
+    thread = std::jthread{ &worker::run, this };
+}
+
+inline void worker::terminate() noexcept { is_terminating = true; }
+
+inline void worker::run() noexcept
+{
+    std::sort(task_lists.begin(),
+              task_lists.end(),
+              [](const task_list* left, const task_list* right) -> bool {
+                  return left->priority < right->priority;
+              });
+
+    for (;;) {
+        while (!tasks.empty()) {
+            auto task = tasks.dequeue();
+            task.function(task.parameter);
+        }
+
+        for (auto& lst : task_lists) {
+            scoped_spin_lock lock(lst->spin);
+            if (lst->tasks.empty())
+                continue;
+
+            while (!tasks.full() && !lst->tasks.empty())
+                tasks.enqueue(lst->tasks.dequeue());
+        }
+
+        if (tasks.empty() && is_terminating) {
+            bool all_empty = true;
+
+            for (auto& lst : task_lists) {
+                scoped_spin_lock lock(lst->spin);
+                if (!lst->tasks.empty()) {
+                    all_empty = false;
+                    break;
+                }
+            }
+
+            if (all_empty)
+                return;
+        }
+    }
+}
+
+inline void worker::join() noexcept { thread.join(); }
 
 } // namespace irt
 
