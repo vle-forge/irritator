@@ -890,11 +890,19 @@ static void settings_compute_colors(
                                      1.5f);
 }
 
-#define container_of(ptr, type, member)                                        \
-    ({                                                                         \
-        const typeof(((type*)0)->member)* __mptr = (ptr);                      \
-        (type*)((char*)__mptr - offsetof(type, member));                       \
-    })
+template<class T, class M>
+constexpr std::ptrdiff_t offset_of(const M T::*member)
+{
+    return reinterpret_cast<std::ptrdiff_t>(
+      &(reinterpret_cast<T*>(0)->*member));
+}
+
+template<class T, class M>
+constexpr T* container_of(M* ptr, const M T::*member)
+{
+    return reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
+                                offset_of(member));
+}
 
 void component_editor::settings_manager::show(bool* is_open) noexcept
 {
