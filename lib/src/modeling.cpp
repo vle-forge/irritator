@@ -1194,6 +1194,7 @@ static void prepare_component_loading(modeling& mod, dir_path& dir) noexcept
 
         if (std::filesystem::exists(p, ec)) {
             prepare_component_loading(mod, dir, p);
+            dir.status = dir_path::status_option::read;
         }
     } catch (...) {
     }

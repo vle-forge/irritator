@@ -916,11 +916,9 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
     ImGui::Separator();
     ImGui::TextUnformatted("Dir paths");
 
-    static const char* dir_status[] = {
-        "none", "read_in_progress", "read_only", "usable", "unusable"
-    };
+    static const char* dir_status[] = { "none", "read", "unread" };
 
-    auto* c_ed = container_of(this, component_editor, settings);
+    auto* c_ed = container_of(this, &component_editor::settings);
     if (ImGui::BeginTable("Component directories", 5)) {
         ImGui::TableSetupColumn(
           "Path", ImGuiTableColumnFlags_WidthStretch, -FLT_MIN);
@@ -957,13 +955,18 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(dir_status[ordinal(dir->status)]);
             ImGui::TableNextColumn();
-            if (ImGui::SmallButton("Refresh"))
+            if (ImGui::Button("Refresh"))
                 fmt::print("TODO\n");
             ImGui::TableNextColumn();
-            if (ImGui::SmallButton("Delete"))
+            if (ImGui::Button("Delete"))
                 to_delete = dir;
             ImGui::PopID();
         }
+
+        if (to_delete) {
+            c_ed->mod.dir_paths.free(*to_delete);
+        }
+
         ImGui::EndTable();
 
         if (c_ed->mod.dir_paths.can_alloc(1) &&

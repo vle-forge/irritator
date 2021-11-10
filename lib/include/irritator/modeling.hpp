@@ -168,14 +168,12 @@ struct dir_path
     enum class status_option
     {
         none,
-        read_in_progress,
-        read_only,
-        usable,
-        unusable
+        read,
+        unread,
     };
 
     small_string<256 * 16> path;
-    status_option          status   = status_option::none;
+    status_option          status   = status_option::unread;
     i8                     priority = 0;
 };
 
