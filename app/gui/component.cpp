@@ -106,12 +106,12 @@ static status add_component_to_current(component_editor& ed,
         return status::gui_not_enough_memory;
 
     tree_node_id tree_id;
-
     irt_return_if_bad(ed.mod.make_tree_from(compo, &tree_id));
 
-    auto& child    = ed.mod.children.alloc(ed.mod.components.get_id(compo));
-    auto  child_id = ed.mod.children.get_id(child);
-    parent_compo.children.emplace_back(child_id);
+    parent_compo.children.alloc(ed.mod.components.get_id(compo));
+    // auto& child =
+    // parent_compo.children.alloc(ed.mod.components.get_id(compo)); child.x =
+    // x; child.y = y;
 
     auto& tree = ed.mod.tree_nodes.get(tree_id);
     tree.tree.set_id(&tree);
@@ -126,8 +126,8 @@ static component_id add_empty_component(component_editor& ed) noexcept
         auto& new_compo    = ed.mod.components.alloc();
         auto  new_compo_id = ed.mod.components.get_id(new_compo);
         new_compo.name.assign("New component");
-        new_compo.type   = component_type::memory;
-        new_compo.status = component_status::modified;
+        new_compo.type  = component_type::memory;
+        new_compo.state = component_status::modified;
 
         return new_compo_id;
     }
@@ -155,7 +155,7 @@ static void show_component(component_editor& ed, component& c) noexcept
         }
     }
 
-    if (c.status == component_status::modified) {
+    if (c.state == component_status::modified) {
         ImGui::SameLine();
         if (ImGui::SmallButton("save")) {
             ed.mod.save(c);
@@ -220,10 +220,10 @@ static void show_all_components(component_editor& ed)
 
             if (ImGui::MenuItem("Copy")) {
                 if (ed.mod.components.can_alloc()) {
-                    auto& new_c  = ed.mod.components.alloc();
-                    new_c.type   = component_type::memory;
-                    new_c.name   = ed.selected_component_list->name;
-                    new_c.status = component_status::modified;
+                    auto& new_c = ed.mod.components.alloc();
+                    new_c.type  = component_type::memory;
+                    new_c.name  = ed.selected_component_list->name;
+                    new_c.state = component_status::modified;
                     ed.mod.copy(*ed.selected_component_list, new_c);
                 } else {
                     log_w.log(3, "Can not alloc a new component");
@@ -322,40 +322,50 @@ static void show_all_components(component_editor& ed)
     ImGui::Separator();
 
     if (ImGui::CollapsingHeader("Selected children", flags)) {
-        for (int i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
-            auto* child = unpack_node(ed.selected_nodes[i], ed.mod.children);
-            if (!child)
-                continue;
+        auto* tree = ed.mod.tree_nodes.try_to_get(ed.selected_component);
+        if (tree) {
+            component* compo = ed.mod.components.try_to_get(tree->id);
+            if (compo) {
+                for (int i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
+                    auto* child =
+                      unpack_node(ed.selected_nodes[i], compo->children);
+                    if (!child)
+                        continue;
 
-            if (ImGui::TreeNodeEx(child,
-                                  ImGuiTreeNodeFlags_DefaultOpen,
-                                  "%d",
-                                  ed.selected_nodes[i])) {
-                ImGui::Text("position %f %f",
-                            static_cast<double>(child->x),
-                            static_cast<double>(child->y));
-                ImGui::Checkbox("configurable", &child->configurable);
-                ImGui::Checkbox("observables", &child->observable);
-                ImGui::InputText(
-                  "name", child->name.begin(), child->name.capacity());
+                    if (ImGui::TreeNodeEx(child,
+                                          ImGuiTreeNodeFlags_DefaultOpen,
+                                          "%d",
+                                          ed.selected_nodes[i])) {
+                        ImGui::Text("position %f %f",
+                                    static_cast<double>(child->x),
+                                    static_cast<double>(child->y));
+                        ImGui::Checkbox("configurable", &child->configurable);
+                        ImGui::Checkbox("observables", &child->observable);
+                        ImGui::InputText(
+                          "name", child->name.begin(), child->name.capacity());
 
-                if (child->type == child_type::model) {
-                    auto  child_id = enum_cast<model_id>(child->id);
-                    auto* mdl      = ed.mod.models.try_to_get(child_id);
+                        if (child->type == child_type::model) {
+                            auto  child_id = enum_cast<model_id>(child->id);
+                            auto* mdl      = compo->models.try_to_get(child_id);
 
-                    if (mdl)
-                        ImGui::Text("type: %s",
-                                    dynamics_type_names[ordinal(mdl->type)]);
-                } else {
-                    auto  compo_id = enum_cast<component_id>(child->id);
-                    auto* compo    = ed.mod.components.try_to_get(compo_id);
+                            if (mdl)
+                                ImGui::Text(
+                                  "type: %s",
+                                  dynamics_type_names[ordinal(mdl->type)]);
+                        } else {
+                            auto  compo_id = enum_cast<component_id>(child->id);
+                            auto* compo =
+                              ed.mod.components.try_to_get(compo_id);
 
-                    if (compo)
-                        ImGui::Text("type: %s",
-                                    component_type_names[ordinal(compo->type)]);
+                            if (compo)
+                                ImGui::Text(
+                                  "type: %s",
+                                  component_type_names[ordinal(compo->type)]);
+                        }
+
+                        ImGui::TreePop();
+                    }
                 }
-
-                ImGui::TreePop();
             }
         }
     }
@@ -470,38 +480,25 @@ static void add_output_attribute(const Dynamics& dyn, child_id id) noexcept
     }
 }
 
-static bool show_connection(component_editor& ed,
-                            const component&  parent,
-                            int               con_index) noexcept
+static bool show_connection(const component&  parent,
+                            const connection& con) noexcept
 {
-    auto  con_id = parent.connections[con_index];
-    auto* con    = ed.mod.connections.try_to_get(con_id);
-    if (!con)
+    auto* src = parent.children.try_to_get(con.src);
+    if (!src)
         return false;
 
-    auto* src = ed.mod.children.try_to_get(con->src);
-    if (!src) {
-        ed.mod.connections.free(*con);
+    auto* dst = parent.children.try_to_get(con.dst);
+    if (!dst)
         return false;
-    }
 
-    auto* dst = ed.mod.children.try_to_get(con->dst);
-    if (!dst) {
-        ed.mod.connections.free(*con);
-        return false;
-    }
-
-    ImNodes::Link(con_index,
-                  pack_out(con->src, con->index_src),
-                  pack_in(con->dst, con->index_dst));
+    ImNodes::Link(get_index(parent.connections.get_id(con)),
+                  pack_out(con.src, con.index_src),
+                  pack_in(con.dst, con.index_dst));
 
     return true;
 }
 
-static void show(component_editor& ed,
-                 model&            mdl,
-                 child_id          id,
-                 int               mdl_index) noexcept
+static void show(component_editor& ed, model& mdl, child_id id) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -514,7 +511,8 @@ static void show(component_editor& ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}", mdl_index, get_dynamics_type_name(mdl.type));
+    ImGui::TextFormat(
+      "{}\n{}", get_index(id), get_dynamics_type_name(mdl.type));
     ImNodes::EndNodeTitleBar();
 
     dispatch(mdl, [&ed, id](auto& dyn) {
@@ -531,10 +529,7 @@ static void show(component_editor& ed,
     ImNodes::PopColorStyle();
 }
 
-static void show(component_editor& ed,
-                 component&        compo,
-                 child_id          id,
-                 int               mdl_index) noexcept
+static void show(component_editor& ed, component& compo, child_id id) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -547,7 +542,7 @@ static void show(component_editor& ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}", mdl_index, compo.name.c_str());
+    ImGui::TextFormat("{}\n{}", get_index(id), compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
     irt_assert(length(compo.x) < INT8_MAX);
@@ -577,53 +572,62 @@ static void show_opened_component_ref(component_editor& ed,
                                       tree_node& /*ref*/,
                                       component& compo) noexcept
 {
-    for (int i = 0; i < compo.children.ssize(); ++i) {
-        const auto child_id = compo.children[i];
-        auto*      child    = ed.mod.children.try_to_get(child_id);
-        if (!child)
-            continue;
+    child* c = nullptr;
 
-        if (child->type == child_type::model) {
-            auto id = enum_cast<model_id>(child->id);
-            if (auto* mdl = ed.mod.models.try_to_get(id); mdl) {
-                show(ed, *mdl, child_id, i);
+    while (compo.children.next(c)) {
+        const auto child_id = compo.children.get_id(c);
+
+        if (c->type == child_type::model) {
+            auto id = enum_cast<model_id>(c->id);
+            if (auto* mdl = compo.models.try_to_get(id); mdl) {
+                show(ed, *mdl, child_id);
 
                 if (ed.force_node_position) {
                     ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
-                                                   ImVec2(child->x, child->y));
+                                                   ImVec2(c->x, c->y));
                     ed.force_node_position = false;
                 } else {
                     auto pos =
                       ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
-                    child->x = pos.x;
-                    child->y = pos.y;
+                    c->x = pos.x;
+                    c->y = pos.y;
                 }
             }
         } else {
-            auto id = enum_cast<component_id>(child->id);
+            auto id = enum_cast<component_id>(c->id);
             if (auto* compo = ed.mod.components.try_to_get(id); compo) {
-                show(ed, *compo, child_id, i);
+                show(ed, *compo, child_id);
 
                 if (ed.force_node_position) {
                     ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
-                                                   ImVec2(child->x, child->y));
+                                                   ImVec2(c->x, c->y));
                     ed.force_node_position = false;
                 } else {
                     auto pos =
                       ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
-                    child->x = pos.x;
-                    child->y = pos.y;
+                    c->x = pos.x;
+                    c->y = pos.y;
                 }
             }
         }
     }
 
-    int i = 0;
-    while (i < compo.connections.ssize()) {
-        if (!show_connection(ed, compo, i))
-            compo.connections.swap_pop_back(i);
-        else
-            ++i;
+    {
+        connection* con    = nullptr;
+        connection* to_del = nullptr;
+        while (compo.connections.next(con)) {
+            if (to_del) {
+                compo.connections.free(*to_del);
+                to_del = nullptr;
+            }
+
+            if (!show_connection(compo, *con)) {
+                to_del = con;
+            }
+        }
+
+        if (to_del)
+            compo.connections.free(*to_del);
     }
 }
 
@@ -632,17 +636,17 @@ static void add_popup_menuitem(component_editor& ed,
                                dynamics_type     type,
                                child_id*         new_model)
 {
-    if (!ed.mod.models.can_alloc(1)) {
+    if (!parent.models.can_alloc(1)) {
         log_w.log(2, "can not allocate a new model");
         return;
     }
 
     if (ImGui::MenuItem(get_dynamics_type_name(type))) {
-        auto& child   = ed.mod.alloc(parent, type);
-        *new_model    = ed.mod.children.get_id(child);
-        parent.status = component_status::modified;
+        auto& child  = ed.mod.alloc(parent, type);
+        *new_model   = parent.children.get_id(child);
+        parent.state = component_status::modified;
 
-        log_w.log(7, "new model %zu\n", ordinal(ed.mod.children.get_id(child)));
+        log_w.log(7, "new model %zu\n", ordinal(parent.children.get_id(child)));
     }
 }
 
@@ -731,7 +735,7 @@ static void show_popup_menuitem(component_editor& ed,
     ImGui::PopStyleVar();
 }
 
-static void is_link_created(component_editor& ed, component& parent) noexcept
+static void is_link_created(component& parent) noexcept
 {
     int start = 0, end = 0;
     if (ImNodes::IsLinkCreated(&start, &end)) {
@@ -741,17 +745,16 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
         unpack_out(start, &index_src, &port_src_index);
         unpack_in(end, &index_dst, &port_dst_index);
 
-        auto* child_src = ed.mod.children.try_to_get(index_src);
-        auto* child_dst = ed.mod.children.try_to_get(index_dst);
+        auto* child_src = parent.children.try_to_get(index_src);
+        auto* child_dst = parent.children.try_to_get(index_dst);
 
         if (child_src != nullptr && child_dst != nullptr) {
-            auto  child_src_id = ed.mod.children.get_id(*child_src);
-            auto  child_dst_id = ed.mod.children.get_id(*child_dst);
-            auto& con          = ed.mod.connections.alloc(
+            auto child_src_id = parent.children.get_id(*child_src);
+            auto child_dst_id = parent.children.get_id(*child_dst);
+            parent.connections.alloc(
               child_src_id, port_src_index, child_dst_id, port_dst_index);
-            auto con_id = ed.mod.connections.get_id(con);
-            parent.connections.emplace_back(con_id);
-            parent.status = component_status::modified;
+
+            parent.state = component_status::modified;
         }
     }
 }
@@ -761,7 +764,7 @@ void remove_nodes(component_editor& ed,
                   component&        parent) noexcept
 {
     for (i32 i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
-        if (auto* child = unpack_node(ed.selected_nodes[i], ed.mod.children);
+        if (auto* child = unpack_node(ed.selected_nodes[i], parent.children);
             child) {
             if (child->type == child_type::component) {
                 // search the tree_node
@@ -784,7 +787,7 @@ void remove_nodes(component_editor& ed,
     ed.selected_nodes.clear();
     ImNodes::ClearNodeSelection();
 
-    parent.status = component_status::modified;
+    parent.state = component_status::modified;
 }
 
 void remove_links(component_editor& ed, component& parent) noexcept
@@ -793,23 +796,15 @@ void remove_links(component_editor& ed, component& parent) noexcept
       ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
 
     for (i32 i = 0, e = ed.selected_links.ssize(); i != e; ++i) {
-        if (i < parent.connections.ssize()) {
-            auto* con = ed.mod.connections.try_to_get(parent.connections[i]);
-            if (con)
-                ed.mod.connections.free(*con);
-        }
+        auto* con = parent.connections.try_to_get(ed.selected_links[i]);
+        if (con)
+            parent.connections.free(*con);
     }
-
-    std::sort(
-      ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
-
-    for (i32 i = 0, e = ed.selected_links.ssize(); i != e; ++i)
-        parent.connections.swap_pop_back(ed.selected_links[i]);
 
     ed.selected_links.clear();
     ImNodes::ClearLinkSelection();
 
-    parent.status = component_status::modified;
+    parent.state = component_status::modified;
 }
 
 static void show_opened_component(component_editor& ed) noexcept
@@ -836,14 +831,14 @@ static void show_opened_component(component_editor& ed) noexcept
 
     ImNodes::EndNodeEditor();
 
-    if (auto* child = ed.mod.children.try_to_get(new_model); child) {
-        compo->status = component_status::modified;
+    if (auto* child = compo->children.try_to_get(new_model); child) {
+        compo->state = component_status::modified;
         ImNodes::SetNodeScreenSpacePos(pack_node(new_model), click_pos);
         child->x = click_pos.x;
         child->y = click_pos.y;
     }
 
-    is_link_created(ed, *compo);
+    is_link_created(*compo);
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
@@ -1022,10 +1017,6 @@ void component_editor::show_memory_box(bool* is_open) noexcept
         return;
     }
 
-    ImGui::TextFormat("models: {} / {} / {}",
-                      mod.models.size(),
-                      mod.models.max_used(),
-                      mod.models.capacity());
     ImGui::TextFormat("tree_nodes: {} / {} / {}",
                       mod.tree_nodes.size(),
                       mod.tree_nodes.max_used(),
@@ -1050,22 +1041,15 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                       mod.file_paths.size(),
                       mod.file_paths.max_used(),
                       mod.file_paths.capacity());
-    ImGui::TextFormat("children: {} / {} / {}",
-                      mod.children.size(),
-                      mod.children.max_used(),
-                      mod.children.capacity());
-    ImGui::TextFormat("connections: {} / {} / {}",
-                      mod.connections.size(),
-                      mod.connections.max_used(),
-                      mod.connections.capacity());
 
     if (ImGui::CollapsingHeader("Components")) {
         component* compo = nullptr;
         while (mod.components.next(compo)) {
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {
-                ImGui::Text("children: %d", compo->children.ssize());
-                ImGui::Text("connections: %d", compo->connections.ssize());
+                ImGui::Text("children: %d", (int)compo->children.size());
+                ImGui::Text("models: %d", (int)compo->models.size());
+                ImGui::Text("connections: %d", (int)compo->connections.size());
                 ImGui::Text("x: %d", compo->x.ssize());
                 ImGui::Text("y: %d", compo->y.ssize());
 

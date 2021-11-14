@@ -568,8 +568,8 @@ public:
 
         child_mapping.sort();
 
-        irt_return_if_bad(do_read_ports(mod, compo.y));
-        irt_return_if_bad(do_read_ports(mod, compo.x));
+        irt_return_if_bad(do_read_ports(compo, compo.y));
+        irt_return_if_bad(do_read_ports(compo, compo.x));
         irt_return_if_bad(do_read_connections(mod, compo));
 
         return status::success;
@@ -903,7 +903,8 @@ private:
         return status::success;
     }
 
-    status do_read_ports(modeling& mod, small_vector<port, 8>& ports) noexcept
+    status do_read_ports(component&             compo,
+                         small_vector<port, 8>& ports) noexcept
     {
         int nb = 0;
 
@@ -921,7 +922,7 @@ private:
             irt_return_if_fail(0 <= port_index && port_index < INT8_MAX,
                                status::io_file_format_model_error);
 
-            auto* child = mod.children.try_to_get(*c);
+            auto* child = compo.children.try_to_get(*c);
             irt_return_if_fail(child, status::io_file_format_model_error);
 
             ports.emplace_back(*c, static_cast<i8>(port_index));
@@ -1120,15 +1121,12 @@ private:
         auto* sub_compo = mod.components.try_to_get(compo_id);
         irt_return_if_fail(sub_compo, status::io_file_format_error);
 
-        irt_return_if_fail(mod.children.can_alloc(),
+        irt_return_if_fail(compo.children.can_alloc(),
                            status::io_not_enough_memory);
 
-        auto& child = mod.children.alloc(compo_id);
+        auto& child = compo.children.alloc(compo_id);
         child.x     = positions[i].x;
         child.y     = positions[i].y;
-
-        auto child_id = mod.children.get_id(child);
-        compo.children.emplace_back(child_id);
 
         return status::success;
     }
@@ -1164,6 +1162,7 @@ private:
                             const char* dynamics_name) noexcept
     {
         dynamics_type type;
+        child_id      last = undefined<child_id>();
 
         if (std::strcmp(dynamics_name, "component") == 0) {
             irt_return_if_bad(do_read_component(mod, compo, id));
@@ -1173,10 +1172,10 @@ private:
                                status::io_file_format_dynamics_unknown);
 
             auto& child = mod.alloc(compo, type);
-            irt_assert(mod.models.try_to_get(enum_cast<model_id>(child.id)) !=
+            irt_assert(compo.models.try_to_get(enum_cast<model_id>(child.id)) !=
                        nullptr);
 
-            auto& mdl = mod.models.get(enum_cast<model_id>(child.id));
+            auto& mdl = compo.models.get(enum_cast<model_id>(child.id));
 
             auto ret =
               dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -1190,8 +1189,8 @@ private:
             irt_return_if_bad(ret);
         }
 
-        child_mapping.set(id, compo.children.back());
-        auto& child = mod.children.get(compo.children.back());
+        child_mapping.set(id, last);
+        auto& child = compo.children.get(last);
         child.x     = positions[id].x;
         child.y     = positions[id].y;
 
@@ -1700,23 +1699,15 @@ struct writer
         }
     }
 
-    void do_write_model_dynamics(const model& mdl,
-                                 const int    id,
-                                 const float  x,
-                                 const float  y)
+    void do_write_model_dynamics(const model& mdl) noexcept
     {
-        os << id << ' ' << x << ' ' << y << ' ';
-
         dispatch(mdl, [this](auto& dyn) -> void { this->write(dyn); });
     }
 
     void do_write_component_dynamics(const modeling&  mod,
-                                     const component& compo,
-                                     const int        id,
-                                     const float      x,
-                                     const float      y)
+                                     const component& compo) noexcept
     {
-        os << id << ' ' << x << ' ' << y << " component ";
+        os << "component ";
 
         if (compo.type == component_type::file ||
             compo.type == component_type::memory) {
@@ -1742,7 +1733,8 @@ struct writer
             if (!get_pos.empty())
                 get_pos(mdl_id, x, y);
 
-            do_write_model_dynamics(*mdl, id, x, y);
+            os << id << ' ' << x << ' ' << y << ' ';
+            do_write_model_dynamics(*mdl);
             ++id;
         }
     }
@@ -1807,25 +1799,24 @@ struct writer
         do_write_children(mod, compo);
         do_write_ports(compo.x);
         do_write_ports(compo.y);
-        do_write_connection(mod, compo.connections);
+        do_write_connection(compo);
 
         return status::success;
     }
 
 private:
-    void do_write_connection(const modeling&              mod,
-                             const vector<connection_id>& connections) noexcept
+    void do_write_connection(const component& compo) noexcept
     {
-        for (int i = 0, e = connections.ssize(); i != e; ++i) {
-            auto& c         = mod.connections.get(connections[i]);
-            auto* src_index = child_mapping.get(c.src);
-            auto* dst_index = child_mapping.get(c.dst);
+        connection* c = nullptr;
+        while (compo.connections.next(c)) {
+            auto* src_index = child_mapping.get(c->src);
+            auto* dst_index = child_mapping.get(c->dst);
 
             irt_assert(src_index && "child_mapping error");
             irt_assert(dst_index && "child_mapping error");
 
-            os << *src_index << ' ' << static_cast<int>(c.index_src) << ' '
-               << *dst_index << ' ' << static_cast<int>(c.index_dst) << '\n';
+            os << *src_index << ' ' << static_cast<int>(c->index_src) << ' '
+               << *dst_index << ' ' << static_cast<int>(c->index_dst) << '\n';
         }
     }
 
@@ -1840,28 +1831,31 @@ private:
     void do_write_children(const modeling& mod, const component& compo) noexcept
     {
         os << compo.children.size() << '\n';
-        for (i32 i = 0, e = compo.children.ssize(); i != e; ++i) {
-            auto* c = mod.children.try_to_get(compo.children[i]);
-            irt_assert(c && "cleanup all component vectors before save");
+
+        child* c = nullptr;
+        while (compo.children.next(c)) {
+            const auto id = get_index(compo.children.get_id(*c));
+            os << id << ' ' << c->name.sv() << ' ' << c->x << ' ' << c->y
+               << ' ';
 
             if (c->type == child_type::component) {
                 auto  cpn_id = enum_cast<component_id>(c->id);
                 auto* cpn    = mod.components.try_to_get(cpn_id);
                 irt_assert(cpn && "cleanup all component vectors before save");
 
-                do_write_component_dynamics(mod, *cpn, i, c->x, c->y);
+                do_write_component_dynamics(mod, *cpn);
             } else {
                 auto  mdl_id = enum_cast<model_id>(c->id);
-                auto* mdl    = mod.models.try_to_get(mdl_id);
+                auto* mdl    = compo.models.try_to_get(mdl_id);
                 irt_assert(mdl && "cleanup all component vectors before save");
 
-                do_write_model_dynamics(*mdl, i, c->x, c->y);
+                do_write_model_dynamics(*mdl);
             }
 
-            child_mapping.data.emplace_back(compo.children[i], i);
+            // child_mapping.data.emplace_back(compo.children[i], i);
         }
 
-        child_mapping.sort();
+        // child_mapping.sort();
     }
 
     void write(const random_source& src) noexcept

@@ -12,11 +12,11 @@
 namespace irt {
 
 template<typename Dynamics>
-std::pair<Dynamics*, child_id> alloc(modeling& mod, component& parent) noexcept
+std::pair<Dynamics*, child_id> alloc(component& parent) noexcept
 {
-    irt_assert(!mod.models.full());
+    irt_assert(!parent.models.full());
 
-    auto& mdl  = mod.models.alloc();
+    auto& mdl  = parent.models.alloc();
     mdl.type   = dynamics_typeof<Dynamics>();
     mdl.handle = nullptr;
 
@@ -31,10 +31,9 @@ std::pair<Dynamics*, child_id> alloc(modeling& mod, component& parent) noexcept
         for (int i = 0, e = length(dyn.y); i != e; ++i)
             dyn.y[i] = static_cast<u64>(-1);
 
-    auto& child = mod.children.alloc(mod.models.get_id(mdl));
-    parent.children.emplace_back(mod.children.get_id(child));
+    auto& child = parent.children.alloc(parent.models.get_id(mdl));
 
-    return std::make_pair(&dyn, mod.children.get_id(child));
+    return std::make_pair(&dyn, parent.children.get_id(child));
 }
 
 template<typename DynamicsSrc, typename DynamicsDst>
@@ -52,7 +51,7 @@ status connect(modeling&    mod,
       is_ports_compatible(src_model, port_src, dst_model, port_dst),
       status::model_connect_bad_dynamics);
 
-    irt_return_if_fail(mod.connections.can_alloc(1),
+    irt_return_if_fail(c.connections.can_alloc(1),
                        status::simulation_not_enough_connection);
 
     mod.connect(c, src.second, port_src, dst.second, port_dst);
@@ -74,24 +73,24 @@ status add_lotka_volterra(modeling& mod, component& com) noexcept
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = mod.models.can_alloc(5);
+    bool success = com.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_a              = alloc<abstract_integrator<QssLevel>>(com);
     integrator_a.first->default_X  = 18.0_r;
     integrator_a.first->default_dQ = 0.1_r;
 
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_b              = alloc<abstract_integrator<QssLevel>>(com);
     integrator_b.first->default_X  = 7.0_r;
     integrator_b.first->default_dQ = 0.1_r;
 
-    auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product = alloc<abstract_multiplier<QssLevel>>(com);
 
-    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(com);
     sum_a.first->default_input_coeffs[0] = 2.0_r;
     sum_a.first->default_input_coeffs[1] = -0.4_r;
 
-    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(com);
     sum_b.first->default_input_coeffs[0] = -1.0_r;
     sum_b.first->default_input_coeffs[1] = 0.1_r;
 
@@ -116,7 +115,7 @@ status add_lif(modeling& mod, component& com) noexcept
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = mod.models.can_alloc(5);
+    bool success = com.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
     constexpr irt::real tau = 10.0_r;
@@ -124,21 +123,21 @@ status add_lif(modeling& mod, component& com) noexcept
     constexpr irt::real V0  = 10.0_r;
     constexpr irt::real Vr  = -V0;
 
-    auto cst                 = alloc<constant>(mod, com);
+    auto cst                 = alloc<constant>(com);
     cst.first->default_value = 1.0;
 
-    auto cst_cross                 = alloc<constant>(mod, com);
+    auto cst_cross                 = alloc<constant>(com);
     cst_cross.first->default_value = Vr;
 
-    auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum                           = alloc<abstract_wsum<QssLevel, 2>>(com);
     sum.first->default_input_coeffs[0] = -irt::one / tau;
     sum.first->default_input_coeffs[1] = V0 / tau;
 
-    auto integrator = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator              = alloc<abstract_integrator<QssLevel>>(com);
     integrator.first->default_X  = 0._r;
     integrator.first->default_dQ = 0.001_r;
 
-    auto cross                     = alloc<abstract_cross<QssLevel>>(mod, com);
+    auto cross                     = alloc<abstract_cross<QssLevel>>(com);
     cross.first->default_threshold = Vt;
 
     connect(mod, com, cross, 0, integrator, 1);
@@ -158,22 +157,22 @@ template<int QssLevel>
 status add_izhikevich(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(12);
+    bool success = com.models.can_alloc(12);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto cst          = alloc<constant>(mod, com);
-    auto cst2         = alloc<constant>(mod, com);
-    auto cst3         = alloc<constant>(mod, com);
-    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_c        = alloc<abstract_wsum<QssLevel, 4>>(mod, com);
-    auto sum_d        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto product      = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
-    auto cross        = alloc<abstract_cross<QssLevel>>(mod, com);
-    auto cross2       = alloc<abstract_cross<QssLevel>>(mod, com);
+    auto cst          = alloc<constant>(com);
+    auto cst2         = alloc<constant>(com);
+    auto cst3         = alloc<constant>(com);
+    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum_c        = alloc<abstract_wsum<QssLevel, 4>>(com);
+    auto sum_d        = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto product      = alloc<abstract_multiplier<QssLevel>>(com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(com);
+    auto cross        = alloc<abstract_cross<QssLevel>>(com);
+    auto cross2       = alloc<abstract_cross<QssLevel>>(com);
 
     constexpr irt::real a  = 0.2_r;
     constexpr irt::real b  = 2.0_r;
@@ -244,15 +243,15 @@ template<int QssLevel>
 status add_van_der_pol(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(5);
+    bool success = com.models.can_alloc(5);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
-    auto product1     = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product2     = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(com);
+    auto product1     = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product2     = alloc<abstract_multiplier<QssLevel>>(com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(com);
 
     integrator_a.first->default_X  = 0.0_r;
     integrator_a.first->default_dQ = 0.001_r;
@@ -285,15 +284,15 @@ template<int QssLevel>
 status add_negative_lif(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(5);
+    bool success = com.models.can_alloc(5);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto integrator = alloc<abstract_integrator<QssLevel>>(mod, com);
-    auto cross      = alloc<abstract_cross<QssLevel>>(mod, com);
-    auto cst        = alloc<constant>(mod, com);
-    auto cst_cross  = alloc<constant>(mod, com);
+    auto sum        = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto integrator = alloc<abstract_integrator<QssLevel>>(com);
+    auto cross      = alloc<abstract_cross<QssLevel>>(com);
+    auto cst        = alloc<constant>(com);
+    auto cst_cross  = alloc<constant>(com);
 
     constexpr real tau = 10.0_r;
     constexpr real Vt  = -1.0_r;
@@ -329,21 +328,21 @@ template<int QssLevel>
 status add_seir_lineaire(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(10) && com.children.can_alloc(10) &&
+    bool success = com.models.can_alloc(10) && com.children.can_alloc(10) &&
                    com.connections.can_alloc(12);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto product_a    = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_b    = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
-    auto integrator_c = alloc<abstract_integrator<QssLevel>>(mod, com);
-    auto integrator_d = alloc<abstract_integrator<QssLevel>>(mod, com);
-    auto constant_a   = alloc<constant>(mod, com);
-    auto constant_b   = alloc<constant>(mod, com);
+    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto product_a    = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_b    = alloc<abstract_multiplier<QssLevel>>(com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_c = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_d = alloc<abstract_integrator<QssLevel>>(com);
+    auto constant_a   = alloc<constant>(com);
+    auto constant_b   = alloc<constant>(com);
 
     sum_a.first->input_coeffs[0] = -0.005_r;
     sum_a.first->input_coeffs[1] = -0.4_r;
@@ -392,85 +391,85 @@ template<int QssLevel>
 status add_seir_nonlineaire(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(27) && com.children.can_alloc(27) &&
+    bool success = com.models.can_alloc(27) && com.children.can_alloc(27) &&
                    com.connections.can_alloc(32);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum_a = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
+    auto sum_a = alloc<abstract_wsum<QssLevel, 3>>(com);
     sum_a.first->default_input_coeffs[0] = 0.5_r;
     sum_a.first->default_input_coeffs[1] = 1.0_r;
     sum_a.first->default_input_coeffs[2] = 1.0_r;
 
-    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(com);
     sum_b.first->default_input_coeffs[0] = 1.0_r;
     sum_b.first->default_input_coeffs[1] = 1.0_r;
 
-    auto sum_c = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
+    auto sum_c = alloc<abstract_wsum<QssLevel, 3>>(com);
     sum_c.first->default_input_coeffs[0] = 1.5_r;
     sum_c.first->default_input_coeffs[1] = 0.698_r;
     sum_c.first->default_input_coeffs[2] = 0.387_r;
 
-    auto sum_d = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_d = alloc<abstract_wsum<QssLevel, 2>>(com);
     sum_d.first->default_input_coeffs[0] = 1.0_r;
     sum_d.first->default_input_coeffs[1] = 1.5_r;
 
-    auto product_a = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_b = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_c = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_d = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_e = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_f = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_g = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_h = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product_i = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product_a = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_b = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_c = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_d = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_e = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_f = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_g = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_h = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_i = alloc<abstract_multiplier<QssLevel>>(com);
 
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_a              = alloc<abstract_integrator<QssLevel>>(com);
     integrator_a.first->default_X  = 10.0_r;
     integrator_a.first->default_dQ = 0.01_r;
 
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_b              = alloc<abstract_integrator<QssLevel>>(com);
     integrator_b.first->default_X  = 12.0_r;
     integrator_b.first->default_dQ = 0.01_r;
 
-    auto integrator_c = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_c              = alloc<abstract_integrator<QssLevel>>(com);
     integrator_c.first->default_X  = 13.50_r;
     integrator_c.first->default_dQ = 0.01_r;
 
-    auto integrator_d = alloc<abstract_integrator<QssLevel>>(mod, com);
+    auto integrator_d              = alloc<abstract_integrator<QssLevel>>(com);
     integrator_d.first->default_X  = 15.0_r;
     integrator_d.first->default_dQ = 0.01_r;
 
     // The values used here are from Singh et al., 2017
 
-    auto constant_a                 = alloc<constant>(mod, com);
+    auto constant_a                 = alloc<constant>(com);
     constant_a.first->default_value = 0.005_r;
 
-    auto constant_b                 = alloc<constant>(mod, com);
+    auto constant_b                 = alloc<constant>(com);
     constant_b.first->default_value = -0.0057_r;
 
-    auto constant_c                 = alloc<constant>(mod, com);
+    auto constant_c                 = alloc<constant>(com);
     constant_c.first->default_value = -0.005_r;
 
-    auto constant_d                 = alloc<constant>(mod, com);
+    auto constant_d                 = alloc<constant>(com);
     constant_d.first->default_value = 0.0057_r;
 
-    auto constant_e                 = alloc<constant>(mod, com);
+    auto constant_e                 = alloc<constant>(com);
     constant_e.first->default_value = -0.135_r;
 
-    auto constant_f                 = alloc<constant>(mod, com);
+    auto constant_f                 = alloc<constant>(com);
     constant_f.first->default_value = 0.135_r;
 
-    auto constant_g                 = alloc<constant>(mod, com);
+    auto constant_g                 = alloc<constant>(com);
     constant_g.first->default_value = -0.072_r;
 
-    auto constant_h                 = alloc<constant>(mod, com);
+    auto constant_h                 = alloc<constant>(com);
     constant_h.first->default_value = 0.005_r;
 
-    auto constant_i                 = alloc<constant>(mod, com);
+    auto constant_i                 = alloc<constant>(com);
     constant_i.first->default_value = 0.067_r;
 
-    auto constant_j                 = alloc<constant>(mod, com);
+    auto constant_j                 = alloc<constant>(com);
     constant_j.first->default_value = -0.005_r;
 
     connect(mod, com, constant_a, 0, sum_a, 0);
@@ -955,15 +954,13 @@ status modeling::init(const modeling_initializer& params) noexcept
 
     irt_return_if_fail(check(params), status::gui_not_enough_memory);
 
-    irt_return_if_bad(models.init(params.model_capacity));
     irt_return_if_bad(tree_nodes.init(params.tree_capacity));
     irt_return_if_bad(descriptions.init(params.description_capacity));
     irt_return_if_bad(components.init(params.component_capacity));
+
     irt_return_if_bad(observers.init(params.observer_capacity));
     irt_return_if_bad(dir_paths.init(params.dir_path_capacity));
     irt_return_if_bad(file_paths.init(params.file_path_capacity));
-    irt_return_if_bad(children.init(params.children_capacity));
-    irt_return_if_bad(connections.init(params.connection_capacity));
 
     irt_return_if_bad(
       srcs.constant_sources.init(params.constant_source_capacity));
@@ -1014,123 +1011,123 @@ status modeling::fill_internal_components() noexcept
     irt_return_if_fail(components.can_alloc(15), status::success);
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS1 lotka volterra";
-        c.type   = component_type::qss1_lotka_volterra;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS1 lotka volterra";
+        c.type  = component_type::qss1_lotka_volterra;
+        c.state = component_status::read_only;
         if (auto ret = add_lotka_volterra<1>(*this, c); is_bad(ret))
             return ret;
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS2 lotka volterra";
-        c.type   = component_type::qss2_lotka_volterra;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS2 lotka volterra";
+        c.type  = component_type::qss2_lotka_volterra;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_lotka_volterra<2>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS3 lotka volterra";
-        c.type   = component_type::qss2_lotka_volterra;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS3 lotka volterra";
+        c.type  = component_type::qss2_lotka_volterra;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_lotka_volterra<3>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS1 lif";
-        c.type   = component_type::qss1_lif;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS1 lif";
+        c.type  = component_type::qss1_lif;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_lif<1>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS2 lif";
-        c.type   = component_type::qss2_lif;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS2 lif";
+        c.type  = component_type::qss2_lif;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_lif<2>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS3 lif";
-        c.type   = component_type::qss3_lif;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS3 lif";
+        c.type  = component_type::qss3_lif;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_lif<3>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS1 izhikevich";
-        c.type   = component_type::qss1_izhikevich;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS1 izhikevich";
+        c.type  = component_type::qss1_izhikevich;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_izhikevich<1>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS2 izhikevich";
-        c.type   = component_type::qss2_izhikevich;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS2 izhikevich";
+        c.type  = component_type::qss2_izhikevich;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_izhikevich<2>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS3 izhikevich";
-        c.type   = component_type::qss3_izhikevich;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS3 izhikevich";
+        c.type  = component_type::qss3_izhikevich;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_izhikevich<3>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS1 van der pol";
-        c.type   = component_type::qss1_van_der_pol;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS1 van der pol";
+        c.type  = component_type::qss1_van_der_pol;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_van_der_pol<1>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS2 van der pol";
-        c.type   = component_type::qss2_van_der_pol;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS2 van der pol";
+        c.type  = component_type::qss2_van_der_pol;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_van_der_pol<2>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS3 van der pol";
-        c.type   = component_type::qss3_van_der_pol;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS3 van der pol";
+        c.type  = component_type::qss3_van_der_pol;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_van_der_pol<3>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS1 negative lif";
-        c.type   = component_type::qss1_lif;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS1 negative lif";
+        c.type  = component_type::qss1_lif;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_negative_lif<1>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS2 negative lif";
-        c.type   = component_type::qss2_lif;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS2 negative lif";
+        c.type  = component_type::qss2_lif;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_negative_lif<2>(*this, c));
     }
 
     {
-        auto& c  = components.alloc();
-        c.name   = "QSS3 negative lif";
-        c.type   = component_type::qss3_lif;
-        c.status = component_status::read_only;
+        auto& c = components.alloc();
+        c.name  = "QSS3 negative lif";
+        c.type  = component_type::qss3_lif;
+        c.state = component_status::read_only;
         irt_return_if_bad(add_negative_lif<3>(*this, c));
     }
 
@@ -1147,10 +1144,10 @@ static void prepare_component_loading(modeling&              mod,
 
     auto& compo = mod.components.alloc();
     compo.name.assign(file.filename().string().c_str());
-    compo.dir    = path_id;
-    compo.file   = mod.file_paths.get_id(file_path);
-    compo.type   = component_type::file;
-    compo.status = component_status::unread;
+    compo.dir   = path_id;
+    compo.file  = mod.file_paths.get_id(file_path);
+    compo.type  = component_type::file;
+    compo.state = component_status::unread;
 
     try {
         auto desc_file = file;
@@ -1228,7 +1225,7 @@ static void load_component(modeling& mod, component& compo) noexcept
                 reader r(ifs);
                 if (auto ret = r(mod, compo, mod.srcs); is_success(ret)) {
                     read_description = true;
-                    compo.status     = component_status::unmodified;
+                    compo.state      = component_status::unmodified;
                 }
             }
         }
@@ -1257,7 +1254,7 @@ status modeling::fill_components() noexcept
 
     component* compo = nullptr;
     while (components.next(compo)) {
-        if (compo->status == component_status::unread) {
+        if (compo->state == component_status::unread) {
             load_component(*this, *compo);
         }
     }
@@ -1287,11 +1284,10 @@ status modeling::connect(component& parent,
                          child_id   dst,
                          i8         port_dst) noexcept
 {
-    irt_return_if_fail(connections.can_alloc(1),
+    irt_return_if_fail(parent.connections.can_alloc(1),
                        status::data_array_not_enough_memory);
 
-    auto& c = connections.alloc(src, port_src, dst, port_dst);
-    parent.connections.emplace_back(connections.get_id(c));
+    parent.connections.alloc(src, port_src, dst, port_dst);
 
     return status::success;
 }
@@ -1352,22 +1348,10 @@ static void free_child(data_array<child, child_id>& children,
     children.free(c);
 }
 
-static void free_connection(data_array<connection, connection_id>& connections,
-                            connection&                            con) noexcept
-{
-    connections.free(con);
-}
-
 void modeling::free(component& c) noexcept
 {
-    for (int i = 0, e = c.children.ssize(); i != e; ++i)
-        if (auto* child = children.try_to_get(c.children[i]); child)
-            free_child(children, models, *child);
     c.children.clear();
-
-    for (int i = 0, e = c.connections.ssize(); i != e; ++i)
-        if (auto* cnt = connections.try_to_get(c.connections[i]); cnt)
-            free_connection(connections, *cnt);
+    c.models.clear();
     c.connections.clear();
 
     if (auto* desc = descriptions.try_to_get(c.desc); desc)
@@ -1381,86 +1365,72 @@ void modeling::free(component& c) noexcept
 
 void modeling::free(tree_node& node) noexcept
 {
-    for (i32 i = 0, e = node.parameters.data.ssize(); i != e; ++i) {
-        auto mdl_id = node.parameters.data[i].value;
-        if (auto* mdl = models.try_to_get(mdl_id); mdl)
-            models.free(*mdl);
-    }
+    // for (i32 i = 0, e = node.parameters.data.ssize(); i != e; ++i) {
+    //     auto mdl_id = node.parameters.data[i].value;
+    //     if (auto* mdl = models.try_to_get(mdl_id); mdl)
+    //         models.free(*mdl);
+    // }
 
     tree_nodes.free(node);
 }
 
 void modeling::free(component& parent, child& c) noexcept
 {
-    auto child_id = children.get_id(c);
-    if (auto index = parent.children.find(child_id);
-        index < parent.children.ssize()) {
-        parent.children.swap_pop_back(index);
-    }
-
-    free_child(children, models, c);
+    free_child(parent.children, parent.models, c);
 }
 
 void modeling::free(component& parent, connection& c) noexcept
 {
-    auto con_id = connections.get_id(c);
-    if (auto index = parent.connections.find(con_id);
-        index < parent.connections.ssize()) {
-        parent.connections.swap_pop_back(index);
-    }
-
-    free_connection(connections, c);
+    parent.connections.free(c);
 }
 
 status modeling::copy(component& src, component& dst) noexcept
 {
     table<child_id, child_id> mapping;
 
-    for (i32 i = 0, e = src.children.ssize(); i != e; ++i) {
-        if (auto* child = children.try_to_get(src.children[i])) {
-            if (child->type == child_type::model) {
-                auto id = enum_cast<model_id>(child->id);
-                if (auto* mdl = models.try_to_get(id); mdl) {
-                    irt_return_if_fail(models.can_alloc(1),
-                                       status::data_array_not_enough_memory);
+    child* c = nullptr;
+    while (src.children.next(c)) {
+        const auto c_id = src.children.get_id(*c);
 
-                    auto& new_child    = alloc(dst, mdl->type);
-                    auto  new_child_id = children.get_id(new_child);
-                    new_child.name     = child->name;
-                    new_child.x        = child->x;
-                    new_child.y        = child->y;
+        if (c->type == child_type::model) {
+            auto id = enum_cast<model_id>(c->id);
+            if (auto* mdl = src.models.try_to_get(id); mdl) {
+                irt_return_if_fail(dst.models.can_alloc(1),
+                                   status::data_array_not_enough_memory);
 
-                    mapping.data.emplace_back(src.children[i], new_child_id);
-                }
-            } else {
-                auto compo_id = enum_cast<component_id>(child->id);
-                if (auto* compo = components.try_to_get(compo_id); compo) {
-                    auto& new_child    = children.alloc(compo_id);
-                    auto  new_child_id = children.get_id(new_child);
-                    new_child.name     = child->name;
-                    dst.children.emplace_back(children.get_id(new_child));
+                auto& new_child    = alloc(dst, mdl->type);
+                auto  new_child_id = dst.children.get_id(new_child);
+                new_child.name     = c->name;
+                new_child.x        = c->x;
+                new_child.y        = c->y;
 
-                    mapping.data.emplace_back(src.children[i], new_child_id);
-                }
+                mapping.data.emplace_back(c_id, new_child_id);
+            }
+        } else {
+            auto compo_id = enum_cast<component_id>(c->id);
+            if (auto* compo = components.try_to_get(compo_id); compo) {
+                auto& new_child    = dst.children.alloc(compo_id);
+                auto  new_child_id = dst.children.get_id(new_child);
+                new_child.name     = c->name;
+                new_child.x        = c->x;
+                new_child.y        = c->y;
+
+                mapping.data.emplace_back(c_id, new_child_id);
             }
         }
     }
 
     mapping.sort();
 
-    for (i32 i = 0, e = src.connections.ssize(); i != e; ++i) {
-        if (auto* con = connections.try_to_get(src.connections[i]); con) {
-            if (auto* child_src = mapping.get(con->src); child_src) {
-                if (auto* child_dst = mapping.get(con->dst); child_dst) {
-                    irt_return_if_fail(connections.can_alloc(1),
-                                       status::data_array_not_enough_memory);
+    connection* con = nullptr;
+    while (src.connections.next(con)) {
+        if (auto* child_src = mapping.get(con->src); child_src) {
+            if (auto* child_dst = mapping.get(con->dst); child_dst) {
+                irt_return_if_fail(dst.connections.can_alloc(1),
+                                   status::data_array_not_enough_memory);
 
-                    auto& new_con = connections.alloc(
-                      *child_src, con->index_src, *child_dst, con->index_dst);
-                    auto new_con_id = connections.get_id(new_con);
-
-                    dst.connections.emplace_back(new_con_id);
-                }
+                dst.connections.alloc(
+                  *child_src, con->index_src, *child_dst, con->index_dst);
             }
         }
     }
@@ -1469,32 +1439,24 @@ status modeling::copy(component& src, component& dst) noexcept
 }
 
 static status make_tree_recursive(
-  data_array<child, child_id>&         children,
   data_array<component, component_id>& components,
   data_array<tree_node, tree_node_id>& trees,
   tree_node&                           parent,
-  component_id                         child) noexcept
+  component_id                         compo_id) noexcept
 {
-    if (auto* compo = components.try_to_get(child); compo) {
+    if (auto* compo = components.try_to_get(compo_id); compo) {
         irt_return_if_fail(trees.can_alloc(),
                            status::data_array_not_enough_memory);
 
-        auto& new_tree = trees.alloc(child);
+        auto& new_tree = trees.alloc(compo_id);
         new_tree.tree.set_id(&new_tree);
         new_tree.tree.parent_to(parent.tree);
 
-        for (i32 i = 0, e = compo->children.ssize(); i != e; ++i) {
-            auto child_id = compo->children[i];
-
-            if (auto* child = children.try_to_get(child_id); child) {
-                if (child->type == child_type::component) {
-                    irt_return_if_bad(
-                      make_tree_recursive(children,
-                                          components,
-                                          trees,
-                                          new_tree,
-                                          enum_cast<component_id>(child->id)));
-                }
+        child* c = nullptr;
+        while (compo->children.next(c)) {
+            if (c->type == child_type::component) {
+                irt_return_if_bad(make_tree_recursive(
+                  components, trees, new_tree, enum_cast<component_id>(c->id)));
             }
         }
     }
@@ -1512,18 +1474,14 @@ status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
 
     tree_parent.tree.set_id(&tree_parent);
 
-    for (i32 i = 0, e = parent.children.ssize(); i != e; ++i) {
-        const auto child_id = parent.children[i];
-
-        if (auto* child = children.try_to_get(child_id); child) {
-            if (child->type == child_type::component) {
-                irt_return_if_bad(
-                  make_tree_recursive(children,
-                                      components,
-                                      tree_nodes,
-                                      tree_parent,
-                                      enum_cast<component_id>(child->id)));
-            }
+    child* c = nullptr;
+    while (parent.children.next(c)) {
+        if (c->type == child_type::component) {
+            irt_return_if_bad(
+              make_tree_recursive(components,
+                                  tree_nodes,
+                                  tree_parent,
+                                  enum_cast<component_id>(c->id)));
         }
     }
 
@@ -1532,77 +1490,68 @@ status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
     return status::success;
 }
 
-status modeling::clean(component& c) noexcept
+status modeling::clean(component& compo) noexcept
 {
-    int  i              = 0;
-    bool need_more_loop = false;
+    child* c              = nullptr;
+    child* to_del_c       = nullptr;
+    bool   need_more_loop = false;
 
     do {
-        need_more_loop = false;
-
-        while (i < c.children.ssize()) {
-            auto  child_id = c.children[i];
-            auto* child    = children.try_to_get(child_id);
-
-            if (!child) {
-                c.children.swap_pop_back(i);
-                continue;
+        while (compo.children.next(c)) {
+            if (to_del_c) {
+                compo.children.free(*to_del_c);
+                to_del_c = nullptr;
             }
 
-            if (child->type == child_type::model) {
-                auto id = enum_cast<model_id>(child->id);
-                if (auto* model = models.try_to_get(id); !model) {
-                    children.free(*child);
-                    c.children.swap_pop_back(i);
+            if (c->type == child_type::model) {
+                const auto id = enum_cast<model_id>(c->id);
+
+                if (auto* model = compo.models.try_to_get(id); !model) {
+                    to_del_c       = c;
                     need_more_loop = true;
-                    continue;
                 }
             } else {
-                auto id = enum_cast<component_id>(child->id);
+                const auto id = enum_cast<component_id>(c->id);
                 if (auto* compo = components.try_to_get(id); !compo) {
-                    children.free(*child);
-                    c.children.swap_pop_back(i);
+                    to_del_c       = c;
                     need_more_loop = true;
-                    continue;
                 }
             }
-
-            ++i;
         }
 
-        while (i < c.connections.ssize()) {
-            auto  con_id = c.connections[i];
-            auto* con    = connections.try_to_get(con_id);
+        if (to_del_c)
+            compo.children.free(*to_del_c);
 
-            if (!con) {
-                c.connections.swap_pop_back(i);
-                continue;
+        connection* con        = nullptr;
+        connection* to_del_con = nullptr;
+
+        while (compo.connections.next(con)) {
+            if (to_del_con) {
+                compo.connections.free(*to_del_con);
+                to_del_con = nullptr;
             }
 
-            auto* src = children.try_to_get(con->src);
-            auto* dst = children.try_to_get(con->dst);
+            auto* src = compo.children.try_to_get(con->src);
+            auto* dst = compo.children.try_to_get(con->dst);
+
             if (!src || !dst) {
-                connections.free(*con);
-                c.connections.swap_pop_back(i);
-                need_more_loop = true;
+                to_del_con = con;
                 continue;
             }
 
             if (src->type == child_type::model) {
                 auto id = enum_cast<model_id>(src->id);
-                if (auto* model = models.try_to_get(id); !model) {
-                    children.free(*src);
-                    connections.free(*con);
-                    c.connections.swap_pop_back(i);
+                if (auto* model = compo.models.try_to_get(id); !model) {
+                    compo.children.free(*src);
+                    to_del_con     = con;
                     need_more_loop = true;
                     continue;
                 }
             } else {
                 auto id = enum_cast<component_id>(src->id);
-                if (auto* compo = components.try_to_get(id); !compo) {
-                    children.free(*src);
-                    connections.free(*con);
-                    c.connections.swap_pop_back(i);
+                if (auto* c = components.try_to_get(id); !c) {
+                    compo.children.free(*src);
+                    to_del_con     = con;
                     need_more_loop = true;
                     continue;
                 }
@@ -1610,24 +1559,26 @@ status modeling::clean(component& c) noexcept
 
             if (dst->type == child_type::model) {
                 auto id = enum_cast<model_id>(dst->id);
-                if (auto* model = models.try_to_get(id); !model) {
-                    children.free(*dst);
-                    connections.free(*con);
-                    c.connections.swap_pop_back(i);
+                if (auto* model = compo.models.try_to_get(id); !model) {
+                    compo.children.free(*dst);
+                    to_del_con     = con;
                     need_more_loop = true;
                     continue;
                 }
             } else {
                 auto id = enum_cast<component_id>(dst->id);
-                if (auto* compo = components.try_to_get(id); !compo) {
-                    children.free(*dst);
-                    connections.free(*con);
-                    c.connections.swap_pop_back(i);
+                if (auto* c = components.try_to_get(id); !c) {
+                    compo.children.free(*dst);
+                    to_del_con     = con;
                     need_more_loop = true;
                     continue;
                 }
             }
         }
+
+        if (to_del_con)
+            compo.connections.free(*to_del_con);
+
     } while (need_more_loop);
 
     return status::success;
@@ -1662,8 +1613,8 @@ status modeling::save(component& c) noexcept
         ofs.write(desc->data.c_str(), desc->data.size());
     }
 
-    c.status = component_status::unmodified;
-    c.type   = component_type::file;
+    c.state = component_status::unmodified;
+    c.type  = component_type::file;
 
     return status::success;
 }
