@@ -9,8 +9,8 @@
 #include <irritator/ext.hpp>
 
 #include <atomic>
-#include <barrier>
-#include <latch>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 namespace irt {
@@ -68,35 +68,41 @@ struct task
 //! @brief Simple task list access by only one thread
 struct task_list
 {
-    ring_buffer<task, 256> tasks;
-    spin_lock              spin;
+    small_vector<task, 256> submit_task;
+    ring_buffer<task, 256>  tasks;
 
-    i32 task_number = 0;   // number of task since task_list constructor
-    i8  priority    = 127; // task_list priority (-127 better than 127).
+    std::mutex              mutex;
+    std::condition_variable cond;
 
-    task_list() noexcept = default;
+    //! number of task since task_list constructor
+    std::atomic<int> task_number = 0;
+
+    //! task_list priority (-127 better than 127).
+    i8   priority       = 127;
+    bool is_terminating = false;
+
+    task_list() noexcept;
+    task_list(const task_list& other) = delete;
+    task_list& operator=(const task_list& other) = delete;
 
     void add(task_function function, void* parameter) noexcept;
+    void submit() noexcept;
     void wait() noexcept;
+    void terminate() noexcept;
 };
 
 struct worker
 {
-    void start() noexcept;
-    void terminate() noexcept;
-
-    worker() noexcept = default;
-
+    worker() noexcept           = default;
     worker(const worker& other) = delete;
     worker& operator=(const worker& other) = delete;
 
+    void start() noexcept;
     void run() noexcept;
     void join() noexcept;
 
-    std::jthread         thread;
-    vector<task_list*>   task_lists;
-    ring_buffer<task, 8> tasks;
-    bool                 is_terminating = false;
+    std::jthread       thread;
+    vector<task_list*> task_lists;
 };
 
 struct task_manager_parameters
@@ -132,37 +138,9 @@ public:
  *
  ****************************************************************************/
 
-inline status task_manager::init(task_manager_parameters& params) noexcept
-{
-    irt_return_if_fail(params.thread_number > 0, status::gui_not_enough_memory);
-    irt_return_if_fail(params.simple_task_list_number > 0,
-                       status::gui_not_enough_memory);
-
-    workers.resize(params.thread_number);
-    task_lists.resize(params.simple_task_list_number);
-
-    return status::success;
-}
-
-inline status task_manager::start() noexcept
-{
-    for (auto& e : workers)
-        e.start();
-
-    return status::success;
-}
-
-inline void task_manager::finalize() noexcept
-{
-    for (auto& e : workers)
-        e.terminate();
-
-    for (auto& e : workers)
-        e.join();
-
-    task_lists.clear();
-    workers.clear();
-}
+//
+// spin_lock
+//
 
 inline spin_lock::spin_lock() noexcept { flag.clear(); }
 
@@ -191,48 +169,72 @@ inline scoped_spin_lock::scoped_spin_lock(spin_lock& spin_) noexcept
 
 inline scoped_spin_lock::~scoped_spin_lock() noexcept { spin.unlock(); }
 
+/*
+    task
+ */
+
 constexpr task::task(task_function function_, void* parameter_) noexcept
   : function(function_)
   , parameter(parameter_)
 {}
 
+/*
+    task_list
+ */
+
+inline task_list::task_list() noexcept
+  : task_number{ 0 }
+{}
+
 inline void task_list::add(task_function function, void* parameter) noexcept
 {
-    for (;;) {
-        {
-            scoped_spin_lock lock(spin);
-            if (!tasks.full()) {
-                tasks.emplace_enqueue(function, parameter);
-                ++task_number;
-                return;
-            }
-        }
+    irt_assert(is_terminating == false);
+    submit_task.emplace_back(function, parameter);
+}
 
-        std::this_thread::yield();
+inline void task_list::submit() noexcept
+{
+    irt_assert(is_terminating == false);
+
+    {
+        std::unique_lock lock{ mutex };
+
+        for (auto& t : submit_task)
+            tasks.emplace_enqueue(t);
+
+        task_number += submit_task.ssize();
+        submit_task.clear();
     }
+
+    cond.notify_all();
 }
 
 inline void task_list::wait() noexcept
 {
-    for (;;) {
-        {
-            scoped_spin_lock lock(spin);
-            if (tasks.empty()) {
-                tasks.clear();
-                return;
-            }
-        }
+    irt_assert(is_terminating == false);
 
-        std::this_thread::yield();
+    using namespace std::chrono_literals;
+
+    while (task_number > 0) {
+        cond.notify_all();
+        std::this_thread::sleep_for(10ms);
     }
 }
+
+inline void task_list::terminate() noexcept
+{
+    is_terminating = true;
+    cond.notify_all();
+}
+
+/*
+    worker
+ */
 
 inline void worker::start() noexcept
 {
     thread = std::jthread{ &worker::run, this };
 }
-
-inline void worker::terminate() noexcept { is_terminating = true; }
 
 inline void worker::run() noexcept
 {
@@ -242,39 +244,89 @@ inline void worker::run() noexcept
                   return left->priority < right->priority;
               });
 
-    for (;;) {
+    bool                 running = true;
+    ring_buffer<task, 8> tasks;
+
+    while (running) {
         while (!tasks.empty()) {
             auto task = tasks.dequeue();
             task.function(task.parameter);
         }
 
+        running = false;
+
         for (auto& lst : task_lists) {
-            scoped_spin_lock lock(lst->spin);
-            if (lst->tasks.empty())
-                continue;
+            if (!lst->is_terminating) {
+                running = true;
+                std::unique_lock<std::mutex> lock{ lst->mutex };
+                lst->cond.wait(lock, [&] {
+                    return lst->is_terminating || lst->task_number > 0;
+                });
 
-            while (!tasks.full() && !lst->tasks.empty())
-                tasks.enqueue(lst->tasks.dequeue());
-        }
+                while (!tasks.full() && !lst->tasks.empty()) {
+                    tasks.enqueue(lst->tasks.dequeue());
+                    --lst->task_number;
+                }
+            } else {
+                for (;;) {
+                    {
+                        std::unique_lock<std::mutex> lock{ lst->mutex };
+                        while (!tasks.full() && !lst->tasks.empty()) {
+                            tasks.enqueue(lst->tasks.dequeue());
+                            --lst->task_number;
+                        }
+                    }
 
-        if (tasks.empty() && is_terminating) {
-            bool all_empty = true;
+                    if (tasks.empty())
+                        break;
 
-            for (auto& lst : task_lists) {
-                scoped_spin_lock lock(lst->spin);
-                if (!lst->tasks.empty()) {
-                    all_empty = false;
-                    break;
+                    while (!tasks.empty()) {
+                        auto task = tasks.dequeue();
+                        task.function(task.parameter);
+                    }
                 }
             }
-
-            if (all_empty)
-                return;
         }
     }
 }
 
 inline void worker::join() noexcept { thread.join(); }
+
+/*
+    task_manager
+ */
+
+inline status task_manager::init(task_manager_parameters& params) noexcept
+{
+    irt_return_if_fail(params.thread_number > 0, status::gui_not_enough_memory);
+    irt_return_if_fail(params.simple_task_list_number > 0,
+                       status::gui_not_enough_memory);
+
+    workers.resize(params.thread_number);
+    task_lists.resize(params.simple_task_list_number);
+
+    return status::success;
+}
+
+inline status task_manager::start() noexcept
+{
+    for (auto& e : workers)
+        e.start();
+
+    return status::success;
+}
+
+inline void task_manager::finalize() noexcept
+{
+    for (auto& tl : task_lists)
+        tl.terminate();
+
+    for (auto& e : workers)
+        e.join();
+
+    task_lists.clear();
+    workers.clear();
+}
 
 } // namespace irt
 

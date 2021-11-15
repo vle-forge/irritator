@@ -1809,14 +1809,9 @@ private:
     {
         connection* c = nullptr;
         while (compo.connections.next(c)) {
-            auto* src_index = child_mapping.get(c->src);
-            auto* dst_index = child_mapping.get(c->dst);
-
-            irt_assert(src_index && "child_mapping error");
-            irt_assert(dst_index && "child_mapping error");
-
-            os << *src_index << ' ' << static_cast<int>(c->index_src) << ' '
-               << *dst_index << ' ' << static_cast<int>(c->index_dst) << '\n';
+            os << get_index(c->src) << ' ' << static_cast<int>(c->index_src)
+               << ' ' << get_index(c->dst) << ' '
+               << static_cast<int>(c->index_dst) << '\n';
         }
     }
 
@@ -1851,11 +1846,7 @@ private:
 
                 do_write_model_dynamics(*mdl);
             }
-
-            // child_mapping.data.emplace_back(compo.children[i], i);
         }
-
-        // child_mapping.sort();
     }
 
     void write(const random_source& src) noexcept

@@ -135,12 +135,6 @@ static component_id add_empty_component(component_editor& ed) noexcept
     return undefined<component_id>();
 }
 
-struct save_component_data
-{
-    modeling*    mod;
-    component_id id;
-};
-
 static void show_component(component_editor& ed, component& c) noexcept
 {
     ImGui::Selectable(
@@ -158,7 +152,21 @@ static void show_component(component_editor& ed, component& c) noexcept
     if (c.state == component_status::modified) {
         ImGui::SameLine();
         if (ImGui::SmallButton("save")) {
-            ed.mod.save(c);
+            {
+                auto& task   = ed.gui_tasks.alloc();
+                task.ed      = &ed;
+                task.param_1 = ordinal(ed.mod.components.get_id(c));
+                ed.task_mgr.task_lists[0].add(save_component, &task);
+            }
+
+            {
+                auto& task   = ed.gui_tasks.alloc();
+                task.ed      = &ed;
+                task.param_1 = ordinal(ed.mod.components.get_id(c));
+                ed.task_mgr.task_lists[0].add(save_description, &task);
+            }
+
+            ed.task_mgr.task_lists[0].submit();
         }
     }
 }
@@ -305,13 +313,25 @@ static void show_all_components(component_editor& ed)
 
                     if (file && dir) {
                         if (ImGui::Button("Save")) {
-                            if (auto ret = ed.mod.save(*compo); is_bad(ret)) {
-                                log_w.log(
-                                  2,
-                                  "Fail to save file %s in directory %s\n",
-                                  file->path.c_str(),
-                                  dir->path.c_str());
+                            {
+                                auto& task = ed.gui_tasks.alloc();
+                                task.ed    = &ed;
+                                task.param_1 =
+                                  ordinal(ed.mod.components.get_id(*compo));
+                                ed.task_mgr.task_lists[0].add(save_component,
+                                                              &task);
                             }
+
+                            {
+                                auto& task = ed.gui_tasks.alloc();
+                                task.ed    = &ed;
+                                task.param_1 =
+                                  ordinal(ed.mod.components.get_id(*compo));
+                                ed.task_mgr.task_lists[0].add(save_description,
+                                                              &task);
+                            }
+
+                            ed.task_mgr.task_lists[0].submit();
                         }
                     }
                 }
@@ -1122,12 +1142,29 @@ void component_editor::init() noexcept
         io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
 
         settings_compute_colors(settings);
+
+        task_manager_parameters params = {
+            .thread_number           = 3,
+            .simple_task_list_number = 1,
+            .multi_task_list_number  = 0,
+        };
+
+        gui_tasks.init(64);
+        task_mgr.init(params);
+
+        task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
+        task_mgr.workers[1].task_lists.emplace_back(&task_mgr.task_lists[0]);
+        task_mgr.workers[2].task_lists.emplace_back(&task_mgr.task_lists[0]);
+
+        task_mgr.start();
     }
 }
 
 void component_editor::shutdown() noexcept
 {
     if (context) {
+        task_mgr.finalize();
+
         ImNodes::EditorContextSet(context);
         ImNodes::PopAttributeFlag();
         ImNodes::EditorContextFree(context);
@@ -1163,8 +1200,36 @@ static void show_simulation(component_editor& ed) noexcept
     }
 }
 
+static component_editor_status gui_task_clean_up(component_editor& ed) noexcept
+{
+    component_editor_status ret    = 0;
+    gui_task*               task   = nullptr;
+    gui_task*               to_del = nullptr;
+
+    while (ed.gui_tasks.next(task)) {
+        if (to_del) {
+            ed.gui_tasks.free(*to_del);
+            to_del = nullptr;
+        }
+
+        if (task->state == gui_task_status::finished) {
+            to_del = task;
+        } else {
+            ret |= task->editor_state;
+        }
+    }
+
+    if (to_del) {
+        ed.gui_tasks.free(*to_del);
+    }
+
+    return ret;
+}
+
 void component_editor::show(bool* /*is_show*/) noexcept
 {
+    state = gui_task_clean_up(*this);
+
     constexpr ImGuiWindowFlags flag =
       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
@@ -1234,6 +1299,112 @@ void component_editor::show(bool* /*is_show*/) noexcept
             select_directory.clear();
         }
     }
+}
+
+//
+// task implementation
+//
+
+static status save_component_impl(const modeling&  mod,
+                                  const component& compo,
+                                  const dir_path&  dir,
+                                  const file_path& file) noexcept
+{
+    status ret = status::success;
+
+    try {
+        std::filesystem::path p{ dir.path.sv() };
+        p /= file.path.sv();
+        p.replace_extension(".irt");
+
+        std::ofstream ofs{ p };
+        if (ofs.is_open()) {
+            writer w{ ofs };
+            ret = w(mod, compo, mod.srcs);
+        } else {
+            ret = status::io_file_format_error;
+        }
+    } catch (...) {
+        ret = status::io_not_enough_memory;
+    }
+
+    return ret;
+}
+
+void save_component(void* param) noexcept
+{
+    auto* g_task      = reinterpret_cast<gui_task*>(param);
+    g_task->state     = gui_task_status::started;
+    g_task->ed->state = component_editor_status_read_only_modeling;
+
+    auto  compo_id = enum_cast<component_id>(g_task->param_1);
+    auto* compo    = g_task->ed->mod.components.try_to_get(compo_id);
+
+    if (compo) {
+        auto* dir  = g_task->ed->mod.dir_paths.try_to_get(compo->dir);
+        auto* file = g_task->ed->mod.file_paths.try_to_get(compo->file);
+
+        if (dir && file) {
+            if (is_bad(
+                  save_component_impl(g_task->ed->mod, *compo, *dir, *file))) {
+                compo->state = component_status::modified;
+            } else {
+                compo->state = component_status::unmodified;
+            }
+        }
+    }
+
+    g_task->state = gui_task_status::finished;
+}
+
+static status save_component_description_impl(const dir_path&    dir,
+                                              const file_path&   file,
+                                              const description& desc) noexcept
+{
+    status ret = status::success;
+
+    try {
+        std::filesystem::path p{ dir.path.sv() };
+        p /= file.path.sv();
+        p.replace_extension(".desc");
+
+        std::ofstream ofs{ p };
+        if (ofs.is_open()) {
+            ofs.write(desc.data.c_str(), desc.data.size());
+        } else {
+            ret = status::io_file_format_error;
+        }
+    } catch (...) {
+        ret = status::io_not_enough_memory;
+    }
+
+    return ret;
+}
+
+void save_description(void* param) noexcept
+{
+    auto* g_task      = reinterpret_cast<gui_task*>(param);
+    g_task->state     = gui_task_status::started;
+    g_task->ed->state = component_editor_status_read_only_modeling;
+
+    auto  compo_id = enum_cast<component_id>(g_task->param_1);
+    auto* compo    = g_task->ed->mod.components.try_to_get(compo_id);
+
+    if (compo) {
+        auto* dir  = g_task->ed->mod.dir_paths.try_to_get(compo->dir);
+        auto* file = g_task->ed->mod.file_paths.try_to_get(compo->file);
+        auto* desc = g_task->ed->mod.descriptions.try_to_get(compo->desc);
+
+        if (dir && file && desc) {
+            if (is_bad(save_component_description_impl(*dir, *file, *desc))) {
+                compo->state = component_status::modified;
+            } else {
+                compo->state = component_status::unmodified;
+            }
+        }
+    }
+
+    g_task->state = gui_task_status::finished;
 }
 
 } // irt

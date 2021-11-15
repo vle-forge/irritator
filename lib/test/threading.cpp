@@ -75,8 +75,9 @@ int main()
         tm.task_lists[0].add(&function_100, &counter);
         tm.task_lists[0].add(&function_1, &counter);
         tm.task_lists[0].add(&function_100, &counter);
-
+        tm.task_lists[0].submit();
         tm.task_lists[0].wait();
+
         tm.finalize();
 
         assert(counter == 202);
@@ -103,22 +104,28 @@ int main()
             tm.task_lists[0].add(&function_1, &counter);
             tm.task_lists[0].add(&function_100, &counter);
         }
+        tm.task_lists[0].submit();
+        tm.task_lists[0].wait();
 
         for (int i = 0; i < 100; ++i) {
             tm.task_lists[0].add(&function_1, &counter);
             tm.task_lists[0].add(&function_100, &counter);
         }
+        tm.task_lists[0].submit();
+        tm.task_lists[0].wait();
 
         for (int i = 0; i < 100; ++i) {
             tm.task_lists[0].add(&function_1, &counter);
             tm.task_lists[0].add(&function_100, &counter);
         }
+        tm.task_lists[0].submit();
+        tm.task_lists[0].wait();
 
         for (int i = 0; i < 100; ++i) {
             tm.task_lists[0].add(&function_1, &counter);
             tm.task_lists[0].add(&function_100, &counter);
         }
-
+        tm.task_lists[0].submit();
         tm.task_lists[0].wait();
         tm.finalize();
 
@@ -152,8 +159,9 @@ int main()
         tm.task_lists[1].add(&function_100, &counter_2);
         tm.task_lists[0].add(&function_1, &counter_1);
         tm.task_lists[1].add(&function_100, &counter_2);
+        tm.task_lists[0].submit();
+        tm.task_lists[1].submit();
 
-        tm.task_lists[0].wait();
         tm.finalize();
 
         assert(counter_1 == 4);
@@ -187,8 +195,9 @@ int main()
         tm.task_lists[1].add(&function_100, &counter_2);
         tm.task_lists[0].add(&function_1, &counter_1);
         tm.task_lists[1].add(&function_100, &counter_2);
+        tm.task_lists[0].submit();
+        tm.task_lists[1].submit();
 
-        tm.task_lists[0].wait();
         tm.finalize();
 
         assert(counter_1 == 4);

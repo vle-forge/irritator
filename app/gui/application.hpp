@@ -8,6 +8,7 @@
 #include <irritator/core.hpp>
 #include <irritator/external_source.hpp>
 #include <irritator/modeling.hpp>
+#include <irritator/thread.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -333,10 +334,34 @@ struct window_logger
 
 const char* log_string(const log_status s) noexcept;
 
-enum class component_editor_status
+using component_editor_status = u32;
+
+enum component_editor_status_
 {
-    modeling,
-    simulating
+    component_editor_status_modeling           = 0,
+    component_editor_status_simulating         = 1 << 1,
+    component_editor_status_read_only_modeling = 1 << 2,
+};
+
+enum class gui_task_status
+{
+    not_started,
+    started,
+    finished
+};
+
+void save_component(void* param) noexcept;
+void save_description(void* param) noexcept;
+
+enum class gui_task_id : u64;
+
+struct gui_task
+{
+    u64                     param_1      = 0;
+    u64                     param_2      = 0;
+    component_editor*       ed           = nullptr;
+    component_editor_status editor_state = 0;
+    gui_task_status         state        = gui_task_status::not_started;
 };
 
 struct component_editor
@@ -364,19 +389,22 @@ struct component_editor
         void show(bool* is_open) noexcept;
     };
 
-    settings_manager        settings;
-    small_string<16>        name;
-    modeling                mod;
-    simulation              sim;
-    tree_node_id            selected_component = undefined<tree_node_id>();
-    ImNodesEditorContext*   context            = nullptr;
-    bool                    is_saved           = true;
-    bool                    show_minimap       = true;
-    bool                    show_settings      = false;
-    bool                    show_memory        = false;
-    bool                    show_select_directory_dialog = false;
-    bool                    force_node_position          = false;
-    component_editor_status status = component_editor_status::modeling;
+    settings_manager                  settings;
+    small_string<16>                  name;
+    modeling                          mod;
+    simulation                        sim;
+    task_manager                      task_mgr;
+    data_array<gui_task, gui_task_id> gui_tasks;
+    tree_node_id          selected_component = undefined<tree_node_id>();
+    ImNodesEditorContext* context            = nullptr;
+    bool                  is_saved           = true;
+    bool                  show_minimap       = true;
+    bool                  show_settings      = false;
+    bool                  show_memory        = false;
+    bool                  show_select_directory_dialog = false;
+    bool                  force_node_position          = false;
+
+    component_editor_status state = component_editor_status_modeling;
 
     component*     selected_component_list      = nullptr;
     component_type selected_component_type_list = component_type::file;
