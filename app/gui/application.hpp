@@ -31,6 +31,10 @@ struct file_output;
 struct file_discrete_output;
 struct component_editor;
 
+//added for input files ++++++++++++++++ Ese
+struct plot_input;
+struct file_input;
+
 static inline constexpr int not_found = -1;
 
 enum class editor_id : u64;
@@ -39,10 +43,18 @@ enum class file_output_id : u64;
 enum class file_discrete_output_id : u64;
 enum class component_editor_id : u64;
 
+//added for input files +++++++ Ese
+enum class plot_input_id : u64;
+enum class file_input_id : u64;
+
 using observation_output = std::variant<std::monostate,
                                         plot_output_id,
                                         file_output_id,
                                         file_discrete_output_id>;
+
+// adding this to read in data for plot as observation_input
+using observation_input =std::variant<plot_input_id, 
+                                      file_input_id>;
 
 enum class log_status : int
 {
@@ -438,12 +450,63 @@ struct application
     std::filesystem::path         executable_dir;
     std::vector<long long int>    simulation_duration;
 
+    std::filesystem::path         dp1;
+    std::filesystem::path         dp2;
+    std::filesystem::path         dp3;
+    std::filesystem::path         dp4;
+    std::filesystem::path         dp5;
+    std::filesystem::path         dp6;
+    std::filesystem::path         dp7;
+
+    std::ifstream is_dp1;
+    std::ifstream is_dp2;
+    std::ifstream is_dp3;
+    std::ifstream is_dp4;
+    std::ifstream is_dp5;
+    std::ifstream is_dp6;
+    std::ifstream is_dp7;
+
+
     bool show_modeling   = true;
     bool show_log        = false;
     bool show_simulation = false;
     bool show_demo       = false;
     bool show_plot       = false;
     bool show_settings   = false;
+
+    bool show_alt_plot_styles = false; // this will open a window for alternative plots styles
+
+
+    //add the plot style settings in another window or same window
+    //bool set_scatter_plot_params = false;
+    //bool set_shaded_plot_params = false;
+    //bool set_bar_chart_params = false;
+    //bool set_pie_chart_params = false;
+    //bool set_heat_map_params = false;
+
+
+    // add other plot styles in show_plot window
+    bool show_scatter_plot = false;
+    bool show_shaded_plot  = false;
+    bool show_bar_chart    = false;
+    bool show_pie_chart    = false;
+    bool show_heat_map     = false;
+    bool view_data         = false; 
+
+    // set a flag to load .dat data file added by Ese
+    bool load_data_file_dialog = false; // simply use the load_file_dialog inside dialog.hpp
+    bool show_load_data_file_dialog = false; // simply use show_load_file_dialog from here
+
+   // bool show_load_data_file_field  = false;
+    bool show_load_data_file_field1 = false;
+    bool show_load_data_file_field2 = false;
+    bool show_load_data_file_field3 = false;
+    bool show_load_data_file_field4 = false;
+    bool show_load_data_file_field5 = false;
+    bool show_load_data_file_field6 = false;
+    bool show_load_data_file_field7 = false;
+
+
 
     bool init();
     bool show();
@@ -456,6 +519,9 @@ struct application
     void show_plot_window();
     void show_simulation_window();
     void show_settings_window();
+
+    // use this for other style plots
+    void show_alt_plot_window();
 
     editor* alloc_editor();
     void    free_editor(editor& ed);

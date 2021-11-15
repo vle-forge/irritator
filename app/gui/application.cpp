@@ -102,6 +102,7 @@ bool application::show()
 
             ImGui::MenuItem("Simulation", nullptr, &show_simulation);
             ImGui::MenuItem("Plot", nullptr, &show_plot);
+            ImGui::MenuItem("Plot Styles", nullptr, &show_alt_plot_styles);
             ImGui::MenuItem("Settings", nullptr, &show_settings);
             ImGui::MenuItem("Log", nullptr, &show_log);
 
@@ -139,6 +140,9 @@ bool application::show()
 
     if (show_plot)
         show_plot_window();
+
+    if (show_alt_plot_styles)
+        show_alt_plot_window();
 
     if (show_log)
         log_w.show(&show_log);
@@ -190,10 +194,10 @@ void application::show_plot_window()
 
     static editor_id current = undefined<editor_id>();
     if (auto* ed = make_combo_editor_name(current); ed) {
+        //plot_output* out = nullptr;// placed here in outer scope for all plot styles
         if (ImPlot::BeginPlot("simulation", "t", "s")) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-
-            plot_output* out = nullptr;
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0.5f);
+            plot_output* out = nullptr; // moved this to outer scope
             while (ed->plot_outs.next(out)) {
                 if (!out->xs.empty() && !out->ys.empty())
                     ImPlot::PlotLine(out->name.c_str(),
@@ -204,10 +208,458 @@ void application::show_plot_window()
 
             ImPlot::PopStyleVar(1);
             ImPlot::EndPlot();
-        }
-    }
+        }// ends default line plot
+    }// ------------------------end
+
+// all other plot styles were her before
 
     ImGui::End();
+}
+
+void application::show_alt_plot_window() {
+    ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
+    if (!ImGui::Begin("Plot Styles", &show_alt_plot_styles)) {
+        ImGui::End();
+        return;
+    }
+
+    
+    if (ImGui::BeginMenu("Plot styles")) {
+        ImGui::MenuItem("Scatter plot", nullptr, &show_scatter_plot);
+        ImGui::MenuItem("Shaded plot", nullptr, &show_shaded_plot);
+        ImGui::MenuItem("Bar chart", nullptr, &show_bar_chart);
+        ImGui::MenuItem("Pie chart", nullptr, &show_pie_chart);
+        ImGui::MenuItem("Heat map", nullptr, &show_heat_map);
+
+        ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("View data")) {
+        // ImGui::MenuItem("Data src", nullptr, &show_load_data_file_field);
+        ImGui::MenuItem("Data src1", nullptr, &show_load_data_file_field1);
+        ImGui::MenuItem("Data src2", nullptr, &show_load_data_file_field2);
+        ImGui::MenuItem("Data src3", nullptr, &show_load_data_file_field3);
+        ImGui::MenuItem("Data src4", nullptr, &show_load_data_file_field4);
+        ImGui::MenuItem("Data src5", nullptr, &show_load_data_file_field5);
+        ImGui::MenuItem("Data src6", nullptr, &show_load_data_file_field6);
+        ImGui::MenuItem("Data src7", nullptr, &show_load_data_file_field7);
+
+        ImGui::EndMenu();
+    }
+
+    // if (ImGui::BeginMenu("Plot Style settings")) {
+    //    ImGui::MenuItem("Scatter plot params", nullptr,
+    //    &set_scatter_plot_params); ImGui::MenuItem("Shaded plot params",
+    //    nullptr, &set_shaded_plot_params); ImGui::MenuItem("Bar chart params",
+    //    nullptr, &set_bar_chart_params); ImGui::MenuItem("Pie chart params",
+    //    nullptr, &set_pie_chart_params); ImGui::MenuItem("Heat map params",
+    //    nullptr, &set_heat_map_params);
+
+    //    ImGui::EndMenu();
+    //}
+
+    static editor_id current = undefined<editor_id>();// this line works for all plot styles
+
+
+        ImGui::Text("Data source directory:");
+    // std::filesystem::path dp1; // these are defined in the applicattion.hpp
+    // file std::filesystem::path dp2;
+    if (show_load_data_file_field1) {
+        const char*    title     = "Data src1";
+        const char8_t* filters[] = { u8".dat", nullptr };
+        if (ImGui::Button("data src1"))
+            ImGui::OpenPopup(title);
+        if (load_file_dialog(dp1, title, filters)) {
+            // what do i do here
+            // show_load_data_file_field1 = false;
+            log_w.log(
+              5, "Load file from %s: ", (const char*)dp1.u8string().c_str());
+        }
+        // place this here for directory field display
+        ImGui::SameLine();
+        ImGui::InputText("Data src1",
+                         const_cast<char*>(reinterpret_cast<const char*>(
+                           dp1.u8string().c_str())),
+                         dp1.u8string().size(),
+                         ImGuiInputTextFlags_ReadOnly);
+    }
+
+    if (show_load_data_file_field2) {
+        const char*    title     = "Data src2";
+        const char8_t* filters[] = { u8".dat", nullptr };
+        if (ImGui::Button("data src2"))
+            ImGui::OpenPopup(title);
+        if (load_file_dialog(dp2, title, filters)) {
+            // what do i do here
+            // show_load_data_file_field1 = false;
+            log_w.log(
+              5, "Load file from %s: ", (const char*)dp2.u8string().c_str());
+        }
+        // place this here for directory field display
+        ImGui::SameLine();
+        ImGui::InputText("Data src2",
+                         const_cast<char*>(reinterpret_cast<const char*>(
+                           dp2.u8string().c_str())),
+                         dp2.u8string().size(),
+                         ImGuiInputTextFlags_ReadOnly);
+    }
+
+    if (show_load_data_file_field3) {
+        const char*    title     = "Data src3";
+        const char8_t* filters[] = { u8".dat", nullptr };
+        if (ImGui::Button("data src3"))
+            ImGui::OpenPopup(title);
+        if (load_file_dialog(dp3, title, filters)) {
+            // what do i do here
+            // show_load_data_file_field1 = false;
+            log_w.log(
+              5, "Load file from %s: ", (const char*)dp3.u8string().c_str());
+        }
+        // place this here for directory field display
+        ImGui::SameLine();
+        ImGui::InputText("Data src3",
+                         const_cast<char*>(reinterpret_cast<const char*>(
+                           dp3.u8string().c_str())),
+                         dp3.u8string().size(),
+                         ImGuiInputTextFlags_ReadOnly);
+    }
+
+    if (show_load_data_file_field4) {
+        const char*    title     = "Data src4";
+        const char8_t* filters[] = { u8".dat", nullptr };
+        if (ImGui::Button("data src4"))
+            ImGui::OpenPopup(title);
+        if (load_file_dialog(dp4, title, filters)) {
+            // what do i do here
+            // show_load_data_file_field1 = false;
+            log_w.log(
+              5, "Load file from %s: ", (const char*)dp4.u8string().c_str());
+        }
+        // place this here for directory field display
+        ImGui::SameLine();
+        ImGui::InputText("Data src4",
+                         const_cast<char*>(reinterpret_cast<const char*>(
+                           dp4.u8string().c_str())),
+                         dp4.u8string().size(),
+                         ImGuiInputTextFlags_ReadOnly);
+    }
+
+    if (show_load_data_file_field5) {
+        const char*    title     = "Data src5";
+        const char8_t* filters[] = { u8".dat", nullptr };
+        if (ImGui::Button("data src5"))
+            ImGui::OpenPopup(title);
+        if (load_file_dialog(dp5, title, filters)) {
+            // what do i do here
+            // show_load_data_file_field1 = false;
+            log_w.log(
+              5, "Load file from %s: ", (const char*)dp5.u8string().c_str());
+        }
+        // place this here for directory field display
+        ImGui::SameLine();
+        ImGui::InputText("Data src5",
+                         const_cast<char*>(reinterpret_cast<const char*>(
+                           dp5.u8string().c_str())),
+                         dp5.u8string().size(),
+                         ImGuiInputTextFlags_ReadOnly);
+    }
+
+    if (show_load_data_file_field6) {
+        const char*    title     = "Data src6";
+        const char8_t* filters[] = { u8".dat", nullptr };
+        if (ImGui::Button("data src6"))
+            ImGui::OpenPopup(title);
+        if (load_file_dialog(dp6, title, filters)) {
+            // what do i do here
+            // show_load_data_file_field1 = false;
+            log_w.log(
+              5, "Load file from %s: ", (const char*)dp6.u8string().c_str());
+        }
+        // place this here for directory field display
+        ImGui::SameLine();
+        ImGui::InputText("Data src6",
+                         const_cast<char*>(reinterpret_cast<const char*>(
+                           dp6.u8string().c_str())),
+                         dp6.u8string().size(),
+                         ImGuiInputTextFlags_ReadOnly);
+    }
+
+    if (show_load_data_file_field7) {
+        const char*    title     = "Data src7";
+        const char8_t* filters[] = { u8".dat", nullptr };
+        if (ImGui::Button("data src7"))
+            ImGui::OpenPopup(title);
+        if (load_file_dialog(dp7, title, filters)) {
+            // what do i do here
+            // show_load_data_file_field1 = false;
+            log_w.log(
+              5, "Load file from %s: ", (const char*)dp7.u8string().c_str());
+        }
+        // place this here for directory field display
+        ImGui::SameLine();
+        ImGui::InputText("Data src7",
+                         const_cast<char*>(reinterpret_cast<const char*>(
+                           dp7.u8string().c_str())),
+                         dp7.u8string().size(),
+                         ImGuiInputTextFlags_ReadOnly);
+    }
+
+    //can i check or open the .dat file contents here to have it available to all plot styles
+    is_dp1.open(dp1);
+    float         data_in_dp1 = 0.0;
+    vector<float> vec_dp1;
+    while (is_dp1 >> data_in_dp1) {
+        vec_dp1.emplace_back(data_in_dp1);
+    }
+    size_t sz_didp1 = vec_dp1.size();
+
+    is_dp2.open(dp2);
+    float data_in_dp2 = 0.0;
+    is_dp2 >> data_in_dp2;
+
+    is_dp3.open(dp3);
+    float data_in_dp3 = 0.0;
+    is_dp3 >> data_in_dp3;
+
+    is_dp4.open(dp4);
+    float data_in_dp4 = 0.0;
+    is_dp4 >> data_in_dp4;
+
+    if (show_scatter_plot) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Scatter plot parameters");
+
+            // I opened the data files here previously
+            // but now moved to outer scope for all plot styles
+            static int count = 0;
+            ImGui::InputInt("Count:", &count);
+
+            static int offset = 0;
+            ImGui::InputInt("Offset:", &offset);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            if (ImPlot::BeginPlot("Scatter plot", "t", "s")) {
+                // ImPlotStyleVar_Marker | ImPlotStyleVar_MarkerWeight |
+                // ImPlotStyleVar_MarkerSize;
+                ImPlot::PushStyleVar(ImPlotStyleVar_Marker,
+                                     ImPlotMarker_Square);
+                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 6);
+                ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
+                plot_output* out = nullptr; // moved this to outer scope
+                while (ed->plot_outs.next(out)) {
+                    // InputInt(const char*  label, int* v, int step = 1, int
+                    // step_fast = 100,ImGuiInputTextFlags flags= 0);
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotScatter(
+                          out->name.c_str(),
+                          out->xs.data(),
+                          out->ys.data(),
+                          count,  // int count taken from InputInt field
+                          offset, // int offset taken from InputInt field
+                          static_cast<int>(out->xs.size()));
+                }
+
+                ImPlot::PopStyleVar(3);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // -----------------ends scatter plot
+
+    if (show_shaded_plot) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Shaded plot parameters");
+
+            static int count = 0;
+            ImGui::InputInt("Count:", &count);
+
+            static float y_ref = 0.0;
+            ImGui::InputFloat("Y_ref", &y_ref);
+
+            static int offset = 0;
+            ImGui::InputInt("Offset:", &offset);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            if (ImPlot::BeginPlot("shaded plot", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
+                plot_output* out = nullptr; // moved this to outer scope
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotShaded(out->name.c_str(),
+                                           out->xs.data(),
+                                           out->ys.data(),
+                                           count,  // int count
+                                           y_ref,  // float y_ref
+                                           offset, // int offset
+                                           static_cast<int>(out->xs.size()));
+                }
+
+                ImPlot::PopStyleVar(2);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // -----------------ends shaded plot
+
+    if (show_bar_chart) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Bar chart parameters");
+
+
+            static int count = 0;
+            ImGui::InputInt("Count:", &count);
+
+            static float bar_width = 0.0;
+            ImGui::InputFloat("Width:", &bar_width);
+
+            static float bar_shift = 0.0;
+            ImGui::InputFloat("Shift:", &bar_shift);
+
+            static int offset = 0;
+            ImGui::InputInt("Offset:", &offset);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            if (ImPlot::BeginPlot("simulation bar chart", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                plot_output* out = nullptr; // moved this to outer scope
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotBars(out->name.c_str(),
+                                         out->ys.data(),
+                                         count,     // int count
+                                         bar_width, // float width
+                                         bar_shift, // float shift
+                                         offset,    // int offset
+                                         static_cast<int>(out->xs.size()));
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // ends bar chart plot
+
+    if (show_pie_chart) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Pie chart parameters");
+
+
+            static int count = 0;
+            ImGui::InputInt("Count:", &count);
+
+            static float pos_x = 0.0;
+            ImGui::InputFloat("X_pos:", &pos_x);
+
+            static float pos_y = 0.0;
+            ImGui::InputFloat("Y_pos:", &pos_y);
+
+            static float radius = 0.0;
+            ImGui::InputFloat("Radius:", &radius);
+
+            static bool isNormalized = false;
+            ImGui::Checkbox("Normalize", &isNormalized);
+
+            static float angle = 0.0;
+            ImGui::InputFloat("Angle:", &angle);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            if (ImPlot::BeginPlot("simulation pie chart", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                plot_output*       out = nullptr; // moved this to outer scope
+                static const char* label_ids[] = {
+                    "s", "e", "i", "r", "d", "v"
+                }; // otherwise: const char** label_ids
+                   //*label_ids = out->name.c_str();
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotPieChart(
+                          label_ids,      // const char** label_ids,
+                          out->ys.data(), // const float* values,
+                          count,          // int count,
+                          pos_x,          // float x,
+                          pos_y,          // float y,
+                          radius,         // float radius,
+                          isNormalized,   // bool normalize = false,
+                          "%.1f",         // const char* label_fmt = "%.1f",
+                          angle);         // float angle0 = 90.0f
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // end pie chart
+
+    if (show_heat_map) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Heat map parameters");
+
+
+            static int rows = 0;
+            ImGui::InputInt("Rows:", &rows);
+
+            static int columns = 0;
+            ImGui::InputInt("Columns:", &columns);
+
+            static float scale_min = 0.0;
+            ImGui::InputFloat("Minimum scale:", &scale_min);
+
+            static float scale_max = 0.0;
+            ImGui::InputFloat("Maximum scale:", &scale_max);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            if (ImPlot::BeginPlot("simulation heat map", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 2.0f);
+                plot_output*       out = nullptr; // moved this to outer scope
+                const ImPlotPoint& ippmin = ImPlotPoint(-1.0, -1.0);
+                const ImPlotPoint& ippmax = ImPlotPoint(0.0, 0.0);
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotHeatmap(
+                          out->name.c_str(),
+                          out->ys.data(),
+                          rows,      // int rows
+                          columns,   // int cols,
+                          scale_min, // float scale_min,
+                          scale_max, // float scale_max,
+                          "%.1f",    // const char* label_fmt = "%.1f"
+                          ippmin,    // const ImPlotPoint& bounds_min =
+                                  // ImPlotPoint(0, 0),
+                          ippmax); // const ImPlotPoint& bounds_max =
+                                   // ImPlotPoint(1, 1))
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // end heat map
+
+    ImGui::End();
+
 }
 
 void application::show_settings_window()
