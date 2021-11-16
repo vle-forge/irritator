@@ -707,7 +707,7 @@ public:
 
     constexpr void assign(const std::string_view str) noexcept;
     constexpr void clear() noexcept;
-    void           resize(size_type size) noexcept;
+    void           resize(sz size) noexcept;
     constexpr bool empty() const noexcept;
 
     constexpr sz size() const noexcept;
@@ -7292,9 +7292,13 @@ constexpr small_string<length>::small_string(
 }
 
 template<sz length>
-void small_string<length>::resize(size_type size) noexcept
+void small_string<length>::resize(sz size) noexcept
 {
-    m_size               = size > length ? length : size;
+    size_type real_size = size + 1 > std::numeric_limits<size_type>::max()
+                            ? std::numeric_limits<size_type>::max()
+                            : static_cast<size_type>(size + 1);
+
+    m_size               = real_size > length ? length : real_size;
     m_buffer[m_size - 1] = '\0';
 }
 
@@ -7331,7 +7335,7 @@ constexpr void small_string<length>::assign(const std::string_view str) noexcept
 template<sz length>
 constexpr std::string_view small_string<length>::sv() const noexcept
 {
-    return { m_buffer, m_size };
+    return { &m_buffer[0], m_size };
 }
 
 template<sz length>

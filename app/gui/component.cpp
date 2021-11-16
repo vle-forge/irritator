@@ -280,6 +280,9 @@ static void show_all_components(component_editor& ed)
                         ImGui::InputText("File##text",
                                          file->path.begin(),
                                          file->path.capacity());
+
+                        file->path.resize(std::strlen(file->path.begin()));
+
                     } else {
                         ImGui::Text("File not saved.");
                         if (ImGui::Button("Add file")) {
@@ -304,6 +307,8 @@ static void show_all_components(component_editor& ed)
                           desc->data.capacity(),
                           ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
                           flags);
+
+                        desc->data.resize(std::strlen(desc->data.begin()));
 
                         if (ImGui::Button("Remove")) {
                             ed.mod.descriptions.free(*desc);
