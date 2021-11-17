@@ -6839,7 +6839,7 @@ inline vector<T>::~vector() noexcept
 }
 
 template<typename T>
-constexpr vector<T>::vector(const vector& other) noexcept
+inline constexpr vector<T>::vector(const vector& other) noexcept
   : m_data(nullptr)
   , m_size(0)
   , m_capacity(0)
@@ -6848,7 +6848,7 @@ constexpr vector<T>::vector(const vector& other) noexcept
 }
 
 template<typename T>
-constexpr vector<T>& vector<T>::operator=(const vector& other) noexcept
+inline constexpr vector<T>& vector<T>::operator=(const vector& other) noexcept
 {
     clear();
 
@@ -6858,7 +6858,7 @@ constexpr vector<T>& vector<T>::operator=(const vector& other) noexcept
 }
 
 template<typename T>
-constexpr vector<T>::vector(vector&& other) noexcept
+inline constexpr vector<T>::vector(vector&& other) noexcept
   : m_data(other.m_data)
   , m_size(other.m_size)
   , m_capacity(other.m_capacity)
@@ -6869,7 +6869,7 @@ constexpr vector<T>::vector(vector&& other) noexcept
 }
 
 template<typename T>
-constexpr vector<T>& vector<T>::operator=(vector&& other) noexcept
+inline constexpr vector<T>& vector<T>::operator=(vector&& other) noexcept
 {
     destroy();
 
@@ -6897,7 +6897,7 @@ inline void vector<T>::destroy() noexcept
 }
 
 template<typename T>
-constexpr void vector<T>::clear() noexcept
+inline constexpr void vector<T>::clear() noexcept
 {
     if constexpr (!std::is_trivially_destructible_v<T>) {
         for (i32 i = 0; i != m_size; ++i)
@@ -6949,47 +6949,49 @@ void vector<T>::reserve(i32 new_capacity) noexcept
 }
 
 template<typename T>
-constexpr T* vector<T>::data() noexcept
+inline constexpr T* vector<T>::data() noexcept
 {
     return m_data;
 }
 
 template<typename T>
-constexpr const T* vector<T>::data() const noexcept
+inline constexpr const T* vector<T>::data() const noexcept
 {
     return m_data;
 }
 
 template<typename T>
-constexpr typename vector<T>::reference vector<T>::front() noexcept
+inline constexpr typename vector<T>::reference vector<T>::front() noexcept
 {
     irt_assert(m_size > 0);
     return m_data[0];
 }
 
 template<typename T>
-constexpr typename vector<T>::const_reference vector<T>::front() const noexcept
+inline constexpr typename vector<T>::const_reference vector<T>::front()
+  const noexcept
 {
     irt_assert(m_size > 0);
     return m_data[0];
 }
 
 template<typename T>
-constexpr typename vector<T>::reference vector<T>::back() noexcept
+inline constexpr typename vector<T>::reference vector<T>::back() noexcept
 {
     irt_assert(m_size > 0);
     return m_data[m_size - 1];
 }
 
 template<typename T>
-constexpr typename vector<T>::const_reference vector<T>::back() const noexcept
+inline constexpr typename vector<T>::const_reference vector<T>::back()
+  const noexcept
 {
     irt_assert(m_size > 0);
     return m_data[m_size - 1];
 }
 
 template<typename T>
-constexpr typename vector<T>::reference vector<T>::operator[](
+inline constexpr typename vector<T>::reference vector<T>::operator[](
   const index_type index) noexcept
 {
     irt_assert(index >= 0 && index < m_size);
@@ -6998,7 +7000,7 @@ constexpr typename vector<T>::reference vector<T>::operator[](
 }
 
 template<typename T>
-constexpr typename vector<T>::const_reference vector<T>::operator[](
+inline constexpr typename vector<T>::const_reference vector<T>::operator[](
   const index_type index) const noexcept
 {
     irt_assert(index >= 0 && index < m_size);
@@ -7007,67 +7009,69 @@ constexpr typename vector<T>::const_reference vector<T>::operator[](
 }
 
 template<typename T>
-constexpr typename vector<T>::iterator vector<T>::begin() noexcept
+inline constexpr typename vector<T>::iterator vector<T>::begin() noexcept
 {
     return data();
 }
 
 template<typename T>
-constexpr typename vector<T>::const_iterator vector<T>::begin() const noexcept
+inline constexpr typename vector<T>::const_iterator vector<T>::begin()
+  const noexcept
 {
     return data();
 }
 
 template<typename T>
-constexpr typename vector<T>::iterator vector<T>::end() noexcept
+inline constexpr typename vector<T>::iterator vector<T>::end() noexcept
 {
     return data() + m_size;
 }
 
 template<typename T>
-constexpr typename vector<T>::const_iterator vector<T>::end() const noexcept
+inline constexpr typename vector<T>::const_iterator vector<T>::end()
+  const noexcept
 {
     return data() + m_size;
 }
 
 template<typename T>
-constexpr sz vector<T>::size() const noexcept
+inline constexpr sz vector<T>::size() const noexcept
 {
     return static_cast<sz>(m_size);
 }
 
 template<typename T>
-constexpr i32 vector<T>::ssize() const noexcept
+inline constexpr i32 vector<T>::ssize() const noexcept
 {
     return m_size;
 }
 
 template<typename T>
-constexpr sz vector<T>::capacity() const noexcept
+inline constexpr sz vector<T>::capacity() const noexcept
 {
     return static_cast<sz>(m_capacity);
 }
 
 template<typename T>
-constexpr bool vector<T>::empty() const noexcept
+inline constexpr bool vector<T>::empty() const noexcept
 {
     return m_size == 0;
 }
 
 template<typename T>
-constexpr bool vector<T>::full() const noexcept
+inline constexpr bool vector<T>::full() const noexcept
 {
     return m_size >= m_capacity;
 }
 
 template<typename T>
-constexpr bool vector<T>::can_alloc(int number) const noexcept
+inline constexpr bool vector<T>::can_alloc(int number) const noexcept
 {
     return m_capacity - m_size >= number;
 }
 
 template<typename T>
-constexpr i32 vector<T>::find(const T& t) const noexcept
+inline constexpr i32 vector<T>::find(const T& t) const noexcept
 {
     for (i32 i = 0, e = ssize(); i != e; ++i)
         if (m_data[i] == t)
@@ -7078,7 +7082,7 @@ constexpr i32 vector<T>::find(const T& t) const noexcept
 
 template<typename T>
 template<typename... Args>
-constexpr typename vector<T>::reference vector<T>::emplace_back(
+inline constexpr typename vector<T>::reference vector<T>::emplace_back(
   Args&&... args) noexcept
 {
     if (m_size >= m_capacity)
@@ -7092,7 +7096,7 @@ constexpr typename vector<T>::reference vector<T>::emplace_back(
 }
 
 template<typename T>
-constexpr void vector<T>::pop_back() noexcept
+inline constexpr void vector<T>::pop_back() noexcept
 {
     if (m_size) {
         if constexpr (std::is_trivially_destructible_v<T>)
@@ -7103,7 +7107,7 @@ constexpr void vector<T>::pop_back() noexcept
 }
 
 template<typename T>
-constexpr void vector<T>::swap_pop_back(index_type index) noexcept
+inline constexpr void vector<T>::swap_pop_back(index_type index) noexcept
 {
     irt_assert(index < m_size);
 
@@ -7123,7 +7127,7 @@ constexpr void vector<T>::swap_pop_back(index_type index) noexcept
 }
 
 template<typename T>
-constexpr void vector<T>::erase(iterator it) noexcept
+inline constexpr void vector<T>::erase(iterator it) noexcept
 {
     irt_assert(it >= data() && it < data() + m_size);
 
@@ -7154,7 +7158,7 @@ constexpr void vector<T>::erase(iterator it) noexcept
 }
 
 template<typename T>
-constexpr void vector<T>::erase(iterator first, iterator last) noexcept
+inline constexpr void vector<T>::erase(iterator first, iterator last) noexcept
 {
     irt_assert(first >= data() && first < data() + m_size && last > first &&
                last <= data() + m_size);
@@ -7205,13 +7209,13 @@ i32 vector<T>::compute_new_capacity(i32 size) const
 // class small_string
 
 template<sz length>
-constexpr small_string<length>::small_string() noexcept
+inline constexpr small_string<length>::small_string() noexcept
 {
     clear();
 }
 
 template<sz length>
-constexpr small_string<length>::small_string(
+inline constexpr small_string<length>::small_string(
   const small_string<length>& str) noexcept
 {
     std::copy_n(str.m_buffer, str.m_size, m_buffer);
@@ -7220,7 +7224,7 @@ constexpr small_string<length>::small_string(
 }
 
 template<sz length>
-constexpr small_string<length>::small_string(
+inline constexpr small_string<length>::small_string(
   small_string<length>&& str) noexcept
 {
     std::copy_n(str.m_buffer, str.m_size, m_buffer);
@@ -7230,7 +7234,7 @@ constexpr small_string<length>::small_string(
 }
 
 template<sz length>
-constexpr small_string<length>& small_string<length>::operator=(
+inline constexpr small_string<length>& small_string<length>::operator=(
   const small_string<length>& str) noexcept
 {
     if (&str != this) {
@@ -7243,7 +7247,7 @@ constexpr small_string<length>& small_string<length>::operator=(
 }
 
 template<sz length>
-constexpr small_string<length>& small_string<length>::operator=(
+inline constexpr small_string<length>& small_string<length>::operator=(
   small_string<length>&& str) noexcept
 {
     if (&str != this) {
@@ -7256,7 +7260,7 @@ constexpr small_string<length>& small_string<length>::operator=(
 }
 
 template<sz length>
-constexpr small_string<length>& small_string<length>::operator=(
+inline constexpr small_string<length>& small_string<length>::operator=(
   const char* str) noexcept
 {
     if (m_buffer != str) {
@@ -7268,7 +7272,7 @@ constexpr small_string<length>& small_string<length>::operator=(
 }
 
 template<sz length>
-constexpr small_string<length>& small_string<length>::operator=(
+inline constexpr small_string<length>& small_string<length>::operator=(
   const std::string_view str) noexcept
 {
     assign(str);
@@ -7277,7 +7281,7 @@ constexpr small_string<length>& small_string<length>::operator=(
 }
 
 template<sz length>
-constexpr small_string<length>::small_string(const char* str) noexcept
+inline constexpr small_string<length>::small_string(const char* str) noexcept
 {
     std::strncpy(m_buffer, str, length - 1);
     m_buffer[length - 1] = '\0';
@@ -7285,7 +7289,7 @@ constexpr small_string<length>::small_string(const char* str) noexcept
 }
 
 template<sz length>
-constexpr small_string<length>::small_string(
+inline constexpr small_string<length>::small_string(
   const std::string_view str) noexcept
 {
     assign(str);
@@ -7303,7 +7307,7 @@ void small_string<length>::resize(sz size) noexcept
 }
 
 template<sz length>
-constexpr bool small_string<length>::empty() const noexcept
+inline constexpr bool small_string<length>::empty() const noexcept
 {
     constexpr unsigned char zero{ 0 };
 
@@ -7311,18 +7315,19 @@ constexpr bool small_string<length>::empty() const noexcept
 }
 
 template<sz length>
-constexpr sz small_string<length>::size() const noexcept
+inline constexpr sz small_string<length>::size() const noexcept
 {
     return m_size;
 }
 template<sz length>
-constexpr sz small_string<length>::capacity() const noexcept
+inline constexpr sz small_string<length>::capacity() const noexcept
 {
     return length;
 }
 
 template<sz length>
-constexpr void small_string<length>::assign(const std::string_view str) noexcept
+inline constexpr void small_string<length>::assign(
+  const std::string_view str) noexcept
 {
     const auto copy_length = std::min(str.size(), length - 1);
 
@@ -7333,20 +7338,20 @@ constexpr void small_string<length>::assign(const std::string_view str) noexcept
 }
 
 template<sz length>
-constexpr std::string_view small_string<length>::sv() const noexcept
+inline constexpr std::string_view small_string<length>::sv() const noexcept
 {
     return { &m_buffer[0], m_size };
 }
 
 template<sz length>
-constexpr void small_string<length>::clear() noexcept
+inline constexpr void small_string<length>::clear() noexcept
 {
     std::fill_n(m_buffer, length, '\0');
     m_size = 0;
 }
 
 template<sz length>
-constexpr typename small_string<length>::reference
+inline constexpr typename small_string<length>::reference
 small_string<length>::operator[](const size_type index) noexcept
 {
     irt_assert(index < m_size);
@@ -7355,7 +7360,7 @@ small_string<length>::operator[](const size_type index) noexcept
 }
 
 template<sz length>
-constexpr typename small_string<length>::const_reference
+inline constexpr typename small_string<length>::const_reference
 small_string<length>::operator[](const size_type index) const noexcept
 {
     irt_assert(index < m_size);
@@ -7364,87 +7369,91 @@ small_string<length>::operator[](const size_type index) const noexcept
 }
 
 template<sz length>
-constexpr const char* small_string<length>::c_str() const noexcept
+inline constexpr const char* small_string<length>::c_str() const noexcept
 {
     return m_buffer;
 }
 
 template<sz length>
-constexpr typename small_string<length>::iterator
+inline constexpr typename small_string<length>::iterator
 small_string<length>::begin() noexcept
 {
     return m_buffer;
 }
 
 template<sz length>
-constexpr typename small_string<length>::iterator
+inline constexpr typename small_string<length>::iterator
 small_string<length>::end() noexcept
 {
     return m_buffer + m_size;
 }
 
 template<sz length>
-constexpr typename small_string<length>::const_iterator
+inline constexpr typename small_string<length>::const_iterator
 small_string<length>::begin() const noexcept
 {
     return m_buffer;
 }
 
 template<sz length>
-constexpr typename small_string<length>::const_iterator
+inline constexpr typename small_string<length>::const_iterator
 small_string<length>::end() const noexcept
 {
     return m_buffer + m_size;
 }
 
 template<sz length>
-constexpr bool small_string<length>::operator==(
+inline constexpr bool small_string<length>::operator==(
   const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) == 0;
 }
 
 template<sz length>
-constexpr bool small_string<length>::operator!=(
+inline constexpr bool small_string<length>::operator!=(
   const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) != 0;
 }
 
 template<sz length>
-constexpr bool small_string<length>::operator>(
+inline constexpr bool small_string<length>::operator>(
   const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) > 0;
 }
 
 template<sz length>
-constexpr bool small_string<length>::operator<(
+inline constexpr bool small_string<length>::operator<(
   const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) < 0;
 }
 
 template<sz length>
-constexpr bool small_string<length>::operator==(const char* rhs) const noexcept
+inline constexpr bool small_string<length>::operator==(
+  const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) == 0;
 }
 
 template<sz length>
-constexpr bool small_string<length>::operator!=(const char* rhs) const noexcept
+inline constexpr bool small_string<length>::operator!=(
+  const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) != 0;
 }
 
 template<sz length>
-constexpr bool small_string<length>::operator>(const char* rhs) const noexcept
+inline constexpr bool small_string<length>::operator>(
+  const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) > 0;
 }
 
 template<sz length>
-constexpr bool small_string<length>::operator<(const char* rhs) const noexcept
+inline constexpr bool small_string<length>::operator<(
+  const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) < 0;
 }
