@@ -6938,7 +6938,7 @@ void vector<T>::reserve(i32 new_capacity) noexcept
         else if constexpr (std::is_move_assignable_v<T> ||
                            std::is_move_constructible_v<T> ||
                            std::is_nothrow_move_assignable_v<T>)
-            for (i32 i = 0; i != size; ++i)
+            for (i32 i = 0; i != m_size; ++i)
                 new_data[i] = std::move(m_data[i]);
 
         g_free_fn(m_data);
