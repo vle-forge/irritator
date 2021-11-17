@@ -254,8 +254,7 @@ static void show_all_components(component_editor& ed)
         auto* ref = ed.mod.tree_nodes.try_to_get(ed.selected_component);
         if (ref) {
             if (auto* compo = ed.mod.components.try_to_get(ref->id); compo) {
-                ImGui::InputText(
-                  "name", compo->name.begin(), compo->name.capacity());
+                ImGui::InputSmallString("name", compo->name);
                 if (compo->type == component_type::memory ||
                     compo->type == component_type::file) {
                     static constexpr const char* empty = "";
@@ -277,14 +276,9 @@ static void show_all_components(component_editor& ed)
 
                     auto* file = ed.mod.file_paths.try_to_get(compo->file);
                     if (file) {
-                        ImGui::InputText("File##text",
-                                         file->path.begin(),
-                                         file->path.capacity());
-
-                        file->path.resize(std::strlen(file->path.begin()));
-
+                        ImGui::InputSmallString("File##text", file->path);
                     } else {
-                        ImGui::Text("File not saved.");
+                        ImGui::Text("File cannot be saved.");
                         if (ImGui::Button("Add file")) {
                             auto& f     = ed.mod.file_paths.alloc();
                             compo->file = ed.mod.file_paths.get_id(f);
@@ -301,14 +295,11 @@ static void show_all_components(component_editor& ed)
                         constexpr ImGuiInputTextFlags flags =
                           ImGuiInputTextFlags_AllowTabInput;
 
-                        ImGui::InputTextMultiline(
+                        ImGui::InputSmallStringMultiline(
                           "##source",
-                          desc->data.begin(),
-                          desc->data.capacity(),
+                          desc->data,
                           ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
                           flags);
-
-                        desc->data.resize(std::strlen(desc->data.begin()));
 
                         if (ImGui::Button("Remove")) {
                             ed.mod.descriptions.free(*desc);
@@ -366,8 +357,7 @@ static void show_all_components(component_editor& ed)
                                     static_cast<double>(child->y));
                         ImGui::Checkbox("configurable", &child->configurable);
                         ImGui::Checkbox("observables", &child->observable);
-                        ImGui::InputText(
-                          "name", child->name.begin(), child->name.capacity());
+                        ImGui::InputSmallString("name", child->name);
 
                         if (child->type == child_type::model) {
                             auto  child_id = enum_cast<model_id>(child->id);
@@ -960,10 +950,8 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
-            ImGui::InputText("##name",
-                             const_cast<char*>(dir->path.begin()),
-                             dir->path.size(),
-                             ImGuiInputTextFlags_ReadOnly);
+            ImGui::InputSmallString(
+              "##name", dir->path, ImGuiInputTextFlags_ReadOnly);
             ImGui::PopItemWidth();
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
