@@ -52,6 +52,42 @@ bool InputReal(const char*         label,
     }
 }
 
+template<size_t Length>
+bool InputSmallString(const char*                label,
+                      irt::small_string<Length>& string,
+                      ImGuiInputTextFlags        flags     = 0,
+                      ImGuiInputTextCallback     callback  = nullptr,
+                      void*                      user_data = nullptr)
+{
+    const bool ret = ImGui::InputText(
+      label, string.begin(), string.capacity(), flags, callback, user_data);
+
+    string.resize(std::strlen(string.begin()));
+
+    return ret;
+}
+
+template<size_t Length>
+bool InputSmallStringMultiline(const char*                label,
+                               irt::small_string<Length>& string,
+                               const ImVec2&              size  = ImVec2(0, 0),
+                               ImGuiInputTextFlags        flags = 0,
+                               ImGuiInputTextCallback     callback  = nullptr,
+                               void*                      user_data = nullptr)
+{
+    const bool ret = ImGui::InputTextMultiline(label,
+                                               string.begin(),
+                                               string.capacity(),
+                                               size,
+                                               flags,
+                                               callback,
+                                               user_data);
+
+    string.resize(std::strlen(string.begin()));
+
+    return ret;
+}
+
 template<typename... Args>
 void TextFormat(const char* fmt, const Args&... args)
 {
