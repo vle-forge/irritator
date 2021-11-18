@@ -301,11 +301,12 @@ bool write_to_file(File& f, const double value) noexcept
     }
 }
 
-file::file(const char* filename, const open_mode node) noexcept
+file::file(const char* filename, const open_mode mode_) noexcept
+  : mode(mode_)
 {
     file_handle = to_void(std::fopen(filename,
-                                     node == open_mode::read    ? "rb"
-                                     : node == open_mode::write ? "wb"
+                                     mode == open_mode::read    ? "rb"
+                                     : mode == open_mode::write ? "wb"
                                                                 : "ab"));
 }
 

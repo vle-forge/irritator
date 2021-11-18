@@ -76,9 +76,8 @@ void editor::free_children(const ImVector<int>& nodes) noexcept
         log_w.log(7, "delete %" PRIu64 "\n", child_id);
         sim.deallocate(child_id);
 
-        observation_dispatch(
-          get_index(child_id),
-          [this](auto& outs, const auto id) { outs.free(id); });
+        observation_dispatch(get_index(child_id),
+                             [](auto& outs, const auto id) { outs.free(id); });
 
         observation_outputs[get_index(child_id)] = std::monostate{};
     }
@@ -211,7 +210,7 @@ void editor::compute_automatic_layout() noexcept
     const float W =
       static_cast<float>(column) * settings.automatic_layout_x_distance;
     const float L =
-      line + (remaining > 0) ? settings.automatic_layout_y_distance : 0.f;
+      line + ((remaining > 0) ? settings.automatic_layout_y_distance : 0.f);
     const float area     = W * L;
     const float k_square = area / static_cast<float>(sim.models.size());
     const float k        = std::sqrt(k_square);
@@ -254,8 +253,8 @@ void editor::compute_automatic_layout() noexcept
             compute_connection_distance(*mdl, *this, k);
         }
 
-        auto sum = 0.f;
-        mdl      = nullptr;
+        // auto sum = 0.f;
+        mdl = nullptr;
         for (int i_v = 0; i_v < size; ++i_v) {
             irt_assert(sim.models.next(mdl));
             const int v = i_v;
@@ -268,9 +267,9 @@ void editor::compute_automatic_layout() noexcept
                 const float coeff = t / d;
                 displacements[v].x *= coeff;
                 displacements[v].y *= coeff;
-                sum += t;
-            } else {
-                sum += d;
+                // sum += t;
+                // } else {
+                // sum += d;
             }
 
             positions[v].x += displacements[v].x;
@@ -557,8 +556,7 @@ status editor::add_izhikevitch() noexcept
 static int show_connection(editor& ed, model& mdl, int connection_id)
 {
     dispatch(
-      mdl,
-      [&ed, &mdl, &connection_id]<typename Dynamics>(Dynamics& dyn) -> void {
+      mdl, [&ed, &connection_id]<typename Dynamics>(Dynamics& dyn) -> void {
           if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
               for (int i = 0, e = length(dyn.y); i != e; ++i) {
                   auto list = append_node(ed.sim, dyn.y[i]);
@@ -1251,7 +1249,7 @@ void editor::show_editor() noexcept
         if (ImGui::BeginPopup("Context menu")) {
 
             if (ImGui::BeginMenu("QSS1")) {
-                auto i = static_cast<int>(dynamics_type::qss1_integrator);
+                auto       i = static_cast<int>(dynamics_type::qss1_integrator);
                 const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
                 for (; i != e; ++i)
                     add_popup_menuitem(
@@ -1260,7 +1258,7 @@ void editor::show_editor() noexcept
             }
 
             if (ImGui::BeginMenu("QSS2")) {
-                auto i = static_cast<int>(dynamics_type::qss2_integrator);
+                auto       i = static_cast<int>(dynamics_type::qss2_integrator);
                 const auto e = static_cast<int>(dynamics_type::qss2_wsum_4) + 1;
 
                 for (; i != e; ++i)
@@ -1270,7 +1268,7 @@ void editor::show_editor() noexcept
             }
 
             if (ImGui::BeginMenu("QSS3")) {
-                auto i = static_cast<int>(dynamics_type::qss3_integrator);
+                auto       i = static_cast<int>(dynamics_type::qss3_integrator);
                 const auto e = static_cast<int>(dynamics_type::qss3_wsum_4) + 1;
 
                 for (; i != e; ++i)
@@ -1400,7 +1398,6 @@ void editor::show_editor() noexcept
                     dispatch(
                       *mdl,
                       [this,
-                       &mdl,
                        &i,
                        &current_link_id,
                        selected_links_ptr,
@@ -1655,7 +1652,7 @@ bool editor::show_window() noexcept
             ImGui::EndMenu();
         }
 
-        auto empty_fun = [this](irt::model_id /*id*/) {};
+        auto empty_fun = [](irt::model_id /*id*/) {};
 
         if (ImGui::BeginMenu("Examples")) {
             if (ImGui::MenuItem("Insert example AQSS lotka_volterra"))

@@ -484,8 +484,7 @@ private:
     table<int, u64>      text_file_mapping;
     vector<position>     positions; // store position model in simulation reader
 
-    int source_number = 0;
-    int model_number  = 0;
+    int model_number = 0;
 
     char temp_1[32];
     char temp_2[32];
