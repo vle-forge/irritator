@@ -1541,7 +1541,13 @@ int main()
 
     "time_func_sin"_test = [] {
         fmt::print("time_func_sin\n");
-        const irt::real pi = irt::to_real(std::acos(irt::real{ -1 }));
+#if irt_have_numbers == 1
+        constexpr irt::real pi = std::numbers::pi_v<irt::real>;
+#else
+        // std::acos(-1) is not a constexpr in MVSC 2019
+        constexpr irt::real pi = 3.141592653589793238462643383279502884;
+#endif
+
         const irt::real f0 = irt::real(0.1);
         irt::simulation sim;
 
