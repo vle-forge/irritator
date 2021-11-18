@@ -839,8 +839,8 @@ int main()
     "table"_test = [] {
         struct position
         {
-            position() = default;
-            position(float x_)
+            position() noexcept = default;
+            position(float x_) noexcept
               : x(x_)
             {}
 
@@ -1201,7 +1201,7 @@ int main()
     "hierarchy-simple"_test = [] {
         struct data_type
         {
-            data_type(int i_)
+            data_type(int i_) noexcept
               : i(i_)
             {}
 

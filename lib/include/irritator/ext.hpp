@@ -60,11 +60,6 @@ public:
     static_assert(std::is_nothrow_destructible_v<T> ||
                   std::is_trivially_destructible_v<T>);
 
-    static_assert(std::is_nothrow_move_constructible_v<T> ||
-                  std::is_trivially_move_constructible_v<T> ||
-                  std::is_nothrow_copy_constructible_v<T> ||
-                  std::is_trivially_copy_constructible_v<T>);
-
     using size_type = small_storage_size_t<length>;
 
 private:
@@ -297,6 +292,8 @@ constexpr status small_vector<T, length>::init(i32 default_size) noexcept
         new (&(m_buffer[i])) T{};
 
     m_size = default_size;
+
+    return status::success;
 }
 
 template<typename T, sz length>
@@ -429,10 +426,10 @@ constexpr void small_vector<T, length>::clear() noexcept
                   "T must be nothrow or trivially destructible to use "
                   "clear() function");
 
-    // if constexpr (!std::is_trivially_destructible_v<T>) {
-    for (i32 i = 0; i != m_size; ++i)
-        data()[i].~T();
-    // }
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+        for (i32 i = 0; i != m_size; ++i)
+            data()[i].~T();
+    }
 
     m_size = 0;
 }

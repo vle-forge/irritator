@@ -29,7 +29,7 @@ int main()
         int            counter = 0;
         irt::spin_lock spin;
 
-        std::jthread j1([&counter, &spin]() {
+        std::thread j1([&counter, &spin]() {
             for (int i = 0; i < 1000; ++i) {
                 {
                     irt::scoped_spin_lock lock{ spin };
@@ -39,7 +39,7 @@ int main()
             }
         });
 
-        std::jthread j2([&counter, &spin]() {
+        std::thread j2([&counter, &spin]() {
             for (int i = 0; i < 1000; ++i) {
                 {
                     irt::scoped_spin_lock lock{ spin };
@@ -59,9 +59,7 @@ int main()
                                            .simple_task_list_number = 1,
                                            .multi_task_list_number  = 0 };
 
-        irt::task_manager tm;
-        irt::status       ret = tm.init(init);
-        assert(irt::is_success(ret));
+        irt::task_manager tm(init);
 
         assert(tm.task_lists.ssize() == 1);
         assert(tm.workers.ssize() == 1);
@@ -88,9 +86,7 @@ int main()
                                            .simple_task_list_number = 1,
                                            .multi_task_list_number  = 0 };
 
-        irt::task_manager tm;
-        irt::status       ret = tm.init(init);
-        assert(irt::is_success(ret));
+        irt::task_manager tm(init);
 
         assert(tm.task_lists.ssize() == 1);
         assert(tm.workers.ssize() == 1);
@@ -137,9 +133,7 @@ int main()
                                            .simple_task_list_number = 2,
                                            .multi_task_list_number  = 0 };
 
-        irt::task_manager tm;
-        irt::status       ret = tm.init(init);
-        assert(irt::is_success(ret));
+        irt::task_manager tm(init);
 
         assert(tm.task_lists.ssize() == 2);
         assert(tm.workers.ssize() == 1);
@@ -173,9 +167,7 @@ int main()
                                            .simple_task_list_number = 2,
                                            .multi_task_list_number  = 0 };
 
-        irt::task_manager tm;
-        irt::status       ret = tm.init(init);
-        assert(irt::is_success(ret));
+        irt::task_manager tm(init);
 
         assert(tm.task_lists.ssize() == 2);
         assert(tm.workers.ssize() == 2);

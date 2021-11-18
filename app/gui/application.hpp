@@ -418,6 +418,8 @@ struct component_editor
     real simulation_begin;
     real simulation_end;
 
+    component_editor() noexcept;
+
     void select(tree_node_id id) noexcept;
     void open_as_main(component_id id) noexcept;
     void unselect() noexcept;

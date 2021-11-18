@@ -82,8 +82,12 @@ struct task_list
     bool is_terminating = false;
 
     task_list() noexcept;
+    ~task_list() noexcept = default;
+
     task_list(const task_list& other) = delete;
+    task_list(task_list&& other)      = delete;
     task_list& operator=(const task_list& other) = delete;
+    task_list& operator=(task_list&& other) = delete;
 
     void add(task_function function, void* parameter) noexcept;
     void submit() noexcept;
@@ -93,7 +97,9 @@ struct task_list
 
 struct worker
 {
-    worker() noexcept           = default;
+    worker() noexcept = default;
+    ~worker() noexcept;
+
     worker(const worker& other) = delete;
     worker& operator=(const worker& other) = delete;
 
@@ -101,8 +107,9 @@ struct worker
     void run() noexcept;
     void join() noexcept;
 
-    std::jthread       thread;
+    std::thread        thread;
     vector<task_list*> task_lists;
+    bool               is_running = false;
 };
 
 struct task_manager_parameters
@@ -118,14 +125,12 @@ public:
     vector<worker>    workers;
     vector<task_list> task_lists;
 
-    task_manager() noexcept = default;
+    task_manager(const task_manager_parameters& params) noexcept;
 
     task_manager(task_manager&& params)      = delete;
     task_manager(const task_manager& params) = delete;
     task_manager& operator=(const task_manager&) = delete;
     task_manager& operator=(task_manager&&) = delete;
-
-    status init(task_manager_parameters& params) noexcept;
 
     // creating task lists and spawning workers
     status start() noexcept;
@@ -231,9 +236,19 @@ inline void task_list::terminate() noexcept
     worker
  */
 
+inline worker::~worker() noexcept
+{
+    try {
+        if (is_running && thread.joinable())
+            thread.join();
+    } catch (...) {
+    }
+}
+
 inline void worker::start() noexcept
 {
-    thread = std::jthread{ &worker::run, this };
+    thread     = std::thread{ &worker::run, this };
+    is_running = true;
 }
 
 inline void worker::run() noexcept
@@ -290,23 +305,26 @@ inline void worker::run() noexcept
     }
 }
 
-inline void worker::join() noexcept { thread.join(); }
+inline void worker::join() noexcept
+{
+    try {
+        if (is_running && thread.joinable()) {
+            thread.join();
+        }
+        is_running = false;
+    } catch (...) {
+    }
+}
 
 /*
     task_manager
  */
 
-inline status task_manager::init(task_manager_parameters& params) noexcept
-{
-    irt_return_if_fail(params.thread_number > 0, status::gui_not_enough_memory);
-    irt_return_if_fail(params.simple_task_list_number > 0,
-                       status::gui_not_enough_memory);
-
-    workers.resize(params.thread_number);
-    task_lists.resize(params.simple_task_list_number);
-
-    return status::success;
-}
+inline task_manager::task_manager(
+  const task_manager_parameters& params) noexcept
+  : workers(params.thread_number, params.thread_number)
+  , task_lists(params.simple_task_list_number, params.simple_task_list_number)
+{}
 
 inline status task_manager::start() noexcept
 {

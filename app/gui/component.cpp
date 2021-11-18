@@ -391,12 +391,12 @@ static void print_tree(const data_array<component, component_id>& components,
 {
     struct node
     {
-        node(tree_node* tree_)
+        node(tree_node* tree_) noexcept
           : tree(tree_)
           , i(0)
         {}
 
-        node(tree_node* tree_, int i_)
+        node(tree_node* tree_, int i_) noexcept
           : tree(tree_)
           , i(i_)
         {}
@@ -1125,6 +1125,22 @@ void component_editor::open_as_main(component_id id) noexcept
     }
 }
 
+static constexpr const task_manager_parameters tm_params = {
+    .thread_number           = 3,
+    .simple_task_list_number = 1,
+    .multi_task_list_number  = 0,
+};
+
+component_editor::component_editor() noexcept
+  : task_mgr(tm_params)
+{
+    task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
+    task_mgr.workers[1].task_lists.emplace_back(&task_mgr.task_lists[0]);
+    task_mgr.workers[2].task_lists.emplace_back(&task_mgr.task_lists[0]);
+
+    task_mgr.start();
+}
+
 void component_editor::init() noexcept
 {
     if (!context) {
@@ -1136,20 +1152,7 @@ void component_editor::init() noexcept
 
         settings_compute_colors(settings);
 
-        task_manager_parameters params = {
-            .thread_number           = 3,
-            .simple_task_list_number = 1,
-            .multi_task_list_number  = 0,
-        };
-
         gui_tasks.init(64);
-        task_mgr.init(params);
-
-        task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
-        task_mgr.workers[1].task_lists.emplace_back(&task_mgr.task_lists[0]);
-        task_mgr.workers[2].task_lists.emplace_back(&task_mgr.task_lists[0]);
-
-        task_mgr.start();
     }
 }
 

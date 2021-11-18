@@ -598,12 +598,8 @@ using small_storage_size_t = std::conditional_t<
 template<typename T>
 class vector
 {
-    static_assert(std::is_copy_assignable_v<T> ||
-                  std::is_copy_constructible_v<T> ||
-                  std::is_nothrow_constructible_v<T> ||
-                  std::is_move_assignable_v<T> ||
-                  std::is_move_constructible_v<T> ||
-                  std::is_nothrow_move_constructible_v<T>);
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                  std::is_trivially_destructible_v<T>);
 
     T*  m_data     = nullptr;
     i32 m_size     = 0;
@@ -611,7 +607,7 @@ class vector
 
 public:
     using size_type       = sz;
-    using index_type      = i32;
+    using index_type      = i64;
     using iterator        = T*;
     using const_iterator  = const T*;
     using reference       = T&;
@@ -763,7 +759,8 @@ struct fixed_real_array
         return static_cast<difference_type>(size());
     }
 
-    constexpr fixed_real_array() noexcept = default;
+    constexpr fixed_real_array() noexcept  = default;
+    constexpr ~fixed_real_array() noexcept = default;
 
     template<typename... Args>
     constexpr fixed_real_array(Args&&... args)
@@ -2278,11 +2275,7 @@ struct observer
                                const time,
                                const observer::status);
 
-    observer(const char* name_, update_fn cb_, void* user_data_) noexcept
-      : cb(cb_)
-      , name(name_)
-      , user_data(user_data_)
-    {}
+    observer(const char* name_, update_fn cb_, void* user_data_) noexcept;
 
     update_fn           cb;
     small_string<8>     name;
@@ -2306,9 +2299,12 @@ struct node
 
 struct output_message
 {
+    output_message() noexcept  = default;
+    ~output_message() noexcept = default;
+
     message  msg;
-    model_id model;
-    i8       port;
+    model_id model = undefined<model_id>();
+    i8       port  = 0;
 };
 
 using output_port = u64;
@@ -6096,16 +6092,18 @@ public:
             m_heap.increase(mdl.handle);
     }
 
-    void pop(vector<model_id>& out) noexcept
-    {
-        time t = tn();
+    void pop(vector<model_id>& out) noexcept;
 
-        out.clear();
-        out.emplace_back(m_heap.pop()->id);
+    // void pop(vector<model_id>& out) noexcept
+    // {
+    //     time t = tn();
 
-        while (!m_heap.empty() && t == tn())
-            out.emplace_back(m_heap.pop()->id);
-    }
+    //     out.clear();
+    //     out.emplace_back(m_heap.pop()->id);
+
+    //     while (!m_heap.empty() && t == tn())
+    //         out.emplace_back(m_heap.pop()->id);
+    // }
 
     time tn() const noexcept { return m_heap.top()->tn; }
 
@@ -6515,48 +6513,50 @@ public:
         return status::success;
     }
 
-    status run(time& t) noexcept
-    {
-        if (sched.empty()) {
-            t = time_domain<time>::infinity;
-            return status::success;
-        }
+    status run(time& t) noexcept;
 
-        if (t = sched.tn(); time_domain<time>::is_infinity(t))
-            return status::success;
+    // status run(time& t) noexcept
+    // {
+    //     if (sched.empty()) {
+    //         t = time_domain<time>::infinity;
+    //         return status::success;
+    //     }
 
-        immediate_models.clear();
-        sched.pop(immediate_models);
+    //     if (t = sched.tn(); time_domain<time>::is_infinity(t))
+    //         return status::success;
 
-        emitting_output_ports.clear();
-        for (const auto id : immediate_models)
-            if (auto* mdl = models.try_to_get(id); mdl)
-                irt_return_if_bad(make_transition(*mdl, t));
+    //     immediate_models.clear();
+    //     sched.pop(immediate_models);
 
-        for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
-            auto* mdl = models.try_to_get(emitting_output_ports[i].model);
-            if (!mdl)
-                continue;
+    //     emitting_output_ports.clear();
+    //     for (const auto id : immediate_models)
+    //         if (auto* mdl = models.try_to_get(id); mdl)
+    //             irt_return_if_bad(make_transition(*mdl, t));
 
-            sched.update(*mdl, t);
+    //     for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
+    //         auto* mdl = models.try_to_get(emitting_output_ports[i].model);
+    //         if (!mdl)
+    //             continue;
 
-            irt_return_if_fail(can_alloc_message(*this, 1),
-                               status::simulation_not_enough_message);
+    //         sched.update(*mdl, t);
 
-            auto  port = emitting_output_ports[i].port;
-            auto& msg  = emitting_output_ports[i].msg;
+    //         irt_return_if_fail(can_alloc_message(*this, 1),
+    //                            status::simulation_not_enough_message);
 
-            dispatch(
-              *mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
-                  if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-                      auto list = append_message(*this, dyn.x[port]);
-                      list.push_back(msg);
-                  }
-              });
-        }
+    //         auto  port = emitting_output_ports[i].port;
+    //         auto& msg  = emitting_output_ports[i].msg;
 
-        return status::success;
-    }
+    //         dispatch(
+    //           *mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
+    //               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+    //                   auto list = append_message(*this, dyn.x[port]);
+    //                   list.push_back(msg);
+    //               }
+    //           });
+    //     }
+
+    //     return status::success;
+    // }
 
     template<typename Dynamics>
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
@@ -6766,38 +6766,6 @@ inline list_view_const<dated_message> get_dated_message(const simulation& sim,
     return list_view_const<dated_message>(sim.dated_message_alloc, id);
 }
 
-inline status send_message(simulation&  sim,
-                           output_port& p,
-                           real         r1,
-                           real         r2,
-                           real         r3) noexcept
-{
-    auto list = append_node(sim, p);
-    auto it   = list.begin();
-    auto end  = list.end();
-
-    while (it != end) {
-        auto* mdl = sim.models.try_to_get(it->model);
-        if (!mdl) {
-            it = list.erase(it);
-        } else {
-            irt_return_if_fail(sim.emitting_output_ports.can_alloc(1),
-                               status::simulation_not_enough_message);
-
-            auto& output_message  = sim.emitting_output_ports.emplace_back();
-            output_message.msg[0] = r1;
-            output_message.msg[1] = r2;
-            output_message.msg[2] = r3;
-            output_message.model  = it->model;
-            output_message.port   = it->port_index;
-
-            ++it;
-        }
-    }
-
-    return status::success;
-}
-
 /*****************************************************************************
  *
  * Containers implementation
@@ -6820,13 +6788,22 @@ inline vector<T>::vector(i32 capacity) noexcept
 template<typename T>
 inline vector<T>::vector(i32 capacity, i32 size) noexcept
 {
-    static_assert(std::is_default_constructible_v<T>,
-                  "init with a default size need a default constructor");
+    static_assert(std::is_nothrow_default_constructible_v<T> ||
+                    std::is_trivially_default_constructible_v<T>,
+                  "T must be nothrow or trivially default constructible to use "
+                  "init() function");
 
     capacity = std::max(capacity, size);
 
     if (capacity > 0) {
-        m_data     = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
+        m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
+
+        if constexpr (!std::is_trivially_default_constructible_v<T>) {
+            for (i32 i = 0; i < size; ++i) {
+                new (&(m_data[i])) T{};
+            }
+        }
+
         m_capacity = capacity;
         m_size     = size;
     }
@@ -6910,14 +6887,18 @@ inline constexpr void vector<T>::clear() noexcept
 template<typename T>
 void vector<T>::resize(i32 size) noexcept
 {
-    static_assert(std::is_default_constructible_v<T>,
-                  "init with a default size need a default constructor");
+    static_assert(std::is_nothrow_default_constructible_v<T> ||
+                    std::is_trivially_default_constructible_v<T>,
+                  "T must be nothrow or trivially default constructible to use "
+                  "resize() function");
 
     if (size > m_capacity)
         reserve(compute_new_capacity(size));
 
-    for (i32 i = 0; i != size; ++i)
-        new (&(m_data[i])) T{};
+    if constexpr (!std::is_trivially_default_constructible_v<T>) {
+        for (i32 i = m_size; i < size; ++i)
+            new (&(m_data[i])) T{};
+    }
 
     m_size = size;
 }
@@ -6931,13 +6912,10 @@ void vector<T>::reserve(i32 new_capacity) noexcept
         T* new_data =
           reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
 
-        if constexpr (std::is_copy_assignable_v<T> ||
-                      std::is_copy_constructible_v<T> ||
+        if constexpr (std::is_trivially_copy_constructible_v<T> ||
                       std::is_nothrow_copy_constructible_v<T>)
             std::copy_n(m_data, m_size, new_data);
-        else if constexpr (std::is_move_assignable_v<T> ||
-                           std::is_move_constructible_v<T> ||
-                           std::is_nothrow_move_assignable_v<T>)
+        else if constexpr (std::is_nothrow_move_assignable_v<T>)
             for (i32 i = 0; i != m_size; ++i)
                 new_data[i] = std::move(m_data[i]);
 
@@ -7085,6 +7063,11 @@ template<typename... Args>
 inline constexpr typename vector<T>::reference vector<T>::emplace_back(
   Args&&... args) noexcept
 {
+    static_assert(
+      std::is_trivially_constructible_v<T, Args...> ||
+        std::is_nothrow_constructible_v<T, Args...>,
+      "T must but trivially or nothrow constructible from this argument(s)");
+
     if (m_size >= m_capacity)
         reserve(compute_new_capacity(m_size + 1));
 
@@ -7098,8 +7081,13 @@ inline constexpr typename vector<T>::reference vector<T>::emplace_back(
 template<typename T>
 inline constexpr void vector<T>::pop_back() noexcept
 {
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                    std::is_trivially_destructible_v<T>,
+                  "T must be nothrow or trivially destructible to use "
+                  "pop_back() function");
+
     if (m_size) {
-        if constexpr (std::is_trivially_destructible_v<T>)
+        if constexpr (!std::is_trivially_destructible_v<T>)
             data()[m_size - 1].~T();
 
         --m_size;
@@ -7117,10 +7105,13 @@ inline constexpr void vector<T>::swap_pop_back(index_type index) noexcept
         if constexpr (std::is_trivially_destructible_v<T>) {
             data()[index] = data()[m_size - 1];
             pop_back();
-        } else {
+        } else if constexpr (std::is_nothrow_swappable_v<T>) {
             using std::swap;
 
             swap(data()[index], data()[m_size - 1]);
+            pop_back();
+        } else {
+            data()[index] = data()[m_size - 1];
             pop_back();
         }
     }
@@ -7131,6 +7122,9 @@ inline constexpr void vector<T>::erase(iterator it) noexcept
 {
     irt_assert(it >= data() && it < data() + m_size);
 
+    if (it == end())
+        return;
+
     if constexpr (std::is_trivially_copyable_v<T>) {
         const ptrdiff_t off = it - data();
         std::memmove(data() + off,
@@ -7138,8 +7132,9 @@ inline constexpr void vector<T>::erase(iterator it) noexcept
                      (static_cast<sz>(m_size) - static_cast<sz>(off) - 1) *
                        sizeof(T));
         --m_size;
-    } else if (std::is_nothrow_move_constructible_v<T>) {
-        (*it).~T();
+    } else if constexpr (std::is_nothrow_move_constructible_v<T>) {
+        if constexpr (!std::is_trivially_destructible_v<T>)
+            (*it).~T();
 
         auto prev = it++;
         for (; it != end(); ++it, ++prev)
@@ -7147,8 +7142,6 @@ inline constexpr void vector<T>::erase(iterator it) noexcept
 
         pop_back();
     } else if (std::is_nothrow_constructible_v<T>) {
-        (*it).~T();
-
         auto prev = it++;
         for (; it != end(); ++it, ++prev)
             (*prev) = (*it);
@@ -7174,8 +7167,10 @@ inline constexpr void vector<T>::erase(iterator first, iterator last) noexcept
                        sizeof(T));
         m_size -= static_cast<i32>(count);
     } else if (std::is_nothrow_move_constructible_v<T>) {
-        for (auto jt = first; jt < last; ++jt)
-            (*jt).~T();
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            for (auto jt = first; jt < last; ++jt)
+                (*jt).~T();
+        }
 
         auto prev = first;
         first     = last;
@@ -7184,7 +7179,10 @@ inline constexpr void vector<T>::erase(iterator first, iterator last) noexcept
 
         m_size -= static_cast<i32>(count);
     } else if (std::is_nothrow_constructible_v<T>) {
-        (*first).~T();
+        if constexpr (!std::is_trivially_destructible_v<T>) {
+            for (auto jt = first; jt < last; ++jt)
+                (*jt).~T();
+        }
 
         auto prev = first;
         first     = last;
@@ -7456,6 +7454,99 @@ inline constexpr bool small_string<length>::operator<(
   const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) < 0;
+}
+
+inline observer::observer(const char* name_,
+                          update_fn   cb_,
+                          void*       user_data_) noexcept
+  : cb(cb_)
+  , name(name_)
+  , user_data(user_data_)
+{}
+
+inline void scheduller::pop(vector<model_id>& out) noexcept
+{
+    time t = tn();
+
+    out.clear();
+    out.emplace_back(m_heap.pop()->id);
+
+    while (!m_heap.empty() && t == tn())
+        out.emplace_back(m_heap.pop()->id);
+}
+
+inline status send_message(simulation&  sim,
+                           output_port& p,
+                           real         r1,
+                           real         r2,
+                           real         r3) noexcept
+{
+    auto list = append_node(sim, p);
+    auto it   = list.begin();
+    auto end  = list.end();
+
+    while (it != end) {
+        auto* mdl = sim.models.try_to_get(it->model);
+        if (!mdl) {
+            it = list.erase(it);
+        } else {
+            irt_return_if_fail(sim.emitting_output_ports.can_alloc(1),
+                               status::simulation_not_enough_message);
+
+            auto& output_message  = sim.emitting_output_ports.emplace_back();
+            output_message.msg[0] = r1;
+            output_message.msg[1] = r2;
+            output_message.msg[2] = r3;
+            output_message.model  = it->model;
+            output_message.port   = it->port_index;
+
+            ++it;
+        }
+    }
+
+    return status::success;
+}
+
+inline status simulation::run(time& t) noexcept
+{
+    if (sched.empty()) {
+        t = time_domain<time>::infinity;
+        return status::success;
+    }
+
+    if (t = sched.tn(); time_domain<time>::is_infinity(t))
+        return status::success;
+
+    immediate_models.clear();
+    sched.pop(immediate_models);
+
+    emitting_output_ports.clear();
+    for (const auto id : immediate_models)
+        if (auto* mdl = models.try_to_get(id); mdl)
+            irt_return_if_bad(make_transition(*mdl, t));
+
+    for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
+        auto* mdl = models.try_to_get(emitting_output_ports[i].model);
+        if (!mdl)
+            continue;
+
+        sched.update(*mdl, t);
+
+        irt_return_if_fail(can_alloc_message(*this, 1),
+                           status::simulation_not_enough_message);
+
+        auto  port = emitting_output_ports[i].port;
+        auto& msg  = emitting_output_ports[i].msg;
+
+        dispatch(*mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
+            if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+                auto list = append_message(*this, dyn.x[port]);
+                list.push_back(msg);
+            }
+        });
+    }
+
+    return status::success;
 }
 
 } // namespace irt
