@@ -1066,11 +1066,11 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                 ImGui::Text("x: %d", compo->x.ssize());
                 ImGui::Text("y: %d", compo->y.ssize());
 
-                ImGui::Text("description: %d", ordinal(compo->desc));
-                ImGui::Text("dir: %d", ordinal(compo->dir));
-                ImGui::Text("file: %d", ordinal(compo->file));
-                ImGui::Text("type: %s",
-                            component_type_names[ordinal(compo->type)]);
+                ImGui::TextFormat("description: {}", ordinal(compo->desc));
+                ImGui::TextFormat("dir: {}", ordinal(compo->dir));
+                ImGui::TextFormat("file: {}", ordinal(compo->file));
+                ImGui::TextFormat("type: {}",
+                                  component_type_names[ordinal(compo->type)]);
 
                 ImGui::TreePop();
             }
