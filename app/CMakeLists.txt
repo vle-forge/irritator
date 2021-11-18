@@ -1,6 +1,12 @@
 add_executable(app src/main.cpp)
 
-target_link_libraries(app libirritator threads)
+target_link_libraries(app
+    PRIVATE
+    $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
+    $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:Clang>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
+    $<$<AND:$<PLATFORM_ID:Darwin>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
+    threads
+    libirritator)
 
 set_target_properties(app PROPERTIES
   OUTPUT_NAME "irritator-cli-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"

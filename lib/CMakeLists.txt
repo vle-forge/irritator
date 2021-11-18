@@ -10,10 +10,13 @@ set(public_irritator_header
 add_library(libirritator INTERFACE)
 target_sources(libirritator INTERFACE
   "$<BUILD_INTERFACE:${public_irritator_header}>")
+
 target_include_directories(libirritator INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/>)
+
 target_include_directories(libirritator SYSTEM INTERFACE
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>)
+
 target_compile_options(libirritator INTERFACE
   $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
       -pipe -march=native
@@ -80,7 +83,6 @@ function(irritator_add_test test_name)
     $<$<CXX_COMPILER_ID:MSVC>:_SCL_SECURE_NO_WARNINGS>
     $<$<CXX_COMPILER_ID:MSVC>:BOOST_UT_DISABLE_MODULE>)
 
-
   target_include_directories(${test_name} PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     ${CMAKE_SOURCE_DIR}/external/hayai/src
@@ -89,7 +91,12 @@ function(irritator_add_test test_name)
     src
     ${CMAKE_CURRENT_BINARY_DIR})
 
-  target_link_libraries(${test_name} libirritator threads)
+  target_link_libraries(${test_name}
+    $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
+    $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:Clang>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
+    $<$<AND:$<PLATFORM_ID:Darwin>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
+    threads
+    libirritator)
 
   add_test(${test_name} ${test_name})
 endfunction()

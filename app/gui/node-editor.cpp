@@ -1820,7 +1820,7 @@ bool editor::show_window() noexcept
               5, "Load file from %s: ", (const char*)path.u8string().c_str());
             if (auto is = std::ifstream(path); is.is_open()) {
                 reader r(is);
-                auto   ret = r(sim, srcs, [&r, this](model_id id) {
+                auto   ret = r(sim, srcs, [&r](model_id id) {
                     const auto index = get_index(id);
                     const auto pos   = r.get_position(index);
 

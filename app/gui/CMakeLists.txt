@@ -60,8 +60,9 @@ target_link_libraries(irritator-gui
     PRIVATE
     $<$<PLATFORM_ID:Linux>:GLEW::GLEW>
     $<$<PLATFORM_ID:Darwin>:GLEW::glew>
-    $<$<CXX_COMPILER_ID:GNU>:stdc++fs>
-    $<$<CXX_COMPILER_ID:Clang>:c++fs>
+    $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
+    $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:Clang>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
+    $<$<AND:$<PLATFORM_ID:Darwin>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
     threads
     $<$<PLATFORM_ID:Linux>:dl>
     $<$<PLATFORM_ID:Linux>:OpenGL::GL>
