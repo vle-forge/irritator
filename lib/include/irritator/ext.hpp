@@ -57,6 +57,13 @@ class small_vector
 {
 public:
     static_assert(length >= 1);
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                  std::is_trivially_destructible_v<T>);
+
+    static_assert(std::is_nothrow_move_constructible_v<T> ||
+                  std::is_trivially_move_constructible_v<T> ||
+                  std::is_nothrow_copy_constructible_v<T> ||
+                  std::is_trivially_copy_constructible_v<T>);
 
     using size_type = small_storage_size_t<length>;
 
@@ -75,6 +82,7 @@ public:
 
     constexpr small_vector() noexcept;
     constexpr small_vector(const small_vector& other) noexcept;
+    constexpr ~small_vector() noexcept;
 
     constexpr small_vector& operator=(const small_vector& other) noexcept;
     constexpr small_vector(small_vector&& other) noexcept = delete;
@@ -256,6 +264,12 @@ constexpr small_vector<T, length>::small_vector(
 }
 
 template<typename T, sz length>
+constexpr small_vector<T, length>::~small_vector() noexcept
+{
+    clear();
+}
+
+template<typename T, sz length>
 constexpr small_vector<T, length>& small_vector<T, length>::operator=(
   const small_vector<T, length>& other) noexcept
 {
@@ -270,6 +284,11 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 template<typename T, sz length>
 constexpr status small_vector<T, length>::init(i32 default_size) noexcept
 {
+    static_assert(std::is_nothrow_default_constructible_v<T> ||
+                    std::is_trivially_default_constructible_v<T>,
+                  "T must be nothrow or trivially default constructible to use "
+                  "init() function");
+
     irt_return_if_fail(default_size > 0 &&
                          default_size < static_cast<i32>(length),
                        status::vector_init_capacity_error);
@@ -405,10 +424,15 @@ constexpr bool small_vector<T, length>::full() const noexcept
 template<typename T, sz length>
 constexpr void small_vector<T, length>::clear() noexcept
 {
-    if constexpr (!std::is_trivially_destructible_v<T>) {
-        for (i32 i = 0; i != m_size; ++i)
-            data()[i].~T();
-    }
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                    std::is_trivially_destructible_v<T>,
+                  "T must be nothrow or trivially destructible to use "
+                  "clear() function");
+
+    // if constexpr (!std::is_trivially_destructible_v<T>) {
+    for (i32 i = 0; i != m_size; ++i)
+        data()[i].~T();
+    // }
 
     m_size = 0;
 }
@@ -425,6 +449,11 @@ template<typename... Args>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::emplace_back(Args&&... args) noexcept
 {
+    static_assert(
+      std::is_trivially_constructible_v<T, Args...> ||
+        std::is_nothrow_constructible_v<T, Args...>,
+      "T must but trivially or nothrow constructible from this argument(s)");
+
     assert(can_alloc(1) && "check alloc() with full() before using use.");
 
     new (&(data()[m_size])) T(std::forward<Args>(args)...);
@@ -437,8 +466,13 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
 template<typename T, sz length>
 constexpr void small_vector<T, length>::pop_back() noexcept
 {
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                    std::is_trivially_destructible_v<T>,
+                  "T must be nothrow or trivially destructible to use "
+                  "pop_back() function");
+
     if (m_size) {
-        if constexpr (std::is_trivially_destructible_v<T>)
+        if constexpr (!std::is_trivially_destructible_v<T>)
             data()[m_size - 1].~T();
 
         --m_size;
@@ -456,10 +490,13 @@ constexpr void small_vector<T, length>::swap_pop_back(index_type index) noexcept
         if constexpr (std::is_trivially_destructible_v<T>) {
             data()[index] = data()[m_size - 1];
             pop_back();
-        } else {
+        } else if constexpr (std::is_nothrow_swappable_v<T>) {
             using std::swap;
 
             swap(data()[index], data()[m_size - 1]);
+            pop_back();
+        } else {
+            data()[index] = data()[m_size - 1];
             pop_back();
         }
     }

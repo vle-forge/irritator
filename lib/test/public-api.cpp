@@ -636,24 +636,27 @@ int main()
         {
             int i;
 
-            toto(int i_)
+            toto(int i_) noexcept
               : i(i_)
             {}
 
-            ~toto() { i = 0; }
+            ~toto() noexcept
+            {
+                i = 0;
+                fmt::print("~toto called\n");
+            }
         };
 
         irt::small_vector<toto, 4> v;
         v.emplace_back(10);
-        v.clear();
-
-        expect(v.data()[0].i == 0);
+        expect(v.data()[0].i == 10);
 
         irt::small_vector<toto, 4> v2 = v;
-        v2.emplace_back(10);
+        v2.emplace_back(100);
 
-        expect(v.data()[0].i == 0);
+        expect(v.data()[0].i == 10);
         expect(v2.data()[0].i == 10);
+        expect(v2.data()[1].i == 100);
     };
 
     "small_string"_test = [] {
