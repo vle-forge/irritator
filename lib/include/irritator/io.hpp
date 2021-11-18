@@ -556,6 +556,12 @@ public:
                       component&       compo,
                       external_source& srcs) noexcept
     {
+        std::string buffer;
+
+        if (!(is >> std::quoted(buffer)))
+            return status::io_file_format_error;
+        compo.name = std::string_view(buffer);
+
         child_mapping.data.clear();
 
         irt_return_if_bad(do_read_data_source(srcs));
@@ -880,14 +886,15 @@ private:
         irt_return_if_fail((is >> positions[*id].x >> positions[*id].y),
                            status::io_file_format_model_error);
 
-        irt_return_if_fail((is >> temp_1), status::io_file_format_model_error);
-
         return status::success;
     }
 
     status do_read_model(simulation& sim, int* id) noexcept
     {
         irt_return_if_bad(do_read_model_pre(id));
+
+        irt_return_if_fail((is >> temp_1), status::io_file_format_model_error);
+
         irt_return_if_bad(do_read_dynamics(sim, *id, temp_1));
 
         return status::success;
@@ -897,7 +904,14 @@ private:
     {
         int id = 0;
         irt_return_if_bad(do_read_model_pre(&id));
-        irt_return_if_bad(do_read_dynamics(mod, compo, id, temp_1));
+
+        std::string name;
+        if (!(is >> std::quoted(name)))
+            return status::io_file_format_error;
+
+        irt_return_if_fail((is >> temp_1), status::io_file_format_model_error);
+
+        irt_return_if_bad(do_read_dynamics(mod, compo, id, name, temp_1));
 
         return status::success;
     }
@@ -1105,31 +1119,6 @@ private:
         return false;
     }
 
-    status do_read_component(modeling& mod, component& compo, int i)
-    {
-        char        arg_1[64];
-        std::string arg_2;
-
-        if (!(is >> arg_1))
-            return status::io_file_format_error;
-
-        if (!(is >> std::quoted(arg_2)))
-            return status::io_file_format_error;
-
-        auto  compo_id  = mod.search_component(arg_2.c_str(), arg_1);
-        auto* sub_compo = mod.components.try_to_get(compo_id);
-        irt_return_if_fail(sub_compo, status::io_file_format_error);
-
-        irt_return_if_fail(compo.children.can_alloc(),
-                           status::io_not_enough_memory);
-
-        auto& child = compo.children.alloc(compo_id);
-        child.x     = positions[i].x;
-        child.y     = positions[i].y;
-
-        return status::success;
-    }
-
     status do_read_dynamics(simulation& sim,
                             int         id,
                             const char* dynamics_name) noexcept
@@ -1155,22 +1144,41 @@ private:
         return status::success;
     }
 
-    status do_read_dynamics(modeling&   mod,
-                            component&  compo,
-                            int         id,
-                            const char* dynamics_name) noexcept
+    status do_read_dynamics(modeling&        mod,
+                            component&       compo,
+                            int              id,
+                            std::string_view name,
+                            const char*      dynamics_name) noexcept
     {
         dynamics_type type;
         child_id      last = undefined<child_id>();
 
         if (std::strcmp(dynamics_name, "component") == 0) {
-            irt_return_if_bad(do_read_component(mod, compo, id));
+            char        arg_1[64];
+            std::string arg_2;
 
+            if (!(is >> arg_1))
+                return status::io_file_format_error;
+
+            if (!(is >> std::quoted(arg_2)))
+                return status::io_file_format_error;
+
+            auto  compo_id  = mod.search_component(arg_2.c_str(), arg_1);
+            auto* sub_compo = mod.components.try_to_get(compo_id);
+            irt_return_if_fail(sub_compo, status::io_file_format_error);
+
+            irt_return_if_fail(compo.children.can_alloc(),
+                               status::io_not_enough_memory);
+
+            auto& child = compo.children.alloc(compo_id);
+            last        = compo.children.get_id(child);
         } else {
             irt_return_if_fail(convert(dynamics_name, &type),
                                status::io_file_format_dynamics_unknown);
 
             auto& child = mod.alloc(compo, type);
+            last        = compo.children.get_id(child);
+
             irt_assert(compo.models.try_to_get(enum_cast<model_id>(child.id)) !=
                        nullptr);
 
@@ -1190,6 +1198,7 @@ private:
 
         child_mapping.set(id, last);
         auto& child = compo.children.get(last);
+        child.name  = name;
         child.x     = positions[id].x;
         child.y     = positions[id].y;
 
@@ -1790,6 +1799,8 @@ struct writer
                       const component&       compo,
                       const external_source& srcs) noexcept
     {
+        os << std::quoted(compo.name.sv()) << '\n';
+
         write_constant_sources(srcs.constant_sources);
         write_binary_file_sources(srcs.binary_file_sources);
         write_text_file_sources(srcs.text_file_sources);
@@ -1829,8 +1840,13 @@ private:
         child* c = nullptr;
         while (compo.children.next(c)) {
             const auto id = get_index(compo.children.get_id(*c));
-            os << id << ' ' << c->name.sv() << ' ' << c->x << ' ' << c->y
-               << ' ';
+            os << id << ' ' << c->x << ' ' << c->y << ' ';
+
+            if (c->name.empty()) {
+                os << " \"\" ";
+            } else {
+                os << std::quoted(c->name.sv()) << ' ';
+            }
 
             if (c->type == child_type::component) {
                 auto  cpn_id = enum_cast<component_id>(c->id);

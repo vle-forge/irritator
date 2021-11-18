@@ -109,6 +109,7 @@ Component file `.irt`:
 
 [source]
 ''''
+name								 # Name of the component
 2                                    # Number of constant source generator
 0 10 1 2 3 4 5 6 7 8 9 10            # The first constant generator with id: 0 have ten values
 1 5 0 0 1 1 2                        # The second constant generator with id: 1 have five values

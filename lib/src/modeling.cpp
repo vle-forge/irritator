@@ -978,6 +978,10 @@ component_id modeling::search_component(const char* name,
 {
     component* ret = nullptr;
 
+    while (components.next(ret))
+        if (ret->name == name)
+            return components.get_id(ret);
+
     if (hint && std::strcmp(hint, "cpp") == 0) {
         ret = find_cpp_component(*this, name);
     } else {
@@ -1209,7 +1213,7 @@ static void prepare_component_loading(modeling& mod) noexcept
             prepare_component_loading(mod, *dir);
 }
 
-static void load_component(modeling& mod, component& compo) noexcept
+static status load_component(modeling& mod, component& compo) noexcept
 {
     try {
         auto& dir  = mod.dir_paths.get(compo.dir);
@@ -1226,6 +1230,8 @@ static void load_component(modeling& mod, component& compo) noexcept
                 if (auto ret = r(mod, compo, mod.srcs); is_success(ret)) {
                     read_description = true;
                     compo.state      = component_status::unmodified;
+                } else {
+                    return ret;
                 }
             }
         }
@@ -1235,27 +1241,42 @@ static void load_component(modeling& mod, component& compo) noexcept
             desc_file.replace_extension(".desc");
 
             if (std::ifstream ifs{ desc_file }; ifs) {
-                auto& desc = mod.descriptions.get(compo.desc);
+                auto* desc = mod.descriptions.try_to_get(compo.desc);
+                if (!desc) {
+                    auto& d    = mod.descriptions.alloc();
+                    desc       = &d;
+                    compo.desc = mod.descriptions.get_id(d);
+                }
 
-                if (!ifs.read(desc.data.begin(), desc.data.capacity())) {
-                    mod.descriptions.free(desc);
-                    compo.desc  = undefined<description_id>();
-                    desc.status = description_status::unmodified;
+                if (!ifs.read(desc->data.begin(), desc->data.capacity())) {
+                    mod.descriptions.free(*desc);
+                    compo.desc = undefined<description_id>();
                 }
             }
         }
     } catch (...) {
+        return status::io_file_format_error;
     }
+
+    return status::success;
 }
 
 status modeling::fill_components() noexcept
 {
     prepare_component_loading(*this);
 
-    component* compo = nullptr;
+    component* compo  = nullptr;
+    component* to_del = nullptr;
+
     while (components.next(compo)) {
+        if (to_del) {
+            components.free(*to_del);
+            to_del = nullptr;
+        }
+
         if (compo->state == component_status::unread) {
-            load_component(*this, *compo);
+            if (is_bad(load_component(*this, *compo)))
+                to_del = compo;
         }
     }
 
