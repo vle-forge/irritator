@@ -149,23 +149,7 @@ static void show_component(component_editor& ed, component& c) noexcept
 
     if (c.state == component_status::modified) {
         ImGui::SameLine();
-        if (ImGui::SmallButton("save")) {
-            {
-                auto& task   = ed.gui_tasks.alloc();
-                task.ed      = &ed;
-                task.param_1 = ordinal(ed.mod.components.get_id(c));
-                ed.task_mgr.task_lists[0].add(save_component, &task);
-            }
-
-            {
-                auto& task   = ed.gui_tasks.alloc();
-                task.ed      = &ed;
-                task.param_1 = ordinal(ed.mod.components.get_id(c));
-                ed.task_mgr.task_lists[0].add(save_description, &task);
-            }
-
-            ed.task_mgr.task_lists[0].submit();
-        }
+        ImGui::TextUnformatted("(modified)");
     }
 }
 
