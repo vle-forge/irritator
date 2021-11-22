@@ -109,9 +109,7 @@ static status add_component_to_current(component_editor& ed,
     irt_return_if_bad(ed.mod.make_tree_from(compo, &tree_id));
 
     parent_compo.children.alloc(ed.mod.components.get_id(compo));
-    // auto& child =
-    // parent_compo.children.alloc(ed.mod.components.get_id(compo)); child.x =
-    // x; child.y = y;
+    parent_compo.state = component_status::modified;
 
     auto& tree = ed.mod.tree_nodes.get(tree_id);
     tree.tree.set_id(&tree);
@@ -352,12 +350,20 @@ static void show_all_components(component_editor& ed)
                                           ImGuiTreeNodeFlags_DefaultOpen,
                                           "%d",
                                           ed.selected_nodes[i])) {
+                        bool is_modified = false;
                         ImGui::Text("position %f %f",
                                     static_cast<double>(child->x),
                                     static_cast<double>(child->y));
-                        ImGui::Checkbox("configurable", &child->configurable);
-                        ImGui::Checkbox("observables", &child->observable);
-                        ImGui::InputSmallString("name", child->name);
+                        if (ImGui::Checkbox("configurable",
+                                            &child->configurable))
+                            is_modified = true;
+                        if (ImGui::Checkbox("observables", &child->observable))
+                            is_modified = true;
+                        if (ImGui::InputSmallString("name", child->name))
+                            is_modified = true;
+
+                        if (is_modified)
+                            compo->state = component_status::modified;
 
                         if (child->type == child_type::model) {
                             auto  child_id = enum_cast<model_id>(child->id);
@@ -585,25 +591,28 @@ static void show(component_editor& ed, component& compo, child_id id) noexcept
 
 static void show_opened_component_ref(component_editor& ed,
                                       tree_node& /*ref*/,
-                                      component& compo) noexcept
+                                      component& parent) noexcept
 {
     child* c = nullptr;
 
-    while (compo.children.next(c)) {
-        const auto child_id = compo.children.get_id(c);
+    while (parent.children.next(c)) {
+        const auto child_id = parent.children.get_id(c);
 
         if (c->type == child_type::model) {
             auto id = enum_cast<model_id>(c->id);
-            if (auto* mdl = compo.models.try_to_get(id); mdl) {
+            if (auto* mdl = parent.models.try_to_get(id); mdl) {
                 show(ed, *mdl, child_id);
 
                 if (ed.force_node_position) {
                     ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
                                                    ImVec2(c->x, c->y));
-                    ed.force_node_position = false;
                 } else {
                     auto pos =
                       ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+
+                    if (c->x != pos.x || c->y != pos.y)
+                        parent.state = component_status::modified;
+
                     c->x = pos.x;
                     c->y = pos.y;
                 }
@@ -616,33 +625,38 @@ static void show_opened_component_ref(component_editor& ed,
                 if (ed.force_node_position) {
                     ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
                                                    ImVec2(c->x, c->y));
-                    ed.force_node_position = false;
                 } else {
                     auto pos =
                       ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+
+                    if (c->x != pos.x || c->y != pos.y)
+                        parent.state = component_status::modified;
+
                     c->x = pos.x;
                     c->y = pos.y;
                 }
             }
         }
+
+        ed.force_node_position = false;
     }
 
     {
         connection* con    = nullptr;
         connection* to_del = nullptr;
-        while (compo.connections.next(con)) {
+        while (parent.connections.next(con)) {
             if (to_del) {
-                compo.connections.free(*to_del);
+                parent.connections.free(*to_del);
                 to_del = nullptr;
             }
 
-            if (!show_connection(compo, *con)) {
+            if (!show_connection(parent, *con)) {
                 to_del = con;
             }
         }
 
         if (to_del)
-            compo.connections.free(*to_del);
+            parent.connections.free(*to_del);
     }
 }
 
@@ -782,7 +796,6 @@ void remove_nodes(component_editor& ed,
         if (auto* child = unpack_node(ed.selected_nodes[i], parent.children);
             child) {
             if (child->type == child_type::component) {
-                // search the tree_node
                 if (auto* c = tree.tree.get_child(); c) {
                     do {
                         if (c->id == enum_cast<component_id>(child->id)) {
@@ -796,6 +809,7 @@ void remove_nodes(component_editor& ed,
             }
 
             ed.mod.free(parent, *child);
+            parent.state = component_status::modified;
         }
     }
 
@@ -812,8 +826,10 @@ void remove_links(component_editor& ed, component& parent) noexcept
 
     for (i32 i = 0, e = ed.selected_links.ssize(); i != e; ++i) {
         auto* con = parent.connections.try_to_get(ed.selected_links[i]);
-        if (con)
+        if (con) {
             parent.connections.free(*con);
+            parent.state = component_status::modified;
+        }
     }
 
     ed.selected_links.clear();
