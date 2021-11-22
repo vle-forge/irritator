@@ -1680,7 +1680,8 @@ struct writer
                                   os << std::distance(map.begin(), it_out)
                                      << ' ' << i << ' '
                                      << std::distance(map.begin(), it_in) << ' '
-                                     << cnt.port_index << '\n';
+                                     << static_cast<int>(cnt.port_index)
+                                     << '\n';
                               }
                           }
 
