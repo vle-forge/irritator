@@ -7329,10 +7329,9 @@ inline constexpr void small_string<length>::assign(
 {
     const auto copy_length = std::min(str.size(), length - 1);
 
-    std::memcpy(m_buffer, str.data(), copy_length);
+    std::memcpy(&m_buffer[0], str.data(), copy_length);
     m_buffer[copy_length] = '\0';
-
-    m_size = static_cast<u8>(copy_length);
+    m_size                = static_cast<size_type>(copy_length);
 }
 
 template<sz length>
