@@ -1170,7 +1170,7 @@ void component_editor::shutdown() noexcept
 
 static void show_simulation(component_editor& ed) noexcept
 {
-    if (ImGui::CollapsingHeader("Simulation",
+    if (ImGui::CollapsingHeader("Simulation##Component",
                                 ImGuiTreeNodeFlags_CollapsingHeader)) {
         ImGui::InputReal("Begin", &ed.simulation_begin);
         ImGui::InputReal("End", &ed.simulation_end);
@@ -1256,21 +1256,21 @@ void component_editor::show(bool* /*is_show*/) noexcept
 
     ImGui::SetNextWindowPos(simulation_pos);
     ImGui::SetNextWindowSize(simulation_size);
-    if (ImGui::Begin("Simulation", 0, flag)) {
+    if (ImGui::Begin("Simulation#Window", 0, flag)) {
         show_simulation(*this);
     }
     ImGui::End();
 
     ImGui::SetNextWindowPos(drawing_zone_pos);
     ImGui::SetNextWindowSize(drawing_zone_size);
-    if (ImGui::Begin("Component editor", 0, flag)) {
+    if (ImGui::Begin("Component editor##Window", 0, flag)) {
         show_opened_component(*this);
     }
     ImGui::End();
 
     ImGui::SetNextWindowPos(component_list_pos);
     ImGui::SetNextWindowSize(component_list_size);
-    if (ImGui::Begin("Components list", 0, flag)) {
+    if (ImGui::Begin("Components list##Window", 0, flag)) {
         show_all_components(*this);
         ImGui::End();
     }
