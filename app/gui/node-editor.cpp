@@ -210,7 +210,8 @@ void editor::compute_automatic_layout() noexcept
     const float W =
       static_cast<float>(column) * settings.automatic_layout_x_distance;
     const float L =
-      line + ((remaining > 0) ? settings.automatic_layout_y_distance : 0.f);
+      static_cast<float>(line) +
+      ((remaining > 0) ? settings.automatic_layout_y_distance : 0.f);
     const float area     = W * L;
     const float k_square = area / static_cast<float>(sim.models.size());
     const float k        = std::sqrt(k_square);
