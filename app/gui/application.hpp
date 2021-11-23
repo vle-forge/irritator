@@ -338,9 +338,10 @@ using component_editor_status = u32;
 
 enum component_editor_status_
 {
-    component_editor_status_modeling           = 0,
-    component_editor_status_simulating         = 1 << 1,
-    component_editor_status_read_only_modeling = 1 << 2,
+    component_editor_status_modeling             = 0,
+    component_editor_status_simulating           = 1 << 1,
+    component_editor_status_read_only_modeling   = 1 << 2,
+    component_editor_status_read_only_simulating = 1 << 3,
 };
 
 enum class gui_task_status
