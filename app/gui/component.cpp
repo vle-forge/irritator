@@ -108,10 +108,11 @@ static status add_component_to_current(component_editor& ed,
     tree_node_id tree_id;
     irt_return_if_bad(ed.mod.make_tree_from(compo, &tree_id));
 
-    parent_compo.children.alloc(ed.mod.components.get_id(compo));
+    auto& c = parent_compo.children.alloc(ed.mod.components.get_id(compo));
     parent_compo.state = component_status::modified;
 
-    auto& tree = ed.mod.tree_nodes.get(tree_id);
+    auto& tree        = ed.mod.tree_nodes.get(tree_id);
+    tree.id_in_parent = parent_compo.children.get_id(c);
     tree.tree.set_id(&tree);
     tree.tree.parent_to(parent.tree);
 

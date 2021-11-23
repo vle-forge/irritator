@@ -109,9 +109,9 @@ struct child
 struct port
 {
     port() noexcept = default;
-    port(child_id child, i8 port) noexcept;
+    port(model_id id_, i8 port_) noexcept;
 
-    child_id id;
+    model_id id;
     i8       index;
 };
 
@@ -198,9 +198,10 @@ struct modeling_initializer
 
 struct tree_node
 {
-    tree_node(component_id id_) noexcept;
+    tree_node(component_id id_, child_id id_in_parent_) noexcept;
 
     component_id         id;
+    child_id             id_in_parent;
     hierarchy<tree_node> tree;
 
     table<model_id, model_id> parameters;
@@ -276,13 +277,14 @@ inline child::child(component_id component) noexcept
   , type{ child_type::component }
 {}
 
-inline port::port(child_id child_, i8 port_) noexcept
-  : id{ child_ }
+inline port::port(model_id id_, i8 port_) noexcept
+  : id{ id_ }
   , index{ port_ }
 {}
 
-inline tree_node::tree_node(component_id id_) noexcept
+inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
   : id(id_)
+  , id_in_parent(id_in_parent_)
 {}
 
 inline child& modeling::alloc(component& parent, dynamics_type type) noexcept

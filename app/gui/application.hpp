@@ -342,6 +342,11 @@ enum component_editor_status_
     component_editor_status_simulating           = 1 << 1,
     component_editor_status_read_only_modeling   = 1 << 2,
     component_editor_status_read_only_simulating = 1 << 3,
+
+    component_editor_status_simulation_not_ready = 1 << 4,
+    component_editor_status_simulation_ready     = 1 << 5,
+    component_editor_status_simulation_started   = 1 << 6,
+    component_editor_status_simulation_finished  = 1 << 7
 };
 
 enum class gui_task_status
@@ -424,6 +429,9 @@ struct component_editor
     void select(tree_node_id id) noexcept;
     void open_as_main(component_id id) noexcept;
     void unselect() noexcept;
+
+    void simulation_init() noexcept;
+    void simulation_clear() noexcept;
 
     void init() noexcept;
     void show(bool* is_show) noexcept;

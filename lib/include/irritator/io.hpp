@@ -937,8 +937,10 @@ private:
 
             auto* child = compo.children.try_to_get(*c);
             irt_return_if_fail(child, status::io_file_format_model_error);
+            irt_return_if_fail(child->type == child_type::model,
+                               status::io_file_format_model_error);
 
-            ports.emplace_back(*c, static_cast<i8>(port_index));
+            ports.emplace_back(enum_cast<model_id>(child->id), static_cast<i8>(port_index));
         }
 
         return status::success;
