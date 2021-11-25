@@ -336,17 +336,26 @@ const char* log_string(const log_status s) noexcept;
 
 using component_editor_status = u32;
 
+enum class component_simulation_status
+{
+    not_started,
+    initializing,
+    initialized,
+    run_requiring,
+    running,
+    paused,
+    pause_forced,
+    finish_requiring,
+    finishing,
+    finished,
+};
+
 enum component_editor_status_
 {
     component_editor_status_modeling             = 0,
     component_editor_status_simulating           = 1 << 1,
     component_editor_status_read_only_modeling   = 1 << 2,
     component_editor_status_read_only_simulating = 1 << 3,
-
-    component_editor_status_simulation_not_ready = 1 << 4,
-    component_editor_status_simulation_ready     = 1 << 5,
-    component_editor_status_simulation_started   = 1 << 6,
-    component_editor_status_simulation_finished  = 1 << 7
 };
 
 enum class gui_task_status
@@ -410,6 +419,9 @@ struct component_editor
     bool                  show_select_directory_dialog = false;
     bool                  force_node_position          = false;
 
+    component_simulation_status simulation_state =
+      component_simulation_status::not_started;
+
     component_editor_status state = component_editor_status_modeling;
 
     component*     selected_component_list      = nullptr;
@@ -421,8 +433,9 @@ struct component_editor
     std::filesystem::path select_directory;
     dir_path_id           select_dir_path = undefined<dir_path_id>();
 
-    real simulation_begin;
-    real simulation_end;
+    real simulation_begin   = 0;
+    real simulation_end     = 100;
+    real simulation_current = 0;
 
     component_editor() noexcept;
 
@@ -430,8 +443,14 @@ struct component_editor
     void open_as_main(component_id id) noexcept;
     void unselect() noexcept;
 
+    void simulation_update_state() noexcept;
     void simulation_init() noexcept;
     void simulation_clear() noexcept;
+    void simulation_start() noexcept;
+    void simulation_pause() noexcept;
+    void simulation_stop() noexcept;
+    bool force_pause;
+    bool force_stop;
 
     void init() noexcept;
     void show(bool* is_show) noexcept;

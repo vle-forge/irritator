@@ -1177,22 +1177,50 @@ static void show_simulation(component_editor& ed) noexcept
         ImGui::InputReal("End", &ed.simulation_end);
         ImGui::TextFormat("Current time {:.6f}", ed.simulation_begin);
 
-        if (ImGui::Button("[]")) {
+        bool start_line = false;
+        if (match(ed.simulation_state,
+                  component_simulation_status::not_started,
+                  component_simulation_status::finished)) {
+            start_line = true;
+            if (ImGui::Button("init")) {
+                ed.simulation_init();
+            }
         }
-        ImGui::SameLine();
-        if (ImGui::Button("||")) {
+
+        if (ed.simulation_state == component_simulation_status::initialized) {
+            if (start_line)
+                ImGui::SameLine();
+            else
+                start_line = true;
+
+            if (ImGui::Button("start")) {
+                ed.simulation_start();
+            }
         }
-        ImGui::SameLine();
-        if (ImGui::Button(">")) {
+
+        if (ed.simulation_state == component_simulation_status::pause_forced) {
+            if (start_line)
+                ImGui::SameLine();
+            else
+                start_line = true;
+
+            if (ImGui::Button("continue")) {
+                ed.simulation_start();
+            }
         }
-        ImGui::SameLine();
-        if (ImGui::Button("+1")) {
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+10")) {
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("+100")) {
+
+        if (ed.simulation_state == component_simulation_status::running) {
+            if (start_line)
+                ImGui::SameLine();
+
+            if (ImGui::Button("pause")) {
+                ed.force_pause = true;
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("stop")) {
+                ed.force_stop = true;
+            }
         }
     }
 }
@@ -1225,6 +1253,7 @@ static component_editor_status gui_task_clean_up(component_editor& ed) noexcept
 
 void component_editor::show(bool* /*is_show*/) noexcept
 {
+    simulation_update_state();
     state = gui_task_clean_up(*this);
 
     constexpr ImGuiWindowFlags flag =

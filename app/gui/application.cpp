@@ -42,6 +42,15 @@ bool application::init()
         return false;
     }
 
+    if (auto ret =
+          c_editor.sim.init(m_init.model_capacity, m_init.model_capacity * 256);
+        is_bad(ret)) {
+        log_w.log(2,
+                  "Fail to initialize simulation components: %s\n",
+                  status_string(ret));
+        return false;
+    }
+
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
         log_w.log(2, "Fail to fill component list: %s\n", status_string(ret));
     }
