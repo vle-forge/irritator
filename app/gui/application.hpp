@@ -511,6 +511,7 @@ struct component_editor
 private:
     void show_simulation_window() noexcept;
     void show_components_window() noexcept;
+    void show_hierarchy_window() noexcept;
 };
 
 struct application

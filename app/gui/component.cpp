@@ -57,38 +57,6 @@ static void print_tree(const data_array<component, component_id>& components,
     }
 }
 
-static void show_component_hierarchy(component_editor& ed, tree_node& parent)
-{
-    constexpr ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnDoubleClick;
-
-    if (auto* compo = ed.mod.components.try_to_get(parent.id); compo) {
-        if (ImGui::TreeNodeEx(&parent, flags, "%s", compo->name.c_str())) {
-
-            if (ImGui::IsItemHovered() &&
-                ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                ed.select(ed.mod.tree_nodes.get_id(parent));
-                ImGui::TreePop();
-                return;
-            }
-
-            if (auto* child = parent.tree.get_child(); child) {
-                show_component_hierarchy(ed, *child);
-            }
-            ImGui::TreePop();
-        }
-
-        if (auto* sibling = parent.tree.get_sibling(); sibling)
-            show_component_hierarchy(ed, *sibling);
-    }
-}
-
-static void show_component_hierarchy(component_editor& ed)
-{
-    if (auto* parent = ed.mod.tree_nodes.try_to_get(ed.mod.head); parent)
-        show_component_hierarchy(ed, *parent);
-}
-
 template<typename Dynamics>
 static void add_input_attribute(const Dynamics& dyn, child_id id) noexcept
 {
@@ -861,7 +829,7 @@ void component_editor::show(bool* /*is_show*/) noexcept
     ImGui::SetNextWindowPos(current_component_pos);
     ImGui::SetNextWindowSize(current_component_size);
     if (ImGui::Begin("Modeling component", 0, flag)) {
-        show_component_hierarchy(*this);
+        show_hierarchy_window();
     }
     ImGui::End();
 
