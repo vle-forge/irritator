@@ -511,6 +511,7 @@ void save_component(void* param) noexcept
                 compo->state = component_status::modified;
             } else {
                 compo->state = component_status::unmodified;
+                compo->type  = component_type::file;
             }
         }
     }
