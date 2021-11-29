@@ -387,40 +387,54 @@ void component_editor::show(bool* /*is_show*/) noexcept
     const auto  region     = viewport->WorkSize;
     const float width_1_10 = region.x / 10.f;
 
-    ImVec2 current_component_size(width_1_10 * 2.f, region.y / 2.f);
-    ImVec2 simulation_size(width_1_10 * 2.f, region.y / 2.f);
-    ImVec2 drawing_zone_size(width_1_10 * 6.f, region.y);
-    ImVec2 component_list_size(width_1_10 * 2.f, region.y);
+    ImVec2 hierarchy_size(width_1_10 * 2.f, region.y / 2.f);
+    ImVec2 setting_size(width_1_10 * 2.f, region.y / 2.f);
 
-    ImVec2 current_component_pos(0.f, viewport->WorkPos.y);
-    ImVec2 simulation_pos(0.f, viewport->WorkPos.y + region.y / 2.f);
-    ImVec2 drawing_zone_pos(current_component_size.x, viewport->WorkPos.y);
-    ImVec2 component_list_pos(current_component_size.x + drawing_zone_size.x,
-                              viewport->WorkPos.y);
+    ImVec2 modeling_size(width_1_10 * 6.f, region.y - (region.y / 5.f));
+    ImVec2 simulation_size(width_1_10 * 6.f, region.y / 5.f);
 
-    ImGui::SetNextWindowPos(current_component_pos);
-    ImGui::SetNextWindowSize(current_component_size);
-    if (ImGui::Begin("Modeling component", 0, flag)) {
+    ImVec2 components_size(width_1_10 * 2.f, region.y);
+
+    ImVec2 hierarchy_pos(0.f, viewport->WorkPos.y);
+    ImVec2 setting_pos(0.f, viewport->WorkPos.y + region.y / 2.f);
+
+    ImVec2 modeling_pos(hierarchy_size.x, viewport->WorkPos.y);
+    ImVec2 simulation_pos(hierarchy_size.x,
+                          viewport->WorkPos.y + modeling_size.y);
+
+    ImVec2 components_pos(hierarchy_size.x + modeling_size.x,
+                          viewport->WorkPos.y);
+
+    ImGui::SetNextWindowPos(hierarchy_pos);
+    ImGui::SetNextWindowSize(hierarchy_size);
+    if (ImGui::Begin("Hierarchy window", 0, flag)) {
         show_hierarchy_window();
+    }
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(setting_pos);
+    ImGui::SetNextWindowSize(setting_size);
+    if (ImGui::Begin("Setting window", 0, flag)) {
+        show_hierarchy_settings_window();
+    }
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(modeling_pos);
+    ImGui::SetNextWindowSize(modeling_size);
+    if (ImGui::Begin("Modeling editor window", 0, flag)) {
+        show_modeling_window();
     }
     ImGui::End();
 
     ImGui::SetNextWindowPos(simulation_pos);
     ImGui::SetNextWindowSize(simulation_size);
-    if (ImGui::Begin("Simulation#Window", 0, flag)) {
+    if (ImGui::Begin("Simulation window", 0, flag)) {
         show_simulation_window();
     }
     ImGui::End();
 
-    ImGui::SetNextWindowPos(drawing_zone_pos);
-    ImGui::SetNextWindowSize(drawing_zone_size);
-    if (ImGui::Begin("Component editor##Window", 0, flag)) {
-        show_modeling_window();
-    }
-    ImGui::End();
-
-    ImGui::SetNextWindowPos(component_list_pos);
-    ImGui::SetNextWindowSize(component_list_size);
+    ImGui::SetNextWindowPos(components_pos);
+    ImGui::SetNextWindowSize(components_size);
     if (ImGui::Begin("Components list##Window", 0, flag)) {
         show_components_window();
         ImGui::End();
