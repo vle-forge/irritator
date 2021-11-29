@@ -456,6 +456,9 @@ struct component_editor
     void show(bool* is_show) noexcept;
     void show_memory_box(bool* is_show) noexcept;
     void shutdown() noexcept;
+
+private:
+    void show_simulation_window() noexcept;
 };
 
 struct application
