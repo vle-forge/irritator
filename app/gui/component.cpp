@@ -9,57 +9,6 @@
 
 namespace irt {
 
-int pack_in(const child_id id, const i8 port) noexcept
-{
-    irt_assert(port >= 0 && port < 8);
-
-    u32 port_index = static_cast<u32>(port);
-    u32 index      = get_index(id);
-
-    return static_cast<int>((index << 5u) | port_index);
-}
-
-int pack_out(const child_id id, const i8 port) noexcept
-{
-    irt_assert(port >= 0 && port < 8);
-
-    u32 port_index = 8u + static_cast<u32>(port);
-    u32 index      = get_index(id);
-
-    return static_cast<int>((index << 5u) | port_index);
-}
-
-void unpack_in(const int node_id, u32* index, i8* port) noexcept
-{
-    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
-
-    *port  = static_cast<i8>(real_node_id & 7u);
-    *index = static_cast<u32>(real_node_id >> 5u);
-
-    irt_assert((real_node_id & 8u) == 0);
-}
-
-void unpack_out(const int node_id, u32* index, i8* port) noexcept
-{
-    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
-
-    *port  = static_cast<i8>(real_node_id & 7u);
-    *index = static_cast<u32>(real_node_id >> 5u);
-
-    irt_assert((real_node_id & 8u) != 0);
-}
-
-int pack_node(const child_id id) noexcept
-{
-    return static_cast<int>(get_index(id));
-}
-
-child* unpack_node(const int                          node_id,
-                   const data_array<child, child_id>& data) noexcept
-{
-    return data.try_to_get(static_cast<u32>(node_id));
-}
-
 static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);

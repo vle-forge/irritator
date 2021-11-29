@@ -138,6 +138,57 @@ std::pair<irt::u32, irt::u32> get_model_input_port(const int node_id) noexcept;
 
 std::pair<irt::u32, irt::u32> get_model_output_port(const int node_id) noexcept;
 
+inline int pack_in(const child_id id, const i8 port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    u32 port_index = static_cast<u32>(port);
+    u32 index      = get_index(id);
+
+    return static_cast<int>((index << 5u) | port_index);
+}
+
+inline int pack_out(const child_id id, const i8 port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    u32 port_index = 8u + static_cast<u32>(port);
+    u32 index      = get_index(id);
+
+    return static_cast<int>((index << 5u) | port_index);
+}
+
+inline void unpack_in(const int node_id, u32* index, i8* port) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    *port  = static_cast<i8>(real_node_id & 7u);
+    *index = static_cast<u32>(real_node_id >> 5u);
+
+    irt_assert((real_node_id & 8u) == 0);
+}
+
+inline void unpack_out(const int node_id, u32* index, i8* port) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    *port  = static_cast<i8>(real_node_id & 7u);
+    *index = static_cast<u32>(real_node_id >> 5u);
+
+    irt_assert((real_node_id & 8u) != 0);
+}
+
+inline int pack_node(const child_id id) noexcept
+{
+    return static_cast<int>(get_index(id));
+}
+
+inline child* unpack_node(const int                          node_id,
+                          const data_array<child, child_id>& data) noexcept
+{
+    return data.try_to_get(static_cast<u32>(node_id));
+}
+
 struct editor
 {
     small_string<16>      name;
