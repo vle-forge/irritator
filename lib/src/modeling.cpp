@@ -623,41 +623,66 @@ static component* find_cpp_component(modeling&   mod,
     irt_unreachable();
 }
 
-static bool check(const modeling_initializer& params) noexcept
+static bool is_valid(const modeling_initializer& params) noexcept
 {
     return params.model_capacity > 0 && params.tree_capacity > 0 &&
            params.description_capacity > 0 && params.component_capacity > 0 &&
-           params.observer_capacity > 0 && params.dir_path_capacity > 0 &&
-           params.file_path_capacity > 0 && params.children_capacity > 0 &&
-           params.connection_capacity > 0 &&
+           params.observer_capacity > 0 && params.file_path_capacity > 0 &&
+           params.children_capacity > 0 && params.connection_capacity > 0 &&
            params.constant_source_capacity > 0 &&
            params.binary_file_source_capacity > 0 &&
            params.text_file_source_capacity > 0 &&
            params.random_source_capacity > 0;
 }
 
-status modeling::init(const modeling_initializer& params) noexcept
+static status try_init(modeling& mod, modeling_initializer& p) noexcept
+{
+    irt_return_if_bad(mod.tree_nodes.init(p.tree_capacity));
+    irt_return_if_bad(mod.descriptions.init(p.description_capacity));
+    irt_return_if_bad(mod.components.init(p.component_capacity));
+    irt_return_if_bad(mod.observers.init(p.observer_capacity));
+    irt_return_if_bad(mod.file_paths.init(p.file_path_capacity));
+    irt_return_if_bad(
+      mod.srcs.constant_sources.init(p.constant_source_capacity));
+    irt_return_if_bad(
+      mod.srcs.text_file_sources.init(p.text_file_source_capacity));
+    irt_return_if_bad(mod.srcs.random_sources.init(p.random_source_capacity));
+    irt_return_if_bad(
+      mod.srcs.binary_file_sources.init(p.binary_file_source_capacity));
+
+    return status::success;
+}
+
+status modeling::init(modeling_initializer& params) noexcept
 {
     // In the future, these allocations will have to be replaced by an
     // allocator who can exit if the allocation fails.
 
-    irt_return_if_fail(check(params), status::gui_not_enough_memory);
+    modeling_initializer default_params = {
+        .model_capacity              = 256 * 64 * 16,
+        .tree_capacity               = 256 * 16,
+        .description_capacity        = 256 * 16,
+        .component_capacity          = 256 * 12 * 8,
+        .observer_capacity           = 256 * 16,
+        .file_path_capacity          = 256 * 25 * 6,
+        .children_capacity           = 256 * 64 * 16,
+        .connection_capacity         = 256 * 64,
+        .port_capacity               = 256 * 64,
+        .constant_source_capacity    = 16,
+        .binary_file_source_capacity = 16,
+        .text_file_source_capacity   = 16,
+        .random_source_capacity      = 16,
+        .random_generator_seed       = 123456789u,
+    };
 
-    irt_return_if_bad(tree_nodes.init(params.tree_capacity));
-    irt_return_if_bad(descriptions.init(params.description_capacity));
-    irt_return_if_bad(components.init(params.component_capacity));
+    if (!is_valid(params))
+        params = default_params;
 
-    irt_return_if_bad(observers.init(params.observer_capacity));
-    irt_return_if_bad(dir_paths.init(params.dir_path_capacity));
-    irt_return_if_bad(file_paths.init(params.file_path_capacity));
+    if (is_bad(try_init(*this, params))) {
+        params = default_params;
 
-    irt_return_if_bad(
-      srcs.constant_sources.init(params.constant_source_capacity));
-    irt_return_if_bad(
-      srcs.binary_file_sources.init(params.binary_file_source_capacity));
-    irt_return_if_bad(
-      srcs.text_file_sources.init(params.text_file_source_capacity));
-    irt_return_if_bad(srcs.random_sources.init(params.random_source_capacity));
+        irt_return_if_bad(try_init(*this, params));
+    }
 
     return status::success;
 }

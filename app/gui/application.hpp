@@ -530,6 +530,8 @@ struct application
     std::filesystem::path         executable_dir;
     std::vector<long long int>    simulation_duration;
 
+    modeling_initializer mod_init;
+
     bool show_modeling   = true;
     bool show_log        = false;
     bool show_simulation = false;
@@ -553,6 +555,9 @@ struct application
     void    free_editor(editor& ed);
 
     editor* make_combo_editor_name(editor_id& id) noexcept;
+
+    status save_settings() noexcept;
+    status load_settings() noexcept;
 };
 
 static inline window_logger log_w; // @todo remove this variable.

@@ -177,21 +177,20 @@ struct file_path
 
 struct modeling_initializer
 {
-    int model_capacity;
-    int tree_capacity;
-    int description_capacity;
-    int component_capacity;
-    int observer_capacity;
-    int dir_path_capacity;
-    int file_path_capacity;
-    int children_capacity;
-    int connection_capacity;
-    int port_capacity;
+    i32 model_capacity;
+    i32 tree_capacity;
+    i32 description_capacity;
+    i32 component_capacity;
+    i32 observer_capacity;
+    i32 file_path_capacity;
+    i32 children_capacity;
+    i32 connection_capacity;
+    i32 port_capacity;
 
-    int constant_source_capacity;
-    int binary_file_source_capacity;
-    int text_file_source_capacity;
-    int random_source_capacity;
+    i32 constant_source_capacity;
+    i32 binary_file_source_capacity;
+    i32 text_file_source_capacity;
+    i32 random_source_capacity;
 
     u64 random_generator_seed;
 };
@@ -223,7 +222,7 @@ struct modeling
     irt::external_source srcs;
     tree_node_id         head;
 
-    status init(const modeling_initializer& params) noexcept;
+    status init(modeling_initializer& params) noexcept;
 
     component_id search_component(const char* name, const char* hint) noexcept;
 

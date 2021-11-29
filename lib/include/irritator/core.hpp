@@ -295,7 +295,7 @@ constexpr Enum enum_cast(Integer i) noexcept
 //! Binary search function which returns an iterator to the result or end if
 //! not found using the lower_bound standard function.
 template<typename Iterator, typename T>
-Iterator binary_find(Iterator begin, Iterator end, const T& value)
+constexpr Iterator binary_find(Iterator begin, Iterator end, const T& value)
 {
     begin = std::lower_bound(begin, end, value);
     return (!(begin == end) && (value == *begin)) ? begin : end;
@@ -306,7 +306,10 @@ Iterator binary_find(Iterator begin, Iterator end, const T& value)
 //! Binary search function which returns an iterator to the result or end if
 //! not found using the lower_bound standard function.
 template<typename Iterator, typename T, typename Compare>
-Iterator binary_find(Iterator begin, Iterator end, const T& value, Compare comp)
+constexpr Iterator binary_find(Iterator begin,
+                               Iterator end,
+                               const T& value,
+                               Compare  comp)
 {
     begin = std::lower_bound(begin, end, value, comp);
     return (!(begin == end) && (value == *begin)) ? begin : end;
