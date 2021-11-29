@@ -101,11 +101,10 @@ break;
 }
 */
 
-static void
-show_random_distribution_input(random_source& src) noexcept
+static void show_random_distribution_input(random_source& src) noexcept
 {
     int current_item = ordinal(src.distribution);
-    int old_current = ordinal(src.distribution);
+    int old_current  = ordinal(src.distribution);
     ImGui::Combo("Distribution",
                  &current_item,
                  irt::distribution_type_string,
@@ -152,7 +151,7 @@ show_random_distribution_input(random_source& src) noexcept
 
     case distribution_type::binomial:
         if (old_current != current_item) {
-            src.p = 0.5;
+            src.p   = 0.5;
             src.t32 = 1;
         }
         ImGui::InputDouble("p", &src.p);
@@ -161,7 +160,7 @@ show_random_distribution_input(random_source& src) noexcept
 
     case distribution_type::negative_binomial:
         if (old_current != current_item) {
-            src.p = 0.5;
+            src.p   = 0.5;
             src.t32 = 1;
         }
         ImGui::InputDouble("p", &src.p);
@@ -192,7 +191,7 @@ show_random_distribution_input(random_source& src) noexcept
     case distribution_type::gamma:
         if (old_current != current_item) {
             src.alpha = 1.0;
-            src.beta = 1.0;
+            src.beta  = 1.0;
         }
         ImGui::InputDouble("alpha", &src.alpha);
         ImGui::InputDouble("beta", &src.beta);
@@ -218,7 +217,7 @@ show_random_distribution_input(random_source& src) noexcept
 
     case distribution_type::normal:
         if (old_current != current_item) {
-            src.mean = 0.0;
+            src.mean   = 0.0;
             src.stddev = 1.0;
         }
         ImGui::InputDouble("mean", &src.mean);
@@ -268,14 +267,13 @@ show_random_distribution_input(random_source& src) noexcept
     }
 }
 
-void
-editor::show_sources() noexcept
+void show_external_sources(external_source& srcs) noexcept
 {
-    static bool show_file_dialog = false;
-    static irt::constant_source* constant_ptr = nullptr;
-    static irt::binary_file_source* binary_file_ptr = nullptr;
-    static irt::text_file_source* text_file_ptr = nullptr;
-    static irt::random_source* random_source_ptr = nullptr;
+    static bool                     show_file_dialog  = false;
+    static irt::constant_source*    constant_ptr      = nullptr;
+    static irt::binary_file_source* binary_file_ptr   = nullptr;
+    static irt::text_file_source*   text_file_ptr     = nullptr;
+    static irt::random_source*      random_source_ptr = nullptr;
 
     if (ImGui::BeginTable("All sources",
                           5,
@@ -291,8 +289,8 @@ editor::show_sources() noexcept
 
         constant_source* cst_src = nullptr;
         while (srcs.constant_sources.next(cst_src)) {
-            const auto id = srcs.constant_sources.get_id(cst_src);
-            const auto index = get_index(id);
+            const auto id               = srcs.constant_sources.get_id(cst_src);
+            const auto index            = get_index(id);
             const bool item_is_selected = cst_src == constant_ptr;
 
             ImGui::TableNextRow();
@@ -302,9 +300,9 @@ editor::show_sources() noexcept
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
-                constant_ptr = cst_src;
-                binary_file_ptr = nullptr;
-                text_file_ptr = nullptr;
+                constant_ptr      = cst_src;
+                binary_file_ptr   = nullptr;
+                text_file_ptr     = nullptr;
                 random_source_ptr = nullptr;
             }
 
@@ -335,7 +333,7 @@ editor::show_sources() noexcept
 
         text_file_source* txt_src = nullptr;
         while (srcs.text_file_sources.next(txt_src)) {
-            const auto id = srcs.text_file_sources.get_id(txt_src);
+            const auto id    = srcs.text_file_sources.get_id(txt_src);
             const auto index = get_index(id);
             const bool item_is_selected = txt_src == text_file_ptr;
 
@@ -346,9 +344,9 @@ editor::show_sources() noexcept
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
-                constant_ptr = nullptr;
-                binary_file_ptr = nullptr;
-                text_file_ptr = txt_src;
+                constant_ptr      = nullptr;
+                binary_file_ptr   = nullptr;
+                text_file_ptr     = txt_src;
                 random_source_ptr = nullptr;
             }
 
@@ -365,7 +363,7 @@ editor::show_sources() noexcept
 
         binary_file_source* bin_src = nullptr;
         while (srcs.binary_file_sources.next(bin_src)) {
-            const auto id = srcs.binary_file_sources.get_id(bin_src);
+            const auto id    = srcs.binary_file_sources.get_id(bin_src);
             const auto index = get_index(id);
             const bool item_is_selected = bin_src == binary_file_ptr;
 
@@ -378,9 +376,9 @@ editor::show_sources() noexcept
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
-                constant_ptr = nullptr;
-                binary_file_ptr = bin_src;
-                text_file_ptr = nullptr;
+                constant_ptr      = nullptr;
+                binary_file_ptr   = bin_src;
+                text_file_ptr     = nullptr;
                 random_source_ptr = nullptr;
             }
 
@@ -397,8 +395,8 @@ editor::show_sources() noexcept
 
         random_source* rnd_src = nullptr;
         while (srcs.random_sources.next(rnd_src)) {
-            const auto id = srcs.random_sources.get_id(rnd_src);
-            const auto index = get_index(id);
+            const auto id               = srcs.random_sources.get_id(rnd_src);
+            const auto index            = get_index(id);
             const bool item_is_selected = rnd_src == random_source_ptr;
 
             ImGui::TableNextRow();
@@ -408,9 +406,9 @@ editor::show_sources() noexcept
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
-                constant_ptr = nullptr;
-                binary_file_ptr = nullptr;
-                text_file_ptr = nullptr;
+                constant_ptr      = nullptr;
+                binary_file_ptr   = nullptr;
+                text_file_ptr     = nullptr;
                 random_source_ptr = rnd_src;
             }
 
@@ -488,9 +486,9 @@ editor::show_sources() noexcept
             if (random_source_ptr)
                 srcs.random_sources.free(*random_source_ptr);
 
-            constant_ptr = nullptr;
-            text_file_ptr = nullptr;
-            binary_file_ptr = nullptr;
+            constant_ptr      = nullptr;
+            text_file_ptr     = nullptr;
+            binary_file_ptr   = nullptr;
             random_source_ptr = nullptr;
         }
     }
@@ -502,11 +500,11 @@ editor::show_sources() noexcept
     if (ImGui::CollapsingHeader("Source editor",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         if (constant_ptr) {
-            const auto id = srcs.constant_sources.get_id(constant_ptr);
-            auto index = get_index(id);
+            const auto id    = srcs.constant_sources.get_id(constant_ptr);
+            auto       index = get_index(id);
 
             static u32 new_size = 1;
-            new_size = static_cast<u32>(constant_ptr->buffer.size());
+            new_size            = static_cast<u32>(constant_ptr->buffer.size());
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -534,8 +532,8 @@ editor::show_sources() noexcept
         }
 
         if (text_file_ptr) {
-            const auto id = srcs.text_file_sources.get_id(text_file_ptr);
-            auto index = get_index(id);
+            const auto id    = srcs.text_file_sources.get_id(text_file_ptr);
+            auto       index = get_index(id);
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -556,8 +554,8 @@ editor::show_sources() noexcept
         }
 
         if (binary_file_ptr) {
-            const auto id = srcs.binary_file_sources.get_id(binary_file_ptr);
-            auto index = get_index(id);
+            const auto id    = srcs.binary_file_sources.get_id(binary_file_ptr);
+            auto       index = get_index(id);
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -578,8 +576,8 @@ editor::show_sources() noexcept
         }
 
         if (random_source_ptr) {
-            const auto id = srcs.random_sources.get_id(random_source_ptr);
-            auto index = get_index(id);
+            const auto id    = srcs.random_sources.get_id(random_source_ptr);
+            auto       index = get_index(id);
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -599,44 +597,45 @@ editor::show_sources() noexcept
 
     if (show_file_dialog) {
         if (binary_file_ptr) {
-            const char* title = "Select file path to load";
+            const char*    title     = "Select file path to load";
             const char8_t* filters[] = { u8".dat", nullptr };
 
             ImGui::OpenPopup(title);
             if (load_file_dialog(binary_file_ptr->file_path, title, filters)) {
                 show_file_dialog = false;
-                binary_file_ptr = nullptr;
+                binary_file_ptr  = nullptr;
             }
         }
 
         if (text_file_ptr) {
-            const char* title = "Select file path to load";
+            const char*    title     = "Select file path to load";
             const char8_t* filters[] = { u8".txt", nullptr };
 
             ImGui::OpenPopup(title);
             if (load_file_dialog(text_file_ptr->file_path, title, filters)) {
                 show_file_dialog = false;
-                text_file_ptr = nullptr;
+                text_file_ptr    = nullptr;
             }
         }
     }
 }
 
-void
-editor::show_menu_sources(const char* title, source& src)
+void show_menu_external_sources(external_source& srcs,
+                                const char*      title,
+                                source&          src) noexcept
 {
     small_string<64> tmp;
 
-    constant_source* constant_ptr = nullptr;
+    constant_source*    constant_ptr    = nullptr;
     binary_file_source* binary_file_ptr = nullptr;
-    text_file_source* text_file_ptr = nullptr;
-    random_source* random_ptr = nullptr;
+    text_file_source*   text_file_ptr   = nullptr;
+    random_source*      random_ptr      = nullptr;
 
     if (ImGui::BeginPopup(title)) {
         if (ImGui::BeginMenu("Constant")) {
             constant_source* s = nullptr;
             while (srcs.constant_sources.next(s)) {
-                const auto id = srcs.constant_sources.get_id(s);
+                const auto id    = srcs.constant_sources.get_id(s);
                 const auto index = get_index(id);
 
                 format(tmp,
@@ -655,7 +654,7 @@ editor::show_menu_sources(const char* title, source& src)
         if (ImGui::BeginMenu("Binary files")) {
             binary_file_source* s = nullptr;
             while (srcs.binary_file_sources.next(s)) {
-                const auto id = srcs.binary_file_sources.get_id(s);
+                const auto id    = srcs.binary_file_sources.get_id(s);
                 const auto index = get_index(id);
 
                 format(tmp,
@@ -674,7 +673,7 @@ editor::show_menu_sources(const char* title, source& src)
         if (ImGui::BeginMenu("Text files")) {
             text_file_source* s = nullptr;
             while (srcs.text_file_sources.next(s)) {
-                const auto id = srcs.text_file_sources.get_id(s);
+                const auto id    = srcs.text_file_sources.get_id(s);
                 const auto index = get_index(id);
 
                 format(tmp,
@@ -693,7 +692,7 @@ editor::show_menu_sources(const char* title, source& src)
         if (ImGui::BeginMenu("Random")) {
             random_source* s = nullptr;
             while (srcs.random_sources.next(s)) {
-                const auto id = srcs.random_sources.get_id(s);
+                const auto id    = srcs.random_sources.get_id(s);
                 const auto index = get_index(id);
 
                 format(tmp,

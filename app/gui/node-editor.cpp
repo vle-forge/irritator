@@ -1875,7 +1875,7 @@ bool editor::show_window() noexcept
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("sources")) {
-            show_sources();
+            show_external_sources(srcs);
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();

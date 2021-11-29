@@ -71,6 +71,7 @@ void component_editor::show_simulation_window() noexcept
         }
 
         if (ImGui::BeginTabItem("Data")) {
+            show_external_sources(srcs);
             ImGui::EndTabItem();
         }
 

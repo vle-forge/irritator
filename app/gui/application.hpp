@@ -189,6 +189,11 @@ inline child* unpack_node(const int                          node_id,
     return data.try_to_get(static_cast<u32>(node_id));
 }
 
+void show_external_sources(external_source& srcs) noexcept;
+void show_menu_external_sources(external_source& srcs,
+                                const char*      title,
+                                source&          src) noexcept;
+
 struct editor
 {
     small_string<16>      name;
@@ -362,7 +367,7 @@ struct editor
     void show_top() noexcept;
     void show_sources() noexcept;
     void show_editor() noexcept;
-    void show_menu_sources(const char* title, source& src);
+    void show_menu_sources(const char* title, source& src) noexcept;
 
     bool show_window() noexcept;
 };
@@ -459,6 +464,7 @@ struct component_editor
     small_string<16>                  name;
     modeling                          mod;
     simulation                        sim;
+    external_source                   srcs;
     task_manager                      task_mgr;
     data_array<gui_task, gui_task_id> gui_tasks;
     tree_node_id          selected_component = undefined<tree_node_id>();
