@@ -38,8 +38,30 @@ bool application::init()
         log_w.log(2, "Fail to initialize dir paths");
     }
 
+    if (auto path = get_system_component_dir(); path) {
+        auto& new_dir = c_editor.mod.dir_paths.alloc();
+        new_dir.path  = path.value().string().c_str();
+        log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
+    }
+
+    if (auto path = get_default_user_component_dir(); path) {
+        auto& new_dir = c_editor.mod.dir_paths.alloc();
+        new_dir.path  = path.value().string().c_str();
+        log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
+    }
+
     if (auto ret = load_settings(); is_bad(ret)) {
         log_w.log(2, "Fail to read settings files. Default parameters used\n");
+    }
+
+    {
+        // Initialize component_repertories used into coponents-window
+
+        dir_path* dir = nullptr;
+        while (c_editor.mod.dir_paths.next(dir)) {
+            auto id = c_editor.mod.dir_paths.get_id(*dir);
+            c_editor.mod.component_repertories.emplace_back(id);
+        }
     }
 
     if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
@@ -72,24 +94,6 @@ bool application::init()
 
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
         log_w.log(2, "Fail to fill component list: %s\n", status_string(ret));
-    }
-
-    if (auto path = get_system_component_dir(); path) {
-        auto& new_dir    = c_editor.mod.dir_paths.alloc();
-        auto  new_dir_id = c_editor.mod.dir_paths.get_id(new_dir);
-        new_dir.path     = path.value().string().c_str();
-        c_editor.mod.component_repertories.emplace_back(new_dir_id);
-
-        log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
-    }
-
-    if (auto path = get_default_user_component_dir(); path) {
-        auto& new_dir    = c_editor.mod.dir_paths.alloc();
-        auto  new_dir_id = c_editor.mod.dir_paths.get_id(new_dir);
-        new_dir.path     = path.value().string().c_str();
-        c_editor.mod.component_repertories.emplace_back(new_dir_id);
-
-        log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
     }
 
     c_editor.mod.fill_components();

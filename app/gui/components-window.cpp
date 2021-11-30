@@ -104,7 +104,7 @@ static void show_all_components(component_editor& ed)
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Components", flags)) {
-        if (ImGui::TreeNodeEx("Internal", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::TreeNodeEx("Internal")) {
             component* compo = nullptr;
             while (ed.mod.components.next(compo)) {
                 if (compo->type != component_type::file &&
@@ -116,15 +116,18 @@ static void show_all_components(component_editor& ed)
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNodeEx("File", ImGuiTreeNodeFlags_DefaultOpen)) {
-            component* compo = nullptr;
-            while (ed.mod.components.next(compo)) {
-                if (compo->type == component_type::file) {
-                    show_component(ed, *compo);
-                }
-            }
+        for (auto id : ed.mod.component_repertories) {
+            small_string<32> s;
+            format(s, "{}", id);
 
-            ImGui::TreePop();
+            if (ImGui::TreeNodeEx(s.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+                component* compo = nullptr;
+                while (ed.mod.components.next(compo))
+                    if (compo->type == component_type::file && compo->dir == id)
+                        show_component(ed, *compo);
+
+                ImGui::TreePop();
+            }
         }
 
         if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {

@@ -120,8 +120,17 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
         dir_path* to_delete = nullptr;
         while (c_ed->mod.dir_paths.next(dir)) {
             if (to_delete) {
+                const auto id = c_ed->mod.dir_paths.get_id(*to_delete);
                 c_ed->mod.dir_paths.free(*to_delete);
                 to_delete = nullptr;
+
+                i32 i = 0, e = c_ed->mod.component_repertories.ssize();
+                for (; i != e; ++i) {
+                    if (c_ed->mod.component_repertories[i] == id) {
+                        c_ed->mod.component_repertories.swap_pop_back(i);
+                        break;
+                    }
+                }
             }
 
             ImGui::PushID(dir);
@@ -158,12 +167,14 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
 
         if (c_ed->mod.dir_paths.can_alloc(1) &&
             ImGui::Button("Add directory")) {
-            auto& dir                          = c_ed->mod.dir_paths.alloc();
-            dir.status                         = dir_path::status_option::none;
-            dir.path                           = "";
-            dir.priority                       = 127;
+            auto& dir    = c_ed->mod.dir_paths.alloc();
+            auto  id     = c_ed->mod.dir_paths.get_id(dir);
+            dir.status   = dir_path::status_option::none;
+            dir.path     = "";
+            dir.priority = 127;
             c_ed->show_select_directory_dialog = true;
-            c_ed->select_dir_path = c_ed->mod.dir_paths.get_id(dir);
+            c_ed->select_dir_path              = id;
+            c_ed->mod.component_repertories.emplace_back(id);
         }
     }
 

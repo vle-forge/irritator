@@ -218,9 +218,9 @@ struct modeling
     data_array<dir_path, dir_path_id>       dir_paths;
     data_array<file_path, file_path_id>     file_paths;
 
-    vector<dir_path_id>  component_repertories;
-    irt::external_source srcs;
-    tree_node_id         head;
+    small_vector<dir_path_id, 64> component_repertories;
+    irt::external_source          srcs;
+    tree_node_id                  head;
 
     status init(modeling_initializer& params) noexcept;
 
