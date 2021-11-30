@@ -107,9 +107,10 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
     static const char* dir_status[] = { "none", "read", "unread" };
 
     auto* c_ed = container_of(this, &component_editor::settings);
-    if (ImGui::BeginTable("Component directories", 5)) {
+    if (ImGui::BeginTable("Component directories", 6)) {
         ImGui::TableSetupColumn(
           "Path", ImGuiTableColumnFlags_WidthStretch, -FLT_MIN);
+        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Priority", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Refresh", ImGuiTableColumnFlags_WidthFixed);
@@ -138,7 +139,12 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
             ImGui::InputSmallString(
-              "##name", dir->path, ImGuiInputTextFlags_ReadOnly);
+              "##path", dir->path, ImGuiInputTextFlags_ReadOnly);
+            ImGui::PopItemWidth();
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1);
+            ImGui::InputSmallString(
+              "##name", dir->name, ImGuiInputTextFlags_ReadOnly);
             ImGui::PopItemWidth();
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);

@@ -165,6 +165,7 @@ struct dir_path
     };
 
     small_string<256 * 16> path;
+    small_string<32>       name;
     status_option          status   = status_option::unread;
     i8                     priority = 0;
 };

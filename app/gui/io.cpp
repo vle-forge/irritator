@@ -30,6 +30,7 @@ struct component_setting_handler
     dir_path     current;
     stack        top;
 
+    bool read_name;
     i32  priority;
     i32  i32_empty_value;
     u64  u64_empty_value;
@@ -82,7 +83,10 @@ struct component_setting_handler
 
     bool String(const char* str, rapidjson::SizeType /*length*/, bool /*copy*/)
     {
-        current.path.assign(str);
+        if (read_name)
+            current.name.assign(str);
+        else
+            current.path.assign(str);
 
         return true;
     }
@@ -146,9 +150,13 @@ struct component_setting_handler
         }
 
         if (top == stack::path_object) {
-            if (sv == "path") {
+            if (sv == "name") {
+                read_name = true;
                 return true;
-            } else if (std::strcmp(str, "priority") == 0) {
+            } else if (sv == "path") {
+                read_name = false;
+                return true;
+            } else if (sv == "priority") {
                 i32_value = &priority;
                 return true;
             } else {
@@ -245,6 +253,8 @@ status application::save_settings() noexcept
     dir_path* dir = nullptr;
     while (c_editor.mod.dir_paths.next(dir)) {
         writer.StartObject();
+        writer.Key("name");
+        writer.String(dir->name.c_str());
         writer.Key("path");
         writer.String(dir->path.c_str());
         writer.Key("priority");

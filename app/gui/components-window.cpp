@@ -117,10 +117,20 @@ static void show_all_components(component_editor& ed)
         }
 
         for (auto id : ed.mod.component_repertories) {
-            small_string<32> s;
-            format(s, "{}", id);
+            small_string<32>  s;
+            small_string<32>* select;
 
-            if (ImGui::TreeNodeEx(s.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+            auto& dir = ed.mod.dir_paths.get(id);
+            if (dir.name.empty()) {
+                format(s, "{}", id);
+                select = &s;
+            } else {
+                select = &dir.name;
+            }
+
+            ImGui::PushID(&dir);
+            if (ImGui::TreeNodeEx(select->c_str(),
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
                 component* compo = nullptr;
                 while (ed.mod.components.next(compo))
                     if (compo->type == component_type::file && compo->dir == id)
@@ -128,6 +138,7 @@ static void show_all_components(component_editor& ed)
 
                 ImGui::TreePop();
             }
+            ImGui::PopID();
         }
 
         if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {

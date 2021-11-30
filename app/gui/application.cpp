@@ -40,14 +40,16 @@ bool application::init()
 
     if (auto path = get_system_component_dir(); path) {
         auto& new_dir = c_editor.mod.dir_paths.alloc();
+        new_dir.name  = "System directory";
         new_dir.path  = path.value().string().c_str();
-        log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
+        log_w.log(7, "Add system directory: %s\n", new_dir.path.c_str());
     }
 
     if (auto path = get_default_user_component_dir(); path) {
         auto& new_dir = c_editor.mod.dir_paths.alloc();
+        new_dir.name  = "User directory";
         new_dir.path  = path.value().string().c_str();
-        log_w.log(7, "Add component directory: %s\n", new_dir.path.c_str());
+        log_w.log(7, "Add user directory: %s\n", new_dir.path.c_str());
     }
 
     if (auto ret = load_settings(); is_bad(ret)) {
