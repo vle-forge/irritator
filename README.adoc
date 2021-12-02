@@ -109,7 +109,7 @@ Component file `.irt`:
 
 [source]
 ''''
-name								 # Name of the component
+name                                 # Name of the component
 2                                    # Number of constant source generator
 0 10 1 2 3 4 5 6 7 8 9 10            # The first constant generator with id: 0 have ten values
 1 5 0 0 1 1 2                        # The second constant generator with id: 1 have five values
@@ -119,18 +119,14 @@ name								 # Name of the component
 1                                    # Number of random source generator
 0 normal 0.5 0.1                     # The only random source generator with id: 0 with a normal law and two parameters 0.5 and 0.1 for mean and standard deviation
 3                                    # 4 models will be allocated
-0 15.0 17.0 generator 2 0.0 100.0 0  # Model 0, in position x = 15.0 y = 17.0, is a generator with one double real message
-1 12.0 5.0 component cpp qss1_lotka_volterra
-2 -5.0 0.0 component file "qss1/lotka_volterra.irt"
+0 15.0 17.0 true false generator 2 0.0 100.0 0                   # Model 0, in position x = 15.0 y = 17.0, is a generator with one double real message. Configurable and not observable.
+1 12.0 5.0 false true component cpp "qss1_lotka_volterra"       # Component Not configurable and observable.
+2 -5.0 0.0 false true component file "qss1/lotka_volterra.irt" # Component Not configurable and observable.
 2                                    # input ports
 1 0                                  # `-> first input port of the cpp component
 2 0                                  #     first input port of the file component
 1                                    # output ports
 1 0                                  # `-> first output port of the cpp component
-1                                    # observable models number
-2                                    # `-> second children
-1                                    # configurable models number
-2                                    # `-> second children
 0 0 2 0                              #
 1 0 2 1                              #
 2 0 3 0                              #

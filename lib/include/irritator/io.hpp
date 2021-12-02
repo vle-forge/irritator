@@ -476,6 +476,12 @@ private:
         float x, y;
     };
 
+    struct booleans
+    {
+        bool configurable = false;
+        bool observable   = false;
+    };
+
     table<int, model_id> map;           // used by simulation reader
     table<int, child_id> child_mapping; // used by component reader
     table<int, u64>      constant_mapping;
@@ -483,8 +489,8 @@ private:
     table<int, u64>      random_mapping;
     table<int, u64>      text_file_mapping;
     vector<position>     positions; // store position model in simulation reader
-
-    int model_number = 0;
+    vector<booleans>     conf_obs;
+    int                  model_number = 0;
 
     char temp_1[32];
     char temp_2[32];
@@ -556,6 +562,8 @@ public:
                       component&       compo,
                       external_source& srcs) noexcept
     {
+        is >> std::boolalpha;
+
         std::string buffer;
 
         if (!(is >> std::quoted(buffer)))
@@ -871,6 +879,7 @@ private:
             random_mapping.data.reserve(model_number);
             text_file_mapping.data.reserve(model_number);
             positions.resize(model_number);
+            conf_obs.resize(model_number);
         }
 
         return status::success;
@@ -884,6 +893,12 @@ private:
                            status::io_file_format_model_error);
 
         irt_return_if_fail((is >> positions[*id].x >> positions[*id].y),
+                           status::io_file_format_model_error);
+
+        irt_return_if_fail((is >> conf_obs[*id].configurable),
+                           status::io_file_format_model_error);
+
+        irt_return_if_fail((is >> conf_obs[*id].observable),
                            status::io_file_format_model_error);
 
         return status::success;
@@ -940,7 +955,8 @@ private:
             irt_return_if_fail(child->type == child_type::model,
                                status::io_file_format_model_error);
 
-            ports.emplace_back(enum_cast<model_id>(child->id), static_cast<i8>(port_index));
+            ports.emplace_back(enum_cast<model_id>(child->id),
+                               static_cast<i8>(port_index));
         }
 
         return status::success;
@@ -1199,10 +1215,12 @@ private:
         }
 
         child_mapping.set(id, last);
-        auto& child = compo.children.get(last);
-        child.name  = name;
-        child.x     = positions[id].x;
-        child.y     = positions[id].y;
+        auto& child        = compo.children.get(last);
+        child.name         = name;
+        child.x            = positions[id].x;
+        child.y            = positions[id].y;
+        child.configurable = conf_obs[id].configurable;
+        child.observable   = conf_obs[id].observable;
 
         return status::success;
     }
@@ -1802,6 +1820,7 @@ struct writer
                       const component&       compo,
                       const external_source& srcs) noexcept
     {
+        os << std::boolalpha;
         os << std::quoted(compo.name.sv()) << '\n';
 
         write_constant_sources(srcs.constant_sources);
@@ -1843,7 +1862,8 @@ private:
         child* c = nullptr;
         while (compo.children.next(c)) {
             const auto id = get_index(compo.children.get_id(*c));
-            os << id << ' ' << c->x << ' ' << c->y << ' ';
+            os << id << ' ' << c->x << ' ' << c->y << ' ' << c->configurable
+               << ' ' << c->observable << ' ';
 
             if (c->name.empty()) {
                 os << " \"\" ";
