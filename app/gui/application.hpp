@@ -441,13 +441,10 @@ struct component_editor
     {
         ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
         ImVec4 gui_component_color{ .54f, .27f, .27f, 1.f };
-        ImVec4 gui_model_transition_color{ .27f, .54f, .54f, 1.f };
         ImU32  gui_hovered_model_color;
         ImU32  gui_selected_model_color;
         ImU32  gui_hovered_component_color;
         ImU32  gui_selected_component_color;
-        ImU32  gui_hovered_model_transition_color;
-        ImU32  gui_selected_model_transition_color;
 
         int   automatic_layout_iteration_limit = 200;
         float automatic_layout_x_distance      = 350.f;

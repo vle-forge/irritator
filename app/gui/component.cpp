@@ -69,13 +69,6 @@ static void settings_compute_colors(
       ImGui::ColorConvertFloat4ToU32(settings.gui_component_color * 1.25f);
     settings.gui_selected_component_color =
       ImGui::ColorConvertFloat4ToU32(settings.gui_component_color * 1.5f);
-
-    settings.gui_hovered_model_transition_color =
-      ImGui::ColorConvertFloat4ToU32(settings.gui_model_transition_color *
-                                     1.25f);
-    settings.gui_selected_model_transition_color =
-      ImGui::ColorConvertFloat4ToU32(settings.gui_model_transition_color *
-                                     1.5f);
 }
 
 template<class T, class M>
@@ -201,11 +194,8 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
     if (ImGui::ColorEdit3(
           "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
         settings_compute_colors(*this);
-    if (ImGui::ColorEdit3(
-          "model", (float*)&gui_component_color, ImGuiColorEditFlags_NoOptions))
-        settings_compute_colors(*this);
-    if (ImGui::ColorEdit3("model",
-                          (float*)&gui_model_transition_color,
+    if (ImGui::ColorEdit3("component",
+                          (float*)&gui_component_color,
                           ImGuiColorEditFlags_NoOptions))
         settings_compute_colors(*this);
 
