@@ -142,46 +142,29 @@ static void show_opened_component_ref(component_editor& ed,
 
         if (c->type == child_type::model) {
             auto id = enum_cast<model_id>(c->id);
-            if (auto* mdl = parent.models.try_to_get(id); mdl) {
+            if (auto* mdl = parent.models.try_to_get(id); mdl)
                 show(ed, *mdl, child_id);
-
-                if (ed.force_node_position) {
-                    ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
-                                                   ImVec2(c->x, c->y));
-                } else {
-                    auto pos =
-                      ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
-
-                    if (c->x != pos.x || c->y != pos.y)
-                        parent.state = component_status::modified;
-
-                    c->x = pos.x;
-                    c->y = pos.y;
-                }
-            }
         } else {
             auto id = enum_cast<component_id>(c->id);
-            if (auto* compo = ed.mod.components.try_to_get(id); compo) {
+            if (auto* compo = ed.mod.components.try_to_get(id); compo)
                 show(ed, *compo, child_id);
-
-                if (ed.force_node_position) {
-                    ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
-                                                   ImVec2(c->x, c->y));
-                } else {
-                    auto pos =
-                      ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
-
-                    if (c->x != pos.x || c->y != pos.y)
-                        parent.state = component_status::modified;
-
-                    c->x = pos.x;
-                    c->y = pos.y;
-                }
-            }
         }
 
-        ed.force_node_position = false;
+        if (ed.force_node_position) {
+            ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
+                                           ImVec2(c->x, c->y));
+        } else {
+            auto pos = ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+
+            if (c->x != pos.x || c->y != pos.y)
+                parent.state = component_status::modified;
+
+            c->x = pos.x;
+            c->y = pos.y;
+        }
     }
+
+    ed.force_node_position = false;
 
     {
         connection* con    = nullptr;
