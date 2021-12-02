@@ -94,8 +94,8 @@ constexpr T* container_of(M* ptr, const M T::*member)
 
 void component_editor::settings_manager::show(bool* is_open) noexcept
 {
-    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(550, 400), ImGuiCond_Once);
+    ImGui::SetNextWindowPos(ImVec2(640, 480), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
     if (!ImGui::Begin("Component settings", is_open)) {
         ImGui::End();
         return;
@@ -136,32 +136,44 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
 
             ImGui::PushID(dir);
             ImGui::TableNextRow();
+
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
             ImGui::InputSmallString(
               "##path", dir->path, ImGuiInputTextFlags_ReadOnly);
             ImGui::PopItemWidth();
+
             ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1);
-            ImGui::InputSmallString(
-              "##name", dir->name, ImGuiInputTextFlags_ReadOnly);
+            ImGui::PushItemWidth(150.f);
+            ImGui::InputSmallString("##name", dir->name);
             ImGui::PopItemWidth();
+
             ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1);
+            ImGui::PushItemWidth(60.f);
             constexpr i8 p_min = INT8_MIN;
             constexpr i8 p_max = INT8_MAX;
             ImGui::SliderScalar(
               "##input", ImGuiDataType_S8, &dir->priority, &p_min, &p_max);
             ImGui::PopItemWidth();
+
             ImGui::TableNextColumn();
+            ImGui::PushItemWidth(60.f);
             ImGui::TextUnformatted(dir_status[ordinal(dir->status)]);
+            ImGui::PopItemWidth();
+
             ImGui::TableNextColumn();
+            ImGui::PushItemWidth(60.f);
             if (ImGui::Button("Refresh")) {
                 c_ed->mod.fill_components(*dir);
             }
+            ImGui::PopItemWidth();
+
             ImGui::TableNextColumn();
+            ImGui::PushItemWidth(60.f);
             if (ImGui::Button("Delete"))
                 to_delete = dir;
+            ImGui::PopItemWidth();
+
             ImGui::PopID();
         }
 
