@@ -33,6 +33,94 @@ static inline const char* dynamics_type_names[] = {
     "time_func",       "accumulator_2",   "filter",          "flow"
 };
 
+inline bool convert(const std::string_view dynamics_name,
+                    dynamics_type*         type) noexcept
+{
+    struct string_to_type
+    {
+        constexpr string_to_type(const std::string_view n,
+                                 const dynamics_type    t) noexcept
+          : name(n)
+          , type(t)
+        {}
+
+        const std::string_view name;
+        dynamics_type          type;
+    };
+
+    static constexpr string_to_type table[] = {
+        { "accumulator_2", dynamics_type::accumulator_2 },
+        { "adder_2", dynamics_type::adder_2 },
+        { "adder_3", dynamics_type::adder_3 },
+        { "adder_4", dynamics_type::adder_4 },
+        { "constant", dynamics_type::constant },
+        { "counter", dynamics_type::counter },
+        { "cross", dynamics_type::cross },
+        { "dynamic_queue", dynamics_type::dynamic_queue },
+        { "filter", dynamics_type::filter },
+        { "flow", dynamics_type::flow },
+        { "generator", dynamics_type::generator },
+        { "integrator", dynamics_type::integrator },
+        { "mult_2", dynamics_type::mult_2 },
+        { "mult_3", dynamics_type::mult_3 },
+        { "mult_4", dynamics_type::mult_4 },
+        { "priority_queue", dynamics_type::priority_queue },
+        { "qss1_cross", dynamics_type::qss1_cross },
+        { "qss1_integrator", dynamics_type::qss1_integrator },
+        { "qss1_multiplier", dynamics_type::qss1_multiplier },
+        { "qss1_power", dynamics_type::qss1_power },
+        { "qss1_square", dynamics_type::qss1_square },
+        { "qss1_sum_2", dynamics_type::qss1_sum_2 },
+        { "qss1_sum_3", dynamics_type::qss1_sum_3 },
+        { "qss1_sum_4", dynamics_type::qss1_sum_4 },
+        { "qss1_wsum_2", dynamics_type::qss1_wsum_2 },
+        { "qss1_wsum_3", dynamics_type::qss1_wsum_3 },
+        { "qss1_wsum_4", dynamics_type::qss1_wsum_4 },
+        { "qss2_cross", dynamics_type::qss2_cross },
+        { "qss2_integrator", dynamics_type::qss2_integrator },
+        { "qss2_multiplier", dynamics_type::qss2_multiplier },
+        { "qss2_power", dynamics_type::qss2_power },
+        { "qss2_square", dynamics_type::qss2_square },
+        { "qss2_sum_2", dynamics_type::qss2_sum_2 },
+        { "qss2_sum_3", dynamics_type::qss2_sum_3 },
+        { "qss2_sum_4", dynamics_type::qss2_sum_4 },
+        { "qss2_wsum_2", dynamics_type::qss2_wsum_2 },
+        { "qss2_wsum_3", dynamics_type::qss2_wsum_3 },
+        { "qss2_wsum_4", dynamics_type::qss2_wsum_4 },
+        { "qss3_cross", dynamics_type::qss3_cross },
+        { "qss3_integrator", dynamics_type::qss3_integrator },
+        { "qss3_multiplier", dynamics_type::qss3_multiplier },
+        { "qss3_power", dynamics_type::qss3_power },
+        { "qss3_square", dynamics_type::qss3_square },
+        { "qss3_sum_2", dynamics_type::qss3_sum_2 },
+        { "qss3_sum_3", dynamics_type::qss3_sum_3 },
+        { "qss3_sum_4", dynamics_type::qss3_sum_4 },
+        { "qss3_wsum_2", dynamics_type::qss3_wsum_2 },
+        { "qss3_wsum_3", dynamics_type::qss3_wsum_3 },
+        { "qss3_wsum_4", dynamics_type::qss3_wsum_4 },
+        { "quantifier", dynamics_type::quantifier },
+        { "queue", dynamics_type::queue },
+        { "time_func", dynamics_type::time_func }
+    };
+
+    static_assert(std::size(table) == static_cast<sz>(dynamics_type_size()));
+
+    const auto it =
+      std::lower_bound(std::begin(table),
+                       std::end(table),
+                       dynamics_name,
+                       [](const string_to_type& l, const std::string_view r) {
+                           return l.name < r;
+                       });
+
+    if (it != std::end(table) && it->name == dynamics_name) {
+        *type = it->type;
+        return true;
+    }
+
+    return false;
+}
+
 static inline const char* component_type_names[] = { "qss1_izhikevich",
                                                      "qss1_lif",
                                                      "qss1_lotka_volterra",
@@ -482,8 +570,7 @@ private:
         bool observable   = false;
     };
 
-    table<int, model_id> map;           // used by simulation reader
-    table<int, child_id> child_mapping; // used by component reader
+    table<int, model_id> map; // used by simulation reader
     table<int, u64>      constant_mapping;
     table<int, u64>      binary_file_mapping;
     table<int, u64>      random_mapping;
@@ -500,9 +587,6 @@ public:
       : buf(is_.rdbuf())
       , is(&buf)
     {
-        // map.data.reserve(64);
-        child_mapping.data.reserve(64);
-        // component_ref_map.data.reserve(64);
         constant_mapping.data.reserve(64);
         binary_file_mapping.data.reserve(64);
         random_mapping.data.reserve(64);
@@ -570,7 +654,7 @@ public:
             return status::io_file_format_error;
         compo.name = std::string_view(buffer);
 
-        child_mapping.data.clear();
+        compo.child_mapping_io.data.clear();
 
         irt_return_if_bad(do_read_data_source(srcs));
 
@@ -579,7 +663,7 @@ public:
             irt_return_if_bad(do_read_model(mod, compo));
         }
 
-        child_mapping.sort();
+        compo.child_mapping_io.sort();
 
         irt_return_if_bad(do_read_ports(compo, compo.y));
         irt_return_if_bad(do_read_ports(compo, compo.x));
@@ -945,7 +1029,7 @@ private:
             irt_return_if_fail((is >> child_index >> port_index),
                                status::io_file_format_model_error);
 
-            auto* c = child_mapping.get(child_index);
+            auto* c = compo.child_mapping_io.get(child_index);
             irt_return_if_fail(c, status::io_file_format_model_error);
             irt_return_if_fail(0 <= port_index && port_index < INT8_MAX,
                                status::io_file_format_model_error);
@@ -980,10 +1064,10 @@ private:
             irt_return_if_fail(0 <= mdl_dst_id && mdl_dst_id < model_number,
                                status::io_file_format_model_error);
 
-            auto* m_src_id = child_mapping.get(mdl_src_id);
+            auto* m_src_id = compo.child_mapping_io.get(mdl_src_id);
             irt_return_if_fail(m_src_id, status::io_file_format_model_unknown);
 
-            auto* m_dst_id = child_mapping.get(mdl_dst_id);
+            auto* m_dst_id = compo.child_mapping_io.get(mdl_dst_id);
             irt_return_if_fail(m_dst_id, status::io_file_format_model_unknown);
 
             irt_return_if_fail(0 <= port_src_index && port_src_index < INT8_MAX,
@@ -1047,94 +1131,6 @@ private:
         }
 
         return status::success;
-    }
-
-    bool convert(const std::string_view dynamics_name,
-                 dynamics_type*         type) noexcept
-    {
-        struct string_to_type
-        {
-            constexpr string_to_type(const std::string_view n,
-                                     const dynamics_type    t)
-              : name(n)
-              , type(t)
-            {}
-
-            const std::string_view name;
-            dynamics_type          type;
-        };
-
-        static constexpr string_to_type table[] = {
-            { "accumulator_2", dynamics_type::accumulator_2 },
-            { "adder_2", dynamics_type::adder_2 },
-            { "adder_3", dynamics_type::adder_3 },
-            { "adder_4", dynamics_type::adder_4 },
-            { "constant", dynamics_type::constant },
-            { "counter", dynamics_type::counter },
-            { "cross", dynamics_type::cross },
-            { "dynamic_queue", dynamics_type::dynamic_queue },
-            { "filter", dynamics_type::filter },
-            { "flow", dynamics_type::flow },
-            { "generator", dynamics_type::generator },
-            { "integrator", dynamics_type::integrator },
-            { "mult_2", dynamics_type::mult_2 },
-            { "mult_3", dynamics_type::mult_3 },
-            { "mult_4", dynamics_type::mult_4 },
-            { "priority_queue", dynamics_type::priority_queue },
-            { "qss1_cross", dynamics_type::qss1_cross },
-            { "qss1_integrator", dynamics_type::qss1_integrator },
-            { "qss1_multiplier", dynamics_type::qss1_multiplier },
-            { "qss1_power", dynamics_type::qss1_power },
-            { "qss1_square", dynamics_type::qss1_square },
-            { "qss1_sum_2", dynamics_type::qss1_sum_2 },
-            { "qss1_sum_3", dynamics_type::qss1_sum_3 },
-            { "qss1_sum_4", dynamics_type::qss1_sum_4 },
-            { "qss1_wsum_2", dynamics_type::qss1_wsum_2 },
-            { "qss1_wsum_3", dynamics_type::qss1_wsum_3 },
-            { "qss1_wsum_4", dynamics_type::qss1_wsum_4 },
-            { "qss2_cross", dynamics_type::qss2_cross },
-            { "qss2_integrator", dynamics_type::qss2_integrator },
-            { "qss2_multiplier", dynamics_type::qss2_multiplier },
-            { "qss2_power", dynamics_type::qss2_power },
-            { "qss2_square", dynamics_type::qss2_square },
-            { "qss2_sum_2", dynamics_type::qss2_sum_2 },
-            { "qss2_sum_3", dynamics_type::qss2_sum_3 },
-            { "qss2_sum_4", dynamics_type::qss2_sum_4 },
-            { "qss2_wsum_2", dynamics_type::qss2_wsum_2 },
-            { "qss2_wsum_3", dynamics_type::qss2_wsum_3 },
-            { "qss2_wsum_4", dynamics_type::qss2_wsum_4 },
-            { "qss3_cross", dynamics_type::qss3_cross },
-            { "qss3_integrator", dynamics_type::qss3_integrator },
-            { "qss3_multiplier", dynamics_type::qss3_multiplier },
-            { "qss3_power", dynamics_type::qss3_power },
-            { "qss3_square", dynamics_type::qss3_square },
-            { "qss3_sum_2", dynamics_type::qss3_sum_2 },
-            { "qss3_sum_3", dynamics_type::qss3_sum_3 },
-            { "qss3_sum_4", dynamics_type::qss3_sum_4 },
-            { "qss3_wsum_2", dynamics_type::qss3_wsum_2 },
-            { "qss3_wsum_3", dynamics_type::qss3_wsum_3 },
-            { "qss3_wsum_4", dynamics_type::qss3_wsum_4 },
-            { "quantifier", dynamics_type::quantifier },
-            { "queue", dynamics_type::queue },
-            { "time_func", dynamics_type::time_func }
-        };
-
-        static_assert(std::size(table) ==
-                      static_cast<sz>(dynamics_type_size()));
-
-        const auto it =
-          std::lower_bound(std::begin(table),
-                           std::end(table),
-                           dynamics_name,
-                           [](const string_to_type&  l,
-                              const std::string_view r) { return l.name < r; });
-
-        if (it != std::end(table) && it->name == dynamics_name) {
-            *type = it->type;
-            return true;
-        }
-
-        return false;
     }
 
     status do_read_dynamics(simulation& sim,
@@ -1214,7 +1210,7 @@ private:
             irt_return_if_bad(ret);
         }
 
-        child_mapping.set(id, last);
+        compo.child_mapping_io.set(id, last);
         auto& child        = compo.children.get(last);
         child.name         = name;
         child.x            = positions[id].x;

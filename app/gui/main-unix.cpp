@@ -207,8 +207,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
 
-    if (io.IniFilename)
-        std::free((char*)io.IniFilename);
+    if (io.IniFilename) {
+        auto* str = const_cast<char*>(io.IniFilename);
+        std::free(str);
+        io.IniFilename = nullptr;
+    }
 
     ImGui::DestroyContext();
 

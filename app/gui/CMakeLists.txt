@@ -8,6 +8,7 @@ set(gui_sources
     internal.cpp io.cpp modeling-window.cpp node-editor.cpp
     simulation-editor.cpp simulation-component.cpp simulation-window.cpp
     sources.cpp window-logger.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/file.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/modeling.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.h

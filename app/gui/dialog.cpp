@@ -245,8 +245,10 @@ char* get_imgui_filename() noexcept
 {
     char* ret = nullptr;
 
-    if (auto path = get_home_filename("imgui.ini"); path)
-        ret = strdup(path->c_str());
+    if (auto path = get_home_filename("imgui.ini"); path) {
+        auto* str = reinterpret_cast<const char*>(path->c_str());
+        ret       = strdup(str);
+    }
 
     return ret;
 }

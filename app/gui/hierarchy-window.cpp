@@ -128,6 +128,12 @@ void component_editor::show_hierarchy_window() noexcept
 
     if (ImGui::CollapsingHeader("Hierarchy", flags))
         show_component_hierarchy(*this, *parent);
+
+    if (ImGui::CollapsingHeader("Operation", flags)) {
+        if (ImGui::Button("save")) {
+            mod.save_project("/tmp/toto.json");
+        }
+    }
 }
 
 void component_editor::show_hierarchy_settings_window() noexcept

@@ -75,6 +75,8 @@ public:
     //! @return false if failure, true otherwise.
     bool write(const void* buffer, i64 length) noexcept;
 
+    void* get_handle() const noexcept;
+
 private:
     void*     file_handle = nullptr;
     open_mode mode        = open_mode::read;
@@ -135,6 +137,8 @@ public:
     vector<u8> data;
     i64        pos = 0;
 };
+
+inline void* file::get_handle() const noexcept { return file_handle; }
 
 } // irt
 

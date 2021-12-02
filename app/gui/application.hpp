@@ -484,6 +484,7 @@ struct component_editor
     vector<int> selected_links;
     vector<int> selected_nodes;
 
+    std::filesystem::path project_file;
     std::filesystem::path select_directory;
     dir_path_id           select_dir_path = undefined<dir_path_id>();
 

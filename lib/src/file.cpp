@@ -9,7 +9,43 @@
 #include <cstdio>
 #include <cstdlib>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef __MINGW32__
+#include <Windows.h>
+#else
+#include <windows.h>
+#endif
+#endif
+
 namespace irt {
+
+static std::FILE* internal_fopen(const char* filename,
+                                 const char* mode) noexcept
+{
+#ifdef _WIN32
+    const auto filname_sz =
+      ::MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0);
+    const auto mode_sz =
+      ::MultiByteToWideChar(CP_UTF8, 0, mode, -1, nullptr, 0);
+    vector<wchar_t> buf;
+    buf.resize(filname_sz + mode_sz);
+
+    ::MultiByteToWideChar(
+      CP_UTF8, 0, filename, -1, (wchar_t*)&buf[0], filname_sz);
+    ::MultiByteToWideChar(
+      CP_UTF8, 0, mode, -1, (wchar_t*)&buf[filname_sz], mode_sz);
+
+    return ::_wfopen((const wchar_t*)&buf[0], (const wchar_t*)&buf[filname_sz]);
+#else
+    return std::fopen(filename, mode);
+#endif //  _WIN32
+}
 
 inline std::FILE* to_handle(void* f) noexcept
 {
@@ -304,10 +340,10 @@ bool write_to_file(File& f, const double value) noexcept
 file::file(const char* filename, const open_mode mode_) noexcept
   : mode(mode_)
 {
-    file_handle = to_void(std::fopen(filename,
-                                     mode == open_mode::read    ? "rb"
-                                     : mode == open_mode::write ? "wb"
-                                                                : "ab"));
+    file_handle = to_void(internal_fopen(filename,
+                                         mode == open_mode::read    ? "rb"
+                                         : mode == open_mode::write ? "wb"
+                                                                    : "ab"));
 }
 
 file::file(file&& other) noexcept

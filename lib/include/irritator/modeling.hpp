@@ -146,6 +146,8 @@ struct component
     small_vector<port, 8> x;
     small_vector<port, 8> y;
 
+    table<i32, child_id> child_mapping_io;
+
     description_id   desc = description_id{ 0 };
     dir_path_id      dir  = dir_path_id{ 0 };
     file_path_id     file = file_path_id{ 0 };
@@ -223,6 +225,9 @@ struct modeling
     irt::external_source          srcs;
     tree_node_id                  head;
 
+    dir_path_id  head_dir  = undefined<dir_path_id>();
+    file_path_id head_file = undefined<file_path_id>();
+
     status init(modeling_initializer& params) noexcept;
 
     component_id search_component(const char* name, const char* hint) noexcept;
@@ -252,6 +257,11 @@ struct modeling
 
     status clean(component& c) noexcept; // clean empty vectors
     status save(component& c) noexcept;  // will call clean(component&) first.
+
+    // status load_project(const dir_path& dir, const file_path& file) noexcept;
+    // status save_project(const dir_path& dir, const file_path& file) noexcept;
+    status load_project(const char* filename) noexcept;
+    status save_project(const char* filename) noexcept;
 };
 
 /*

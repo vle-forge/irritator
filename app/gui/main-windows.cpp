@@ -315,8 +315,11 @@ int main(int, char**)
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
 
-    if (io.IniFilename)
-        std::free(io.IniFilename);
+    if (io.IniFilename) {
+        auto* str = const_cast<char*>(io.IniFilename);
+        std::free(str);
+        io.IniFilename = nullptr;
+    }
 
     ImGui::DestroyContext();
 
