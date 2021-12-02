@@ -984,7 +984,7 @@ status modeling::fill_components() noexcept
 
     while (components.next(compo)) {
         if (to_del) {
-            components.free(*to_del);
+            free(*to_del);
             to_del = nullptr;
         }
 
@@ -994,11 +994,36 @@ status modeling::fill_components() noexcept
         }
     }
 
+    if (to_del)
+        free(*to_del);
+
     return status::success;
+}
+
+static void remove_components_from_path(modeling& mod, dir_path& path) noexcept
+{
+    const auto id     = mod.dir_paths.get_id(path);
+    component* compo  = nullptr;
+    component* to_del = nullptr;
+
+    while (mod.components.next(compo)) {
+        if (to_del) {
+            mod.free(*to_del);
+            to_del = nullptr;
+        }
+
+        if (compo->dir == id)
+            to_del = compo;
+    }
+
+    if (to_del)
+        mod.free(*to_del);
 }
 
 status modeling::fill_components(dir_path& path) noexcept
 {
+    remove_components_from_path(*this, path);
+
     try {
         std::filesystem::path p(path.path.c_str());
         std::error_code       ec;
@@ -1166,6 +1191,18 @@ static status make_tree_recursive(
     }
 
     return status::success;
+}
+
+void modeling::free(dir_path& dir) noexcept
+{
+    remove_components_from_path(*this, dir);
+    dir_paths.free(dir);
+
+    component_repertories.clear();
+
+    dir_path* ptr = nullptr;
+    while (dir_paths.next(ptr))
+        component_repertories.emplace_back(dir_paths.get_id(ptr));
 }
 
 status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept

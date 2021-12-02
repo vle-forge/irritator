@@ -178,7 +178,7 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
         }
 
         if (to_delete) {
-            c_ed->mod.dir_paths.free(*to_delete);
+            c_ed->mod.free(*to_delete);
         }
 
         ImGui::EndTable();

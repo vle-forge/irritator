@@ -235,6 +235,7 @@ struct modeling
     void free(component& parent, child& c) noexcept;
     void free(component& parent, connection& c) noexcept;
     void free(tree_node& node) noexcept;
+    void free(dir_path& dir) noexcept;
 
     child& alloc(component& parent, dynamics_type type) noexcept;
 
