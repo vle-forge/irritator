@@ -13,7 +13,7 @@ static void show_simulation(component_editor& ed) noexcept
 {
     ImGui::InputReal("Begin", &ed.simulation_begin);
     ImGui::InputReal("End", &ed.simulation_end);
-    ImGui::TextFormat("Current time {:.6f}", ed.simulation_begin);
+    ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
 
     bool start_line = false;
     if (match(ed.simulation_state,
