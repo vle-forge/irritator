@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
+#include "dialog.hpp"
 
 #include <fstream>
 
@@ -10,6 +11,7 @@
 
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/filewritestream.h>
+#include <rapidjson/prettywriter.h>
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
 
@@ -222,7 +224,11 @@ status application::load_settings() noexcept
 {
     component_setting_handler handler{ this };
 
-    FILE* fp = std::fopen("settings.json", "r");
+    auto path = get_settings_filename();
+    if (!path)
+        return status::io_file_format_error;
+
+    FILE* fp = std::fopen(path->c_str(), "r");
     if (!fp)
         return status::io_file_format_error;
 
@@ -238,13 +244,17 @@ status application::load_settings() noexcept
 
 status application::save_settings() noexcept
 {
-    FILE* fp = std::fopen("settings.json", "w");
+    auto path = get_settings_filename();
+    if (!path)
+        return status::io_file_format_error;
+
+    FILE* fp = std::fopen(path->c_str(), "w");
     if (!fp)
         return status::io_file_format_error;
 
     char                       buffer[4096];
     rapidjson::FileWriteStream os(fp, buffer, sizeof(buffer));
-    rapidjson::Writer          writer(os);
+    rapidjson::PrettyWriter    writer(os);
 
     writer.StartObject();
     writer.Key("paths");

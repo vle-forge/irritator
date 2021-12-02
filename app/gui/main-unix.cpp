@@ -102,8 +102,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    (void)io;
+    ImGuiIO& io    = ImGui::GetIO();
+    io.IniFilename = irt::get_imgui_filename();
+
     // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable
     // Keyboard Controls io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     // // Enable Gamepad Controls
@@ -205,6 +206,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
+
+    if (io.IniFilename)
+        std::free((char*)io.IniFilename);
+
     ImGui::DestroyContext();
 
     glfwDestroyWindow(window);

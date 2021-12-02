@@ -559,6 +559,8 @@ struct application
 
 static inline window_logger log_w; // @todo remove this variable.
 
+char* get_imgui_filename() noexcept;
+
 } // namespace irt
 
 #endif

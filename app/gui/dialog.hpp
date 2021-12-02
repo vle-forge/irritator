@@ -14,6 +14,7 @@ std::optional<std::filesystem::path> get_home_directory();
 std::optional<std::filesystem::path> get_executable_directory();
 std::optional<std::filesystem::path> get_system_component_dir();
 std::optional<std::filesystem::path> get_default_user_component_dir();
+std::optional<std::filesystem::path> get_settings_filename() noexcept;
 
 bool load_file_dialog(std::filesystem::path& out,
                       const char*            title,

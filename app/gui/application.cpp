@@ -10,6 +10,7 @@ namespace irt {
 
 bool application::init()
 {
+
     c_editor.init();
 
     if (auto ret = editors.init(50u); is_bad(ret)) {

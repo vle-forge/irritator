@@ -43,7 +43,7 @@
 namespace irt {
 
 #if defined(__linux__) || defined(__APPLE__)
-std::optional<std::filesystem::path> get_home_directory()
+static std::optional<std::filesystem::path> get_local_home_directory() noexcept
 {
     if (auto* home = std::getenv("HOME"); home)
         return std::filesystem::path{ home };
@@ -63,7 +63,7 @@ std::optional<std::filesystem::path> get_home_directory()
     return std::filesystem::path{ std::string_view{ buf.data() } };
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path> get_home_directory()
+static std::optional<std::filesystem::path> get_local_home_directory() noexcept
 {
     PWSTR      path{ nullptr };
     const auto hr =
@@ -79,6 +79,25 @@ std::optional<std::filesystem::path> get_home_directory()
     return ret;
 }
 #endif
+
+std::optional<std::filesystem::path> get_home_directory()
+{
+    try {
+        auto ret = get_local_home_directory();
+        if (!ret) {
+            std::error_code ec;
+            ret = std::filesystem::current_path(ec);
+        }
+
+        *ret /= ".irritator-" irritator_to_string(
+          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+
+        return ret;
+    } catch (...) {
+    }
+
+    return std::nullopt;
+}
 
 #if defined(__linux__)
 std::optional<std::filesystem::path> get_executable_directory()
@@ -167,8 +186,6 @@ std::optional<std::filesystem::path> get_default_user_component_dir()
 {
     if (auto home_path = get_home_directory(); home_path) {
         auto compo_path = home_path.value();
-        compo_path /= ".irritator-" irritator_to_string(
-          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
         compo_path /= "components";
 
         std::error_code ec;
@@ -186,8 +203,6 @@ std::optional<std::filesystem::path> get_default_user_component_dir()
 {
     if (auto home_path = get_home_directory(); home_path) {
         auto compo_path = home_path.value();
-        compo_path /= "irritator-" irritator_to_string(
-          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
         compo_path /= "components";
 
         std::error_code ec;
@@ -201,6 +216,40 @@ std::optional<std::filesystem::path> get_default_user_component_dir()
     return std::nullopt;
 }
 #endif
+
+static std::optional<std::filesystem::path> get_home_filename(
+  const char* filename) noexcept
+{
+    try {
+        auto ret = get_home_directory();
+        if (!ret) {
+            std::error_code ec;
+            ret = std::filesystem::current_path(ec);
+        }
+
+        *ret /= filename;
+
+        return ret;
+    } catch (...) {
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::filesystem::path> get_settings_filename() noexcept
+{
+    return get_home_filename("settings.ini");
+}
+
+char* get_imgui_filename() noexcept
+{
+    char* ret = nullptr;
+
+    if (auto path = get_home_filename("imgui.ini"); path)
+        ret = strdup(path->c_str());
+
+    return ret;
+}
 
 struct file_dialog
 {
