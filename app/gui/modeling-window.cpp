@@ -61,7 +61,10 @@ static bool show_connection(const component&  parent,
     return true;
 }
 
-static void show(component_editor& ed, model& mdl, child_id id) noexcept
+static void show(component_editor& ed,
+                 model&            mdl,
+                 child&            c,
+                 child_id          id) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -75,7 +78,7 @@ static void show(component_editor& ed, model& mdl, child_id id) noexcept
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat(
-      "{}\n{}", get_index(id), get_dynamics_type_name(mdl.type));
+      "{}\n{}", c.name.c_str(), get_dynamics_type_name(mdl.type));
     ImNodes::EndNodeTitleBar();
 
     dispatch(mdl, [&ed, id](auto& dyn) {
@@ -92,7 +95,10 @@ static void show(component_editor& ed, model& mdl, child_id id) noexcept
     ImNodes::PopColorStyle();
 }
 
-static void show(component_editor& ed, component& compo, child_id id) noexcept
+static void show(component_editor& ed,
+                 component&        compo,
+                 child&            c,
+                 child_id          id) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -105,7 +111,7 @@ static void show(component_editor& ed, component& compo, child_id id) noexcept
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}", get_index(id), compo.name.c_str());
+    ImGui::TextFormat("{}\n{}", c.name.c_str(), compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
     irt_assert(length(compo.x) < INT8_MAX);
@@ -143,11 +149,11 @@ static void show_opened_component_ref(component_editor& ed,
         if (c->type == child_type::model) {
             auto id = enum_cast<model_id>(c->id);
             if (auto* mdl = parent.models.try_to_get(id); mdl)
-                show(ed, *mdl, child_id);
+                show(ed, *mdl, *c, child_id);
         } else {
             auto id = enum_cast<component_id>(c->id);
             if (auto* compo = ed.mod.components.try_to_get(id); compo)
-                show(ed, *compo, child_id);
+                show(ed, *compo, *c, child_id);
         }
 
         if (ed.force_node_position) {
