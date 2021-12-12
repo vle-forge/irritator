@@ -8,10 +8,6 @@
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
 
-#include <fstream>
-
-#include <fmt/format.h>
-
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/filewritestream.h>
 #include <rapidjson/prettywriter.h>

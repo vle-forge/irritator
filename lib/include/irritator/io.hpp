@@ -988,9 +988,22 @@ private:
         return status::success;
     }
 
+    status do_read_model_pre_sim(int* id) noexcept
+    {
+        irt_return_if_fail((is >> *id), status::io_file_format_model_error);
+
+        irt_return_if_fail(0 <= *id && *id < model_number,
+                           status::io_file_format_model_error);
+
+        irt_return_if_fail((is >> positions[*id].x >> positions[*id].y),
+                           status::io_file_format_model_error);
+
+        return status::success;
+    }
+
     status do_read_model(simulation& sim, int* id) noexcept
     {
-        irt_return_if_bad(do_read_model_pre(id));
+        irt_return_if_bad(do_read_model_pre_sim(id));
 
         irt_return_if_fail((is >> temp_1), status::io_file_format_model_error);
 
