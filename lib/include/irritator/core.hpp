@@ -6262,6 +6262,25 @@ constexpr model& get_model(Dynamics& d) noexcept
     return *(model*)((char*)__mptr - offsetof(model, dyn));
 }
 
+inline void copy(const model& src, model& dst) noexcept
+{
+    dst.type   = src.type;
+    dst.handle = nullptr;
+
+    dispatch(dst, [&src]<typename Dynamics>(Dynamics& dst_dyn) -> void {
+        const auto& src_dyn = get_dyn<Dynamics>(src);
+        new (&dst_dyn) Dynamics(src_dyn);
+
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+            for (int i = 0, e = length(dst_dyn.x); i != e; ++i)
+                dst_dyn.x[i] = static_cast<u64>(-1);
+
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+            for (int i = 0, e = length(dst_dyn.y); i != e; ++i)
+                dst_dyn.y[i] = static_cast<u64>(-1);
+    });
+}
+
 struct simulation
 {
     block_allocator<list_view_node<message>>       message_alloc;

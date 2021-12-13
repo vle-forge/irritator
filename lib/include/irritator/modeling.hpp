@@ -188,9 +188,9 @@ struct modeling_initializer
 {
     i32 model_capacity;
     i32 tree_capacity;
+    i32 parameter_capacity;
     i32 description_capacity;
     i32 component_capacity;
-    i32 observer_capacity;
     i32 file_path_capacity;
     i32 children_capacity;
     i32 connection_capacity;
@@ -213,19 +213,19 @@ struct tree_node
     hierarchy<tree_node> tree;
 
     table<model_id, model_id> parameters;
-    vector<model_id>          observables;
+    table<model_id, u64>      observables;
 
     table<model_id, model_id> sim;
 };
 
 struct modeling
 {
-    data_array<observer, observer_id>       observers;
     data_array<tree_node, tree_node_id>     tree_nodes;
     data_array<description, description_id> descriptions;
     data_array<component, component_id>     components;
     data_array<dir_path, dir_path_id>       dir_paths;
     data_array<file_path, file_path_id>     file_paths;
+    data_array<model, model_id>             parameters;
 
     small_vector<dir_path_id, 64> component_repertories;
     irt::external_source          srcs;

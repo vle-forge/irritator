@@ -46,6 +46,7 @@ public:
     constexpr void     set(Identifier id, T value) noexcept;
     constexpr T*       get(Identifier id) noexcept;
     constexpr const T* get(Identifier id) const noexcept;
+    constexpr void     erase(Identifier id) noexcept;
     constexpr void     sort() noexcept;
 };
 
@@ -228,6 +229,20 @@ constexpr const T* table<Identifier, T>::get(Identifier id) const noexcept
       });
 
     return (!(it == data.end()) && (id == it->id)) ? &it->value : nullptr;
+}
+
+template<typename Identifier, typename T>
+constexpr void table<Identifier, T>::erase(Identifier id) noexcept
+{
+    auto it = std::lower_bound(
+      data.begin(), data.end(), id, [](const auto& m, Identifier id) {
+          return m.id < id;
+      });
+
+    if (!(it == data.end()) && (id == it->id)) {
+        data.erase(it);
+        sort();
+    }
 }
 
 template<typename Identifier, typename T>

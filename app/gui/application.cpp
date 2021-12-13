@@ -22,9 +22,9 @@ bool application::init()
 
     mod_init = { .model_capacity              = 256 * 64 * 16,
                  .tree_capacity               = 256 * 16,
+                 .parameter_capacity          = 256 * 8,
                  .description_capacity        = 256 * 16,
                  .component_capacity          = 256 * 128,
-                 .observer_capacity           = 256 * 16,
                  .file_path_capacity          = 256 * 256,
                  .children_capacity           = 256 * 64 * 16,
                  .connection_capacity         = 256 * 64,
@@ -84,6 +84,12 @@ bool application::init()
         log_w.log(2,
                   "Fail to initialize simulation components: %s\n",
                   status_string(ret));
+        return false;
+    }
+
+    if (auto ret = c_editor.outputs.init(32); is_bad(ret)) {
+        log_w.log(
+          2, "Fail to initialize memory output: %s\n", status_string(ret));
         return false;
     }
 

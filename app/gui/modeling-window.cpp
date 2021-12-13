@@ -369,6 +369,87 @@ static void remove_links(component_editor& ed, component& parent) noexcept
     parent.state = component_status::modified;
 }
 
+static void show_modeling_widget(component_editor& ed,
+                                 tree_node&        tree,
+                                 component&        compo) noexcept
+{
+    ImNodes::EditorContextSet(ed.context);
+    ImNodes::BeginNodeEditor();
+
+    ImVec2   click_pos;
+    child_id new_model;
+
+    show_opened_component_ref(ed, tree, compo);
+    show_popup_menuitem(ed, compo, &click_pos, &new_model);
+
+    if (ed.show_minimap)
+        ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
+
+    ImNodes::EndNodeEditor();
+
+    if (auto* child = compo.children.try_to_get(new_model); child) {
+        compo.state = component_status::modified;
+        ImNodes::SetNodeScreenSpacePos(pack_node(new_model), click_pos);
+        child->x = click_pos.x;
+        child->y = click_pos.y;
+    }
+
+    is_link_created(compo);
+
+    int num_selected_links = ImNodes::NumSelectedLinks();
+    int num_selected_nodes = ImNodes::NumSelectedNodes();
+    if (num_selected_nodes > 0) {
+        ed.selected_nodes.resize(num_selected_nodes);
+        ImNodes::GetSelectedNodes(ed.selected_nodes.begin());
+    } else {
+        ed.selected_nodes.clear();
+    }
+
+    if (num_selected_links > 0) {
+        ed.selected_links.resize(num_selected_links);
+        ImNodes::GetSelectedLinks(ed.selected_links.begin());
+    } else {
+        ed.selected_links.clear();
+    }
+
+    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
+        if (num_selected_nodes > 0)
+            remove_nodes(ed, tree, compo);
+        else if (num_selected_links > 0)
+            remove_links(ed, compo);
+    }
+}
+
+static void show_output_widget(component_editor& ed) noexcept
+{
+    if (ImGui::BeginTable("Outputs", 5)) {
+        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("time-step", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("capacity", ImGuiTableColumnFlags_WidthFixed);
+
+        ImGui::TableHeadersRow();
+        memory_output* out = nullptr;
+        while (ed.outputs.next(out)) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+
+            ImGui::TextFormat("{}", ed.outputs.get_id(*out));
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(out->name.c_str());
+            ImGui::TableNextColumn();
+            ImGui::TextFormat("{}", out->time_step);
+            ImGui::TableNextColumn();
+            ImGui::TextFormat("{}", out->xs.ssize());
+            ImGui::TableNextColumn();
+            ImGui::TextFormat("{}", out->xs.capacity());
+        }
+
+        ImGui::EndTable();
+    }
+}
+
 void component_editor::show_modeling_window() noexcept
 {
     auto* tree = mod.tree_nodes.try_to_get(selected_component);
@@ -379,50 +460,18 @@ void component_editor::show_modeling_window() noexcept
     if (!compo)
         return;
 
-    ImNodes::EditorContextSet(context);
-    ImNodes::BeginNodeEditor();
+    if (ImGui::BeginTabBar("##ModelingTabBar")) {
+        if (ImGui::BeginTabItem("Graph editor")) {
+            show_modeling_widget(*this, *tree, *compo);
+            ImGui::EndTabItem();
+        }
 
-    ImVec2   click_pos;
-    child_id new_model;
+        if (ImGui::BeginTabItem("Output editor")) {
+            show_output_widget(*this);
+            ImGui::EndTabItem();
+        }
 
-    show_opened_component_ref(*this, *tree, *compo);
-    show_popup_menuitem(*this, *compo, &click_pos, &new_model);
-
-    if (show_minimap)
-        ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
-
-    ImNodes::EndNodeEditor();
-
-    if (auto* child = compo->children.try_to_get(new_model); child) {
-        compo->state = component_status::modified;
-        ImNodes::SetNodeScreenSpacePos(pack_node(new_model), click_pos);
-        child->x = click_pos.x;
-        child->y = click_pos.y;
-    }
-
-    is_link_created(*compo);
-
-    int num_selected_links = ImNodes::NumSelectedLinks();
-    int num_selected_nodes = ImNodes::NumSelectedNodes();
-    if (num_selected_nodes > 0) {
-        selected_nodes.resize(num_selected_nodes);
-        ImNodes::GetSelectedNodes(selected_nodes.begin());
-    } else {
-        selected_nodes.clear();
-    }
-
-    if (num_selected_links > 0) {
-        selected_links.resize(num_selected_links);
-        ImNodes::GetSelectedLinks(selected_links.begin());
-    } else {
-        selected_links.clear();
-    }
-
-    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
-        if (num_selected_nodes > 0)
-            remove_nodes(*this, *tree, *compo);
-        else if (num_selected_links > 0)
-            remove_links(*this, *compo);
+        ImGui::EndTabBar();
     }
 }
 

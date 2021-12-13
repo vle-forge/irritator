@@ -136,8 +136,8 @@ struct component_setting_handler
                 i32_value = &app->mod_init.file_path_capacity;
             } else if (sv == "model_capacity") {
                 i32_value = &app->mod_init.model_capacity;
-            } else if (sv == "observer_capacity") {
-                i32_value = &app->mod_init.observer_capacity;
+            } else if (sv == "parameter_capacity") {
+                i32_value = &app->mod_init.parameter_capacity;
             } else if (sv == "port_capacity") {
                 i32_value = &app->mod_init.port_capacity;
             } else if (sv == "random_source_capacity") {
@@ -288,8 +288,6 @@ status application::save_settings() noexcept
             writer.Int(mod_init.description_capacity);
             writer.Key("component_capacity");
             writer.Int(mod_init.component_capacity);
-            writer.Key("observer_capacity");
-            writer.Int(mod_init.observer_capacity);
             writer.Key("file_path_capacity");
             writer.Int(mod_init.file_path_capacity);
             writer.Key("children_capacity");
@@ -298,6 +296,8 @@ status application::save_settings() noexcept
             writer.Int(mod_init.connection_capacity);
             writer.Key("port_capacity");
             writer.Int(mod_init.port_capacity);
+            writer.Key("parameter_capacity");
+            writer.Int(mod_init.parameter_capacity);
             writer.Key("constant_source_capacity");
             writer.Int(mod_init.constant_source_capacity);
             writer.Key("binary_file_source_capacity");

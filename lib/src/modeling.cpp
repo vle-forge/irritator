@@ -626,8 +626,8 @@ static component* find_cpp_component(modeling&   mod,
 static bool is_valid(const modeling_initializer& params) noexcept
 {
     return params.model_capacity > 0 && params.tree_capacity > 0 &&
-           params.description_capacity > 0 && params.component_capacity > 0 &&
-           params.observer_capacity > 0 && params.file_path_capacity > 0 &&
+           params.parameter_capacity > 0 && params.description_capacity > 0 &&
+           params.component_capacity > 0 && params.file_path_capacity > 0 &&
            params.children_capacity > 0 && params.connection_capacity > 0 &&
            params.constant_source_capacity > 0 &&
            params.binary_file_source_capacity > 0 &&
@@ -639,8 +639,8 @@ static status try_init(modeling& mod, modeling_initializer& p) noexcept
 {
     irt_return_if_bad(mod.tree_nodes.init(p.tree_capacity));
     irt_return_if_bad(mod.descriptions.init(p.description_capacity));
+    irt_return_if_bad(mod.parameters.init(p.parameter_capacity));
     irt_return_if_bad(mod.components.init(p.component_capacity));
-    irt_return_if_bad(mod.observers.init(p.observer_capacity));
     irt_return_if_bad(mod.file_paths.init(p.file_path_capacity));
     irt_return_if_bad(
       mod.srcs.constant_sources.init(p.constant_source_capacity));
@@ -661,9 +661,9 @@ status modeling::init(modeling_initializer& params) noexcept
     modeling_initializer default_params = {
         .model_capacity              = 256 * 64 * 16,
         .tree_capacity               = 256 * 16,
+        .parameter_capacity          = 256 * 8,
         .description_capacity        = 256 * 16,
         .component_capacity          = 256 * 12 * 8,
-        .observer_capacity           = 256 * 16,
         .file_path_capacity          = 256 * 25 * 6,
         .children_capacity           = 256 * 64 * 16,
         .connection_capacity         = 256 * 64,

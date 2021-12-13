@@ -240,10 +240,6 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                           mod.components.size(),
                           mod.components.max_used(),
                           mod.components.capacity());
-        ImGui::TextFormat("observers: {} / {} / {}",
-                          mod.observers.size(),
-                          mod.observers.max_used(),
-                          mod.observers.capacity());
         ImGui::TextFormat("dir_paths: {} / {} / {}",
                           mod.dir_paths.size(),
                           mod.dir_paths.max_used(),

@@ -392,6 +392,17 @@ const char* log_string(const log_status s) noexcept;
 
 using component_editor_status = u32;
 
+enum class memory_output_id : u64;
+
+struct memory_output
+{
+    vector<float>     xs;
+    vector<float>     ys;
+    small_string<24u> name;
+    real              tl        = zero;
+    real              time_step = one / to_real(100);
+};
+
 enum class component_simulation_status
 {
     not_started,
@@ -457,13 +468,14 @@ struct component_editor
         void show(bool* is_open) noexcept;
     };
 
-    settings_manager                  settings;
-    small_string<16>                  name;
-    modeling                          mod;
-    simulation                        sim;
-    external_source                   srcs;
-    task_manager                      task_mgr;
-    data_array<gui_task, gui_task_id> gui_tasks;
+    settings_manager                            settings;
+    small_string<16>                            name;
+    modeling                                    mod;
+    simulation                                  sim;
+    external_source                             srcs;
+    task_manager                                task_mgr;
+    data_array<memory_output, memory_output_id> outputs;
+    data_array<gui_task, gui_task_id>           gui_tasks;
     tree_node_id          selected_component = undefined<tree_node_id>();
     ImNodesEditorContext* context            = nullptr;
     bool                  is_saved           = true;

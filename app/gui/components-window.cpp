@@ -103,7 +103,7 @@ static void show_all_components(component_editor& ed)
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
-    if (ImGui::CollapsingHeader("Components", flags)) {
+    if (ImGui::CollapsingHeader("Component library", flags)) {
         if (ImGui::TreeNodeEx("Internal")) {
             component* compo = nullptr;
             while (ed.mod.components.next(compo)) {
