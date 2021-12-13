@@ -9,7 +9,8 @@
 
 namespace irt {
 
-static void show_component_hierarchy(component_editor& ed, tree_node& parent)
+static void show_project_hierarchy(component_editor& ed,
+                                   tree_node&        parent) noexcept
 {
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnDoubleClick;
@@ -25,13 +26,13 @@ static void show_component_hierarchy(component_editor& ed, tree_node& parent)
             }
 
             if (auto* child = parent.tree.get_child(); child) {
-                show_component_hierarchy(ed, *child);
+                show_project_hierarchy(ed, *child);
             }
             ImGui::TreePop();
         }
 
         if (auto* sibling = parent.tree.get_sibling(); sibling)
-            show_component_hierarchy(ed, *sibling);
+            show_project_hierarchy(ed, *sibling);
     }
 }
 
@@ -117,7 +118,15 @@ static void show_hierarchy_settings(component_editor& ed,
     }
 }
 
-void component_editor::show_hierarchy_window() noexcept
+static void show_project_observations(component_editor& /*ed*/,
+                                      tree_node& /*parent*/) noexcept
+{}
+
+static void show_project_parameters(component_editor& /*ed*/,
+                                    tree_node& /*parent*/) noexcept
+{}
+
+void component_editor::show_project_window() noexcept
 {
     auto* parent = mod.tree_nodes.try_to_get(mod.head);
     if (!parent)
@@ -127,26 +136,23 @@ void component_editor::show_hierarchy_window() noexcept
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Hierarchy", flags))
-        show_component_hierarchy(*this, *parent);
+        show_project_hierarchy(*this, *parent);
+
+    if (ImGui::CollapsingHeader("Observations", flags))
+        show_project_observations(*this, *parent);
+
+    if (ImGui::CollapsingHeader("Parameters", flags))
+        show_project_parameters(*this, *parent);
 
     if (ImGui::CollapsingHeader("Operation", flags)) {
         if (ImGui::Button("save")) {
             mod.save_project("/tmp/toto.json");
         }
     }
-}
 
-void component_editor::show_hierarchy_settings_window() noexcept
-{
-    auto* parent = mod.tree_nodes.try_to_get(mod.head);
-    if (!parent)
-        return;
-
-    constexpr ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
-
-    if (ImGui::CollapsingHeader("Settings", flags))
+    if (ImGui::CollapsingHeader("Export component", flags)) {
         show_hierarchy_settings(*this, *parent);
+    }
 }
 
 } // namespace irt

@@ -399,42 +399,32 @@ void component_editor::show(bool* /*is_show*/) noexcept
     constexpr ImGuiWindowFlags flag =
       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar |
-      ImGuiWindowFlags_NoScrollWithMouse;
+      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
 
     const auto* viewport   = ImGui::GetMainViewport();
     const auto  region     = viewport->WorkSize;
     const float width_1_10 = region.x / 10.f;
 
-    ImVec2 hierarchy_size(width_1_10 * 2.f, region.y / 2.f);
-    ImVec2 setting_size(width_1_10 * 2.f, region.y / 2.f);
+    ImVec2 project_size(width_1_10 * 2.f, region.y);
 
     ImVec2 modeling_size(width_1_10 * 6.f, region.y - (region.y / 5.f));
     ImVec2 simulation_size(width_1_10 * 6.f, region.y / 5.f);
 
     ImVec2 components_size(width_1_10 * 2.f, region.y);
 
-    ImVec2 hierarchy_pos(0.f, viewport->WorkPos.y);
-    ImVec2 setting_pos(0.f, viewport->WorkPos.y + region.y / 2.f);
+    ImVec2 project_pos(0.f, viewport->WorkPos.y);
 
-    ImVec2 modeling_pos(hierarchy_size.x, viewport->WorkPos.y);
-    ImVec2 simulation_pos(hierarchy_size.x,
+    ImVec2 modeling_pos(project_size.x, viewport->WorkPos.y);
+    ImVec2 simulation_pos(project_size.x,
                           viewport->WorkPos.y + modeling_size.y);
 
-    ImVec2 components_pos(hierarchy_size.x + modeling_size.x,
+    ImVec2 components_pos(project_size.x + modeling_size.x,
                           viewport->WorkPos.y);
 
-    ImGui::SetNextWindowPos(hierarchy_pos);
-    ImGui::SetNextWindowSize(hierarchy_size);
-    if (ImGui::Begin("Hierarchy window", 0, flag)) {
-        show_hierarchy_window();
-    }
-    ImGui::End();
-
-    ImGui::SetNextWindowPos(setting_pos);
-    ImGui::SetNextWindowSize(setting_size);
-    if (ImGui::Begin("Setting window", 0, flag)) {
-        show_hierarchy_settings_window();
+    ImGui::SetNextWindowPos(project_pos);
+    ImGui::SetNextWindowSize(project_size);
+    if (ImGui::Begin("Project", 0, flag)) {
+        show_project_window();
     }
     ImGui::End();
 
