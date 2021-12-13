@@ -1360,4 +1360,12 @@ status modeling::save(component& c) noexcept
     return status::success;
 }
 
+void modeling::clear_project() noexcept
+{
+    if (auto* tree = tree_nodes.try_to_get(head); tree)
+        free(*tree);
+
+    head = undefined<tree_node_id>();
+}
+
 } // namespace irt

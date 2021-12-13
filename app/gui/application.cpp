@@ -116,37 +116,45 @@ bool application::show()
 {
     bool ret = true;
 
-    bool load_project_file = false;
-    bool save_project_file = false;
+    bool new_project_file     = false;
+    bool load_project_file    = false;
+    bool save_project_file    = false;
+    bool save_as_project_file = false;
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("New")) {
-                if (auto* ed = alloc_editor(); ed)
-                    ed->context = ImNodes::EditorContextCreate();
+            bool is_modified = c_editor.mod.state == modeling_status::modified;
+            bool have_file   = !c_editor.project_file.empty();
+
+            if (!is_modified && ImGui::MenuItem("New project")) {
+                new_project_file = true;
             }
 
-            ImGui::Separator();
-            if (ImGui::MenuItem("Quit"))
+            if (!is_modified && ImGui::MenuItem("Open project")) {
+                load_project_file = true;
+            }
+
+            if (is_modified && have_file && ImGui::MenuItem("Save project")) {
+                save_project_file = true;
+            }
+
+            if (ImGui::MenuItem("Save project as...")) {
+                save_as_project_file = true;
+            }
+
+            if (!is_modified && ImGui::MenuItem("Quit")) {
                 ret = false;
+            }
 
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Window")) {
-            editor* ed = nullptr;
-            while (editors.next(ed))
-                ImGui::MenuItem(ed->name.c_str(), nullptr, &ed->show);
-
-            ImGui::MenuItem("Simulation", nullptr, &show_simulation);
-            ImGui::MenuItem("Plot", nullptr, &show_plot);
-            ImGui::MenuItem("Settings", nullptr, &show_settings);
+        if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem("Log", nullptr, &show_log);
-
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Help")) {
+        if (ImGui::BeginMenu("Preferences")) {
             ImGui::MenuItem("Demo window", nullptr, &show_demo);
             ImGui::Separator();
             ImGui::MenuItem("Component memory", nullptr, &c_editor.show_memory);
@@ -159,29 +167,41 @@ bool application::show()
                 save_settings();
             }
 
-            if (ImGui::MenuItem("Load project")) {
-                load_project_file = true;
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Old menu")) {
+            if (ImGui::MenuItem("New")) {
+                if (auto* ed = alloc_editor(); ed)
+                    ed->context = ImNodes::EditorContextCreate();
             }
 
-            if (ImGui::MenuItem("Save project")) {
-                save_project_file = true;
-            }
+            editor* ed = nullptr;
+            while (editors.next(ed))
+                ImGui::MenuItem(ed->name.c_str(), nullptr, &ed->show);
 
+            ImGui::MenuItem("Simulation", nullptr, &show_simulation);
+            ImGui::MenuItem("Plot", nullptr, &show_plot);
+            ImGui::MenuItem("Settings", nullptr, &show_settings);
             ImGui::EndMenu();
         }
 
         ImGui::EndMainMenuBar();
     }
 
+    if (new_project_file) {
+        c_editor.mod.clear_project();
+    }
+
     if (load_project_file) {
         const char*    title     = "Select project file path to load";
-        const char8_t* filters[] = { u8".irtp", nullptr };
+        const char8_t* filters[] = { u8".irt", nullptr };
 
         ImGui::OpenPopup(title);
         if (load_file_dialog(c_editor.project_file, title, filters)) {
-            const auto* str =
-              (const char*)c_editor.project_file.u8string().c_str();
-            auto ret = c_editor.mod.load_project(str);
+            auto* u8str = c_editor.project_file.u8string().c_str();
+            auto* str   = reinterpret_cast<const char*>(u8str);
+            auto  ret   = c_editor.mod.load_project(str);
 
             if (is_success(ret))
                 log_w.log(5, "success\n");
@@ -190,19 +210,19 @@ bool application::show()
         }
     }
 
-    if (save_project_file) {
+    if (save_project_file || save_as_project_file) {
         const char*    title     = "Select project file path to load";
-        const char8_t* filters[] = { u8".irtp", nullptr };
+        const char8_t* filters[] = { u8".irt", nullptr };
 
         ImGui::OpenPopup(title);
         if (save_file_dialog(c_editor.project_file, title, filters)) {
-            const auto* str =
-              (const char*)c_editor.project_file.u8string().c_str();
-            auto ret = c_editor.mod.save_project(str);
+            auto* u8str = c_editor.project_file.u8string().c_str();
+            auto* str   = reinterpret_cast<const char*>(u8str);
+            auto  ret   = c_editor.mod.save_project(str);
 
-            if (is_success(ret))
+            if (is_success(ret)) {
                 log_w.log(5, "success\n");
-            else
+            } else
                 log_w.log(4, "fail\n");
         }
     }

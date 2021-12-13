@@ -69,6 +69,12 @@ enum class component_status
     unmodified,
 };
 
+enum class modeling_status
+{
+    modified,
+    unmodified
+};
+
 struct connection;
 struct child;
 struct port;
@@ -225,8 +231,7 @@ struct modeling
     irt::external_source          srcs;
     tree_node_id                  head;
 
-    dir_path_id  head_dir  = undefined<dir_path_id>();
-    file_path_id head_file = undefined<file_path_id>();
+    modeling_status state = modeling_status::unmodified;
 
     status init(modeling_initializer& params) noexcept;
 
@@ -258,10 +263,9 @@ struct modeling
     status clean(component& c) noexcept; // clean empty vectors
     status save(component& c) noexcept;  // will call clean(component&) first.
 
-    // status load_project(const dir_path& dir, const file_path& file) noexcept;
-    // status save_project(const dir_path& dir, const file_path& file) noexcept;
     status load_project(const char* filename) noexcept;
     status save_project(const char* filename) noexcept;
+    void   clear_project() noexcept;
 };
 
 /*

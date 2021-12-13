@@ -2029,6 +2029,10 @@ status modeling::load_project(const char* filename) noexcept
         ret = status::io_file_format_error;
     }
 
+    if (is_success(ret)) {
+        state = modeling_status::unmodified;
+    }
+
     return ret;
 }
 
@@ -2117,6 +2121,10 @@ status modeling::save_project(const char* filename) noexcept
         }
     } else {
         ret = status::io_file_format_error;
+    }
+
+    if (is_success(ret)) {
+        state = modeling_status::unmodified;
     }
 
     return ret;
