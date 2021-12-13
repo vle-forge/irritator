@@ -150,14 +150,15 @@ bool application::show()
         }
 
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Log", nullptr, &show_log);
+            ImGui::MenuItem("Show log window", nullptr, &show_log);
+            ImGui::MenuItem(
+              "Show component memory window", nullptr, &c_editor.show_memory);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Preferences")) {
             ImGui::MenuItem("Demo window", nullptr, &show_demo);
             ImGui::Separator();
-            ImGui::MenuItem("Component memory", nullptr, &c_editor.show_memory);
             ImGui::MenuItem(
               "Component settings", nullptr, &c_editor.show_settings);
             if (ImGui::MenuItem("Load settings")) {

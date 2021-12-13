@@ -227,51 +227,99 @@ void component_editor::show_memory_box(bool* is_open) noexcept
         return;
     }
 
-    ImGui::TextFormat("tree_nodes: {} / {} / {}",
-                      mod.tree_nodes.size(),
-                      mod.tree_nodes.max_used(),
-                      mod.tree_nodes.capacity());
-    ImGui::TextFormat("descriptions: {} / {} / {}",
-                      mod.descriptions.size(),
-                      mod.descriptions.max_used(),
-                      mod.descriptions.capacity());
-    ImGui::TextFormat("components: {} / {} / {}",
-                      mod.components.size(),
-                      mod.components.max_used(),
-                      mod.components.capacity());
-    ImGui::TextFormat("observers: {} / {} / {}",
-                      mod.observers.size(),
-                      mod.observers.max_used(),
-                      mod.observers.capacity());
-    ImGui::TextFormat("dir_paths: {} / {} / {}",
-                      mod.dir_paths.size(),
-                      mod.dir_paths.max_used(),
-                      mod.dir_paths.capacity());
-    ImGui::TextFormat("file_paths: {} / {} / {}",
-                      mod.file_paths.size(),
-                      mod.file_paths.max_used(),
-                      mod.file_paths.capacity());
+    if (ImGui::CollapsingHeader("Modeling", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::TextFormat("tree_nodes: {} / {} / {}",
+                          mod.tree_nodes.size(),
+                          mod.tree_nodes.max_used(),
+                          mod.tree_nodes.capacity());
+        ImGui::TextFormat("descriptions: {} / {} / {}",
+                          mod.descriptions.size(),
+                          mod.descriptions.max_used(),
+                          mod.descriptions.capacity());
+        ImGui::TextFormat("components: {} / {} / {}",
+                          mod.components.size(),
+                          mod.components.max_used(),
+                          mod.components.capacity());
+        ImGui::TextFormat("observers: {} / {} / {}",
+                          mod.observers.size(),
+                          mod.observers.max_used(),
+                          mod.observers.capacity());
+        ImGui::TextFormat("dir_paths: {} / {} / {}",
+                          mod.dir_paths.size(),
+                          mod.dir_paths.max_used(),
+                          mod.dir_paths.capacity());
+        ImGui::TextFormat("file_paths: {} / {} / {}",
+                          mod.file_paths.size(),
+                          mod.file_paths.max_used(),
+                          mod.file_paths.capacity());
+    }
 
-    if (ImGui::CollapsingHeader("Components")) {
+    if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) {
         component* compo = nullptr;
         while (mod.components.next(compo)) {
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {
-                ImGui::Text("children: %d", (int)compo->children.size());
-                ImGui::Text("models: %d", (int)compo->models.size());
-                ImGui::Text("connections: %d", (int)compo->connections.size());
-                ImGui::Text("x: %d", compo->x.ssize());
-                ImGui::Text("y: %d", compo->y.ssize());
+                ImGui::TextFormat("children: {}", compo->children.size());
+                ImGui::TextFormat("models: {}", compo->models.size());
+                ImGui::TextFormat("connections: {}", compo->connections.size());
+                ImGui::Separator();
 
-                ImGui::TextFormat("description: {}", ordinal(compo->desc));
-                ImGui::TextFormat("dir: {}", ordinal(compo->dir));
-                ImGui::TextFormat("file: {}", ordinal(compo->file));
-                ImGui::TextFormat("type: {}",
+                ImGui::TextFormat("Dir: {}", ordinal(compo->dir));
+                ImGui::TextFormat("Description: {}", ordinal(compo->desc));
+                ImGui::TextFormat("File: {}", ordinal(compo->file));
+                ImGui::TextFormat("Type: {}",
                                   component_type_names[ordinal(compo->type)]);
+
+                ImGui::Separator();
+                ImGui::TextFormat("X: {}", compo->x.ssize());
+                ImGui::TextFormat("Y: {}", compo->y.ssize());
 
                 ImGui::TreePop();
             }
             ImGui::PopID();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Directories",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::BeginTable("Table", 2)) {
+            ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("value",
+                                    ImGuiTableColumnFlags_WidthStretch);
+
+            ImGui::TableHeadersRow();
+            dir_path* dir = nullptr;
+            while (mod.dir_paths.next(dir)) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                ImGui::TextFormat("{}", mod.dir_paths.get_id(*dir));
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(dir->path.c_str());
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Files", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::BeginTable("Table", 2)) {
+            ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("value",
+                                    ImGuiTableColumnFlags_WidthStretch);
+
+            ImGui::TableHeadersRow();
+            file_path* file = nullptr;
+            while (mod.file_paths.next(file)) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                ImGui::TextFormat("{}", mod.file_paths.get_id(*file));
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(file->path.c_str());
+            }
+
+            ImGui::EndTable();
         }
     }
 
