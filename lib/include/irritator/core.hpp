@@ -2261,8 +2261,6 @@ constexpr sz dynamics_type_size() noexcept
     return static_cast<sz>(dynamics_type_last() + 1);
 }
 
-struct observer;
-
 struct observer
 {
     enum class status
@@ -2278,13 +2276,19 @@ struct observer
                                const time,
                                const observer::status);
 
-    observer(const char* name_, update_fn cb_, void* user_data_) noexcept;
+    observer(const char* name_,
+             update_fn   cb_,
+             void*       user_data_ = nullptr,
+             u64         user_id_   = 0,
+             i32         user_type_ = 0) noexcept;
 
     update_fn           cb;
     small_string<8>     name;
     model_id            model = static_cast<model_id>(0);
     observation_message msg;
     void*               user_data = nullptr;
+    u64                 user_id   = 0;
+    i32                 user_type = 0;
 };
 
 struct node
@@ -7479,10 +7483,14 @@ inline constexpr bool small_string<length>::operator<(
 
 inline observer::observer(const char* name_,
                           update_fn   cb_,
-                          void*       user_data_) noexcept
+                          void*       user_data_,
+                          u64         user_id_,
+                          i32         user_type_) noexcept
   : cb(cb_)
   , name(name_)
   , user_data(user_data_)
+  , user_id(user_id_)
+  , user_type(user_type_)
 {}
 
 inline void scheduller::pop(vector<model_id>& out) noexcept
