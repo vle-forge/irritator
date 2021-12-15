@@ -399,9 +399,23 @@ struct memory_output
     vector<float>     xs;
     vector<float>     ys;
     small_string<24u> name;
-    real              tl        = zero;
-    real              time_step = one / to_real(100);
+    real              tl          = zero;
+    real              time_step   = one / to_real(100);
+    bool              interpolate = true;
 };
+
+//! @brief Callback function used into simulation kernel
+//! @param obs 
+//! @param type 
+//! @param tl 
+//! @param t 
+//! @param s 
+//! @return 
+void memory_output_update(const irt::observer&        obs,
+                          const irt::dynamics_type    type,
+                          const irt::time             tl,
+                          const irt::time             t,
+                          const irt::observer::status s) noexcept;
 
 enum class component_simulation_status
 {

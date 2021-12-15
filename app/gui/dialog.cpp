@@ -247,7 +247,11 @@ char* get_imgui_filename() noexcept
 
     if (auto path = get_home_filename("imgui.ini"); path) {
         auto* str = reinterpret_cast<const char*>(path->c_str());
-        ret       = strdup(str);
+#if defined(_WIN32)
+        ret = _strdup(str);
+#else
+        ret = strdup(str);
+#endif
     }
 
     return ret;
