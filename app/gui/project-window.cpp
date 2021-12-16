@@ -325,15 +325,8 @@ void component_editor::show_project_window() noexcept
     if (ImGui::CollapsingHeader("Parameters", flags))
         show_project_parameters(*this, *parent, data);
 
-    if (ImGui::CollapsingHeader("Operation", flags)) {
-        if (ImGui::Button("save")) {
-            mod.save_project("/tmp/toto.json");
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Export component", flags)) {
+    if (ImGui::CollapsingHeader("Component", flags))
         show_hierarchy_settings(*this, *parent);
-    }
 }
 
 } // namespace irt
