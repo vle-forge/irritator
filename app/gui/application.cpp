@@ -223,14 +223,18 @@ bool application::show()
 
         ImGui::OpenPopup(title);
         if (load_file_dialog(c_editor.project_file, title, filters)) {
-            auto* u8str = c_editor.project_file.u8string().c_str();
-            auto* str   = reinterpret_cast<const char*>(u8str);
-            auto  ret   = c_editor.mod.load_project(str);
+            auto  u8str = c_editor.project_file.u8string();
+            auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
-            if (is_success(ret))
-                log_w.log(5, "success\n");
-            else
-                log_w.log(4, "fail\n");
+            if (auto ret = c_editor.mod.load_project(str); is_bad(ret)) {
+                auto& notif = push_notification(notification_type::error);
+                notif.title = "Load project";
+                format(notif.message, "Error: {}", status_string(ret));
+            } else {
+                auto& notif = push_notification(notification_type::success);
+                notif.title = "Load project";
+            }
+
             load_project_file = false;
         }
     }
@@ -241,12 +245,15 @@ bool application::show()
         if (have_file) {
             auto  u8str = c_editor.project_file.u8string();
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
-            auto  ret   = c_editor.mod.save_project(str);
 
-            if (is_success(ret)) {
-                log_w.log(5, "success\n");
-            } else
-                log_w.log(4, "fail\n");
+            if (auto ret = c_editor.mod.save_project(str); is_bad(ret)) {
+                auto& notif = push_notification(notification_type::error);
+                notif.title = "Save project";
+                format(notif.message, "Error: {}", status_string(ret));
+            } else {
+                auto& notif = push_notification(notification_type::success);
+                notif.title = "Save project";
+            }
         } else {
             save_project_file    = false;
             save_as_project_file = true;
@@ -254,19 +261,22 @@ bool application::show()
     }
 
     if (save_as_project_file) {
-        const char*    title     = "Select project file path to load";
+        const char*    title     = "Select project file path to save";
         const char8_t* filters[] = { u8".irt", nullptr };
 
         ImGui::OpenPopup(title);
         if (save_file_dialog(c_editor.project_file, title, filters)) {
             auto  u8str = c_editor.project_file.u8string();
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
-            auto  ret   = c_editor.mod.save_project(str);
 
-            if (is_success(ret)) {
-                log_w.log(5, "success\n");
-            } else
-                log_w.log(4, "fail\n");
+            if (auto ret = c_editor.mod.save_project(str); is_bad(ret)) {
+                auto& notif = push_notification(notification_type::error);
+                notif.title = "Save project";
+                format(notif.message, "Error: {}", status_string(ret));
+            } else {
+                auto& notif = push_notification(notification_type::success);
+                notif.title = "Save project";
+            }
 
             save_as_project_file = false;
         }
@@ -312,13 +322,16 @@ bool application::show()
 editor* application::alloc_editor()
 {
     if (!editors.can_alloc(1u)) {
-        log_w.log(2, "Too many open editor\n");
+        auto& notif = push_notification(notification_type::error);
+        notif.title = "Too many open editor";
         return nullptr;
     }
 
     auto& ed = editors.alloc();
     if (auto ret = ed.initialize(get_index(editors.get_id(ed))); is_bad(ret)) {
-        log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
+        auto& notif = push_notification(notification_type::error);
+        notif.title = "Editor allocation error";
+        format(notif.message, "Error: {}", status_string(ret));
         editors.free(ed);
         return nullptr;
     }
@@ -404,6 +417,7 @@ static void run_for(editor& ed, long long int duration_in_microseconds) noexcept
 
         if (ed.sim_st = ed.sim.initialize(ed.simulation_current);
             irt::is_bad(ed.sim_st)) {
+
             log_w.log(3,
                       "Simulation initialisation failure (%s)\n",
                       irt::status_string(ed.sim_st));
