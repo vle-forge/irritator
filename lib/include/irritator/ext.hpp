@@ -129,6 +129,121 @@ private:
     i32 number = 0;
 
 public:
+    class iterator
+    {
+    public:
+        using iterator_category = std::bidirectional_iterator_tag;
+        using difference_type   = std::ptrdiff_t;
+        using value             = T;
+        using pointer           = T*;
+        using reference         = T&;
+
+    private:
+        ring_buffer* ring;
+        i32          i;
+
+        iterator(ring_buffer* ring_, i32 i_) noexcept
+          : ring(ring_)
+          , i(i_)
+        {}
+
+    public:
+        iterator() noexcept
+          : ring(nullptr)
+          , i(0)
+        {}
+
+        iterator(const iterator& other) noexcept
+          : ring(other.ring)
+          , i(other.i)
+        {}
+
+        iterator& operator=(const iterator& other) noexcept
+        {
+            if (this != &other) {
+                ring = const_cast<ring_buffer*>(other.ring);
+                i    = other.i;
+            }
+
+            return *this;
+        }
+
+        reference operator*() noexcept { return ring->buffer[i]; }
+        pointer   operator->() noexcept { return &ring->buffer[i]; }
+
+        iterator& operator++() noexcept
+        {
+            if (ring) {
+                i = (i + 1) % Size;
+
+                if (i == ring->tail) {
+                    ring = nullptr;
+                    i    = 0;
+                }
+            }
+
+            return *this;
+        }
+
+        iterator operator++(int) noexcept
+        {
+            auto ret = *this;
+
+            if (ring) {
+                i = (i + 1) % Size;
+
+                if (i == ring->tail) {
+                    ring = nullptr;
+                    i    = 0;
+                }
+            }
+
+            return ret;
+        }
+
+        iterator& operator--() noexcept
+        {
+            if (ring) {
+                if (i == ring->head) {
+                    ring = nullptr;
+                    i    = 0;
+                } else {
+                    i = i - 1 % Size;
+                }
+            }
+
+            return *this;
+        }
+
+        iterator operator--(int) noexcept
+        {
+            auto ret = *this;
+
+            if (ring) {
+                if (i == ring->head) {
+                    ring = nullptr;
+                    i    = 0;
+                } else {
+                    i = i - 1 % Size;
+                }
+            }
+
+            return ret;
+        }
+
+        friend bool operator==(const iterator& a, const iterator& b) noexcept
+        {
+            return a.ring == b.ring && a.i == b.i;
+        }
+
+        friend bool operator!=(const iterator& a, const iterator& b) noexcept
+        {
+            return !(a == b);
+        }
+
+        friend ring_buffer;
+    };
+
     constexpr ring_buffer() noexcept = default;
     constexpr ~ring_buffer() noexcept;
 
@@ -142,6 +257,9 @@ public:
 
     constexpr T&       front() noexcept;
     constexpr const T& front() const noexcept;
+
+    constexpr iterator begin() noexcept;
+    constexpr iterator end() noexcept;
 
     constexpr size_t size() const noexcept;
     constexpr i32    ssize() const noexcept;
@@ -572,6 +690,20 @@ constexpr T ring_buffer<T, Size>::dequeue() noexcept
     --number;
 
     return item;
+}
+
+template<class T, i32 Size>
+constexpr typename ring_buffer<T, Size>::iterator
+ring_buffer<T, Size>::begin() noexcept
+{
+    return head == tail ? iterator(nullptr, 0) : iterator(this, head);
+}
+
+template<class T, i32 Size>
+constexpr typename ring_buffer<T, Size>::iterator
+ring_buffer<T, Size>::end() noexcept
+{
+    return iterator(nullptr, 0);
 }
 
 template<class T, i32 Size>
