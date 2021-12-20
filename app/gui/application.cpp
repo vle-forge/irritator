@@ -8,9 +8,13 @@
 
 namespace irt {
 
+template<i32 Size>
+static void render_notifications(
+  data_array<notification, notification_id>& data,
+  ring_buffer<notification_id, Size>&        array) noexcept;
+
 bool application::init()
 {
-
     c_editor.init();
 
     if (auto ret = editors.init(50u); is_bad(ret)) {
@@ -84,6 +88,12 @@ bool application::init()
         log_w.log(2,
                   "Fail to initialize simulation components: %s\n",
                   status_string(ret));
+        return false;
+    }
+
+    if (auto ret = notifications.init(10); is_bad(ret)) {
+        log_w.log(
+          2, "Fail to initialize notifications: %s\n", status_string(ret));
         return false;
     }
 
@@ -182,6 +192,7 @@ bool application::show()
             ImGui::MenuItem("Simulation", nullptr, &show_simulation);
             ImGui::MenuItem("Plot", nullptr, &show_plot);
             ImGui::MenuItem("Settings", nullptr, &show_settings);
+
             ImGui::EndMenu();
         }
 
@@ -278,6 +289,8 @@ bool application::show()
 
     if (show_modeling)
         c_editor.show(&show_modeling);
+
+    render_notifications(notifications, notification_buffer);
 
     return ret;
 }
@@ -486,6 +499,175 @@ editor* application::make_combo_editor_name(editor_id& current) noexcept
     }
 
     return editors.try_to_get(current);
+}
+
+//
+// Notification buffer
+//
+
+static u64 get_tick_count_in_milliseconds() noexcept
+{
+    namespace sc = std::chrono;
+
+    return duration_cast<sc::milliseconds>(
+             sc::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+constexpr u32   notification_duration          = 3000;
+constexpr float notification_x_padding         = 20.f;
+constexpr float notification_y_padding         = 20.f;
+constexpr float notification_y_message_padding = 20.f;
+constexpr u64   notification_fade_duration     = 150;
+
+constexpr ImGuiWindowFlags notification_flags =
+  ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration |
+  ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+  ImGuiWindowFlags_NoFocusOnAppearing;
+
+notification::notification(notification_type type_) noexcept
+  : type(type_)
+  , creation_time(get_tick_count_in_milliseconds())
+{}
+
+u64 notification::get_elapsed_time() const noexcept
+{
+    return get_tick_count_in_milliseconds() - creation_time;
+}
+
+notification_state notification::get_state() const noexcept
+{
+    const auto elapsed = get_elapsed_time();
+
+    if (elapsed > notification_fade_duration + notification_duration +
+                    notification_fade_duration)
+        return notification_state::expired;
+
+    if (elapsed > notification_fade_duration + notification_duration)
+        return notification_state::fadeout;
+
+    if (elapsed > notification_fade_duration)
+        return notification_state::wait;
+
+    return notification_state::fadein;
+}
+
+float notification::get_fade_percent() const noexcept
+{
+    const auto state   = get_state();
+    const auto elapsed = get_elapsed_time();
+
+    switch (state) {
+    case notification_state::fadein:
+        return static_cast<float>(elapsed) / notification_fade_duration;
+
+    case notification_state::wait:
+        return 1.f;
+
+    case notification_state::fadeout:
+        return 1.f -
+               ((static_cast<float>(elapsed) - notification_fade_duration -
+                 static_cast<float>(notification_duration)) /
+                notification_fade_duration);
+
+    case notification_state::expired:
+        return 1.f;
+    }
+
+    irt_unreachable();
+}
+
+notification& application::push_notification(notification_type type) noexcept
+{
+    if (notification_buffer.full()) {
+        auto id = notification_buffer.dequeue();
+        notifications.free(id);
+    }
+
+    auto& notif = notifications.alloc(type);
+    auto  id    = notifications.get_id(notif);
+    notification_buffer.emplace_enqueue(id);
+
+    return notif;
+}
+
+static inline ImVec4 notification_color[] = { { 0.16f, 0.29f, 0.48f, 1.f },
+                                              { 0.16f, 0.29f, 0.48f, 1.f },
+                                              { 0.16f, 0.48f, 0.29f, 1.f },
+                                              { 0.48f, 0.29f, 0.16f, 1.f },
+                                              { 0.16f, 0.29f, 0.48f, 1.f } };
+
+static inline const char* notification_prefix[] = { { "" },
+                                                    { "Success " },
+                                                    { "Warning " },
+                                                    { "Error " },
+                                                    { "Information " } };
+
+template<i32 Size>
+static void render_notifications(
+  data_array<notification, notification_id>& data,
+  ring_buffer<notification_id, Size>&        array) noexcept
+{
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.f);
+
+    const auto vp_size = ImGui::GetMainViewport()->Size;
+    auto       height  = 0.f;
+
+    int i = 0;
+    for (auto it = array.begin(), et = array.end(); it != et; ++it, ++i) {
+        auto* notif = data.try_to_get(*it);
+        if (!notif) {
+            *it = undefined<notification_id>();
+            continue;
+        }
+
+        if (notif->get_state() == notification_state::expired) {
+            data.free(*it);
+            *it = undefined<notification_id>();
+            continue;
+        }
+
+        const auto opacity    = notif->get_fade_percent();
+        auto       text_color = notification_text_color[ordinal(notif->type)];
+        text_color.w          = opacity;
+
+        ImGui::SetNextWindowBgAlpha(opacity);
+        ImGui::SetNextWindowPos(
+          ImVec2(vp_size.x - notification_x_padding,
+                 vp_size.y - notification_y_padding - height),
+          ImGuiCond_Always,
+          ImVec2(1.0f, 1.0f));
+
+        ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                              notification_color[ordinal(notif->type)]);
+        small_string<16> name;
+        format(name, "##{}toast", i);
+        ImGui::Begin(name.c_str(), nullptr, notification_flags);
+        ImGui::PopStyleColor(1);
+
+        ImGui::PushTextWrapPos(vp_size.x / 3.f);
+        ImGui::PushStyleColor(ImGuiCol_Text, text_color);
+        ImGui::TextUnformatted(notification_prefix[ordinal(notif->type)]);
+        ImGui::SameLine();
+        ImGui::Text(notif->title.c_str());
+        ImGui::PopStyleColor();
+
+        if (!notif->message.empty()) {
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
+            ImGui::Separator();
+            ImGui::Text(notif->message.c_str());
+        }
+
+        ImGui::PopTextWrapPos();
+        height += ImGui::GetWindowHeight() + notification_y_message_padding;
+
+        ImGui::End();
+    }
+
+    while (!array.empty() && array.front() == undefined<notification_id>())
+        array.dequeue();
+
+    ImGui::PopStyleVar();
 }
 
 } // namespace irt

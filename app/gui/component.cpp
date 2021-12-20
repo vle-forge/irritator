@@ -443,7 +443,8 @@ void component_editor::show(bool* /*is_show*/) noexcept
     constexpr ImGuiWindowFlags flag =
       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
+      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+      ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     const auto* viewport   = ImGui::GetMainViewport();
     const auto  region     = viewport->WorkSize;
