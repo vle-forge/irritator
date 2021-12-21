@@ -553,19 +553,49 @@ constexpr ImGuiWindowFlags notification_flags =
   ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
   ImGuiWindowFlags_NoFocusOnAppearing;
 
+enum class notification_state
+{
+    fadein,
+    wait,
+    fadeout,
+    expired
+};
+
+static inline const ImVec4 notification_text_color[] = {
+    { 0.46f, 0.59f, 0.78f, 1.f },
+    { 0.46f, 0.59f, 0.78f, 1.f },
+    { 0.46f, 0.78f, 0.59f, 1.f },
+    { 0.78f, 0.49f, 0.46f, 1.f },
+    { 0.46f, 0.59f, 0.78f, 1.f }
+};
+
+static inline const ImVec4 notification_color[] = {
+    { 0.16f, 0.29f, 0.48f, 1.f },
+    { 0.16f, 0.29f, 0.48f, 1.f },
+    { 0.16f, 0.48f, 0.29f, 1.f },
+    { 0.48f, 0.29f, 0.16f, 1.f },
+    { 0.16f, 0.29f, 0.48f, 1.f }
+};
+
+static inline const char* notification_prefix[] = { { "" },
+                                                    { "Success " },
+                                                    { "Warning " },
+                                                    { "Error " },
+                                                    { "Information " } };
+
 notification::notification(notification_type type_) noexcept
   : type(type_)
   , creation_time(get_tick_count_in_milliseconds())
 {}
 
-u64 notification::get_elapsed_time() const noexcept
+static u64 get_elapsed_time(const notification& n) noexcept
 {
-    return get_tick_count_in_milliseconds() - creation_time;
+    return get_tick_count_in_milliseconds() - n.creation_time;
 }
 
-notification_state notification::get_state() const noexcept
+static notification_state get_state(const notification& n) noexcept
 {
-    const auto elapsed = get_elapsed_time();
+    const auto elapsed = get_elapsed_time(n);
 
     if (elapsed > notification_fade_duration + notification_duration +
                     notification_fade_duration)
@@ -580,10 +610,10 @@ notification_state notification::get_state() const noexcept
     return notification_state::fadein;
 }
 
-float notification::get_fade_percent() const noexcept
+float get_fade_percent(const notification& n) noexcept
 {
-    const auto state   = get_state();
-    const auto elapsed = get_elapsed_time();
+    const auto state   = get_state(n);
+    const auto elapsed = get_elapsed_time(n);
 
     switch (state) {
     case notification_state::fadein:
@@ -619,18 +649,6 @@ notification& application::push_notification(notification_type type) noexcept
     return notif;
 }
 
-static inline ImVec4 notification_color[] = { { 0.16f, 0.29f, 0.48f, 1.f },
-                                              { 0.16f, 0.29f, 0.48f, 1.f },
-                                              { 0.16f, 0.48f, 0.29f, 1.f },
-                                              { 0.48f, 0.29f, 0.16f, 1.f },
-                                              { 0.16f, 0.29f, 0.48f, 1.f } };
-
-static inline const char* notification_prefix[] = { { "" },
-                                                    { "Success " },
-                                                    { "Warning " },
-                                                    { "Error " },
-                                                    { "Information " } };
-
 template<i32 Size>
 static void render_notifications(
   data_array<notification, notification_id>& data,
@@ -649,13 +667,13 @@ static void render_notifications(
             continue;
         }
 
-        if (notif->get_state() == notification_state::expired) {
+        if (get_state(*notif) == notification_state::expired) {
             data.free(*it);
             *it = undefined<notification_id>();
             continue;
         }
 
-        const auto opacity    = notif->get_fade_percent();
+        const auto opacity    = get_fade_percent(*notif);
         auto       text_color = notification_text_color[ordinal(notif->type)];
         text_color.w          = opacity;
 

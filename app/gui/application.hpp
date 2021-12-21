@@ -381,34 +381,14 @@ enum class notification_type
     information
 };
 
-static inline ImVec4 notification_text_color[] = {
-    { 0.46f, 0.59f, 0.78f, 1.f },
-    { 0.46f, 0.59f, 0.78f, 1.f },
-    { 0.46f, 0.78f, 0.59f, 1.f },
-    { 0.78f, 0.49f, 0.46f, 1.f },
-    { 0.46f, 0.59f, 0.78f, 1.f }
-};
-
-enum class notification_state
-{
-    fadein,
-    wait,
-    fadeout,
-    expired
-};
-
 struct notification
 {
     notification(notification_type type_) noexcept;
 
-    small_string<256>  title;
-    small_string<4096> message;
+    small_string<128>  title;
+    small_string<1022> message;
     notification_type  type;
     u64                creation_time;
-
-    u64                get_elapsed_time() const noexcept;
-    notification_state get_state() const noexcept;
-    float              get_fade_percent() const noexcept;
 };
 
 enum class notification_id : u64;
