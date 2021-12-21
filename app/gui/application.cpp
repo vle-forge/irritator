@@ -363,12 +363,23 @@ void application::show_plot_window()
         return;
     }
 
+    if (ImGui::BeginMenu("Plot styles")) {
+        ImGui::MenuItem("Scatter plot", nullptr, &show_scatter_plot);
+        ImGui::MenuItem("Shaded plot", nullptr, &show_shaded_plot);
+        ImGui::MenuItem("Bar chart", nullptr, &show_bar_chart);
+        ImGui::MenuItem("Pie chart", nullptr, &show_pie_chart);
+        ImGui::MenuItem("Heat map", nullptr, &show_heat_map);
+
+        ImGui::EndMenu();
+    }
+
     static editor_id current = undefined<editor_id>();
     if (auto* ed = make_combo_editor_name(current); ed) {
+        // plot_output* out = nullptr;// placed here in outer scope for all plot
+        // styles
         if (ImPlot::BeginPlot("simulation", "t", "s")) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-
-            plot_output* out = nullptr;
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 0.5f);
+            plot_output* out = nullptr; // moved this to outer scope
             while (ed->plot_outs.next(out)) {
                 if (!out->xs.empty() && !out->ys.empty())
                     ImPlot::PlotLine(out->name.c_str(),
@@ -379,8 +390,272 @@ void application::show_plot_window()
 
             ImPlot::PopStyleVar(1);
             ImPlot::EndPlot();
-        }
-    }
+        } // ends default line plot
+    }     // ------------------------end
+
+    if (show_scatter_plot) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Scatter plot parameters");
+
+            static int count = 0;
+            ImGui::InputInt("Count:", &count);
+
+            static int offset = 0;
+            ImGui::InputInt("Offset:", &offset);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            if (ImPlot::BeginPlot("simulation scatter plot", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Cross);
+                // ImPlot::PushStyleVar(ImPlotMarker_Cross, 6);
+                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 6);
+                // ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 0.25f);
+                plot_output* out = nullptr; // moved this to outer scope
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotScatter(out->name.c_str(),
+                                            out->ys.data(),
+                                            count, // int count
+                                            offset);
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // -----------------ends scatter plot
+
+    if (show_shaded_plot) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Shaded plot parameters");
+
+            static char buf[10];
+            static int out_buff = 0;
+            ImGui::InputInt("Out buffer size:", &out_buff);
+
+            ImGui::InputText(
+              "Variables:",
+              buf,
+              out_buff,
+              ImGuiInputTextFlags_EnterReturnsTrue); //##Variables:
+
+            static float alpha = 0.25f;
+            ImGui::DragFloat("Alpha", &alpha, 0.01f, 0, 1);
+
+            static float yref = 0.0f;
+            ImGui::InputFloat("Yref:", &yref);
+
+            static int count = 0;
+            ImGui::InputInt("Count:", &count);
+
+            // static int offset = 0;
+            // ImGui::InputInt("Offset:", &offset);
+
+            // static int sim_stride = 0;
+            // ImGui::InputInt("Stride:", &sim_stride);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            if (ImPlot::BeginPlot("simulation shaded plot", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, alpha);
+                static const char* label_ids[] = { &buf[0], &buf[1], &buf[2],
+                                                   &buf[3], &buf[4], &buf[5],
+                                                   &buf[6] };
+                plot_output* out = nullptr; // moved this to outer scope
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotShaded(
+                          *label_ids,
+                          out->xs.data(),
+                          out->ys.data(),
+                          count, // int count
+                          yref,  // float y_ref
+                          1,     // int offset
+                          static_cast<int>(
+                            out->xs
+                              .size())); // static_cast<int>(out->xs.size())
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // -----------------ends shaded plot
+
+    if (show_bar_chart) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Bar plot parameters");
+
+            static int count = 0;
+            ImGui::InputInt("Count:", &count);
+
+            static float bwidth = 0.0f;
+            ImGui::InputFloat("Bar width:", &bwidth);
+
+            static float bshift = 0.0f;
+            ImGui::InputFloat("Shift:", &bshift);
+
+            static int offset = 0;
+            ImGui::InputInt("Offset:", &offset);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            if (ImPlot::BeginPlot("simulation bar chart", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                plot_output* out = nullptr; // moved this to outer scope
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotBars(out->name.c_str(),
+                                         out->ys.data(),
+                                         count,  // int count
+                                         bwidth, // float width
+                                         bshift, // float shift
+                                         offset, // int offset
+                                         static_cast<int>(out->xs.size()));
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // ends bar chart plot
+
+    if (show_pie_chart) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Pie chart parameters");
+
+            static int buffsize = 1;
+            ImGui::InputInt("Output size:", &buffsize);
+
+            // int* ptr_buffsize = &buffsize;
+
+            // vector<char*> buf;
+            // for (size_t ii = 0; ii != *ptr_buffsize; ++ii)
+            //    buf.emplace_back(ii);
+
+            static char buf[10];
+
+            // char* varstr = nullptr;
+            // ImGui::InputText("State:", varstr, buffsize);
+
+            ImGui::InputText(
+              "##Variables:",
+              buf,
+              buffsize,
+              ImGuiInputTextFlags_EnterReturnsTrue); //##Variables:
+
+            static int count = 0;
+            ImGui::InputInt("Count:", &count);
+
+            static float xpos = 0.0f;
+            ImGui::InputFloat("X position:", &xpos);
+
+            static float ypos = 0.0f;
+            ImGui::InputFloat("Y position:", &ypos);
+
+            static float radius = 0.33f;
+            ImGui::InputFloat("Radius:", &radius);
+
+            static bool normalize = false;
+            ImGui::Checkbox("Normalize:", &normalize);
+
+            static float angle = 0.0f;
+            ImGui::InputFloat("Angle:", &angle);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            if (ImPlot::BeginPlot("simulation pie chart", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                plot_output* out = nullptr; // moved this to outer scope
+                static const char* label_ids[] = { &buf[0], &buf[1], &buf[2],
+                                                   &buf[3], &buf[4], &buf[5],
+                                                   &buf[6] };
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotPieChart(
+                          label_ids,      // const char** label_ids,
+                          out->ys.data(), // const float* values,
+                          count,          // int count,
+                          xpos,           // float x,
+                          ypos,           // float y,
+                          radius,         // float radius,
+                          normalize,      // bool normalize = false,
+                          "%.1f",         // const char* label_fmt = "%.1f",
+                          angle);         // float angle0 = 90
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // end pie chart
+
+    if (show_heat_map) {
+        if (auto* ed = make_combo_editor_name(current); ed) {
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Text("Heat map parameters");
+
+            static const char* cmap_names[] = { "Default", "Dark",    "Pastel",
+                                                "Paired",  "Viridis", "Plasma",
+                                                "Hot",     "Cool",    "Pink",
+                                                "Jet" };
+
+            static ImPlotColormap map = ImPlotColormap_Viridis;
+            if (ImGui::Button("Change Colormap", ImVec2(225, 0)))
+                map = (map + 1) % ImPlotColormap_COUNT;
+            ImPlot::SetColormap(map);
+            ImGui::SameLine();
+            ImGui::LabelText("##Colormap Index", "%s", cmap_names[map]);
+
+            static int row_param = 0;
+            ImGui::InputInt("Rows:", &row_param);
+
+            static int col_param = 0;
+            ImGui::InputInt("Columns:", &col_param);
+
+            static float min_scale = 0.0f;
+            ImGui::InputFloat("Scale min:", &min_scale);
+
+            static float max_scale = 0.0f;
+            ImGui::InputFloat("Scale max:", &max_scale);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            if (ImPlot::BeginPlot("simulation heat map", "t", "s")) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_FillAlpha, 2.0f);
+                plot_output* out = nullptr; // moved this to outer scope
+                const ImPlotPoint& ippmin = ImPlotPoint(-1.0, -1.0);
+                const ImPlotPoint& ippmax = ImPlotPoint(0.0, 0.0);
+                while (ed->plot_outs.next(out)) {
+                    if (!out->xs.empty() && !out->ys.empty())
+                        ImPlot::PlotHeatmap(
+                          out->name.c_str(),
+                          out->ys.data(),
+                          row_param, // int rows
+                          col_param, // int cols,
+                          min_scale, // float scale_min,
+                          max_scale, // float scale_max,
+                          "%.1f",    // const char* label_fmt = "%.1f"
+                          ippmin,    // const ImPlotPoint& bounds_min =
+                                     // ImPlotPoint(0, 0),
+                          ippmax);   // const ImPlotPoint& bounds_max =
+                                     // ImPlotPoint(1, 1))
+                }
+
+                ImPlot::PopStyleVar(1);
+                ImPlot::EndPlot();
+            }
+        } // ------------------------end if auto* ed
+    }     // end heat map
 
     ImGui::End();
 }

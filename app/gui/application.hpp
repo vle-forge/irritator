@@ -634,6 +634,13 @@ struct application
     bool show_plot       = false;
     bool show_settings   = false;
 
+        // add other plot styles in show_plot window
+    bool show_scatter_plot = false;
+    bool show_shaded_plot = false;
+    bool show_bar_chart = false;
+    bool show_pie_chart = false;
+    bool show_heat_map = false;
+
     bool init();
     bool show();
     void shutdown();
