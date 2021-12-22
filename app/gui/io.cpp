@@ -4,10 +4,12 @@
 
 #include "application.hpp"
 #include "dialog.hpp"
+#include "internal.hpp"
 
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
 
+#include <rapidjson/error/en.h>
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/filewritestream.h>
 #include <rapidjson/prettywriter.h>
@@ -226,7 +228,8 @@ struct component_setting_handler
 
 status application::load_settings() noexcept
 {
-    status ret = status::success;
+    const bool have_notification_system = notifications.can_alloc();
+    status     ret                      = status::success;
 
     component_setting_handler handler{ this };
 
@@ -239,20 +242,50 @@ status application::load_settings() noexcept
             json_in_stream is(fp, buffer, sizeof(buffer));
             json_reader    reader;
 
-            if (!reader.Parse(is, handler))
-                ret = status::io_file_format_error;
+            if (!reader.Parse(is, handler)) {
+                const auto error_code   = reader.GetParseErrorCode();
+                const auto error_offset = reader.GetErrorOffset();
 
-        } else
+                if (have_notification_system) {
+                    auto  file = path->generic_string();
+                    auto& n    = push_notification(notification_type::error);
+                    n.title    = "Fail to parse settings file";
+                    format(n.message,
+                           "Error {} at offset {} in file {}",
+                           rapidjson::GetParseError_En(error_code),
+                           error_offset,
+                           reinterpret_cast<const char*>(file.c_str()));
+                }
+                ret = status::io_file_format_error;
+            } else {
+                if (have_notification_system) {
+                    auto& n = push_notification(notification_type::success);
+                    n.title = "Load settings file";
+                }
+            }
+        } else {
+            if (have_notification_system) {
+                auto& n   = push_notification(notification_type::error);
+                n.title   = "Fail to open settings file";
+                n.message = filename;
+            }
             ret = status::io_file_format_error;
-    } else
+        }
+    } else {
+        if (have_notification_system) {
+            auto& n = push_notification(notification_type::error);
+            n.title = "Fail to create settings file name";
+        }
         ret = status::io_file_format_error;
+    }
 
     return ret;
 }
 
 status application::save_settings() noexcept
 {
-    status ret = status::success;
+    const bool have_notification_system = notifications.can_alloc();
+    status     ret                      = status::success;
 
     if (auto path = get_settings_filename(); path) {
         auto filename = reinterpret_cast<const char*>(path->c_str());
@@ -310,10 +343,26 @@ status application::save_settings() noexcept
             writer.Uint64(mod_init.random_generator_seed);
 
             writer.EndObject();
-        } else
+
+            if (have_notification_system) {
+                auto& n = push_notification(notification_type::success);
+                n.title = "Save settings file";
+            }
+        } else {
+            if (have_notification_system) {
+                auto& n   = push_notification(notification_type::error);
+                n.title   = "Fail to open settings file";
+                n.message = filename;
+            }
             ret = status::io_file_format_error;
-    } else
+        }
+    } else {
+        if (have_notification_system) {
+            auto& n = push_notification(notification_type::error);
+            n.title = "Fail to create settings file name";
+        }
         ret = status::io_file_format_error;
+    }
 
     return ret;
 }

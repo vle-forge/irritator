@@ -169,26 +169,12 @@ bool application::show()
             ImGui::Separator();
             ImGui::MenuItem(
               "Component settings", nullptr, &c_editor.show_settings);
-            if (ImGui::MenuItem("Load settings")) {
-                if (auto ret = load_settings(); is_bad(ret)) {
-                    auto& notif = push_notification(notification_type::error);
-                    notif.title = "Load settings";
-                    format(notif.message, "Error: {}", status_string(ret));
-                } else {
-                    auto& notif = push_notification(notification_type::success);
-                    notif.title = "Load settings";
-                }
-            }
-            if (ImGui::MenuItem("Save settings")) {
-                if (auto ret = save_settings(); is_bad(ret)) {
-                    auto& notif = push_notification(notification_type::error);
-                    notif.title = "Save settings";
-                    format(notif.message, "Error: {}", status_string(ret));
-                } else {
-                    auto& notif = push_notification(notification_type::success);
-                    notif.title = "Save settings";
-                }
-            }
+
+            if (ImGui::MenuItem("Load settings"))
+                load_settings();
+
+            if (ImGui::MenuItem("Save settings"))
+                save_settings();
 
             ImGui::EndMenu();
         }
