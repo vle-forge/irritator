@@ -213,9 +213,15 @@ bool application::show()
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
             if (auto ret = c_editor.mod.load_project(str); is_bad(ret)) {
+                auto  file        = c_editor.project_file.generic_u8string();
+                auto* generic_str = reinterpret_cast<const char*>(file.c_str());
+
                 auto& notif = push_notification(notification_type::error);
-                notif.title = "Load project";
-                format(notif.message, "Error: {}", status_string(ret));
+                notif.title = "Save project";
+                format(notif.message,
+                       "Error {} in project file loading ({})",
+                       status_string(ret),
+                       generic_str);
             } else {
                 auto& notif = push_notification(notification_type::success);
                 notif.title = "Load project";
@@ -233,9 +239,15 @@ bool application::show()
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
             if (auto ret = c_editor.mod.save_project(str); is_bad(ret)) {
+                auto  file        = c_editor.project_file.generic_u8string();
+                auto* generic_str = reinterpret_cast<const char*>(file.c_str());
+
                 auto& notif = push_notification(notification_type::error);
                 notif.title = "Save project";
-                format(notif.message, "Error: {}", status_string(ret));
+                format(notif.message,
+                       "Error {} in project file writing {}",
+                       status_string(ret),
+                       generic_str);
             } else {
                 auto& notif = push_notification(notification_type::success);
                 notif.title = "Save project";
@@ -256,9 +268,15 @@ bool application::show()
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
             if (auto ret = c_editor.mod.save_project(str); is_bad(ret)) {
+                auto  file        = c_editor.project_file.generic_u8string();
+                auto* generic_str = reinterpret_cast<const char*>(file.c_str());
+
                 auto& notif = push_notification(notification_type::error);
                 notif.title = "Save project";
-                format(notif.message, "Error: {}", status_string(ret));
+                format(notif.message,
+                       "Error {} in project file writing {}",
+                       status_string(ret),
+                       generic_str);
             } else {
                 auto& notif = push_notification(notification_type::success);
                 notif.title = "Save project";
