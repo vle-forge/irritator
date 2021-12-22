@@ -267,7 +267,7 @@ static void show_random_distribution_input(random_source& src) noexcept
     }
 }
 
-void show_external_sources(external_source& srcs) noexcept
+void show_external_sources(application& app, external_source& srcs) noexcept
 {
     static bool                     show_file_dialog  = false;
     static irt::constant_source*    constant_ptr      = nullptr;
@@ -433,7 +433,7 @@ void show_external_sources(external_source& srcs) noexcept
             if (srcs.constant_sources.can_alloc(1u)) {
                 auto& new_src = srcs.constant_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size))) {
-                    log_w.log(2,
+                    app.log_w.log(2,
                               "Not enough memory to allocate constant source");
                     srcs.constant_sources.free(new_src);
                 }
@@ -445,7 +445,7 @@ void show_external_sources(external_source& srcs) noexcept
             if (srcs.text_file_sources.can_alloc(1u)) {
                 auto& new_src = srcs.text_file_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    log_w.log(2,
+                    app.log_w.log(2,
                               "Not enough memory to allocate text file source");
                     srcs.text_file_sources.free(new_src);
                 }
@@ -457,7 +457,7 @@ void show_external_sources(external_source& srcs) noexcept
             if (srcs.binary_file_sources.can_alloc(1u)) {
                 auto& new_src = srcs.binary_file_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    log_w.log(
+                    app.log_w.log(
                       2, "Not enough memory to allocate binary text source");
                     srcs.binary_file_sources.free(new_src);
                 }
@@ -469,7 +469,7 @@ void show_external_sources(external_source& srcs) noexcept
             if (srcs.random_sources.can_alloc(1u)) {
                 auto& new_src = srcs.random_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    log_w.log(2, "Not enough memory to allocate random source");
+                    app.log_w.log(2, "Not enough memory to allocate random source");
                     srcs.random_sources.free(new_src);
                 }
             }

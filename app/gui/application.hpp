@@ -22,6 +22,20 @@
 
 namespace irt {
 
+template<class T, class M>
+constexpr std::ptrdiff_t offset_of(const M T::*member)
+{
+    return reinterpret_cast<std::ptrdiff_t>(
+      &(reinterpret_cast<T*>(0)->*member));
+}
+
+template<class T, class M>
+constexpr T* container_of(M* ptr, const M T::*member)
+{
+    return reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
+                                offset_of(member));
+}
+
 // Forward declaration
 struct application;
 struct editor;
@@ -189,7 +203,7 @@ inline child* unpack_node(const int                          node_id,
     return data.try_to_get(static_cast<u32>(node_id));
 }
 
-void show_external_sources(external_source& srcs) noexcept;
+void show_external_sources(application& app, external_source& srcs) noexcept;
 void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;
@@ -366,10 +380,10 @@ struct editor
     void show_model_dynamics(model& mdl) noexcept;
     void show_top() noexcept;
     void show_sources() noexcept;
-    void show_editor() noexcept;
+    void show_editor(window_logger& log_w) noexcept;
     void show_menu_sources(const char* title, source& src) noexcept;
 
-    bool show_window() noexcept;
+    bool show_window(window_logger& log_w) noexcept;
 };
 
 enum class notification_type
@@ -406,7 +420,7 @@ struct window_logger
 
     void log(const int level, const char* fmt, ...) IM_FMTARGS(3);
     void log(const int level, const char* fmt, va_list args) IM_FMTLIST(3);
-    void show(bool* is_show);
+    void show() noexcept;
 };
 
 const char* log_string(const log_status s) noexcept;
@@ -582,7 +596,6 @@ struct application
     notification& push_notification(notification_type type) noexcept;
 
     bool show_modeling   = true;
-    bool show_log        = false;
     bool show_simulation = false;
     bool show_demo       = false;
     bool show_plot       = false;
@@ -607,9 +620,9 @@ struct application
 
     status save_settings() noexcept;
     status load_settings() noexcept;
-};
 
-static inline window_logger log_w; // @todo remove this variable.
+    window_logger log_w;
+};
 
 char* get_imgui_filename() noexcept;
 

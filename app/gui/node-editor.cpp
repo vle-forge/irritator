@@ -73,7 +73,6 @@ void editor::free_children(const ImVector<int>& nodes) noexcept
             continue;
 
         const auto child_id = sim.models.get_id(mdl);
-        log_w.log(7, "delete %" PRIu64 "\n", child_id);
         sim.deallocate(child_id);
 
         observation_dispatch(get_index(child_id),
@@ -1212,7 +1211,7 @@ status add_popup_menuitem(editor& ed, dynamics_type type, model_id* new_model)
     return status::success;
 }
 
-void editor::show_editor() noexcept
+void editor::show_editor(window_logger& log_w) noexcept
 {
 
     ImGui::Text("X -- delete selected nodes and/or connections / "
@@ -1589,7 +1588,7 @@ void editor::show_editor() noexcept
     }
 }
 
-bool editor::show_window() noexcept
+bool editor::show_window(window_logger& log_w) noexcept
 {
     ImGuiWindowFlags windows_flags = 0;
     windows_flags |= ImGuiWindowFlags_MenuBar;
@@ -1871,11 +1870,12 @@ bool editor::show_window() noexcept
     constexpr ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
     if (ImGui::BeginTabBar("editor bar", tab_bar_flags)) {
         if (ImGui::BeginTabItem("model")) {
-            show_editor();
+            show_editor(log_w);
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("sources")) {
-            show_external_sources(srcs);
+            auto* app = container_of(&log_w, &application::log_w);
+            show_external_sources(*app, srcs);
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();

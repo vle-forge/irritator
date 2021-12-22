@@ -158,7 +158,6 @@ bool application::show()
         }
 
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Show log window", nullptr, &show_log);
             ImGui::MenuItem(
               "Show component memory window", nullptr, &c_editor.show_memory);
             ImGui::EndMenu();
@@ -289,7 +288,7 @@ bool application::show()
     editor* ed = nullptr;
     while (editors.next(ed)) {
         if (ed->show) {
-            if (!ed->show_window()) {
+            if (!ed->show_window(log_w)) {
                 editor* next = ed;
                 editors.next(next);
                 free_editor(*ed);
@@ -305,9 +304,6 @@ bool application::show()
 
     if (show_plot)
         show_plot_window();
-
-    if (show_log)
-        log_w.show(&show_log);
 
     if (show_settings)
         show_settings_window();
@@ -421,10 +417,6 @@ static void run_for(editor& ed, long long int duration_in_microseconds) noexcept
 
         if (ed.sim_st = ed.sim.initialize(ed.simulation_current);
             irt::is_bad(ed.sim_st)) {
-
-            log_w.log(3,
-                      "Simulation initialisation failure (%s)\n",
-                      irt::status_string(ed.sim_st));
             return;
         }
 

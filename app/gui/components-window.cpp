@@ -154,13 +154,15 @@ static void show_all_components(component_editor& ed)
 
         if (ImGui::BeginPopupContextWindow("Component Menu")) {
             if (ImGui::MenuItem("New component")) {
-                log_w.log(7, "adding a new component");
+                auto* app = container_of(&ed, &application::c_editor);
+                app->log_w.log(7, "adding a new component");
                 auto id = add_empty_component(ed);
                 ed.open_as_main(id);
             }
 
             if (ImGui::MenuItem("Open as main")) {
-                log_w.log(
+                auto* app = container_of(&ed, &application::c_editor);
+                app->log_w.log(
                   7, "@todo be sure to save before opening a new component");
 
                 auto id = ed.mod.components.get_id(*ed.selected_component_list);
@@ -175,7 +177,8 @@ static void show_all_components(component_editor& ed)
                     new_c.state = component_status::modified;
                     ed.mod.copy(*ed.selected_component_list, new_c);
                 } else {
-                    log_w.log(3, "Can not alloc a new component");
+                    auto* app = container_of(&ed, &application::c_editor);
+                    app->log_w.log(3, "Can not alloc a new component");
                 }
             }
 

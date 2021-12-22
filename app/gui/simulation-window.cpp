@@ -156,7 +156,14 @@ void component_editor::show_simulation_window() noexcept
         }
 
         if (ImGui::BeginTabItem("Data")) {
-            show_external_sources(srcs);
+            auto* app = container_of(this, &application::c_editor);
+            show_external_sources(*app, srcs);
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Log")) {
+            auto *app = container_of(this, &application::c_editor);
+            app->log_w.show();
             ImGui::EndTabItem();
         }
 
