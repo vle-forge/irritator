@@ -257,211 +257,224 @@ char* get_imgui_filename() noexcept
     return ret;
 }
 
-struct file_dialog
-{
-    std::vector<std::filesystem::path> paths;
-    std::filesystem::path              current;
-    std::filesystem::path              selected;
-    std::u8string temp;
-    char          buffer[512];
-
-    bool is_open = true;
-
 #ifdef _WIN32
-    uint32_t drives{ 0 };
+uint32_t fill_drives(file_dialog& fd)
+{
+    DWORD    mask = ::GetLogicalDrives();
+    uint32_t ret  = { 0 };
 
-    void fill_drives()
-    {
-        DWORD    mask = ::GetLogicalDrives();
-        uint32_t ret  = { 0 };
+    for (int i = 0; i < 26; ++i) {
+        if (!(mask & (1 << i)))
+            continue;
 
-        for (int i = 0; i < 26; ++i) {
-            if (!(mask & (1 << i)))
-                continue;
-
-            char rootName[4] = { static_cast<char>('A' + i), ':', '\\', '\0' };
-            UINT type        = ::GetDriveTypeA(rootName);
-            if (type == DRIVE_REMOVABLE || type == DRIVE_FIXED)
-                ret |= (1 << i);
-        }
-
-        drives = ret;
+        char rootName[4] = { static_cast<char>('A' + i), ':', '\\', '\0' };
+        UINT type        = ::GetDriveTypeA(rootName);
+        if (type == DRIVE_REMOVABLE || type == DRIVE_FIXED)
+            ret |= (1 << i);
     }
+
+    return ret;
+}
 #else
-    void          fill_drives() {}
+uint32_t fill_drives(file_dialog& fd) noexcept { return 0; }
 #endif
 
-    const char8_t** file_filters;
-    const char8_t** extension_filters;
+static bool have_good_file_name_starts(const std::filesystem::path& p,
+                                       const char8_t** file_filters) noexcept
+{
+    if (file_filters == nullptr)
+        return true;
 
-    bool have_good_file_name_starts(const std::filesystem::path& p)
-    {
-        if (file_filters == nullptr)
+    const char8_t** filters = file_filters;
+    while (*filters) {
+        if (p.u8string().find(*filters) == 0)
             return true;
 
-        const char8_t** filters = file_filters;
-
-        while (*filters) {
-            if (p.u8string().find(*filters) == 0)
-                return true;
-
-            ++filters;
-        }
-
-        return false;
+        ++filters;
     }
 
-    bool have_good_extension(const std::filesystem::path& p)
-    {
-        if (extension_filters == nullptr)
+    return false;
+}
+
+static bool have_good_extension(const std::filesystem::path& p,
+                                const char8_t** extension_filters) noexcept
+{
+    if (extension_filters == nullptr)
+        return true;
+
+    const char8_t** filters = extension_filters;
+    while (*filters) {
+        if (p.extension().u8string() == *filters)
             return true;
 
-        const char8_t** filters = extension_filters;
-
-        while (*filters) {
-            if (p.extension().u8string() == *filters)
-                return true;
-
-            ++filters;
-        }
-
-        return false;
+        ++filters;
     }
 
-    void copy_files_and_directories(const std::filesystem::path& current_path)
-    {
-        std::error_code err;
-        for (std::filesystem::directory_iterator it(current_path, err), et;
-             it != et;
-             ++it) {
+    return false;
+}
 
-            if (it->is_directory(err)) {
+static void copy_files_and_directories(
+  const std::filesystem::path&        current_path,
+  std::vector<std::filesystem::path>& paths,
+  const char8_t**                     file_filters,
+  const char8_t**                     extension_filters) noexcept
+{
+    std::error_code err;
+    for (std::filesystem::directory_iterator it(current_path, err), et;
+         it != et;
+         ++it) {
+
+        if (it->is_directory(err)) {
+            paths.emplace_back(*it);
+            continue;
+        }
+
+        if (it->is_regular_file(err)) {
+            if (have_good_extension(*it, extension_filters) &&
+                have_good_file_name_starts(*it, file_filters)) {
                 paths.emplace_back(*it);
                 continue;
             }
-
-            if (it->is_regular_file(err)) {
-                if (have_good_extension(*it) &&
-                    have_good_file_name_starts(*it)) {
-                    paths.emplace_back(*it);
-                    continue;
-                }
-            }
         }
     }
+}
 
-    void sort()
-    {
-        std::sort(std::begin(paths),
-                  std::end(paths),
-                  [](const auto& lhs, const auto& rhs) {
-                      std::error_code ec1, ec2;
-
-                      if (std::filesystem::is_directory(lhs, ec1)) {
-                          if (std::filesystem::is_directory(rhs, ec2))
-                              return lhs.filename() < rhs.filename();
-
-                          return true;
-                      }
-
-                      if (std::filesystem::is_directory(rhs, ec2))
-                          return false;
-
-                      return lhs.filename() < rhs.filename();
-                  });
-    }
-
-    void clear()
-    {
-        paths.clear();
-        selected.clear();
-        current.clear();
-    }
-
-    void show_drives([[maybe_unused]] bool*                  path_click,
-                     [[maybe_unused]] std::filesystem::path* next)
-    {
-#ifdef _WIN32
-        char current_drive  = static_cast<char>(current.c_str()[0]);
-        char drive_string[] = { current_drive, ':', '\0' };
-
-        ImGui::PushItemWidth(4 * ImGui::GetFontSize());
-        if (ImGui::BeginCombo("##select_win_drive", drive_string)) {
-            for (int i = 0; i < 26; ++i) {
-                if (!(drives & (1 << i)))
-                    continue;
-
-                char drive_char          = static_cast<char>('A' + i);
-                char selectable_string[] = { drive_char, ':', '\0' };
-                bool is_selected         = current_drive == drive_char;
-                if (ImGui::Selectable(selectable_string, is_selected) &&
-                    !is_selected) {
-                    char new_current[] = { drive_char, ':', '\\', '\0' };
-                    std::error_code err;
-                    std::filesystem::current_path(new_current, err);
-                    if (!err) {
-                        selected.clear();
-                        *path_click = true;
-                        *next       = std::filesystem::current_path(err);
-                    }
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-        ImGui::PopItemWidth();
-        ImGui::SameLine();
-#endif
-    }
-
-    void show_path(bool* path_click, std::filesystem::path* next)
-    {
-        for (auto it = current.begin(), et = current.end(); it != et; ++it) {
-            if (it != current.begin())
-                ImGui::SameLine();
-
-            if (ImGui::Button((const char*)it->u8string().c_str())) {
-                next->clear();
-#if _WIN32
-                if (it == current.begin())
-                    ++it;
-#endif
-                for (auto jt = current.begin(); jt != it; ++jt)
-                    *next /= jt->native();
-                *next /= it->native();
-
-                selected.clear();
-                *path_click = true;
-                break;
-            }
-        }
-    }
-};
-
-file_dialog fd;
-
-// static const char8_t* filters[] = { u8".irt", nullptr };
-bool load_file_dialog(std::filesystem::path& out,
-                      const char*            title,
-                      const char8_t**        filters)
+static void sort(std::vector<std::filesystem::path>& paths) noexcept
 {
-    if (fd.current.empty()) {
-        fd.fill_drives();
-        fd.selected.clear();
-        std::error_code error;
-        fd.current = std::filesystem::current_path(error);
-    }
+    std::sort(
+      std::begin(paths), std::end(paths), [](const auto& lhs, const auto& rhs) {
+          std::error_code ec1, ec2;
 
-    std::filesystem::path next;
-    bool                  res = false;
+          if (std::filesystem::is_directory(lhs, ec1)) {
+              if (std::filesystem::is_directory(rhs, ec2))
+                  return lhs.filename() < rhs.filename();
+
+              return true;
+          }
+
+          if (std::filesystem::is_directory(rhs, ec2))
+              return false;
+
+          return lhs.filename() < rhs.filename();
+      });
+}
+
+#ifdef _WIN32
+void show_drives(const std::filesystem::path& current,
+                 std::filesystem::path&       selected,
+                 const uint32_t               drives,
+                 bool*                        path_click,
+                 std::filesystem::path*       next)
+{
+    char current_drive  = static_cast<char>(current.c_str()[0]);
+    char drive_string[] = { current_drive, ':', '\0' };
+
+    ImGui::PushItemWidth(4 * ImGui::GetFontSize());
+    if (ImGui::BeginCombo("##select_win_drive", drive_string)) {
+        for (int i = 0; i < 26; ++i) {
+            if (!(drives & (1 << i)))
+                continue;
+
+            char drive_char          = static_cast<char>('A' + i);
+            char selectable_string[] = { drive_char, ':', '\0' };
+            bool is_selected         = current_drive == drive_char;
+            if (ImGui::Selectable(selectable_string, is_selected) &&
+                !is_selected) {
+                char            new_current[] = { drive_char, ':', '\\', '\0' };
+                std::error_code err;
+                std::filesystem::current_path(new_current, err);
+                if (!err) {
+                    selected.clear();
+                    *path_click = true;
+                    *next       = std::filesystem::current_path(err);
+                }
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+}
+#else
+void show_drives(const std::filesystem::path& ,
+    std::filesystem::path& ,
+    const uint32_t         ,
+    bool* ,
+    std::filesystem::path* noexcept
+{}
+#endif
+
+static void show_path(const std::filesystem::path& current,
+                      std::filesystem::path&       selected,
+                      bool*                        path_click,
+                      std::filesystem::path*       next) noexcept
+{
+    for (auto it = current.begin(), et = current.end(); it != et; ++it) {
+        if (it != current.begin())
+            ImGui::SameLine();
+
+        auto  name  = it->u8string();
+        auto* c_str = reinterpret_cast<const char*>(name.c_str());
+        if (ImGui::Button(c_str)) {
+            next->clear();
+#if _WIN32
+            if (it == current.begin())
+                ++it;
+#endif
+            for (auto jt = current.begin(); jt != it; ++jt)
+                *next /= jt->native();
+            *next /= it->native();
+
+            selected.clear();
+            *path_click = true;
+            break;
+        }
+    }
+}
+
+file_dialog::file_dialog() noexcept
+  : drives{ 0 }
+  , state{ status::hide }
+{
+    std::error_code error;
+
+    drives = fill_drives(*this);
+
+    current = std::filesystem::current_path(error);
+}
+
+void file_dialog::clear() noexcept
+{
+    //paths.clear();
+    //current.clear();
+
+    //std::error_code error;
+    //current = std::filesystem::current_path(error);
+
+    next.clear();
+    temp.clear();
+    state = file_dialog::status::hide;
+
+    buffer[0] = u8'\0';
+}
+
+bool file_dialog::show_load_file(const char*     title,
+                                 const char8_t** filters) noexcept
+{
+    if (state == status::hide)
+        state = status::show;
+
+    next.clear();
+    bool ret = false;
 
     if (ImGui::BeginPopupModal(title)) {
         bool path_click = false;
 
-        fd.show_drives(&path_click, &next);
+        show_drives(current, selected, drives, &path_click, &next);
 
         if (!path_click)
-            fd.show_path(&path_click, &next);
+            show_path(current, selected, &path_click, &next);
 
         if (!path_click) {
             ImGui::BeginChild("##select_files",
@@ -469,32 +482,33 @@ bool load_file_dialog(std::filesystem::path& out,
                               true,
                               ImGuiWindowFlags_HorizontalScrollbar);
 
-            if (ImGui::Selectable("..##select_file", (fd.selected == ".."))) {
+            if (ImGui::Selectable("..##select_file", (selected == ".."))) {
                 if (next.empty()) {
-                    next = fd.current.parent_path();
-                    fd.selected.clear();
+                    next = current.parent_path();
+                    selected.clear();
                     path_click = true;
                 }
             }
 
-            for (auto it = fd.paths.begin(), et = fd.paths.end(); it != et;
-                 ++it) {
-                fd.temp.clear();
+            for (auto it = paths.begin(), et = paths.end(); it != et; ++it) {
+                temp.clear();
                 std::error_code ec;
                 if (std::filesystem::is_directory(*it, ec)) {
-                    fd.temp = u8"[Dir] ";
-                    fd.temp += it->filename().u8string();
+                    temp = u8"[Dir] ";
+                    temp += it->filename().u8string();
                 } else
-                    fd.temp = it->filename().u8string();
+                    temp = it->filename().u8string();
 
-                if (ImGui::Selectable((const char*)fd.temp.c_str(),
-                                      (it->filename() == fd.selected))) {
-                    fd.selected = it->filename();
+                auto* u8c_str = temp.c_str();
+                auto* c_str   = reinterpret_cast<const char*>(u8c_str);
+
+                if (ImGui::Selectable(c_str, (it->filename() == selected))) {
+                    selected = it->filename();
 
                     if (std::filesystem::is_directory(*it, ec)) {
                         if (next.empty()) {
-                            fd.selected.clear();
-                            next = fd.current;
+                            selected.clear();
+                            next = current;
                             next /= it->filename();
                             path_click = true;
                         }
@@ -507,17 +521,21 @@ bool load_file_dialog(std::filesystem::path& out,
         }
 
         if (path_click) {
-            fd.paths.clear();
-            fd.extension_filters = filters;
-            fd.file_filters      = nullptr;
+            paths.clear();
+            extension_filters = filters;
+            file_filters      = nullptr;
 
-            fd.copy_files_and_directories(next);
-            fd.sort();
-            fd.current = next;
+            copy_files_and_directories(
+              next, paths, file_filters, extension_filters);
+
+            sort(paths);
+            current = next;
         }
 
-        ImGui::Text("File Name: %s",
-                    (const char*)fd.selected.u8string().c_str());
+        auto  u8_str  = selected.u8string();
+        auto* u8c_str = u8_str.c_str();
+        auto* c_str   = reinterpret_cast<const char*>(u8c_str);
+        ImGui::Text("File Name: %s", c_str);
 
         const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
         const auto region_width = ImGui::GetContentRegionAvail().x;
@@ -525,90 +543,84 @@ bool load_file_dialog(std::filesystem::path& out,
           ImVec2{ (region_width - item_spacing) / 2.f, 0 };
 
         if (ImGui::Button("Ok", button_size)) {
-            auto sel = fd.current;
-            sel /= fd.selected;
-            out = sel;
-            res = true;
+            result = current;
+            result /= selected;
+            state = status::ok;
         }
 
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
 
         if (ImGui::Button("Cancel", button_size)) {
-            res = true;
+            result.clear();
+            state = status::cancel;
         }
 
-        if (res) {
+        if (state != status::show) {
+            ret = true;
             ImGui::CloseCurrentPopup();
-            fd.clear();
         }
 
         ImGui::EndPopup();
     }
 
-    return res;
+    return ret;
 }
 
-// static const char8_t* filters[] = { u8".irt", nullptr };
-bool save_file_dialog(std::filesystem::path& out,
-                      const char*            title,
-                      const char8_t**        filters)
+bool file_dialog::show_save_file(const char*        title,
+                                 std::u8string_view default_file_name,
+                                 const char8_t**    filters) noexcept
 {
-    if (fd.current.empty()) {
-        fd.fill_drives();
-        fd.selected.clear();
-        std::error_code error;
-        fd.current = std::filesystem::current_path(error);
+    if (state == status::hide) {
+        state                   = status::show;
+        const auto default_size = std::size(default_file_name);
+        const auto buffer_size  = std::size(buffer);
+        const auto max_size     = std::min(default_size, buffer_size - 1);
 
-        static const std::u8string default_file_name = u8"file-name.irt";
-        const size_t               max_size =
-          std::min(std::size(default_file_name), std::size(fd.buffer) - 1);
-
-        std::copy_n(std::begin(default_file_name), max_size, fd.buffer);
-        fd.buffer[max_size] = u8'\0';
+        std::copy_n(std::begin(default_file_name), max_size, buffer);
+        buffer[max_size] = u8'\0';
     }
 
-    std::filesystem::path next;
-    bool                  res = false;
+    next.clear();
+    bool res = false;
 
     if (ImGui::BeginPopupModal(title)) {
         bool path_click = false;
 
-        fd.show_drives(&path_click, &next);
+        show_drives(current, selected, drives, &path_click, &next);
 
         if (!path_click)
-            fd.show_path(&path_click, &next);
+            show_path(current, selected, &path_click, &next);
 
         if (!path_click) {
             ImGui::BeginChild("##select_files",
                               ImVec2{ 0.f, 350.f },
                               true,
                               ImGuiWindowFlags_HorizontalScrollbar);
-            if (ImGui::Selectable("..##select_file", (fd.selected == ".."))) {
+            if (ImGui::Selectable("..##select_file", (selected == ".."))) {
                 if (next.empty()) {
-                    next = fd.current.parent_path();
-                    fd.selected.clear();
+                    next = current.parent_path();
+                    selected.clear();
                     path_click = true;
                 }
             }
 
-            for (auto it = fd.paths.begin(), et = fd.paths.end(); it != et;
-                 ++it) {
-                fd.temp.clear();
+            for (auto it = paths.begin(), et = paths.end(); it != et; ++it) {
+                temp.clear();
                 std::error_code ec;
                 if (std::filesystem::is_directory(*it, ec))
-                    fd.temp = u8"[Dir] ";
+                    temp = u8"[Dir] ";
 
-                fd.temp = it->filename().u8string();
+                temp = it->filename().u8string();
 
-                if (ImGui::Selectable((const char*)fd.temp.c_str(),
-                                      (it->filename() == fd.selected))) {
-                    fd.selected = it->filename();
+                if (ImGui::Selectable((const char*)temp.c_str(),
+                                      (it->filename() == selected))) {
+                    selected = it->filename();
 
                     if (std::filesystem::is_directory(*it, ec)) {
                         if (next.empty()) {
-                            fd.selected.clear();
-                            next = fd.current;
+                            selected.clear();
+                            next = current;
                             next /= it->filename();
                             path_click = true;
                         }
@@ -617,12 +629,12 @@ bool save_file_dialog(std::filesystem::path& out,
                     if (std::filesystem::is_regular_file(*it, ec)) {
                         const size_t max_size =
                           std::min(std::size(it->filename().u8string()),
-                                   std::size(fd.buffer) - 1);
+                                   std::size(buffer) - 1);
 
                         std::copy_n(std::begin(it->filename().u8string()),
                                     max_size,
-                                    fd.buffer);
-                        fd.buffer[max_size] = u8'\0';
+                                    buffer);
+                        buffer[max_size] = u8'\0';
                     }
 
                     break;
@@ -633,19 +645,24 @@ bool save_file_dialog(std::filesystem::path& out,
         }
 
         if (path_click) {
-            fd.paths.clear();
-            fd.extension_filters = filters;
-            fd.file_filters      = nullptr;
+            paths.clear();
+            extension_filters = filters;
+            file_filters      = nullptr;
 
-            fd.copy_files_and_directories(next);
-            fd.sort();
-            fd.current = next;
+            copy_files_and_directories(
+              next, paths, file_filters, extension_filters);
+
+            sort(paths);
+            current = next;
         }
 
-        ImGui::InputText(
-          "File Name", (char*)fd.buffer, IM_ARRAYSIZE(fd.buffer));
-        ImGui::Text("Directory name: %s",
-                    (const char*)fd.current.u8string().c_str());
+        auto* buffer_ptr    = reinterpret_cast<char*>(buffer);
+        auto  buffer_size   = std::size(buffer);
+        auto  current_str   = current.u8string();
+        auto* u8current_ptr = current_str.c_str();
+        auto* current_ptr   = reinterpret_cast<const char*>(u8current_ptr);
+        ImGui::InputText("File Name", buffer_ptr, buffer_size);
+        ImGui::Text("Directory name: %s", current_ptr);
 
         const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
         const auto region_width = ImGui::GetContentRegionAvail().x;
@@ -653,22 +670,22 @@ bool save_file_dialog(std::filesystem::path& out,
           ImVec2{ (region_width - item_spacing) / 2.f, 0 };
 
         if (ImGui::Button("Ok", button_size)) {
-            auto sel = fd.current;
-            sel /= fd.buffer;
-            out = sel;
-            res = true;
+            result = current;
+            result /= buffer;
+            state = status::ok;
         }
 
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
 
         if (ImGui::Button("Cancel", button_size)) {
-            res = true;
+            result.clear();
+            state = status::cancel;
         }
 
-        if (res) {
+        if (state != status::show) {
+            res = true;
             ImGui::CloseCurrentPopup();
-            fd.clear();
         }
 
         ImGui::EndPopup();
@@ -677,54 +694,49 @@ bool save_file_dialog(std::filesystem::path& out,
     return res;
 }
 
-bool select_directory_dialog(std::filesystem::path& out)
+bool file_dialog::show_select_directory(const char* title) noexcept
 {
-    if (fd.current.empty()) {
-        fd.fill_drives();
-        fd.selected.clear();
-        std::error_code error;
-        fd.current = std::filesystem::current_path(error);
-    }
+    if (state == status::hide)
+        state = status::show;
 
-    std::filesystem::path next;
-    bool                  res = false;
+    next.clear();
+    bool res = false;
 
     if (ImGui::BeginPopupModal("Select directory")) {
         bool path_click = false;
 
-        fd.show_drives(&path_click, &next);
+        show_drives(current, selected, drives, &path_click, &next);
 
         if (!path_click)
-            fd.show_path(&path_click, &next);
+            show_path(current, selected, &path_click, &next);
 
         if (!path_click) {
             ImGui::BeginChild("##select_files",
                               ImVec2{ 0.f, 350.f },
                               true,
                               ImGuiWindowFlags_HorizontalScrollbar);
-            if (ImGui::Selectable("..##select_file", (fd.selected == ".."))) {
+            if (ImGui::Selectable("..##select_file", (selected == ".."))) {
                 if (next.empty()) {
-                    next = fd.current.parent_path();
-                    fd.selected.clear();
+                    next = current.parent_path();
+                    selected.clear();
                     path_click = true;
                 }
             }
 
-            for (auto it = fd.paths.begin(), et = fd.paths.end(); it != et;
-                 ++it) {
-                fd.temp.clear();
+            for (auto it = paths.begin(), et = paths.end(); it != et; ++it) {
+                temp.clear();
                 std::error_code ec;
                 if (std::filesystem::is_directory(*it, ec)) {
-                    fd.temp = u8"[Dir] ";
-                    fd.temp += it->filename().u8string();
+                    temp = u8"[Dir] ";
+                    temp += it->filename().u8string();
 
-                    if (ImGui::Selectable((const char*)fd.temp.c_str(),
-                                          (it->filename() == fd.selected))) {
-                        fd.selected = it->filename();
+                    if (ImGui::Selectable((const char*)temp.c_str(),
+                                          (it->filename() == selected))) {
+                        selected = it->filename();
 
                         if (next.empty()) {
-                            fd.selected.clear();
-                            next = fd.current;
+                            selected.clear();
+                            next = current;
                             next /= it->filename();
                             path_click = true;
                         }
@@ -737,17 +749,21 @@ bool select_directory_dialog(std::filesystem::path& out)
         }
 
         if (path_click) {
-            fd.paths.clear();
-            fd.extension_filters = nullptr;
-            fd.file_filters      = nullptr;
+            paths.clear();
+            extension_filters = nullptr;
+            file_filters      = nullptr;
 
-            fd.copy_files_and_directories(next);
-            fd.sort();
-            fd.current = next;
+            copy_files_and_directories(
+              next, paths, file_filters, extension_filters);
+
+            sort(paths);
+            current = next;
         }
 
-        ImGui::Text("Directory name: %s",
-                    (const char*)fd.current.u8string().c_str());
+        auto  str   = current.u8string();
+        auto* u8dir = str.c_str();
+        auto* dir   = reinterpret_cast<const char*>(u8dir);
+        ImGui::Text("Directory name: %s", dir);
 
         const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
         const auto region_width = ImGui::GetContentRegionAvail().x;
@@ -755,22 +771,22 @@ bool select_directory_dialog(std::filesystem::path& out)
           ImVec2{ (region_width - item_spacing) / 2.f, 0 };
 
         if (ImGui::Button("Ok", button_size)) {
-            auto sel = fd.current;
-            sel /= fd.buffer;
-            out = sel;
-            res = true;
+            result = current;
+            result /= buffer;
+            state = status::ok;
         }
 
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
 
         if (ImGui::Button("Cancel", button_size)) {
-            res = true;
+            result.clear();
+            state = status::cancel;
         }
 
-        if (res) {
+        if (state != status::show) {
+            res = true;
             ImGui::CloseCurrentPopup();
-            fd.clear();
         }
 
         ImGui::EndPopup();

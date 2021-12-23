@@ -16,15 +16,41 @@ std::optional<std::filesystem::path> get_system_component_dir();
 std::optional<std::filesystem::path> get_default_user_component_dir();
 std::optional<std::filesystem::path> get_settings_filename() noexcept;
 
-bool load_file_dialog(std::filesystem::path& out,
-                      const char*            title,
-                      const char8_t**        filters);
+struct file_dialog
+{
+    enum class status
+    {
+        show,
+        ok,
+        cancel,
+        hide
+    };
 
-bool save_file_dialog(std::filesystem::path& out,
-                      const char*            title,
-                      const char8_t**        filters);
+    std::vector<std::filesystem::path> paths;
+    std::filesystem::path              current;
+    std::filesystem::path              selected;
+    std::filesystem::path              next;
+    std::filesystem::path              result;
+    std::u8string                      temp;
+    char8_t                            buffer[512];
+    uint32_t                           drives = 0;
+    status                             state;
 
-bool select_directory_dialog(std::filesystem::path& out);
+    const char8_t** file_filters;
+    const char8_t** extension_filters;
+
+    file_dialog() noexcept;
+    
+    void clear() noexcept;
+
+    bool show_load_file(const char* title, const char8_t** filters) noexcept;
+
+    bool show_save_file(const char*        title,
+                        std::u8string_view default_file_name,
+                        const char8_t**    filters) noexcept;
+
+    bool show_select_directory(const char* title) noexcept;
+};
 
 }
 

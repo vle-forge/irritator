@@ -1796,6 +1796,7 @@ bool editor::show_window(window_logger& log_w) noexcept
         ImGui::EndMenuBar();
     }
 
+#if 0
     if (show_select_directory_dialog) {
         ImGui::OpenPopup("Select directory");
         if (select_directory_dialog(observation_directory)) {
@@ -1880,6 +1881,7 @@ bool editor::show_window(window_logger& log_w) noexcept
         }
         ImGui::EndTabBar();
     }
+#endif
 
     ImGui::End();
 

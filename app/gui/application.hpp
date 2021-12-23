@@ -16,6 +16,8 @@
 #include <variant>
 #include <vector>
 
+#include "dialog.hpp"
+
 #include "imnodes.h"
 #include "implot.h"
 #include <imgui.h>
@@ -592,8 +594,9 @@ struct application
 
     data_array<notification, notification_id> notifications;
     ring_buffer<notification_id, 10>          notification_buffer;
-
     notification& push_notification(notification_type type) noexcept;
+
+    file_dialog f_dialog;
 
     bool show_modeling   = true;
     bool show_simulation = false;

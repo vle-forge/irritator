@@ -433,8 +433,8 @@ void show_external_sources(application& app, external_source& srcs) noexcept
             if (srcs.constant_sources.can_alloc(1u)) {
                 auto& new_src = srcs.constant_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size))) {
-                    app.log_w.log(2,
-                              "Not enough memory to allocate constant source");
+                    app.log_w.log(
+                      2, "Not enough memory to allocate constant source");
                     srcs.constant_sources.free(new_src);
                 }
             }
@@ -445,8 +445,8 @@ void show_external_sources(application& app, external_source& srcs) noexcept
             if (srcs.text_file_sources.can_alloc(1u)) {
                 auto& new_src = srcs.text_file_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    app.log_w.log(2,
-                              "Not enough memory to allocate text file source");
+                    app.log_w.log(
+                      2, "Not enough memory to allocate text file source");
                     srcs.text_file_sources.free(new_src);
                 }
             }
@@ -469,7 +469,8 @@ void show_external_sources(application& app, external_source& srcs) noexcept
             if (srcs.random_sources.can_alloc(1u)) {
                 auto& new_src = srcs.random_sources.alloc();
                 if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    app.log_w.log(2, "Not enough memory to allocate random source");
+                    app.log_w.log(
+                      2, "Not enough memory to allocate random source");
                     srcs.random_sources.free(new_src);
                 }
             }
@@ -601,9 +602,13 @@ void show_external_sources(application& app, external_source& srcs) noexcept
             const char8_t* filters[] = { u8".dat", nullptr };
 
             ImGui::OpenPopup(title);
-            if (load_file_dialog(binary_file_ptr->file_path, title, filters)) {
-                show_file_dialog = false;
+            if (app.f_dialog.show_load_file(title, filters)) {
+                if (app.f_dialog.state == file_dialog::status::ok) {
+                    binary_file_ptr->file_path = app.f_dialog.result;
+                }
+                app.f_dialog.clear();
                 binary_file_ptr  = nullptr;
+                show_file_dialog = false;
             }
         }
 
@@ -612,9 +617,13 @@ void show_external_sources(application& app, external_source& srcs) noexcept
             const char8_t* filters[] = { u8".txt", nullptr };
 
             ImGui::OpenPopup(title);
-            if (load_file_dialog(text_file_ptr->file_path, title, filters)) {
-                show_file_dialog = false;
+            if (app.f_dialog.show_load_file(title, filters)) {
+                if (app.f_dialog.state == file_dialog::status::ok) {
+                    text_file_ptr->file_path = app.f_dialog.result;
+                }
+                app.f_dialog.clear();
                 text_file_ptr    = nullptr;
+                show_file_dialog = false;
             }
         }
     }

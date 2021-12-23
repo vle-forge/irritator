@@ -487,17 +487,25 @@ void component_editor::show(bool* /*is_show*/) noexcept
         settings.show(&show_settings);
 
     if (show_select_directory_dialog) {
-        ImGui::OpenPopup("Select directory");
-        if (select_directory_dialog(select_directory)) {
-            auto* dir_path = mod.dir_paths.try_to_get(select_dir_path);
-            if (dir_path) {
-                auto str = select_directory.string();
-                dir_path->path.assign(str);
+        const char* title = "Select directory";
+        ImGui::OpenPopup(title);
+        auto* app = container_of(this, &application::c_editor);
+        if (app->f_dialog.show_select_directory(title)) {
+            if (app->f_dialog.state == file_dialog::status::ok) {
+                select_directory = app->f_dialog.result;
+                auto* dir_path   = mod.dir_paths.try_to_get(select_dir_path);
+                if (dir_path) {
+                    auto str = select_directory.string();
+                    dir_path->path.assign(str);
+                }
+
+                show_select_directory_dialog = false;
+                select_dir_path              = undefined<dir_path_id>();
+                select_directory.clear();
             }
 
+            app->f_dialog.clear();
             show_select_directory_dialog = false;
-            select_dir_path              = undefined<dir_path_id>();
-            select_directory.clear();
         }
     }
 }

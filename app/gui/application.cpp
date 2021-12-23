@@ -207,25 +207,30 @@ bool application::show()
         const char8_t* filters[] = { u8".irt", nullptr };
 
         ImGui::OpenPopup(title);
-        if (load_file_dialog(c_editor.project_file, title, filters)) {
-            auto  u8str = c_editor.project_file.u8string();
-            auto* str   = reinterpret_cast<const char*>(u8str.c_str());
+        if (f_dialog.show_load_file(title, filters)) {
+            if (f_dialog.state == file_dialog::status::ok) {
+                c_editor.project_file = f_dialog.result;
+                auto  u8str           = c_editor.project_file.u8string();
+                auto* str = reinterpret_cast<const char*>(u8str.c_str());
 
-            if (auto ret = c_editor.mod.load_project(str); is_bad(ret)) {
-                auto  file        = c_editor.project_file.generic_u8string();
-                auto* generic_str = reinterpret_cast<const char*>(file.c_str());
+                if (auto ret = c_editor.mod.load_project(str); is_bad(ret)) {
+                    auto  file = c_editor.project_file.generic_u8string();
+                    auto* generic_str =
+                      reinterpret_cast<const char*>(file.c_str());
 
-                auto& notif = push_notification(notification_type::error);
-                notif.title = "Save project";
-                format(notif.message,
-                       "Error {} in project file loading ({})",
-                       status_string(ret),
-                       generic_str);
-            } else {
-                auto& notif = push_notification(notification_type::success);
-                notif.title = "Load project";
+                    auto& notif = push_notification(notification_type::error);
+                    notif.title = "Save project";
+                    format(notif.message,
+                           "Error {} in project file loading ({})",
+                           status_string(ret),
+                           generic_str);
+                } else {
+                    auto& notif = push_notification(notification_type::success);
+                    notif.title = "Load project";
+                }
             }
 
+            f_dialog.clear();
             load_project_file = false;
         }
     }
@@ -258,29 +263,35 @@ bool application::show()
     }
 
     if (save_as_project_file) {
-        const char*    title     = "Select project file path to save";
-        const char8_t* filters[] = { u8".irt", nullptr };
+        const char*              title = "Select project file path to save";
+        const std::u8string_view default_filename = u8"filename.irt";
+        const char8_t*           filters[]        = { u8".irt", nullptr };
 
         ImGui::OpenPopup(title);
-        if (save_file_dialog(c_editor.project_file, title, filters)) {
-            auto  u8str = c_editor.project_file.u8string();
-            auto* str   = reinterpret_cast<const char*>(u8str.c_str());
+        if (f_dialog.show_save_file(title, default_filename, filters)) {
+            if (f_dialog.state == file_dialog::status::ok) {
+                c_editor.project_file = f_dialog.result;
+                auto  u8str           = c_editor.project_file.u8string();
+                auto* str = reinterpret_cast<const char*>(u8str.c_str());
 
-            if (auto ret = c_editor.mod.save_project(str); is_bad(ret)) {
-                auto  file        = c_editor.project_file.generic_u8string();
-                auto* generic_str = reinterpret_cast<const char*>(file.c_str());
+                if (auto ret = c_editor.mod.save_project(str); is_bad(ret)) {
+                    auto  file = c_editor.project_file.generic_u8string();
+                    auto* generic_str =
+                      reinterpret_cast<const char*>(file.c_str());
 
-                auto& notif = push_notification(notification_type::error);
-                notif.title = "Save project";
-                format(notif.message,
-                       "Error {} in project file writing {}",
-                       status_string(ret),
-                       generic_str);
-            } else {
-                auto& notif = push_notification(notification_type::success);
-                notif.title = "Save project";
+                    auto& notif = push_notification(notification_type::error);
+                    notif.title = "Save project";
+                    format(notif.message,
+                           "Error {} in project file writing {}",
+                           status_string(ret),
+                           generic_str);
+                } else {
+                    auto& notif = push_notification(notification_type::success);
+                    notif.title = "Save project";
+                }
             }
 
+            f_dialog.clear();
             save_as_project_file = false;
         }
     }
