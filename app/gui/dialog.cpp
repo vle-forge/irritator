@@ -446,11 +446,11 @@ file_dialog::file_dialog() noexcept
 
 void file_dialog::clear() noexcept
 {
-    //paths.clear();
-    //current.clear();
+    // paths.clear();
+    // current.clear();
 
-    //std::error_code error;
-    //current = std::filesystem::current_path(error);
+    // std::error_code error;
+    // current = std::filesystem::current_path(error);
 
     next.clear();
     temp.clear();
@@ -468,8 +468,18 @@ bool file_dialog::show_load_file(const char*     title,
     next.clear();
     bool ret = false;
 
+    ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_FirstUseEver);
     if (ImGui::BeginPopupModal(title)) {
         bool path_click = false;
+
+        const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;
+        const auto region_width  = ImGui::GetContentRegionAvail().x;
+        const auto region_height = ImGui::GetContentRegionAvail().y;
+        const auto button_size =
+          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
+
+        const auto child_size =
+          region_height - 3.f * ImGui::GetFrameHeightWithSpacing();
 
         show_drives(current, selected, drives, &path_click, &next);
 
@@ -478,7 +488,7 @@ bool file_dialog::show_load_file(const char*     title,
 
         if (!path_click) {
             ImGui::BeginChild("##select_files",
-                              ImVec2{ 0.f, 350.f },
+                              ImVec2{ 0.f, child_size },
                               true,
                               ImGuiWindowFlags_HorizontalScrollbar);
 
@@ -537,11 +547,6 @@ bool file_dialog::show_load_file(const char*     title,
         auto* c_str   = reinterpret_cast<const char*>(u8c_str);
         ImGui::Text("File Name: %s", c_str);
 
-        const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
-        const auto region_width = ImGui::GetContentRegionAvail().x;
-        const auto button_size =
-          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
-
         if (ImGui::Button("Ok", button_size)) {
             result = current;
             result /= selected;
@@ -584,8 +589,18 @@ bool file_dialog::show_save_file(const char*        title,
     next.clear();
     bool res = false;
 
+    ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_FirstUseEver);
     if (ImGui::BeginPopupModal(title)) {
         bool path_click = false;
+
+        const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;
+        const auto region_width  = ImGui::GetContentRegionAvail().x;
+        const auto region_height = ImGui::GetContentRegionAvail().y;
+        const auto button_size =
+          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
+
+        const auto child_size =
+          region_height - 4.f * ImGui::GetFrameHeightWithSpacing();
 
         show_drives(current, selected, drives, &path_click, &next);
 
@@ -594,7 +609,7 @@ bool file_dialog::show_save_file(const char*        title,
 
         if (!path_click) {
             ImGui::BeginChild("##select_files",
-                              ImVec2{ 0.f, 350.f },
+                              ImVec2{ 0.f, child_size },
                               true,
                               ImGuiWindowFlags_HorizontalScrollbar);
             if (ImGui::Selectable("..##select_file", (selected == ".."))) {
@@ -664,11 +679,6 @@ bool file_dialog::show_save_file(const char*        title,
         ImGui::InputText("File Name", buffer_ptr, buffer_size);
         ImGui::Text("Directory name: %s", current_ptr);
 
-        const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
-        const auto region_width = ImGui::GetContentRegionAvail().x;
-        const auto button_size =
-          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
-
         if (ImGui::Button("Ok", button_size)) {
             result = current;
             result /= buffer;
@@ -702,8 +712,18 @@ bool file_dialog::show_select_directory(const char* title) noexcept
     next.clear();
     bool res = false;
 
+    ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_FirstUseEver);
     if (ImGui::BeginPopupModal("Select directory")) {
         bool path_click = false;
+
+        const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;
+        const auto region_width  = ImGui::GetContentRegionAvail().x;
+        const auto region_height = ImGui::GetContentRegionAvail().y;
+        const auto button_size =
+          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
+
+        const auto child_size =
+          region_height - 4.f * ImGui::GetFrameHeightWithSpacing();
 
         show_drives(current, selected, drives, &path_click, &next);
 
@@ -712,7 +732,7 @@ bool file_dialog::show_select_directory(const char* title) noexcept
 
         if (!path_click) {
             ImGui::BeginChild("##select_files",
-                              ImVec2{ 0.f, 350.f },
+                              ImVec2{ 0.f, child_size },
                               true,
                               ImGuiWindowFlags_HorizontalScrollbar);
             if (ImGui::Selectable("..##select_file", (selected == ".."))) {
@@ -764,11 +784,6 @@ bool file_dialog::show_select_directory(const char* title) noexcept
         auto* u8dir = str.c_str();
         auto* dir   = reinterpret_cast<const char*>(u8dir);
         ImGui::Text("Directory name: %s", dir);
-
-        const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
-        const auto region_width = ImGui::GetContentRegionAvail().x;
-        const auto button_size =
-          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
 
         if (ImGui::Button("Ok", button_size)) {
             result = current;
