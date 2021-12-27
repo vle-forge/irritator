@@ -77,6 +77,21 @@ bool application::init()
                   "Fail to initialize modeling components: %s\n",
                   status_string(ret));
         return false;
+    } else {
+        c_editor.mod.report = [this](int         level,
+                                     const char* title,
+                                     const char* message) noexcept -> void {
+            const auto clamp_level = level < 0 ? 0 : level < 4 ? level : 4;
+            const auto type        = enum_cast<notification_type>(clamp_level);
+
+            auto& notif = this->push_notification(type);
+
+            if (title)
+                notif.title = title;
+
+            if (message)
+                notif.message = message;
+        };
     }
 
     if (auto ret = save_settings(); is_bad(ret)) {

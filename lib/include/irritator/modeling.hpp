@@ -77,6 +77,8 @@ enum class modeling_status
     unmodified
 };
 
+using report_callback = function_ref<void(int, const char*, const char*)>;
+
 struct connection;
 struct child;
 struct port;
@@ -232,6 +234,8 @@ struct modeling
     small_vector<dir_path_id, max_component_dirs> component_repertories;
     irt::external_source                          srcs;
     tree_node_id                                  head;
+
+    report_callback report;
 
     modeling_status state = modeling_status::unmodified;
 

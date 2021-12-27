@@ -64,6 +64,7 @@ const char* status_string(const status s) noexcept
         "model_flow_bad_samplerate",
         "model_flow_bad_data",
         "gui_not_enough_memory",
+        "io_filesystem_error",
         "io_not_enough_memory",
         "io_file_format_error",
         "io_file_format_source_number_error",

@@ -590,16 +590,26 @@ static component* load_component(modeling&   mod,
     component* ret = nullptr;
 
     try {
-        std::filesystem::path irt_file(dir.path.c_str());
-        irt_file /= file;
+        auto* u8str = reinterpret_cast<const char8_t*>(dir.path.c_str());
+        std::filesystem::path irt_file(u8str);
+        irt_file /= reinterpret_cast<const char8_t*>(file);
 
         std::error_code ec;
         if (std::filesystem::is_regular_file(irt_file, ec)) {
             if (std::ifstream ifs(irt_file); ifs) {
                 auto&  compo = mod.components.alloc();
                 reader r(ifs);
-                if (is_success(r(mod, compo, mod.srcs)))
+                auto   st = r(mod, compo, mod.srcs);
+                if (is_bad(st)) {
+                    if (!mod.report.empty()) {
+                        auto u8str  = irt_file.u8string();
+                        auto u8cstr = u8str.c_str();
+                        auto cstr   = reinterpret_cast<const char*>(u8cstr);
+                        mod.report(3, "Fail to read file", cstr);
+                    }
+                } else {
                     ret = &compo;
+                }
             }
         }
     } catch (const std::exception& /*e*/) {
@@ -882,15 +892,16 @@ static void prepare_component_loading(modeling&              mod,
 
 static void prepare_component_loading(modeling&              mod,
                                       dir_path&              d_path,
-                                      std::filesystem::path& path) noexcept
+                                      std::filesystem::path& path)
 {
     namespace fs   = std::filesystem;
     auto d_path_id = mod.dir_paths.get_id(d_path);
 
     std::error_code ec;
     if (fs::is_directory(path, ec)) {
-        auto it = fs::directory_iterator{ path, ec };
-        auto et = fs::directory_iterator{};
+        auto it                 = fs::directory_iterator{ path, ec };
+        auto et                 = fs::directory_iterator{};
+        bool too_many_component = false;
 
         while (it != et) {
             if (it->is_regular_file() && it->path().extension() == ".irt") {
@@ -898,11 +909,17 @@ static void prepare_component_loading(modeling&              mod,
                     auto file = it->path();
                     file      = std::filesystem::relative(file, path, ec);
                     prepare_component_loading(mod, d_path_id, file);
+                } else {
+                    too_many_component = true;
+                    break;
                 }
             }
 
             it = it.increment(ec);
         }
+
+        if (too_many_component && !mod.report.empty())
+            mod.report(3, "Too many component", nullptr);
     }
 }
 
@@ -968,8 +985,10 @@ static status load_component(modeling& mod, component& compo) noexcept
                 }
             }
         }
+    } catch (const std::bad_alloc& /*e*/) {
+        return status::io_not_enough_memory;
     } catch (...) {
-        return status::io_file_format_error;
+        return status::io_filesystem_error;
     }
 
     return status::success;
@@ -1052,8 +1071,11 @@ status modeling::connect(component& parent,
     return status::success;
 }
 
-status build_simulation(modeling& /*mod*/, simulation& /*sim*/) noexcept
+status build_simulation(modeling& mod, simulation& /*sim*/) noexcept
 {
+    if (!mod.report.empty())
+        mod.report(4, "build-simulation is not yet implemented", nullptr);
+
     // if (auto* c_ref = mod.component_refs.try_to_get(mod.head); c_ref)
     //     if (auto* compo = mod.components.try_to_get(c_ref->id); compo)
     //         return build_models(mod, *compo, sim);

@@ -362,6 +362,7 @@ enum class status
     model_flow_bad_data,
     gui_not_enough_memory,
     io_not_enough_memory,
+    io_filesystem_error,
     io_file_format_error,
     io_file_format_source_number_error,
     io_file_source_full,
