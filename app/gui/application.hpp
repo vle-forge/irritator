@@ -542,14 +542,13 @@ struct component_editor
     component_editor_status state = component_editor_status_modeling;
 
     component*     selected_component_list      = nullptr;
-    component_type selected_component_type_list = component_type::file;
 
     vector<int> selected_links;
     vector<int> selected_nodes;
 
     std::filesystem::path project_file;
     std::filesystem::path select_directory;
-    dir_path_id           select_dir_path = undefined<dir_path_id>();
+    registred_path_id     select_dir_path = undefined<registred_path_id>();
 
     real simulation_begin   = 0;
     real simulation_end     = 100;

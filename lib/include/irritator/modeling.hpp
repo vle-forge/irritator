@@ -19,6 +19,7 @@ enum class dir_path_id : u64;
 enum class file_path_id : u64;
 enum class child_id : u64;
 enum class connection_id : u64;
+enum class registred_path_id : u64;
 
 constexpr i32 max_component_dirs = 64;
 
@@ -149,6 +150,9 @@ struct component
         connections.init(256);
     }
 
+    component(const component&) = delete;
+    component& operator=(const component&) = delete;
+
     data_array<model, model_id>           models;
     data_array<child, child_id>           children;
     data_array<connection, connection_id> connections;
@@ -158,16 +162,17 @@ struct component
 
     table<i32, child_id> child_mapping_io;
 
-    description_id   desc = description_id{ 0 };
-    dir_path_id      dir  = dir_path_id{ 0 };
-    file_path_id     file = file_path_id{ 0 };
-    small_string<32> name;
+    description_id    desc     = description_id{ 0 };
+    registred_path_id reg_path = registred_path_id{ 0 };
+    dir_path_id       dir      = dir_path_id{ 0 };
+    file_path_id      file     = file_path_id{ 0 };
+    small_string<32>  name;
 
     component_type   type  = component_type::memory;
     component_status state = component_status::modified;
 };
 
-struct dir_path
+struct registred_path
 {
     enum class status_option
     {
@@ -180,12 +185,31 @@ struct dir_path
     small_string<32>       name;
     status_option          status   = status_option::unread;
     i8                     priority = 0;
+
+    vector<dir_path_id> children;
+};
+
+struct dir_path
+{
+    enum class status_option
+    {
+        none,
+        read,
+        unread,
+    };
+
+    small_string<256> path;
+    status_option     status = status_option::unread;
+    registred_path_id parent{ 0 };
+
+    vector<file_path_id> children;
 };
 
 struct file_path
 {
     small_string<256> path;
     dir_path_id       parent{ 0 };
+    component_id      component{ 0 };
 };
 
 struct modeling_initializer
@@ -195,6 +219,7 @@ struct modeling_initializer
     i32 parameter_capacity;
     i32 description_capacity;
     i32 component_capacity;
+    i32 dir_path_capacity;
     i32 file_path_capacity;
     i32 children_capacity;
     i32 connection_capacity;
@@ -224,16 +249,17 @@ struct tree_node
 
 struct modeling
 {
-    data_array<tree_node, tree_node_id>     tree_nodes;
-    data_array<description, description_id> descriptions;
-    data_array<component, component_id>     components;
-    data_array<dir_path, dir_path_id>       dir_paths;
-    data_array<file_path, file_path_id>     file_paths;
-    data_array<model, model_id>             parameters;
+    data_array<tree_node, tree_node_id>           tree_nodes;
+    data_array<description, description_id>       descriptions;
+    data_array<component, component_id>           components;
+    data_array<registred_path, registred_path_id> registred_paths;
+    data_array<dir_path, dir_path_id>             dir_paths;
+    data_array<file_path, file_path_id>           file_paths;
+    data_array<model, model_id>                   parameters;
 
-    small_vector<dir_path_id, max_component_dirs> component_repertories;
-    irt::external_source                          srcs;
-    tree_node_id                                  head;
+    small_vector<registred_path_id, max_component_dirs> component_repertories;
+    irt::external_source                                srcs;
+    tree_node_id                                        head;
 
     report_callback report;
 
@@ -241,17 +267,34 @@ struct modeling
 
     status init(modeling_initializer& params) noexcept;
 
-    component_id search_component(const char* name, const char* hint) noexcept;
+    component_id search_component(const char* directory,
+                                  const char* filename) noexcept;
 
     status fill_internal_components() noexcept;
     status fill_components() noexcept;
-    status fill_components(dir_path& path) noexcept;
+    status fill_components(registred_path& path) noexcept;
 
     void free(component& c) noexcept;
     void free(component& parent, child& c) noexcept;
     void free(component& parent, connection& c) noexcept;
     void free(tree_node& node) noexcept;
+
+    bool can_alloc_file(i32 number = 1) const noexcept;
+    bool can_alloc_dir(i32 number = 1) const noexcept;
+    bool can_alloc_registred(i32 number = 1) const noexcept;
+
+    file_path&      alloc_file(dir_path& dir) noexcept;
+    dir_path&       alloc_dir(registred_path& reg) noexcept;
+    registred_path& alloc_registred() noexcept;
+
+    void move_file(registred_path& reg,
+                   dir_path&       from,
+                   dir_path&       to,
+                   file_path&      file) noexcept;
+
+    void free(file_path& file) noexcept;
     void free(dir_path& dir) noexcept;
+    void free(registred_path& dir) noexcept;
 
     child& alloc(component& parent, dynamics_type type) noexcept;
 

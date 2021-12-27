@@ -17,6 +17,20 @@ bool application::init()
 {
     c_editor.init();
 
+    c_editor.mod.report = [this](int         level,
+                                 const char* title,
+                                 const char* message) noexcept -> void {
+        const auto clamp_level = level < 0 ? 0 : level < 4 ? level : 4;
+        const auto type        = enum_cast<notification_type>(clamp_level);
+
+        fmt::print(stdout, "level: {} ", clamp_level);
+        if (title)
+            std::fputs(title, stdout);
+
+        if (message)
+            std::fputs(message, stdout);
+    };
+
     if (auto ret = editors.init(50u); is_bad(ret)) {
         log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
         std::fprintf(
@@ -24,74 +38,61 @@ bool application::init()
         return false;
     }
 
-    mod_init = { .model_capacity              = 256 * 64 * 16,
-                 .tree_capacity               = 256 * 16,
-                 .parameter_capacity          = 256 * 8,
-                 .description_capacity        = 256 * 16,
-                 .component_capacity          = 256 * 128,
-                 .file_path_capacity          = 256 * 256,
-                 .children_capacity           = 256 * 64 * 16,
-                 .connection_capacity         = 256 * 64,
-                 .port_capacity               = 256 * 64,
-                 .constant_source_capacity    = 16,
-                 .binary_file_source_capacity = 16,
-                 .text_file_source_capacity   = 16,
-                 .random_source_capacity      = 16,
-                 .random_generator_seed       = 123456789u };
-
-    if (auto ret = c_editor.mod.dir_paths.init(max_component_dirs);
+    if (auto ret = c_editor.mod.registred_paths.init(max_component_dirs);
         is_bad(ret)) {
-        log_w.log(2, "Fail to initialize dir paths");
-    }
-
-    if (auto path = get_system_component_dir(); path) {
-        auto& new_dir = c_editor.mod.dir_paths.alloc();
-        new_dir.name  = "System directory";
-        new_dir.path  = path.value().string().c_str();
-        log_w.log(7, "Add system directory: %s\n", new_dir.path.c_str());
-    }
-
-    if (auto path = get_default_user_component_dir(); path) {
-        auto& new_dir = c_editor.mod.dir_paths.alloc();
-        new_dir.name  = "User directory";
-        new_dir.path  = path.value().string().c_str();
-        log_w.log(7, "Add user directory: %s\n", new_dir.path.c_str());
+        log_w.log(2, "Fail to initialize registred dir paths");
     }
 
     if (auto ret = load_settings(); is_bad(ret)) {
         log_w.log(2, "Fail to read settings files. Default parameters used\n");
-    }
 
-    {
-        // Initialize component_repertories used into coponents-window
+        mod_init = { .model_capacity              = 256 * 64 * 16,
+                     .tree_capacity               = 256 * 16,
+                     .parameter_capacity          = 256 * 8,
+                     .description_capacity        = 256 * 16,
+                     .component_capacity          = 256 * 128,
+                     .dir_path_capacity           = 256 * 256,
+                     .file_path_capacity          = 256 * 256,
+                     .children_capacity           = 256 * 64 * 16,
+                     .connection_capacity         = 256 * 64,
+                     .port_capacity               = 256 * 64,
+                     .constant_source_capacity    = 16,
+                     .binary_file_source_capacity = 16,
+                     .text_file_source_capacity   = 16,
+                     .random_source_capacity      = 16,
+                     .random_generator_seed       = 123456789u };
 
-        dir_path* dir = nullptr;
-        while (c_editor.mod.dir_paths.next(dir)) {
-            auto id = c_editor.mod.dir_paths.get_id(*dir);
-            c_editor.mod.component_repertories.emplace_back(id);
+        if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
+            log_w.log(2,
+                      "Fail to initialize modeling components: %s\n",
+                      status_string(ret));
+            std::fprintf(stderr,
+                         "Fail to initialize modeling components: %s\n",
+                         status_string(ret));
+            return false;
         }
     }
 
-    if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
-        log_w.log(2,
-                  "Fail to initialize modeling components: %s\n",
-                  status_string(ret));
-        return false;
-    } else {
-        c_editor.mod.report = [this](int         level,
-                                     const char* title,
-                                     const char* message) noexcept -> void {
-            const auto clamp_level = level < 0 ? 0 : level < 4 ? level : 4;
-            const auto type        = enum_cast<notification_type>(clamp_level);
+    if (c_editor.mod.registred_paths.size() == 0) {
+        if (auto path = get_system_component_dir(); path) {
+            auto& new_dir    = c_editor.mod.registred_paths.alloc();
+            auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
+            new_dir.name     = "System directory";
+            new_dir.path     = path.value().string().c_str();
+            log_w.log(7, "Add system directory: %s\n", new_dir.path.c_str());
 
-            auto& notif = this->push_notification(type);
+            c_editor.mod.component_repertories.emplace_back(new_dir_id);
+        }
 
-            if (title)
-                notif.title = title;
+        if (auto path = get_default_user_component_dir(); path) {
+            auto& new_dir    = c_editor.mod.registred_paths.alloc();
+            auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
+            new_dir.name     = "User directory";
+            new_dir.path     = path.value().string().c_str();
+            log_w.log(7, "Add user directory: %s\n", new_dir.path.c_str());
 
-            if (message)
-                notif.message = message;
-        };
+            c_editor.mod.component_repertories.emplace_back(new_dir_id);
+        }
     }
 
     if (auto ret = save_settings(); is_bad(ret)) {
@@ -140,6 +141,21 @@ bool application::init()
     } catch (const std::bad_alloc& /*e*/) {
         return false;
     }
+
+    c_editor.mod.report = [this](int         level,
+                                 const char* title,
+                                 const char* message) noexcept -> void {
+        const auto clamp_level = level < 0 ? 0 : level < 4 ? level : 4;
+        const auto type        = enum_cast<notification_type>(clamp_level);
+
+        auto& notif = this->push_notification(type);
+
+        if (title)
+            notif.title = title;
+
+        if (message)
+            notif.message = message;
+    };
 
     return true;
 }

@@ -9,6 +9,9 @@
 
 namespace irt {
 
+static void show_internal_components(irt::component_editor& ed);
+static void show_notsaved_component(irt::component_editor& ed);
+
 static bool can_add_this_component(const tree_node*   top,
                                    const component_id id) noexcept
 {
@@ -80,14 +83,20 @@ static status add_component_to_current(component_editor& ed,
 
 static void show_component(component_editor& ed, component& c) noexcept
 {
-    ImGui::Selectable(
-      c.name.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick);
+    auto* file = ed.mod.file_paths.try_to_get(c.file);
+
+    irt_assert(file);
+
+    if (file) {
+        ImGui::Selectable(
+          file->path.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick);
+    }
+
     if (ImGui::IsItemHovered()) {
         if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
             add_component_to_current(ed, c);
         } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            ed.selected_component_list      = &c;
-            ed.selected_component_type_list = c.type;
+            ed.selected_component_list = &c;
             ImGui::OpenPopup("Component Menu");
         }
     }
@@ -105,50 +114,43 @@ static void show_all_components(component_editor& ed)
 
     if (ImGui::CollapsingHeader("Component library", flags)) {
         if (ImGui::TreeNodeEx("Internal")) {
-            component* compo = nullptr;
-            while (ed.mod.components.next(compo)) {
-                if (compo->type != component_type::file &&
-                    compo->type != component_type::memory) {
-                    show_component(ed, *compo);
-                }
-            }
-
+            show_internal_components(ed);
             ImGui::TreePop();
         }
 
         for (auto id : ed.mod.component_repertories) {
-            small_string<32>  s;
-            small_string<32>* select;
+            static small_string<32> s;
+            small_string<32>*       select;
 
-            auto& dir = ed.mod.dir_paths.get(id);
-            if (dir.name.empty()) {
+            auto& reg_dir = ed.mod.registred_paths.get(id);
+            if (reg_dir.name.empty()) {
                 format(s, "{}", id);
                 select = &s;
             } else {
-                select = &dir.name;
+                select = &reg_dir.name;
             }
 
-            ImGui::PushID(&dir);
-            if (ImGui::TreeNodeEx(select->c_str(),
-                                  ImGuiTreeNodeFlags_DefaultOpen)) {
-                component* compo = nullptr;
-                while (ed.mod.components.next(compo))
-                    if (compo->type == component_type::file && compo->dir == id)
-                        show_component(ed, *compo);
+            ImGui::PushID(&reg_dir);
+            if (ImGui::TreeNodeEx(select->c_str())) {
+                for (auto dir_id : reg_dir.children) {
+                    auto& dir = ed.mod.dir_paths.get(dir_id);
+                    if (ImGui::TreeNodeEx(dir.path.c_str())) {
+                        for (auto file_id : dir.children) {
+                            auto& file  = ed.mod.file_paths.get(file_id);
+                            auto& compo = ed.mod.components.get(file.component);
 
+                            show_component(ed, compo);
+                        }
+                        ImGui::TreePop();
+                    }
+                }
                 ImGui::TreePop();
             }
             ImGui::PopID();
         }
 
-        if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
-            component* compo = nullptr;
-            while (ed.mod.components.next(compo)) {
-                if (compo->type == component_type::memory) {
-                    show_component(ed, *compo);
-                }
-            }
-
+        if (ImGui::TreeNodeEx("Not saved")) {
+            show_notsaved_component(ed);
             ImGui::TreePop();
         }
 
@@ -166,6 +168,7 @@ static void show_all_components(component_editor& ed)
                   7, "@todo be sure to save before opening a new component");
 
                 auto id = ed.mod.components.get_id(*ed.selected_component_list);
+
                 ed.open_as_main(id);
             }
 
@@ -183,7 +186,8 @@ static void show_all_components(component_editor& ed)
             }
 
             if (ImGui::MenuItem("Delete")) {
-                if (ed.selected_component_type_list == component_type::memory) {
+                if (ed.selected_component_list->type ==
+                    component_type::memory) {
                     ed.mod.free(*ed.selected_component_list);
                     ed.selected_component_list = nullptr;
                 }
@@ -245,6 +249,51 @@ static void show_all_components(component_editor& ed)
 
                         ImGui::TreePop();
                     }
+                }
+            }
+        }
+    }
+}
+
+void show_notsaved_component(irt::component_editor& ed)
+{
+    component* compo = nullptr;
+    while (ed.mod.components.next(compo)) {
+        if (compo->type == component_type::memory) {
+
+            ImGui::Selectable(compo->name.c_str(),
+                              false,
+                              ImGuiSelectableFlags_AllowDoubleClick);
+
+            if (ImGui::IsItemHovered()) {
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                    add_component_to_current(ed, *compo);
+                } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+                    ed.selected_component_list = compo;
+                    ImGui::OpenPopup("Component Menu");
+                }
+            }
+        }
+    }
+}
+
+void show_internal_components(irt::component_editor& ed)
+{
+    component* compo = nullptr;
+    while (ed.mod.components.next(compo)) {
+        if (compo->type != component_type::file &&
+            compo->type != component_type::memory) {
+
+            ImGui::Selectable(compo->name.c_str(),
+                              false,
+                              ImGuiSelectableFlags_AllowDoubleClick);
+
+            if (ImGui::IsItemHovered()) {
+                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+                    add_component_to_current(ed, *compo);
+                } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+                    ed.selected_component_list = compo;
+                    ImGui::OpenPopup("Component Menu");
                 }
             }
         }

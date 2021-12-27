@@ -31,6 +31,17 @@ void format(small_string<N>& str, const char* fmt, const Args&... args)
     str.resize(static_cast<size_type>(ret.size));
 }
 
+inline int portable_filename_dirname_callback(
+  ImGuiInputTextCallbackData* data) noexcept
+{
+    ImWchar c = data->EventChar;
+
+    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' ||
+            c == '-' || c == '.')
+             ? 0
+             : 1;
+}
+
 } // namespace irt
 
 namespace ImGui {
@@ -61,6 +72,26 @@ bool InputSmallString(const char*                label,
 {
     const bool ret = ImGui::InputText(
       label, string.begin(), string.capacity(), flags, callback, user_data);
+
+    string.resize(std::strlen(string.begin()));
+
+    return ret;
+}
+
+template<size_t Length>
+bool InputFilteredString(const char*                label,
+                         irt::small_string<Length>& string,
+                         ImGuiInputTextFlags        flags = 0)
+{
+    flags |= ImGuiInputTextFlags_CallbackCharFilter |
+             ImGuiInputTextFlags_EnterReturnsTrue;
+
+    const bool ret = ImGui::InputText(label,
+                                      string.begin(),
+                                      string.capacity(),
+                                      flags,
+                                      irt::portable_filename_dirname_callback,
+                                      nullptr);
 
     string.resize(std::strlen(string.begin()));
 

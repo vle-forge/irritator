@@ -34,11 +34,12 @@ struct component_setting_handler
         path_object,
     };
 
-    application* app;
-    dir_path     current;
-    stack        top;
+    application*   app;
+    registred_path current;
+    stack          top;
 
     bool read_name;
+    bool read_path;
     i32  priority;
     i32  i32_empty_value;
     u64  u64_empty_value;
@@ -91,12 +92,21 @@ struct component_setting_handler
 
     bool String(const char* str, rapidjson::SizeType /*length*/, bool /*copy*/)
     {
-        if (read_name)
-            current.name.assign(str);
-        else
-            current.path.assign(str);
+        if (top == stack::path_object) {
+            if (read_name) {
+                current.name.assign(str);
+                read_name = false;
+                return true;
+            }
 
-        return true;
+            if (read_path) {
+                current.path.assign(str);
+                read_path = false;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     bool StartObject()
@@ -162,7 +172,7 @@ struct component_setting_handler
                 read_name = true;
                 return true;
             } else if (sv == "path") {
-                read_name = false;
+                read_path = true;
                 return true;
             } else if (sv == "priority") {
                 i32_value = &priority;
@@ -180,21 +190,28 @@ struct component_setting_handler
     bool EndObject(rapidjson::SizeType /*memberCount*/)
     {
         if (top == stack::path_object) {
-            bool      found = false;
-            dir_path* dir   = nullptr;
-            while (app->c_editor.mod.dir_paths.next(dir)) {
-                if (dir->path == current.path) {
+            bool            found   = false;
+            registred_path* reg_dir = nullptr;
+            while (app->c_editor.mod.registred_paths.next(reg_dir)) {
+                if (reg_dir->path == current.path) {
                     found = true;
                     break;
                 }
             }
 
             if (!found) {
-                auto& new_dir    = app->c_editor.mod.dir_paths.alloc();
-                new_dir.path     = current.path;
-                new_dir.priority = static_cast<i8>(priority);
-                top              = stack::paths_array;
+                auto& new_reg = app->c_editor.mod.registred_paths.alloc();
+                auto  id = app->c_editor.mod.registred_paths.get_id(new_reg);
+                new_reg.name     = current.name;
+                new_reg.path     = current.path;
+                new_reg.priority = static_cast<i8>(priority);
+                new_reg.status   = registred_path::status_option::unread;
+
+                app->c_editor.mod.component_repertories.emplace_back(id);
             }
+
+            top = stack::top;
+
             return true;
         }
 
@@ -300,8 +317,8 @@ status application::save_settings() noexcept
             writer.Key("paths");
 
             writer.StartArray();
-            dir_path* dir = nullptr;
-            while (c_editor.mod.dir_paths.next(dir)) {
+            registred_path* dir = nullptr;
+            while (c_editor.mod.registred_paths.next(dir)) {
                 writer.StartObject();
                 writer.Key("name");
                 writer.String(dir->name.c_str());
@@ -2153,10 +2170,22 @@ status modeling::save_project(const char* filename) noexcept
         if (file f{ filename, open_mode::write }; f.is_open()) {
             auto* fp = reinterpret_cast<FILE*>(f.get_handle());
 
+            auto& compo = components.get(parent->id);
+            auto* dir   = dir_paths.try_to_get(compo.dir);
+            auto* file  = file_paths.try_to_get(compo.file);
+
             try {
                 project_writer pw(fp);
 
                 pw.writer.StartObject();
+                pw.writer.Key("component-directory");
+                pw.writer.String(
+                  dir->path.begin(), static_cast<u32>(dir->path.size()), false);
+                pw.writer.Key("component-file");
+                pw.writer.String(file->path.begin(),
+                                 static_cast<u32>(dir->path.size()),
+                                 false);
+
                 pw.writer.Key("parameters");
                 pw.writer.StartArray();
                 write_node(pw.writer, *this, *parent);

@@ -90,79 +90,125 @@ static void show_hierarchy_settings(component_editor& ed,
                                     tree_node&        parent) noexcept
 {
     if (auto* compo = ed.mod.components.try_to_get(parent.id); compo) {
-        ImGui::InputSmallString("name", compo->name);
-        if (compo->type == component_type::memory ||
-            compo->type == component_type::file) {
-            static constexpr const char* empty = "";
+        ImGui::InputFilteredString("Name", compo->name);
+        static constexpr const char* empty = "";
 
-            auto*       dir     = ed.mod.dir_paths.try_to_get(compo->dir);
-            const char* preview = dir ? dir->path.c_str() : empty;
-            if (ImGui::BeginCombo(
-                  "Select directory", preview, ImGuiComboFlags_None)) {
+        auto* reg_dir = ed.mod.registred_paths.try_to_get(compo->reg_path);
+        const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
+        if (ImGui::BeginCombo("Path", reg_preview)) {
+            registred_path* list = nullptr;
+            while (ed.mod.registred_paths.next(list)) {
+                if (ImGui::Selectable(list->path.c_str(),
+                                      reg_dir == list,
+                                      ImGuiSelectableFlags_None)) {
+                    compo->reg_path = ed.mod.registred_paths.get_id(list);
+                    reg_dir         = list;
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        if (reg_dir) {
+            auto* dir         = ed.mod.dir_paths.try_to_get(compo->dir);
+            auto* dir_preview = dir ? dir->path.c_str() : empty;
+
+            if (ImGui::BeginCombo("Dir", dir_preview)) {
+                if (ImGui::Selectable("##empty-dir", dir == nullptr)) {
+                    compo->dir = undefined<dir_path_id>();
+                    dir        = nullptr;
+                }
+
                 dir_path* list = nullptr;
                 while (ed.mod.dir_paths.next(list)) {
-                    if (ImGui::Selectable(list->path.c_str(),
-                                          preview == list->path.c_str(),
-                                          ImGuiSelectableFlags_None)) {
+                    if (ImGui::Selectable(list->path.c_str(), dir == list)) {
                         compo->dir = ed.mod.dir_paths.get_id(list);
+                        dir        = list;
                     }
                 }
                 ImGui::EndCombo();
             }
 
-            auto* file = ed.mod.file_paths.try_to_get(compo->file);
-            if (file) {
-                ImGui::InputSmallString("File##text", file->path);
-            } else {
-                ImGui::Text("File cannot be sav");
-                if (ImGui::Button("Add file")) {
-                    auto& f     = ed.mod.file_paths.alloc();
-                    compo->file = ed.mod.file_paths.get_id(f);
+            if (dir == nullptr) {
+                static small_string<256> dir_name{};
+
+                if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
+                    auto& new_dir  = ed.mod.dir_paths.alloc();
+                    auto  dir_id   = ed.mod.dir_paths.get_id(new_dir);
+                    auto  reg_id   = ed.mod.registred_paths.get_id(*reg_dir);
+                    new_dir.parent = reg_id;
+                    new_dir.path   = dir_name;
+                    dir_name.clear();
+                    new_dir.status = dir_path::status_option::unread;
+                    reg_dir->children.emplace_back(dir_id);
+
+                    compo->reg_path = reg_id;
+                    compo->dir      = dir_id;
                 }
             }
 
-            auto* desc = ed.mod.descriptions.try_to_get(compo->desc);
-            if (!desc) {
-                if (ed.mod.descriptions.can_alloc(1) &&
-                    ImGui::Button("Add description")) {
-                    auto& new_desc = ed.mod.descriptions.alloc();
-                    compo->desc    = ed.mod.descriptions.get_id(new_desc);
-                }
-            } else {
-                constexpr ImGuiInputTextFlags flags =
-                  ImGuiInputTextFlags_AllowTabInput;
-
-                ImGui::InputSmallStringMultiline(
-                  "##source",
-                  desc->data,
-                  ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
-                  flags);
-
-                if (ImGui::Button("Remove")) {
-                    ed.mod.descriptions.free(*desc);
-                    compo->desc = undefined<description_id>();
-                }
-            }
-
-            if (file && dir) {
-                if (ImGui::Button("Save")) {
-                    {
-                        auto& task = ed.gui_tasks.alloc();
-                        task.ed    = &ed;
-                        task.param_1 =
-                          ordinal(ed.mod.components.get_id(*compo));
-                        ed.task_mgr.task_lists[0].add(save_component, &task);
+            if (dir) {
+                static small_string<256> file_name{};
+                auto* file = ed.mod.file_paths.try_to_get(compo->file);
+                if (!file) {
+                    if (ImGui::InputFilteredString("File##text", file_name)) {
+                        auto& f     = ed.mod.file_paths.alloc();
+                        auto  id    = ed.mod.file_paths.get_id(f);
+                        f.component = ed.mod.components.get_id(*compo);
+                        f.parent    = ed.mod.dir_paths.get_id(*dir);
+                        f.path      = file_name;
+                        compo->file = id;
+                        dir->children.emplace_back(id);
+                        file = &f;
                     }
+                } else {
+                    ImGui::InputFilteredString("File##text", file->path);
+                }
 
-                    {
-                        auto& task = ed.gui_tasks.alloc();
-                        task.ed    = &ed;
-                        task.param_1 =
-                          ordinal(ed.mod.components.get_id(*compo));
-                        ed.task_mgr.task_lists[0].add(save_description, &task);
+                auto* desc = ed.mod.descriptions.try_to_get(compo->desc);
+                if (!desc) {
+                    if (ed.mod.descriptions.can_alloc(1) &&
+                        ImGui::Button("Add description")) {
+                        auto& new_desc = ed.mod.descriptions.alloc();
+                        compo->desc    = ed.mod.descriptions.get_id(new_desc);
                     }
+                } else {
+                    constexpr ImGuiInputTextFlags flags =
+                      ImGuiInputTextFlags_AllowTabInput;
 
-                    ed.task_mgr.task_lists[0].submit();
+                    ImGui::InputSmallStringMultiline(
+                      "##source",
+                      desc->data,
+                      ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
+                      flags);
+
+                    if (ImGui::Button("Remove")) {
+                        ed.mod.descriptions.free(*desc);
+                        compo->desc = undefined<description_id>();
+                    }
+                }
+
+                if (file && dir) {
+                    if (ImGui::Button("Save")) {
+                        {
+                            auto& task = ed.gui_tasks.alloc();
+                            task.ed    = &ed;
+                            task.param_1 =
+                              ordinal(ed.mod.components.get_id(*compo));
+                            ed.task_mgr.task_lists[0].add(save_component,
+                                                          &task);
+                        }
+
+                        {
+                            auto& task = ed.gui_tasks.alloc();
+                            task.ed    = &ed;
+                            task.param_1 =
+                              ordinal(ed.mod.components.get_id(*compo));
+                            ed.task_mgr.task_lists[0].add(save_description,
+                                                          &task);
+                        }
+
+                        ed.task_mgr.task_lists[0].submit();
+                    }
                 }
             }
         }
@@ -212,7 +258,7 @@ static void show_project_observations(component_editor& ed,
             }
 
             if (is_observed && obs) {
-                ImGui::InputSmallString("name##obs", obs->name);
+                ImGui::InputFilteredString("name##obs", obs->name);
                 if (ImGui::InputReal("time-step##obs", &obs->time_step)) {
                     if (obs->time_step <= zero)
                         obs->time_step = one / to_real(100);
@@ -301,14 +347,16 @@ static void show_project_parameters(component_editor& ed,
 
 void component_editor::show_project_window() noexcept
 {
+    static project_hierarchy_data data;
+
     auto* parent = mod.tree_nodes.try_to_get(mod.head);
-    if (!parent)
+    if (!parent) {
+        data.clear();
         return;
+    }
 
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
-
-    static project_hierarchy_data data;
 
     if (ImGui::CollapsingHeader("Hierarchy", flags)) {
         show_project_hierarchy(*this, *parent, data);

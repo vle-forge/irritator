@@ -363,6 +363,8 @@ enum class status
     gui_not_enough_memory,
     io_not_enough_memory,
     io_filesystem_error,
+    io_filesystem_make_directory_error,
+    io_filesystem_not_directory_error,
     io_file_format_error,
     io_file_format_source_number_error,
     io_file_source_full,
@@ -716,8 +718,9 @@ public:
     constexpr reference       operator[](const size_type index) noexcept;
     constexpr const_reference operator[](const size_type index) const noexcept;
 
-    constexpr std::string_view sv() const noexcept;
-    constexpr const char*      c_str() const noexcept;
+    constexpr std::string_view   sv() const noexcept;
+    constexpr std::u8string_view u8sv() const noexcept;
+    constexpr const char*        c_str() const noexcept;
 
     constexpr iterator       begin() noexcept;
     constexpr iterator       end() noexcept;
@@ -7323,12 +7326,12 @@ inline constexpr small_string<length>::small_string(
 template<sz length>
 void small_string<length>::resize(sz size) noexcept
 {
-    size_type real_size = size + 1 > std::numeric_limits<size_type>::max()
+    size_type real_size = size > std::numeric_limits<size_type>::max()
                             ? std::numeric_limits<size_type>::max()
-                            : static_cast<size_type>(size + 1);
+                            : static_cast<size_type>(size);
 
-    m_size               = real_size > length ? length : real_size;
-    m_buffer[m_size - 1] = '\0';
+    m_size           = real_size > length ? length : real_size;
+    m_buffer[m_size] = '\0';
 }
 
 template<sz length>
@@ -7365,6 +7368,12 @@ template<sz length>
 inline constexpr std::string_view small_string<length>::sv() const noexcept
 {
     return { &m_buffer[0], m_size };
+}
+
+template<sz length>
+inline constexpr std::u8string_view small_string<length>::u8sv() const noexcept
+{
+    return { reinterpret_cast<const char8_t*>(&m_buffer[0]), m_size };
 }
 
 template<sz length>

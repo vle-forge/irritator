@@ -96,12 +96,12 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
         ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableHeadersRow();
 
-        dir_path* dir       = nullptr;
-        dir_path* to_delete = nullptr;
-        while (c_ed->mod.dir_paths.next(dir)) {
+        registred_path* dir       = nullptr;
+        registred_path* to_delete = nullptr;
+        while (c_ed->mod.registred_paths.next(dir)) {
             if (to_delete) {
-                const auto id = c_ed->mod.dir_paths.get_id(*to_delete);
-                c_ed->mod.dir_paths.free(*to_delete);
+                const auto id = c_ed->mod.registred_paths.get_id(*to_delete);
+                c_ed->mod.registred_paths.free(*to_delete);
                 to_delete = nullptr;
 
                 i32 i = 0, e = c_ed->mod.component_repertories.ssize();
@@ -162,11 +162,11 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
 
         ImGui::EndTable();
 
-        if (c_ed->mod.dir_paths.can_alloc(1) &&
+        if (c_ed->mod.registred_paths.can_alloc(1) &&
             ImGui::Button("Add directory")) {
-            auto& dir    = c_ed->mod.dir_paths.alloc();
-            auto  id     = c_ed->mod.dir_paths.get_id(dir);
-            dir.status   = dir_path::status_option::none;
+            auto& dir    = c_ed->mod.registred_paths.alloc();
+            auto  id     = c_ed->mod.registred_paths.get_id(dir);
+            dir.status   = registred_path::status_option::none;
             dir.path     = "";
             dir.priority = 127;
             c_ed->show_select_directory_dialog = true;
@@ -226,6 +226,10 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                           mod.components.size(),
                           mod.components.max_used(),
                           mod.components.capacity());
+        ImGui::TextFormat("registred_paths: {} / {} / {}",
+                          mod.registred_paths.size(),
+                          mod.registred_paths.max_used(),
+                          mod.registred_paths.capacity());
         ImGui::TextFormat("dir_paths: {} / {} / {}",
                           mod.dir_paths.size(),
                           mod.dir_paths.max_used(),
@@ -259,6 +263,28 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                 ImGui::TreePop();
             }
             ImGui::PopID();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Registred directoriess",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::BeginTable("Table", 2)) {
+            ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("value",
+                                    ImGuiTableColumnFlags_WidthStretch);
+
+            ImGui::TableHeadersRow();
+            registred_path* dir = nullptr;
+            while (mod.registred_paths.next(dir)) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                ImGui::TextFormat("{}", mod.registred_paths.get_id(*dir));
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(dir->path.c_str());
+            }
+
+            ImGui::EndTable();
         }
     }
 
@@ -493,14 +519,15 @@ void component_editor::show(bool* /*is_show*/) noexcept
         if (app->f_dialog.show_select_directory(title)) {
             if (app->f_dialog.state == file_dialog::status::ok) {
                 select_directory = app->f_dialog.result;
-                auto* dir_path   = mod.dir_paths.try_to_get(select_dir_path);
+                auto* dir_path =
+                  mod.registred_paths.try_to_get(select_dir_path);
                 if (dir_path) {
                     auto str = select_directory.string();
                     dir_path->path.assign(str);
                 }
 
                 show_select_directory_dialog = false;
-                select_dir_path              = undefined<dir_path_id>();
+                select_dir_path              = undefined<registred_path_id>();
                 select_directory.clear();
             }
 
@@ -514,15 +541,29 @@ void component_editor::show(bool* /*is_show*/) noexcept
 // task implementation
 //
 
-static status save_component_impl(const modeling&  mod,
-                                  const component& compo,
-                                  const dir_path&  dir,
-                                  const file_path& file) noexcept
+static status save_component_impl(const modeling&       mod,
+                                  const component&      compo,
+                                  const registred_path& reg_path,
+                                  const dir_path&       dir,
+                                  const file_path&      file) noexcept
 {
     status ret = status::success;
 
     try {
-        std::filesystem::path p{ dir.path.sv() };
+        std::filesystem::path p{ reg_path.path.sv() };
+        p /= dir.path.sv();
+        std::error_code ec;
+
+        if (!std::filesystem::exists(p, ec)) {
+            if (!std::filesystem::create_directory(p, ec)) {
+                return status::io_filesystem_make_directory_error;
+            }
+        } else {
+            if (!std::filesystem::is_directory(p, ec)) {
+                return status::io_filesystem_not_directory_error;
+            }
+        }
+
         p /= file.path.sv();
         p.replace_extension(".irt");
 
@@ -550,12 +591,13 @@ void save_component(void* param) noexcept
     auto* compo    = g_task->ed->mod.components.try_to_get(compo_id);
 
     if (compo) {
-        auto* dir  = g_task->ed->mod.dir_paths.try_to_get(compo->dir);
+        auto* reg = g_task->ed->mod.registred_paths.try_to_get(compo->reg_path);
+        auto* dir = g_task->ed->mod.dir_paths.try_to_get(compo->dir);
         auto* file = g_task->ed->mod.file_paths.try_to_get(compo->file);
 
-        if (dir && file) {
-            if (is_bad(
-                  save_component_impl(g_task->ed->mod, *compo, *dir, *file))) {
+        if (reg && dir && file) {
+            if (is_bad(save_component_impl(
+                  g_task->ed->mod, *compo, *reg, *dir, *file))) {
                 compo->state = component_status::modified;
             } else {
                 compo->state = component_status::unmodified;
@@ -567,14 +609,28 @@ void save_component(void* param) noexcept
     g_task->state = gui_task_status::finished;
 }
 
-static status save_component_description_impl(const dir_path&    dir,
-                                              const file_path&   file,
+static status save_component_description_impl(const registred_path& reg_dir,
+                                              const dir_path&       dir,
+                                              const file_path&      file,
                                               const description& desc) noexcept
 {
     status ret = status::success;
 
     try {
-        std::filesystem::path p{ dir.path.sv() };
+        std::filesystem::path p{ reg_dir.path.sv() };
+        p /= dir.path.sv();
+        std::error_code ec;
+
+        if (!std::filesystem::exists(p, ec)) {
+            if (!std::filesystem::create_directory(p, ec)) {
+                return status::io_filesystem_make_directory_error;
+            }
+        } else {
+            if (!std::filesystem::is_directory(p, ec)) {
+                return status::io_filesystem_not_directory_error;
+            }
+        }
+
         p /= file.path.sv();
         p.replace_extension(".desc");
 
@@ -601,12 +657,14 @@ void save_description(void* param) noexcept
     auto* compo    = g_task->ed->mod.components.try_to_get(compo_id);
 
     if (compo) {
-        auto* dir  = g_task->ed->mod.dir_paths.try_to_get(compo->dir);
+        auto* reg = g_task->ed->mod.registred_paths.try_to_get(compo->reg_path);
+        auto* dir = g_task->ed->mod.dir_paths.try_to_get(compo->dir);
         auto* file = g_task->ed->mod.file_paths.try_to_get(compo->file);
         auto* desc = g_task->ed->mod.descriptions.try_to_get(compo->desc);
 
         if (dir && file && desc) {
-            if (is_bad(save_component_description_impl(*dir, *file, *desc))) {
+            if (is_bad(
+                  save_component_description_impl(*reg, *dir, *file, *desc))) {
                 compo->state = component_status::modified;
             } else {
                 compo->state = component_status::unmodified;
