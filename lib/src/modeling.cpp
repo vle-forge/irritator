@@ -889,8 +889,8 @@ static void prepare_component_loading(modeling&              mod,
 
     std::error_code ec;
     if (fs::is_directory(path, ec)) {
-        auto it = fs::recursive_directory_iterator{ path, ec };
-        auto et = fs::recursive_directory_iterator{};
+        auto it = fs::directory_iterator{ path, ec };
+        auto et = fs::directory_iterator{};
 
         while (it != et) {
             if (it->is_regular_file() && it->path().extension() == ".irt") {
