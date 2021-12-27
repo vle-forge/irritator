@@ -39,7 +39,8 @@ bool application::init()
                  .random_source_capacity      = 16,
                  .random_generator_seed       = 123456789u };
 
-    if (auto ret = c_editor.mod.dir_paths.init(64); is_bad(ret)) {
+    if (auto ret = c_editor.mod.dir_paths.init(max_component_dirs);
+        is_bad(ret)) {
         log_w.log(2, "Fail to initialize dir paths");
     }
 

@@ -20,6 +20,8 @@ enum class file_path_id : u64;
 enum class child_id : u64;
 enum class connection_id : u64;
 
+constexpr i32 max_component_dirs = 64;
+
 enum class child_type : i8
 {
     model,
@@ -227,9 +229,9 @@ struct modeling
     data_array<file_path, file_path_id>     file_paths;
     data_array<model, model_id>             parameters;
 
-    small_vector<dir_path_id, 64> component_repertories;
-    irt::external_source          srcs;
-    tree_node_id                  head;
+    small_vector<dir_path_id, max_component_dirs> component_repertories;
+    irt::external_source                          srcs;
+    tree_node_id                                  head;
 
     modeling_status state = modeling_status::unmodified;
 
