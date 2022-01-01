@@ -32,6 +32,23 @@ struct component_setting_handler
         paths,
         paths_array,
         path_object,
+
+        binary_file_source_capacity,
+        children_capacity,
+        component_capacity,
+        connection_capacity,
+        constant_source_capacity,
+        description_capacity,
+        file_path_capacity,
+        model_capacity,
+        parameter_capacity,
+        port_capacity,
+        random_source_capacity,
+        random_generator_seed,
+        text_file_source_capacity,
+        tree_capacity,
+
+        priority
     };
 
     application*   app;
@@ -41,47 +58,23 @@ struct component_setting_handler
     bool read_name;
     bool read_path;
     i32  priority;
-    i32  i32_empty_value;
-    u64  u64_empty_value;
-    i32* i32_value;
-    u64* u64_value;
 
     component_setting_handler(application* app_) noexcept
       : app(app_)
       , top(stack::empty)
-      , i32_empty_value(0)
-      , u64_empty_value(0)
-      , i32_value(&i32_empty_value)
-      , u64_value(&u64_empty_value)
+      , read_name(false)
+      , read_path(false)
+      , priority(0)
     {}
 
     bool Null() { return false; }
     bool Bool(bool /*b*/) { return false; }
     bool Double(double /*d*/) { return false; }
 
-    bool Uint(unsigned u)
-    {
-        *i32_value = static_cast<i32>(u);
-        return true;
-    }
-
-    bool Int64(int64_t i)
-    {
-        *u64_value = static_cast<u64>(i);
-        return true;
-    }
-
-    bool Uint64(uint64_t u)
-    {
-        *u64_value = u;
-        return true;
-    }
-
-    bool Int(int i)
-    {
-        *i32_value = i;
-        return true;
-    }
+    bool Uint(unsigned u) { return affect(top, u); }
+    bool Int64(int64_t i) { return affect(top, i); }
+    bool Uint64(uint64_t u) { return affect(top, u); }
+    bool Int(int i) { return affect(top, i); }
 
     bool RawNumber(const char* /*str*/,
                    rapidjson::SizeType /*length*/,
@@ -109,6 +102,61 @@ struct component_setting_handler
         return false;
     }
 
+    template<typename Target, typename Source>
+    bool affect(Target& target, const Source source) noexcept
+    {
+        if (is_numeric_castable<Target>(source)) {
+            target = static_cast<Target>(source);
+            return true;
+        }
+
+        return false;
+    }
+
+    template<typename Integer>
+    bool affect(stack s, Integer value) noexcept
+    {
+        bool ret = false;
+
+        if (top == stack::binary_file_source_capacity)
+            ret = affect(app->mod_init.binary_file_source_capacity, value);
+        else if (top == stack::children_capacity)
+            ret = affect(app->mod_init.children_capacity, value);
+        else if (top == stack::component_capacity)
+            ret = affect(app->mod_init.component_capacity, value);
+        else if (top == stack::connection_capacity)
+            ret = affect(app->mod_init.connection_capacity, value);
+        else if (top == stack::constant_source_capacity)
+            ret = affect(app->mod_init.constant_source_capacity, value);
+        else if (top == stack::description_capacity)
+            ret = affect(app->mod_init.description_capacity, value);
+        else if (top == stack::file_path_capacity)
+            ret = affect(app->mod_init.file_path_capacity, value);
+        else if (top == stack::model_capacity)
+            ret = affect(app->mod_init.model_capacity, value);
+        else if (top == stack::parameter_capacity)
+            ret = affect(app->mod_init.parameter_capacity, value);
+        else if (top == stack::port_capacity)
+            ret = affect(app->mod_init.port_capacity, value);
+        else if (top == stack::random_source_capacity)
+            ret = affect(app->mod_init.random_source_capacity, value);
+        else if (top == stack::random_generator_seed)
+            ret = affect(app->mod_init.random_generator_seed, value);
+        else if (top == stack::text_file_source_capacity)
+            ret = affect(app->mod_init.text_file_source_capacity, value);
+        else if (top == stack::tree_capacity)
+            ret = affect(app->mod_init.tree_capacity, value);
+        else if (top == stack::priority) {
+            ret = affect(priority, value);
+            top = stack::path_object;
+            return ret;
+        }
+
+        top = stack::top;
+
+        return ret;
+    }
+
     bool StartObject()
     {
         if (top == stack::empty) {
@@ -131,35 +179,34 @@ struct component_setting_handler
         if (top == stack::top) {
             if (sv == "paths") {
                 top = stack::paths;
-                return true;
             } else if (sv == "binary_file_source_capacity") {
-                i32_value = &app->mod_init.binary_file_source_capacity;
+                top = stack::binary_file_source_capacity;
             } else if (sv == "children_capacity") {
-                i32_value = &app->mod_init.children_capacity;
+                top = stack::children_capacity;
             } else if (sv == "component_capacity") {
-                i32_value = &app->mod_init.component_capacity;
+                top = stack::component_capacity;
             } else if (sv == "connection_capacity") {
-                i32_value = &app->mod_init.connection_capacity;
+                top = stack::connection_capacity;
             } else if (sv == "constant_source_capacity") {
-                i32_value = &app->mod_init.constant_source_capacity;
+                top = stack::constant_source_capacity;
             } else if (sv == "description_capacity") {
-                i32_value = &app->mod_init.description_capacity;
+                top = stack::description_capacity;
             } else if (sv == "file_path_capacity") {
-                i32_value = &app->mod_init.file_path_capacity;
+                top = stack::file_path_capacity;
             } else if (sv == "model_capacity") {
-                i32_value = &app->mod_init.model_capacity;
+                top = stack::model_capacity;
             } else if (sv == "parameter_capacity") {
-                i32_value = &app->mod_init.parameter_capacity;
+                top = stack::parameter_capacity;
             } else if (sv == "port_capacity") {
-                i32_value = &app->mod_init.port_capacity;
+                top = stack::port_capacity;
             } else if (sv == "random_source_capacity") {
-                i32_value = &app->mod_init.random_source_capacity;
+                top = stack::random_source_capacity;
             } else if (sv == "random_generator_seed") {
-                u64_value = &app->mod_init.random_generator_seed;
+                top = stack::random_generator_seed;
             } else if (sv == "text_file_source_capacity") {
-                i32_value = &app->mod_init.text_file_source_capacity;
+                top = stack::text_file_source_capacity;
             } else if (sv == "tree_capacity") {
-                i32_value = &app->mod_init.tree_capacity;
+                top = stack::tree_capacity;
             } else {
                 return false;
             }
@@ -175,7 +222,7 @@ struct component_setting_handler
                 read_path = true;
                 return true;
             } else if (sv == "priority") {
-                i32_value = &priority;
+                top = stack::priority;
                 return true;
             } else {
                 return false;
@@ -210,8 +257,18 @@ struct component_setting_handler
                 app->c_editor.mod.component_repertories.emplace_back(id);
             }
 
-            top = stack::top;
+            top = stack::paths_array;
 
+            return true;
+        }
+
+        if (top == stack::paths) {
+            top = stack::top;
+            return true;
+        }
+
+        if (top == stack::top) {
+            top = stack::empty;
             return true;
         }
 
@@ -224,6 +281,7 @@ struct component_setting_handler
             top = stack::paths_array;
             return true;
         }
+
         return false;
     }
 
@@ -231,11 +289,6 @@ struct component_setting_handler
     {
         if (top == stack::paths_array) {
             top = stack::top;
-            return true;
-        }
-
-        if (top == stack::top) {
-            top = stack::empty;
             return true;
         }
 
@@ -250,7 +303,8 @@ status application::load_settings() noexcept
     component_setting_handler handler{ this };
 
     if (auto path = get_settings_filename(); path) {
-        auto filename = reinterpret_cast<const char*>(path->c_str());
+        auto u8str    = path->u8string();
+        auto filename = reinterpret_cast<const char*>(u8str.c_str());
 
         if (file f{ filename, open_mode::read }; f.is_open()) {
             auto*          fp = reinterpret_cast<FILE*>(f.get_handle());
@@ -299,7 +353,8 @@ status application::save_settings() noexcept
     status ret = status::success;
 
     if (auto path = get_settings_filename(); path) {
-        auto filename = reinterpret_cast<const char*>(path->c_str());
+        auto  u8str    = path->u8string();
+        auto* filename = reinterpret_cast<const char*>(u8str.c_str());
 
         if (file f{ filename, open_mode::write }; f.is_open()) {
             auto*           fp = reinterpret_cast<FILE*>(f.get_handle());

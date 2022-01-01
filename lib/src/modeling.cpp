@@ -646,56 +646,19 @@ static bool is_valid(const modeling_initializer& params) noexcept
            params.random_source_capacity > 0;
 }
 
-static status try_init(modeling& mod, modeling_initializer& p) noexcept
+status modeling::init(modeling_initializer& p) noexcept
 {
-    irt_return_if_bad(mod.tree_nodes.init(p.tree_capacity));
-    irt_return_if_bad(mod.descriptions.init(p.description_capacity));
-    irt_return_if_bad(mod.parameters.init(p.parameter_capacity));
-    irt_return_if_bad(mod.components.init(p.component_capacity));
-    irt_return_if_bad(mod.dir_paths.init(p.dir_path_capacity));
-    irt_return_if_bad(mod.file_paths.init(p.file_path_capacity));
+    irt_return_if_bad(tree_nodes.init(p.tree_capacity));
+    irt_return_if_bad(descriptions.init(p.description_capacity));
+    irt_return_if_bad(parameters.init(p.parameter_capacity));
+    irt_return_if_bad(components.init(p.component_capacity));
+    irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
+    irt_return_if_bad(file_paths.init(p.file_path_capacity));
+    irt_return_if_bad(srcs.constant_sources.init(p.constant_source_capacity));
+    irt_return_if_bad(srcs.text_file_sources.init(p.text_file_source_capacity));
+    irt_return_if_bad(srcs.random_sources.init(p.random_source_capacity));
     irt_return_if_bad(
-      mod.srcs.constant_sources.init(p.constant_source_capacity));
-    irt_return_if_bad(
-      mod.srcs.text_file_sources.init(p.text_file_source_capacity));
-    irt_return_if_bad(mod.srcs.random_sources.init(p.random_source_capacity));
-    irt_return_if_bad(
-      mod.srcs.binary_file_sources.init(p.binary_file_source_capacity));
-
-    return status::success;
-}
-
-status modeling::init(modeling_initializer& params) noexcept
-{
-    // In the future, these allocations will have to be replaced by an
-    // allocator who can exit if the allocation fails.
-
-    modeling_initializer default_params = {
-        .model_capacity              = 256 * 64 * 16,
-        .tree_capacity               = 256 * 16,
-        .parameter_capacity          = 256 * 8,
-        .description_capacity        = 256 * 16,
-        .component_capacity          = 256 * 12 * 8,
-        .dir_path_capacity           = 256 * 25,
-        .file_path_capacity          = 256 * 25 * 6,
-        .children_capacity           = 256 * 64 * 16,
-        .connection_capacity         = 256 * 64,
-        .port_capacity               = 256 * 64,
-        .constant_source_capacity    = 16,
-        .binary_file_source_capacity = 16,
-        .text_file_source_capacity   = 16,
-        .random_source_capacity      = 16,
-        .random_generator_seed       = 123456789u,
-    };
-
-    if (!is_valid(params))
-        params = default_params;
-
-    if (is_bad(try_init(*this, params))) {
-        params = default_params;
-
-        irt_return_if_bad(try_init(*this, params));
-    }
+      srcs.binary_file_sources.init(p.binary_file_source_capacity));
 
     return status::success;
 }

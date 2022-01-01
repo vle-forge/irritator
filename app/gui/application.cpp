@@ -38,34 +38,17 @@ bool application::init()
         log_w.log(2, "Fail to initialize registred dir paths");
     }
 
-    if (auto ret = load_settings(); is_bad(ret)) {
+    if (auto ret = load_settings(); is_bad(ret))
         log_w.log(2, "Fail to read settings files. Default parameters used\n");
 
-        mod_init = { .model_capacity              = 256 * 64 * 16,
-                     .tree_capacity               = 256 * 16,
-                     .parameter_capacity          = 256 * 8,
-                     .description_capacity        = 256 * 16,
-                     .component_capacity          = 256 * 128,
-                     .dir_path_capacity           = 256 * 256,
-                     .file_path_capacity          = 256 * 256,
-                     .children_capacity           = 256 * 64 * 16,
-                     .connection_capacity         = 256 * 64,
-                     .port_capacity               = 256 * 64,
-                     .constant_source_capacity    = 16,
-                     .binary_file_source_capacity = 16,
-                     .text_file_source_capacity   = 16,
-                     .random_source_capacity      = 16,
-                     .random_generator_seed       = 123456789u };
-
-        if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
-            log_w.log(2,
-                      "Fail to initialize modeling components: %s\n",
-                      status_string(ret));
-            std::fprintf(stderr,
-                         "Fail to initialize modeling components: %s\n",
-                         status_string(ret));
-            return false;
-        }
+    if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
+        log_w.log(2,
+                  "Fail to initialize modeling components: %s\n",
+                  status_string(ret));
+        std::fprintf(stderr,
+                     "Fail to initialize modeling components: %s\n",
+                     status_string(ret));
+        return false;
     }
 
     if (c_editor.mod.registred_paths.size() == 0) {

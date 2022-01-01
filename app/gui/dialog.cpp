@@ -83,16 +83,25 @@ static std::optional<std::filesystem::path> get_local_home_directory() noexcept
 std::optional<std::filesystem::path> get_home_directory()
 {
     try {
+        std::error_code ec;
+
         auto ret = get_local_home_directory();
         if (!ret) {
-            std::error_code ec;
             ret = std::filesystem::current_path(ec);
         }
 
+#if defined(_WIN32)
+        *ret /= "irritator-" irritator_to_string(
+          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+#else
         *ret /= ".irritator-" irritator_to_string(
           VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+#endif
+        if (std::filesystem::is_directory(*ret, ec))
+            return ret;
 
-        return ret;
+        if (std::filesystem::create_directories(*ret, ec))
+            return ret;
     } catch (...) {
     }
 

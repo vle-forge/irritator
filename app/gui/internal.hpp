@@ -42,6 +42,29 @@ inline int portable_filename_dirname_callback(
              : 1;
 }
 
+template<typename Target, typename Source>
+inline bool is_numeric_castable(Source arg) noexcept
+{
+    static_assert(std::is_integral<Source>::value, "Integer required.");
+    static_assert(std::is_integral<Target>::value, "Integer required.");
+
+    using arg_traits    = std::numeric_limits<Source>;
+    using result_traits = std::numeric_limits<Target>;
+
+    if (result_traits::digits == arg_traits::digits &&
+        result_traits::is_signed == arg_traits::is_signed)
+        return true;
+
+    if (result_traits::digits > arg_traits::digits)
+        return result_traits::is_signed || arg >= 0;
+
+    if (arg_traits::is_signed &&
+        arg < static_cast<Source>(result_traits::min()))
+        return false;
+
+    return arg <= static_cast<Source>(result_traits::max());
+}
+
 } // namespace irt
 
 namespace ImGui {
