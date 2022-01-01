@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <variant>
 #include <vector>
 
@@ -409,6 +410,35 @@ struct notification
 
 enum class notification_id : u64;
 
+//! @brief Show notification windows in bottom right.
+//!
+//! @c notification_manager is thread-safe to permit reporting of @c
+//! notification from gui-task. All function are thread-safe. The caller is
+//! blocked until a task releases the lock.
+class notification_manager
+{
+public:
+    notification_manager() noexcept;
+
+    notification& alloc(
+      notification_type type = notification_type::none) noexcept;
+
+    void enable(const notification& n) noexcept;
+    void show() noexcept;
+
+private:
+    static inline constexpr i32   notification_number            = 10;
+    static inline constexpr u32   notification_duration          = 3000;
+    static inline constexpr float notification_x_padding         = 20.f;
+    static inline constexpr float notification_y_padding         = 20.f;
+    static inline constexpr float notification_y_message_padding = 20.f;
+    static inline constexpr u64   notification_fade_duration     = 150;
+
+    data_array<notification, notification_id>         data;
+    ring_buffer<notification_id, notification_number> buffer;
+    std::mutex                                        mutex;
+};
+
 struct window_logger
 {
     ImGuiTextBuffer buffer;
@@ -541,7 +571,7 @@ struct component_editor
 
     component_editor_status state = component_editor_status_modeling;
 
-    component*     selected_component_list      = nullptr;
+    component* selected_component_list = nullptr;
 
     vector<int> selected_links;
     vector<int> selected_nodes;
@@ -591,9 +621,7 @@ struct application
 
     modeling_initializer mod_init;
 
-    data_array<notification, notification_id> notifications;
-    ring_buffer<notification_id, 10>          notification_buffer;
-    notification& push_notification(notification_type type) noexcept;
+    notification_manager notifications;
 
     file_dialog f_dialog;
 

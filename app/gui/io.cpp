@@ -245,8 +245,7 @@ struct component_setting_handler
 
 status application::load_settings() noexcept
 {
-    const bool have_notification_system = notifications.can_alloc();
-    status     ret                      = status::success;
+    status ret = status::success;
 
     component_setting_handler handler{ this };
 
@@ -263,36 +262,32 @@ status application::load_settings() noexcept
                 const auto error_code   = reader.GetParseErrorCode();
                 const auto error_offset = reader.GetErrorOffset();
 
-                if (have_notification_system) {
-                    auto  file = path->generic_string();
-                    auto& n    = push_notification(notification_type::error);
-                    n.title    = "Fail to parse settings file";
-                    format(n.message,
-                           "Error {} at offset {} in file {}",
-                           rapidjson::GetParseError_En(error_code),
-                           error_offset,
-                           reinterpret_cast<const char*>(file.c_str()));
-                }
+                auto  file = path->generic_string();
+                auto& n    = notifications.alloc(notification_type::error);
+                n.title    = "Fail to parse settings file";
+                format(n.message,
+                       "Error {} at offset {} in file {}",
+                       rapidjson::GetParseError_En(error_code),
+                       error_offset,
+                       reinterpret_cast<const char*>(file.c_str()));
+                notifications.enable(n);
                 ret = status::io_file_format_error;
             } else {
-                if (have_notification_system) {
-                    auto& n = push_notification(notification_type::success);
-                    n.title = "Load settings file";
-                }
+                auto& n = notifications.alloc(notification_type::success);
+                n.title = "Load settings file";
+                notifications.enable(n);
             }
         } else {
-            if (have_notification_system) {
-                auto& n   = push_notification(notification_type::error);
-                n.title   = "Fail to open settings file";
-                n.message = filename;
-            }
+            auto& n   = notifications.alloc(notification_type::error);
+            n.title   = "Fail to open settings file";
+            n.message = filename;
+            notifications.enable(n);
             ret = status::io_file_format_error;
         }
     } else {
-        if (have_notification_system) {
-            auto& n = push_notification(notification_type::error);
-            n.title = "Fail to create settings file name";
-        }
+        auto& n = notifications.alloc(notification_type::error);
+        n.title = "Fail to create settings file name";
+        notifications.enable(n);
         ret = status::io_file_format_error;
     }
 
@@ -301,8 +296,7 @@ status application::load_settings() noexcept
 
 status application::save_settings() noexcept
 {
-    const bool have_notification_system = notifications.can_alloc();
-    status     ret                      = status::success;
+    status ret = status::success;
 
     if (auto path = get_settings_filename(); path) {
         auto filename = reinterpret_cast<const char*>(path->c_str());
@@ -361,23 +355,22 @@ status application::save_settings() noexcept
 
             writer.EndObject();
 
-            if (have_notification_system) {
-                auto& n = push_notification(notification_type::success);
-                n.title = "Save settings file";
-            }
+            auto& n = notifications.alloc(notification_type::success);
+            n.title = "Save settings file";
+            notifications.enable(n);
         } else {
-            if (have_notification_system) {
-                auto& n   = push_notification(notification_type::error);
-                n.title   = "Fail to open settings file";
-                n.message = filename;
-            }
+            auto& n   = notifications.alloc(notification_type::error);
+            n.title   = "Fail to open settings file";
+            n.message = filename;
+            notifications.enable(n);
+
             ret = status::io_file_format_error;
         }
     } else {
-        if (have_notification_system) {
-            auto& n = push_notification(notification_type::error);
-            n.title = "Fail to create settings file name";
-        }
+        auto& n = notifications.alloc(notification_type::error);
+        n.title = "Fail to create settings file name";
+        notifications.enable(n);
+
         ret = status::io_file_format_error;
     }
 
