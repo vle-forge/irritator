@@ -438,7 +438,7 @@ static void show_output_widget(component_editor& ed) noexcept
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
 
-            ImGui::TextFormat("{}", ed.outputs.get_id(*out));
+            ImGui::TextFormat("{}", ordinal(ed.outputs.get_id(*out)));
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(out->name.c_str());
             ImGui::TableNextColumn();

@@ -124,7 +124,7 @@ static void show_all_components(component_editor& ed)
 
             auto& reg_dir = ed.mod.registred_paths.get(id);
             if (reg_dir.name.empty()) {
-                format(s, "{}", id);
+                format(s, "{}", ordinal(id));
                 select = &s;
             } else {
                 select = &reg_dir.name;

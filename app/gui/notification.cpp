@@ -190,13 +190,13 @@ void notification_manager::show() noexcept
         ImGui::PushStyleColor(ImGuiCol_Text, text_color);
         ImGui::TextUnformatted(notification_prefix[ordinal(notif->type)]);
         ImGui::SameLine();
-        ImGui::Text(notif->title.c_str());
+        ImGui::TextUnformatted(notif->title.c_str());
         ImGui::PopStyleColor();
 
         if (!notif->message.empty()) {
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
             ImGui::Separator();
-            ImGui::Text(notif->message.c_str());
+            ImGui::TextUnformatted(notif->message.c_str());
         }
 
         ImGui::PopTextWrapPos();

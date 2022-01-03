@@ -8,6 +8,7 @@
 #include <irritator/core.hpp>
 
 #include <fmt/format.h>
+#include <fmt/compile.h>
 
 #include <imgui.h>
 
@@ -22,12 +23,12 @@ void HelpMarker(const char* desc) noexcept;
 const char* status_string(const status s) noexcept;
 
 /// Helper to assign fmtlib format string to a small_string.
-template<size_t N, typename... Args>
-void format(small_string<N>& str, const char* fmt, const Args&... args)
+template<size_t N, typename S, typename... Args>
+constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 {
     using size_type = typename small_string<N>::size_type;
 
-    auto ret = fmt::format_to_n(str.begin(), N - 1, fmt, args...);
+    auto ret = fmt::vformat_to_n(str.begin(), N - 1, fmt, fmt::make_format_args(args...));
     str.resize(static_cast<size_type>(ret.size));
 }
 

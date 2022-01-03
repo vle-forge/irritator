@@ -279,7 +279,7 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", mod.registred_paths.get_id(*dir));
+                ImGui::TextFormat("{}", ordinal(mod.registred_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -301,7 +301,7 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", mod.dir_paths.get_id(*dir));
+                ImGui::TextFormat("{}", ordinal(mod.dir_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -322,7 +322,7 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", mod.file_paths.get_id(*file));
+                ImGui::TextFormat("{}", ordinal(mod.file_paths.get_id(*file)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(file->path.c_str());
             }
