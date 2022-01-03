@@ -71,10 +71,10 @@ struct component_setting_handler
     bool Bool(bool /*b*/) { return false; }
     bool Double(double /*d*/) { return false; }
 
-    bool Uint(unsigned u) { return affect(top, u); }
-    bool Int64(int64_t i) { return affect(top, i); }
-    bool Uint64(uint64_t u) { return affect(top, u); }
-    bool Int(int i) { return affect(top, i); }
+    bool Uint(unsigned u) { return affect(u); }
+    bool Int64(int64_t i) { return affect(i); }
+    bool Uint64(uint64_t u) { return affect(u); }
+    bool Int(int i) { return affect(i); }
 
     bool RawNumber(const char* /*str*/,
                    rapidjson::SizeType /*length*/,
@@ -114,7 +114,7 @@ struct component_setting_handler
     }
 
     template<typename Integer>
-    bool affect(stack s, Integer value) noexcept
+    bool affect(Integer value) noexcept
     {
         bool ret = false;
 
