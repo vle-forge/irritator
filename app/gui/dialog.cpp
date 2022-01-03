@@ -285,7 +285,7 @@ uint32_t fill_drives(file_dialog& fd)
     return ret;
 }
 #else
-uint32_t fill_drives(file_dialog& fd) noexcept { return 0; }
+uint32_t fill_drives(file_dialog& /*fd*/) noexcept { return 0; }
 #endif
 
 static bool have_good_file_name_starts(const std::filesystem::path& p,
@@ -406,11 +406,11 @@ void show_drives(const std::filesystem::path& current,
     ImGui::SameLine();
 }
 #else
-void show_drives(const std::filesystem::path& ,
-    std::filesystem::path& ,
-    const uint32_t         ,
-    bool* ,
-    std::filesystem::path* noexcept
+void show_drives(const std::filesystem::path& /*current*/,
+                 std::filesystem::path&       /*selected*/,
+                 const uint32_t               /*drives*/,
+                 bool*                        /*path_click*/,
+                 std::filesystem::path*       /*next*/)
 {}
 #endif
 
@@ -722,7 +722,7 @@ bool file_dialog::show_select_directory(const char* title) noexcept
     bool res = false;
 
     ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_FirstUseEver);
-    if (ImGui::BeginPopupModal("Select directory")) {
+    if (ImGui::BeginPopupModal(title)) {
         bool path_click = false;
 
         const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;

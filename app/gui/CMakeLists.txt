@@ -39,10 +39,7 @@ else ()
         ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_glfw.cpp
         ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_glfw.h
         ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_opengl3.cpp
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_opengl3.h
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w/GL/gl3w.c
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w/GL/gl3w.h
-        ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w/GL/glcorearb.h)
+        ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_opengl3.h)
 endif ()
 
 add_executable(irritator-gui ${gui_sources})
