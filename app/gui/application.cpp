@@ -12,11 +12,10 @@ bool application::init()
 {
     c_editor.init();
 
-    c_editor.mod.report = [this](int         level,
-                                 const char* title,
-                                 const char* message) noexcept -> void {
+    c_editor.mod.report = [](int         level,
+	    const char* title,
+	    const char* message) noexcept -> void {
         const auto clamp_level = level < 0 ? 0 : level < 4 ? level : 4;
-        const auto type        = enum_cast<notification_type>(clamp_level);
 
         fmt::print(stdout, "level: {} ", clamp_level);
         if (title)
