@@ -1341,7 +1341,7 @@ int main()
         }
 
         expect(!str.empty());
-        fmt::print(str);
+        fmt::print("{}\n", str);
 
         {
             std::istringstream is(str);
