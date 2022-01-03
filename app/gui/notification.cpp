@@ -16,7 +16,6 @@ static u64 get_tick_count_in_milliseconds() noexcept
       .count();
 }
 
-constexpr u32   notification_duration          = 3000;
 constexpr float notification_x_padding         = 20.f;
 constexpr float notification_y_padding         = 20.f;
 constexpr float notification_y_message_padding = 20.f;
@@ -51,11 +50,11 @@ static inline const ImVec4 notification_color[] = {
     { 0.16f, 0.29f, 0.48f, 1.f }
 };
 
-static inline const char* notification_prefix[] = { { "" },
-                                                    { "Success " },
-                                                    { "Warning " },
-                                                    { "Error " },
-                                                    { "Information " } };
+static inline const char* notification_prefix[] = { "" ,
+                                                    "Success " ,
+                                                    "Warning " ,
+                                                    "Error " ,
+                                                    "Information " };
 
 static u64 get_elapsed_time(const notification& n) noexcept
 {
@@ -66,11 +65,11 @@ static notification_state get_state(const notification& n) noexcept
 {
     const auto elapsed = get_elapsed_time(n);
 
-    if (elapsed > notification_fade_duration + notification_duration +
+    if (elapsed > notification_fade_duration + notification_manager::notification_duration +
                     notification_fade_duration)
         return notification_state::expired;
 
-    if (elapsed > notification_fade_duration + notification_duration)
+    if (elapsed > notification_fade_duration + notification_manager::notification_duration)
         return notification_state::fadeout;
 
     if (elapsed > notification_fade_duration)
@@ -94,7 +93,7 @@ static float get_fade_percent(const notification& n) noexcept
     case notification_state::fadeout:
         return 1.f -
                ((static_cast<float>(elapsed) - notification_fade_duration -
-                 static_cast<float>(notification_duration)) /
+                 static_cast<float>(notification_manager::notification_duration)) /
                 notification_fade_duration);
 
     case notification_state::expired:

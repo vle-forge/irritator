@@ -418,6 +418,9 @@ enum class notification_id : u64;
 class notification_manager
 {
 public:
+    static inline constexpr i32   notification_number            = 10;
+    static inline constexpr u32   notification_duration          = 3000;
+
     notification_manager() noexcept;
 
     notification& alloc(
@@ -427,12 +430,6 @@ public:
     void show() noexcept;
 
 private:
-    static inline constexpr i32   notification_number            = 10;
-    static inline constexpr u32   notification_duration          = 3000;
-    static inline constexpr float notification_x_padding         = 20.f;
-    static inline constexpr float notification_y_padding         = 20.f;
-    static inline constexpr float notification_y_message_padding = 20.f;
-    static inline constexpr u64   notification_fade_duration     = 150;
 
     data_array<notification, notification_id>         data;
     ring_buffer<notification_id, notification_number> buffer;
