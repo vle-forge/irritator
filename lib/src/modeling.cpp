@@ -517,6 +517,7 @@ status add_seir_nonlineaire(modeling& mod, component& com) noexcept
     return status::success;
 }
 
+#if 0
 static bool get_component_type(const char*     type_string,
                                component_type* type_found) noexcept
 {
@@ -645,6 +646,7 @@ static bool is_valid(const modeling_initializer& params) noexcept
            params.text_file_source_capacity > 0 &&
            params.random_source_capacity > 0;
 }
+#endif
 
 status modeling::init(modeling_initializer& p) noexcept
 {
@@ -1122,7 +1124,7 @@ registred_path& modeling::alloc_registred() noexcept
     return registred_paths.alloc();
 }
 
-void modeling::move_file(registred_path& reg,
+void modeling::move_file(registred_path& /*reg*/,
                          dir_path&       from,
                          dir_path&       to,
                          file_path&      file) noexcept
