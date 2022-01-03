@@ -7,8 +7,8 @@
 
 #include <irritator/core.hpp>
 
-#include <fmt/format.h>
 #include <fmt/compile.h>
+#include <fmt/format.h>
 
 #include <imgui.h>
 
@@ -28,7 +28,8 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 {
     using size_type = typename small_string<N>::size_type;
 
-    auto ret = fmt::vformat_to_n(str.begin(), N - 1, fmt, fmt::make_format_args(args...));
+    auto ret = fmt::vformat_to_n(
+      str.begin(), N - 1, fmt, fmt::make_format_args(args...));
     str.resize(static_cast<size_type>(ret.size));
 }
 
@@ -37,8 +38,8 @@ inline int portable_filename_dirname_callback(
 {
     ImWchar c = data->EventChar;
 
-    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' ||
-            c == '-' || c == '.')
+    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.')
              ? 0
              : 1;
 }
