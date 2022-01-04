@@ -418,8 +418,8 @@ enum class notification_id : u64;
 class notification_manager
 {
 public:
-    static inline constexpr i32   notification_number            = 10;
-    static inline constexpr u32   notification_duration          = 3000;
+    static inline constexpr i32 notification_number   = 10;
+    static inline constexpr u32 notification_duration = 3000;
 
     notification_manager() noexcept;
 
@@ -430,7 +430,6 @@ public:
     void show() noexcept;
 
 private:
-
     data_array<notification, notification_id>         data;
     ring_buffer<notification_id, notification_number> buffer;
     std::mutex                                        mutex;
@@ -512,6 +511,8 @@ enum class gui_task_status
 
 void save_component(void* param) noexcept;
 void save_description(void* param) noexcept;
+void load_project(void* param) noexcept;
+void save_project(void* param) noexcept;
 
 enum class gui_task_id : u64;
 
@@ -519,6 +520,7 @@ struct gui_task
 {
     u64                     param_1      = 0;
     u64                     param_2      = 0;
+    void*                   param_3      = nullptr;
     component_editor*       ed           = nullptr;
     component_editor_status editor_state = 0;
     gui_task_status         state        = gui_task_status::not_started;
@@ -586,6 +588,9 @@ struct component_editor
     void select(tree_node_id id) noexcept;
     void open_as_main(component_id id) noexcept;
     void unselect() noexcept;
+
+    void save_project(const char* filename) noexcept;
+    void load_project(const char* filename) noexcept;
 
     void simulation_update_state() noexcept;
     void simulation_init() noexcept;

@@ -12,9 +12,8 @@ bool application::init()
 {
     c_editor.init();
 
-    c_editor.mod.report = [](int         level,
-	    const char* title,
-	    const char* message) noexcept -> void {
+    c_editor.mod.report =
+      [](int level, const char* title, const char* message) noexcept -> void {
         const auto clamp_level = level < 0 ? 0 : level < 4 ? level : 4;
 
         fmt::print(stdout, "level: {} ", clamp_level);
@@ -219,22 +218,16 @@ bool application::show()
                 auto  u8str           = c_editor.project_file.u8string();
                 auto* str = reinterpret_cast<const char*>(u8str.c_str());
 
-                if (auto ret = c_editor.mod.load_project(str); is_bad(ret)) {
-                    auto  file = c_editor.project_file.generic_u8string();
-                    auto* generic_str =
-                      reinterpret_cast<const char*>(file.c_str());
+                if (c_editor.mod.registred_paths.can_alloc(1)) {
+                    auto& path = c_editor.mod.registred_paths.alloc();
+                    auto  id   = c_editor.mod.registred_paths.get_id(path);
+                    path.path  = str;
 
-                    auto& n = notifications.alloc(notification_type::error);
-                    n.title.assign("Reading the project file failed");
-                    format(n.message,
-                           "Error {} in project file ({})",
-                           status_string(ret),
-                           generic_str);
-                    notifications.enable(n);
-                } else {
-                    auto& n = notifications.alloc(notification_type::success);
-                    n.title = "The file was loaded successfully.";
-                    notifications.enable(n);
+                    auto& task   = c_editor.gui_tasks.alloc();
+                    task.ed      = &c_editor;
+                    task.param_1 = ordinal(id);
+                    c_editor.task_mgr.task_lists[0].add(load_project, &task);
+                    c_editor.task_mgr.task_lists[0].submit();
                 }
             }
 
@@ -250,21 +243,16 @@ bool application::show()
             auto  u8str = c_editor.project_file.u8string();
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
-            if (auto ret = c_editor.mod.save_project(str); is_bad(ret)) {
-                auto  file        = c_editor.project_file.generic_u8string();
-                auto* generic_str = reinterpret_cast<const char*>(file.c_str());
+            if (c_editor.mod.registred_paths.can_alloc(1)) {
+                auto& path = c_editor.mod.registred_paths.alloc();
+                auto  id   = c_editor.mod.registred_paths.get_id(path);
+                path.path  = str;
 
-                auto& n = notifications.alloc(notification_type::error);
-                n.title = "Saving the project ffile failed";
-                format(n.message,
-                       "Error {} in project file writing {}",
-                       status_string(ret),
-                       generic_str);
-                notifications.enable(n);
-            } else {
-                auto& n = notifications.alloc(notification_type::success);
-                n.title = "The file was saved successfully";
-                notifications.enable(n);
+                auto& task   = c_editor.gui_tasks.alloc();
+                task.ed      = &c_editor;
+                task.param_1 = ordinal(id);
+                c_editor.task_mgr.task_lists[0].add(save_project, &task);
+                c_editor.task_mgr.task_lists[0].submit();
             }
         } else {
             save_project_file    = false;
@@ -284,22 +272,16 @@ bool application::show()
                 auto  u8str           = c_editor.project_file.u8string();
                 auto* str = reinterpret_cast<const char*>(u8str.c_str());
 
-                if (auto ret = c_editor.mod.save_project(str); is_bad(ret)) {
-                    auto  file = c_editor.project_file.generic_u8string();
-                    auto* generic_str =
-                      reinterpret_cast<const char*>(file.c_str());
+                if (c_editor.mod.registred_paths.can_alloc(1)) {
+                    auto& path = c_editor.mod.registred_paths.alloc();
+                    auto  id   = c_editor.mod.registred_paths.get_id(path);
+                    path.path  = str;
 
-                    auto& n = notifications.alloc(notification_type::error);
-                    n.title = "Saving the project ffile failed";
-                    format(n.message,
-                           "Error {} in project file writing {}",
-                           status_string(ret),
-                           generic_str);
-                    notifications.enable(n);
-                } else {
-                    auto& n = notifications.alloc(notification_type::success);
-                    n.title = "The file was saved successfully";
-                    notifications.enable(n);
+                    auto& task   = c_editor.gui_tasks.alloc();
+                    task.ed      = &c_editor;
+                    task.param_1 = ordinal(id);
+                    c_editor.task_mgr.task_lists[0].add(save_project, &task);
+                    c_editor.task_mgr.task_lists[0].submit();
                 }
             }
 

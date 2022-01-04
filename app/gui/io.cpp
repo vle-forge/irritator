@@ -435,6 +435,11 @@ status application::save_settings() noexcept
 enum class stack_element_type
 {
     empty,
+
+    component_path,
+    component_directory,
+    component_file,
+
     top_object,
     top_key_parameters,
     top_key_parameters_array,
@@ -1855,25 +1860,25 @@ concept has_load_string_function = requires(const T& t)
 
 struct project_loader_handler
 {
-    project_loader_handler(modeling* mod_) noexcept
+    project_loader_handler(modeling& mod_) noexcept
       : mod{ mod_ }
-    {}
+    {
+        stack.emplace_back(stack_element_type::empty);
+    }
 
     bool is_top(const stack_element_type type) const noexcept
     {
-        irt_assert(!stack.empty());
-
-        return stack.back() == type;
+        bool ret = !stack.empty();
+        return ret ? stack.back() == type : false;
     }
 
     template<typename... Args>
-    constexpr bool is_top_match(Args... args) noexcept
+    constexpr bool is_top_match(Args... args) const noexcept
     {
-        irt_assert(!stack.empty());
-
+        const bool ret = !stack.empty();
         const auto top = stack.back();
 
-        return ((top == args) || ... || false);
+        return ret && ((top == args) || ... || false);
     }
 
     bool Null() { return false; }
@@ -1954,6 +1959,84 @@ struct project_loader_handler
     bool String(const char* str, rapidjson::SizeType length, bool /*copy*/)
     {
         std::string_view sv{ str, length };
+        bool             found = false;
+
+        if (is_top(stack_element_type::component_path)) {
+            stack.pop_back();
+            for (auto id : mod.component_repertories) {
+                if (auto* reg = mod.registred_paths.try_to_get(id); reg) {
+                    if (reg->name == sv) {
+                        reg_id = id;
+                        found  = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found) {
+                error_message = fmt::format("Unknown registred path `{}'", sv);
+            }
+
+            return found;
+        }
+
+        if (is_top(stack_element_type::component_directory)) {
+            stack.pop_back();
+            if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {
+                for (auto id : reg->children) {
+                    if (auto* dir = mod.dir_paths.try_to_get(id); dir) {
+                        if (dir->path == sv) {
+                            dir_id = id;
+                            found  = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!found) {
+                    error_message =
+                      fmt::format("Unknown directory `{}' in path `{}'",
+                                  sv,
+                                  reg->name.sv());
+                }
+            } else {
+                error_message = "Registed path is undefined";
+                return false;
+            }
+
+            return found;
+        }
+
+        if (is_top(stack_element_type::component_file)) {
+            stack.pop_back();
+            if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {
+                if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
+                    for (auto id : dir->children) {
+                        if (auto* file = mod.file_paths.try_to_get(id); file) {
+                            if (file->path == sv) {
+                                file_id = id;
+                                found   = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!found) {
+                        error_message = fmt::format(
+                          "Unknown file `{}' in directory `{}' in path `{}'",
+                          sv,
+                          dir->path.sv(),
+                          reg->name.sv());
+                    }
+                } else {
+                    error_message = "Directory path is undefined";
+                }
+            } else {
+                error_message = "Registed path is undefined";
+            }
+
+            return found;
+        }
 
         if (current_model) {
             const auto top = stack.back();
@@ -1992,10 +2075,27 @@ struct project_loader_handler
         std::string_view sv{ str, length };
 
         if (is_top(stack_element_type::top_object)) {
+            if (sv == "component-path") {
+                stack.emplace_back(stack_element_type::component_path);
+                return true;
+            }
+
+            if (sv == "component-directory") {
+                stack.emplace_back(stack_element_type::component_directory);
+                return true;
+            }
+
+            if (sv == "component-file") {
+                stack.emplace_back(stack_element_type::component_file);
+                return true;
+            }
+
             if (sv == "parameters") {
                 stack.emplace_back(stack_element_type::top_key_parameters);
                 return true;
             }
+
+            return false;
         }
 
         if (is_top(stack_element_type::parameter_object)) {
@@ -2009,6 +2109,8 @@ struct project_loader_handler
                 current_model = nullptr;
                 return true;
             }
+
+            return false;
         }
 
         if (is_top(stack_element_type::parameter_model)) {
@@ -2063,12 +2165,13 @@ struct project_loader_handler
     {
         if (is_top(stack_element_type::top_key_parameters_array)) {
             stack.pop_back();
+            stack.pop_back();
             return true;
         }
 
         if (is_top(stack_element_type::parameter_access_array)) {
-            auto& head       = mod->tree_nodes.get(mod->head);
-            auto& compo_head = mod->components.get(head.id);
+            auto& head       = mod.tree_nodes.get(mod.head);
+            auto& compo_head = mod.components.get(head.id);
             auto* compo      = &compo_head;
 
             if (parent_vector.empty()) // bad access format
@@ -2088,7 +2191,7 @@ struct project_loader_handler
                         return false; // bad access forma error
 
                     auto id = enum_cast<component_id>(child->id);
-                    compo   = mod->components.try_to_get(id);
+                    compo   = mod.components.try_to_get(id);
 
                     if (!compo)
                         return false; // bad access
@@ -2119,17 +2222,22 @@ struct project_loader_handler
         return false;
     }
 
+    registred_path_id reg_id{ 0 };
+    dir_path_id       dir_id{ 0 };
+    file_path_id      file_id{ 0 };
+
     vector<stack_element_type> stack;
     vector<int>                parent_vector;
+    std::string                error_message;
     dynamics_type              current_type  = dynamics_type::accumulator_2;
     model*                     current_model = nullptr;
-    modeling*                  mod;
+    modeling&                  mod;
 };
 
 status modeling::load_project(const char* filename) noexcept
 {
     irt::status            ret = status::success;
-    project_loader_handler handler{ this };
+    project_loader_handler handler{ *this };
 
     if (file f{ filename, open_mode::read }; f.is_open()) {
         auto*          fp = reinterpret_cast<FILE*>(f.get_handle());
@@ -2139,15 +2247,53 @@ status modeling::load_project(const char* filename) noexcept
 
         if (!reader.Parse(is, handler))
             ret = status::io_file_format_error;
+        else
+            state = modeling_status::unmodified;
     } else {
         ret = status::io_file_format_error;
     }
 
-    if (is_success(ret)) {
-        state = modeling_status::unmodified;
-    }
-
     return ret;
+}
+
+void component_editor::load_project(const char* filename) noexcept
+{
+    project_loader_handler handler{ mod };
+
+    if (file f{ filename, open_mode::read }; f.is_open()) {
+        auto*          fp = reinterpret_cast<FILE*>(f.get_handle());
+        char           buffer[4096];
+        json_in_stream is{ fp, buffer, sizeof(buffer) };
+        json_reader    reader;
+
+        if (!reader.Parse(is, handler)) {
+            const auto error_code   = reader.GetParseErrorCode();
+            const auto error_offset = reader.GetErrorOffset();
+
+            auto* app = container_of(this, &application::c_editor);
+            auto& n   = app->notifications.alloc(notification_type::error);
+            n.title   = "Fail to parse project file";
+            format(n.message,
+                   "Error {} at offset {} in file {}",
+                   rapidjson::GetParseError_En(error_code),
+                   error_offset,
+                   filename);
+            app->notifications.enable(n);
+        } else {
+            auto* app = container_of(this, &application::c_editor);
+            auto& n   = app->notifications.alloc(notification_type::success);
+            n.title   = "The file was loaded successfully.";
+            app->notifications.enable(n);
+
+            mod.state = modeling_status::unmodified;
+        }
+    } else {
+        auto* app = container_of(this, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Load project fail";
+        format(n.message, "Can not access file `{}'", filename);
+        app->notifications.enable(n);
+    }
 }
 
 /*****************************************************************************
@@ -2219,28 +2365,42 @@ status modeling::save_project(const char* filename) noexcept
             auto* fp = reinterpret_cast<FILE*>(f.get_handle());
 
             auto& compo = components.get(parent->id);
+            auto* reg   = registred_paths.try_to_get(compo.reg_path);
             auto* dir   = dir_paths.try_to_get(compo.dir);
             auto* file  = file_paths.try_to_get(compo.file);
 
-            try {
-                project_writer pw(fp);
-
-                pw.writer.StartObject();
-                pw.writer.Key("component-directory");
-                pw.writer.String(
-                  dir->path.begin(), static_cast<u32>(dir->path.size()), false);
-                pw.writer.Key("component-file");
-                pw.writer.String(file->path.begin(),
-                                 static_cast<u32>(dir->path.size()),
-                                 false);
-
-                pw.writer.Key("parameters");
-                pw.writer.StartArray();
-                write_node(pw.writer, *this, *parent);
-                pw.writer.EndArray();
-                pw.writer.EndObject();
-            } catch (...) {
+            if (!(reg && dir && file)) {
                 ret = status::io_file_format_error;
+            } else {
+                try {
+                    project_writer pw(fp);
+
+                    pw.writer.StartObject();
+                    pw.writer.Key("component-path");
+                    pw.writer.String(reg->name.c_str(),
+                                     static_cast<u32>(reg->name.size()),
+                                     false);
+
+                    pw.writer.Key("component-directory");
+                    pw.writer.String(dir->path.begin(),
+                                     static_cast<u32>(dir->path.size()),
+                                     false);
+
+                    pw.writer.Key("component-file");
+                    pw.writer.String(file->path.begin(),
+                                     static_cast<u32>(file->path.size()),
+                                     false);
+
+                    pw.writer.Key("parameters");
+                    pw.writer.StartArray();
+                    write_node(pw.writer, *this, *parent);
+                    pw.writer.EndArray();
+                    pw.writer.EndObject();
+
+                    state = modeling_status::unmodified;
+                } catch (...) {
+                    ret = status::io_file_format_error;
+                }
             }
         } else {
             ret = status::io_file_format_error;
@@ -2249,11 +2409,107 @@ status modeling::save_project(const char* filename) noexcept
         ret = status::io_file_format_error;
     }
 
-    if (is_success(ret)) {
-        state = modeling_status::unmodified;
+    return ret;
+}
+
+void component_editor::save_project(const char* filename) noexcept
+{
+    if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
+        if (file f{ filename, open_mode::write }; f.is_open()) {
+            auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+
+            auto& compo = mod.components.get(parent->id);
+            auto* reg   = mod.registred_paths.try_to_get(compo.reg_path);
+            auto* dir   = mod.dir_paths.try_to_get(compo.dir);
+            auto* file  = mod.file_paths.try_to_get(compo.file);
+
+            if (reg && dir && file) {
+                project_writer pw(fp);
+                try {
+                    pw.writer.StartObject();
+                    pw.writer.Key("component-path");
+                    pw.writer.String(reg->name.c_str(),
+                                     static_cast<u32>(reg->name.size()),
+                                     false);
+
+                    pw.writer.Key("component-directory");
+                    pw.writer.String(dir->path.begin(),
+                                     static_cast<u32>(dir->path.size()),
+                                     false);
+
+                    pw.writer.Key("component-file");
+                    pw.writer.String(file->path.begin(),
+                                     static_cast<u32>(file->path.size()),
+                                     false);
+
+                    pw.writer.Key("parameters");
+                    pw.writer.StartArray();
+                    write_node(pw.writer, mod, *parent);
+                    pw.writer.EndArray();
+                    pw.writer.EndObject();
+
+                    mod.state = modeling_status::unmodified;
+
+                    auto* app = container_of(this, &application::c_editor);
+                    auto& n =
+                      app->notifications.alloc(notification_type::success);
+                    n.title = "The file was saved successfully.";
+                    app->notifications.enable(n);
+                } catch (...) {
+                    auto* app = container_of(this, &application::c_editor);
+                    auto& n =
+                      app->notifications.alloc(notification_type::error);
+                    n.title   = "Save project fail";
+                    n.message = "Internal error in Json writer";
+                    app->notifications.enable(n);
+                }
+            }
+        } else {
+            auto* app = container_of(this, &application::c_editor);
+            auto& n   = app->notifications.alloc(notification_type::error);
+            n.title   = "Save project fail";
+            format(n.message, "Can not access file `{}'", filename);
+            app->notifications.enable(n);
+        }
+    } else {
+        auto* app = container_of(this, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Save project fail";
+        format(n.message, "Can not access file `{}'", filename);
+        app->notifications.enable(n);
+    }
+}
+
+void load_project(void* param) noexcept
+{
+    auto* g_task      = reinterpret_cast<gui_task*>(param);
+    g_task->state     = gui_task_status::started;
+    g_task->ed->state = component_editor_status_read_only_modeling;
+
+    auto  id   = enum_cast<registred_path_id>(g_task->param_1);
+    auto* file = g_task->ed->mod.registred_paths.try_to_get(id);
+    if (file) {
+        g_task->ed->load_project(file->path.c_str());
+        g_task->ed->mod.registred_paths.free(*file);
     }
 
-    return ret;
+    g_task->state = gui_task_status::finished;
+}
+
+void save_project(void* param) noexcept
+{
+    auto* g_task      = reinterpret_cast<gui_task*>(param);
+    g_task->state     = gui_task_status::started;
+    g_task->ed->state = component_editor_status_read_only_modeling;
+
+    auto  id   = enum_cast<registred_path_id>(g_task->param_1);
+    auto* file = g_task->ed->mod.registred_paths.try_to_get(id);
+    if (file) {
+        g_task->ed->save_project(file->path.c_str());
+        g_task->ed->mod.registred_paths.free(*file);
+    }
+
+    g_task->state = gui_task_status::finished;
 }
 
 } // irt
