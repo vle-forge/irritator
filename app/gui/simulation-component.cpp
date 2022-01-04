@@ -3,8 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
-
-#include <fmt/format.h>
+#include "internal.hpp"
 
 namespace irt {
 
@@ -200,11 +199,21 @@ static void simulation_init(component_editor& ed) noexcept
     }
 
     if (auto ret = simulation_copy_models(ed, head); is_bad(ret)) {
+        auto* app = container_of(&ed, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Simulation initialization fail";
+        format(n.message, "Copy model failed: {}", status_string(ret));
+        app->notifications.enable(n);
         ed.simulation_state = component_simulation_status::not_started;
         return;
     }
 
     if (auto ret = simulation_copy_connections(ed, head); is_bad(ret)) {
+        auto* app = container_of(&ed, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Simulation initialization fail";
+        format(n.message, "Copy connection failed: {}", status_string(ret));
+        app->notifications.enable(n);
         ed.simulation_state = component_simulation_status::not_started;
         return;
     }
@@ -213,6 +222,13 @@ static void simulation_init(component_editor& ed) noexcept
     ed.simulation_current = ed.simulation_begin;
 
     if (auto ret = ed.sim.initialize(ed.simulation_begin); is_bad(ret)) {
+        auto* app = container_of(&ed, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Simulation initialization fail";
+        format(
+          n.message, "Models initialization models: {}", status_string(ret));
+        app->notifications.enable(n);
+
         ed.simulation_state = component_simulation_status::not_started;
         return;
     }
