@@ -278,7 +278,7 @@ static void task_simulation_run(component_editor& ed) noexcept
 
     auto duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
     auto duration_since_start = duration_cast.count();
-    const decltype(duration_since_start) duration_in_microseconds = 10000;
+    const decltype(duration_since_start) duration_in_microseconds = 1000000;
 
     bool stop_or_pause;
 
@@ -290,9 +290,9 @@ static void task_simulation_run(component_editor& ed) noexcept
         auto ret = ed.sim.run(ed.simulation_current);
         // fmt::print("{}\n", (int)ret);
         // fmt::print("time {} {} {}\n",
-        //            ed.simulation_begin,
-        //            ed.simulation_current,
-        //            ed.simulation_end);
+        //           ed.simulation_begin,
+        //           ed.simulation_current,
+        //           ed.simulation_end);
 
         if (is_bad(ret)) {
             ed.simulation_state = component_simulation_status::finish_requiring;
@@ -310,8 +310,8 @@ static void task_simulation_run(component_editor& ed) noexcept
         duration_since_start = duration_cast.count();
 
         // fmt::print(
-        //   "duration: {}/{}\n", duration_since_start,
-        //   duration_in_microseconds);
+        //  "duration: {}/{}\n", duration_since_start,
+        //  duration_in_microseconds);
 
         stop_or_pause = ed.force_pause || ed.force_stop;
     } while (!stop_or_pause && duration_since_start < duration_in_microseconds);
@@ -417,6 +417,7 @@ void component_editor::simulation_update_state() noexcept
 void component_editor::simulation_init() noexcept
 {
     bool state = match(simulation_state,
+                       component_simulation_status::initialized,
                        component_simulation_status::not_started,
                        component_simulation_status::finished);
 

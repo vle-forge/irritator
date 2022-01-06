@@ -100,51 +100,70 @@ static void show_simulation(component_editor& ed) noexcept
     ImGui::InputReal("End", &ed.simulation_end);
     ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
 
-    bool start_line = false;
-    if (match(ed.simulation_state,
-              component_simulation_status::not_started,
-              component_simulation_status::finished)) {
-        start_line = true;
-        if (ImGui::Button("init")) {
-            ed.simulation_init();
-        }
+    ImGui::Text("simulation_state: %d", ed.simulation_state);
+
+    const bool can_be_initialized =
+      !match(ed.simulation_state,
+             component_simulation_status::not_started,
+             component_simulation_status::finished,
+             component_simulation_status::initialized,
+             component_simulation_status::not_started);
+
+    const bool can_be_started =
+      !match(ed.simulation_state, component_simulation_status::initialized);
+
+    const bool can_be_paused =
+      !match(ed.simulation_state,
+             component_simulation_status::running,
+             component_simulation_status::run_requiring,
+             component_simulation_status::paused);
+
+    const bool can_be_restarted =
+      !match(ed.simulation_state, component_simulation_status::pause_forced);
+
+    const bool can_be_stopped =
+      !match(ed.simulation_state,
+             component_simulation_status::running,
+             component_simulation_status::run_requiring,
+             component_simulation_status::paused,
+             component_simulation_status::pause_forced);
+
+    ImGui::BeginDisabled(can_be_initialized);
+    if (ImGui::Button("init")) {
+        ed.simulation_init();
     }
+    ImGui::EndDisabled();
 
-    if (ed.simulation_state == component_simulation_status::initialized) {
-        if (start_line)
-            ImGui::SameLine();
-        else
-            start_line = true;
+    ImGui::SameLine();
 
-        if (ImGui::Button("start")) {
-            ed.simulation_start();
-        }
+    ImGui::BeginDisabled(can_be_started);
+    if (ImGui::Button("start")) {
+        ed.simulation_start();
     }
+    ImGui::EndDisabled();
 
-    if (ed.simulation_state == component_simulation_status::pause_forced) {
-        if (start_line)
-            ImGui::SameLine();
-        else
-            start_line = true;
-
-        if (ImGui::Button("continue")) {
-            ed.simulation_start();
-        }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(can_be_paused);
+    if (ImGui::Button("pause")) {
+        ed.force_pause = true;
     }
+    ImGui::EndDisabled();
 
-    if (ed.simulation_state == component_simulation_status::running) {
-        if (start_line)
-            ImGui::SameLine();
+    ImGui::SameLine();
 
-        if (ImGui::Button("pause")) {
-            ed.force_pause = true;
-        }
-
-        ImGui::SameLine();
-        if (ImGui::Button("stop")) {
-            ed.force_stop = true;
-        }
+    ImGui::BeginDisabled(can_be_restarted);
+    if (ImGui::Button("continue")) {
+        ed.simulation_start();
     }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    ImGui::BeginDisabled(can_be_stopped);
+    if (ImGui::Button("stop")) {
+        ed.force_stop = true;
+    }
+    ImGui::EndDisabled();
 }
 
 void component_editor::show_simulation_window() noexcept
@@ -162,7 +181,7 @@ void component_editor::show_simulation_window() noexcept
         }
 
         if (ImGui::BeginTabItem("Log")) {
-            auto *app = container_of(this, &application::c_editor);
+            auto* app = container_of(this, &application::c_editor);
             app->log_w.show();
             ImGui::EndTabItem();
         }
