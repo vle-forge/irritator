@@ -94,8 +94,6 @@ status add_file_component_ref(const char* buffer,
                               modeling&   mod,
                               component&  parent) noexcept;
 
-status build_simulation(const modeling& mod, simulation& sim) noexcept;
-
 struct description
 {
     small_string<1024> data;

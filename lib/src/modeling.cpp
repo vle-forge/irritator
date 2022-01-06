@@ -1155,18 +1155,6 @@ status modeling::connect(component& parent,
     return status::success;
 }
 
-status build_simulation(modeling& mod, simulation& /*sim*/) noexcept
-{
-    if (!mod.report.empty())
-        mod.report(4, "build-simulation is not yet implemented", nullptr);
-
-    // if (auto* c_ref = mod.component_refs.try_to_get(mod.head); c_ref)
-    //     if (auto* compo = mod.components.try_to_get(c_ref->id); compo)
-    //         return build_models(mod, *compo, sim);
-
-    irt_bad_return(status::success);
-}
-
 static void free_child(data_array<child, child_id>& children,
                        data_array<model, model_id>& models,
                        child&                       c) noexcept
