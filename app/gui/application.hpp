@@ -463,7 +463,7 @@ struct memory_output
     vector<float>     ys;
     small_string<24u> name;
     real              tl          = zero;
-    real              time_step   = one / to_real(100);
+    real              time_step   = one / to_real(10);
     bool              interpolate = true;
 };
 

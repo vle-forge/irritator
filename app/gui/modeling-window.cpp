@@ -425,7 +425,7 @@ static void show_modeling_widget(component_editor& ed,
 
 static void show_output_widget(component_editor& ed) noexcept
 {
-    if (ImGui::BeginTable("Outputs", 5)) {
+    if (ImGui::BeginTable("Observations", 5)) {
         ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("time-step", ImGuiTableColumnFlags_WidthFixed);
@@ -450,6 +450,36 @@ static void show_output_widget(component_editor& ed) noexcept
         }
 
         ImGui::EndTable();
+    }
+
+    if (ImGui::CollapsingHeader("Outputs", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImPlot::BeginPlot("simulation", "t", "s")) {
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+
+            memory_output* obs = nullptr;
+            while (ed.outputs.next(obs)) {
+                const auto sz = obs->ys.ssize();
+
+                if (sz) {
+                    if (obs->interpolate) {
+                        ImPlot::PlotLine(obs->name.c_str(),
+                                         obs->xs.data(),
+                                         obs->ys.data(),
+                                         sz);
+
+                    } else {
+                        ImPlot::PlotScatter(obs->name.c_str(),
+                                            obs->xs.data(),
+                                            obs->ys.data(),
+                                            sz);
+                    }
+                }
+            }
+
+            ImPlot::PopStyleVar(2);
+            ImPlot::EndPlot();
+        }
     }
 }
 

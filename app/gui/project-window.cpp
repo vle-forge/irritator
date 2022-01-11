@@ -245,6 +245,7 @@ static void show_project_observations(component_editor& ed,
                         auto& new_obs    = ed.outputs.alloc();
                         auto  new_obs_id = ed.outputs.get_id(new_obs);
                         obs              = &new_obs;
+                        new_obs.name     = data.ch->name.sv();
                         data.parent->observables.set(id, ordinal(new_obs_id));
                     } else {
                         is_observed = false;
@@ -264,25 +265,28 @@ static void show_project_observations(component_editor& ed,
                         obs->time_step = one / to_real(100);
                 }
 
-                int old_current = obs->xs.capacity() <= 1000               ? 0
-                                  : obs->xs.capacity() <= 1000 * 1000      ? 1
-                                  : obs->xs.capacity() <= 16 * 1000 * 1000 ? 2
-                                                                           : 3;
+                ImGui::Checkbox("interpolate", &obs->interpolate);
+
+                if (obs->xs.capacity() == 0) {
+                    obs->xs.reserve(1000);
+                    obs->ys.reserve(1000);
+                }
+
+                int old_current = obs->xs.capacity() <= 1000    ? 0
+                                  : obs->xs.capacity() <= 10000 ? 1
+                                                                : 2;
                 int current     = old_current;
 
-                ImGui::RadioButton("1 KB", &current, 0);
+                ImGui::RadioButton("1,000", &current, 0);
                 ImGui::SameLine();
-                ImGui::RadioButton("1 MB", &current, 1);
+                ImGui::RadioButton("10,000", &current, 1);
                 ImGui::SameLine();
-                ImGui::RadioButton("16 MB", &current, 2);
-                ImGui::SameLine();
-                ImGui::RadioButton("64 MB", &current, 3);
+                ImGui::RadioButton("100,000", &current, 2);
 
                 if (current != old_current) {
                     i32 capacity = current == 0   ? 1000
-                                   : current == 1 ? 1000 * 1000
-                                   : current == 2 ? 16 * 1000 * 1000
-                                                  : 64 * 1000 * 1000;
+                                   : current == 1 ? 10000
+                                                  : 100000;
 
                     obs->xs.destroy();
                     obs->ys.destroy();

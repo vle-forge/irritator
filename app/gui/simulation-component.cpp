@@ -229,6 +229,14 @@ static status simulation_init_observation(component_editor& ed,
 static status simulation_init_observation(component_editor& ed,
                                           tree_node*        head) noexcept
 {
+    memory_output* mem = nullptr;
+    while (ed.outputs.next(mem)) {
+        mem->xs.clear();
+        mem->ys.clear();
+    }
+
+    ed.sim.observers.clear();
+
     vector<tree_node*> stack;
     stack.emplace_back(head);
 
