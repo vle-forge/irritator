@@ -27,70 +27,72 @@ void memory_output_update(const irt::observer&        obs,
 {
     auto* c_ed   = reinterpret_cast<component_editor*>(obs.user_data);
     auto  id     = enum_cast<memory_output_id>(obs.user_id);
-    auto& output = c_ed->outputs.get(id);
+    auto* output = c_ed->outputs.try_to_get(id);
+
+    irt_assert(output);
 
     if (s == observer::status::initialize) {
-        output.xs.clear();
-        output.ys.clear();
-        output.tl = zero;
+        output->xs.clear();
+        output->ys.clear();
+        output->tl = zero;
         return;
     }
 
     // Store only one value for a time
-    while (!output.xs.empty() && output.xs.back() == tl) {
-        output.xs.pop_back();
-        output.ys.pop_back();
+    while (!output->xs.empty() && output->xs.back() == tl) {
+        output->xs.pop_back();
+        output->ys.pop_back();
     }
 
-    if (output.interpolate) {
+    if (output->interpolate) {
         switch (type) {
         // todo perhaps select algorithm for all QSS[1-3] model.
         // Here qss1_integrator, qss1_sum etc.
         case irt::dynamics_type::qss1_integrator: {
-            for (auto td = tl; td < t; td += output.time_step) {
+            for (auto td = tl; td < t; td += output->time_step) {
                 const auto e     = td - tl;
                 const auto value = obs.msg[0] + obs.msg[1] * e;
-                memory_output_emplace(output, td, value);
+                memory_output_emplace(*output, td, value);
             }
             const auto e     = t - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e;
-            memory_output_emplace(output, t, value);
+            memory_output_emplace(*output, t, value);
         } break;
 
         case irt::dynamics_type::qss2_integrator: {
-            for (auto td = tl; td < t; td += output.time_step) {
+            for (auto td = tl; td < t; td += output->time_step) {
                 const auto e = td - tl;
                 const auto value =
                   obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / two);
-                memory_output_emplace(output, td, value);
+                memory_output_emplace(*output, td, value);
             }
             const auto e = t - tl;
             const auto value =
               obs.msg[0] + obs.msg[1] * e + (obs.msg[2] * e * e / two);
-            memory_output_emplace(output, t, value);
+            memory_output_emplace(*output, t, value);
         } break;
 
         case irt::dynamics_type::qss3_integrator: {
-            for (auto td = tl; td < t; td += output.time_step) {
+            for (auto td = tl; td < t; td += output->time_step) {
                 const auto e     = td - tl;
                 const auto value = obs.msg[0] + obs.msg[1] * e +
                                    (obs.msg[2] * e * e / two) +
                                    (obs.msg[3] * e * e * e / three);
-                memory_output_emplace(output, td, value);
+                memory_output_emplace(*output, td, value);
             }
             const auto e     = t - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e +
                                (obs.msg[2] * e * e / two) +
                                (obs.msg[3] * e * e * e / three);
-            memory_output_emplace(output, t, value);
+            memory_output_emplace(*output, t, value);
         } break;
 
         default:
-            memory_output_emplace(output, t, obs.msg[0]);
+            memory_output_emplace(*output, t, obs.msg[0]);
             break;
         }
     } else {
-        memory_output_emplace(output, t, obs.msg[0]);
+        memory_output_emplace(*output, t, obs.msg[0]);
     }
 }
 

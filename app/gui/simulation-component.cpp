@@ -187,6 +187,71 @@ static void simulation_clear(component_editor& ed) noexcept
         tree->sim.data.clear();
 }
 
+static status simulation_init_observation(component_editor& ed,
+                                          tree_node&        tree,
+                                          component&        compo)
+{
+    child* c = nullptr;
+    while (compo.children.next(c)) {
+        if (c->observable) {
+            irt_assert(c->type == child_type::model);
+
+            const auto child_id = compo.children.get_id(*c);
+            const auto mdl_id   = enum_cast<model_id>(c->id);
+
+            auto* obs_map = tree.observables.get(mdl_id);
+            irt_assert(obs_map);
+
+            auto  obs_id = enum_cast<memory_output_id>(*obs_map);
+            auto* obs    = ed.outputs.try_to_get(obs_id);
+            irt_assert(obs);
+
+            auto* sim_map = tree.sim.get(mdl_id);
+            irt_assert(sim_map);
+
+            const auto sim_id = enum_cast<model_id>(*sim_map);
+            auto*      mdl    = ed.sim.models.try_to_get(sim_id);
+
+            irt_assert(mdl);
+
+            irt_return_if_fail(ed.sim.observers.can_alloc(1),
+                               status::simulation_not_enough_model);
+
+            auto& output = ed.sim.observers.alloc(
+              obs->name.c_str(), memory_output_update, &ed, *obs_map, 0);
+            ed.sim.observe(*mdl, output);
+        }
+    }
+
+    return status::success;
+}
+
+static status simulation_init_observation(component_editor& ed,
+                                          tree_node*        head) noexcept
+{
+    vector<tree_node*> stack;
+    stack.emplace_back(head);
+
+    while (!stack.empty()) {
+        auto cur = stack.back();
+        stack.pop_back();
+
+        auto  compo_id = cur->id;
+        auto* compo    = ed.mod.components.try_to_get(compo_id);
+
+        if (compo)
+            irt_return_if_bad(simulation_init_observation(ed, *cur, *compo));
+
+        if (auto* sibling = cur->tree.get_sibling(); sibling)
+            stack.emplace_back(sibling);
+
+        if (auto* child = cur->tree.get_child(); child)
+            stack.emplace_back(child);
+    }
+
+    return status::success;
+}
+
 static void simulation_init(component_editor& ed) noexcept
 {
     ed.simulation_state = component_simulation_status::initializing;
@@ -220,6 +285,18 @@ static void simulation_init(component_editor& ed) noexcept
 
     ed.sim.clean();
     ed.simulation_current = ed.simulation_begin;
+
+    if (auto ret = simulation_init_observation(ed, head); is_bad(ret)) {
+        auto* app = container_of(&ed, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Simulation initialization fail";
+        format(n.message,
+               "Initialization of observation failed: {}",
+               status_string(ret));
+        app->notifications.enable(n);
+        ed.simulation_state = component_simulation_status::not_started;
+        return;
+    }
 
     if (auto ret = ed.sim.initialize(ed.simulation_begin); is_bad(ret)) {
         auto* app = container_of(&ed, &application::c_editor);
