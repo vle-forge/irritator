@@ -346,9 +346,7 @@ static void unselect_editor_component_ref(component_editor& ed) noexcept
 
 void component_editor::unselect() noexcept
 {
-    mod.head = undefined<tree_node_id>();
-    mod.tree_nodes.clear();
-
+    mod.clear_project();
     unselect_editor_component_ref(*this);
 }
 
@@ -362,6 +360,11 @@ void component_editor::select(tree_node_id id) noexcept
             force_node_position = true;
         }
     }
+}
+
+void component_editor::new_project() noexcept
+{
+    unselect();
 }
 
 void component_editor::open_as_main(component_id id) noexcept

@@ -204,7 +204,8 @@ bool application::show()
     }
 
     if (new_project_file) {
-        c_editor.mod.clear_project();
+        c_editor.new_project();
+        new_project_file = false;
     }
 
     if (load_project_file) {

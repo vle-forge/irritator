@@ -1528,6 +1528,7 @@ void modeling::clear_project() noexcept
         free(*tree);
 
     head = undefined<tree_node_id>();
+    tree_nodes.clear();
 }
 
 } // namespace irt

@@ -586,6 +586,7 @@ struct component_editor
     component_editor() noexcept;
 
     void select(tree_node_id id) noexcept;
+    void new_project() noexcept;
     void open_as_main(component_id id) noexcept;
     void unselect() noexcept;
 
