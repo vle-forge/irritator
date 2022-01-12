@@ -379,7 +379,7 @@ void component_editor::show_project_window() noexcept
         }
     }
 
-    if (ImGui::CollapsingHeader("Component", flags))
+    if (ImGui::CollapsingHeader("Export component", flags))
         show_hierarchy_settings(*this, *parent);
 }
 
