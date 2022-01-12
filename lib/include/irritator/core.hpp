@@ -132,7 +132,7 @@ using sz  = size_t;
 using f32 = float;
 using f64 = double;
 
-#ifdef IRRITATOR_REAL_TYPE_F64
+#ifndef IRRITATOR_REAL_TYPE_F32
 using real = f64;
 #else
 using real = f32;
