@@ -44,6 +44,139 @@ struct project_hierarchy_data
     }
 };
 
+static void show_project_hierarchy_child_observable(
+  component_editor&       ed,
+  tree_node&              parent,
+  project_hierarchy_data& data) noexcept
+{
+    auto  id  = enum_cast<model_id>(data.ch->id);
+    auto* mdl = data.compo->models.try_to_get(id);
+
+    if (mdl) {
+        auto*          value       = data.parent->observables.get(id);
+        memory_output* obs         = nullptr;
+        bool           is_observed = false;
+
+        if (value) {
+            auto output_id = enum_cast<memory_output_id>(*value);
+            obs            = ed.outputs.try_to_get(output_id);
+            if (!obs) {
+                data.parent->observables.erase(id);
+                value = nullptr;
+            } else {
+                is_observed = true;
+            }
+        }
+
+        if (ImGui::Checkbox("Observation##obs", &is_observed)) {
+            if (is_observed) {
+                if (ed.outputs.can_alloc(1)) {
+                    auto& new_obs    = ed.outputs.alloc();
+                    auto  new_obs_id = ed.outputs.get_id(new_obs);
+                    obs              = &new_obs;
+                    new_obs.name     = data.ch->name.sv();
+                    data.parent->observables.set(id, ordinal(new_obs_id));
+                } else {
+                    is_observed = false;
+                }
+            } else {
+                if (obs) {
+                    ed.outputs.free(*obs);
+                }
+                data.parent->observables.erase(id);
+            }
+        }
+
+        if (is_observed && obs) {
+            ImGui::InputFilteredString("name##obs", obs->name);
+            if (ImGui::InputReal("time-step##obs", &obs->time_step)) {
+                if (obs->time_step <= zero)
+                    obs->time_step = one / to_real(100);
+            }
+
+            ImGui::Checkbox("interpolate##obs", &obs->interpolate);
+
+            if (obs->xs.capacity() == 0) {
+                obs->xs.reserve(1000);
+                obs->ys.reserve(1000);
+            }
+
+            int old_current = obs->xs.capacity() <= 1000    ? 0
+                              : obs->xs.capacity() <= 10000 ? 1
+                                                            : 2;
+            int current     = old_current;
+
+            ImGui::TextUnformatted("number");
+            ImGui::RadioButton("1,000", &current, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("10,000", &current, 1);
+            ImGui::SameLine();
+            ImGui::RadioButton("100,000", &current, 2);
+
+            if (current != old_current) {
+                i32 capacity = current == 0   ? 1000
+                               : current == 1 ? 10000
+                                              : 100000;
+
+                obs->xs.destroy();
+                obs->ys.destroy();
+                obs->xs.reserve(capacity);
+                obs->ys.reserve(capacity);
+            }
+        }
+    }
+}
+
+static void show_project_hierarchy_child_configuration(
+  component_editor&       ed,
+  tree_node&              parent,
+  project_hierarchy_data& data) noexcept
+{
+    auto  id  = enum_cast<model_id>(data.ch->id);
+    auto* mdl = data.compo->models.try_to_get(id);
+
+    if (mdl) {
+        auto*  value         = data.parent->parameters.get(id);
+        model* param         = nullptr;
+        bool   is_configured = false;
+
+        if (value) {
+            param = ed.mod.parameters.try_to_get(*value);
+            if (!param) {
+                data.parent->parameters.erase(id);
+                value = nullptr;
+            } else {
+                is_configured = true;
+            }
+        }
+
+        if (ImGui::Checkbox("Configuration##param", &is_configured)) {
+            if (is_configured) {
+                if (ed.mod.parameters.can_alloc(1)) {
+                    auto& new_param    = ed.mod.parameters.alloc();
+                    auto  new_param_id = ed.mod.parameters.get_id(new_param);
+                    param              = &new_param;
+                    copy(*mdl, new_param);
+                    data.parent->parameters.set(id, new_param_id);
+                } else {
+                    is_configured = false;
+                }
+            } else {
+                if (param) {
+                    ed.mod.parameters.free(*param);
+                }
+                data.parent->parameters.erase(id);
+            }
+        }
+
+        if (is_configured && param) {
+            dispatch(*param, [&ed](auto& dyn) {
+                show_dynamics_inputs(ed.mod.srcs, dyn);
+            });
+        }
+    }
+}
+
 static void show_project_hierarchy(component_editor&       ed,
                                    tree_node&              parent,
                                    project_hierarchy_data& data) noexcept
@@ -69,10 +202,19 @@ static void show_project_hierarchy(component_editor&       ed,
                         ImGui::PushID(pc);
 
                         bool selected = data.is_current(&parent, compo, pc);
-
                         if (ImGui::Selectable(pc->name.c_str(), selected)) {
                             data.set(&parent, compo, pc);
                         }
+
+                        if (selected) {
+                            if (pc->configurable)
+                                show_project_hierarchy_child_configuration(
+                                  ed, parent, data);
+                            if (pc->observable)
+                                show_project_hierarchy_child_observable(
+                                  ed, parent, data);
+                        }
+
                         ImGui::PopID();
                     }
                 }
@@ -215,140 +357,6 @@ static void show_hierarchy_settings(component_editor& ed,
     }
 }
 
-static void show_project_observations(component_editor& ed,
-                                      tree_node& /*parent*/,
-                                      project_hierarchy_data& data) noexcept
-{
-    if (data.parent && data.compo && data.ch) {
-        auto  id  = enum_cast<model_id>(data.ch->id);
-        auto* mdl = data.compo->models.try_to_get(id);
-
-        if (mdl) {
-            auto*          value       = data.parent->observables.get(id);
-            memory_output* obs         = nullptr;
-            bool           is_observed = false;
-
-            if (value) {
-                auto output_id = enum_cast<memory_output_id>(*value);
-                obs            = ed.outputs.try_to_get(output_id);
-                if (!obs) {
-                    data.parent->observables.erase(id);
-                    value = nullptr;
-                } else {
-                    is_observed = true;
-                }
-            }
-
-            if (ImGui::Checkbox("Enable##obs", &is_observed)) {
-                if (is_observed) {
-                    if (ed.outputs.can_alloc(1)) {
-                        auto& new_obs    = ed.outputs.alloc();
-                        auto  new_obs_id = ed.outputs.get_id(new_obs);
-                        obs              = &new_obs;
-                        new_obs.name     = data.ch->name.sv();
-                        data.parent->observables.set(id, ordinal(new_obs_id));
-                    } else {
-                        is_observed = false;
-                    }
-                } else {
-                    if (obs) {
-                        ed.outputs.free(*obs);
-                    }
-                    data.parent->observables.erase(id);
-                }
-            }
-
-            if (is_observed && obs) {
-                ImGui::InputFilteredString("name##obs", obs->name);
-                if (ImGui::InputReal("time-step##obs", &obs->time_step)) {
-                    if (obs->time_step <= zero)
-                        obs->time_step = one / to_real(100);
-                }
-
-                ImGui::Checkbox("interpolate", &obs->interpolate);
-
-                if (obs->xs.capacity() == 0) {
-                    obs->xs.reserve(1000);
-                    obs->ys.reserve(1000);
-                }
-
-                int old_current = obs->xs.capacity() <= 1000    ? 0
-                                  : obs->xs.capacity() <= 10000 ? 1
-                                                                : 2;
-                int current     = old_current;
-
-                ImGui::RadioButton("1,000", &current, 0);
-                ImGui::SameLine();
-                ImGui::RadioButton("10,000", &current, 1);
-                ImGui::SameLine();
-                ImGui::RadioButton("100,000", &current, 2);
-
-                if (current != old_current) {
-                    i32 capacity = current == 0   ? 1000
-                                   : current == 1 ? 10000
-                                                  : 100000;
-
-                    obs->xs.destroy();
-                    obs->ys.destroy();
-                    obs->xs.reserve(capacity);
-                    obs->ys.reserve(capacity);
-                }
-            }
-        }
-    }
-}
-
-static void show_project_parameters(component_editor& ed,
-                                    tree_node& /*parent*/,
-                                    project_hierarchy_data& data) noexcept
-{
-    if (data.parent && data.compo && data.ch) {
-        auto  id  = enum_cast<model_id>(data.ch->id);
-        auto* mdl = data.compo->models.try_to_get(id);
-
-        if (mdl) {
-            auto*  value         = data.parent->parameters.get(id);
-            model* param         = nullptr;
-            bool   is_configured = false;
-
-            if (value) {
-                param = ed.mod.parameters.try_to_get(*value);
-                if (!param) {
-                    data.parent->parameters.erase(id);
-                    value = nullptr;
-                } else {
-                    is_configured = true;
-                }
-            }
-
-            if (ImGui::Checkbox("Enable##param", &is_configured)) {
-                if (is_configured) {
-                    if (ed.mod.parameters.can_alloc(1)) {
-                        auto& new_param   = ed.mod.parameters.alloc();
-                        auto new_param_id = ed.mod.parameters.get_id(new_param);
-                        param             = &new_param;
-                        copy(*mdl, new_param);
-                        data.parent->parameters.set(id, new_param_id);
-                    } else {
-                        is_configured = false;
-                    }
-                } else {
-                    if (param) {
-                        ed.mod.parameters.free(*param);
-                    }
-                    data.parent->parameters.erase(id);
-                }
-            }
-
-            if (is_configured && param) {
-                dispatch(*param, [&ed](auto& dyn) {
-                    show_dynamics_inputs(ed.mod.srcs, dyn);
-                });
-            }
-        }
-    }
-}
-
 void component_editor::show_project_window() noexcept
 {
     static project_hierarchy_data data;
@@ -370,12 +378,6 @@ void component_editor::show_project_window() noexcept
             data.clear();
         }
     }
-
-    if (ImGui::CollapsingHeader("Observations", flags))
-        show_project_observations(*this, *parent, data);
-
-    if (ImGui::CollapsingHeader("Parameters", flags))
-        show_project_parameters(*this, *parent, data);
 
     if (ImGui::CollapsingHeader("Component", flags))
         show_hierarchy_settings(*this, *parent);
