@@ -107,154 +107,6 @@ static void show_component(component_editor& ed, component& c) noexcept
     }
 }
 
-static void show_all_components(component_editor& ed)
-{
-    constexpr ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
-
-    if (ImGui::CollapsingHeader("Component library", flags)) {
-        if (ImGui::TreeNodeEx("Internal")) {
-            show_internal_components(ed);
-            ImGui::TreePop();
-        }
-
-        for (auto id : ed.mod.component_repertories) {
-            static small_string<32> s;
-            small_string<32>*       select;
-
-            auto& reg_dir = ed.mod.registred_paths.get(id);
-            if (reg_dir.name.empty()) {
-                format(s, "{}", ordinal(id));
-                select = &s;
-            } else {
-                select = &reg_dir.name;
-            }
-
-            ImGui::PushID(&reg_dir);
-            if (ImGui::TreeNodeEx(select->c_str())) {
-                for (auto dir_id : reg_dir.children) {
-                    auto& dir = ed.mod.dir_paths.get(dir_id);
-                    if (ImGui::TreeNodeEx(dir.path.c_str())) {
-                        for (auto file_id : dir.children) {
-                            auto& file  = ed.mod.file_paths.get(file_id);
-                            auto& compo = ed.mod.components.get(file.component);
-
-                            show_component(ed, compo);
-                        }
-                        ImGui::TreePop();
-                    }
-                }
-                ImGui::TreePop();
-            }
-            ImGui::PopID();
-        }
-
-        if (ImGui::TreeNodeEx("Not saved")) {
-            show_notsaved_component(ed);
-            ImGui::TreePop();
-        }
-
-        if (ImGui::BeginPopupContextWindow("Component Menu")) {
-            if (ImGui::MenuItem("New component")) {
-                auto* app = container_of(&ed, &application::c_editor);
-                app->log_w.log(7, "adding a new component");
-                auto id = add_empty_component(ed);
-                ed.open_as_main(id);
-            }
-
-            if (ImGui::MenuItem("Open as main")) {
-                auto* app = container_of(&ed, &application::c_editor);
-                app->log_w.log(
-                  7, "@todo be sure to save before opening a new component");
-
-                auto id = ed.mod.components.get_id(*ed.selected_component_list);
-
-                ed.open_as_main(id);
-            }
-
-            if (ImGui::MenuItem("Copy")) {
-                if (ed.mod.components.can_alloc()) {
-                    auto& new_c = ed.mod.components.alloc();
-                    new_c.type  = component_type::memory;
-                    new_c.name  = ed.selected_component_list->name;
-                    new_c.state = component_status::modified;
-                    ed.mod.copy(*ed.selected_component_list, new_c);
-                } else {
-                    auto* app = container_of(&ed, &application::c_editor);
-                    app->log_w.log(3, "Can not alloc a new component");
-                }
-            }
-
-            if (ImGui::MenuItem("Delete")) {
-                if (ed.selected_component_list->type ==
-                    component_type::memory) {
-                    ed.mod.free(*ed.selected_component_list);
-                    ed.selected_component_list = nullptr;
-                }
-            }
-            ImGui::EndPopup();
-        }
-    }
-
-    ImGui::Separator();
-
-    if (ImGui::CollapsingHeader("Selected children", flags)) {
-        auto* tree = ed.mod.tree_nodes.try_to_get(ed.selected_component);
-        if (tree) {
-            component* compo = ed.mod.components.try_to_get(tree->id);
-            if (compo) {
-                for (int i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
-                    auto* child =
-                      unpack_node(ed.selected_nodes[i], compo->children);
-                    if (!child)
-                        continue;
-
-                    if (ImGui::TreeNodeEx(child,
-                                          ImGuiTreeNodeFlags_DefaultOpen,
-                                          "%d",
-                                          ed.selected_nodes[i])) {
-                        bool is_modified = false;
-                        ImGui::Text("position %f %f",
-                                    static_cast<double>(child->x),
-                                    static_cast<double>(child->y));
-                        if (ImGui::Checkbox("configurable",
-                                            &child->configurable))
-                            is_modified = true;
-                        if (ImGui::Checkbox("observables", &child->observable))
-                            is_modified = true;
-                        if (ImGui::InputSmallString("name", child->name))
-                            is_modified = true;
-
-                        if (is_modified)
-                            compo->state = component_status::modified;
-
-                        if (child->type == child_type::model) {
-                            auto  child_id = enum_cast<model_id>(child->id);
-                            auto* mdl      = compo->models.try_to_get(child_id);
-
-                            if (mdl)
-                                ImGui::Text(
-                                  "type: %s",
-                                  dynamics_type_names[ordinal(mdl->type)]);
-                        } else {
-                            auto  compo_id = enum_cast<component_id>(child->id);
-                            auto* compo =
-                              ed.mod.components.try_to_get(compo_id);
-
-                            if (compo)
-                                ImGui::Text(
-                                  "type: %s",
-                                  component_type_names[ordinal(compo->type)]);
-                        }
-
-                        ImGui::TreePop();
-                    }
-                }
-            }
-        }
-    }
-}
-
 void show_notsaved_component(irt::component_editor& ed)
 {
     component* compo = nullptr;
@@ -302,7 +154,148 @@ void show_internal_components(irt::component_editor& ed)
 
 void component_editor::show_components_window() noexcept
 {
-    show_all_components(*this);
+    constexpr ImGuiTreeNodeFlags flags =
+      ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
+
+    if (ImGui::CollapsingHeader("Component library", flags)) {
+        if (ImGui::TreeNodeEx("Internal")) {
+            show_internal_components(*this);
+            ImGui::TreePop();
+        }
+
+        for (auto id : mod.component_repertories) {
+            static small_string<32> s;
+            small_string<32>*       select;
+
+            auto& reg_dir = mod.registred_paths.get(id);
+            if (reg_dir.name.empty()) {
+                format(s, "{}", ordinal(id));
+                select = &s;
+            } else {
+                select = &reg_dir.name;
+            }
+
+            ImGui::PushID(&reg_dir);
+            if (ImGui::TreeNodeEx(select->c_str())) {
+                for (auto dir_id : reg_dir.children) {
+                    auto& dir = mod.dir_paths.get(dir_id);
+                    if (ImGui::TreeNodeEx(dir.path.c_str())) {
+                        for (auto file_id : dir.children) {
+                            auto& file  = mod.file_paths.get(file_id);
+                            auto& compo = mod.components.get(file.component);
+
+                            show_component(*this, compo);
+                        }
+                        ImGui::TreePop();
+                    }
+                }
+                ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+
+        if (ImGui::TreeNodeEx("Not saved")) {
+            show_notsaved_component(*this);
+            ImGui::TreePop();
+        }
+
+        if (ImGui::BeginPopupContextWindow("Component Menu")) {
+            if (ImGui::MenuItem("New component")) {
+                auto* app = container_of(this, &application::c_editor);
+                app->log_w.log(7, "adding a new component");
+                auto id = add_empty_component(*this);
+                open_as_main(id);
+            }
+
+            if (ImGui::MenuItem("Open as main")) {
+                auto* app = container_of(this, &application::c_editor);
+                app->log_w.log(
+                  7, "@todo be sure to save before opening a new component");
+
+                auto id = mod.components.get_id(*selected_component_list);
+
+                open_as_main(id);
+            }
+
+            if (ImGui::MenuItem("Copy")) {
+                if (mod.components.can_alloc()) {
+                    auto& new_c = mod.components.alloc();
+                    new_c.type  = component_type::memory;
+                    new_c.name  = selected_component_list->name;
+                    new_c.state = component_status::modified;
+                    mod.copy(*selected_component_list, new_c);
+                } else {
+                    auto* app = container_of(this, &application::c_editor);
+                    app->log_w.log(3, "Can not alloc a new component");
+                }
+            }
+
+            if (ImGui::MenuItem("Delete")) {
+                if (selected_component_list->type == component_type::memory) {
+                    mod.free(*selected_component_list);
+                    selected_component_list = nullptr;
+                }
+            }
+            ImGui::EndPopup();
+        }
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::CollapsingHeader("Selected children", flags)) {
+        auto* tree = mod.tree_nodes.try_to_get(selected_component);
+        if (tree) {
+            component* compo = mod.components.try_to_get(tree->id);
+            if (compo) {
+                for (int i = 0, e = selected_nodes.ssize(); i != e; ++i) {
+                    auto* child =
+                      unpack_node(selected_nodes[i], compo->children);
+                    if (!child)
+                        continue;
+
+                    if (ImGui::TreeNodeEx(child,
+                                          ImGuiTreeNodeFlags_DefaultOpen,
+                                          "%d",
+                                          selected_nodes[i])) {
+                        bool is_modified = false;
+                        ImGui::Text("position %f %f",
+                                    static_cast<double>(child->x),
+                                    static_cast<double>(child->y));
+                        if (ImGui::Checkbox("configurable",
+                                            &child->configurable))
+                            is_modified = true;
+                        if (ImGui::Checkbox("observables", &child->observable))
+                            is_modified = true;
+                        if (ImGui::InputSmallString("name", child->name))
+                            is_modified = true;
+
+                        if (is_modified)
+                            compo->state = component_status::modified;
+
+                        if (child->type == child_type::model) {
+                            auto  child_id = enum_cast<model_id>(child->id);
+                            auto* mdl      = compo->models.try_to_get(child_id);
+
+                            if (mdl)
+                                ImGui::Text(
+                                  "type: %s",
+                                  dynamics_type_names[ordinal(mdl->type)]);
+                        } else {
+                            auto  compo_id = enum_cast<component_id>(child->id);
+                            auto* compo = mod.components.try_to_get(compo_id);
+
+                            if (compo)
+                                ImGui::Text(
+                                  "type: %s",
+                                  component_type_names[ordinal(compo->type)]);
+                        }
+
+                        ImGui::TreePop();
+                    }
+                }
+            }
+        }
+    }
 }
 
 } // namespace irt
