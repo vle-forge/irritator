@@ -11,8 +11,19 @@
 
 namespace irt {
 
+enum class alloc_parameter
+{
+    none         = 0,
+    configurable = 1 << 1,
+    observable   = 1 << 2,
+    both         = configurable | observable
+};
+
 template<typename Dynamics>
-std::pair<Dynamics*, child_id> alloc(component& parent) noexcept
+std::pair<Dynamics*, child_id> alloc(
+  component&             parent,
+  const std::string_view name  = {},
+  alloc_parameter        param = alloc_parameter::none) noexcept
 {
     irt_assert(!parent.models.full());
 
@@ -31,7 +42,11 @@ std::pair<Dynamics*, child_id> alloc(component& parent) noexcept
         for (int i = 0, e = length(dyn.y); i != e; ++i)
             dyn.y[i] = static_cast<u64>(-1);
 
-    auto& child = parent.children.alloc(parent.models.get_id(mdl));
+    auto& child      = parent.children.alloc(parent.models.get_id(mdl));
+    child.name       = name;
+    child.observable = ordinal(param) & ordinal(alloc_parameter::observable);
+    child.configurable =
+      ordinal(param) & ordinal(alloc_parameter::configurable);
 
     return std::make_pair(&dyn, parent.children.get_id(child));
 }
@@ -80,21 +95,25 @@ status add_lotka_volterra(modeling& mod, component& com) noexcept
     bool success = com.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto integrator_a              = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_a =
+      alloc<abstract_integrator<QssLevel>>(com, "X", alloc_parameter::both);
     integrator_a.first->default_X  = 18.0_r;
     integrator_a.first->default_dQ = 0.1_r;
 
-    auto integrator_b              = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_b =
+      alloc<abstract_integrator<QssLevel>>(com, "Y", alloc_parameter::both);
     integrator_b.first->default_X  = 7.0_r;
     integrator_b.first->default_dQ = 0.1_r;
 
     auto product = alloc<abstract_multiplier<QssLevel>>(com);
 
-    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(
+      com, "X+XY", alloc_parameter::configurable);
     sum_a.first->default_input_coeffs[0] = 2.0_r;
     sum_a.first->default_input_coeffs[1] = -0.4_r;
 
-    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(
+      com, "Y+XY", alloc_parameter::configurable);
     sum_b.first->default_input_coeffs[0] = -1.0_r;
     sum_b.first->default_input_coeffs[1] = 0.1_r;
 
@@ -137,7 +156,8 @@ status add_lif(modeling& mod, component& com) noexcept
     sum.first->default_input_coeffs[0] = -irt::one / tau;
     sum.first->default_input_coeffs[1] = V0 / tau;
 
-    auto integrator              = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator =
+      alloc<abstract_integrator<QssLevel>>(com, "lif", alloc_parameter::both);
     integrator.first->default_X  = 0._r;
     integrator.first->default_dQ = 0.001_r;
 
@@ -165,18 +185,20 @@ status add_izhikevich(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto cst          = alloc<constant>(com);
-    auto cst2         = alloc<constant>(com);
-    auto cst3         = alloc<constant>(com);
-    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto sum_c        = alloc<abstract_wsum<QssLevel, 4>>(com);
-    auto sum_d        = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto product      = alloc<abstract_multiplier<QssLevel>>(com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(com);
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(com);
-    auto cross        = alloc<abstract_cross<QssLevel>>(com);
-    auto cross2       = alloc<abstract_cross<QssLevel>>(com);
+    auto cst     = alloc<constant>(com);
+    auto cst2    = alloc<constant>(com);
+    auto cst3    = alloc<constant>(com);
+    auto sum_a   = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum_b   = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum_c   = alloc<abstract_wsum<QssLevel, 4>>(com);
+    auto sum_d   = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto product = alloc<abstract_multiplier<QssLevel>>(com);
+    auto integrator_a =
+      alloc<abstract_integrator<QssLevel>>(com, "V", alloc_parameter::both);
+    auto integrator_b =
+      alloc<abstract_integrator<QssLevel>>(com, "U", alloc_parameter::both);
+    auto cross  = alloc<abstract_cross<QssLevel>>(com);
+    auto cross2 = alloc<abstract_cross<QssLevel>>(com);
 
     constexpr irt::real a  = 0.2_r;
     constexpr irt::real b  = 2.0_r;
@@ -251,11 +273,13 @@ status add_van_der_pol(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(com);
-    auto product1     = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product2     = alloc<abstract_multiplier<QssLevel>>(com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(com);
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(com);
+    auto sum      = alloc<abstract_wsum<QssLevel, 3>>(com);
+    auto product1 = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product2 = alloc<abstract_multiplier<QssLevel>>(com);
+    auto integrator_a =
+      alloc<abstract_integrator<QssLevel>>(com, "X", alloc_parameter::both);
+    auto integrator_b =
+      alloc<abstract_integrator<QssLevel>>(com, "Y", alloc_parameter::both);
 
     integrator_a.first->default_X  = 0.0_r;
     integrator_a.first->default_dQ = 0.001_r;
@@ -292,11 +316,12 @@ status add_negative_lif(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum        = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto integrator = alloc<abstract_integrator<QssLevel>>(com);
-    auto cross      = alloc<abstract_cross<QssLevel>>(com);
-    auto cst        = alloc<constant>(com);
-    auto cst_cross  = alloc<constant>(com);
+    auto sum = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto integrator =
+      alloc<abstract_integrator<QssLevel>>(com, "V", alloc_parameter::both);
+    auto cross     = alloc<abstract_cross<QssLevel>>(com);
+    auto cst       = alloc<constant>(com);
+    auto cst_cross = alloc<constant>(com);
 
     constexpr real tau = 10.0_r;
     constexpr real Vt  = -1.0_r;
@@ -337,16 +362,20 @@ status add_seir_lineaire(modeling& mod, component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto product_a    = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_b    = alloc<abstract_multiplier<QssLevel>>(com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(com);
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(com);
-    auto integrator_c = alloc<abstract_integrator<QssLevel>>(com);
-    auto integrator_d = alloc<abstract_integrator<QssLevel>>(com);
-    auto constant_a   = alloc<constant>(com);
-    auto constant_b   = alloc<constant>(com);
+    auto sum_a     = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum_b     = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto product_a = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product_b = alloc<abstract_multiplier<QssLevel>>(com);
+    auto integrator_a =
+      alloc<abstract_integrator<QssLevel>>(com, "a", alloc_parameter::both);
+    auto integrator_b =
+      alloc<abstract_integrator<QssLevel>>(com, "b", alloc_parameter::both);
+    auto integrator_c =
+      alloc<abstract_integrator<QssLevel>>(com, "c", alloc_parameter::both);
+    auto integrator_d =
+      alloc<abstract_integrator<QssLevel>>(com, "d", alloc_parameter::both);
+    auto constant_a = alloc<constant>(com);
+    auto constant_b = alloc<constant>(com);
 
     sum_a.first->input_coeffs[0] = -0.005_r;
     sum_a.first->input_coeffs[1] = -0.4_r;
@@ -428,19 +457,23 @@ status add_seir_nonlineaire(modeling& mod, component& com) noexcept
     auto product_h = alloc<abstract_multiplier<QssLevel>>(com);
     auto product_i = alloc<abstract_multiplier<QssLevel>>(com);
 
-    auto integrator_a              = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_a =
+      alloc<abstract_integrator<QssLevel>>(com, "a", alloc_parameter::both);
     integrator_a.first->default_X  = 10.0_r;
     integrator_a.first->default_dQ = 0.01_r;
 
-    auto integrator_b              = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_b =
+      alloc<abstract_integrator<QssLevel>>(com, "b", alloc_parameter::both);
     integrator_b.first->default_X  = 12.0_r;
     integrator_b.first->default_dQ = 0.01_r;
 
-    auto integrator_c              = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_c =
+      alloc<abstract_integrator<QssLevel>>(com, "c", alloc_parameter::both);
     integrator_c.first->default_X  = 13.50_r;
     integrator_c.first->default_dQ = 0.01_r;
 
-    auto integrator_d              = alloc<abstract_integrator<QssLevel>>(com);
+    auto integrator_d =
+      alloc<abstract_integrator<QssLevel>>(com, "d", alloc_parameter::both);
     integrator_d.first->default_X  = 15.0_r;
     integrator_d.first->default_dQ = 0.01_r;
 
@@ -1125,9 +1158,9 @@ registred_path& modeling::alloc_registred() noexcept
 }
 
 void modeling::move_file(registred_path& /*reg*/,
-                         dir_path&       from,
-                         dir_path&       to,
-                         file_path&      file) noexcept
+                         dir_path&  from,
+                         dir_path&  to,
+                         file_path& file) noexcept
 {
     auto id = file_paths.get_id(file);
 
