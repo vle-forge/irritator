@@ -599,8 +599,8 @@ struct component_editor
     void simulation_start() noexcept;
     void simulation_pause() noexcept;
     void simulation_stop() noexcept;
-    bool force_pause;
-    bool force_stop;
+    bool force_pause = false;
+    bool force_stop  = false;
 
     void init() noexcept;
     void show(bool* is_show) noexcept;
