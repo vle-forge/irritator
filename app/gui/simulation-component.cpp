@@ -98,9 +98,16 @@ static status simulation_copy_connections(component_editor& ed,
                     }
 
                     if (child) {
-                        auto      orig_src = cp_src->y[con->index_src].id;
+                        auto  orig_src = cp_src->y[con->index_src].id;
+                        auto* child_orig_src =
+                          compo.children.try_to_get(orig_src);
+
+                        irt_assert(child_orig_src);
+                        irt_assert(child_orig_src->type == child_type::model);
+
                         i8        port_src = cp_src->y[con->index_src].index;
-                        model_id* real_src = child->sim.get(orig_src);
+                        model_id* real_src = child->sim.get(
+                          enum_cast<model_id>(child_orig_src->id));
 
                         if (real_src) {
                             mdl_src   = ed.sim.models.try_to_get(*real_src);
@@ -132,9 +139,16 @@ static status simulation_copy_connections(component_editor& ed,
                     }
 
                     if (child) {
-                        model_id  orig_dst = cp_dst->x[con->index_dst].id;
+                        child_id child_orig_dst = cp_dst->x[con->index_dst].id;
+                        auto*    orig_dst =
+                          compo.children.try_to_get(child_orig_dst);
+
+                        irt_assert(orig_dst);
+                        irt_assert(orig_dst->type == child_type::model);
+
                         i8        port_dst = cp_dst->x[con->index_dst].index;
-                        model_id* real_dst = child->sim.get(orig_dst);
+                        model_id* real_dst =
+                          child->sim.get(enum_cast<model_id>(orig_dst->id));
 
                         if (real_dst) {
                             mdl_dst   = ed.sim.models.try_to_get(*real_dst);

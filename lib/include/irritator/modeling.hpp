@@ -120,9 +120,9 @@ struct child
 struct port
 {
     port() noexcept = default;
-    port(model_id id_, i8 port_) noexcept;
+    port(child_id id_, i8 port_) noexcept;
 
-    model_id id;
+    child_id id;
     i8       index;
 };
 
@@ -340,7 +340,7 @@ inline child::child(component_id component) noexcept
   , type{ child_type::component }
 {}
 
-inline port::port(model_id id_, i8 port_) noexcept
+inline port::port(child_id id_, i8 port_) noexcept
   : id{ id_ }
   , index{ port_ }
 {}

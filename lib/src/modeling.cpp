@@ -83,8 +83,8 @@ status add_integrator_component_port(component& com, child_id id) noexcept
     child->in  = true;
     child->out = true;
 
-    com.x.emplace_back(enum_cast<model_id>(child->id), i8(1));
-    com.y.emplace_back(enum_cast<model_id>(child->id), i8(0));
+    com.x.emplace_back(id, i8(1));
+    com.y.emplace_back(id, i8(0));
 
     return status::success;
 }

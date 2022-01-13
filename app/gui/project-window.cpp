@@ -127,7 +127,7 @@ static void show_project_hierarchy_child_observable(
     }
 }
 
-static i32 find_id(const small_vector<port, 8>& vec, const model_id id) noexcept
+static i32 find_id(const small_vector<port, 8>& vec, const child_id id) noexcept
 {
     for (i32 i = 0, e = vec.ssize(); i != e; ++i)
         if (vec[i].id == id)
@@ -167,10 +167,12 @@ static void show_project_hierarchy_child_configuration(
 
         if (is_integrator) {
             if (ImGui::Checkbox("Input##param", &data.ch->in)) {
-                const auto elem = find_id(data.compo->x, id);
+                const auto elem =
+                  find_id(data.compo->x, data.compo->children.get_id(*data.ch));
                 if (data.ch->in) {
                     if (elem < 0)
-                        data.compo->x.emplace_back(id, 1);
+                        data.compo->x.emplace_back(
+                          data.compo->children.get_id(*data.ch), 1);
                 } else {
                     if (elem >= 0)
                         data.compo->x.swap_pop_back(elem);
@@ -178,10 +180,12 @@ static void show_project_hierarchy_child_configuration(
             }
 
             if (ImGui::Checkbox("Output##param", &data.ch->out)) {
-                const auto elem = find_id(data.compo->y, id);
+                const auto elem =
+                  find_id(data.compo->y, data.compo->children.get_id(*data.ch));
                 if (data.ch->out) {
                     if (elem < 0)
-                        data.compo->y.emplace_back(id, 0);
+                        data.compo->y.emplace_back(
+                          data.compo->children.get_id(*data.ch), 0);
                 } else {
                     if (elem >= 0)
                         data.compo->y.swap_pop_back(elem);
