@@ -665,8 +665,8 @@ public:
 
         compo.child_mapping_io.sort();
 
-        irt_return_if_bad(do_read_ports(compo, compo.y));
-        irt_return_if_bad(do_read_ports(compo, compo.x));
+        irt_return_if_bad(do_read_input_ports(compo));
+        irt_return_if_bad(do_read_output_ports(compo));
         irt_return_if_bad(do_read_connections(mod, compo));
 
         return status::success;
@@ -1057,6 +1057,16 @@ private:
         }
 
         return status::success;
+    }
+
+    status do_read_input_ports(component& compo) noexcept
+    {
+        return do_read_ports(compo, compo.x);
+    }
+
+    status do_read_output_ports(component& compo) noexcept
+    {
+        return do_read_ports(compo, compo.y);
     }
 
     status do_read_connections(modeling& mod, component& compo) noexcept

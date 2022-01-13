@@ -111,8 +111,10 @@ struct child
 
     float x            = 0.f;
     float y            = 0.f;
-    bool  configurable = false;
-    bool  observable   = false;
+    bool  in           = false; // true: public input port (influencable)
+    bool  out          = false; // bit mask: public output port
+    bool  configurable = false; // true: is public initialization
+    bool  observable   = false; // true: is public observable
 };
 
 struct port

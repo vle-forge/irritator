@@ -117,18 +117,40 @@ static void show(component_editor& ed,
     irt_assert(length(compo.x) < INT8_MAX);
     irt_assert(length(compo.y) < INT8_MAX);
 
-    for (int i = 0; i < length(compo.x); ++i) {
-        ImNodes::BeginInputAttribute(pack_in(id, static_cast<i8>(i)),
-                                     ImNodesPinShape_TriangleFilled);
-        ImGui::TextFormat("{}", i);
-        ImNodes::EndInputAttribute();
+    {
+        int i = 0;
+        while (i < compo.x.ssize()) {
+            const auto  mdl_id = enum_cast<model_id>(compo.x[i].id);
+            const auto* mdl    = compo.models.try_to_get(mdl_id);
+            if (mdl) {
+                ImNodes::BeginInputAttribute(pack_in(id, static_cast<i8>(i)),
+                                             ImNodesPinShape_TriangleFilled);
+                ImGui::TextFormat("mdl {}", i);
+                ImNodes::EndInputAttribute();
+
+                ++i;
+            } else {
+                compo.x.swap_pop_back(i);
+            }
+        }
     }
 
-    for (int i = 0; i < length(compo.y); ++i) {
-        ImNodes::BeginOutputAttribute(pack_out(id, static_cast<i8>(i)),
-                                      ImNodesPinShape_TriangleFilled);
-        ImGui::TextFormat("{}", i);
-        ImNodes::EndInputAttribute();
+    {
+        int i = 0;
+        while (i < compo.y.ssize()) {
+            const auto  mdl_id = enum_cast<model_id>(compo.y[i].id);
+            const auto* mdl    = compo.models.try_to_get(mdl_id);
+            if (mdl) {
+                ImNodes::BeginOutputAttribute(pack_out(id, static_cast<i8>(i)),
+                                              ImNodesPinShape_TriangleFilled);
+                ImGui::TextFormat("mdl {}", i);
+                ImNodes::EndOutputAttribute();
+
+                ++i;
+            } else {
+                compo.y.swap_pop_back(i);
+            }
+        }
     }
 
     ImNodes::EndNode();

@@ -127,6 +127,15 @@ static void show_project_hierarchy_child_observable(
     }
 }
 
+static i32 find_id(const small_vector<port, 8>& vec, const model_id id) noexcept
+{
+    for (i32 i = 0, e = vec.ssize(); i != e; ++i)
+        if (vec[i].id == id)
+            return i;
+
+    return -1;
+}
+
 static void show_project_hierarchy_child_configuration(
   component_editor&       ed,
   tree_node&              parent,
@@ -147,6 +156,36 @@ static void show_project_hierarchy_child_configuration(
                 value = nullptr;
             } else {
                 is_configured = true;
+            }
+        }
+
+        const bool is_integrator = match(mdl->type,
+                                         dynamics_type::qss1_integrator,
+                                         dynamics_type::qss2_integrator,
+                                         dynamics_type::qss3_integrator,
+                                         dynamics_type::integrator);
+
+        if (is_integrator) {
+            if (ImGui::Checkbox("Input##param", &data.ch->in)) {
+                const auto elem = find_id(data.compo->x, id);
+                if (data.ch->in) {
+                    if (elem < 0)
+                        data.compo->x.emplace_back(id, 1);
+                } else {
+                    if (elem >= 0)
+                        data.compo->x.swap_pop_back(elem);
+                }
+            }
+
+            if (ImGui::Checkbox("Output##param", &data.ch->out)) {
+                const auto elem = find_id(data.compo->y, id);
+                if (data.ch->out) {
+                    if (elem < 0)
+                        data.compo->y.emplace_back(id, 0);
+                } else {
+                    if (elem >= 0)
+                        data.compo->y.swap_pop_back(elem);
+                }
             }
         }
 
