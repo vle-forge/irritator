@@ -120,12 +120,19 @@ static void show(component_editor& ed,
     {
         int i = 0;
         while (i < compo.x.ssize()) {
-            const auto  mdl_id = enum_cast<model_id>(compo.x[i].id);
+            const auto  chld_id = compo.x[i].id;
+            const auto* chld    = compo.children.try_to_get(chld_id);
+
+            irt_assert(chld);
+            irt_assert(chld->type == child_type::model);
+
+            const auto  mdl_id = enum_cast<model_id>(chld->id);
             const auto* mdl    = compo.models.try_to_get(mdl_id);
+
             if (mdl) {
                 ImNodes::BeginInputAttribute(pack_in(id, static_cast<i8>(i)),
                                              ImNodesPinShape_TriangleFilled);
-                ImGui::TextFormat("mdl {}", i);
+                ImGui::TextUnformatted(chld->name.c_str());
                 ImNodes::EndInputAttribute();
 
                 ++i;
@@ -138,12 +145,19 @@ static void show(component_editor& ed,
     {
         int i = 0;
         while (i < compo.y.ssize()) {
-            const auto  mdl_id = enum_cast<model_id>(compo.y[i].id);
+            const auto  chld_id = compo.y[i].id;
+            const auto* chld    = compo.children.try_to_get(chld_id);
+
+            irt_assert(chld);
+            irt_assert(chld->type == child_type::model);
+
+            const auto  mdl_id = enum_cast<model_id>(chld->id);
             const auto* mdl    = compo.models.try_to_get(mdl_id);
+
             if (mdl) {
                 ImNodes::BeginOutputAttribute(pack_out(id, static_cast<i8>(i)),
                                               ImNodesPinShape_TriangleFilled);
-                ImGui::TextFormat("mdl {}", i);
+                ImGui::TextUnformatted(chld->name.c_str());
                 ImNodes::EndOutputAttribute();
 
                 ++i;
