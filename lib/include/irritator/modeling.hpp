@@ -78,8 +78,6 @@ enum class modeling_status
     unmodified
 };
 
-using report_callback = function_ref<void(int, const char*, const char*)>;
-
 struct connection;
 struct child;
 struct port;
@@ -260,8 +258,6 @@ struct modeling
     irt::external_source                                srcs;
     tree_node_id                                        head;
 
-    report_callback report;
-
     modeling_status state = modeling_status::unmodified;
 
     status init(modeling_initializer& params) noexcept;
@@ -314,6 +310,8 @@ struct modeling
     status load_project(const char* filename) noexcept;
     status save_project(const char* filename) noexcept;
     void   clear_project() noexcept;
+
+    ring_buffer<status, 10> warnings;
 };
 
 /*

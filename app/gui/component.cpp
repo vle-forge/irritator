@@ -279,7 +279,8 @@ void component_editor::show_memory_box(bool* is_open) noexcept
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", ordinal(mod.registred_paths.get_id(*dir)));
+                ImGui::TextFormat("{}",
+                                  ordinal(mod.registred_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -362,10 +363,7 @@ void component_editor::select(tree_node_id id) noexcept
     }
 }
 
-void component_editor::new_project() noexcept
-{
-    unselect();
-}
+void component_editor::new_project() noexcept { unselect(); }
 
 void component_editor::open_as_main(component_id id) noexcept
 {
@@ -450,9 +448,25 @@ static component_editor_status gui_task_clean_up(component_editor& ed) noexcept
     return ret;
 }
 
+static void modeling_update_state(component_editor& ed) noexcept
+{
+    // @TODO missing std::mutex in application or component_editor to protect
+    // access to the notifications class.
+
+    auto* app = container_of(&ed, &application::c_editor);
+
+    while (!ed.mod.warnings.empty()) {
+        auto& notif   = app->notifications.alloc(notification_type::warning);
+        notif.title   = "Modeling issue";
+        notif.message = status_string(ed.mod.warnings.dequeue());
+        app->notifications.enable(notif);
+    }
+}
+
 void component_editor::show(bool* /*is_show*/) noexcept
 {
     simulation_update_state();
+    modeling_update_state(*this);
     state = gui_task_clean_up(*this);
 
     constexpr ImGuiWindowFlags flag =

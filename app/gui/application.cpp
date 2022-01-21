@@ -12,18 +12,6 @@ bool application::init()
 {
     c_editor.init();
 
-    c_editor.mod.report =
-      [](int level, const char* title, const char* message) noexcept -> void {
-        const auto clamp_level = level < 0 ? 0 : level < 4 ? level : 4;
-
-        fmt::print(stdout, "level: {} ", clamp_level);
-        if (title)
-            std::fputs(title, stdout);
-
-        if (message)
-            std::fputs(message, stdout);
-    };
-
     if (auto ret = editors.init(50u); is_bad(ret)) {
         log_w.log(2, "Fail to initialize irritator: %s\n", status_string(ret));
         std::fprintf(
@@ -111,24 +99,6 @@ bool application::init()
     } catch (const std::bad_alloc& /*e*/) {
         return false;
     }
-
-    c_editor.mod.report = [this](int         level,
-                                 const char* title,
-                                 const char* message) noexcept -> void {
-        const auto clamp_level = level < 0 ? 0 : level < 4 ? level : 4;
-        const auto type        = enum_cast<notification_type>(clamp_level);
-
-        auto& notif = notifications.alloc();
-        notif.type  = type;
-
-        if (title)
-            notif.title.assign(title);
-
-        if (message)
-            notif.message.assign(message);
-
-        notifications.enable(notif);
-    };
 
     return true;
 }

@@ -63,6 +63,15 @@ const char* status_string(const status s) noexcept
         "model_time_func_bad_init_message",
         "model_flow_bad_samplerate",
         "model_flow_bad_data",
+
+        "modeling_too_many_description_open",
+        "modeling_too_many_file_open",
+        "modeling_too_many_directory_open",
+        "modeling_registred_path_access_error",
+        "modeling_directory_access_error",
+        "modeling_file_access_error",
+        "modeling_component_save_error",
+
         "gui_not_enough_memory",
         "io_filesystem_error",
         "io_filesystem_make_directory_error",

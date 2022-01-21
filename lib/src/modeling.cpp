@@ -881,10 +881,12 @@ static void prepare_component_loading(modeling&             mod,
                 desc.status = description_status::unread;
                 compo.desc  = mod.descriptions.get_id(desc);
             } else {
-                mod.report(3, "Too many description", nullptr);
+                mod.warnings.emplace_enqueue(
+                  status::modeling_too_many_description_open);
             }
         }
     } catch (const std::exception& /*e*/) {
+        mod.warnings.emplace_enqueue(status::io_filesystem_error);
     }
 }
 
@@ -924,9 +926,11 @@ static void prepare_component_loading(modeling&             mod,
             it = it.increment(ec);
         }
 
-        if (too_many_file && !mod.report.empty())
-            mod.report(3, "Too many_file", nullptr);
+        if (too_many_file) {
+            mod.warnings.emplace_enqueue(status::modeling_too_many_file_open);
+        }
     } catch (...) {
+        mod.warnings.emplace_enqueue(status::io_filesystem_error);
     }
 }
 
@@ -968,14 +972,12 @@ static void prepare_component_loading(modeling&              mod,
                 it = it.increment(ec);
             }
 
-            if (too_many_directory && !mod.report.empty())
-                mod.report(3, "Too many directory", nullptr);
+            if (too_many_directory)
+                mod.warnings.emplace_enqueue(
+                  status::modeling_too_many_directory_open);
         } else {
-            if (!mod.report.empty()) {
-                auto  u8str = path.u8string();
-                auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
-                mod.report(4, "Load registred path is not a directory", cstr);
-            }
+            mod.warnings.emplace_enqueue(
+              status::modeling_registred_path_access_error);
         }
     } catch (...) {
     }
@@ -1471,11 +1473,11 @@ status modeling::clean(component& compo) noexcept
 
 status modeling::save(component& c) noexcept
 {
-    auto* dir  = dir_paths.try_to_get(c.dir);
-    auto* file = file_paths.try_to_get(c.file);
+    auto* dir = dir_paths.try_to_get(c.dir);
+    irt_return_if_fail(dir, status::modeling_directory_access_error);
 
-    // @todo Use a better status
-    irt_return_if_fail(dir && file, status::gui_not_enough_memory);
+    auto* file = file_paths.try_to_get(c.file);
+    irt_return_if_fail(file, status::modeling_file_access_error);
 
     {
         std::filesystem::path p{ dir->path.sv() };
@@ -1483,20 +1485,11 @@ status modeling::save(component& c) noexcept
 
         if (!std::filesystem::exists(p, ec)) {
             if (!std::filesystem::create_directory(p, ec)) {
-                if (!report.empty())
-                    report(4,
-                           "Fail to create directory",
-                           reinterpret_cast<const char*>(p.u8string().c_str()));
-
-                return status::io_filesystem_error; // can create directory
+                return status::io_filesystem_make_directory_error;
             }
         } else {
             if (!std::filesystem::is_directory(p, ec)) {
-                report(4,
-                       "Can not access directory",
-                       reinterpret_cast<const char*>(p.u8string().c_str()));
-
-                return status::io_filesystem_error; // p is not a directory
+                return status::io_filesystem_not_directory_error;
             }
         }
 
@@ -1504,8 +1497,8 @@ status modeling::save(component& c) noexcept
         p.replace_extension(".irt");
 
         std::ofstream ofs{ p };
-        // @todo Use a better status
-        irt_return_if_fail(ofs.is_open(), status::gui_not_enough_memory);
+        irt_return_if_fail(ofs.is_open(),
+                           status::modeling_component_save_error);
 
         writer w{ ofs };
         irt_return_if_bad(w(*this, c, srcs));
