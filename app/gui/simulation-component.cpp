@@ -7,11 +7,12 @@
 
 namespace irt {
 
-static status simulation_copy_model(component_editor& ed,
-                                    tree_node&        tree,
-                                    const component&  src)
+static status simulation_copy_model(simulation&           sim,
+                                    tree_node&            tree,
+                                    simulation_tree_node& sim_tree,
+                                    const component&      src)
 {
-    tree.sim.data.clear();
+    sim_tree.children.clear();
 
     child* c = nullptr;
     while (src.children.next(c)) {
@@ -20,12 +21,13 @@ static status simulation_copy_model(component_editor& ed,
             auto* mdl    = src.models.try_to_get(mdl_id);
 
             if (mdl) {
-                irt_return_if_fail(ed.sim.models.can_alloc(),
+                irt_return_if_fail(sim.models.can_alloc(),
                                    status::simulation_not_enough_model);
 
-                auto& new_mdl    = ed.sim.clone(*mdl);
-                auto  new_mdl_id = ed.sim.models.get_id(new_mdl);
+                auto& new_mdl    = sim.clone(*mdl);
+                auto  new_mdl_id = sim.models.get_id(new_mdl);
 
+                sim_tree.children.emplace_back(new_mdl_id);
                 tree.sim.data.emplace_back(mdl_id, new_mdl_id);
             }
         }
@@ -34,11 +36,12 @@ static status simulation_copy_model(component_editor& ed,
     return status::success;
 }
 
-static status simulation_copy_models(component_editor& ed,
-                                     tree_node*        head) noexcept
+static status simulation_copy_models(component_editor&  ed,
+                                     simulation_editor& sim_ed,
+                                     tree_node&         head) noexcept
 {
     vector<tree_node*> stack;
-    stack.emplace_back(head);
+    stack.emplace_back(&head);
 
     while (!stack.empty()) {
         auto cur = stack.back();
@@ -47,8 +50,13 @@ static status simulation_copy_models(component_editor& ed,
         auto  compo_id = cur->id;
         auto* compo    = ed.mod.components.try_to_get(compo_id);
 
-        if (compo)
-            irt_return_if_bad(simulation_copy_model(ed, *cur, *compo));
+        if (compo) {
+            auto* sim_tree = sim_ed.tree_nodes.try_to_get(cur->sim_tree_node);
+            irt_assert(sim_tree);
+
+            irt_return_if_bad(
+              simulation_copy_model(sim_ed.sim, *cur, *sim_tree, *compo));
+        }
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
             stack.emplace_back(sibling);
@@ -57,12 +65,17 @@ static status simulation_copy_models(component_editor& ed,
             stack.emplace_back(child);
     }
 
+    tree_node* tree = nullptr;
+    while (ed.mod.tree_nodes.next(tree))
+        tree->sim.sort();
+
     return status::success;
 }
 
-static status simulation_copy_connections(component_editor& ed,
-                                          tree_node&        tree,
-                                          const component&  compo)
+static status simulation_copy_connections(component_editor&  ed,
+                                          simulation_editor& sim_ed,
+                                          tree_node&         tree,
+                                          const component&   compo)
 {
     connection* con = nullptr;
     while (compo.connections.next(con)) {
@@ -81,7 +94,7 @@ static status simulation_copy_connections(component_editor& ed,
             auto  orig_mdl_src = enum_cast<model_id>(src->id);
             auto* real_mdl_src = tree.sim.get(orig_mdl_src);
             if (real_mdl_src) {
-                mdl_src   = ed.sim.models.try_to_get(*real_mdl_src);
+                mdl_src   = sim_ed.sim.models.try_to_get(*real_mdl_src);
                 index_src = con->index_src;
             }
         } else {
@@ -110,7 +123,7 @@ static status simulation_copy_connections(component_editor& ed,
                           enum_cast<model_id>(child_orig_src->id));
 
                         if (real_src) {
-                            mdl_src   = ed.sim.models.try_to_get(*real_src);
+                            mdl_src   = sim_ed.sim.models.try_to_get(*real_src);
                             index_src = port_src;
                         }
                     }
@@ -122,7 +135,7 @@ static status simulation_copy_connections(component_editor& ed,
             auto  orig_mdl_dst = enum_cast<model_id>(dst->id);
             auto* real_mdl_dst = tree.sim.get(orig_mdl_dst);
             if (real_mdl_dst) {
-                mdl_dst   = ed.sim.models.try_to_get(*real_mdl_dst);
+                mdl_dst   = sim_ed.sim.models.try_to_get(*real_mdl_dst);
                 index_dst = con->index_dst;
             }
         } else {
@@ -151,7 +164,7 @@ static status simulation_copy_connections(component_editor& ed,
                           child->sim.get(enum_cast<model_id>(orig_dst->id));
 
                         if (real_dst) {
-                            mdl_dst   = ed.sim.models.try_to_get(*real_dst);
+                            mdl_dst   = sim_ed.sim.models.try_to_get(*real_dst);
                             index_dst = port_dst;
                         }
                     }
@@ -161,18 +174,19 @@ static status simulation_copy_connections(component_editor& ed,
 
         if (mdl_src && mdl_dst) {
             irt_return_if_bad(
-              ed.sim.connect(*mdl_src, index_src, *mdl_dst, index_dst));
+              sim_ed.sim.connect(*mdl_src, index_src, *mdl_dst, index_dst));
         }
     }
 
     return status::success;
 }
 
-static status simulation_copy_connections(component_editor& ed,
-                                          tree_node*        head) noexcept
+static status simulation_copy_connections(component_editor&  ed,
+                                          simulation_editor& sim_ed,
+                                          tree_node&         head) noexcept
 {
     vector<tree_node*> stack;
-    stack.emplace_back(head);
+    stack.emplace_back(&head);
 
     while (!stack.empty()) {
         auto cur = stack.back();
@@ -181,14 +195,46 @@ static status simulation_copy_connections(component_editor& ed,
         auto  compo_id = cur->id;
         auto* compo    = ed.mod.components.try_to_get(compo_id);
 
-        if (compo)
-            irt_return_if_bad(simulation_copy_connections(ed, *cur, *compo));
+        if (compo) {
+            irt_return_if_bad(
+              simulation_copy_connections(ed, sim_ed, *cur, *compo));
+        }
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
             stack.emplace_back(sibling);
 
         if (auto* child = cur->tree.get_child(); child)
             stack.emplace_back(child);
+    }
+
+    return status::success;
+}
+
+static status simulation_copy_tree(component_editor&  ed,
+                                   simulation_editor& sim_ed,
+                                   tree_node&         head) noexcept
+{
+    tree_node* tree = nullptr;
+    while (ed.mod.tree_nodes.next(tree)) {
+        auto& sim_tree      = sim_ed.tree_nodes.alloc();
+        tree->sim_tree_node = sim_ed.tree_nodes.get_id(sim_tree);
+        tree->sim.data.clear();
+    }
+
+    tree = nullptr;
+    while (ed.mod.tree_nodes.next(tree)) {
+        auto* sim_tree = sim_ed.tree_nodes.try_to_get(tree->sim_tree_node);
+        irt_assert(sim_tree);
+
+        if (auto* parent = tree->tree.get_parent(); parent) {
+            const auto parent_sim_tree_id = parent->sim_tree_node;
+            auto*      parent_sim_tree =
+              sim_ed.tree_nodes.try_to_get(parent_sim_tree_id);
+
+            irt_assert(parent_sim_tree);
+
+            sim_tree->tree.parent_to(parent_sim_tree->tree);
+        }
     }
 
     return status::success;
@@ -201,9 +247,10 @@ static void simulation_clear(component_editor& ed) noexcept
         tree->sim.data.clear();
 }
 
-static status simulation_init_observation(component_editor& ed,
-                                          tree_node&        tree,
-                                          component&        compo)
+static status simulation_init_observation(component_editor&  ed,
+                                          simulation_editor& sim_ed,
+                                          tree_node&         tree,
+                                          component&         compo)
 {
     child* c = nullptr;
     while (compo.children.next(c)) {
@@ -224,24 +271,25 @@ static status simulation_init_observation(component_editor& ed,
             irt_assert(sim_map);
 
             const auto sim_id = enum_cast<model_id>(*sim_map);
-            auto*      mdl    = ed.sim.models.try_to_get(sim_id);
+            auto*      mdl    = sim_ed.sim.models.try_to_get(sim_id);
 
             irt_assert(mdl);
 
-            irt_return_if_fail(ed.sim.observers.can_alloc(1),
+            irt_return_if_fail(sim_ed.sim.observers.can_alloc(1),
                                status::simulation_not_enough_model);
 
-            auto& output = ed.sim.observers.alloc(
+            auto& output = sim_ed.sim.observers.alloc(
               obs->name.c_str(), memory_output_update, &ed, *obs_map, 0);
-            ed.sim.observe(*mdl, output);
+            sim_ed.sim.observe(*mdl, output);
         }
     }
 
     return status::success;
 }
 
-static status simulation_init_observation(component_editor& ed,
-                                          tree_node*        head) noexcept
+static status simulation_init_observation(component_editor&  ed,
+                                          simulation_editor& sim_ed,
+                                          tree_node&         head) noexcept
 {
     memory_output* mem = nullptr;
     while (ed.outputs.next(mem)) {
@@ -249,10 +297,10 @@ static status simulation_init_observation(component_editor& ed,
         mem->ys.clear();
     }
 
-    ed.sim.observers.clear();
+    sim_ed.sim.observers.clear();
 
     vector<tree_node*> stack;
-    stack.emplace_back(head);
+    stack.emplace_back(&head);
 
     while (!stack.empty()) {
         auto cur = stack.back();
@@ -262,7 +310,8 @@ static status simulation_init_observation(component_editor& ed,
         auto* compo    = ed.mod.components.try_to_get(compo_id);
 
         if (compo)
-            irt_return_if_bad(simulation_init_observation(ed, *cur, *compo));
+            irt_return_if_bad(
+              simulation_init_observation(ed, sim_ed, *cur, *compo));
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
             stack.emplace_back(sibling);
@@ -274,7 +323,8 @@ static status simulation_init_observation(component_editor& ed,
     return status::success;
 }
 
-static void simulation_init(component_editor& ed) noexcept
+static void simulation_init(component_editor&  ed,
+                            simulation_editor& sim_ed) noexcept
 {
     ed.simulation_state = component_simulation_status::initializing;
     simulation_clear(ed);
@@ -285,7 +335,17 @@ static void simulation_init(component_editor& ed) noexcept
         return;
     }
 
-    if (auto ret = simulation_copy_models(ed, head); is_bad(ret)) {
+    if (auto ret = simulation_copy_tree(ed, sim_ed, *head); is_bad(ret)) {
+        auto* app = container_of(&ed, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Simulation initialization fail";
+        format(n.message, "Copy hierarchy failed: {}", status_string(ret));
+        app->notifications.enable(n);
+        ed.simulation_state = component_simulation_status::not_started;
+        return;
+    }
+
+    if (auto ret = simulation_copy_models(ed, sim_ed, *head); is_bad(ret)) {
         auto* app = container_of(&ed, &application::c_editor);
         auto& n   = app->notifications.alloc(notification_type::error);
         n.title   = "Simulation initialization fail";
@@ -295,7 +355,8 @@ static void simulation_init(component_editor& ed) noexcept
         return;
     }
 
-    if (auto ret = simulation_copy_connections(ed, head); is_bad(ret)) {
+    if (auto ret = simulation_copy_connections(ed, sim_ed, *head);
+        is_bad(ret)) {
         auto* app = container_of(&ed, &application::c_editor);
         auto& n   = app->notifications.alloc(notification_type::error);
         n.title   = "Simulation initialization fail";
@@ -305,10 +366,11 @@ static void simulation_init(component_editor& ed) noexcept
         return;
     }
 
-    ed.sim.clean();
-    ed.simulation_current = ed.simulation_begin;
+    sim_ed.sim.clean();
+    sim_ed.simulation_current = sim_ed.simulation_begin;
 
-    if (auto ret = simulation_init_observation(ed, head); is_bad(ret)) {
+    if (auto ret = simulation_init_observation(ed, sim_ed, *head);
+        is_bad(ret)) {
         auto* app = container_of(&ed, &application::c_editor);
         auto& n   = app->notifications.alloc(notification_type::error);
         n.title   = "Simulation initialization fail";
@@ -320,7 +382,7 @@ static void simulation_init(component_editor& ed) noexcept
         return;
     }
 
-    if (auto ret = ed.sim.initialize(ed.simulation_begin); is_bad(ret)) {
+    if (auto ret = sim_ed.sim.initialize(ed.simulation_begin); is_bad(ret)) {
         auto* app = container_of(&ed, &application::c_editor);
         auto& n   = app->notifications.alloc(notification_type::error);
         n.title   = "Simulation initialization fail";
@@ -340,10 +402,11 @@ static void simulation_clear_impl(void* param) noexcept
     // fmt::print("simulation_clear_impl\n");
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
-    g_task->ed->state |= component_editor_status_read_only_simulating |
-                         component_editor_status_read_only_modeling;
+    g_task->app->c_editor.state |=
+      component_editor_status_read_only_simulating |
+      component_editor_status_read_only_modeling;
 
-    simulation_clear(*g_task->ed);
+    simulation_clear(g_task->app->c_editor);
 
     g_task->state = gui_task_status::finished;
     // fmt::print("simulation_clear_impl finished\n");
@@ -354,18 +417,20 @@ static void simulation_init_impl(void* param) noexcept
     // fmt::print("simulation_init_impl\n");
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
-    g_task->ed->state |= component_editor_status_read_only_simulating |
-                         component_editor_status_read_only_modeling;
+    g_task->app->c_editor.state |=
+      component_editor_status_read_only_simulating |
+      component_editor_status_read_only_modeling;
 
-    g_task->ed->force_pause = false;
-    g_task->ed->force_stop  = false;
-    simulation_init(*g_task->ed);
+    g_task->app->c_editor.force_pause = false;
+    g_task->app->c_editor.force_stop  = false;
+    simulation_init(g_task->app->c_editor, g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
     // fmt::print("simulation_init_impl finished\n");
 }
 
-static void task_simulation_run(component_editor& ed) noexcept
+static void task_simulation_run(component_editor&  ed,
+                                simulation_editor& sim_ed) noexcept
 {
     // fmt::print("simulation_run_impl\n");
     ed.simulation_state = component_simulation_status::running;
@@ -386,7 +451,7 @@ static void task_simulation_run(component_editor& ed) noexcept
         if (ed.simulation_state != component_simulation_status::running)
             return;
 
-        auto ret = ed.sim.run(ed.simulation_current);
+        auto ret = sim_ed.sim.run(ed.simulation_current);
         // fmt::print("{}\n", (int)ret);
         // fmt::print("time {} {} {}\n",
         //           ed.simulation_begin,
@@ -427,12 +492,13 @@ static void task_simulation_run(component_editor& ed) noexcept
     }
 }
 
-static void task_simulation_finish(component_editor& ed) noexcept
+static void task_simulation_finish(component_editor&  ed,
+                                   simulation_editor& sim_ed) noexcept
 {
     // fmt::print("simulation_finish_impl\n");
     ed.simulation_state = component_simulation_status::finishing;
 
-    ed.sim.finalize(ed.simulation_end);
+    sim_ed.sim.finalize(ed.simulation_end);
 
     ed.simulation_state = component_simulation_status::finished;
     // fmt::print("simulation_finish_impl finished\n");
@@ -446,10 +512,11 @@ static void task_simulation_run(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
-    g_task->ed->state |= component_editor_status_read_only_simulating |
-                         component_editor_status_read_only_modeling;
+    g_task->app->c_editor.state |=
+      component_editor_status_read_only_simulating |
+      component_editor_status_read_only_modeling;
 
-    task_simulation_run(*g_task->ed);
+    task_simulation_run(g_task->app->c_editor, g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
 }
@@ -459,7 +526,7 @@ static void simulation_pause_impl(void* param) noexcept
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
 
-    g_task->ed->force_pause = true;
+    g_task->app->c_editor.force_pause = true;
 
     g_task->state = gui_task_status::finished;
 }
@@ -468,7 +535,7 @@ static void task_simulation_stop(void* param) noexcept
 {
     auto* g_task = reinterpret_cast<gui_task*>(param);
 
-    g_task->ed->force_stop = true;
+    g_task->app->c_editor.force_stop = true;
 
     g_task->state = gui_task_status::started;
     g_task->state = gui_task_status::finished;
@@ -478,10 +545,11 @@ static void task_simulation_finish(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
-    g_task->ed->state |= component_editor_status_read_only_simulating |
-                         component_editor_status_read_only_modeling;
+    g_task->app->c_editor.state |=
+      component_editor_status_read_only_simulating |
+      component_editor_status_read_only_modeling;
 
-    task_simulation_finish(*g_task->ed);
+    task_simulation_finish(g_task->app->c_editor, g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
 }
@@ -496,7 +564,7 @@ void component_editor::simulation_update_state() noexcept
         simulation_state = component_simulation_status::run_requiring;
         if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
             auto& task = gui_tasks.alloc();
-            task.ed    = this;
+            task.app   = container_of(this, &application::c_editor);
             task_mgr.task_lists[0].add(task_simulation_run, &task);
             task_mgr.task_lists[0].submit();
         }
@@ -506,7 +574,7 @@ void component_editor::simulation_update_state() noexcept
         simulation_state = component_simulation_status::finishing;
         if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
             auto& task = gui_tasks.alloc();
-            task.ed    = this;
+            task.app   = container_of(this, &application::c_editor);
             task_mgr.task_lists[0].add(task_simulation_finish, &task);
             task_mgr.task_lists[0].submit();
         }
@@ -525,7 +593,7 @@ void component_editor::simulation_init() noexcept
     if (state) {
         if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
             auto& task = gui_tasks.alloc();
-            task.ed    = this;
+            task.app   = container_of(this, &application::c_editor);
             task_mgr.task_lists[0].add(simulation_init_impl, &task);
             task_mgr.task_lists[0].submit();
         }
@@ -542,7 +610,7 @@ void component_editor::simulation_clear() noexcept
     if (state) {
         if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
             auto& task = gui_tasks.alloc();
-            task.ed    = this;
+            task.app   = container_of(this, &application::c_editor);
             task_mgr.task_lists[0].add(simulation_clear_impl, &task);
             task_mgr.task_lists[0].submit();
         }
@@ -560,7 +628,7 @@ void component_editor::simulation_start() noexcept
     if (state) {
         if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
             auto& task = gui_tasks.alloc();
-            task.ed    = this;
+            task.app   = container_of(this, &application::c_editor);
             task_mgr.task_lists[0].add(task_simulation_run, &task);
             task_mgr.task_lists[0].submit();
         }
@@ -576,7 +644,7 @@ void component_editor::simulation_pause() noexcept
     if (state) {
         if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
             auto& task = gui_tasks.alloc();
-            task.ed    = this;
+            task.app   = container_of(this, &application::c_editor);
             task_mgr.task_lists[0].add(simulation_pause_impl, &task);
             task_mgr.task_lists[0].submit();
         }
@@ -594,7 +662,7 @@ void component_editor::simulation_stop() noexcept
     if (state) {
         if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
             auto& task = gui_tasks.alloc();
-            task.ed    = this;
+            task.app   = container_of(this, &application::c_editor);
             task_mgr.task_lists[0].add(task_simulation_stop, &task);
             task_mgr.task_lists[0].submit();
         }

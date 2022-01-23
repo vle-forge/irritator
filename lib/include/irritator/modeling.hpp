@@ -20,6 +20,7 @@ enum class file_path_id : u64;
 enum class child_id : u64;
 enum class connection_id : u64;
 enum class registred_path_id : u64;
+enum class simulation_tree_node_id : u64;
 
 constexpr i32 max_component_dirs = 64;
 
@@ -230,11 +231,21 @@ struct modeling_initializer
     u64 random_generator_seed = 1234567890;
 };
 
+struct simulation_tree_node
+{
+    vector<model_id> children;
+
+    hierarchy<simulation_tree_node> tree;
+};
+
 struct tree_node
 {
     tree_node(component_id id_, child_id id_in_parent_) noexcept;
 
-    component_id         id;
+    component_id            id;
+    simulation_tree_node_id sim_tree_node =
+      undefined<simulation_tree_node_id>();
+
     child_id             id_in_parent;
     hierarchy<tree_node> tree;
 

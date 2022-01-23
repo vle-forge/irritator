@@ -521,9 +521,41 @@ struct gui_task
     u64                     param_1      = 0;
     u64                     param_2      = 0;
     void*                   param_3      = nullptr;
-    component_editor*       ed           = nullptr;
+    application*            app          = nullptr;
     component_editor_status editor_state = 0;
     gui_task_status         state        = gui_task_status::not_started;
+};
+
+struct simulation_editor
+{
+    enum class visualization_mode
+    {
+        flat,
+        tree
+    };
+
+    simulation_editor() noexcept;
+    ~simulation_editor() noexcept;
+
+    void select(simulation_tree_node_id id) noexcept;
+    void unselect() noexcept;
+    void clear() noexcept;
+
+    simulation sim;
+
+    real simulation_begin   = 0;
+    real simulation_end     = 100;
+    real simulation_current = 0;
+
+    simulation_tree_node_id head    = undefined<simulation_tree_node_id>();
+    simulation_tree_node_id current = undefined<simulation_tree_node_id>();
+    visualization_mode      mode    = visualization_mode::flat;
+
+    data_array<simulation_tree_node, simulation_tree_node_id> tree_nodes;
+
+    ImNodesEditorContext* context = nullptr;
+    vector<int>           selected_links;
+    vector<int>           selected_nodes;
 };
 
 struct component_editor
@@ -551,7 +583,6 @@ struct component_editor
     settings_manager                            settings;
     small_string<16>                            name;
     modeling                                    mod;
-    simulation                                  sim;
     external_source                             srcs;
     task_manager                                task_mgr;
     data_array<memory_output, memory_output_id> outputs;
@@ -617,6 +648,7 @@ private:
 struct application
 {
     component_editor              c_editor;
+    simulation_editor             s_editor;
     data_array<editor, editor_id> editors;
     std::filesystem::path         home_dir;
     std::filesystem::path         executable_dir;

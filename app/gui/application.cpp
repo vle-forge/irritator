@@ -63,12 +63,18 @@ bool application::init()
         log_w.log(2, "Fail to save settings files.\n");
     }
 
-    if (auto ret = c_editor.sim.init(mod_init.model_capacity,
+    if (auto ret = s_editor.sim.init(mod_init.model_capacity,
                                      mod_init.model_capacity * 256);
         is_bad(ret)) {
         log_w.log(2,
                   "Fail to initialize simulation components: %s\n",
                   status_string(ret));
+        return false;
+    }
+
+    if (auto ret = s_editor.tree_nodes.init(1024); is_bad(ret)) {
+        log_w.log(
+          2, "Fail to initialize simuliation tree: %s\n", status_string(ret));
         return false;
     }
 
@@ -83,7 +89,7 @@ bool application::init()
           2, "Fail to initialize external sources: %s\n", status_string(ret));
         return false;
     } else {
-        c_editor.sim.source_dispatch = c_editor.srcs;
+        s_editor.sim.source_dispatch = c_editor.srcs;
     }
 
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
@@ -194,8 +200,8 @@ bool application::show()
                     auto  id   = c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    auto& task   = c_editor.gui_tasks.alloc();
-                    task.ed      = &c_editor;
+                    auto& task = c_editor.gui_tasks.alloc();
+                    task.app = container_of(&c_editor, &application::c_editor);
                     task.param_1 = ordinal(id);
                     c_editor.task_mgr.task_lists[0].add(load_project, &task);
                     c_editor.task_mgr.task_lists[0].submit();
@@ -220,7 +226,7 @@ bool application::show()
                 path.path  = str;
 
                 auto& task   = c_editor.gui_tasks.alloc();
-                task.ed      = &c_editor;
+                task.app     = container_of(&c_editor, &application::c_editor);
                 task.param_1 = ordinal(id);
                 c_editor.task_mgr.task_lists[0].add(save_project, &task);
                 c_editor.task_mgr.task_lists[0].submit();
@@ -248,8 +254,8 @@ bool application::show()
                     auto  id   = c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    auto& task   = c_editor.gui_tasks.alloc();
-                    task.ed      = &c_editor;
+                    auto& task = c_editor.gui_tasks.alloc();
+                    task.app = container_of(&c_editor, &application::c_editor);
                     task.param_1 = ordinal(id);
                     c_editor.task_mgr.task_lists[0].add(save_project, &task);
                     c_editor.task_mgr.task_lists[0].submit();

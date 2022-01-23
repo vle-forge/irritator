@@ -376,7 +376,8 @@ static void show_hierarchy_settings(component_editor& ed,
                     if (ImGui::Button("Save")) {
                         {
                             auto& task = ed.gui_tasks.alloc();
-                            task.ed    = &ed;
+                            task.app =
+                              container_of(&ed, &application::c_editor);
                             task.param_1 =
                               ordinal(ed.mod.components.get_id(*compo));
                             ed.task_mgr.task_lists[0].add(save_component,
@@ -385,7 +386,8 @@ static void show_hierarchy_settings(component_editor& ed,
 
                         {
                             auto& task = ed.gui_tasks.alloc();
-                            task.ed    = &ed;
+                            task.app =
+                              container_of(&ed, &application::c_editor);
                             task.param_1 =
                               ordinal(ed.mod.components.get_id(*compo));
                             ed.task_mgr.task_lists[0].add(save_description,

@@ -600,21 +600,23 @@ static status save_component_impl(const modeling&       mod,
 
 void save_component(void* param) noexcept
 {
-    auto* g_task      = reinterpret_cast<gui_task*>(param);
-    g_task->state     = gui_task_status::started;
-    g_task->ed->state = component_editor_status_read_only_modeling;
+    auto* g_task                = reinterpret_cast<gui_task*>(param);
+    g_task->state               = gui_task_status::started;
+    g_task->app->c_editor.state = component_editor_status_read_only_modeling;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
-    auto* compo    = g_task->ed->mod.components.try_to_get(compo_id);
+    auto* compo    = g_task->app->c_editor.mod.components.try_to_get(compo_id);
 
     if (compo) {
-        auto* reg = g_task->ed->mod.registred_paths.try_to_get(compo->reg_path);
-        auto* dir = g_task->ed->mod.dir_paths.try_to_get(compo->dir);
-        auto* file = g_task->ed->mod.file_paths.try_to_get(compo->file);
+        auto* reg =
+          g_task->app->c_editor.mod.registred_paths.try_to_get(compo->reg_path);
+        auto* dir = g_task->app->c_editor.mod.dir_paths.try_to_get(compo->dir);
+        auto* file =
+          g_task->app->c_editor.mod.file_paths.try_to_get(compo->file);
 
         if (reg && dir && file) {
             if (is_bad(save_component_impl(
-                  g_task->ed->mod, *compo, *reg, *dir, *file))) {
+                  g_task->app->c_editor.mod, *compo, *reg, *dir, *file))) {
                 compo->state = component_status::modified;
             } else {
                 compo->state = component_status::unmodified;
@@ -666,18 +668,21 @@ static status save_component_description_impl(const registred_path& reg_dir,
 
 void save_description(void* param) noexcept
 {
-    auto* g_task      = reinterpret_cast<gui_task*>(param);
-    g_task->state     = gui_task_status::started;
-    g_task->ed->state = component_editor_status_read_only_modeling;
+    auto* g_task                = reinterpret_cast<gui_task*>(param);
+    g_task->state               = gui_task_status::started;
+    g_task->app->c_editor.state = component_editor_status_read_only_modeling;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
-    auto* compo    = g_task->ed->mod.components.try_to_get(compo_id);
+    auto* compo    = g_task->app->c_editor.mod.components.try_to_get(compo_id);
 
     if (compo) {
-        auto* reg = g_task->ed->mod.registred_paths.try_to_get(compo->reg_path);
-        auto* dir = g_task->ed->mod.dir_paths.try_to_get(compo->dir);
-        auto* file = g_task->ed->mod.file_paths.try_to_get(compo->file);
-        auto* desc = g_task->ed->mod.descriptions.try_to_get(compo->desc);
+        auto* reg =
+          g_task->app->c_editor.mod.registred_paths.try_to_get(compo->reg_path);
+        auto* dir = g_task->app->c_editor.mod.dir_paths.try_to_get(compo->dir);
+        auto* file =
+          g_task->app->c_editor.mod.file_paths.try_to_get(compo->file);
+        auto* desc =
+          g_task->app->c_editor.mod.descriptions.try_to_get(compo->desc);
 
         if (dir && file && desc) {
             if (is_bad(

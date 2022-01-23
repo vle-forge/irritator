@@ -28,11 +28,10 @@
 
 namespace irt {
 
-static void
-push_data(std::vector<float>& xs,
-          std::vector<float>& ys,
-          const double x,
-          const double y) noexcept
+static void push_data(std::vector<float>& xs,
+                      std::vector<float>& ys,
+                      const double        x,
+                      const double        y) noexcept
 {
     if (xs.size() < xs.capacity()) {
         xs.emplace_back(static_cast<float>(x));
@@ -40,19 +39,17 @@ push_data(std::vector<float>& xs,
     }
 }
 
-static void
-pop_data(std::vector<float>& xs, std::vector<float>& ys) noexcept
+static void pop_data(std::vector<float>& xs, std::vector<float>& ys) noexcept
 {
     ys.pop_back();
     xs.pop_back();
 }
 
-void
-plot_output_callback(const irt::observer& obs,
-                     const irt::dynamics_type type,
-                     const irt::time tl,
-                     const irt::time t,
-                     const irt::observer::status s)
+void plot_output_callback(const irt::observer&        obs,
+                          const irt::dynamics_type    type,
+                          const irt::time             tl,
+                          const irt::time             t,
+                          const irt::observer::status s)
 {
     auto* plot_output = reinterpret_cast<irt::plot_output*>(obs.user_data);
 
@@ -70,11 +67,11 @@ plot_output_callback(const irt::observer& obs,
     switch (type) {
     case irt::dynamics_type::qss1_integrator: {
         for (auto td = tl; td < t; td += plot_output->time_step) {
-            const auto e = td - tl;
+            const auto e     = td - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e;
             push_data(plot_output->xs, plot_output->ys, td, value);
         }
-        const auto e = t - tl;
+        const auto e     = t - tl;
         const auto value = obs.msg[0] + obs.msg[1] * e;
         push_data(plot_output->xs, plot_output->ys, t, value);
     } break;
@@ -94,13 +91,13 @@ plot_output_callback(const irt::observer& obs,
 
     case irt::dynamics_type::qss3_integrator: {
         for (auto td = tl; td < t; td += plot_output->time_step) {
-            const auto e = td - tl;
+            const auto e     = td - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e +
                                (obs.msg[2] * e * e / two) +
                                (obs.msg[3] * e * e * e / three);
             push_data(plot_output->xs, plot_output->ys, td, value);
         }
-        const auto e = t - tl;
+        const auto e     = t - tl;
         const auto value = obs.msg[0] + obs.msg[1] * e +
                            (obs.msg[2] * e * e / two) +
                            (obs.msg[3] * e * e * e / three);
@@ -113,12 +110,11 @@ plot_output_callback(const irt::observer& obs,
     }
 }
 
-void
-file_discrete_output_callback(const irt::observer& obs,
-                              const irt::dynamics_type type,
-                              const irt::time tl,
-                              const irt::time t,
-                              const irt::observer::status s)
+void file_discrete_output_callback(const irt::observer&        obs,
+                                   const irt::dynamics_type    type,
+                                   const irt::time             tl,
+                                   const irt::time             t,
+                                   const irt::observer::status s)
 {
     auto* out = reinterpret_cast<file_discrete_output*>(obs.user_data);
 
@@ -139,11 +135,11 @@ file_discrete_output_callback(const irt::observer& obs,
         switch (type) {
         case irt::dynamics_type::qss1_integrator: {
             for (auto td = tl; td < t; td += out->time_step) {
-                const auto e = td - tl;
+                const auto e     = td - tl;
                 const auto value = obs.msg[0] + obs.msg[1] * e;
                 fmt::print(out->ofs, "{},{}\n", td, value);
             }
-            const auto e = t - tl;
+            const auto e     = t - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e;
             fmt::print(out->ofs, "{},{}\n", t, value);
         } break;
@@ -163,13 +159,13 @@ file_discrete_output_callback(const irt::observer& obs,
 
         case irt::dynamics_type::qss3_integrator: {
             for (auto td = tl; td < t; td += out->time_step) {
-                const auto e = td - tl;
+                const auto e     = td - tl;
                 const auto value = obs.msg[0] + obs.msg[1] * e +
                                    (obs.msg[2] * e * e / two) +
                                    (obs.msg[3] * e * e * e / three);
                 fmt::print(out->ofs, "{},{}\n", td, value);
             }
-            const auto e = t - tl;
+            const auto e     = t - tl;
             const auto value = obs.msg[0] + obs.msg[1] * e +
                                (obs.msg[2] * e * e / two) +
                                (obs.msg[3] * e * e * e / three);
@@ -186,14 +182,13 @@ file_discrete_output_callback(const irt::observer& obs,
         out->ofs.close();
 }
 
-void
-file_output_callback(const irt::observer& obs,
-                     const irt::dynamics_type type,
-                     const irt::time /*tl*/,
-                     const irt::time t,
-                     const irt::observer::status s)
+void file_output_callback(const irt::observer&     obs,
+                          const irt::dynamics_type type,
+                          const irt::time /*tl*/,
+                          const irt::time             t,
+                          const irt::observer::status s)
 {
-    auto* out = reinterpret_cast<file_output*>(obs.user_data);
+    auto*                 out = reinterpret_cast<file_output*>(obs.user_data);
     std::filesystem::path file;
 
     switch (s) {
@@ -253,8 +248,7 @@ file_output_callback(const irt::observer& obs,
         out->ofs.close();
 }
 
-static void
-show_simulation_run(window_logger& /*log_w*/, editor& ed)
+static void show_simulation_run(window_logger& /*log_w*/, editor& ed)
 {
     ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
     ImGui::TextFormat("Current bag {}", ed.simulation_bag_id);
@@ -273,10 +267,10 @@ show_simulation_run(window_logger& /*log_w*/, editor& ed)
 
     if (ImGui::Button("[]")) {
         ed.sim.finalize(ed.simulation_current);
-        ed.simulation_current = ed.simulation_begin;
-        ed.simulation_bag_id = -1;
+        ed.simulation_current     = ed.simulation_begin;
+        ed.simulation_bag_id      = -1;
         ed.simulation_during_date = ed.simulation_begin;
-        ed.st = editor_status::editing;
+        ed.st                     = editor_status::editing;
     }
     ImGui::SameLine();
     if (ImGui::Button("||")) {
@@ -295,27 +289,26 @@ show_simulation_run(window_logger& /*log_w*/, editor& ed)
     if (ImGui::Button("+1")) {
         if (ed.st == editor_status::editing)
             ed.simulation_bag_id = -1;
-        ed.st = editor_status::running_1_step;
+        ed.st               = editor_status::running_1_step;
         ed.step_by_step_bag = 0;
     }
     ImGui::SameLine();
     if (ImGui::Button("+10")) {
         if (ed.st == editor_status::editing)
             ed.simulation_bag_id = -1;
-        ed.st = editor_status::running_10_step;
+        ed.st               = editor_status::running_10_step;
         ed.step_by_step_bag = 0;
     }
     ImGui::SameLine();
     if (ImGui::Button("+100")) {
         if (ed.st == editor_status::editing)
             ed.simulation_bag_id = -1;
-        ed.st = editor_status::running_100_step;
+        ed.st               = editor_status::running_100_step;
         ed.step_by_step_bag = 0;
     }
 }
 
-void
-application::show_simulation_window()
+void application::show_simulation_window()
 {
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(250, 350), ImGuiCond_Once);
@@ -358,6 +351,55 @@ application::show_simulation_window()
         }
     }
     ImGui::End();
+}
+
+simulation_editor::simulation_editor() noexcept
+{
+    context = ImNodes::EditorContextCreate();
+    ImNodes::PushAttributeFlag(
+      ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
+    ImNodesIO& io                           = ImNodes::GetIO();
+    io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
+}
+
+simulation_editor::~simulation_editor() noexcept
+{
+    if (context) {
+        ImNodes::EditorContextSet(context);
+        ImNodes::PopAttributeFlag();
+        ImNodes::EditorContextFree(context);
+        context = nullptr;
+    }
+}
+
+void simulation_editor::select(simulation_tree_node_id id) noexcept
+{
+    if (auto* tree = tree_nodes.try_to_get(id); tree) {
+        unselect();
+
+        head    = id;
+        current = id;
+    }
+}
+
+void simulation_editor::unselect() noexcept
+{
+    head    = undefined<simulation_tree_node_id>();
+    current = undefined<simulation_tree_node_id>();
+
+    ImNodes::ClearLinkSelection();
+    ImNodes::ClearNodeSelection();
+
+    selected_links.clear();
+    selected_nodes.clear();
+}
+
+void simulation_editor::clear() noexcept
+{
+    unselect();
+
+    tree_nodes.clear();
+    sim.clear();
 }
 
 } // namesapce irt

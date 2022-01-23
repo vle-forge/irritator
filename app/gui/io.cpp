@@ -2482,15 +2482,15 @@ void component_editor::save_project(const char* filename) noexcept
 
 void load_project(void* param) noexcept
 {
-    auto* g_task      = reinterpret_cast<gui_task*>(param);
-    g_task->state     = gui_task_status::started;
-    g_task->ed->state = component_editor_status_read_only_modeling;
+    auto* g_task                = reinterpret_cast<gui_task*>(param);
+    g_task->state               = gui_task_status::started;
+    g_task->app->c_editor.state = component_editor_status_read_only_modeling;
 
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
-    auto* file = g_task->ed->mod.registred_paths.try_to_get(id);
+    auto* file = g_task->app->c_editor.mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->ed->load_project(file->path.c_str());
-        g_task->ed->mod.registred_paths.free(*file);
+        g_task->app->c_editor.load_project(file->path.c_str());
+        g_task->app->c_editor.mod.registred_paths.free(*file);
     }
 
     g_task->state = gui_task_status::finished;
@@ -2498,15 +2498,15 @@ void load_project(void* param) noexcept
 
 void save_project(void* param) noexcept
 {
-    auto* g_task      = reinterpret_cast<gui_task*>(param);
-    g_task->state     = gui_task_status::started;
-    g_task->ed->state = component_editor_status_read_only_modeling;
+    auto* g_task                = reinterpret_cast<gui_task*>(param);
+    g_task->state               = gui_task_status::started;
+    g_task->app->c_editor.state = component_editor_status_read_only_modeling;
 
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
-    auto* file = g_task->ed->mod.registred_paths.try_to_get(id);
+    auto* file = g_task->app->c_editor.mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->ed->save_project(file->path.c_str());
-        g_task->ed->mod.registred_paths.free(*file);
+        g_task->app->c_editor.save_project(file->path.c_str());
+        g_task->app->c_editor.mod.registred_paths.free(*file);
     }
 
     g_task->state = gui_task_status::finished;
