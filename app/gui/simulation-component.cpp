@@ -240,11 +240,14 @@ static status simulation_copy_tree(component_editor&  ed,
     return status::success;
 }
 
-static void simulation_clear(component_editor& ed) noexcept
+static void simulation_clear(component_editor&  ed,
+                             simulation_editor& sim_ed) noexcept
 {
     tree_node* tree = nullptr;
     while (ed.mod.tree_nodes.next(tree))
         tree->sim.data.clear();
+
+    sim_ed.clear();
 }
 
 static status simulation_init_observation(component_editor&  ed,
@@ -260,27 +263,26 @@ static status simulation_init_observation(component_editor&  ed,
             const auto child_id = compo.children.get_id(*c);
             const auto mdl_id   = enum_cast<model_id>(c->id);
 
-            auto* obs_map = tree.observables.get(mdl_id);
-            irt_assert(obs_map);
+            if (auto* obs_map = tree.observables.get(mdl_id); obs_map) {
+                auto  obs_id = enum_cast<memory_output_id>(*obs_map);
+                auto* obs    = ed.outputs.try_to_get(obs_id);
+                irt_assert(obs);
 
-            auto  obs_id = enum_cast<memory_output_id>(*obs_map);
-            auto* obs    = ed.outputs.try_to_get(obs_id);
-            irt_assert(obs);
+                auto* sim_map = tree.sim.get(mdl_id);
+                irt_assert(sim_map);
 
-            auto* sim_map = tree.sim.get(mdl_id);
-            irt_assert(sim_map);
+                const auto sim_id = enum_cast<model_id>(*sim_map);
+                auto*      mdl    = sim_ed.sim.models.try_to_get(sim_id);
 
-            const auto sim_id = enum_cast<model_id>(*sim_map);
-            auto*      mdl    = sim_ed.sim.models.try_to_get(sim_id);
+                irt_assert(mdl);
 
-            irt_assert(mdl);
+                irt_return_if_fail(sim_ed.sim.observers.can_alloc(1),
+                                   status::simulation_not_enough_model);
 
-            irt_return_if_fail(sim_ed.sim.observers.can_alloc(1),
-                               status::simulation_not_enough_model);
-
-            auto& output = sim_ed.sim.observers.alloc(
-              obs->name.c_str(), memory_output_update, &ed, *obs_map, 0);
-            sim_ed.sim.observe(*mdl, output);
+                auto& output = sim_ed.sim.observers.alloc(
+                  obs->name.c_str(), memory_output_update, &ed, *obs_map, 0);
+                sim_ed.sim.observe(*mdl, output);
+            }
         }
     }
 
@@ -327,7 +329,10 @@ static void simulation_init(component_editor&  ed,
                             simulation_editor& sim_ed) noexcept
 {
     ed.simulation_state = component_simulation_status::initializing;
-    simulation_clear(ed);
+    simulation_clear(ed, sim_ed);
+
+    sim_ed.sim.clear();
+    sim_ed.simulation_current = sim_ed.simulation_begin;
 
     auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
     if (!head) {
@@ -366,9 +371,6 @@ static void simulation_init(component_editor&  ed,
         return;
     }
 
-    sim_ed.sim.clean();
-    sim_ed.simulation_current = sim_ed.simulation_begin;
-
     if (auto ret = simulation_init_observation(ed, sim_ed, *head);
         is_bad(ret)) {
         auto* app = container_of(&ed, &application::c_editor);
@@ -382,7 +384,8 @@ static void simulation_init(component_editor&  ed,
         return;
     }
 
-    if (auto ret = sim_ed.sim.initialize(ed.simulation_begin); is_bad(ret)) {
+    if (auto ret = sim_ed.sim.initialize(sim_ed.simulation_begin);
+        is_bad(ret)) {
         auto* app = container_of(&ed, &application::c_editor);
         auto& n   = app->notifications.alloc(notification_type::error);
         n.title   = "Simulation initialization fail";
@@ -406,7 +409,7 @@ static void simulation_clear_impl(void* param) noexcept
       component_editor_status_read_only_simulating |
       component_editor_status_read_only_modeling;
 
-    simulation_clear(g_task->app->c_editor);
+    simulation_clear(g_task->app->c_editor, g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
     // fmt::print("simulation_clear_impl finished\n");
@@ -442,7 +445,7 @@ static void task_simulation_run(component_editor&  ed,
 
     auto duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
     auto duration_since_start = duration_cast.count();
-    const decltype(duration_since_start) duration_in_microseconds = 1000000;
+    const decltype(duration_since_start) duration_in_microseconds = 100000;
 
     bool stop_or_pause;
 
@@ -451,19 +454,20 @@ static void task_simulation_run(component_editor&  ed,
         if (ed.simulation_state != component_simulation_status::running)
             return;
 
-        auto ret = sim_ed.sim.run(ed.simulation_current);
+        auto ret = sim_ed.sim.run(sim_ed.simulation_current);
         // fmt::print("{}\n", (int)ret);
         // fmt::print("time {} {} {}\n",
-        //           ed.simulation_begin,
-        //           ed.simulation_current,
-        //           ed.simulation_end);
+        //           sim_ed.simulation_begin,
+        //           sim_ed.simulation_current,
+        //           sim_ed.simulation_end);
 
         if (is_bad(ret)) {
             ed.simulation_state = component_simulation_status::finish_requiring;
             return;
         }
 
-        if (ed.simulation_current >= ed.simulation_end) {
+        if (sim_ed.simulation_current >= sim_ed.simulation_end) {
+            sim_ed.simulation_current = sim_ed.simulation_end;
             ed.simulation_state = component_simulation_status::finish_requiring;
             return;
         }
@@ -498,7 +502,7 @@ static void task_simulation_finish(component_editor&  ed,
     // fmt::print("simulation_finish_impl\n");
     ed.simulation_state = component_simulation_status::finishing;
 
-    sim_ed.sim.finalize(ed.simulation_end);
+    sim_ed.sim.finalize(sim_ed.simulation_end);
 
     ed.simulation_state = component_simulation_status::finished;
     // fmt::print("simulation_finish_impl finished\n");

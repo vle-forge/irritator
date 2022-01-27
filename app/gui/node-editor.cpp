@@ -1867,6 +1867,7 @@ bool editor::show_window(window_logger& log_w) noexcept
             }
         }
     }
+#endif
 
     constexpr ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
     if (ImGui::BeginTabBar("editor bar", tab_bar_flags)) {
@@ -1881,7 +1882,6 @@ bool editor::show_window(window_logger& log_w) noexcept
         }
         ImGui::EndTabBar();
     }
-#endif
 
     ImGui::End();
 

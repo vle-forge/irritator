@@ -459,10 +459,9 @@ enum class memory_output_id : u64;
 
 struct memory_output
 {
-    vector<float>     xs;
-    vector<float>     ys;
+    vector<real>      xs;
+    vector<real>      ys;
     small_string<24u> name;
-    real              tl          = zero;
     real              time_step   = one / to_real(10);
     bool              interpolate = true;
 };
@@ -609,10 +608,6 @@ struct component_editor
     std::filesystem::path project_file;
     std::filesystem::path select_directory;
     registred_path_id     select_dir_path = undefined<registred_path_id>();
-
-    real simulation_begin   = 0;
-    real simulation_end     = 100;
-    real simulation_current = 0;
 
     component_editor() noexcept;
 

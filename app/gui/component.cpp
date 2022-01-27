@@ -337,6 +337,7 @@ void component_editor::show_memory_box(bool* is_open) noexcept
 
 static void unselect_editor_component_ref(component_editor& ed) noexcept
 {
+    ImNodes::EditorContextSet(ed.context);
     ed.selected_component = undefined<tree_node_id>();
 
     ImNodes::ClearLinkSelection();
@@ -399,6 +400,7 @@ void component_editor::init() noexcept
 {
     if (!context) {
         context = ImNodes::EditorContextCreate();
+        ImNodes::EditorContextSet(context);
         ImNodes::PushAttributeFlag(
           ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
         ImNodesIO& io                           = ImNodes::GetIO();
