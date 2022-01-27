@@ -2987,7 +2987,7 @@ struct abstract_integrator<3>
     abstract_integrator() = default;
 
     abstract_integrator(const abstract_integrator& other) noexcept
-      : default_X(other.default_dQ)
+      : default_X(other.default_X)
       , default_dQ(other.default_dQ)
       , X(other.X)
       , u(other.u)
@@ -3827,7 +3827,7 @@ struct abstract_multiplier
     abstract_multiplier(const abstract_multiplier& other) noexcept
       : sigma(other.sigma)
     {
-        std::copy_n(other.values, std::size(values), values);
+        std::copy_n(other.values, QssLevel * 2, values);
     }
 
     status initialize(simulation& /*sim*/) noexcept
