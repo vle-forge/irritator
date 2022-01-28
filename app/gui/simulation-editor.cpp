@@ -372,6 +372,16 @@ simulation_editor::~simulation_editor() noexcept
     }
 }
 
+void simulation_editor::shutdown() noexcept
+{
+    if (context) {
+        ImNodes::EditorContextSet(context);
+        ImNodes::PopAttributeFlag();
+        ImNodes::EditorContextFree(context);
+        context = nullptr;
+    }
+}
+
 void simulation_editor::select(simulation_tree_node_id id) noexcept
 {
     if (auto* tree = tree_nodes.try_to_get(id); tree) {

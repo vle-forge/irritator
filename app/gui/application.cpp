@@ -8,6 +8,42 @@
 
 namespace irt {
 
+static constexpr const task_manager_parameters tm_params = {
+    .thread_number           = 3,
+    .simple_task_list_number = 1,
+    .multi_task_list_number  = 0,
+};
+
+static constexpr const i32 gui_task_number = 64;
+
+application::application() noexcept
+  : task_mgr(tm_params)
+{
+    log_w.log(7,
+              "GUI Irritator start with %d threads shared between %d simple "
+              "task list and %d multi task list\n",
+              tm_params.thread_number,
+              tm_params.simple_task_list_number,
+              tm_params.multi_task_list_number);
+
+    task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
+    task_mgr.workers[1].task_lists.emplace_back(&task_mgr.task_lists[0]);
+    task_mgr.workers[2].task_lists.emplace_back(&task_mgr.task_lists[0]);
+
+    log_w.log(
+      7, "Task manager started - %d tasks availables\n", gui_task_number);
+
+    task_mgr.start();
+    gui_tasks.init(gui_task_number);
+}
+
+application::~application() noexcept
+{
+    log_w.log(7, "Task manager shutdown\n");
+    task_mgr.finalize();
+    log_w.log(7, "Application shutdown\n");
+}
+
 bool application::init()
 {
     c_editor.init();
@@ -109,8 +145,36 @@ bool application::init()
     return true;
 }
 
+static component_editor_status gui_task_clean_up(application& app) noexcept
+{
+    component_editor_status ret    = 0;
+    gui_task*               task   = nullptr;
+    gui_task*               to_del = nullptr;
+
+    while (app.gui_tasks.next(task)) {
+        if (to_del) {
+            app.gui_tasks.free(*to_del);
+            to_del = nullptr;
+        }
+
+        if (task->state == gui_task_status::finished) {
+            to_del = task;
+        } else {
+            ret |= task->editor_state;
+        }
+    }
+
+    if (to_del) {
+        app.gui_tasks.free(*to_del);
+    }
+
+    return ret;
+}
+
 bool application::show()
 {
+    state = gui_task_clean_up(*this);
+
     static bool new_project_file     = false;
     static bool load_project_file    = false;
     static bool save_project_file    = false;
@@ -200,11 +264,12 @@ bool application::show()
                     auto  id   = c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    auto& task = c_editor.gui_tasks.alloc();
-                    task.app = container_of(&c_editor, &application::c_editor);
+                    auto* app = container_of(&c_editor, &application::c_editor);
+                    auto& task   = app->gui_tasks.alloc();
+                    task.app     = app;
                     task.param_1 = ordinal(id);
-                    c_editor.task_mgr.task_lists[0].add(load_project, &task);
-                    c_editor.task_mgr.task_lists[0].submit();
+                    app->task_mgr.task_lists[0].add(load_project, &task);
+                    app->task_mgr.task_lists[0].submit();
                 }
             }
 
@@ -225,11 +290,12 @@ bool application::show()
                 auto  id   = c_editor.mod.registred_paths.get_id(path);
                 path.path  = str;
 
-                auto& task   = c_editor.gui_tasks.alloc();
-                task.app     = container_of(&c_editor, &application::c_editor);
+                auto* app    = container_of(&c_editor, &application::c_editor);
+                auto& task   = app->gui_tasks.alloc();
+                task.app     = app;
                 task.param_1 = ordinal(id);
-                c_editor.task_mgr.task_lists[0].add(save_project, &task);
-                c_editor.task_mgr.task_lists[0].submit();
+                app->task_mgr.task_lists[0].add(save_project, &task);
+                app->task_mgr.task_lists[0].submit();
             }
         } else {
             save_project_file    = false;
@@ -254,11 +320,12 @@ bool application::show()
                     auto  id   = c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    auto& task = c_editor.gui_tasks.alloc();
-                    task.app = container_of(&c_editor, &application::c_editor);
+                    auto* app = container_of(&c_editor, &application::c_editor);
+                    auto& task   = app->gui_tasks.alloc();
+                    task.app     = app;
                     task.param_1 = ordinal(id);
-                    c_editor.task_mgr.task_lists[0].add(save_project, &task);
-                    c_editor.task_mgr.task_lists[0].submit();
+                    app->task_mgr.task_lists[0].add(save_project, &task);
+                    app->task_mgr.task_lists[0].submit();
                 }
             }
 
@@ -293,8 +360,10 @@ bool application::show()
     if (show_demo)
         ImGui::ShowDemoWindow();
 
-    if (show_modeling)
+    if (show_modeling) {
         c_editor.show(&show_modeling);
+        s_editor.show(&show_modeling);
+    }
 
     notifications.show();
 
@@ -382,6 +451,7 @@ void application::show_settings_window()
 void application::shutdown()
 {
     c_editor.shutdown();
+    s_editor.shutdown();
     editors.clear();
     log_w.clear();
 }

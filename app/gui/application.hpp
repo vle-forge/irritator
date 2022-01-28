@@ -535,10 +535,23 @@ struct simulation_editor
 
     simulation_editor() noexcept;
     ~simulation_editor() noexcept;
+    void shutdown() noexcept;
 
     void select(simulation_tree_node_id id) noexcept;
     void unselect() noexcept;
     void clear() noexcept;
+
+    void simulation_update_state() noexcept;
+    void simulation_init() noexcept;
+    void simulation_clear() noexcept;
+    void simulation_start() noexcept;
+    void simulation_pause() noexcept;
+    void simulation_stop() noexcept;
+
+    void show(bool* is_show) noexcept;
+
+    bool force_pause = false;
+    bool force_stop  = false;
 
     simulation sim;
 
@@ -549,6 +562,9 @@ struct simulation_editor
     simulation_tree_node_id head    = undefined<simulation_tree_node_id>();
     simulation_tree_node_id current = undefined<simulation_tree_node_id>();
     visualization_mode      mode    = visualization_mode::flat;
+
+    component_simulation_status simulation_state =
+      component_simulation_status::not_started;
 
     data_array<simulation_tree_node, simulation_tree_node_id> tree_nodes;
 
@@ -583,9 +599,7 @@ struct component_editor
     small_string<16>                            name;
     modeling                                    mod;
     external_source                             srcs;
-    task_manager                                task_mgr;
     data_array<memory_output, memory_output_id> outputs;
-    data_array<gui_task, gui_task_id>           gui_tasks;
     tree_node_id          selected_component = undefined<tree_node_id>();
     ImNodesEditorContext* context            = nullptr;
     bool                  is_saved           = true;
@@ -594,11 +608,6 @@ struct component_editor
     bool                  show_memory        = false;
     bool                  show_select_directory_dialog = false;
     bool                  force_node_position          = false;
-
-    component_simulation_status simulation_state =
-      component_simulation_status::not_started;
-
-    component_editor_status state = component_editor_status_modeling;
 
     component* selected_component_list = nullptr;
 
@@ -609,8 +618,6 @@ struct component_editor
     std::filesystem::path select_directory;
     registred_path_id     select_dir_path = undefined<registred_path_id>();
 
-    component_editor() noexcept;
-
     void select(tree_node_id id) noexcept;
     void new_project() noexcept;
     void open_as_main(component_id id) noexcept;
@@ -618,15 +625,6 @@ struct component_editor
 
     void save_project(const char* filename) noexcept;
     void load_project(const char* filename) noexcept;
-
-    void simulation_update_state() noexcept;
-    void simulation_init() noexcept;
-    void simulation_clear() noexcept;
-    void simulation_start() noexcept;
-    void simulation_pause() noexcept;
-    void simulation_stop() noexcept;
-    bool force_pause = false;
-    bool force_stop  = false;
 
     void init() noexcept;
     void show(bool* is_show) noexcept;
@@ -642,16 +640,25 @@ private:
 
 struct application
 {
+    application() noexcept;
+
+    ~application() noexcept;
+
     component_editor              c_editor;
     simulation_editor             s_editor;
     data_array<editor, editor_id> editors;
-    std::filesystem::path         home_dir;
-    std::filesystem::path         executable_dir;
-    std::vector<long long int>    simulation_duration;
+
+    data_array<gui_task, gui_task_id> gui_tasks;
+    task_manager                      task_mgr;
+
+    std::filesystem::path      home_dir;
+    std::filesystem::path      executable_dir;
+    std::vector<long long int> simulation_duration;
 
     modeling_initializer mod_init;
 
-    notification_manager notifications;
+    notification_manager    notifications;
+    component_editor_status state = component_editor_status_modeling;
 
     file_dialog f_dialog;
 

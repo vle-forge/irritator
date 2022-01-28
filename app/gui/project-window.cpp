@@ -374,27 +374,27 @@ static void show_hierarchy_settings(component_editor& ed,
 
                 if (file && dir) {
                     if (ImGui::Button("Save")) {
+                        auto* app = container_of(&ed, &application::c_editor);
+
                         {
-                            auto& task = ed.gui_tasks.alloc();
-                            task.app =
-                              container_of(&ed, &application::c_editor);
+                            auto& task = app->gui_tasks.alloc();
+                            task.app   = app;
                             task.param_1 =
                               ordinal(ed.mod.components.get_id(*compo));
-                            ed.task_mgr.task_lists[0].add(save_component,
-                                                          &task);
+                            app->task_mgr.task_lists[0].add(save_component,
+                                                            &task);
                         }
 
                         {
-                            auto& task = ed.gui_tasks.alloc();
-                            task.app =
-                              container_of(&ed, &application::c_editor);
+                            auto& task = app->gui_tasks.alloc();
+                            task.app   = app;
                             task.param_1 =
                               ordinal(ed.mod.components.get_id(*compo));
-                            ed.task_mgr.task_lists[0].add(save_description,
-                                                          &task);
+                            app->task_mgr.task_lists[0].add(save_description,
+                                                            &task);
                         }
 
-                        ed.task_mgr.task_lists[0].submit();
+                        app->task_mgr.task_lists[0].submit();
                     }
                 }
             }

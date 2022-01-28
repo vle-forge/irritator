@@ -380,22 +380,6 @@ void component_editor::open_as_main(component_id id) noexcept
     }
 }
 
-static constexpr const task_manager_parameters tm_params = {
-    .thread_number           = 3,
-    .simple_task_list_number = 1,
-    .multi_task_list_number  = 0,
-};
-
-component_editor::component_editor() noexcept
-  : task_mgr(tm_params)
-{
-    task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
-    task_mgr.workers[1].task_lists.emplace_back(&task_mgr.task_lists[0]);
-    task_mgr.workers[2].task_lists.emplace_back(&task_mgr.task_lists[0]);
-
-    task_mgr.start();
-}
-
 void component_editor::init() noexcept
 {
     if (!context) {
@@ -407,47 +391,17 @@ void component_editor::init() noexcept
         io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
 
         settings_compute_colors(settings);
-
-        gui_tasks.init(64);
     }
 }
 
 void component_editor::shutdown() noexcept
 {
     if (context) {
-        task_mgr.finalize();
-
         ImNodes::EditorContextSet(context);
         ImNodes::PopAttributeFlag();
         ImNodes::EditorContextFree(context);
         context = nullptr;
     }
-}
-
-static component_editor_status gui_task_clean_up(component_editor& ed) noexcept
-{
-    component_editor_status ret    = 0;
-    gui_task*               task   = nullptr;
-    gui_task*               to_del = nullptr;
-
-    while (ed.gui_tasks.next(task)) {
-        if (to_del) {
-            ed.gui_tasks.free(*to_del);
-            to_del = nullptr;
-        }
-
-        if (task->state == gui_task_status::finished) {
-            to_del = task;
-        } else {
-            ret |= task->editor_state;
-        }
-    }
-
-    if (to_del) {
-        ed.gui_tasks.free(*to_del);
-    }
-
-    return ret;
 }
 
 static void modeling_update_state(component_editor& ed) noexcept
@@ -467,9 +421,7 @@ static void modeling_update_state(component_editor& ed) noexcept
 
 void component_editor::show(bool* /*is_show*/) noexcept
 {
-    simulation_update_state();
     modeling_update_state(*this);
-    state = gui_task_clean_up(*this);
 
     constexpr ImGuiWindowFlags flag =
       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
@@ -604,7 +556,7 @@ void save_component(void* param) noexcept
 {
     auto* g_task                = reinterpret_cast<gui_task*>(param);
     g_task->state               = gui_task_status::started;
-    g_task->app->c_editor.state = component_editor_status_read_only_modeling;
+    g_task->app->state = component_editor_status_read_only_modeling;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
     auto* compo    = g_task->app->c_editor.mod.components.try_to_get(compo_id);
@@ -672,7 +624,7 @@ void save_description(void* param) noexcept
 {
     auto* g_task                = reinterpret_cast<gui_task*>(param);
     g_task->state               = gui_task_status::started;
-    g_task->app->c_editor.state = component_editor_status_read_only_modeling;
+    g_task->app->state = component_editor_status_read_only_modeling;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
     auto* compo    = g_task->app->c_editor.mod.components.try_to_get(compo_id);
