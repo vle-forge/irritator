@@ -453,7 +453,7 @@ struct window_logger
 
 const char* log_string(const log_status s) noexcept;
 
-using component_editor_status = u32;
+using application_status = u32;
 
 enum class memory_output_id : u64;
 
@@ -493,12 +493,12 @@ enum class simulation_status
     finished,
 };
 
-enum component_editor_status_
+enum application_status_
 {
-    component_editor_status_modeling             = 0,
-    component_editor_status_simulating           = 1 << 1,
-    component_editor_status_read_only_modeling   = 1 << 2,
-    component_editor_status_read_only_simulating = 1 << 3,
+    application_status_modeling             = 0,
+    application_status_simulating           = 1 << 1,
+    application_status_read_only_modeling   = 1 << 2,
+    application_status_read_only_simulating = 1 << 3,
 };
 
 enum class gui_task_status
@@ -517,12 +517,12 @@ enum class gui_task_id : u64;
 
 struct gui_task
 {
-    u64                     param_1      = 0;
-    u64                     param_2      = 0;
-    void*                   param_3      = nullptr;
-    application*            app          = nullptr;
-    component_editor_status editor_state = 0;
-    gui_task_status         state        = gui_task_status::not_started;
+    u64                param_1      = 0;
+    u64                param_2      = 0;
+    void*              param_3      = nullptr;
+    application*       app          = nullptr;
+    application_status editor_state = 0;
+    gui_task_status    state        = gui_task_status::not_started;
 };
 
 struct simulation_editor
@@ -656,8 +656,8 @@ struct application
 
     modeling_initializer mod_init;
 
-    notification_manager    notifications;
-    component_editor_status state = component_editor_status_modeling;
+    notification_manager notifications;
+    application_status   state = application_status_modeling;
 
     file_dialog f_dialog;
 

@@ -145,11 +145,11 @@ bool application::init()
     return true;
 }
 
-static component_editor_status gui_task_clean_up(application& app) noexcept
+static application_status gui_task_clean_up(application& app) noexcept
 {
-    component_editor_status ret    = 0;
-    gui_task*               task   = nullptr;
-    gui_task*               to_del = nullptr;
+    application_status ret    = 0;
+    gui_task*          task   = nullptr;
+    gui_task*          to_del = nullptr;
 
     while (app.gui_tasks.next(task)) {
         if (to_del) {

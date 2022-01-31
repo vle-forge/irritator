@@ -554,9 +554,9 @@ static status save_component_impl(const modeling&       mod,
 
 void save_component(void* param) noexcept
 {
-    auto* g_task                = reinterpret_cast<gui_task*>(param);
-    g_task->state               = gui_task_status::started;
-    g_task->app->state = component_editor_status_read_only_modeling;
+    auto* g_task       = reinterpret_cast<gui_task*>(param);
+    g_task->state      = gui_task_status::started;
+    g_task->app->state = application_status_read_only_modeling;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
     auto* compo    = g_task->app->c_editor.mod.components.try_to_get(compo_id);
@@ -622,9 +622,9 @@ static status save_component_description_impl(const registred_path& reg_dir,
 
 void save_description(void* param) noexcept
 {
-    auto* g_task                = reinterpret_cast<gui_task*>(param);
-    g_task->state               = gui_task_status::started;
-    g_task->app->state = component_editor_status_read_only_modeling;
+    auto* g_task       = reinterpret_cast<gui_task*>(param);
+    g_task->state      = gui_task_status::started;
+    g_task->app->state = application_status_read_only_modeling;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
     auto* compo    = g_task->app->c_editor.mod.components.try_to_get(compo_id);
