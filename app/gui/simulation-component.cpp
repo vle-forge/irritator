@@ -431,7 +431,7 @@ static void simulation_init_impl(void* param) noexcept
     // fmt::print("simulation_init_impl finished\n");
 }
 
-static void task_simulation_run(component_editor&  ed,
+static void task_simulation_run(component_editor& /*ed*/,
                                 simulation_editor& sim_ed) noexcept
 {
     // fmt::print("simulation_run_impl\n");
@@ -495,7 +495,7 @@ static void task_simulation_run(component_editor&  ed,
     }
 }
 
-static void task_simulation_finish(component_editor&  ed,
+static void task_simulation_finish(component_editor& /*ed*/,
                                    simulation_editor& sim_ed) noexcept
 {
     // fmt::print("simulation_finish_impl\n");
