@@ -172,7 +172,8 @@ static void show_project_hierarchy_child_configuration(
                 if (data.ch->in) {
                     if (elem < 0)
                         data.compo->x.emplace_back(
-                          data.compo->children.get_id(*data.ch), 1);
+                          data.compo->children.get_id(*data.ch),
+                          static_cast<i8>(1));
                 } else {
                     if (elem >= 0)
                         data.compo->x.swap_pop_back(elem);
@@ -185,7 +186,8 @@ static void show_project_hierarchy_child_configuration(
                 if (data.ch->out) {
                     if (elem < 0)
                         data.compo->y.emplace_back(
-                          data.compo->children.get_id(*data.ch), 0);
+                          data.compo->children.get_id(*data.ch),
+                          static_cast<i8>(0));
                 } else {
                     if (elem >= 0)
                         data.compo->y.swap_pop_back(elem);
