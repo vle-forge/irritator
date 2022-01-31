@@ -45,8 +45,8 @@ struct project_hierarchy_data
 };
 
 static void show_project_hierarchy_child_observable(
-  component_editor&       ed,
-  tree_node&              parent,
+  component_editor& ed,
+  tree_node& /*parent*/,
   project_hierarchy_data& data) noexcept
 {
     auto  id  = enum_cast<model_id>(data.ch->id);
@@ -137,8 +137,8 @@ static i32 find_id(const small_vector<port, 8>& vec, const child_id id) noexcept
 }
 
 static void show_project_hierarchy_child_configuration(
-  component_editor&       ed,
-  tree_node&              parent,
+  component_editor& ed,
+  tree_node& /*parent*/,
   project_hierarchy_data& data) noexcept
 {
     auto  id  = enum_cast<model_id>(data.ch->id);

@@ -19,11 +19,11 @@ static inline void memory_output_emplace(memory_output& out,
     }
 }
 
-static inline void memory_output_initialize(memory_output&           output,
-                                            const irt::observer&     obs,
-                                            const irt::dynamics_type type,
-                                            const irt::time          tl,
-                                            const irt::time          t) noexcept
+static inline void memory_output_initialize(memory_output& output,
+                                            const irt::observer& /*obs*/,
+                                            const irt::dynamics_type /*type*/,
+                                            const irt::time /*tl*/,
+                                            const irt::time /*t*/) noexcept
 {
     output.xs.clear();
     output.ys.clear();
@@ -141,7 +141,7 @@ void memory_output_update(const irt::observer&        obs,
     }
 }
 
-static void show_simulation(component_editor&  ed,
+static void show_simulation(component_editor& /*ed*/,
                             simulation_editor& sim_ed) noexcept
 {
     ImGui::InputReal("Begin", &sim_ed.simulation_begin);
