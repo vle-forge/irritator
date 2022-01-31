@@ -147,7 +147,7 @@ static void show_simulation(component_editor& /*ed*/,
     ImGui::InputReal("Begin", &sim_ed.simulation_begin);
     ImGui::InputReal("End", &sim_ed.simulation_end);
     ImGui::TextFormat("Current time {:.6f}", sim_ed.simulation_current);
-    ImGui::Text("simulation_state: %d", sim_ed.simulation_state);
+    ImGui::TextFormat("Simulation phase: {}", ordinal(sim_ed.simulation_state));
 
     const bool can_be_initialized = !match(sim_ed.simulation_state,
                                            simulation_status::not_started,
