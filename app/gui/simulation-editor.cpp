@@ -61,7 +61,8 @@ void plot_output_callback(const irt::observer&        obs,
         return;
     }
 
-    while (!plot_output->xs.empty() && plot_output->xs.back() == tl)
+    while (!plot_output->xs.empty() &&
+           static_cast<irt::time>(plot_output->xs.back()) == tl)
         pop_data(plot_output->xs, plot_output->ys);
 
     switch (type) {
