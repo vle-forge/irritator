@@ -149,31 +149,28 @@ static void show_simulation(component_editor&  ed,
     ImGui::TextFormat("Current time {:.6f}", sim_ed.simulation_current);
     ImGui::Text("simulation_state: %d", sim_ed.simulation_state);
 
-    const bool can_be_initialized =
-      !match(sim_ed.simulation_state,
-             component_simulation_status::not_started,
-             component_simulation_status::finished,
-             component_simulation_status::initialized,
-             component_simulation_status::not_started);
+    const bool can_be_initialized = !match(sim_ed.simulation_state,
+                                           simulation_status::not_started,
+                                           simulation_status::finished,
+                                           simulation_status::initialized,
+                                           simulation_status::not_started);
 
     const bool can_be_started =
-      !match(sim_ed.simulation_state, component_simulation_status::initialized);
+      !match(sim_ed.simulation_state, simulation_status::initialized);
 
-    const bool can_be_paused =
-      !match(sim_ed.simulation_state,
-             component_simulation_status::running,
-             component_simulation_status::run_requiring,
-             component_simulation_status::paused);
+    const bool can_be_paused = !match(sim_ed.simulation_state,
+                                      simulation_status::running,
+                                      simulation_status::run_requiring,
+                                      simulation_status::paused);
 
-    const bool can_be_restarted = !match(
-      sim_ed.simulation_state, component_simulation_status::pause_forced);
+    const bool can_be_restarted =
+      !match(sim_ed.simulation_state, simulation_status::pause_forced);
 
-    const bool can_be_stopped =
-      !match(sim_ed.simulation_state,
-             component_simulation_status::running,
-             component_simulation_status::run_requiring,
-             component_simulation_status::paused,
-             component_simulation_status::pause_forced);
+    const bool can_be_stopped = !match(sim_ed.simulation_state,
+                                       simulation_status::running,
+                                       simulation_status::run_requiring,
+                                       simulation_status::paused,
+                                       simulation_status::pause_forced);
 
     ImGui::BeginDisabled(can_be_initialized);
     if (ImGui::Button("init")) {

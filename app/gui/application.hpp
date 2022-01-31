@@ -479,7 +479,7 @@ void memory_output_update(const irt::observer&        obs,
                           const irt::time             t,
                           const irt::observer::status s) noexcept;
 
-enum class component_simulation_status
+enum class simulation_status
 {
     not_started,
     initializing,
@@ -563,8 +563,7 @@ struct simulation_editor
     simulation_tree_node_id current = undefined<simulation_tree_node_id>();
     visualization_mode      mode    = visualization_mode::flat;
 
-    component_simulation_status simulation_state =
-      component_simulation_status::not_started;
+    simulation_status simulation_state = simulation_status::not_started;
 
     data_array<simulation_tree_node, simulation_tree_node_id> tree_nodes;
 

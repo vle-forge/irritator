@@ -330,7 +330,7 @@ static status simulation_init_observation(component_editor&  ed,
 static void simulation_init(component_editor&  ed,
                             simulation_editor& sim_ed) noexcept
 {
-    sim_ed.simulation_state = component_simulation_status::initializing;
+    sim_ed.simulation_state = simulation_status::initializing;
     simulation_clear(ed, sim_ed);
 
     sim_ed.sim.clear();
@@ -338,7 +338,7 @@ static void simulation_init(component_editor&  ed,
 
     auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
     if (!head) {
-        sim_ed.simulation_state = component_simulation_status::not_started;
+        sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
@@ -348,7 +348,7 @@ static void simulation_init(component_editor&  ed,
         n.title   = "Simulation initialization fail";
         format(n.message, "Copy hierarchy failed: {}", status_string(ret));
         app->notifications.enable(n);
-        sim_ed.simulation_state = component_simulation_status::not_started;
+        sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
@@ -358,7 +358,7 @@ static void simulation_init(component_editor&  ed,
         n.title   = "Simulation initialization fail";
         format(n.message, "Copy model failed: {}", status_string(ret));
         app->notifications.enable(n);
-        sim_ed.simulation_state = component_simulation_status::not_started;
+        sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
@@ -369,7 +369,7 @@ static void simulation_init(component_editor&  ed,
         n.title   = "Simulation initialization fail";
         format(n.message, "Copy connection failed: {}", status_string(ret));
         app->notifications.enable(n);
-        sim_ed.simulation_state = component_simulation_status::not_started;
+        sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
@@ -382,7 +382,7 @@ static void simulation_init(component_editor&  ed,
                "Initialization of observation failed: {}",
                status_string(ret));
         app->notifications.enable(n);
-        sim_ed.simulation_state = component_simulation_status::not_started;
+        sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
@@ -395,11 +395,11 @@ static void simulation_init(component_editor&  ed,
           n.message, "Models initialization models: {}", status_string(ret));
         app->notifications.enable(n);
 
-        sim_ed.simulation_state = component_simulation_status::not_started;
+        sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    sim_ed.simulation_state = component_simulation_status::initialized;
+    sim_ed.simulation_state = simulation_status::initialized;
 }
 
 static void simulation_clear_impl(void* param) noexcept
@@ -436,7 +436,7 @@ static void task_simulation_run(component_editor&  ed,
                                 simulation_editor& sim_ed) noexcept
 {
     // fmt::print("simulation_run_impl\n");
-    sim_ed.simulation_state = component_simulation_status::running;
+    sim_ed.simulation_state = simulation_status::running;
     namespace stdc          = std::chrono;
 
     auto start_at = stdc::high_resolution_clock::now();
@@ -451,7 +451,7 @@ static void task_simulation_run(component_editor&  ed,
 
     do {
         // fmt::print("loop\n");
-        if (sim_ed.simulation_state != component_simulation_status::running)
+        if (sim_ed.simulation_state != simulation_status::running)
             return;
 
         auto ret = sim_ed.sim.run(sim_ed.simulation_current);
@@ -462,15 +462,13 @@ static void task_simulation_run(component_editor&  ed,
         //           sim_ed.simulation_end);
 
         if (is_bad(ret)) {
-            sim_ed.simulation_state =
-              component_simulation_status::finish_requiring;
+            sim_ed.simulation_state = simulation_status::finish_requiring;
             return;
         }
 
         if (sim_ed.simulation_current >= sim_ed.simulation_end) {
             sim_ed.simulation_current = sim_ed.simulation_end;
-            sim_ed.simulation_state =
-              component_simulation_status::finish_requiring;
+            sim_ed.simulation_state   = simulation_status::finish_requiring;
             return;
         }
 
@@ -488,13 +486,13 @@ static void task_simulation_run(component_editor&  ed,
 
     if (sim_ed.force_pause) {
         sim_ed.force_pause      = false;
-        sim_ed.simulation_state = component_simulation_status::pause_forced;
+        sim_ed.simulation_state = simulation_status::pause_forced;
     } else if (sim_ed.force_stop) {
         sim_ed.force_stop       = false;
-        sim_ed.simulation_state = component_simulation_status::finish_requiring;
+        sim_ed.simulation_state = simulation_status::finish_requiring;
     } else {
         // fmt::print("simulation_run_impl finished\n");
-        sim_ed.simulation_state = component_simulation_status::paused;
+        sim_ed.simulation_state = simulation_status::paused;
     }
 }
 
@@ -502,11 +500,11 @@ static void task_simulation_finish(component_editor&  ed,
                                    simulation_editor& sim_ed) noexcept
 {
     // fmt::print("simulation_finish_impl\n");
-    sim_ed.simulation_state = component_simulation_status::finishing;
+    sim_ed.simulation_state = simulation_status::finishing;
 
     sim_ed.sim.finalize(sim_ed.simulation_end);
 
-    sim_ed.simulation_state = component_simulation_status::finished;
+    sim_ed.simulation_state = simulation_status::finished;
     // fmt::print("simulation_finish_impl finished\n");
 }
 
@@ -563,8 +561,8 @@ static void task_simulation_finish(void* param) noexcept
 
 void simulation_editor::simulation_update_state() noexcept
 {
-    if (simulation_state == component_simulation_status::paused) {
-        simulation_state = component_simulation_status::run_requiring;
+    if (simulation_state == simulation_status::paused) {
+        simulation_state = simulation_status::run_requiring;
         auto* app        = container_of(this, &application::s_editor);
         auto& task       = app->gui_tasks.alloc();
         task.app         = app;
@@ -572,8 +570,8 @@ void simulation_editor::simulation_update_state() noexcept
         app->task_mgr.task_lists[0].submit();
     }
 
-    if (simulation_state == component_simulation_status::finish_requiring) {
-        simulation_state = component_simulation_status::finishing;
+    if (simulation_state == simulation_status::finish_requiring) {
+        simulation_state = simulation_status::finishing;
         auto* app        = container_of(this, &application::s_editor);
         auto& task       = app->gui_tasks.alloc();
         task.app         = app;
@@ -585,9 +583,9 @@ void simulation_editor::simulation_update_state() noexcept
 void simulation_editor::simulation_init() noexcept
 {
     bool state = match(simulation_state,
-                       component_simulation_status::initialized,
-                       component_simulation_status::not_started,
-                       component_simulation_status::finished);
+                       simulation_status::initialized,
+                       simulation_status::not_started,
+                       simulation_status::finished);
 
     irt_assert(state);
 
@@ -611,8 +609,7 @@ void simulation_editor::simulation_init() noexcept
 
 void simulation_editor::simulation_clear() noexcept
 {
-    bool state =
-      match(simulation_state, component_simulation_status::not_started);
+    bool state = match(simulation_state, simulation_status::not_started);
 
     irt_assert(state);
 
@@ -630,8 +627,8 @@ void simulation_editor::simulation_clear() noexcept
 void simulation_editor::simulation_start() noexcept
 {
     bool state = match(simulation_state,
-                       component_simulation_status::initialized,
-                       component_simulation_status::pause_forced);
+                       simulation_status::initialized,
+                       simulation_status::pause_forced);
 
     irt_assert(state);
 
@@ -648,7 +645,7 @@ void simulation_editor::simulation_start() noexcept
 
 void simulation_editor::simulation_pause() noexcept
 {
-    bool state = match(simulation_state, component_simulation_status::running);
+    bool state = match(simulation_state, simulation_status::running);
 
     irt_assert(state);
 
@@ -665,9 +662,8 @@ void simulation_editor::simulation_pause() noexcept
 
 void simulation_editor::simulation_stop() noexcept
 {
-    bool state = match(simulation_state,
-                       component_simulation_status::running,
-                       component_simulation_status::paused);
+    bool state = match(
+      simulation_state, simulation_status::running, simulation_status::paused);
 
     irt_assert(state);
 
