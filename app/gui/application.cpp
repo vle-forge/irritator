@@ -44,7 +44,7 @@ application::~application() noexcept
     log_w.log(7, "Application shutdown\n");
 }
 
-bool application::init()
+bool application::init() noexcept
 {
     c_editor.init();
 
@@ -171,168 +171,181 @@ static application_status gui_task_clean_up(application& app) noexcept
     return ret;
 }
 
-bool application::show()
+static void application_show_menu(application& app) noexcept
 {
-    state = gui_task_clean_up(*this);
-
-    static bool new_project_file     = false;
-    static bool load_project_file    = false;
-    static bool save_project_file    = false;
-    static bool save_as_project_file = false;
-    bool        ret                  = true;
-
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
 
             if (ImGui::MenuItem("New project"))
-                new_project_file = true;
+                app.new_project_file = true;
 
             if (ImGui::MenuItem("Open project"))
-                load_project_file = true;
+                app.load_project_file = true;
 
             if (ImGui::MenuItem("Save project"))
-                save_project_file = true;
+                app.save_project_file = true;
 
             if (ImGui::MenuItem("Save project as..."))
-                save_as_project_file = true;
+                app.save_as_project_file = true;
 
             if (ImGui::MenuItem("Quit"))
-                ret = false;
+                app.menu_quit = true;
 
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem(
-              "Show component memory window", nullptr, &c_editor.show_memory);
+            ImGui::MenuItem("Show component memory window",
+                            nullptr,
+                            &app.c_editor.show_memory);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Preferences")) {
-            ImGui::MenuItem("Demo window", nullptr, &show_demo);
+            ImGui::MenuItem("Demo window", nullptr, &app.show_demo);
             ImGui::Separator();
             ImGui::MenuItem(
-              "Component settings", nullptr, &c_editor.show_settings);
+              "Component settings", nullptr, &app.c_editor.show_settings);
 
             if (ImGui::MenuItem("Load settings"))
-                load_settings();
+                app.load_settings();
 
             if (ImGui::MenuItem("Save settings"))
-                save_settings();
+                app.save_settings();
 
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Old menu")) {
             if (ImGui::MenuItem("New")) {
-                if (auto* ed = alloc_editor(); ed)
+                if (auto* ed = app.alloc_editor(); ed)
                     ed->context = ImNodes::EditorContextCreate();
             }
 
             editor* ed = nullptr;
-            while (editors.next(ed))
+            while (app.editors.next(ed))
                 ImGui::MenuItem(ed->name.c_str(), nullptr, &ed->show);
 
-            ImGui::MenuItem("Simulation", nullptr, &show_simulation);
-            ImGui::MenuItem("Plot", nullptr, &show_plot);
-            ImGui::MenuItem("Settings", nullptr, &show_settings);
+            ImGui::MenuItem("Simulation", nullptr, &app.show_simulation);
+            ImGui::MenuItem("Plot", nullptr, &app.show_plot);
+            ImGui::MenuItem("Settings", nullptr, &app.show_settings);
 
             ImGui::EndMenu();
         }
 
         ImGui::EndMainMenuBar();
     }
+}
 
-    if (new_project_file) {
-        c_editor.new_project();
-        new_project_file = false;
+static void application_manage_menu_action(application& app) noexcept
+{
+    if (app.new_project_file) {
+        app.c_editor.new_project();
+        app.new_project_file = false;
     }
 
-    if (load_project_file) {
+    if (app.load_project_file) {
         const char*    title     = "Select project file path to load";
         const char8_t* filters[] = { u8".irt", nullptr };
 
         ImGui::OpenPopup(title);
-        if (f_dialog.show_load_file(title, filters)) {
-            if (f_dialog.state == file_dialog::status::ok) {
-                c_editor.project_file = f_dialog.result;
-                auto  u8str           = c_editor.project_file.u8string();
-                auto* str = reinterpret_cast<const char*>(u8str.c_str());
+        if (app.f_dialog.show_load_file(title, filters)) {
+            if (app.f_dialog.state == file_dialog::status::ok) {
+                app.c_editor.project_file = app.f_dialog.result;
+                auto  u8str = app.c_editor.project_file.u8string();
+                auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
-                if (c_editor.mod.registred_paths.can_alloc(1)) {
-                    auto& path = c_editor.mod.registred_paths.alloc();
-                    auto  id   = c_editor.mod.registred_paths.get_id(path);
+                if (app.c_editor.mod.registred_paths.can_alloc(1)) {
+                    auto& path = app.c_editor.mod.registred_paths.alloc();
+                    auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    auto* app = container_of(&c_editor, &application::c_editor);
-                    auto& task   = app->gui_tasks.alloc();
-                    task.app     = app;
+                    auto& task   = app.gui_tasks.alloc();
+                    task.app     = &app;
                     task.param_1 = ordinal(id);
-                    app->task_mgr.task_lists[0].add(load_project, &task);
-                    app->task_mgr.task_lists[0].submit();
+                    app.task_mgr.task_lists[0].add(load_project, &task);
+                    app.task_mgr.task_lists[0].submit();
                 }
             }
 
-            f_dialog.clear();
-            load_project_file = false;
+            app.f_dialog.clear();
+            app.load_project_file = false;
         }
     }
 
-    if (save_project_file) {
-        const bool have_file = !c_editor.project_file.empty();
+    if (app.save_project_file) {
+        const bool have_file = !app.c_editor.project_file.empty();
 
         if (have_file) {
-            auto  u8str = c_editor.project_file.u8string();
+            auto  u8str = app.c_editor.project_file.u8string();
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
-            if (c_editor.mod.registred_paths.can_alloc(1)) {
-                auto& path = c_editor.mod.registred_paths.alloc();
-                auto  id   = c_editor.mod.registred_paths.get_id(path);
+            if (app.c_editor.mod.registred_paths.can_alloc(1)) {
+                auto& path = app.c_editor.mod.registred_paths.alloc();
+                auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                 path.path  = str;
 
-                auto* app    = container_of(&c_editor, &application::c_editor);
-                auto& task   = app->gui_tasks.alloc();
-                task.app     = app;
+                auto& task   = app.gui_tasks.alloc();
+                task.app     = &app;
                 task.param_1 = ordinal(id);
-                app->task_mgr.task_lists[0].add(save_project, &task);
-                app->task_mgr.task_lists[0].submit();
+                app.task_mgr.task_lists[0].add(save_project, &task);
+                app.task_mgr.task_lists[0].submit();
             }
         } else {
-            save_project_file    = false;
-            save_as_project_file = true;
+            app.save_project_file    = false;
+            app.save_as_project_file = true;
         }
     }
 
-    if (save_as_project_file) {
+    if (app.save_as_project_file) {
         const char*              title = "Select project file path to save";
         const std::u8string_view default_filename = u8"filename.irt";
         const char8_t*           filters[]        = { u8".irt", nullptr };
 
         ImGui::OpenPopup(title);
-        if (f_dialog.show_save_file(title, default_filename, filters)) {
-            if (f_dialog.state == file_dialog::status::ok) {
-                c_editor.project_file = f_dialog.result;
-                auto  u8str           = c_editor.project_file.u8string();
-                auto* str = reinterpret_cast<const char*>(u8str.c_str());
+        if (app.f_dialog.show_save_file(title, default_filename, filters)) {
+            if (app.f_dialog.state == file_dialog::status::ok) {
+                app.c_editor.project_file = app.f_dialog.result;
+                auto  u8str = app.c_editor.project_file.u8string();
+                auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
-                if (c_editor.mod.registred_paths.can_alloc(1)) {
-                    auto& path = c_editor.mod.registred_paths.alloc();
-                    auto  id   = c_editor.mod.registred_paths.get_id(path);
+                if (app.c_editor.mod.registred_paths.can_alloc(1)) {
+                    auto& path = app.c_editor.mod.registred_paths.alloc();
+                    auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    auto* app = container_of(&c_editor, &application::c_editor);
-                    auto& task   = app->gui_tasks.alloc();
-                    task.app     = app;
+                    auto& task   = app.gui_tasks.alloc();
+                    task.app     = &app;
                     task.param_1 = ordinal(id);
-                    app->task_mgr.task_lists[0].add(save_project, &task);
-                    app->task_mgr.task_lists[0].submit();
+                    app.task_mgr.task_lists[0].add(save_project, &task);
+                    app.task_mgr.task_lists[0].submit();
                 }
             }
 
-            f_dialog.clear();
-            save_as_project_file = false;
+            app.f_dialog.clear();
+            app.save_as_project_file = false;
         }
     }
+}
+
+static void application_show_fixed_windows(application& app) noexcept
+{
+    app.c_editor.show(&app.show_modeling);
+    app.s_editor.show(&app.show_modeling);
+}
+
+static void application_show_floating_windows(application& app) noexcept
+{
+    app.c_editor.show(&app.show_modeling);
+    app.s_editor.show(&app.show_modeling);
+}
+
+void application::show() noexcept
+{
+    state = gui_task_clean_up(*this);
+
+    application_show_menu(*this);
+    application_manage_menu_action(*this);
 
     editor* ed = nullptr;
     while (editors.next(ed)) {
@@ -360,14 +373,13 @@ bool application::show()
     if (show_demo)
         ImGui::ShowDemoWindow();
 
-    if (show_modeling) {
-        c_editor.show(&show_modeling);
-        s_editor.show(&show_modeling);
+    if (window_mode == window_mode_type::fixed) {
+        application_show_fixed_windows(*this);
+    } else {
+        application_show_floating_windows(*this);
     }
 
     notifications.show();
-
-    return ret;
 }
 
 editor* application::alloc_editor()
@@ -448,7 +460,7 @@ void application::show_settings_window()
     ImGui::End();
 }
 
-void application::shutdown()
+void application::shutdown() noexcept
 {
     c_editor.shutdown();
     s_editor.shutdown();

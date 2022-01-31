@@ -192,7 +192,9 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        if (!app.show())
+        app.show();
+
+        if (app.menu_quit)
             ::PostMessage(hwnd, WM_CLOSE, 0, 0);
 
         // 1. Show the big demo window (Most of the sample code is in

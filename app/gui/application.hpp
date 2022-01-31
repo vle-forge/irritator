@@ -638,13 +638,20 @@ private:
 
 struct application
 {
-    application() noexcept;
+    enum class window_mode_type
+    {
+        fixed,
+        floating
+    };
 
+    application() noexcept;
     ~application() noexcept;
 
     component_editor              c_editor;
     simulation_editor             s_editor;
     data_array<editor, editor_id> editors;
+
+    window_mode_type window_mode = window_mode_type::fixed;
 
     data_array<gui_task, gui_task_id> gui_tasks;
     task_manager                      task_mgr;
@@ -666,9 +673,15 @@ struct application
     bool show_plot       = false;
     bool show_settings   = false;
 
-    bool init();
-    bool show();
-    void shutdown();
+    bool new_project_file     = false; // rename menu_*
+    bool load_project_file    = false; // rename menu_*
+    bool save_project_file    = false; // rename menu_*
+    bool save_as_project_file = false; // rename menu_*
+    bool menu_quit            = false;
+
+    bool init() noexcept;
+    void show() noexcept;
+    void shutdown() noexcept;
 
     // For each editor run the simulation. Use this function outside of the
     // ImGui::Render/NewFrame to not block the graphical user interface.
