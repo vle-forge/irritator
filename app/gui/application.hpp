@@ -595,7 +595,6 @@ struct component_editor
     };
 
     settings_manager                            settings;
-    small_string<16>                            name;
     modeling                                    mod;
     external_source                             srcs;
     data_array<memory_output, memory_output_id> outputs;
