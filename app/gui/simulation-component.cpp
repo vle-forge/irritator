@@ -677,9 +677,6 @@ void simulation_editor::simulation_stop() noexcept
     }
 }
 
-void simulation_editor::show(bool* /*is_show*/) noexcept
-{
-    simulation_update_state();
-}
+void simulation_editor::show(bool* /*is_show*/) noexcept {}
 
 } // namespace irt

@@ -1875,11 +1875,13 @@ bool editor::show_window(window_logger& log_w) noexcept
             show_editor(log_w);
             ImGui::EndTabItem();
         }
+#if 0
         if (ImGui::BeginTabItem("sources")) {
             auto* app = container_of(&log_w, &application::log_w);
             show_external_sources(*app, srcs);
             ImGui::EndTabItem();
         }
+#endif
         ImGui::EndTabBar();
     }
 

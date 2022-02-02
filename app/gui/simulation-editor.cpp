@@ -249,6 +249,7 @@ void file_output_callback(const irt::observer&     obs,
         out->ofs.close();
 }
 
+#if 0
 static void show_simulation_run(window_logger& /*log_w*/, editor& ed)
 {
     ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
@@ -308,8 +309,10 @@ static void show_simulation_run(window_logger& /*log_w*/, editor& ed)
         ed.step_by_step_bag = 0;
     }
 }
+#endif
 
-void application::show_simulation_window()
+#if 0
+void application::show_simulation_window() noexcept
 {
     ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(250, 350), ImGuiCond_Once);
@@ -353,6 +356,7 @@ void application::show_simulation_window()
     }
     ImGui::End();
 }
+#endif
 
 simulation_editor::simulation_editor() noexcept
 {

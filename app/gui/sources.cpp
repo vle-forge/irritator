@@ -267,8 +267,9 @@ static void show_random_distribution_input(random_source& src) noexcept
     }
 }
 
-void show_external_sources(application& app, external_source& srcs) noexcept
+void application::show_external_sources() noexcept
 {
+
     static bool                     show_file_dialog  = false;
     static irt::constant_source*    constant_ptr      = nullptr;
     static irt::binary_file_source* binary_file_ptr   = nullptr;
@@ -288,8 +289,8 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         small_string<32> label;
 
         constant_source* cst_src = nullptr;
-        while (srcs.constant_sources.next(cst_src)) {
-            const auto id               = srcs.constant_sources.get_id(cst_src);
+        while (c_editor.srcs.constant_sources.next(cst_src)) {
+            const auto id               = c_editor.srcs.constant_sources.get_id(cst_src);
             const auto index            = get_index(id);
             const bool item_is_selected = cst_src == constant_ptr;
 
@@ -332,8 +333,8 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         }
 
         text_file_source* txt_src = nullptr;
-        while (srcs.text_file_sources.next(txt_src)) {
-            const auto id    = srcs.text_file_sources.get_id(txt_src);
+        while (c_editor.srcs.text_file_sources.next(txt_src)) {
+            const auto id    = c_editor.srcs.text_file_sources.get_id(txt_src);
             const auto index = get_index(id);
             const bool item_is_selected = txt_src == text_file_ptr;
 
@@ -362,8 +363,8 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         }
 
         binary_file_source* bin_src = nullptr;
-        while (srcs.binary_file_sources.next(bin_src)) {
-            const auto id    = srcs.binary_file_sources.get_id(bin_src);
+        while (c_editor.srcs.binary_file_sources.next(bin_src)) {
+            const auto id    = c_editor.srcs.binary_file_sources.get_id(bin_src);
             const auto index = get_index(id);
             const bool item_is_selected = bin_src == binary_file_ptr;
 
@@ -394,8 +395,8 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         }
 
         random_source* rnd_src = nullptr;
-        while (srcs.random_sources.next(rnd_src)) {
-            const auto id               = srcs.random_sources.get_id(rnd_src);
+        while (c_editor.srcs.random_sources.next(rnd_src)) {
+            const auto id               = c_editor.srcs.random_sources.get_id(rnd_src);
             const auto index            = get_index(id);
             const bool item_is_selected = rnd_src == random_source_ptr;
 
@@ -430,48 +431,48 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         ImVec2 button_sz(width, 20);
 
         if (ImGui::Button("+constant", button_sz)) {
-            if (srcs.constant_sources.can_alloc(1u)) {
-                auto& new_src = srcs.constant_sources.alloc();
-                if (is_bad(new_src.init(srcs.block_size))) {
-                    app.log_w.log(
+            if (c_editor.srcs.constant_sources.can_alloc(1u)) {
+                auto& new_src = c_editor.srcs.constant_sources.alloc();
+                if (is_bad(new_src.init(c_editor.srcs.block_size))) {
+                    log_w.log(
                       2, "Not enough memory to allocate constant source");
-                    srcs.constant_sources.free(new_src);
+                    c_editor.srcs.constant_sources.free(new_src);
                 }
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+text file", button_sz)) {
-            if (srcs.text_file_sources.can_alloc(1u)) {
-                auto& new_src = srcs.text_file_sources.alloc();
-                if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    app.log_w.log(
+            if (c_editor.srcs.text_file_sources.can_alloc(1u)) {
+                auto& new_src = c_editor.srcs.text_file_sources.alloc();
+                if (is_bad(new_src.init(c_editor.srcs.block_size, c_editor.srcs.block_number))) {
+                    log_w.log(
                       2, "Not enough memory to allocate text file source");
-                    srcs.text_file_sources.free(new_src);
+                    c_editor.srcs.text_file_sources.free(new_src);
                 }
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+binary file", button_sz)) {
-            if (srcs.binary_file_sources.can_alloc(1u)) {
-                auto& new_src = srcs.binary_file_sources.alloc();
-                if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    app.log_w.log(
+            if (c_editor.srcs.binary_file_sources.can_alloc(1u)) {
+                auto& new_src = c_editor.srcs.binary_file_sources.alloc();
+                if (is_bad(new_src.init(c_editor.srcs.block_size, c_editor.srcs.block_number))) {
+                    log_w.log(
                       2, "Not enough memory to allocate binary text source");
-                    srcs.binary_file_sources.free(new_src);
+                    c_editor.srcs.binary_file_sources.free(new_src);
                 }
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+random", button_sz)) {
-            if (srcs.random_sources.can_alloc(1u)) {
-                auto& new_src = srcs.random_sources.alloc();
-                if (is_bad(new_src.init(srcs.block_size, srcs.block_number))) {
-                    app.log_w.log(
+            if (c_editor.srcs.random_sources.can_alloc(1u)) {
+                auto& new_src = c_editor.srcs.random_sources.alloc();
+                if (is_bad(new_src.init(c_editor.srcs.block_size, c_editor.srcs.block_number))) {
+                    log_w.log(
                       2, "Not enough memory to allocate random source");
-                    srcs.random_sources.free(new_src);
+                    c_editor.srcs.random_sources.free(new_src);
                 }
             }
         }
@@ -479,13 +480,13 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         ImGui::SameLine();
         if (ImGui::Button("delete", button_sz)) {
             if (constant_ptr)
-                srcs.constant_sources.free(*constant_ptr);
+                c_editor.srcs.constant_sources.free(*constant_ptr);
             if (text_file_ptr)
-                srcs.text_file_sources.free(*text_file_ptr);
+                c_editor.srcs.text_file_sources.free(*text_file_ptr);
             if (binary_file_ptr)
-                srcs.binary_file_sources.free(*binary_file_ptr);
+                c_editor.srcs.binary_file_sources.free(*binary_file_ptr);
             if (random_source_ptr)
-                srcs.random_sources.free(*random_source_ptr);
+                c_editor.srcs.random_sources.free(*random_source_ptr);
 
             constant_ptr      = nullptr;
             text_file_ptr     = nullptr;
@@ -501,7 +502,7 @@ void show_external_sources(application& app, external_source& srcs) noexcept
     if (ImGui::CollapsingHeader("Source editor",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         if (constant_ptr) {
-            const auto id    = srcs.constant_sources.get_id(constant_ptr);
+            const auto id    = c_editor.srcs.constant_sources.get_id(constant_ptr);
             auto       index = get_index(id);
 
             static u32 new_size = 1;
@@ -533,7 +534,7 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         }
 
         if (text_file_ptr) {
-            const auto id    = srcs.text_file_sources.get_id(text_file_ptr);
+            const auto id    = c_editor.srcs.text_file_sources.get_id(text_file_ptr);
             auto       index = get_index(id);
 
             ImGui::InputScalar("id",
@@ -555,7 +556,7 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         }
 
         if (binary_file_ptr) {
-            const auto id    = srcs.binary_file_sources.get_id(binary_file_ptr);
+            const auto id    = c_editor.srcs.binary_file_sources.get_id(binary_file_ptr);
             auto       index = get_index(id);
 
             ImGui::InputScalar("id",
@@ -577,7 +578,7 @@ void show_external_sources(application& app, external_source& srcs) noexcept
         }
 
         if (random_source_ptr) {
-            const auto id    = srcs.random_sources.get_id(random_source_ptr);
+            const auto id    = c_editor.srcs.random_sources.get_id(random_source_ptr);
             auto       index = get_index(id);
 
             ImGui::InputScalar("id",
@@ -602,11 +603,11 @@ void show_external_sources(application& app, external_source& srcs) noexcept
             const char8_t* filters[] = { u8".dat", nullptr };
 
             ImGui::OpenPopup(title);
-            if (app.f_dialog.show_load_file(title, filters)) {
-                if (app.f_dialog.state == file_dialog::status::ok) {
-                    binary_file_ptr->file_path = app.f_dialog.result;
+            if (f_dialog.show_load_file(title, filters)) {
+                if (f_dialog.state == file_dialog::status::ok) {
+                    binary_file_ptr->file_path = f_dialog.result;
                 }
-                app.f_dialog.clear();
+                f_dialog.clear();
                 binary_file_ptr  = nullptr;
                 show_file_dialog = false;
             }
@@ -617,11 +618,11 @@ void show_external_sources(application& app, external_source& srcs) noexcept
             const char8_t* filters[] = { u8".txt", nullptr };
 
             ImGui::OpenPopup(title);
-            if (app.f_dialog.show_load_file(title, filters)) {
-                if (app.f_dialog.state == file_dialog::status::ok) {
-                    text_file_ptr->file_path = app.f_dialog.result;
+            if (f_dialog.show_load_file(title, filters)) {
+                if (f_dialog.state == file_dialog::status::ok) {
+                    text_file_ptr->file_path = f_dialog.result;
                 }
-                app.f_dialog.clear();
+                f_dialog.clear();
                 text_file_ptr    = nullptr;
                 show_file_dialog = false;
             }

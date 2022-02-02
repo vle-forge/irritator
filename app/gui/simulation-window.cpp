@@ -141,32 +141,31 @@ void memory_output_update(const irt::observer&        obs,
     }
 }
 
-static void show_simulation(component_editor& /*ed*/,
-                            simulation_editor& sim_ed) noexcept
+static void show_simulation_frame(application& app) noexcept
 {
-    ImGui::InputReal("Begin", &sim_ed.simulation_begin);
-    ImGui::InputReal("End", &sim_ed.simulation_end);
-    ImGui::TextFormat("Current time {:.6f}", sim_ed.simulation_current);
-    ImGui::TextFormat("Simulation phase: {}", ordinal(sim_ed.simulation_state));
+    ImGui::InputReal("Begin", &app.s_editor.simulation_begin);
+    ImGui::InputReal("End", &app.s_editor.simulation_end);
+    ImGui::TextFormat("Current time {:.6f}", app.s_editor.simulation_current);
+    ImGui::TextFormat("Simulation phase: {}", ordinal(app.s_editor.simulation_state));
 
-    const bool can_be_initialized = !match(sim_ed.simulation_state,
+    const bool can_be_initialized = !match(app.s_editor.simulation_state,
                                            simulation_status::not_started,
                                            simulation_status::finished,
                                            simulation_status::initialized,
                                            simulation_status::not_started);
 
     const bool can_be_started =
-      !match(sim_ed.simulation_state, simulation_status::initialized);
+      !match(app.s_editor.simulation_state, simulation_status::initialized);
 
-    const bool can_be_paused = !match(sim_ed.simulation_state,
+    const bool can_be_paused = !match(app.s_editor.simulation_state,
                                       simulation_status::running,
                                       simulation_status::run_requiring,
                                       simulation_status::paused);
 
     const bool can_be_restarted =
-      !match(sim_ed.simulation_state, simulation_status::pause_forced);
+      !match(app.s_editor.simulation_state, simulation_status::pause_forced);
 
-    const bool can_be_stopped = !match(sim_ed.simulation_state,
+    const bool can_be_stopped = !match(app.s_editor.simulation_state,
                                        simulation_status::running,
                                        simulation_status::run_requiring,
                                        simulation_status::paused,
@@ -174,7 +173,7 @@ static void show_simulation(component_editor& /*ed*/,
 
     ImGui::BeginDisabled(can_be_initialized);
     if (ImGui::Button("init")) {
-        sim_ed.simulation_init();
+        app.s_editor.simulation_init();
     }
     ImGui::EndDisabled();
 
@@ -182,14 +181,14 @@ static void show_simulation(component_editor& /*ed*/,
 
     ImGui::BeginDisabled(can_be_started);
     if (ImGui::Button("start")) {
-        sim_ed.simulation_start();
+        app.s_editor.simulation_start();
     }
     ImGui::EndDisabled();
 
     ImGui::SameLine();
     ImGui::BeginDisabled(can_be_paused);
     if (ImGui::Button("pause")) {
-        sim_ed.force_pause = true;
+        app.s_editor.force_pause = true;
     }
     ImGui::EndDisabled();
 
@@ -197,7 +196,7 @@ static void show_simulation(component_editor& /*ed*/,
 
     ImGui::BeginDisabled(can_be_restarted);
     if (ImGui::Button("continue")) {
-        sim_ed.simulation_start();
+        app.s_editor.simulation_start();
     }
     ImGui::EndDisabled();
 
@@ -205,29 +204,26 @@ static void show_simulation(component_editor& /*ed*/,
 
     ImGui::BeginDisabled(can_be_stopped);
     if (ImGui::Button("stop")) {
-        sim_ed.force_stop = true;
+        app.s_editor.force_stop = true;
     }
     ImGui::EndDisabled();
 }
 
-void component_editor::show_simulation_window() noexcept
+void application::show_simulation_window() noexcept
 {
     if (ImGui::BeginTabBar("##Simulation")) {
         if (ImGui::BeginTabItem("Simulation")) {
-            auto* app = container_of(this, &application::c_editor);
-            show_simulation(*this, app->s_editor);
+            show_simulation_frame(*this);
             ImGui::EndTabItem();
         }
 
         if (ImGui::BeginTabItem("Data")) {
-            auto* app = container_of(this, &application::c_editor);
-            show_external_sources(*app, srcs);
+            show_external_sources();
             ImGui::EndTabItem();
         }
 
         if (ImGui::BeginTabItem("Log")) {
-            auto* app = container_of(this, &application::c_editor);
-            app->log_w.show();
+            log_w.show();
             ImGui::EndTabItem();
         }
 

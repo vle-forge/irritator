@@ -404,11 +404,12 @@ static void show_hierarchy_settings(component_editor& ed,
     }
 }
 
-void component_editor::show_project_window() noexcept
+void application::show_project_window() noexcept
 {
+    // @TODO remove static project_hierarchy_data 
     static project_hierarchy_data data;
 
-    auto* parent = mod.tree_nodes.try_to_get(mod.head);
+    auto* parent = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
     if (!parent) {
         data.clear();
         return;
@@ -418,16 +419,16 @@ void component_editor::show_project_window() noexcept
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Hierarchy", flags)) {
-        show_project_hierarchy(*this, *parent, data);
+        show_project_hierarchy(c_editor, *parent, data);
 
         if (data.parent && data.compo && !data.ch) {
-            select(mod.tree_nodes.get_id(parent));
+            c_editor.select(c_editor.mod.tree_nodes.get_id(parent));
             data.clear();
         }
     }
 
     if (ImGui::CollapsingHeader("Export component", flags))
-        show_hierarchy_settings(*this, *parent);
+        show_hierarchy_settings(c_editor, *parent);
 }
 
 } // namespace irt

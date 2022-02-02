@@ -61,33 +61,33 @@ static bool show_connection(const component&  parent,
     return true;
 }
 
-static void show(component_editor& ed,
-                 model&            mdl,
-                 child&            c,
-                 child_id          id) noexcept
+static void show(const application::settings_manager& settings,
+	component_editor& ed,
+	model&            mdl,
+	child&            c,
+	child_id          id) noexcept
 {
     ImNodes::PushColorStyle(
-      ImNodesCol_TitleBar,
-      ImGui::ColorConvertFloat4ToU32(ed.settings.gui_model_color));
+	    ImNodesCol_TitleBar,
+	    ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                            ed.settings.gui_hovered_model_color);
+	    settings.gui_hovered_model_color);
     ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                            ed.settings.gui_selected_model_color);
+	    settings.gui_selected_model_color);
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat(
-      "{}\n{}", c.name.c_str(), get_dynamics_type_name(mdl.type));
+    ImGui::TextFormat("{}\n{}", c.name.c_str(), get_dynamics_type_name(mdl.type));
     ImNodes::EndNodeTitleBar();
 
     dispatch(mdl, [&ed, id](auto& dyn) {
-        add_input_attribute(dyn, id);
-        ImGui::PushItemWidth(120.0f);
-        show_dynamics_inputs(ed.mod.srcs, dyn);
-        ImGui::PopItemWidth();
-        add_output_attribute(dyn, id);
-    });
+	    add_input_attribute(dyn, id);
+	    ImGui::PushItemWidth(120.0f);
+	    show_dynamics_inputs(ed.mod.srcs, dyn);
+	    ImGui::PopItemWidth();
+	    add_output_attribute(dyn, id);
+	    });
 
     ImNodes::EndNode();
 
@@ -95,19 +95,19 @@ static void show(component_editor& ed,
     ImNodes::PopColorStyle();
 }
 
-static void show(component_editor& ed,
+static void show(const application::settings_manager& settings,
                  component&        compo,
                  child&            c,
                  child_id          id) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
-      ImGui::ColorConvertFloat4ToU32(ed.settings.gui_component_color));
+      ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                            ed.settings.gui_hovered_component_color);
+                            settings.gui_hovered_component_color);
     ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                            ed.settings.gui_selected_component_color);
+                            settings.gui_selected_component_color);
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
@@ -173,7 +173,8 @@ static void show(component_editor& ed,
     ImNodes::PopColorStyle();
 }
 
-static void show_opened_component_ref(component_editor& ed,
+static void show_opened_component_ref(const application::settings_manager& settings,
+	component_editor& ed,
                                       tree_node& /*ref*/,
                                       component& parent) noexcept
 {
@@ -185,11 +186,11 @@ static void show_opened_component_ref(component_editor& ed,
         if (c->type == child_type::model) {
             auto id = enum_cast<model_id>(c->id);
             if (auto* mdl = parent.models.try_to_get(id); mdl)
-                show(ed, *mdl, *c, child_id);
+                show(settings, ed, *mdl, *c, child_id);
         } else {
             auto id = enum_cast<component_id>(c->id);
             if (auto* compo = ed.mod.components.try_to_get(id); compo)
-                show(ed, *compo, *c, child_id);
+                show(settings, *compo, *c, child_id);
         }
 
         if (ed.force_node_position) {
@@ -408,7 +409,8 @@ static void remove_links(component_editor& ed, component& parent) noexcept
     parent.state = component_status::modified;
 }
 
-static void show_modeling_widget(component_editor& ed,
+static void show_modeling_widget(const application::settings_manager& settings,
+	component_editor& ed,
                                  tree_node&        tree,
                                  component&        compo) noexcept
 {
@@ -418,7 +420,7 @@ static void show_modeling_widget(component_editor& ed,
     ImVec2   click_pos;
     child_id new_model;
 
-    show_opened_component_ref(ed, tree, compo);
+    show_opened_component_ref(settings,ed, tree, compo);
     show_popup_menuitem(ed, compo, &click_pos, &new_model);
 
     if (ed.show_minimap)
@@ -519,24 +521,24 @@ static void show_output_widget(component_editor& ed) noexcept
     }
 }
 
-void component_editor::show_modeling_window() noexcept
+void application::show_modeling_window() noexcept
 {
-    auto* tree = mod.tree_nodes.try_to_get(selected_component);
+    auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
     if (!tree)
         return;
 
-    component* compo = mod.components.try_to_get(tree->id);
+    component* compo = c_editor.mod.components.try_to_get(tree->id);
     if (!compo)
         return;
 
     if (ImGui::BeginTabBar("##ModelingTabBar")) {
         if (ImGui::BeginTabItem("Graph editor")) {
-            show_modeling_widget(*this, *tree, *compo);
+            show_modeling_widget(settings, c_editor, *tree, *compo);
             ImGui::EndTabItem();
         }
 
         if (ImGui::BeginTabItem("Output editor")) {
-            show_output_widget(*this);
+            show_output_widget(c_editor);
             ImGui::EndTabItem();
         }
 

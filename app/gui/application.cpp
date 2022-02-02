@@ -16,6 +16,24 @@ static constexpr const task_manager_parameters tm_params = {
 
 static constexpr const i32 gui_task_number = 64;
 
+static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
+{
+    return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
+}
+
+void application::settings_manager::update() noexcept
+{
+    gui_hovered_model_color =
+      ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.25f);
+    gui_selected_model_color =
+      ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.5f);
+
+    gui_hovered_component_color =
+      ImGui::ColorConvertFloat4ToU32(gui_component_color * 1.25f);
+    gui_selected_component_color =
+      ImGui::ColorConvertFloat4ToU32(gui_component_color * 1.5f);
+}
+
 application::application() noexcept
   : task_mgr(tm_params)
 {
@@ -35,6 +53,8 @@ application::application() noexcept
 
     task_mgr.start();
     gui_tasks.init(gui_task_number);
+
+    settings.update();
 }
 
 application::~application() noexcept
@@ -195,17 +215,15 @@ static void application_show_menu(application& app) noexcept
         }
 
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem("Show component memory window",
-                            nullptr,
-                            &app.c_editor.show_memory);
+            ImGui::MenuItem(
+              "Show component memory window", nullptr, &app.show_memory);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Preferences")) {
             ImGui::MenuItem("Demo window", nullptr, &app.show_demo);
             ImGui::Separator();
-            ImGui::MenuItem(
-              "Component settings", nullptr, &app.c_editor.show_settings);
+            ImGui::MenuItem("Component settings", nullptr, &app.show_settings);
 
             if (ImGui::MenuItem("Load settings"))
                 app.load_settings();
@@ -251,9 +269,9 @@ static void application_manage_menu_action(application& app) noexcept
         ImGui::OpenPopup(title);
         if (app.f_dialog.show_load_file(title, filters)) {
             if (app.f_dialog.state == file_dialog::status::ok) {
-                app.c_editor.project_file = app.f_dialog.result;
-                auto  u8str = app.c_editor.project_file.u8string();
-                auto* str   = reinterpret_cast<const char*>(u8str.c_str());
+                app.project_file = app.f_dialog.result;
+                auto  u8str      = app.project_file.u8string();
+                auto* str        = reinterpret_cast<const char*>(u8str.c_str());
 
                 if (app.c_editor.mod.registred_paths.can_alloc(1)) {
                     auto& path = app.c_editor.mod.registred_paths.alloc();
@@ -274,10 +292,10 @@ static void application_manage_menu_action(application& app) noexcept
     }
 
     if (app.save_project_file) {
-        const bool have_file = !app.c_editor.project_file.empty();
+        const bool have_file = !app.project_file.empty();
 
         if (have_file) {
-            auto  u8str = app.c_editor.project_file.u8string();
+            auto  u8str = app.project_file.u8string();
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
             if (app.c_editor.mod.registred_paths.can_alloc(1)) {
@@ -305,9 +323,9 @@ static void application_manage_menu_action(application& app) noexcept
         ImGui::OpenPopup(title);
         if (app.f_dialog.show_save_file(title, default_filename, filters)) {
             if (app.f_dialog.state == file_dialog::status::ok) {
-                app.c_editor.project_file = app.f_dialog.result;
-                auto  u8str = app.c_editor.project_file.u8string();
-                auto* str   = reinterpret_cast<const char*>(u8str.c_str());
+                app.project_file = app.f_dialog.result;
+                auto  u8str      = app.project_file.u8string();
+                auto* str        = reinterpret_cast<const char*>(u8str.c_str());
 
                 if (app.c_editor.mod.registred_paths.can_alloc(1)) {
                     auto& path = app.c_editor.mod.registred_paths.alloc();
@@ -330,8 +348,91 @@ static void application_manage_menu_action(application& app) noexcept
 
 static void application_show_fixed_windows(application& app) noexcept
 {
-    app.c_editor.show(&app.show_modeling);
-    app.s_editor.show(&app.show_modeling);
+    // app.c_editor.show(&app.show_modeling);
+    // app.s_editor.show(&app.show_modeling);
+
+    constexpr ImGuiWindowFlags flag =
+      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
+      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+      ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+    const auto* viewport   = ImGui::GetMainViewport();
+    const auto  region     = viewport->WorkSize;
+    const float width_1_10 = region.x / 10.f;
+
+    ImVec2 project_size(width_1_10 * 2.f, region.y);
+
+    ImVec2 modeling_size(width_1_10 * 6.f, region.y - (region.y / 5.f));
+    ImVec2 simulation_size(width_1_10 * 6.f, region.y / 5.f);
+
+    ImVec2 components_size(width_1_10 * 2.f, region.y);
+
+    ImVec2 project_pos(0.f, viewport->WorkPos.y);
+
+    ImVec2 modeling_pos(project_size.x, viewport->WorkPos.y);
+    ImVec2 simulation_pos(project_size.x,
+                          viewport->WorkPos.y + modeling_size.y);
+
+    ImVec2 components_pos(project_size.x + modeling_size.x,
+                          viewport->WorkPos.y);
+
+    ImGui::SetNextWindowPos(project_pos);
+    ImGui::SetNextWindowSize(project_size);
+    if (ImGui::Begin("Project", 0, flag)) {
+        app.show_project_window();
+    }
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(modeling_pos);
+    ImGui::SetNextWindowSize(modeling_size);
+    if (ImGui::Begin("Modeling editor window", 0, flag)) {
+        app.show_modeling_window();
+    }
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(simulation_pos);
+    ImGui::SetNextWindowSize(simulation_size);
+    if (ImGui::Begin("Simulation window", 0, flag)) {
+        app.show_simulation_window();
+    }
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(components_pos);
+    ImGui::SetNextWindowSize(components_size);
+    if (ImGui::Begin("Components list##Window", 0, flag)) {
+        app.show_components_window();
+        ImGui::End();
+    }
+
+    if (app.show_memory)
+        app.show_memory_box(&app.show_memory);
+
+    if (app.show_settings)
+        app.settings.show(&app.show_settings);
+
+    if (app.show_select_directory_dialog) {
+        const char* title = "Select directory";
+        ImGui::OpenPopup(title);
+        if (app.f_dialog.show_select_directory(title)) {
+            if (app.f_dialog.state == file_dialog::status::ok) {
+                app.select_directory = app.f_dialog.result;
+                auto* dir_path = app.c_editor.mod.registred_paths.try_to_get(
+                  app.select_dir_path);
+                if (dir_path) {
+                    auto str = app.select_directory.string();
+                    dir_path->path.assign(str);
+                }
+
+                app.show_select_directory_dialog = false;
+                app.select_dir_path = undefined<registred_path_id>();
+                app.select_directory.clear();
+            }
+
+            app.f_dialog.clear();
+            app.show_select_directory_dialog = false;
+        }
+    }
 }
 
 static void application_show_floating_windows(application& app) noexcept
@@ -346,6 +447,8 @@ void application::show() noexcept
 
     application_show_menu(*this);
     application_manage_menu_action(*this);
+
+    s_editor.simulation_update_state();
 
     editor* ed = nullptr;
     while (editors.next(ed)) {

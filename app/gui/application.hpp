@@ -206,7 +206,6 @@ inline child* unpack_node(const int                          node_id,
     return data.try_to_get(static_cast<u32>(node_id));
 }
 
-void show_external_sources(application& app, external_source& srcs) noexcept;
 void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;
@@ -553,6 +552,8 @@ struct simulation_editor
     bool force_pause = false;
     bool force_stop  = false;
 
+    bool show_minimap = true;
+
     simulation sim;
 
     real simulation_begin   = 0;
@@ -574,6 +575,35 @@ struct simulation_editor
 
 struct component_editor
 {
+    modeling                                    mod;
+    external_source                             srcs;
+    data_array<memory_output, memory_output_id> outputs;
+    tree_node_id          selected_component = undefined<tree_node_id>();
+    ImNodesEditorContext* context            = nullptr;
+    bool                  is_saved           = true;
+    bool                  show_minimap       = true;
+
+    component* selected_component_list = nullptr;
+    bool       force_node_position     = false;
+
+    vector<int> selected_links;
+    vector<int> selected_nodes;
+
+    void select(tree_node_id id) noexcept;
+    void new_project() noexcept;
+    void open_as_main(component_id id) noexcept;
+    void unselect() noexcept;
+
+    void save_project(const char* filename) noexcept;
+    void load_project(const char* filename) noexcept;
+
+    void init() noexcept;
+    void show(bool* is_show) noexcept;
+    void shutdown() noexcept;
+};
+
+struct application
+{
     struct settings_manager
     {
         ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
@@ -582,6 +612,10 @@ struct component_editor
         ImU32  gui_selected_model_color;
         ImU32  gui_hovered_component_color;
         ImU32  gui_selected_component_color;
+
+        //! Compute selected and hovered colors from gui_model_color and
+        //! gui_component_color
+        void update() noexcept;
 
         int   automatic_layout_iteration_limit = 200;
         float automatic_layout_x_distance      = 350.f;
@@ -594,50 +628,6 @@ struct component_editor
         void show(bool* is_open) noexcept;
     };
 
-    settings_manager                            settings;
-    modeling                                    mod;
-    external_source                             srcs;
-    data_array<memory_output, memory_output_id> outputs;
-    tree_node_id          selected_component = undefined<tree_node_id>();
-    ImNodesEditorContext* context            = nullptr;
-    bool                  is_saved           = true;
-    bool                  show_minimap       = true;
-    bool                  show_settings      = false;
-    bool                  show_memory        = false;
-    bool                  show_select_directory_dialog = false;
-    bool                  force_node_position          = false;
-
-    component* selected_component_list = nullptr;
-
-    vector<int> selected_links;
-    vector<int> selected_nodes;
-
-    std::filesystem::path project_file;
-    std::filesystem::path select_directory;
-    registred_path_id     select_dir_path = undefined<registred_path_id>();
-
-    void select(tree_node_id id) noexcept;
-    void new_project() noexcept;
-    void open_as_main(component_id id) noexcept;
-    void unselect() noexcept;
-
-    void save_project(const char* filename) noexcept;
-    void load_project(const char* filename) noexcept;
-
-    void init() noexcept;
-    void show(bool* is_show) noexcept;
-    void show_memory_box(bool* is_show) noexcept;
-    void shutdown() noexcept;
-
-private:
-    void show_simulation_window() noexcept;
-    void show_components_window() noexcept;
-    void show_project_window() noexcept;
-    void show_modeling_window() noexcept;
-};
-
-struct application
-{
     enum class window_mode_type
     {
         fixed,
@@ -650,11 +640,18 @@ struct application
     component_editor              c_editor;
     simulation_editor             s_editor;
     data_array<editor, editor_id> editors;
+    settings_manager              settings;
 
-    window_mode_type window_mode = window_mode_type::fixed;
+    bool show_select_directory_dialog = false;
+
+    window_mode_type  window_mode     = window_mode_type::fixed;
+    registred_path_id select_dir_path = undefined<registred_path_id>();
 
     data_array<gui_task, gui_task_id> gui_tasks;
     task_manager                      task_mgr;
+
+    std::filesystem::path project_file;
+    std::filesystem::path select_directory;
 
     std::filesystem::path      home_dir;
     std::filesystem::path      executable_dir;
@@ -672,6 +669,7 @@ struct application
     bool show_demo       = false;
     bool show_plot       = false;
     bool show_settings   = false;
+    bool show_memory     = false;
 
     bool new_project_file     = false; // rename menu_*
     bool load_project_file    = false; // rename menu_*
@@ -688,8 +686,14 @@ struct application
     void run_simulations();
 
     void show_plot_window();
-    void show_simulation_window();
     void show_settings_window();
+
+    void show_external_sources() noexcept;
+    void show_simulation_window() noexcept;
+    void show_components_window() noexcept;
+    void show_project_window() noexcept;
+    void show_modeling_window() noexcept;
+    void show_memory_box(bool* is_open) noexcept;
 
     editor* alloc_editor();
     void    free_editor(editor& ed);

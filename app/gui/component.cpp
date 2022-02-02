@@ -9,11 +9,6 @@
 
 namespace irt {
 
-static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
-{
-    return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
-}
-
 static void print_tree(const data_array<component, component_id>& components,
                        tree_node* top_id) noexcept
 {
@@ -57,21 +52,7 @@ static void print_tree(const data_array<component, component_id>& components,
     }
 }
 
-static void settings_compute_colors(
-  component_editor::settings_manager& settings) noexcept
-{
-    settings.gui_hovered_model_color =
-      ImGui::ColorConvertFloat4ToU32(settings.gui_model_color * 1.25f);
-    settings.gui_selected_model_color =
-      ImGui::ColorConvertFloat4ToU32(settings.gui_model_color * 1.5f);
-
-    settings.gui_hovered_component_color =
-      ImGui::ColorConvertFloat4ToU32(settings.gui_component_color * 1.25f);
-    settings.gui_selected_component_color =
-      ImGui::ColorConvertFloat4ToU32(settings.gui_component_color * 1.5f);
-}
-
-void component_editor::settings_manager::show(bool* is_open) noexcept
+void application::settings_manager::show(bool* is_open) noexcept
 {
     ImGui::SetNextWindowPos(ImVec2(640, 480), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
@@ -85,7 +66,9 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
 
     static const char* dir_status[] = { "none", "read", "unread" };
 
-    auto* c_ed = container_of(this, &component_editor::settings);
+    auto *app = container_of(this, &application::settings);
+    auto &c_editor = app->c_editor;
+
     if (ImGui::BeginTable("Component directories", 6)) {
         ImGui::TableSetupColumn(
           "Path", ImGuiTableColumnFlags_WidthStretch, -FLT_MIN);
@@ -98,16 +81,16 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
 
         registred_path* dir       = nullptr;
         registred_path* to_delete = nullptr;
-        while (c_ed->mod.registred_paths.next(dir)) {
+        while (c_editor.mod.registred_paths.next(dir)) {
             if (to_delete) {
-                const auto id = c_ed->mod.registred_paths.get_id(*to_delete);
-                c_ed->mod.registred_paths.free(*to_delete);
+                const auto id = c_editor.mod.registred_paths.get_id(*to_delete);
+                c_editor.mod.registred_paths.free(*to_delete);
                 to_delete = nullptr;
 
-                i32 i = 0, e = c_ed->mod.component_repertories.ssize();
+                i32 i = 0, e = c_editor.mod.component_repertories.ssize();
                 for (; i != e; ++i) {
-                    if (c_ed->mod.component_repertories[i] == id) {
-                        c_ed->mod.component_repertories.swap_pop_back(i);
+                    if (c_editor.mod.component_repertories[i] == id) {
+                        c_editor.mod.component_repertories.swap_pop_back(i);
                         break;
                     }
                 }
@@ -143,7 +126,7 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(60.f);
             if (ImGui::Button("Refresh")) {
-                c_ed->mod.fill_components(*dir);
+                c_editor.mod.fill_components(*dir);
             }
             ImGui::PopItemWidth();
 
@@ -157,21 +140,21 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
         }
 
         if (to_delete) {
-            c_ed->mod.free(*to_delete);
+            c_editor.mod.free(*to_delete);
         }
 
         ImGui::EndTable();
 
-        if (c_ed->mod.registred_paths.can_alloc(1) &&
+        if (c_editor.mod.registred_paths.can_alloc(1) &&
             ImGui::Button("Add directory")) {
-            auto& dir    = c_ed->mod.registred_paths.alloc();
-            auto  id     = c_ed->mod.registred_paths.get_id(dir);
+            auto& dir    = c_editor.mod.registred_paths.alloc();
+            auto  id     = c_editor.mod.registred_paths.get_id(dir);
             dir.status   = registred_path::status_option::none;
             dir.path     = "";
             dir.priority = 127;
-            c_ed->show_select_directory_dialog = true;
-            c_ed->select_dir_path              = id;
-            c_ed->mod.component_repertories.emplace_back(id);
+            app->show_select_directory_dialog = true;
+            app->select_dir_path              = id;
+            c_editor.mod.component_repertories.emplace_back(id);
         }
     }
 
@@ -179,11 +162,12 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
     ImGui::Text("Graphics");
     if (ImGui::ColorEdit3(
           "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
-        settings_compute_colors(*this);
+	update();
+
     if (ImGui::ColorEdit3("component",
                           (float*)&gui_component_color,
                           ImGuiColorEditFlags_NoOptions))
-        settings_compute_colors(*this);
+	update();
 
     ImGui::Separator();
     ImGui::Text("Automatic layout parameters");
@@ -204,7 +188,7 @@ void component_editor::settings_manager::show(bool* is_open) noexcept
     ImGui::End();
 }
 
-void component_editor::show_memory_box(bool* is_open) noexcept
+void application::show_memory_box(bool* is_open) noexcept
 {
     ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
@@ -215,34 +199,34 @@ void component_editor::show_memory_box(bool* is_open) noexcept
 
     if (ImGui::CollapsingHeader("Modeling", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::TextFormat("tree_nodes: {} / {} / {}",
-                          mod.tree_nodes.size(),
-                          mod.tree_nodes.max_used(),
-                          mod.tree_nodes.capacity());
+                          c_editor.mod.tree_nodes.size(),
+                          c_editor.mod.tree_nodes.max_used(),
+                          c_editor.mod.tree_nodes.capacity());
         ImGui::TextFormat("descriptions: {} / {} / {}",
-                          mod.descriptions.size(),
-                          mod.descriptions.max_used(),
-                          mod.descriptions.capacity());
+                          c_editor.mod.descriptions.size(),
+                          c_editor.mod.descriptions.max_used(),
+                          c_editor.mod.descriptions.capacity());
         ImGui::TextFormat("components: {} / {} / {}",
-                          mod.components.size(),
-                          mod.components.max_used(),
-                          mod.components.capacity());
+                          c_editor.mod.components.size(),
+                          c_editor.mod.components.max_used(),
+                          c_editor.mod.components.capacity());
         ImGui::TextFormat("registred_paths: {} / {} / {}",
-                          mod.registred_paths.size(),
-                          mod.registred_paths.max_used(),
-                          mod.registred_paths.capacity());
+                          c_editor.mod.registred_paths.size(),
+                          c_editor.mod.registred_paths.max_used(),
+                          c_editor.mod.registred_paths.capacity());
         ImGui::TextFormat("dir_paths: {} / {} / {}",
-                          mod.dir_paths.size(),
-                          mod.dir_paths.max_used(),
-                          mod.dir_paths.capacity());
+                          c_editor.mod.dir_paths.size(),
+                          c_editor.mod.dir_paths.max_used(),
+                          c_editor.mod.dir_paths.capacity());
         ImGui::TextFormat("file_paths: {} / {} / {}",
-                          mod.file_paths.size(),
-                          mod.file_paths.max_used(),
-                          mod.file_paths.capacity());
+                          c_editor.mod.file_paths.size(),
+                          c_editor.mod.file_paths.max_used(),
+                          c_editor.mod.file_paths.capacity());
     }
 
     if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) {
         component* compo = nullptr;
-        while (mod.components.next(compo)) {
+        while (c_editor.mod.components.next(compo)) {
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {
                 ImGui::TextFormat("children: {}", compo->children.size());
@@ -275,12 +259,11 @@ void component_editor::show_memory_box(bool* is_open) noexcept
 
             ImGui::TableHeadersRow();
             registred_path* dir = nullptr;
-            while (mod.registred_paths.next(dir)) {
+            while (c_editor.mod.registred_paths.next(dir)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}",
-                                  ordinal(mod.registred_paths.get_id(*dir)));
+                ImGui::TextFormat("{}", ordinal(c_editor.mod.registred_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -298,11 +281,11 @@ void component_editor::show_memory_box(bool* is_open) noexcept
 
             ImGui::TableHeadersRow();
             dir_path* dir = nullptr;
-            while (mod.dir_paths.next(dir)) {
+            while (c_editor.mod.dir_paths.next(dir)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", ordinal(mod.dir_paths.get_id(*dir)));
+                ImGui::TextFormat("{}", ordinal(c_editor.mod.dir_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -319,11 +302,11 @@ void component_editor::show_memory_box(bool* is_open) noexcept
 
             ImGui::TableHeadersRow();
             file_path* file = nullptr;
-            while (mod.file_paths.next(file)) {
+            while (c_editor.mod.file_paths.next(file)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", ordinal(mod.file_paths.get_id(*file)));
+                ImGui::TextFormat("{}", ordinal(c_editor.mod.file_paths.get_id(*file)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(file->path.c_str());
             }
@@ -389,8 +372,6 @@ void component_editor::init() noexcept
           ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
         ImNodesIO& io                           = ImNodes::GetIO();
         io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
-
-        settings_compute_colors(settings);
     }
 }
 
@@ -422,90 +403,6 @@ static void modeling_update_state(component_editor& ed) noexcept
 void component_editor::show(bool* /*is_show*/) noexcept
 {
     modeling_update_state(*this);
-
-    constexpr ImGuiWindowFlags flag =
-      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-      ImGuiWindowFlags_NoBringToFrontOnFocus;
-
-    const auto* viewport   = ImGui::GetMainViewport();
-    const auto  region     = viewport->WorkSize;
-    const float width_1_10 = region.x / 10.f;
-
-    ImVec2 project_size(width_1_10 * 2.f, region.y);
-
-    ImVec2 modeling_size(width_1_10 * 6.f, region.y - (region.y / 5.f));
-    ImVec2 simulation_size(width_1_10 * 6.f, region.y / 5.f);
-
-    ImVec2 components_size(width_1_10 * 2.f, region.y);
-
-    ImVec2 project_pos(0.f, viewport->WorkPos.y);
-
-    ImVec2 modeling_pos(project_size.x, viewport->WorkPos.y);
-    ImVec2 simulation_pos(project_size.x,
-                          viewport->WorkPos.y + modeling_size.y);
-
-    ImVec2 components_pos(project_size.x + modeling_size.x,
-                          viewport->WorkPos.y);
-
-    ImGui::SetNextWindowPos(project_pos);
-    ImGui::SetNextWindowSize(project_size);
-    if (ImGui::Begin("Project", 0, flag)) {
-        show_project_window();
-    }
-    ImGui::End();
-
-    ImGui::SetNextWindowPos(modeling_pos);
-    ImGui::SetNextWindowSize(modeling_size);
-    if (ImGui::Begin("Modeling editor window", 0, flag)) {
-        show_modeling_window();
-    }
-    ImGui::End();
-
-    ImGui::SetNextWindowPos(simulation_pos);
-    ImGui::SetNextWindowSize(simulation_size);
-    if (ImGui::Begin("Simulation window", 0, flag)) {
-        show_simulation_window();
-    }
-    ImGui::End();
-
-    ImGui::SetNextWindowPos(components_pos);
-    ImGui::SetNextWindowSize(components_size);
-    if (ImGui::Begin("Components list##Window", 0, flag)) {
-        show_components_window();
-        ImGui::End();
-    }
-
-    if (show_memory)
-        show_memory_box(&show_memory);
-
-    if (show_settings)
-        settings.show(&show_settings);
-
-    if (show_select_directory_dialog) {
-        const char* title = "Select directory";
-        ImGui::OpenPopup(title);
-        auto* app = container_of(this, &application::c_editor);
-        if (app->f_dialog.show_select_directory(title)) {
-            if (app->f_dialog.state == file_dialog::status::ok) {
-                select_directory = app->f_dialog.result;
-                auto* dir_path =
-                  mod.registred_paths.try_to_get(select_dir_path);
-                if (dir_path) {
-                    auto str = select_directory.string();
-                    dir_path->path.assign(str);
-                }
-
-                show_select_directory_dialog = false;
-                select_dir_path              = undefined<registred_path_id>();
-                select_directory.clear();
-            }
-
-            app->f_dialog.clear();
-            show_select_directory_dialog = false;
-        }
-    }
 }
 
 //
