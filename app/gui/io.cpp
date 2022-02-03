@@ -33,6 +33,7 @@ struct component_setting_handler
         paths_array,
         path_object,
 
+        is_fixed_window_placement,
         binary_file_source_capacity,
         children_capacity,
         component_capacity,
@@ -68,7 +69,19 @@ struct component_setting_handler
     {}
 
     bool Null() { return false; }
-    bool Bool(bool /*b*/) { return false; }
+
+    bool Bool(bool b)
+    {
+        if (top == stack::is_fixed_window_placement) {
+            app->mod_init.is_fixed_window_placement = b;
+            app->is_fixed_window_placement          = b;
+            top                                     = stack::top;
+            return true;
+        }
+
+        return false;
+    }
+
     bool Double(double /*d*/) { return false; }
 
     bool Uint(unsigned u) { return affect(u); }
@@ -179,6 +192,8 @@ struct component_setting_handler
         if (top == stack::top) {
             if (sv == "paths") {
                 top = stack::paths;
+            } else if (sv == "is_fixed_window_placement") {
+                top = stack::is_fixed_window_placement;
             } else if (sv == "binary_file_source_capacity") {
                 top = stack::binary_file_source_capacity;
             } else if (sv == "children_capacity") {
@@ -379,6 +394,8 @@ status application::save_settings() noexcept
             }
             writer.EndArray();
 
+            writer.Key("is_fixed_window_placement");
+            writer.Bool(is_fixed_window_placement);
             writer.Key("model_capacity");
             writer.Int(mod_init.model_capacity);
             writer.Key("tree_capacity");

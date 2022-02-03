@@ -229,6 +229,8 @@ struct modeling_initializer
     i32 random_source_capacity      = 16;
 
     u64 random_generator_seed = 1234567890;
+
+    bool is_fixed_window_placement = true;
 };
 
 struct simulation_tree_node
