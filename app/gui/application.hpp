@@ -628,12 +628,6 @@ struct application
         void show(bool* is_open) noexcept;
     };
 
-    enum class window_mode_type
-    {
-        fixed,
-        floating
-    };
-
     application() noexcept;
     ~application() noexcept;
 
@@ -644,7 +638,6 @@ struct application
 
     bool show_select_directory_dialog = false;
 
-    window_mode_type  window_mode     = window_mode_type::fixed;
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
     data_array<gui_task, gui_task_id> gui_tasks;
@@ -663,6 +656,8 @@ struct application
     application_status   state = application_status_modeling;
 
     file_dialog f_dialog;
+
+    bool is_fixed_window_placement = true;
 
     bool show_modeling   = true;
     bool show_simulation = false;

@@ -216,7 +216,8 @@ static void application_show_menu(application& app) noexcept
 
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem(
-              "Show component memory window", nullptr, &app.show_memory);
+              "Show fixed windows", nullptr, &app.is_fixed_window_placement);
+            ImGui::MenuItem("Show memory usage", nullptr, &app.show_memory);
             ImGui::EndMenu();
         }
 
@@ -346,16 +347,28 @@ static void application_manage_menu_action(application& app) noexcept
     }
 }
 
-static void application_show_fixed_windows(application& app) noexcept
+static void application_show_windows(application& app) noexcept
 {
-    // app.c_editor.show(&app.show_modeling);
-    // app.s_editor.show(&app.show_modeling);
-
-    constexpr ImGuiWindowFlags flag =
+    constexpr ImGuiWindowFlags window_fixed_flags =
       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
       ImGuiWindowFlags_NoBringToFrontOnFocus;
+    constexpr ImGuiCond        window_fixed_pos_flags  = ImGuiCond_None;
+    constexpr ImGuiCond        window_fixed_size_flags = ImGuiCond_None;
+    constexpr ImGuiWindowFlags window_floating_flags   = ImGuiWindowFlags_None;
+    constexpr ImGuiCond window_floating_pos_flags      = ImGuiCond_FirstUseEver;
+    constexpr ImGuiCond window_floating_size_flags     = ImGuiCond_Once;
+
+    ImGuiWindowFlags window_flags      = window_floating_flags;
+    ImGuiCond        window_pos_flags  = window_floating_pos_flags;
+    ImGuiCond        window_size_flags = window_floating_size_flags;
+
+    if (app.is_fixed_window_placement) {
+        window_flags      = window_fixed_flags;
+        window_pos_flags  = window_fixed_pos_flags;
+        window_size_flags = window_fixed_size_flags;
+    }
 
     const auto* viewport   = ImGui::GetMainViewport();
     const auto  region     = viewport->WorkSize;
@@ -377,68 +390,33 @@ static void application_show_fixed_windows(application& app) noexcept
     ImVec2 components_pos(project_size.x + modeling_size.x,
                           viewport->WorkPos.y);
 
-    ImGui::SetNextWindowPos(project_pos);
-    ImGui::SetNextWindowSize(project_size);
-    if (ImGui::Begin("Project", 0, flag)) {
+    ImGui::SetNextWindowPos(project_pos, window_pos_flags);
+    ImGui::SetNextWindowSize(project_size, window_size_flags);
+    if (ImGui::Begin("Project", 0, window_flags)) {
         app.show_project_window();
     }
     ImGui::End();
 
-    ImGui::SetNextWindowPos(modeling_pos);
-    ImGui::SetNextWindowSize(modeling_size);
-    if (ImGui::Begin("Modeling editor window", 0, flag)) {
+    ImGui::SetNextWindowPos(modeling_pos, window_pos_flags);
+    ImGui::SetNextWindowSize(modeling_size, window_size_flags);
+    if (ImGui::Begin("Modeling editor window", 0, window_flags)) {
         app.show_modeling_window();
     }
     ImGui::End();
 
-    ImGui::SetNextWindowPos(simulation_pos);
-    ImGui::SetNextWindowSize(simulation_size);
-    if (ImGui::Begin("Simulation window", 0, flag)) {
+    ImGui::SetNextWindowPos(simulation_pos, window_pos_flags);
+    ImGui::SetNextWindowSize(simulation_size, window_size_flags);
+    if (ImGui::Begin("Simulation window", 0, window_flags)) {
         app.show_simulation_window();
     }
     ImGui::End();
 
-    ImGui::SetNextWindowPos(components_pos);
-    ImGui::SetNextWindowSize(components_size);
-    if (ImGui::Begin("Components list##Window", 0, flag)) {
+    ImGui::SetNextWindowPos(components_pos, window_pos_flags);
+    ImGui::SetNextWindowSize(components_size, window_size_flags);
+    if (ImGui::Begin("Components list##Window", 0, window_flags)) {
         app.show_components_window();
         ImGui::End();
     }
-
-    if (app.show_memory)
-        app.show_memory_box(&app.show_memory);
-
-    if (app.show_settings)
-        app.settings.show(&app.show_settings);
-
-    if (app.show_select_directory_dialog) {
-        const char* title = "Select directory";
-        ImGui::OpenPopup(title);
-        if (app.f_dialog.show_select_directory(title)) {
-            if (app.f_dialog.state == file_dialog::status::ok) {
-                app.select_directory = app.f_dialog.result;
-                auto* dir_path = app.c_editor.mod.registred_paths.try_to_get(
-                  app.select_dir_path);
-                if (dir_path) {
-                    auto str = app.select_directory.string();
-                    dir_path->path.assign(str);
-                }
-
-                app.show_select_directory_dialog = false;
-                app.select_dir_path = undefined<registred_path_id>();
-                app.select_directory.clear();
-            }
-
-            app.f_dialog.clear();
-            app.show_select_directory_dialog = false;
-        }
-    }
-}
-
-static void application_show_floating_windows(application& app) noexcept
-{
-    app.c_editor.show(&app.show_modeling);
-    app.s_editor.show(&app.show_modeling);
 }
 
 void application::show() noexcept
@@ -476,10 +454,35 @@ void application::show() noexcept
     if (show_demo)
         ImGui::ShowDemoWindow();
 
-    if (window_mode == window_mode_type::fixed) {
-        application_show_fixed_windows(*this);
-    } else {
-        application_show_floating_windows(*this);
+    application_show_windows(*this);
+
+    if (show_memory)
+        show_memory_box(&show_memory);
+
+    if (show_settings)
+        settings.show(&show_settings);
+
+    if (show_select_directory_dialog) {
+        const char* title = "Select directory";
+        ImGui::OpenPopup(title);
+        if (f_dialog.show_select_directory(title)) {
+            if (f_dialog.state == file_dialog::status::ok) {
+                select_directory = f_dialog.result;
+                auto* dir_path =
+                  c_editor.mod.registred_paths.try_to_get(select_dir_path);
+                if (dir_path) {
+                    auto str = select_directory.string();
+                    dir_path->path.assign(str);
+                }
+
+                show_select_directory_dialog = false;
+                select_dir_path              = undefined<registred_path_id>();
+                select_directory.clear();
+            }
+
+            f_dialog.clear();
+            show_select_directory_dialog = false;
+        }
     }
 
     notifications.show();

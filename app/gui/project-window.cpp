@@ -406,7 +406,7 @@ static void show_hierarchy_settings(component_editor& ed,
 
 void application::show_project_window() noexcept
 {
-    // @TODO remove static project_hierarchy_data 
+    // @TODO remove static project_hierarchy_data
     static project_hierarchy_data data;
 
     auto* parent = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
