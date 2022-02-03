@@ -463,151 +463,15 @@ static void show_modeling_widget(const application::settings_manager& settings,
     }
 }
 
-static void show_output_widget(component_editor& ed) noexcept
+void application::show_modeling_editor_widget() noexcept
 {
-    if (ImGui::BeginTable("Observations", 5)) {
-        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("time-step", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("capacity", ImGuiTableColumnFlags_WidthFixed);
-
-        ImGui::TableHeadersRow();
-        memory_output* out = nullptr;
-        while (ed.outputs.next(out)) {
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-
-            ImGui::TextFormat("{}", ordinal(ed.outputs.get_id(*out)));
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(out->name.c_str());
-            ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->time_step);
-            ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->xs.ssize());
-            ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->xs.capacity());
-        }
-
-        ImGui::EndTable();
-    }
-
-    if (ImGui::CollapsingHeader("Outputs", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImPlot::BeginPlot("simulation", "t", "s")) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
-
-            memory_output* obs = nullptr;
-            while (ed.outputs.next(obs)) {
-                const auto sz = obs->ys.ssize();
-
-                if (sz) {
-                    if (obs->interpolate) {
-                        ImPlot::PlotLine(obs->name.c_str(),
-                                         obs->xs.data(),
-                                         obs->ys.data(),
-                                         sz);
-
-                    } else {
-                        ImPlot::PlotScatter(obs->name.c_str(),
-                                            obs->xs.data(),
-                                            obs->ys.data(),
-                                            sz);
-                    }
-                }
-            }
-
-            ImPlot::PopStyleVar(2);
-            ImPlot::EndPlot();
-        }
-    }
-}
-
-void application::show_main_as_tabbar(ImVec2           position,
-                                      ImVec2           size,
-                                      ImGuiWindowFlags window_flags,
-                                      ImGuiCond        position_flags,
-                                      ImGuiCond        size_flags) noexcept
-{
-
-    ImGui::SetNextWindowPos(position, position_flags);
-    ImGui::SetNextWindowSize(size, size_flags);
-    if (ImGui::Begin("Main", 0, window_flags)) {
-        auto* tree =
-          c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
-        if (!tree) {
-            ImGui::End();
-            return;
-        }
-
+    auto* tree =
+      c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
+    if (tree) {
         component* compo = c_editor.mod.components.try_to_get(tree->id);
-        if (!compo) {
-            ImGui::End();
-            return;
+        if (compo) {
+            show_modeling_widget(settings, c_editor, *tree, *compo);
         }
-
-        if (ImGui::BeginTabBar("##ModelingTabBar")) {
-            if (ImGui::BeginTabItem("Modeling editor")) {
-                show_modeling_widget(settings, c_editor, *tree, *compo);
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("Simulation editor")) {
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("Output editor")) {
-                show_output_widget(c_editor);
-                ImGui::EndTabItem();
-            }
-
-            ImGui::EndTabBar();
-        }
-    }
-    ImGui::End();
-}
-
-void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
-{
-    size.x -= 50;
-    size.y -= 50;
-
-    if (show_modeling_editor) {
-        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Modeling editor", &show_modeling_editor)) {
-            auto* tree =
-              c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
-            if (tree) {
-                component* compo = c_editor.mod.components.try_to_get(tree->id);
-                if (compo)
-                    show_modeling_widget(settings, c_editor, *tree, *compo);
-            }
-        }
-        ImGui::End();
-    }
-
-    position.x += 25;
-    position.y += 25;
-
-    if (show_simulation_editor) {
-        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Simulation editor", &show_simulation_editor)) {
-        }
-        ImGui::End();
-    }
-
-    position.x += 25;
-    position.y += 25;
-
-    if (show_output_editor) {
-        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Output editor", &show_output_editor)) {
-            show_output_widget(c_editor);
-        }
-        ImGui::End();
     }
 }
 

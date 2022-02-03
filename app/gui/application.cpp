@@ -585,6 +585,87 @@ void application::show_settings_window()
     ImGui::End();
 }
 
+void application::show_main_as_tabbar(ImVec2           position,
+                                      ImVec2           size,
+                                      ImGuiWindowFlags window_flags,
+                                      ImGuiCond        position_flags,
+                                      ImGuiCond        size_flags) noexcept
+{
+
+    ImGui::SetNextWindowPos(position, position_flags);
+    ImGui::SetNextWindowSize(size, size_flags);
+    if (ImGui::Begin("Main", 0, window_flags)) {
+        auto* tree =
+          c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
+        if (!tree) {
+            ImGui::End();
+            return;
+        }
+
+        component* compo = c_editor.mod.components.try_to_get(tree->id);
+        if (!compo) {
+            ImGui::End();
+            return;
+        }
+
+        if (ImGui::BeginTabBar("##ModelingTabBar")) {
+            if (ImGui::BeginTabItem("Modeling editor")) {
+                show_modeling_editor_widget();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Simulation editor")) {
+                show_simulation_editor_widget();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Output editor")) {
+                show_output_editor_widget();
+                ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
+        }
+    }
+    ImGui::End();
+}
+
+void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
+{
+    size.x -= 50;
+    size.y -= 50;
+
+    if (show_modeling_editor) {
+        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
+        if (ImGui::Begin("Modeling editor", &show_modeling_editor))
+            show_modeling_editor_widget();
+        ImGui::End();
+    }
+
+    position.x += 25;
+    position.y += 25;
+
+    if (show_simulation_editor) {
+        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
+        if (ImGui::Begin("Simulation editor", &show_simulation_editor))
+            show_simulation_editor_widget();
+        ImGui::End();
+    }
+
+    position.x += 25;
+    position.y += 25;
+
+    if (show_output_editor) {
+        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
+        if (ImGui::Begin("Output editor", &show_output_editor))
+            show_output_editor_widget();
+        ImGui::End();
+    }
+}
+
 void application::shutdown() noexcept
 {
     c_editor.shutdown();

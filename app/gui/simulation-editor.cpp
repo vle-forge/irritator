@@ -417,4 +417,6 @@ void simulation_editor::clear() noexcept
     sim.clear();
 }
 
+void application::show_simulation_editor_widget() noexcept {}
+
 } // namesapce irt
