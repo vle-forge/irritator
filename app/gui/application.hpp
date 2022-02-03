@@ -658,6 +658,7 @@ struct application
     file_dialog f_dialog;
 
     bool is_fixed_window_placement = true;
+    bool is_fixed_main_window      = true;
 
     bool show_modeling   = true;
     bool show_simulation = false;
@@ -665,6 +666,10 @@ struct application
     bool show_plot       = false;
     bool show_settings   = false;
     bool show_memory     = false;
+
+    bool show_output_editor     = true;
+    bool show_simulation_editor = true;
+    bool show_modeling_editor   = true;
 
     bool new_project_file     = false; // rename menu_*
     bool load_project_file    = false; // rename menu_*
@@ -687,8 +692,17 @@ struct application
     void show_simulation_window() noexcept;
     void show_components_window() noexcept;
     void show_project_window() noexcept;
-    void show_modeling_window() noexcept;
+    void show_main_as_tabbar(ImVec2           position,
+                             ImVec2           size,
+                             ImGuiWindowFlags window_flags,
+                             ImGuiCond        position_flags,
+                             ImGuiCond        size_flags) noexcept;
+    void show_main_as_window(ImVec2 position, ImVec2 size) noexcept;
     void show_memory_box(bool* is_open) noexcept;
+
+    void show_modeling_editor_widget() noexcept;
+    void show_simulation_editor_widget() noexcept;
+    void show_output_editor_widget() noexcept;
 
     editor* alloc_editor();
     void    free_editor(editor& ed);

@@ -216,7 +216,23 @@ static void application_show_menu(application& app) noexcept
 
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem(
-              "Show fixed windows", nullptr, &app.is_fixed_window_placement);
+              "Fix window layout", nullptr, &app.is_fixed_window_placement);
+
+            ImGui::MenuItem("Merge main editors",
+                            nullptr,
+                            &app.is_fixed_main_window,
+                            !app.is_fixed_window_placement);
+
+            if (!app.is_fixed_main_window) {
+                ImGui::MenuItem(
+                  "Show modeling editor", nullptr, &app.show_modeling_editor);
+                ImGui::MenuItem("Show simulation editor",
+                                nullptr,
+                                &app.show_simulation_editor);
+                ImGui::MenuItem(
+                  "Show output editor", nullptr, &app.show_output_editor);
+            }
+
             ImGui::MenuItem("Show memory usage", nullptr, &app.show_memory);
             ImGui::EndMenu();
         }
@@ -394,22 +410,25 @@ static void application_show_windows(application& app) noexcept
     ImGui::SetNextWindowSize(project_size, window_size_flags);
     if (ImGui::Begin("Project", 0, window_flags)) {
         app.show_project_window();
+        ImGui::End();
     }
-    ImGui::End();
 
-    ImGui::SetNextWindowPos(modeling_pos, window_pos_flags);
-    ImGui::SetNextWindowSize(modeling_size, window_size_flags);
-    if (ImGui::Begin("Modeling editor window", 0, window_flags)) {
-        app.show_modeling_window();
+    if (app.is_fixed_main_window) {
+        app.show_main_as_tabbar(modeling_pos,
+                                modeling_size,
+                                window_flags,
+                                window_pos_flags,
+                                window_size_flags);
+    } else {
+        app.show_main_as_window(modeling_pos, modeling_size);
     }
-    ImGui::End();
 
     ImGui::SetNextWindowPos(simulation_pos, window_pos_flags);
     ImGui::SetNextWindowSize(simulation_size, window_size_flags);
     if (ImGui::Begin("Simulation window", 0, window_flags)) {
         app.show_simulation_window();
+        ImGui::End();
     }
-    ImGui::End();
 
     ImGui::SetNextWindowPos(components_pos, window_pos_flags);
     ImGui::SetNextWindowSize(components_size, window_size_flags);

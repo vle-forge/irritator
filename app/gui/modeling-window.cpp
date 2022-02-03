@@ -62,32 +62,33 @@ static bool show_connection(const component&  parent,
 }
 
 static void show(const application::settings_manager& settings,
-	component_editor& ed,
-	model&            mdl,
-	child&            c,
-	child_id          id) noexcept
+                 component_editor&                    ed,
+                 model&                               mdl,
+                 child&                               c,
+                 child_id                             id) noexcept
 {
     ImNodes::PushColorStyle(
-	    ImNodesCol_TitleBar,
-	    ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
+      ImNodesCol_TitleBar,
+      ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-	    settings.gui_hovered_model_color);
+                            settings.gui_hovered_model_color);
     ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-	    settings.gui_selected_model_color);
+                            settings.gui_selected_model_color);
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}", c.name.c_str(), get_dynamics_type_name(mdl.type));
+    ImGui::TextFormat(
+      "{}\n{}", c.name.c_str(), get_dynamics_type_name(mdl.type));
     ImNodes::EndNodeTitleBar();
 
     dispatch(mdl, [&ed, id](auto& dyn) {
-	    add_input_attribute(dyn, id);
-	    ImGui::PushItemWidth(120.0f);
-	    show_dynamics_inputs(ed.mod.srcs, dyn);
-	    ImGui::PopItemWidth();
-	    add_output_attribute(dyn, id);
-	    });
+        add_input_attribute(dyn, id);
+        ImGui::PushItemWidth(120.0f);
+        show_dynamics_inputs(ed.mod.srcs, dyn);
+        ImGui::PopItemWidth();
+        add_output_attribute(dyn, id);
+    });
 
     ImNodes::EndNode();
 
@@ -96,9 +97,9 @@ static void show(const application::settings_manager& settings,
 }
 
 static void show(const application::settings_manager& settings,
-                 component&        compo,
-                 child&            c,
-                 child_id          id) noexcept
+                 component&                           compo,
+                 child&                               c,
+                 child_id                             id) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -173,10 +174,11 @@ static void show(const application::settings_manager& settings,
     ImNodes::PopColorStyle();
 }
 
-static void show_opened_component_ref(const application::settings_manager& settings,
-	component_editor& ed,
-                                      tree_node& /*ref*/,
-                                      component& parent) noexcept
+static void show_opened_component_ref(
+  const application::settings_manager& settings,
+  component_editor&                    ed,
+  tree_node& /*ref*/,
+  component& parent) noexcept
 {
     child* c = nullptr;
 
@@ -410,9 +412,9 @@ static void remove_links(component_editor& ed, component& parent) noexcept
 }
 
 static void show_modeling_widget(const application::settings_manager& settings,
-	component_editor& ed,
-                                 tree_node&        tree,
-                                 component&        compo) noexcept
+                                 component_editor&                    ed,
+                                 tree_node&                           tree,
+                                 component& compo) noexcept
 {
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();
@@ -420,7 +422,7 @@ static void show_modeling_widget(const application::settings_manager& settings,
     ImVec2   click_pos;
     child_id new_model;
 
-    show_opened_component_ref(settings,ed, tree, compo);
+    show_opened_component_ref(settings, ed, tree, compo);
     show_popup_menuitem(ed, compo, &click_pos, &new_model);
 
     if (ed.show_minimap)
@@ -521,28 +523,91 @@ static void show_output_widget(component_editor& ed) noexcept
     }
 }
 
-void application::show_modeling_window() noexcept
+void application::show_main_as_tabbar(ImVec2           position,
+                                      ImVec2           size,
+                                      ImGuiWindowFlags window_flags,
+                                      ImGuiCond        position_flags,
+                                      ImGuiCond        size_flags) noexcept
 {
-    auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
-    if (!tree)
-        return;
 
-    component* compo = c_editor.mod.components.try_to_get(tree->id);
-    if (!compo)
-        return;
-
-    if (ImGui::BeginTabBar("##ModelingTabBar")) {
-        if (ImGui::BeginTabItem("Graph editor")) {
-            show_modeling_widget(settings, c_editor, *tree, *compo);
-            ImGui::EndTabItem();
+    ImGui::SetNextWindowPos(position, position_flags);
+    ImGui::SetNextWindowSize(size, size_flags);
+    if (ImGui::Begin("Main", 0, window_flags)) {
+        auto* tree =
+          c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
+        if (!tree) {
+            ImGui::End();
+            return;
         }
 
-        if (ImGui::BeginTabItem("Output editor")) {
+        component* compo = c_editor.mod.components.try_to_get(tree->id);
+        if (!compo) {
+            ImGui::End();
+            return;
+        }
+
+        if (ImGui::BeginTabBar("##ModelingTabBar")) {
+            if (ImGui::BeginTabItem("Modeling editor")) {
+                show_modeling_widget(settings, c_editor, *tree, *compo);
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Simulation editor")) {
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Output editor")) {
+                show_output_widget(c_editor);
+                ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
+        }
+    }
+    ImGui::End();
+}
+
+void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
+{
+    size.x -= 50;
+    size.y -= 50;
+
+    if (show_modeling_editor) {
+        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
+        if (ImGui::Begin("Modeling editor", &show_modeling_editor)) {
+            auto* tree =
+              c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
+            if (tree) {
+                component* compo = c_editor.mod.components.try_to_get(tree->id);
+                if (compo)
+                    show_modeling_widget(settings, c_editor, *tree, *compo);
+            }
+        }
+        ImGui::End();
+    }
+
+    position.x += 25;
+    position.y += 25;
+
+    if (show_simulation_editor) {
+        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
+        if (ImGui::Begin("Simulation editor", &show_simulation_editor)) {
+        }
+        ImGui::End();
+    }
+
+    position.x += 25;
+    position.y += 25;
+
+    if (show_output_editor) {
+        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
+        if (ImGui::Begin("Output editor", &show_output_editor)) {
             show_output_widget(c_editor);
-            ImGui::EndTabItem();
         }
-
-        ImGui::EndTabBar();
+        ImGui::End();
     }
 }
 
