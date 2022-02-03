@@ -326,7 +326,7 @@ static status simulation_init_observation(component_editor&  ed,
     return status::success;
 }
 
-static void simulation_init(component_editor&  ed,
+static void simulation_copy(component_editor&  ed,
                             simulation_editor& sim_ed) noexcept
 {
     sim_ed.simulation_state = simulation_status::initializing;
@@ -401,6 +401,46 @@ static void simulation_init(component_editor&  ed,
     sim_ed.simulation_state = simulation_status::initialized;
 }
 
+static void simulation_init(component_editor&  ed,
+                            simulation_editor& sim_ed) noexcept
+{
+    sim_ed.simulation_state = simulation_status::initializing;
+
+    auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
+    if (!head) {
+        sim_ed.simulation_state = simulation_status::not_started;
+        return;
+    }
+
+    if (auto ret = simulation_init_observation(ed, sim_ed, *head);
+        is_bad(ret)) {
+        auto* app = container_of(&ed, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Simulation initialization fail";
+        format(n.message,
+               "Initialization of observation failed: {}",
+               status_string(ret));
+        app->notifications.enable(n);
+        sim_ed.simulation_state = simulation_status::not_started;
+        return;
+    }
+
+    if (auto ret = sim_ed.sim.initialize(sim_ed.simulation_begin);
+        is_bad(ret)) {
+        auto* app = container_of(&ed, &application::c_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Simulation initialization fail";
+        format(
+          n.message, "Models initialization models: {}", status_string(ret));
+        app->notifications.enable(n);
+
+        sim_ed.simulation_state = simulation_status::not_started;
+        return;
+    }
+
+    sim_ed.simulation_state = simulation_status::initialized;
+}
+
 static void simulation_clear_impl(void* param) noexcept
 {
     // fmt::print("simulation_clear_impl\n");
@@ -413,6 +453,22 @@ static void simulation_clear_impl(void* param) noexcept
 
     g_task->state = gui_task_status::finished;
     // fmt::print("simulation_clear_impl finished\n");
+}
+
+static void simulation_copy_impl(void* param) noexcept
+{
+    // fmt::print("simulation_init_impl\n");
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = gui_task_status::started;
+    g_task->app->state |= application_status_read_only_simulating |
+                          application_status_read_only_modeling;
+
+    g_task->app->s_editor.force_pause = false;
+    g_task->app->s_editor.force_stop  = false;
+    simulation_copy(g_task->app->c_editor, g_task->app->s_editor);
+
+    g_task->state = gui_task_status::finished;
+    // fmt::print("simulation_init_impl finished\n");
 }
 
 static void simulation_init_impl(void* param) noexcept
@@ -579,7 +635,7 @@ void simulation_editor::simulation_update_state() noexcept
     }
 }
 
-void simulation_editor::simulation_init() noexcept
+void simulation_editor::simulation_copy_modeling() noexcept
 {
     bool state = match(simulation_state,
                        simulation_status::initialized,
@@ -598,6 +654,26 @@ void simulation_editor::simulation_init() noexcept
             notif.title = "Empty model";
             app->notifications.enable(notif);
         } else {
+            auto& task = app->gui_tasks.alloc();
+            task.app   = app;
+            app->task_mgr.task_lists[0].add(simulation_copy_impl, &task);
+            app->task_mgr.task_lists[0].submit();
+        }
+    }
+}
+
+void simulation_editor::simulation_init() noexcept
+{
+    bool state = match(simulation_state,
+                       simulation_status::initialized,
+                       simulation_status::not_started,
+                       simulation_status::finished);
+
+    irt_assert(state);
+
+    if (state) {
+        if (auto* parent = tree_nodes.try_to_get(head); parent) {
+            auto* app  = container_of(this, &application::s_editor);
             auto& task = app->gui_tasks.alloc();
             task.app   = app;
             app->task_mgr.task_lists[0].add(simulation_init_impl, &task);
@@ -676,7 +752,5 @@ void simulation_editor::simulation_stop() noexcept
         }
     }
 }
-
-void simulation_editor::show(bool* /*is_show*/) noexcept {}
 
 } // namespace irt

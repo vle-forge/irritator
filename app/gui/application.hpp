@@ -39,27 +39,21 @@ constexpr T* container_of(M* ptr, const M T::*member)
                                 offset_of(member));
 }
 
-// Forward declaration
-struct application;
-struct editor;
-struct window_logger;
-struct plot_output;
-struct file_output;
-struct file_discrete_output;
-struct component_editor;
-
 static inline constexpr int not_found = -1;
 
-enum class editor_id : u64;
-enum class plot_output_id : u64;
-enum class file_output_id : u64;
-enum class file_discrete_output_id : u64;
-enum class component_editor_id : u64;
+struct application;
+struct window_logger;
+struct component_editor;
+struct simulation_editor;
 
-using observation_output = std::variant<std::monostate,
-                                        plot_output_id,
-                                        file_output_id,
-                                        file_discrete_output_id>;
+enum class notification_type
+{
+    none,
+    success,
+    warning,
+    error,
+    information
+};
 
 enum class log_status : int
 {
@@ -73,329 +67,9 @@ enum class log_status : int
     debug
 };
 
-enum class editor_status
-{
-    editing,          // Default mode. No simulation run.
-    running,          //
-    running_1_step,   //
-    running_10_step,  //
-    running_100_step, //
-    running_pause,    //
-    running_stop,     //
-    finalizing        // cleanup internal simulation data.
-};
-
-struct plot_output
-{
-    plot_output() = default;
-
-    plot_output(std::string_view name_)
-      : name(name_)
-    {}
-
-    editor*            ed = nullptr;
-    std::vector<float> xs;
-    std::vector<float> ys;
-    small_string<24u>  name;
-    real               tl        = zero;
-    real               time_step = to_real(0.01);
-};
-
-void plot_output_callback(const irt::observer& obs,
-                          const irt::dynamics_type /*type*/,
-                          const irt::time             tl,
-                          const irt::time             t,
-                          const irt::observer::status s);
-
-struct file_output
-{
-    file_output() = default;
-
-    file_output(std::string_view name_)
-      : name(name_)
-    {}
-
-    editor*           ed = nullptr;
-    std::ofstream     ofs;
-    small_string<24u> name;
-};
-
-void file_output_callback(const irt::observer&        obs,
-                          const irt::dynamics_type    type,
-                          const irt::time             tl,
-                          const irt::time             t,
-                          const irt::observer::status s);
-
-struct file_discrete_output
-{
-    file_discrete_output() = default;
-
-    file_discrete_output(std::string_view name_)
-      : name(name_)
-    {}
-
-    editor*           ed = nullptr;
-    std::ofstream     ofs;
-    small_string<24u> name;
-    real              tl        = irt::real(0);
-    real              time_step = irt::real(0.01);
-};
-
-void file_discrete_output_callback(const irt::observer&        obs,
-                                   const irt::dynamics_type    type,
-                                   const irt::time             tl,
-                                   const irt::time             t,
-                                   const irt::observer::status s);
-
-int make_input_node_id(const irt::model_id mdl, const int port) noexcept;
-
-int make_output_node_id(const irt::model_id mdl, const int port) noexcept;
-
-std::pair<irt::u32, irt::u32> get_model_input_port(const int node_id) noexcept;
-
-std::pair<irt::u32, irt::u32> get_model_output_port(const int node_id) noexcept;
-
-inline int pack_in(const child_id id, const i8 port) noexcept
-{
-    irt_assert(port >= 0 && port < 8);
-
-    u32 port_index = static_cast<u32>(port);
-    u32 index      = get_index(id);
-
-    return static_cast<int>((index << 5u) | port_index);
-}
-
-inline int pack_out(const child_id id, const i8 port) noexcept
-{
-    irt_assert(port >= 0 && port < 8);
-
-    u32 port_index = 8u + static_cast<u32>(port);
-    u32 index      = get_index(id);
-
-    return static_cast<int>((index << 5u) | port_index);
-}
-
-inline void unpack_in(const int node_id, u32* index, i8* port) noexcept
-{
-    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
-
-    *port  = static_cast<i8>(real_node_id & 7u);
-    *index = static_cast<u32>(real_node_id >> 5u);
-
-    irt_assert((real_node_id & 8u) == 0);
-}
-
-inline void unpack_out(const int node_id, u32* index, i8* port) noexcept
-{
-    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
-
-    *port  = static_cast<i8>(real_node_id & 7u);
-    *index = static_cast<u32>(real_node_id >> 5u);
-
-    irt_assert((real_node_id & 8u) != 0);
-}
-
-inline int pack_node(const child_id id) noexcept
-{
-    return static_cast<int>(get_index(id));
-}
-
-inline child* unpack_node(const int                          node_id,
-                          const data_array<child, child_id>& data) noexcept
-{
-    return data.try_to_get(static_cast<u32>(node_id));
-}
-
 void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;
-
-struct editor
-{
-    small_string<16>      name;
-    std::filesystem::path path;
-    ImNodesEditorContext* context      = nullptr;
-    bool                  show         = true;
-    bool                  show_minimap = true;
-
-    simulation      sim;
-    external_source srcs;
-
-    irt::real simulation_begin     = 0;
-    irt::real simulation_end       = 10;
-    irt::real simulation_current   = 10;
-    irt::real simulation_next_time = 0;
-    long      simulation_bag_id    = 0;
-    int       step_by_step_bag     = 0;
-
-    real simulation_during_date;
-    int  simulation_during_bag;
-
-    editor_status st     = editor_status::editing;
-    status        sim_st = status::success;
-
-    editor() noexcept;
-    ~editor() noexcept;
-
-    bool is_running() const noexcept
-    {
-        return match(st,
-                     editor_status::running,
-                     editor_status::running_1_step,
-                     editor_status::running_10_step,
-                     editor_status::running_100_step);
-    }
-
-    bool simulation_show_value = false;
-    bool stop                  = false;
-
-    data_array<plot_output, plot_output_id> plot_outs;
-    data_array<file_output, file_output_id> file_outs;
-    data_array<file_discrete_output, file_discrete_output_id>
-                                    file_discrete_outs;
-    std::vector<observation_output> observation_outputs;
-
-    template<typename Function, typename... Args>
-    constexpr void observation_dispatch(const u32  index,
-                                        Function&& f,
-                                        Args... args) noexcept
-    {
-        switch (observation_outputs[index].index()) {
-        case 1:
-            f(plot_outs,
-              std::get<plot_output_id>(observation_outputs[index]),
-              args...);
-            break;
-
-        case 2:
-            f(file_outs,
-              std::get<file_output_id>(observation_outputs[index]),
-              args...);
-            break;
-
-        case 3:
-            f(file_discrete_outs,
-              std::get<file_discrete_output_id>(observation_outputs[index]),
-              args...);
-            break;
-
-        default:
-            break;
-        }
-    }
-
-    void observation_outputs_free(const u32 index) noexcept
-    {
-        observation_dispatch(
-          index, [](auto& outs, auto out_id) { outs.free(out_id); });
-
-        observation_outputs[index] = std::monostate{};
-    }
-
-    std::filesystem::path observation_directory;
-
-    std::vector<bool> models_make_transition;
-
-    ImVector<ImVec2> positions;
-    ImVector<ImVec2> displacements;
-
-    bool  use_real_time;
-    bool  starting             = true;
-    float synchronize_timestep = 1.f;
-
-    std::string tooltip;
-
-    bool show_load_file_dialog        = false;
-    bool show_save_file_dialog        = false;
-    bool show_select_directory_dialog = false;
-    bool show_settings                = false;
-
-    struct settings_manager
-    {
-        int    kernel_model_cache   = 1024;
-        int    kernel_message_cache = 32768;
-        int    gui_node_cache       = 1024;
-        ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
-        ImVec4 gui_model_transition_color{ .27f, .54f, .54f, 1.f };
-
-        ImU32 gui_hovered_model_color;
-        ImU32 gui_selected_model_color;
-        ImU32 gui_hovered_component_color;
-        ImU32 gui_selected_component_color;
-        ImU32 gui_hovered_model_transition_color;
-        ImU32 gui_selected_model_transition_color;
-
-        int   automatic_layout_iteration_limit = 200;
-        float automatic_layout_x_distance      = 350.f;
-        float automatic_layout_y_distance      = 350.f;
-        float grid_layout_x_distance           = 250.f;
-        float grid_layout_y_distance           = 250.f;
-
-        bool show_dynamics_inputs_in_editor = false;
-
-        void compute_colors() noexcept;
-        void show(bool* is_open);
-    } settings;
-
-    status initialize(u32 id) noexcept;
-    void   clear() noexcept;
-
-    void   free_children(const ImVector<int>& nodes) noexcept;
-    status copy(const ImVector<int>& nodes) noexcept;
-
-    void compute_grid_layout() noexcept;
-    void compute_automatic_layout() noexcept;
-
-    struct gport
-    {
-        gport() noexcept = default;
-
-        gport(irt::model* model_, const int port_index_) noexcept
-          : model(model_)
-          , port_index(port_index_)
-        {}
-
-        irt::model* model      = nullptr;
-        int         port_index = 0;
-    };
-
-    gport get_in(const int index) noexcept
-    {
-        const auto model_index_port = get_model_input_port(index);
-        auto*      mdl = sim.models.try_to_get(model_index_port.first);
-
-        return { mdl, static_cast<int>(model_index_port.second) };
-    }
-
-    gport get_out(const int index) noexcept
-    {
-        const auto model_index_port = get_model_output_port(index);
-        auto*      mdl = sim.models.try_to_get(model_index_port.first);
-
-        return { mdl, static_cast<int>(model_index_port.second) };
-    }
-
-    status add_lotka_volterra() noexcept;
-    status add_izhikevitch() noexcept;
-
-    void show_connections() noexcept;
-    void show_model_dynamics(model& mdl) noexcept;
-    void show_top() noexcept;
-    void show_sources() noexcept;
-    void show_editor(window_logger& log_w) noexcept;
-    void show_menu_sources(const char* title, source& src) noexcept;
-
-    bool show_window(window_logger& log_w) noexcept;
-};
-
-enum class notification_type
-{
-    none,
-    success,
-    warning,
-    error,
-    information
-};
 
 struct notification
 {
@@ -541,13 +215,13 @@ struct simulation_editor
     void clear() noexcept;
 
     void simulation_update_state() noexcept;
+
+    void simulation_copy_modeling() noexcept;
     void simulation_init() noexcept;
     void simulation_clear() noexcept;
     void simulation_start() noexcept;
     void simulation_pause() noexcept;
     void simulation_stop() noexcept;
-
-    void show(bool* is_show) noexcept;
 
     bool force_pause = false;
     bool force_stop  = false;
@@ -631,10 +305,9 @@ struct application
     application() noexcept;
     ~application() noexcept;
 
-    component_editor              c_editor;
-    simulation_editor             s_editor;
-    data_array<editor, editor_id> editors;
-    settings_manager              settings;
+    component_editor  c_editor;
+    simulation_editor s_editor;
+    settings_manager  settings;
 
     bool show_select_directory_dialog = false;
 
@@ -681,13 +354,6 @@ struct application
     void show() noexcept;
     void shutdown() noexcept;
 
-    // For each editor run the simulation. Use this function outside of the
-    // ImGui::Render/NewFrame to not block the graphical user interface.
-    void run_simulations();
-
-    void show_plot_window();
-    void show_settings_window();
-
     void show_external_sources() noexcept;
     void show_simulation_window() noexcept;
     void show_components_window() noexcept;
@@ -703,11 +369,6 @@ struct application
     void show_modeling_editor_widget() noexcept;
     void show_simulation_editor_widget() noexcept;
     void show_output_editor_widget() noexcept;
-
-    editor* alloc_editor();
-    void    free_editor(editor& ed);
-
-    editor* make_combo_editor_name(editor_id& id) noexcept;
 
     status save_settings() noexcept;
     status load_settings() noexcept;

@@ -181,8 +181,9 @@ void application::show_components_window() noexcept
                     auto& dir = c_editor.mod.dir_paths.get(dir_id);
                     if (ImGui::TreeNodeEx(dir.path.c_str())) {
                         for (auto file_id : dir.children) {
-                            auto& file  = c_editor.mod.file_paths.get(file_id);
-                            auto& compo = c_editor.mod.components.get(file.component);
+                            auto& file = c_editor.mod.file_paths.get(file_id);
+                            auto& compo =
+                              c_editor.mod.components.get(file.component);
 
                             show_component(c_editor, compo);
                         }
@@ -207,9 +208,11 @@ void application::show_components_window() noexcept
             }
 
             if (ImGui::MenuItem("Open as main")) {
-                log_w.log( 7, "@todo be sure to save before opening a new component");
+                log_w.log(
+                  7, "@todo be sure to save before opening a new component");
 
-                auto id = c_editor.mod.components.get_id(*c_editor.selected_component_list);
+                auto id = c_editor.mod.components.get_id(
+                  *c_editor.selected_component_list);
 
                 c_editor.open_as_main(id);
             }
@@ -227,7 +230,8 @@ void application::show_components_window() noexcept
             }
 
             if (ImGui::MenuItem("Delete")) {
-                if (c_editor.selected_component_list->type == component_type::memory) {
+                if (c_editor.selected_component_list->type ==
+                    component_type::memory) {
                     c_editor.mod.free(*c_editor.selected_component_list);
                     c_editor.selected_component_list = nullptr;
                 }
@@ -239,13 +243,15 @@ void application::show_components_window() noexcept
     ImGui::Separator();
 
     if (ImGui::CollapsingHeader("Selected children", flags)) {
-        auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
+        auto* tree =
+          c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
         if (tree) {
             component* compo = c_editor.mod.components.try_to_get(tree->id);
             if (compo) {
-                for (int i = 0, e = c_editor.selected_nodes.ssize(); i != e; ++i) {
-                    auto* child =
-                      unpack_node(c_editor.selected_nodes[i], compo->children);
+                for (int i = 0, e = c_editor.selected_nodes.ssize(); i != e;
+                     ++i) {
+                    auto* child = compo->children.try_to_get(
+                      static_cast<u32>(c_editor.selected_nodes[i]));
                     if (!child)
                         continue;
 
@@ -278,7 +284,8 @@ void application::show_components_window() noexcept
                                   dynamics_type_names[ordinal(mdl->type)]);
                         } else {
                             auto  compo_id = enum_cast<component_id>(child->id);
-                            auto* compo = c_editor.mod.components.try_to_get(compo_id);
+                            auto* compo =
+                              c_editor.mod.components.try_to_get(compo_id);
 
                             if (compo)
                                 ImGui::Text(

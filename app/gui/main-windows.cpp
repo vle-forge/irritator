@@ -185,8 +185,6 @@ int main(int, char**)
             continue;
         }
 
-        app.run_simulations();
-
         // Start the Dear ImGui frame
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();

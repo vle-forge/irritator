@@ -44,6 +44,7 @@ inline const char* get_dynamics_type_name(dynamics_type type) noexcept
     return names[ordinal(type)];
 }
 
+
 inline int make_input_node_id(const i32 mdl_index, const int port) noexcept
 {
     irt_assert(port >= 0 && port < 8);

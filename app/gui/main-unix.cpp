@@ -142,8 +142,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
-        app.run_simulations();
-
         // Poll and handle events (inputs, window resize, etc.)
         // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags
         // to tell if dear imgui wants to use your inputs.
