@@ -416,7 +416,7 @@ static void remove_nodes(component_editor& ed,
                          tree_node&        tree,
                          component&        parent) noexcept
 {
-    for (i32 i = 0, e = ed.selected_nodes.ssize(); i != e; ++i) {
+    for (i32 i = 0, e = ed.selected_nodes.size(); i != e; ++i) {
         if (auto* child = unpack_node(ed.selected_nodes[i], parent.children);
             child) {
             if (child->type == child_type::component) {
@@ -448,7 +448,7 @@ static void remove_links(component_editor& ed, component& parent) noexcept
     std::sort(
       ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
 
-    for (i32 i = 0, e = ed.selected_links.ssize(); i != e; ++i) {
+    for (i32 i = 0, e = ed.selected_links.size(); i != e; ++i) {
         auto* con = parent.connections.try_to_get(ed.selected_links[i]);
         if (con) {
             parent.connections.free(*con);

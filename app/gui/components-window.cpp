@@ -248,7 +248,7 @@ void application::show_components_window() noexcept
         if (tree) {
             component* compo = c_editor.mod.components.try_to_get(tree->id);
             if (compo) {
-                for (int i = 0, e = c_editor.selected_nodes.ssize(); i != e;
+                for (int i = 0, e = c_editor.selected_nodes.size(); i != e;
                      ++i) {
                     auto* child = compo->children.try_to_get(
                       static_cast<u32>(c_editor.selected_nodes[i]));

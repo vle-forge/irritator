@@ -30,7 +30,7 @@ static void show_output_widget(component_editor& ed) noexcept
             ImGui::TableNextColumn();
             ImGui::TextFormat("{}", out->time_step);
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->xs.ssize());
+            ImGui::TextFormat("{}", out->xs.size());
             ImGui::TableNextColumn();
             ImGui::TextFormat("{}", out->xs.capacity());
         }
@@ -45,19 +45,19 @@ static void show_output_widget(component_editor& ed) noexcept
 
             memory_output* obs = nullptr;
             while (ed.outputs.next(obs)) {
-                const auto sz = obs->ys.ssize();
+                const auto sz = obs->ys.size();
 
                 if (sz) {
                     if (obs->interpolate) {
                         ImPlot::PlotLine(obs->name.c_str(),
-                                         obs->xs.data(),
-                                         obs->ys.data(),
+                                         obs->xs.begin(),
+                                         obs->ys.begin(),
                                          sz);
 
                     } else {
                         ImPlot::PlotScatter(obs->name.c_str(),
-                                            obs->xs.data(),
-                                            obs->ys.data(),
+                                            obs->xs.begin(),
+                                            obs->ys.begin(),
                                             sz);
                     }
                 }

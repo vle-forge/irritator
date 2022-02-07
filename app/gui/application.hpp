@@ -132,8 +132,8 @@ enum class memory_output_id : u64;
 
 struct memory_output
 {
-    vector<real>      xs;
-    vector<real>      ys;
+    ImVector<real>    xs;
+    ImVector<real>    ys;
     small_string<24u> name;
     real              time_step   = one / to_real(10);
     bool              interpolate = true;
@@ -243,8 +243,8 @@ struct simulation_editor
     data_array<simulation_tree_node, simulation_tree_node_id> tree_nodes;
 
     ImNodesEditorContext* context = nullptr;
-    vector<int>           selected_links;
-    vector<int>           selected_nodes;
+    ImVector<int>         selected_links;
+    ImVector<int>         selected_nodes;
 };
 
 struct component_editor
@@ -260,8 +260,8 @@ struct component_editor
     component* selected_component_list = nullptr;
     bool       force_node_position     = false;
 
-    vector<int> selected_links;
-    vector<int> selected_nodes;
+    ImVector<int> selected_links;
+    ImVector<int> selected_nodes;
 
     void select(tree_node_id id) noexcept;
     void new_project() noexcept;

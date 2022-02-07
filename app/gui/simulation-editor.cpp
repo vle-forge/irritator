@@ -890,42 +890,43 @@ static void show_simulation_graph_editor(application& app) noexcept
         }
     }
 
-    int                  num_selected_links = ImNodes::NumSelectedLinks();
-    int                  num_selected_nodes = ImNodes::NumSelectedNodes();
-    static ImVector<int> selected_nodes;
-    static ImVector<int> selected_links;
+    int num_selected_links = ImNodes::NumSelectedLinks();
+    int num_selected_nodes = ImNodes::NumSelectedNodes();
 
     if (num_selected_nodes > 0) {
-        selected_nodes.resize(num_selected_nodes, -1);
+        app.s_editor.selected_nodes.resize(num_selected_nodes, -1);
 
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
-            ImNodes::GetSelectedNodes(selected_nodes.begin());
-            free_children(app.s_editor, selected_nodes);
-            selected_nodes.clear();
+            ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
+            free_children(app.s_editor, app.s_editor.selected_nodes);
+            app.s_editor.selected_nodes.clear();
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();
         } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('D')) {
-            ImNodes::GetSelectedNodes(selected_nodes.begin());
-            copy(app.s_editor, selected_nodes);
-            selected_nodes.clear();
+            ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
+            copy(app.s_editor, app.s_editor.selected_nodes);
+            app.s_editor.selected_nodes.clear();
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();
         }
     } else if (num_selected_links > 0) {
-        selected_links.resize(static_cast<size_t>(num_selected_links));
+        app.s_editor.selected_links.resize(num_selected_links);
 
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
-            std::fill_n(selected_links.begin(), selected_links.size(), -1);
-            ImNodes::GetSelectedLinks(selected_links.begin());
-            std::sort(
-              selected_links.begin(), selected_links.end(), std::less<int>());
+            std::fill_n(app.s_editor.selected_links.begin(),
+                        app.s_editor.selected_links.size(),
+                        -1);
+            ImNodes::GetSelectedLinks(app.s_editor.selected_links.begin());
+            std::sort(app.s_editor.selected_links.begin(),
+                      app.s_editor.selected_links.end(),
+                      std::less<int>());
 
-            int link_id_to_delete = selected_links[0];
+            int link_id_to_delete = app.s_editor.selected_links[0];
             int current_link_id   = 0;
             int i                 = 0;
 
-            auto selected_links_ptr  = selected_links.Data;
-            auto selected_links_size = selected_links.Size;
+            auto selected_links_ptr  = app.s_editor.selected_links.Data;
+            auto selected_links_size = app.s_editor.selected_links.Size;
 
             model* mdl = nullptr;
             while (app.s_editor.sim.models.next(mdl) &&
@@ -975,7 +976,7 @@ static void show_simulation_graph_editor(application& app) noexcept
             }
 
             num_selected_links = 0;
-            selected_links.resize(0);
+            app.s_editor.selected_links.resize(0);
             ImNodes::ClearLinkSelection();
         }
     }

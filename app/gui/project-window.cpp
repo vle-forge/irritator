@@ -118,8 +118,6 @@ static void show_project_hierarchy_child_observable(
                                : current == 1 ? 10000
                                               : 100000;
 
-                obs->xs.destroy();
-                obs->ys.destroy();
                 obs->xs.reserve(capacity);
                 obs->ys.reserve(capacity);
             }
