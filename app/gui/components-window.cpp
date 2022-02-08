@@ -164,7 +164,7 @@ void application::show_components_window() noexcept
         }
 
         for (auto id : c_editor.mod.component_repertories) {
-            static small_string<32> s;
+            static small_string<32> s; //! @TODO remove this variable
             small_string<32>*       select;
 
             auto& reg_dir = c_editor.mod.registred_paths.get(id);

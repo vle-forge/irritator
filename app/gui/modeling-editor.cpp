@@ -354,7 +354,146 @@ static void compute_grid_layout(settings_manager& settings,
     }
 }
 
+static bool can_add_this_component(component_editor&  ed,
+                                   const component_id id) noexcept
+{
+    auto* head_tree = ed.mod.tree_nodes.try_to_get(ed.mod.head);
+    irt_assert(head_tree);
+
+    if (head_tree->id == id)
+        return false;
+
+    if (auto* parent = head_tree->tree.get_parent(); parent) {
+        do {
+            if (parent->id == id)
+                return false;
+
+            parent = parent->tree.get_parent();
+        } while (parent);
+    }
+
+    return true;
+}
+
+static status add_component_to_current(component_editor& ed,
+                                       tree_node&        parent,
+                                       component&        parent_compo,
+                                       component&        compo_to_add,
+                                       ImVec2 /*click_pos*/)
+{
+    const auto compo_to_add_id = ed.mod.components.get_id(compo_to_add);
+
+    if (!can_add_this_component(ed, compo_to_add_id)) {
+        auto* app   = container_of(&ed, &application::c_editor);
+        auto& notif = app->notifications.alloc(notification_type::error);
+        notif.title = "Fail to add component";
+        format(notif.message,
+               "Irritator does not accept recursive component {}",
+               compo_to_add.name.sv());
+        app->notifications.enable(notif);
+        return status::gui_not_enough_memory; //! @TODO replace with correct
+                                              //! error
+    }
+
+    tree_node_id tree_id;
+    irt_return_if_bad(ed.mod.make_tree_from(compo_to_add, &tree_id));
+
+    auto& c            = parent_compo.children.alloc(compo_to_add_id);
+    parent_compo.state = component_status::modified;
+
+    auto& tree        = ed.mod.tree_nodes.get(tree_id);
+    tree.id_in_parent = parent_compo.children.get_id(c);
+    tree.tree.set_id(&tree);
+    tree.tree.parent_to(parent.tree);
+
+    return status::success;
+}
+
+static void show_popup_all_component_menuitem(component_editor& ed,
+                                              tree_node&        tree,
+                                              component&        parent,
+                                              ImVec2 click_pos) noexcept
+{
+    if (ImGui::BeginMenu("Internal library")) {
+        component* compo = nullptr;
+        while (ed.mod.components.next(compo)) {
+            const bool is_internal =
+              !match(compo->type, component_type::file, component_type::memory);
+
+            if (is_internal) {
+                if (ImGui::MenuItem(compo->name.c_str())) {
+                    add_component_to_current(
+                      ed, tree, parent, *compo, click_pos);
+                }
+            }
+        }
+
+        ImGui::EndMenu();
+    }
+
+    for (auto id : ed.mod.component_repertories) {
+        static small_string<32> s; //! @TODO remove this variable
+        small_string<32>*       select;
+
+        auto& reg_dir = ed.mod.registred_paths.get(id);
+        if (reg_dir.name.empty()) {
+            format(s, "{}", ordinal(id));
+            select = &s;
+        } else {
+            select = &reg_dir.name;
+        }
+
+        ImGui::PushID(&reg_dir);
+        if (ImGui::BeginMenu(select->c_str())) {
+            for (auto dir_id : reg_dir.children) {
+                auto* dir = ed.mod.dir_paths.try_to_get(dir_id);
+                if (!dir)
+                    break;
+
+                if (ImGui::BeginMenu(dir->path.c_str())) {
+                    for (auto file_id : dir->children) {
+                        auto* file = ed.mod.file_paths.try_to_get(file_id);
+                        if (!file)
+                            break;
+
+                        auto* compo =
+                          ed.mod.components.try_to_get(file->component);
+                        if (!compo)
+                            break;
+
+                        if (ImGui::MenuItem(file->path.c_str())) {
+                            add_component_to_current(
+                              ed, tree, parent, *compo, click_pos);
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::PopID();
+    }
+
+    if (ImGui::BeginMenu("Not saved")) {
+        component* compo = nullptr;
+        while (ed.mod.components.next(compo)) {
+            const bool is_not_saved =
+              match(compo->type, component_type::memory);
+
+            if (is_not_saved) {
+                if (ImGui::MenuItem(compo->name.c_str())) {
+                    add_component_to_current(
+                      ed, tree, parent, *compo, click_pos);
+                }
+            }
+        }
+
+        ImGui::EndMenu();
+    }
+}
+
 static void show_popup_menuitem(component_editor& ed,
+                                tree_node&        tree,
                                 component&        parent,
                                 ImVec2*           click_pos,
                                 child_id*         new_model) noexcept
@@ -375,6 +514,10 @@ static void show_popup_menuitem(component_editor& ed,
             auto* app = container_of(&ed, &application::c_editor);
             compute_grid_layout(app->settings, parent);
         }
+
+        ImGui::Separator();
+
+        show_popup_all_component_menuitem(ed, tree, parent, *click_pos);
 
         ImGui::Separator();
 
@@ -523,7 +666,7 @@ static void show_modeling_widget(const settings_manager& settings,
     child_id new_model;
 
     show_opened_component_ref(settings, ed, tree, compo);
-    show_popup_menuitem(ed, compo, &click_pos, &new_model);
+    show_popup_menuitem(ed, tree, compo, &click_pos, &new_model);
 
     if (ed.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
