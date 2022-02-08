@@ -312,6 +312,49 @@ static void add_popup_menuitem(component_editor& ed,
     add_popup_menuitem(ed, parent, d_type, new_model);
 }
 
+static void compute_grid_layout(application::settings_manager& settings,
+                                component&                     compo) noexcept
+{
+    const auto size  = compo.children.size();
+    const auto fsize = static_cast<float>(size);
+
+    if (size == 0 || size > std::numeric_limits<int>::max())
+        return;
+
+    const auto column    = std::floor(std::sqrt(fsize));
+    auto       line      = column;
+    auto       remaining = fsize - (column * line);
+
+    const auto panning = ImNodes::EditorContextGetPanning();
+    auto       new_pos = panning;
+
+    child* c = nullptr;
+    for (float i = 0.f; i < line; ++i) {
+        new_pos.y = panning.y + i * settings.grid_layout_y_distance;
+
+        for (float j = 0.f; j < column; ++j) {
+            if (!compo.children.next(c))
+                break;
+
+            const auto c_id = compo.children.get_id(c);
+            new_pos.x       = panning.x + j * settings.grid_layout_x_distance;
+            ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
+        }
+    }
+
+    new_pos.x = panning.x;
+    new_pos.y = panning.y + column * settings.grid_layout_y_distance;
+
+    for (float j = 0.f; j < remaining; ++j) {
+        if (!compo.children.next(c))
+            break;
+
+        const auto c_id = compo.children.get_id(c);
+        new_pos.x       = panning.x + j * settings.grid_layout_x_distance;
+        ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
+    }
+}
+
 static void show_popup_menuitem(component_editor& ed,
                                 component&        parent,
                                 ImVec2*           click_pos,
@@ -329,6 +372,13 @@ static void show_popup_menuitem(component_editor& ed,
         ImGui::OpenPopup("Context menu");
 
     if (ImGui::BeginPopup("Context menu")) {
+        if (ImGui::MenuItem("Force grid layout")) {
+            auto* app = container_of(&ed, &application::c_editor);
+            compute_grid_layout(app->settings, parent);
+        }
+
+        ImGui::Separator();
+
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = ordinal(dynamics_type::qss1_integrator);
             const auto e = ordinal(dynamics_type::qss1_wsum_4);

@@ -287,15 +287,15 @@ struct application
         ImU32  gui_hovered_component_color;
         ImU32  gui_selected_component_color;
 
-        //! Compute selected and hovered colors from gui_model_color and
-        //! gui_component_color
+        //! @brief Compute selected and hovered colors from gui_model_color and
+        //! gui_component_color.
         void update() noexcept;
 
         int   automatic_layout_iteration_limit = 200;
         float automatic_layout_x_distance      = 350.f;
         float automatic_layout_y_distance      = 350.f;
-        float grid_layout_x_distance           = 250.f;
-        float grid_layout_y_distance           = 250.f;
+        float grid_layout_x_distance           = 240.f;
+        float grid_layout_y_distance           = 200.f;
 
         bool show_dynamics_inputs_in_editor = false;
 
