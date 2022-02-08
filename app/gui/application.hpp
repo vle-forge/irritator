@@ -276,32 +276,32 @@ struct component_editor
     void shutdown() noexcept;
 };
 
+struct settings_manager
+{
+    ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
+    ImVec4 gui_component_color{ .54f, .27f, .27f, 1.f };
+    ImU32  gui_hovered_model_color;
+    ImU32  gui_selected_model_color;
+    ImU32  gui_hovered_component_color;
+    ImU32  gui_selected_component_color;
+
+    //! @brief Compute selected and hovered colors from gui_model_color and
+    //! gui_component_color.
+    void update() noexcept;
+
+    int   automatic_layout_iteration_limit = 200;
+    float automatic_layout_x_distance      = 350.f;
+    float automatic_layout_y_distance      = 350.f;
+    float grid_layout_x_distance           = 240.f;
+    float grid_layout_y_distance           = 200.f;
+
+    bool show_dynamics_inputs_in_editor = false;
+
+    void show(bool* is_open) noexcept;
+};
+
 struct application
 {
-    struct settings_manager
-    {
-        ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
-        ImVec4 gui_component_color{ .54f, .27f, .27f, 1.f };
-        ImU32  gui_hovered_model_color;
-        ImU32  gui_selected_model_color;
-        ImU32  gui_hovered_component_color;
-        ImU32  gui_selected_component_color;
-
-        //! @brief Compute selected and hovered colors from gui_model_color and
-        //! gui_component_color.
-        void update() noexcept;
-
-        int   automatic_layout_iteration_limit = 200;
-        float automatic_layout_x_distance      = 350.f;
-        float automatic_layout_y_distance      = 350.f;
-        float grid_layout_x_distance           = 240.f;
-        float grid_layout_y_distance           = 200.f;
-
-        bool show_dynamics_inputs_in_editor = false;
-
-        void show(bool* is_open) noexcept;
-    };
-
     application() noexcept;
     ~application() noexcept;
 

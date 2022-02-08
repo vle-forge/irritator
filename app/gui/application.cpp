@@ -21,7 +21,7 @@ static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
     return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
 }
 
-void application::settings_manager::update() noexcept
+void settings_manager::update() noexcept
 {
     gui_hovered_model_color =
       ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.25f);

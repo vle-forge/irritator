@@ -112,11 +112,11 @@ static bool show_connection(const component&  parent,
     return true;
 }
 
-static void show(const application::settings_manager& settings,
-                 component_editor&                    ed,
-                 model&                               mdl,
-                 child&                               c,
-                 child_id                             id) noexcept
+static void show(const settings_manager& settings,
+                 component_editor&       ed,
+                 model&                  mdl,
+                 child&                  c,
+                 child_id                id) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -147,10 +147,10 @@ static void show(const application::settings_manager& settings,
     ImNodes::PopColorStyle();
 }
 
-static void show(const application::settings_manager& settings,
-                 component&                           compo,
-                 child&                               c,
-                 child_id                             id) noexcept
+static void show(const settings_manager& settings,
+                 component&              compo,
+                 child&                  c,
+                 child_id                id) noexcept
 {
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -225,11 +225,10 @@ static void show(const application::settings_manager& settings,
     ImNodes::PopColorStyle();
 }
 
-static void show_opened_component_ref(
-  const application::settings_manager& settings,
-  component_editor&                    ed,
-  tree_node& /*ref*/,
-  component& parent) noexcept
+static void show_opened_component_ref(const settings_manager& settings,
+                                      component_editor&       ed,
+                                      tree_node& /*ref*/,
+                                      component& parent) noexcept
 {
     child* c = nullptr;
 
@@ -312,8 +311,8 @@ static void add_popup_menuitem(component_editor& ed,
     add_popup_menuitem(ed, parent, d_type, new_model);
 }
 
-static void compute_grid_layout(application::settings_manager& settings,
-                                component&                     compo) noexcept
+static void compute_grid_layout(settings_manager& settings,
+                                component&        compo) noexcept
 {
     const auto size  = compo.children.size();
     const auto fsize = static_cast<float>(size);
@@ -512,10 +511,10 @@ static void remove_links(component_editor& ed, component& parent) noexcept
     parent.state = component_status::modified;
 }
 
-static void show_modeling_widget(const application::settings_manager& settings,
-                                 component_editor&                    ed,
-                                 tree_node&                           tree,
-                                 component& compo) noexcept
+static void show_modeling_widget(const settings_manager& settings,
+                                 component_editor&       ed,
+                                 tree_node&              tree,
+                                 component&              compo) noexcept
 {
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();

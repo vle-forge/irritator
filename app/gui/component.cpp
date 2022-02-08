@@ -52,7 +52,7 @@ static void print_tree(const data_array<component, component_id>& components,
     }
 }
 
-void application::settings_manager::show(bool* is_open) noexcept
+void settings_manager::show(bool* is_open) noexcept
 {
     ImGui::SetNextWindowPos(ImVec2(640, 480), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
@@ -66,8 +66,8 @@ void application::settings_manager::show(bool* is_open) noexcept
 
     static const char* dir_status[] = { "none", "read", "unread" };
 
-    auto *app = container_of(this, &application::settings);
-    auto &c_editor = app->c_editor;
+    auto* app      = container_of(this, &application::settings);
+    auto& c_editor = app->c_editor;
 
     if (ImGui::BeginTable("Component directories", 6)) {
         ImGui::TableSetupColumn(
@@ -162,12 +162,12 @@ void application::settings_manager::show(bool* is_open) noexcept
     ImGui::Text("Graphics");
     if (ImGui::ColorEdit3(
           "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
-	update();
+        update();
 
     if (ImGui::ColorEdit3("component",
                           (float*)&gui_component_color,
                           ImGuiColorEditFlags_NoOptions))
-	update();
+        update();
 
     ImGui::Separator();
     ImGui::Text("Automatic layout parameters");
@@ -263,7 +263,8 @@ void application::show_memory_box(bool* is_open) noexcept
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", ordinal(c_editor.mod.registred_paths.get_id(*dir)));
+                ImGui::TextFormat(
+                  "{}", ordinal(c_editor.mod.registred_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -285,7 +286,8 @@ void application::show_memory_box(bool* is_open) noexcept
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", ordinal(c_editor.mod.dir_paths.get_id(*dir)));
+                ImGui::TextFormat("{}",
+                                  ordinal(c_editor.mod.dir_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -306,7 +308,8 @@ void application::show_memory_box(bool* is_open) noexcept
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", ordinal(c_editor.mod.file_paths.get_id(*file)));
+                ImGui::TextFormat(
+                  "{}", ordinal(c_editor.mod.file_paths.get_id(*file)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(file->path.c_str());
             }
