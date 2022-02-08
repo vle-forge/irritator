@@ -319,9 +319,8 @@ struct application
     std::filesystem::path project_file;
     std::filesystem::path select_directory;
 
-    std::filesystem::path      home_dir;
-    std::filesystem::path      executable_dir;
-    std::vector<long long int> simulation_duration;
+    std::filesystem::path home_dir;
+    std::filesystem::path executable_dir;
 
     modeling_initializer mod_init;
 
