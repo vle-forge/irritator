@@ -33,9 +33,10 @@ static component_id add_empty_component(component_editor& ed) noexcept
     return ret;
 }
 
-static void show_component(component_editor& ed, component& c) noexcept
+static component* show_component(component_editor& ed, component& c) noexcept
 {
-    auto* file = ed.mod.file_paths.try_to_get(c.file);
+    component* ret  = nullptr;
+    auto*      file = ed.mod.file_paths.try_to_get(c.file);
     irt_assert(file);
 
     if (ImGui::Selectable(file->path.c_str())) {
@@ -43,10 +44,9 @@ static void show_component(component_editor& ed, component& c) noexcept
         ed.open_as_main(id);
     }
 
-
     if (ImGui::IsItemHovered() &&
         ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-        ed.selected_component_list = &c;
+        ret = &c;
         ImGui::OpenPopup("Component Menu");
     }
 
@@ -54,10 +54,13 @@ static void show_component(component_editor& ed, component& c) noexcept
         ImGui::SameLine();
         ImGui::TextUnformatted("(modified)");
     }
+
+    return ret;
 }
 
-static void show_notsaved_components(irt::component_editor& ed) noexcept
+static component* show_notsaved_components(irt::component_editor& ed) noexcept
 {
+    component* ret   = nullptr;
     component* compo = nullptr;
     while (ed.mod.components.next(compo)) {
         const auto is_notsaved = match(compo->type, component_type::memory);
@@ -70,15 +73,18 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
 
             if (ImGui::IsItemHovered() &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-                ed.selected_component_list = compo;
+                ret = compo;
                 ImGui::OpenPopup("Component Menu");
             }
         }
     }
+
+    return ret;
 }
 
-static void show_internal_components(irt::component_editor& ed) noexcept
+static component* show_internal_components(irt::component_editor& ed) noexcept
 {
+    component* ret   = nullptr;
     component* compo = nullptr;
     while (ed.mod.components.next(compo)) {
         const auto is_internal =
@@ -92,21 +98,26 @@ static void show_internal_components(irt::component_editor& ed) noexcept
 
             if (ImGui::IsItemHovered() &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-                ed.selected_component_list = compo;
+                ret = compo;
                 ImGui::OpenPopup("Component Menu");
             }
         }
     }
+
+    return ret;
 }
 
 void application::show_components_window() noexcept
 {
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
+    component* selected = nullptr;
 
     if (ImGui::CollapsingHeader("Component library", flags)) {
         if (ImGui::TreeNodeEx("Internal")) {
-            show_internal_components(c_editor);
+            if (auto* ret = show_internal_components(c_editor); ret)
+                selected = ret;
+
             ImGui::TreePop();
         }
 
@@ -132,7 +143,9 @@ void application::show_components_window() noexcept
                             auto& compo =
                               c_editor.mod.components.get(file.component);
 
-                            show_component(c_editor, compo);
+                            if (auto* ret = show_component(c_editor, compo);
+                                ret)
+                                selected = ret;
                         }
                         ImGui::TreePop();
                     }
@@ -143,7 +156,8 @@ void application::show_components_window() noexcept
         }
 
         if (ImGui::TreeNodeEx("Not saved")) {
-            show_notsaved_components(c_editor);
+            if (auto* ret = show_notsaved_components(c_editor); ret)
+                selected = ret;
             ImGui::TreePop();
         }
 
@@ -154,33 +168,27 @@ void application::show_components_window() noexcept
                 c_editor.open_as_main(id);
             }
 
-            if (ImGui::MenuItem("Open as main")) {
-                log_w.log(
-                  7, "@todo be sure to save before opening a new component");
-
-                auto id = c_editor.mod.components.get_id(
-                  *c_editor.selected_component_list);
-
-                c_editor.open_as_main(id);
-            }
-
-            if (ImGui::MenuItem("Copy")) {
-                if (c_editor.mod.components.can_alloc()) {
-                    auto& new_c = c_editor.mod.components.alloc();
-                    new_c.type  = component_type::memory;
-                    new_c.name  = c_editor.selected_component_list->name;
-                    new_c.state = component_status::modified;
-                    c_editor.mod.copy(*c_editor.selected_component_list, new_c);
-                } else {
-                    log_w.log(3, "Can not alloc a new component");
+            if (selected) {
+                if (ImGui::MenuItem("Open as main")) {
+                    auto id = c_editor.mod.components.get_id(*selected);
+                    c_editor.open_as_main(id);
                 }
-            }
 
-            if (ImGui::MenuItem("Delete")) {
-                if (c_editor.selected_component_list->type ==
-                    component_type::memory) {
-                    c_editor.mod.free(*c_editor.selected_component_list);
-                    c_editor.selected_component_list = nullptr;
+                if (ImGui::MenuItem("Copy")) {
+                    if (c_editor.mod.components.can_alloc()) {
+                        auto& new_c = c_editor.mod.components.alloc();
+                        new_c.type  = component_type::memory;
+                        new_c.name  = selected->name;
+                        new_c.state = component_status::modified;
+                        c_editor.mod.copy(*selected, new_c);
+                    } else {
+                        log_w.log(3, "Can not alloc a new component");
+                    }
+                }
+
+                if (selected->type == component_type::memory &&
+                    ImGui::MenuItem("Delete")) {
+                    c_editor.mod.free(*selected);
                 }
             }
             ImGui::EndPopup();

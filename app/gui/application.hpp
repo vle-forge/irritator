@@ -252,13 +252,11 @@ struct component_editor
     modeling                                    mod;
     external_source                             srcs;
     data_array<memory_output, memory_output_id> outputs;
-    tree_node_id          selected_component = undefined<tree_node_id>();
-    ImNodesEditorContext* context            = nullptr;
-    bool                  is_saved           = true;
-    bool                  show_minimap       = true;
-
-    component* selected_component_list = nullptr;
-    bool       force_node_position     = false;
+    tree_node_id          selected_component  = undefined<tree_node_id>();
+    ImNodesEditorContext* context             = nullptr;
+    bool                  is_saved            = true;
+    bool                  show_minimap        = true;
+    bool                  force_node_position = false;
 
     ImVector<int> selected_links;
     ImVector<int> selected_nodes;
