@@ -791,6 +791,7 @@ static void show_simulation_graph_editor(application& app) noexcept
     model_id   new_model = undefined<model_id>();
     const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
     if (!ImGui::IsAnyItemHovered() && open_popup)
         ImGui::OpenPopup("Context menu");
 
@@ -858,6 +859,8 @@ static void show_simulation_graph_editor(application& app) noexcept
 
         ImGui::EndPopup();
     }
+
+    ImGui::PopStyleVar();
 
     if (app.s_editor.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
