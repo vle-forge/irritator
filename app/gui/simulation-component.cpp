@@ -487,10 +487,13 @@ static void simulation_init_impl(void* param) noexcept
     // fmt::print("simulation_init_impl finished\n");
 }
 
-static void task_simulation_run(component_editor& /*ed*/,
-                                simulation_editor& sim_ed) noexcept
+static void task_simulation_store(simulation_editor& sim_ed) noexcept
 {
-    // fmt::print("simulation_run_impl\n");
+    (void)sim_ed;
+}
+
+static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
+{
     sim_ed.simulation_state = simulation_status::running;
     namespace stdc          = std::chrono;
 
@@ -500,28 +503,77 @@ static void task_simulation_run(component_editor& /*ed*/,
 
     auto duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
     auto duration_since_start = duration_cast.count();
-    const decltype(duration_since_start) duration_in_microseconds = 100000;
 
     bool stop_or_pause;
 
     do {
-        // fmt::print("loop\n");
         if (sim_ed.simulation_state != simulation_status::running)
             return;
 
-        auto ret = sim_ed.sim.run(sim_ed.simulation_current);
-        // fmt::print("{}\n", (int)ret);
-        // fmt::print("time {} {} {}\n",
-        //           sim_ed.simulation_begin,
-        //           sim_ed.simulation_current,
-        //           sim_ed.simulation_end);
-
-        if (is_bad(ret)) {
+        if (auto ret = sim_ed.sim.run(sim_ed.simulation_current); is_bad(ret)) {
             sim_ed.simulation_state = simulation_status::finish_requiring;
             return;
         }
 
-        if (sim_ed.simulation_current >= sim_ed.simulation_end) {
+        if (!sim_ed.infinity_simulation &&
+            sim_ed.simulation_current >= sim_ed.simulation_end) {
+            sim_ed.simulation_current = sim_ed.simulation_end;
+            sim_ed.simulation_state   = simulation_status::finish_requiring;
+            return;
+        }
+
+        end_at        = stdc::high_resolution_clock::now();
+        duration      = end_at - start_at;
+        duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
+        duration_since_start = duration_cast.count();
+        stop_or_pause        = sim_ed.force_pause || sim_ed.force_stop;
+    } while (!stop_or_pause &&
+             duration_since_start < sim_ed.thread_frame_duration);
+
+    if (sim_ed.force_pause) {
+        sim_ed.force_pause      = false;
+        sim_ed.simulation_state = simulation_status::pause_forced;
+    } else if (sim_ed.force_stop) {
+        sim_ed.force_stop       = false;
+        sim_ed.simulation_state = simulation_status::finish_requiring;
+    } else {
+        sim_ed.simulation_state = simulation_status::paused;
+    }
+}
+
+static void task_simulation_live_run(simulation_editor& sim_ed) noexcept
+{
+    sim_ed.simulation_state = simulation_status::running;
+    namespace stdc          = std::chrono;
+
+    const auto max_sim_duration =
+      static_cast<real>(simulation_editor::thread_frame_duration) /
+      static_cast<real>(sim_ed.simulation_real_time_relation);
+
+    const auto sim_start_at = sim_ed.simulation_current;
+    auto       start_at     = stdc::high_resolution_clock::now();
+    auto       end_at       = stdc::high_resolution_clock::now();
+    auto       duration     = end_at - start_at;
+
+    auto duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
+    auto duration_since_start = duration_cast.count();
+
+    bool stop_or_pause;
+
+    do {
+        if (sim_ed.simulation_state != simulation_status::running)
+            return;
+
+        if (auto ret = sim_ed.sim.run(sim_ed.simulation_current); is_bad(ret)) {
+            sim_ed.simulation_state = simulation_status::finish_requiring;
+            return;
+        }
+
+        const auto sim_end_at   = sim_ed.simulation_current;
+        const auto sim_duration = sim_end_at - sim_start_at;
+
+        if (!sim_ed.infinity_simulation &&
+            sim_ed.simulation_current >= sim_ed.simulation_end) {
             sim_ed.simulation_current = sim_ed.simulation_end;
             sim_ed.simulation_state   = simulation_status::finish_requiring;
             return;
@@ -532,12 +584,17 @@ static void task_simulation_run(component_editor& /*ed*/,
         duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
         duration_since_start = duration_cast.count();
 
-        // fmt::print(
-        //  "duration: {}/{}\n", duration_since_start,
-        //  duration_in_microseconds);
+        if (sim_duration > max_sim_duration) {
+            auto remaining =
+              stdc::microseconds(simulation_editor::thread_frame_duration) -
+              duration_cast;
+
+            std::this_thread::sleep_for(remaining);
+        }
 
         stop_or_pause = sim_ed.force_pause || sim_ed.force_stop;
-    } while (!stop_or_pause && duration_since_start < duration_in_microseconds);
+    } while (!stop_or_pause &&
+             duration_since_start < sim_ed.thread_frame_duration);
 
     if (sim_ed.force_pause) {
         sim_ed.force_pause      = false;
@@ -546,21 +603,31 @@ static void task_simulation_run(component_editor& /*ed*/,
         sim_ed.force_stop       = false;
         sim_ed.simulation_state = simulation_status::finish_requiring;
     } else {
-        // fmt::print("simulation_run_impl finished\n");
         sim_ed.simulation_state = simulation_status::paused;
+    }
+}
+
+static void task_simulation_run(simulation_editor& sim_ed) noexcept
+{
+    if (sim_ed.real_time) {
+        if (sim_ed.store_all_changes)
+            task_simulation_store(sim_ed);
+
+        task_simulation_live_run(sim_ed);
+    } else {
+        if (sim_ed.store_all_changes)
+            task_simulation_store(sim_ed);
+
+        task_simulation_static_run(sim_ed);
     }
 }
 
 static void task_simulation_finish(component_editor& /*ed*/,
                                    simulation_editor& sim_ed) noexcept
 {
-    // fmt::print("simulation_finish_impl\n");
     sim_ed.simulation_state = simulation_status::finishing;
-
     sim_ed.sim.finalize(sim_ed.simulation_end);
-
     sim_ed.simulation_state = simulation_status::finished;
-    // fmt::print("simulation_finish_impl finished\n");
 }
 
 //
@@ -574,7 +641,7 @@ static void task_simulation_run(void* param) noexcept
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
 
-    task_simulation_run(g_task->app->c_editor, g_task->app->s_editor);
+    task_simulation_run(g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
 }

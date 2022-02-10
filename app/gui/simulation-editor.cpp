@@ -7,8 +7,6 @@
 #define WINDOWS_LEAN_AND_MEAN
 #endif
 
-#include <cstdlib>
-
 #include "application.hpp"
 #include "editor.hpp"
 #include "internal.hpp"
@@ -26,6 +24,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/io.hpp>
+#include <irritator/timeline.hpp>
 
 namespace irt {
 
@@ -987,12 +986,6 @@ static void show_simulation_graph_editor(application& app) noexcept
 
 void application::show_simulation_editor_widget() noexcept
 {
-    ImGui::InputReal("Begin", &s_editor.simulation_begin);
-    ImGui::InputReal("End", &s_editor.simulation_end);
-    ImGui::TextFormat("Current time {:.6f}", s_editor.simulation_current);
-    ImGui::TextFormat("Simulation phase: {}",
-                      ordinal(s_editor.simulation_state));
-
     const bool can_be_initialized = !match(s_editor.simulation_state,
                                            simulation_status::not_started,
                                            simulation_status::finished,
@@ -1016,10 +1009,37 @@ void application::show_simulation_editor_widget() noexcept
                                        simulation_status::paused,
                                        simulation_status::pause_forced);
 
+    ImGui::PushItemWidth(100.f);
+    ImGui::InputReal("Begin", &s_editor.simulation_begin);
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+    ImGui::Checkbox("Allow user changes", &s_editor.allow_user_changes);
+
+    ImGui::InputReal("End", &s_editor.simulation_end);
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+    ImGui::Checkbox("Store all changes", &s_editor.store_all_changes);
+
+    ImGui::BeginDisabled(!s_editor.real_time);
+    ImGui::InputScalar("Micro second for 1 unit time",
+                       ImGuiDataType_S64,
+                       &s_editor.simulation_real_time_relation);
+    ImGui::EndDisabled();
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+    ImGui::Checkbox("Infinity simulation", &s_editor.infinity_simulation);
+
+    ImGui::TextFormat("Current time {:.6f}", s_editor.simulation_current);
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+    ImGui::Checkbox("Real time", &s_editor.real_time);
+
+    ImGui::TextFormat("Simulation phase: {}",
+                      ordinal(s_editor.simulation_state));
+
+    ImGui::PopItemWidth();
+
     ImGui::BeginDisabled(can_be_initialized);
-    if (ImGui::Button("copy from modeling editor")) {
+    if (ImGui::Button("Import model")) {
         s_editor.simulation_copy_modeling();
     }
+    ImGui::SameLine();
 
     if (ImGui::Button("init")) {
         s_editor.simulation_init();
@@ -1027,7 +1047,6 @@ void application::show_simulation_editor_widget() noexcept
     ImGui::EndDisabled();
 
     ImGui::SameLine();
-
     ImGui::BeginDisabled(can_be_started);
     if (ImGui::Button("start")) {
         s_editor.simulation_start();
@@ -1055,6 +1074,17 @@ void application::show_simulation_editor_widget() noexcept
     if (ImGui::Button("stop")) {
         s_editor.force_stop = true;
     }
+    ImGui::EndDisabled();
+
+    ImGui::BeginDisabled(!s_editor.store_all_changes || !can_be_restarted);
+    ImGui::SameLine();
+    ImGui::Button("<<");
+    ImGui::SameLine();
+    ImGui::Button("<");
+    ImGui::SameLine();
+    ImGui::Button(">");
+    ImGui::SameLine();
+    ImGui::Button(">>");
     ImGui::EndDisabled();
 
     show_simulation_graph_editor(*this);

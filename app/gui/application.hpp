@@ -9,6 +9,7 @@
 #include <irritator/external_source.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/thread.hpp>
+#include <irritator/timeline.hpp>
 
 #include <filesystem>
 #include <fstream>
@@ -206,6 +207,9 @@ struct simulation_editor
         tree
     };
 
+    //! 0.1s between each run thread task.
+    static constexpr i64 thread_frame_duration = 100000;
+
     simulation_editor() noexcept;
     ~simulation_editor() noexcept;
     void shutdown() noexcept;
@@ -223,16 +227,24 @@ struct simulation_editor
     void simulation_pause() noexcept;
     void simulation_stop() noexcept;
 
-    bool force_pause = false;
-    bool force_stop  = false;
-
-    bool show_minimap = true;
+    bool force_pause         = false;
+    bool force_stop          = false;
+    bool show_minimap        = true;
+    bool allow_user_changes  = false;
+    bool store_all_changes   = false;
+    bool infinity_simulation = false;
+    bool real_time           = false;
 
     simulation sim;
+    timeline   tl;
 
     real simulation_begin   = 0;
     real simulation_end     = 100;
     real simulation_current = 0;
+
+    //! Number of microsecond to run 1 unit of simulation time
+    //! Default 1 unit of simulation in 1 second.
+    i64 simulation_real_time_relation = 1000000;
 
     simulation_tree_node_id head    = undefined<simulation_tree_node_id>();
     simulation_tree_node_id current = undefined<simulation_tree_node_id>();
