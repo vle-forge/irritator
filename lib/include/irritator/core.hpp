@@ -835,11 +835,11 @@ public:
     };
 
 private:
-    block* blocks{ nullptr };    // contains all preallocated blocks
-    block* free_head{ nullptr }; // a free list
-    sz     size{ 0 };            // number of active elements allocated
-    sz     max_size{ 0 }; // number of elements allocated (with free_head)
-    sz     capacity{ 0 }; // capacity of the allocator
+    block* m_blocks{ nullptr };    // contains all preallocated blocks
+    block* m_free_head{ nullptr }; // a free list
+    sz     m_size{ 0 };            // number of active elements allocated
+    sz     m_max_size{ 0 }; // number of elements allocated (with free_head)
+    sz     m_capacity{ 0 }; // capacity of the allocator
 
 public:
     block_allocator() = default;
@@ -849,8 +849,8 @@ public:
 
     ~block_allocator() noexcept
     {
-        if (blocks)
-            g_free_fn(blocks);
+        if (m_blocks)
+            g_free_fn(m_blocks);
     }
 
     status init(sz new_capacity) noexcept
@@ -858,30 +858,30 @@ public:
         if (new_capacity == 0)
             return status::block_allocator_bad_capacity;
 
-        if (new_capacity != capacity) {
-            if (blocks)
-                g_free_fn(blocks);
+        if (new_capacity != m_capacity) {
+            if (m_blocks)
+                g_free_fn(m_blocks);
 
-            blocks =
+            m_blocks =
               static_cast<block*>(g_alloc_fn(new_capacity * sizeof(block)));
-            if (blocks == nullptr)
+            if (m_blocks == nullptr)
                 return status::block_allocator_not_enough_memory;
         }
 
-        size      = 0;
-        max_size  = 0;
-        capacity  = new_capacity;
-        free_head = nullptr;
+        m_size      = 0;
+        m_max_size  = 0;
+        m_capacity  = new_capacity;
+        m_free_head = nullptr;
 
         return status::success;
     }
 
     void reset() noexcept
     {
-        if (capacity > 0) {
-            size      = 0;
-            max_size  = 0;
-            free_head = nullptr;
+        if (m_capacity > 0) {
+            m_size      = 0;
+            m_max_size  = 0;
+            m_free_head = nullptr;
         }
     }
 
@@ -889,22 +889,22 @@ public:
     {
         block* new_block = nullptr;
 
-        if (free_head != nullptr) {
-            new_block = free_head;
-            free_head = free_head->next;
+        if (m_free_head != nullptr) {
+            new_block   = m_free_head;
+            m_free_head = m_free_head->next;
         } else {
-            irt_assert(max_size < capacity);
-            new_block = reinterpret_cast<block*>(&blocks[max_size++]);
+            irt_assert(m_max_size < m_capacity);
+            new_block = reinterpret_cast<block*>(&m_blocks[m_max_size++]);
         }
-        ++size;
+        ++m_size;
 
         return reinterpret_cast<T*>(new_block);
     }
 
     u32 index(const T* ptr) const noexcept
     {
-        irt_assert(ptr - reinterpret_cast<T*>(blocks) > 0);
-        auto ptrdiff = ptr - reinterpret_cast<T*>(blocks);
+        irt_assert(ptr - reinterpret_cast<T*>(m_blocks) > 0);
+        auto ptrdiff = ptr - reinterpret_cast<T*>(m_blocks);
         return static_cast<u32>(ptrdiff);
     }
 
@@ -912,22 +912,22 @@ public:
     {
         block* new_block = nullptr;
 
-        if (free_head != nullptr) {
-            new_block = free_head;
-            free_head = free_head->next;
+        if (m_free_head != nullptr) {
+            new_block   = m_free_head;
+            m_free_head = m_free_head->next;
         } else {
-            irt_assert(max_size < capacity);
-            new_block = reinterpret_cast<block*>(&blocks[max_size++]);
+            irt_assert(m_max_size < m_capacity);
+            new_block = reinterpret_cast<block*>(&m_blocks[m_max_size++]);
         }
-        ++size;
+        ++m_size;
 
-        irt_assert(new_block - blocks >= 0);
-        return static_cast<u32>(new_block - blocks);
+        irt_assert(new_block - m_blocks >= 0);
+        return static_cast<u32>(new_block - m_blocks);
     }
 
     bool can_alloc() noexcept
     {
-        return free_head != nullptr || max_size < capacity;
+        return m_free_head != nullptr || m_max_size < m_capacity;
     }
 
     void free(T* n) noexcept
@@ -936,37 +936,41 @@ public:
 
         block* ptr = reinterpret_cast<block*>(n);
 
-        ptr->next = free_head;
-        free_head = ptr;
+        ptr->next   = m_free_head;
+        m_free_head = ptr;
 
-        --size;
+        --m_size;
 
-        if (size == 0) {         // A special part: if it no longer exists
-            max_size  = 0;       // we reset the free list and the number
-            free_head = nullptr; // of elements allocated.
+        if (m_size == 0) {         // A special part: if it no longer exists
+            m_max_size  = 0;       // we reset the free list and the number
+            m_free_head = nullptr; // of elements allocated.
         }
     }
 
     void free(u32 index) noexcept
     {
-        auto* to_free = reinterpret_cast<T*>(&(blocks[index]));
+        auto* to_free = reinterpret_cast<T*>(&(m_blocks[index]));
         free(to_free);
     }
 
     bool can_alloc(size_t number) const noexcept
     {
-        return number + size < capacity;
+        return number + m_size < m_capacity;
     }
 
     value_type& operator[](u32 index) noexcept
     {
-        return *reinterpret_cast<T*>(&(blocks[index]));
+        return *reinterpret_cast<T*>(&(m_blocks[index]));
     }
 
     const value_type& operator[](u32 index) const noexcept
     {
-        return *reinterpret_cast<T*>(&(blocks[index]));
+        return *reinterpret_cast<T*>(&(m_blocks[index]));
     }
+
+    sz size() const noexcept { return size; }
+    sz max_size() const noexcept { return m_max_size; }
+    sz capacity() const noexcept { return m_capacity; }
 };
 
 template<typename T>
