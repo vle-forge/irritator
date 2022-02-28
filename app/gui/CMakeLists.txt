@@ -85,6 +85,7 @@ target_compile_options(irritator-gui
 
 target_compile_definitions(irritator-gui
     PRIVATE
+    $<$<BOOL:${WITH_DEBUG}>:IRRITATOR_ENABLE_DEBUG>
     $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
     $<$<CXX_COMPILER_ID:MSVC>:_SCL_SECURE_NO_WARNINGS>
     VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
