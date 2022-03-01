@@ -259,6 +259,21 @@ struct simulation_editor
     ImVector<int>         selected_nodes;
 };
 
+struct project_hierarchy_selection
+{
+    tree_node_id parent = undefined<tree_node_id>();
+    component_id compo  = undefined<component_id>();
+    child_id     ch     = undefined<child_id>();
+
+    void set(tree_node_id parent, component_id compo) noexcept;
+    void set(tree_node_id parent, component_id compo, child_id ch) noexcept;
+    void clear() noexcept;
+
+    bool equal(tree_node_id parent,
+               component_id compo,
+               child_id     ch) const noexcept;
+};
+
 struct component_editor
 {
     modeling                                    mod;
@@ -315,9 +330,10 @@ struct application
     application() noexcept;
     ~application() noexcept;
 
-    component_editor  c_editor;
-    simulation_editor s_editor;
-    settings_manager  settings;
+    component_editor            c_editor;
+    simulation_editor           s_editor;
+    settings_manager            settings;
+    project_hierarchy_selection project_selection;
 
     bool show_select_directory_dialog = false;
 
