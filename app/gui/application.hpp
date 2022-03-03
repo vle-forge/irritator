@@ -186,6 +186,8 @@ void save_component(void* param) noexcept;
 void save_description(void* param) noexcept;
 void load_project(void* param) noexcept;
 void save_project(void* param) noexcept;
+void task_simulation_back(void* param) noexcept;
+void task_simulation_advance(void* param) noexcept;
 
 enum class gui_task_id : u64;
 
@@ -224,8 +226,11 @@ struct simulation_editor
     void simulation_init() noexcept;
     void simulation_clear() noexcept;
     void simulation_start() noexcept;
+    void simulation_start_1() noexcept;
     void simulation_pause() noexcept;
     void simulation_stop() noexcept;
+    void simulation_advance() noexcept;
+    void simulation_back() noexcept;
 
     bool force_pause         = false;
     bool force_stop          = false;

@@ -68,6 +68,9 @@ bool application::init() noexcept
 {
     c_editor.init();
 
+    // @todo DEBUG MODE: Prefer user settings or better timeline constructor
+    s_editor.tl.init(32768, 4096, 65536, 4096, 32768, 32768);
+
     if (auto ret = c_editor.mod.registred_paths.init(max_component_dirs);
         is_bad(ret)) {
         log_w.log(2, "Fail to initialize registred dir paths");
@@ -728,5 +731,57 @@ void application::shutdown() noexcept
 //
 //     return editors.try_to_get(current);
 // }
+
+//
+// Thread tasks
+//
+
+void task_simulation_back(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = gui_task_status::started;
+    g_task->app->state |= application_status_read_only_simulating |
+                          application_status_read_only_modeling;
+
+    if (g_task->app->s_editor.tl.current_bag > 0) {
+        auto ret = back(g_task->app->s_editor.tl,
+                        g_task->app->s_editor.sim,
+                        g_task->app->s_editor.simulation_current);
+
+        if (is_bad(ret)) {
+            auto& n =
+              g_task->app->notifications.alloc(notification_type::error);
+            n.title = "Fail to back the simulation";
+            format(n.message, "Advance message: {}", status_string(ret));
+            g_task->app->notifications.enable(n);
+        }
+    }
+
+    g_task->state = gui_task_status::finished;
+}
+
+void task_simulation_advance(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = gui_task_status::started;
+    g_task->app->state |= application_status_read_only_simulating |
+                          application_status_read_only_modeling;
+
+    if (g_task->app->s_editor.tl.current_bag < g_task->app->s_editor.tl.bag) {
+        auto ret = advance(g_task->app->s_editor.tl,
+                           g_task->app->s_editor.sim,
+                           g_task->app->s_editor.simulation_current);
+
+        if (is_bad(ret)) {
+            auto& n =
+              g_task->app->notifications.alloc(notification_type::error);
+            n.title = "Fail to advance the simulation";
+            format(n.message, "Advance message: {}", status_string(ret));
+            g_task->app->notifications.enable(n);
+        }
+    }
+
+    g_task->state = gui_task_status::finished;
+}
 
 } // namespace irt

@@ -1012,11 +1012,11 @@ void application::show_simulation_editor_widget() noexcept
     ImGui::PushItemWidth(100.f);
     ImGui::InputReal("Begin", &s_editor.simulation_begin);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    ImGui::Checkbox("Allow user changes", &s_editor.allow_user_changes);
+    ImGui::Checkbox("Edit", &s_editor.allow_user_changes);
 
     ImGui::InputReal("End", &s_editor.simulation_end);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    ImGui::Checkbox("Store all changes", &s_editor.store_all_changes);
+    ImGui::Checkbox("Debug", &s_editor.store_all_changes);
 
     ImGui::BeginDisabled(!s_editor.real_time);
     ImGui::InputScalar("Micro second for 1 unit time",
@@ -1024,7 +1024,7 @@ void application::show_simulation_editor_widget() noexcept
                        &s_editor.simulation_real_time_relation);
     ImGui::EndDisabled();
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    ImGui::Checkbox("Infinity simulation", &s_editor.infinity_simulation);
+    ImGui::Checkbox("No time limit", &s_editor.infinity_simulation);
 
     ImGui::TextFormat("Current time {:.6f}", s_editor.simulation_current);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
@@ -1048,9 +1048,8 @@ void application::show_simulation_editor_widget() noexcept
 
     ImGui::SameLine();
     ImGui::BeginDisabled(can_be_started);
-    if (ImGui::Button("start")) {
+    if (ImGui::Button("start"))
         s_editor.simulation_start();
-    }
     ImGui::EndDisabled();
 
     ImGui::SameLine();
@@ -1076,15 +1075,27 @@ void application::show_simulation_editor_widget() noexcept
     }
     ImGui::EndDisabled();
 
-    ImGui::BeginDisabled(!s_editor.store_all_changes || !can_be_restarted);
+    const bool history_mode =
+      (s_editor.store_all_changes || s_editor.allow_user_changes) &&
+      (can_be_started || can_be_restarted);
+
+    ImGui::BeginDisabled(!history_mode);
+
+    if (s_editor.store_all_changes &&
+        s_editor.simulation_state != simulation_status::finished) {
+        ImGui::SameLine();
+        if (ImGui::Button("step-by-step"))
+            s_editor.simulation_start_1();
+    }
+
     ImGui::SameLine();
-    ImGui::Button("<<");
+    if (ImGui::Button("<") && s_editor.tl.current_bag > 0)
+        s_editor.simulation_back();
     ImGui::SameLine();
-    ImGui::Button("<");
+    if (ImGui::Button(">") && s_editor.tl.current_bag < s_editor.tl.bag)
+        s_editor.simulation_advance();
     ImGui::SameLine();
-    ImGui::Button(">");
-    ImGui::SameLine();
-    ImGui::Button(">>");
+    ImGui::Text("bag %d/%d", s_editor.tl.current_bag, s_editor.tl.bag);
     ImGui::EndDisabled();
 
     show_simulation_graph_editor(*this);

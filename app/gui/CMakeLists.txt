@@ -10,6 +10,7 @@ set(gui_sources
     simulation-window.cpp sources.cpp window-logger.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/file.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/modeling.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/timeline.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.h
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_demo.cpp

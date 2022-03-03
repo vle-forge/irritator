@@ -438,12 +438,26 @@ static void simulation_init(component_editor&  ed,
         return;
     }
 
+    if (sim_ed.store_all_changes || sim_ed.allow_user_changes) {
+        if (auto ret =
+              initialize(sim_ed.tl, sim_ed.sim, sim_ed.simulation_begin);
+            is_bad(ret)) {
+            auto* app = container_of(&ed, &application::c_editor);
+            auto& n   = app->notifications.alloc(notification_type::error);
+            n.title   = "Simulation initialization fail";
+            format(n.message,
+                   "Fail to initialize the debug mode: {}",
+                   status_string(ret));
+            app->notifications.enable(n);
+            sim_ed.simulation_state = simulation_status::not_started;
+        }
+    }
+
     sim_ed.simulation_state = simulation_status::initialized;
 }
 
 static void simulation_clear_impl(void* param) noexcept
 {
-    // fmt::print("simulation_clear_impl\n");
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
@@ -452,12 +466,10 @@ static void simulation_clear_impl(void* param) noexcept
     simulation_clear(g_task->app->c_editor, g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
-    // fmt::print("simulation_clear_impl finished\n");
 }
 
 static void simulation_copy_impl(void* param) noexcept
 {
-    // fmt::print("simulation_init_impl\n");
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
@@ -468,12 +480,10 @@ static void simulation_copy_impl(void* param) noexcept
     simulation_copy(g_task->app->c_editor, g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
-    // fmt::print("simulation_init_impl finished\n");
 }
 
 static void simulation_init_impl(void* param) noexcept
 {
-    // fmt::print("simulation_init_impl\n");
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
@@ -484,12 +494,35 @@ static void simulation_init_impl(void* param) noexcept
     simulation_init(g_task->app->c_editor, g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
-    // fmt::print("simulation_init_impl finished\n");
 }
 
-static void task_simulation_store(simulation_editor& sim_ed) noexcept
+static status debug_run(simulation_editor& sim_ed) noexcept
 {
-    (void)sim_ed;
+    if (auto ret = run(sim_ed.tl, sim_ed.sim, sim_ed.simulation_current);
+        is_bad(ret)) {
+        auto* app = container_of(&sim_ed, &application::s_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Debug run error";
+        app->notifications.enable(n);
+        sim_ed.simulation_state = simulation_status::finish_requiring;
+        return ret;
+    }
+
+    return status::success;
+}
+
+static status run(simulation_editor& sim_ed) noexcept
+{
+    if (auto ret = sim_ed.sim.run(sim_ed.simulation_current); is_bad(ret)) {
+        auto* app = container_of(&sim_ed, &application::s_editor);
+        auto& n   = app->notifications.alloc(notification_type::error);
+        n.title   = "Run error";
+        app->notifications.enable(n);
+        sim_ed.simulation_state = simulation_status::finish_requiring;
+        return ret;
+    }
+
+    return status::success;
 }
 
 static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
@@ -510,9 +543,16 @@ static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
         if (sim_ed.simulation_state != simulation_status::running)
             return;
 
-        if (auto ret = sim_ed.sim.run(sim_ed.simulation_current); is_bad(ret)) {
-            sim_ed.simulation_state = simulation_status::finish_requiring;
-            return;
+        if (sim_ed.store_all_changes) {
+            if (auto ret = debug_run(sim_ed); is_bad(ret)) {
+                sim_ed.simulation_state = simulation_status::finish_requiring;
+                return;
+            }
+        } else {
+            if (auto ret = run(sim_ed); is_bad(ret)) {
+                sim_ed.simulation_state = simulation_status::finish_requiring;
+                return;
+            }
         }
 
         if (!sim_ed.infinity_simulation &&
@@ -564,9 +604,16 @@ static void task_simulation_live_run(simulation_editor& sim_ed) noexcept
         if (sim_ed.simulation_state != simulation_status::running)
             return;
 
-        if (auto ret = sim_ed.sim.run(sim_ed.simulation_current); is_bad(ret)) {
-            sim_ed.simulation_state = simulation_status::finish_requiring;
-            return;
+        if (sim_ed.store_all_changes) {
+            if (auto ret = debug_run(sim_ed); is_bad(ret)) {
+                sim_ed.simulation_state = simulation_status::finish_requiring;
+                return;
+            }
+        } else {
+            if (auto ret = run(sim_ed); is_bad(ret)) {
+                sim_ed.simulation_state = simulation_status::finish_requiring;
+                return;
+            }
         }
 
         const auto sim_end_at   = sim_ed.simulation_current;
@@ -610,15 +657,36 @@ static void task_simulation_live_run(simulation_editor& sim_ed) noexcept
 static void task_simulation_run(simulation_editor& sim_ed) noexcept
 {
     if (sim_ed.real_time) {
-        if (sim_ed.store_all_changes)
-            task_simulation_store(sim_ed);
-
         task_simulation_live_run(sim_ed);
     } else {
-        if (sim_ed.store_all_changes)
-            task_simulation_store(sim_ed);
-
         task_simulation_static_run(sim_ed);
+    }
+}
+
+static void task_simulation_run_1(simulation_editor& sim_ed) noexcept
+{
+    sim_ed.simulation_state = simulation_status::running;
+
+    if (auto ret = debug_run(sim_ed); is_bad(ret)) {
+        sim_ed.simulation_state = simulation_status::finish_requiring;
+        return;
+    }
+
+    if (!sim_ed.infinity_simulation &&
+        sim_ed.simulation_current >= sim_ed.simulation_end) {
+        sim_ed.simulation_current = sim_ed.simulation_end;
+        sim_ed.simulation_state   = simulation_status::finish_requiring;
+        return;
+    }
+
+    if (sim_ed.force_pause) {
+        sim_ed.force_pause      = false;
+        sim_ed.simulation_state = simulation_status::pause_forced;
+    } else if (sim_ed.force_stop) {
+        sim_ed.force_stop       = false;
+        sim_ed.simulation_state = simulation_status::finish_requiring;
+    } else {
+        sim_ed.simulation_state = simulation_status::pause_forced;
     }
 }
 
@@ -642,6 +710,18 @@ static void task_simulation_run(void* param) noexcept
                           application_status_read_only_modeling;
 
     task_simulation_run(g_task->app->s_editor);
+
+    g_task->state = gui_task_status::finished;
+}
+
+static void task_simulation_run_1(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = gui_task_status::started;
+    g_task->app->state |= application_status_read_only_simulating |
+                          application_status_read_only_modeling;
+
+    task_simulation_run_1(g_task->app->s_editor);
 
     g_task->state = gui_task_status::finished;
 }
@@ -785,6 +865,25 @@ void simulation_editor::simulation_start() noexcept
     }
 }
 
+void simulation_editor::simulation_start_1() noexcept
+{
+    bool state = match(simulation_state,
+                       simulation_status::initialized,
+                       simulation_status::pause_forced);
+
+    irt_assert(state);
+
+    if (state) {
+        if (auto* parent = tree_nodes.try_to_get(head); parent) {
+            auto* app  = container_of(this, &application::s_editor);
+            auto& task = app->gui_tasks.alloc();
+            task.app   = app;
+            app->task_mgr.task_lists[0].add(task_simulation_run_1, &task);
+            app->task_mgr.task_lists[0].submit();
+        }
+    }
+}
+
 void simulation_editor::simulation_pause() noexcept
 {
     bool state = match(simulation_state, simulation_status::running);
@@ -817,6 +916,28 @@ void simulation_editor::simulation_stop() noexcept
             app->task_mgr.task_lists[0].add(task_simulation_stop, &task);
             app->task_mgr.task_lists[0].submit();
         }
+    }
+}
+
+void simulation_editor::simulation_advance() noexcept
+{
+    if (auto* parent = tree_nodes.try_to_get(head); parent) {
+        auto* app  = container_of(this, &application::s_editor);
+        auto& task = app->gui_tasks.alloc();
+        task.app   = app;
+        app->task_mgr.task_lists[0].add(task_simulation_advance, &task);
+        app->task_mgr.task_lists[0].submit();
+    }
+}
+
+void simulation_editor::simulation_back() noexcept
+{
+    if (auto* parent = tree_nodes.try_to_get(head); parent) {
+        auto* app  = container_of(this, &application::s_editor);
+        auto& task = app->gui_tasks.alloc();
+        task.app   = app;
+        app->task_mgr.task_lists[0].add(task_simulation_back, &task);
+        app->task_mgr.task_lists[0].submit();
     }
 }
 

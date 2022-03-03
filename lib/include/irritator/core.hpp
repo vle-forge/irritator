@@ -880,6 +880,37 @@ public:
         return status::success;
     }
 
+    status copy_to(block_allocator& dst) const noexcept
+    {
+        dst.reset();
+        dst.m_size      = m_size;
+        dst.m_max_size  = m_max_size;
+        dst.m_capacity  = m_max_size;
+        dst.m_free_head = nullptr;
+
+        std::copy_n(m_blocks, m_max_size, dst.m_blocks);
+
+        if (m_free_head) {
+            dst.m_free_head = &m_blocks[m_free_head - m_blocks];
+
+            const auto* src_free_list = m_free_head->next;
+            auto*       dst_free_list = dst.m_free_head;
+            dst_free_list->next       = nullptr;
+
+            while (src_free_list) {
+                const auto ptr_diff = src_free_list - m_blocks;
+                dst_free_list->next = &dst.m_blocks[ptr_diff];
+
+                src_free_list = src_free_list->next;
+                dst_free_list = dst_free_list->next;
+            }
+
+            dst_free_list->next = nullptr;
+        }
+
+        return status::success;
+    }
+
     void reset() noexcept
     {
         if (m_capacity > 0) {
