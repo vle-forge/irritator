@@ -262,6 +262,10 @@ struct simulation_editor
     ImNodesEditorContext* context = nullptr;
     ImVector<int>         selected_links;
     ImVector<int>         selected_nodes;
+
+    //! Position of each node
+    int              automatic_layout_iteration = 0;
+    ImVector<ImVec2> displacements;
 };
 
 struct project_hierarchy_selection

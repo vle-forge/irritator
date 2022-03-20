@@ -33,14 +33,13 @@ static void add_input_attribute(simulation_editor& ed,
                                 const Dynamics&    dyn) noexcept
 {
     if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-        const auto** names = get_input_port_names<Dynamics>();
+        const auto** names  = get_input_port_names<Dynamics>();
+        const auto&  mdl    = get_model(dyn);
+        const auto   mdl_id = ed.sim.models.get_id(mdl);
 
         sz i = 0;
         for ([[maybe_unused]] auto& elem : dyn.x) {
             irt_assert(i < 8u);
-            const auto& mdl    = get_model(dyn);
-            const auto  mdl_id = ed.sim.models.get_id(mdl);
-
             assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
 
             ImNodes::BeginInputAttribute(make_input_node_id(mdl_id, (int)i),
@@ -57,13 +56,13 @@ static void add_output_attribute(simulation_editor& ed,
                                  const Dynamics&    dyn) noexcept
 {
     if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-        const auto** names = get_output_port_names<Dynamics>();
+        const auto** names  = get_output_port_names<Dynamics>();
+        const auto&  mdl    = get_model(dyn);
+        const auto   mdl_id = ed.sim.models.get_id(mdl);
 
         sz i = 0;
         for ([[maybe_unused]] auto& elem : dyn.y) {
             irt_assert(i < 8u);
-            const auto& mdl    = get_model(dyn);
-            const auto  mdl_id = ed.sim.models.get_id(mdl);
 
             assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
 
@@ -775,11 +774,201 @@ static void show_connections(simulation_editor& ed) noexcept
         connection_id = show_connection(ed, *mdl, connection_id);
 }
 
+static void compute_connection_distance(const model_id     src,
+                                        const model_id     dst,
+                                        simulation_editor& ed,
+                                        const float        k) noexcept
+{
+    const auto u     = get_index(dst);
+    const auto v     = get_index(src);
+    const auto u_pos = ImNodes::GetNodeEditorSpacePos(u);
+    const auto v_pos = ImNodes::GetNodeEditorSpacePos(v);
+
+    const float dx = v_pos.x - u_pos.x;
+    const float dy = v_pos.y - u_pos.y;
+    if (dx && dy) {
+        const float d2    = dx * dx / dy * dy;
+        const float coeff = std::sqrt(d2) / k;
+
+        ed.displacements[v].x -= dx * coeff;
+        ed.displacements[v].y -= dy * coeff;
+        ed.displacements[u].x += dx * coeff;
+        ed.displacements[u].y += dy * coeff;
+    }
+}
+
+static void compute_connection_distance(const model&       mdl,
+                                        simulation_editor& ed,
+                                        const float        k) noexcept
+{
+    dispatch(mdl, [&mdl, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+            for (const auto elem : dyn.y) {
+                auto list = get_node(ed.sim, elem);
+
+                for (auto& dst : list)
+                    compute_connection_distance(
+                      ed.sim.get_id(mdl), dst.model, ed, k);
+            }
+        }
+    });
+}
+
+static void compute_automatic_layout(settings_manager&  settings,
+                                     simulation_editor& ed) noexcept
+{
+    /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
+       Fruchterman and Edward M. Reingold in Software--Pratice and
+       Experience, Vol. 21(1 1), 1129-1164 (november 1991).
+       */
+
+    const auto orig_size = ed.sim.models.size();
+
+    if (orig_size == 0 || orig_size > std::numeric_limits<int>::max())
+        return;
+
+    const auto size      = static_cast<int>(orig_size);
+    const auto tmp       = std::sqrt(size);
+    const auto column    = static_cast<int>(tmp);
+    auto       line      = column;
+    auto       remaining = static_cast<int>(size) - (column * line);
+
+    while (remaining > column) {
+        ++line;
+        remaining -= column;
+    }
+
+    const float W =
+      static_cast<float>(column) * settings.automatic_layout_x_distance;
+    const float L =
+      static_cast<float>(line) +
+      ((remaining > 0) ? settings.automatic_layout_y_distance : 0.f);
+    const float area     = W * L;
+    const float k_square = area / static_cast<float>(ed.sim.models.size());
+    const float k        = std::sqrt(k_square);
+
+    // float t = 1.f - static_cast<float>(iteration) /
+    //                   static_cast<float>(automatic_layout_iteration_limit);
+    // t *= t;
+
+    float t =
+      1.f - 1.f / static_cast<float>(settings.automatic_layout_iteration_limit);
+
+    for (int i_v = 0; i_v < size; ++i_v) {
+        const int v = i_v;
+
+        ed.displacements[v].x = 0.f;
+        ed.displacements[v].y = 0.f;
+
+        for (int i_u = 0; i_u < size; ++i_u) {
+            const int u = i_u;
+
+            if (u != v) {
+                const auto u_pos = ImNodes::GetNodeEditorSpacePos(u);
+                const auto v_pos = ImNodes::GetNodeEditorSpacePos(v);
+                const auto delta =
+                  ImVec2{ v_pos.x - u_pos.x, v_pos.y - u_pos.y };
+
+                if (delta.x && delta.y) {
+                    const float d2    = delta.x * delta.x + delta.y * delta.y;
+                    const float coeff = k_square / d2;
+
+                    ed.displacements[v].x += coeff * delta.x;
+                    ed.displacements[v].y += coeff * delta.y;
+                }
+            }
+        }
+    }
+
+    model* mdl = nullptr;
+    while (ed.sim.models.next(mdl)) {
+        compute_connection_distance(*mdl, ed, k);
+    }
+
+    mdl = nullptr;
+    for (int i_v = 0; i_v < size; ++i_v) {
+        irt_assert(ed.sim.models.next(mdl));
+        const int v = i_v;
+
+        const float d2 = ed.displacements[v].x * ed.displacements[v].x +
+                         ed.displacements[v].y * ed.displacements[v].y;
+        const float d = std::sqrt(d2);
+
+        if (d > t) {
+            const float coeff = t / d;
+            ed.displacements[v].x *= coeff;
+            ed.displacements[v].y *= coeff;
+        }
+
+        auto v_pos = ImNodes::GetNodeEditorSpacePos(v);
+        v_pos.x += ed.displacements[v].x;
+        v_pos.y += ed.displacements[v].y;
+
+        const auto mdl_id    = ed.sim.models.get_id(mdl);
+        const auto mdl_index = get_index(mdl_id);
+
+        ImNodes::SetNodeEditorSpacePos(mdl_index, v_pos);
+    }
+}
+
+static void compute_grid_layout(settings_manager&  settings,
+                                simulation_editor& ed) noexcept
+{
+    const auto size  = ed.sim.models.max_size();
+    const auto fsize = static_cast<float>(size);
+
+    if (size == 0 || size > std::numeric_limits<int>::max())
+        return;
+
+    const auto column    = std::floor(std::sqrt(fsize));
+    auto       line      = column;
+    auto       remaining = fsize - (column * line);
+
+    const auto panning = ImNodes::EditorContextGetPanning();
+    auto       new_pos = panning;
+
+    model* mdl = nullptr;
+    for (float i = 0.f; i < line; ++i) {
+        new_pos.y = panning.y + i * settings.grid_layout_y_distance;
+
+        for (float j = 0.f; j < column; ++j) {
+            if (!ed.sim.models.next(mdl))
+                break;
+
+            const auto mdl_id    = ed.sim.models.get_id(mdl);
+            const auto mdl_index = get_index(mdl_id);
+
+            new_pos.x = panning.x + j * settings.grid_layout_x_distance;
+            ImNodes::SetNodeEditorSpacePos(mdl_index, new_pos);
+        }
+    }
+
+    new_pos.x = panning.x;
+    new_pos.y = panning.y + column * settings.grid_layout_y_distance;
+
+    for (float j = 0.f; j < remaining; ++j) {
+        if (!ed.sim.models.next(mdl))
+            break;
+
+        const auto mdl_id    = ed.sim.models.get_id(mdl);
+        const auto mdl_index = get_index(mdl_id);
+
+        new_pos.x = panning.x + j * settings.grid_layout_x_distance;
+        ImNodes::SetNodeEditorSpacePos(mdl_index, new_pos);
+    }
+}
+
 static void show_simulation_graph_editor(application& app) noexcept
 {
     ImNodes::EditorContextSet(app.s_editor.context);
 
     ImNodes::BeginNodeEditor();
+
+    if (app.s_editor.automatic_layout_iteration > 0) {
+        compute_automatic_layout(app.settings, app.s_editor);
+        --app.s_editor.automatic_layout_iteration;
+    }
+
     show_top(app.s_editor);
     show_connections(app.s_editor);
 
@@ -795,6 +984,17 @@ static void show_simulation_graph_editor(application& app) noexcept
         ImGui::OpenPopup("Context menu");
 
     if (ImGui::BeginPopup("Context menu")) {
+        if (ImGui::MenuItem("Force grid layout")) {
+            compute_grid_layout(app.settings, app.s_editor);
+        }
+
+        if (ImGui::MenuItem("Force automatic layout")) {
+            app.s_editor.automatic_layout_iteration =
+              app.settings.automatic_layout_iteration_limit;
+        }
+
+        ImGui::Separator();
+
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = static_cast<int>(dynamics_type::qss1_integrator);
             const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
@@ -868,7 +1068,7 @@ static void show_simulation_graph_editor(application& app) noexcept
 
     if (new_model != undefined<model_id>()) {
         const auto mdl_index = get_index(new_model);
-        ImNodes::SetNodeScreenSpacePos(mdl_index, click_pos);
+        ImNodes::SetNodeEditorSpacePos(mdl_index, click_pos);
     }
 
     {
