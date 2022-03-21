@@ -1870,7 +1870,8 @@ private:
         os << ports.ssize() << '\n';
 
         for (int i = 0; i != ports.ssize(); ++i)
-            os << get_index(ports[i].id) << ' ' << ports[i].index << '\n';
+            os << get_index(ports[i].id) << ' '
+               << static_cast<int>(ports[i].index) << '\n';
     }
 
     void do_write_children(const modeling& mod, const component& compo) noexcept
@@ -2291,7 +2292,8 @@ public:
 
                                   os << irt::get_key(src_id) << " -> "
                                      << irt::get_key(cnt.model) << " [label=\""
-                                     << i << " - " << cnt.port_index
+                                     << i << " - "
+                                     << static_cast<int>(cnt.port_index)
                                      << "\"];\n";
                               }
                           }
