@@ -104,9 +104,10 @@ public:
     void show() noexcept;
 
 private:
-    data_array<notification, notification_id>         data;
-    ring_buffer<notification_id, notification_number> buffer;
-    std::mutex                                        mutex;
+    data_array<notification, notification_id>        data;
+    std::array<notification_id, notification_number> buffer;
+    ring_buffer<notification_id>                     r_buffer;
+    std::mutex                                       mutex;
 };
 
 struct window_logger
@@ -231,6 +232,7 @@ struct simulation_editor
     void simulation_stop() noexcept;
     void simulation_advance() noexcept;
     void simulation_back() noexcept;
+    void enable_or_disable_debug() noexcept;
 
     bool force_pause         = false;
     bool force_stop          = false;

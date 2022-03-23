@@ -911,6 +911,15 @@ public:
         return status::success;
     }
 
+    void swap(block_allocator& rhs) noexcept
+    {
+        std::swap(m_blocks, rhs.m_blocks);
+        std::swap(m_free_head, rhs.m_free_head);
+        std::swap(m_size, rhs.m_size);
+        std::swap(m_max_size, rhs.m_max_size);
+        std::swap(m_capacity, rhs.m_capacity);
+    }
+
     void reset() noexcept
     {
         if (m_capacity > 0) {

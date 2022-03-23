@@ -14,20 +14,18 @@ bool timeline::can_alloc(timeline_point_type type,
 {
     bool ret = false;
 
-    if (points.can_alloc(1)) {
-        switch (type) {
-        case timeline_point_type ::simulation:
-            ret = sim_points.can_alloc(1) &&
-                  current_models_number + models < max_models_number &&
-                  current_messages_number + messages < max_messages_number;
-            break;
-        case timeline_point_type ::model:
-            ret = model_points.can_alloc(1);
-            break;
-        case timeline_point_type ::connection:
-            ret = connection_points.can_alloc(1);
-            break;
-        }
+    switch (type) {
+    case timeline_point_type ::simulation:
+        ret = sim_points.can_alloc(1) &&
+              current_models_number + models < max_models_number &&
+              current_messages_number + messages < max_messages_number;
+        break;
+    case timeline_point_type ::model:
+        ret = model_points.can_alloc(1);
+        break;
+    case timeline_point_type ::connection:
+        ret = connection_points.can_alloc(1);
+        break;
     }
 
     return ret;
@@ -51,7 +49,9 @@ status timeline::init(i32 simulation_point_number,
     sim_points.reserve(simulation_point_number);
     model_points.reserve(model_point_number);
     connection_points.reserve(connection_point_number);
-    points.reserve(timeline_point_number);
+    points_buffer.resize(timeline_point_number);
+    points =
+      ring_buffer(points_buffer.data(), static_cast<i32>(points_buffer.size()));
 
     max_models_number   = model_number;
     max_messages_number = message_number;
@@ -64,27 +64,27 @@ simulation_point& timeline::alloc_simulation_point() noexcept
     const auto nb = sim_points.ssize();
 
     auto& back = sim_points.emplace_back();
-    points.emplace_back(timeline_point_type::simulation, nb, bag);
+    points.force_emplace_enqueue(timeline_point_type::simulation, nb, bag);
 
     return back;
 }
 
 model_point& timeline::alloc_model_point() noexcept
 {
-    const auto nb = sim_points.ssize();
+    const auto nb = model_points.ssize();
 
     auto& back = model_points.emplace_back();
-    points.emplace_back(timeline_point_type::model, nb, bag);
+    points.force_emplace_enqueue(timeline_point_type::model, nb, bag);
 
     return back;
 }
 
 connection_point& timeline::alloc_connection_point() noexcept
 {
-    const auto nb = sim_points.ssize();
+    const auto nb = connection_points.ssize();
 
     auto& back = connection_points.emplace_back();
-    points.emplace_back(timeline_point_type::connection, nb, bag);
+    points.force_emplace_enqueue(timeline_point_type::connection, nb, bag);
 
     return back;
 }
@@ -99,8 +99,8 @@ void timeline::reset() noexcept
     current_models_number   = 0;
     current_messages_number = 0;
 
+    current_bag = points.rend();
     bag         = 0;
-    current_bag = -1;
 }
 
 static status build_initial_simulation_point(timeline&   tl,
@@ -115,8 +115,8 @@ static status build_initial_simulation_point(timeline&   tl,
 
     auto& sim_pt = tl.alloc_simulation_point();
     sim_pt.t     = t;
-    sim_pt.models.resize(sim.models.max_size());
-    sim_pt.model_ids.resize(sim.models.max_size());
+    sim_pt.models.reserve(sim.models.max_size());
+    sim_pt.model_ids.reserve(sim.models.max_size());
 
     if (sim.message_alloc.max_size() > 0) {
         sim_pt.message_alloc.init(sim.message_alloc.max_size());
@@ -132,6 +132,8 @@ static status build_initial_simulation_point(timeline&   tl,
                     sizeof(model),
                     reinterpret_cast<std::byte*>(&s_mdl));
     }
+
+    tl.bag = 1;
 
     return status::success;
 }
@@ -149,8 +151,8 @@ static status build_simulation_point(timeline&               tl,
 
     auto& sim_pt = tl.alloc_simulation_point();
     sim_pt.t     = t;
-    sim_pt.models.resize(imm.ssize());
-    sim_pt.model_ids.resize(imm.ssize());
+    sim_pt.models.reserve(imm.ssize());
+    sim_pt.model_ids.reserve(imm.ssize());
 
     if (sim.message_alloc.max_size() > 0) {
         sim_pt.message_alloc.init(sim.message_alloc.max_size());
@@ -170,6 +172,8 @@ static status build_simulation_point(timeline&               tl,
         }
     }
 
+    ++tl.bag;
+
     return status::success;
 }
 
@@ -181,10 +185,10 @@ status initialize(timeline& tl, simulation& sim, time t) noexcept
     return status::success;
 }
 
-static status apply(simulation& sim, const simulation_point& sim_pt) noexcept
+static status apply(simulation& sim, simulation_point& sim_pt) noexcept
 {
     sim.message_alloc.reset();
-    sim_pt.message_alloc.copy_to(sim.message_alloc);
+    sim_pt.message_alloc.swap(sim.message_alloc);
 
     for (i32 i = 0, e = sim_pt.models.ssize(); i != e; ++i) {
         auto* sim_model = sim.models.try_to_get(sim_pt.model_ids[i]);
@@ -258,67 +262,62 @@ static status apply(simulation&                       sim,
     return status::success;
 }
 
-static status advance(timeline&               tl,
-                      simulation&             sim,
+static status advance(simulation&             sim,
                       time&                   t,
                       const connection_point& cnt_pt) noexcept
 {
     irt_return_if_bad(apply(sim, cnt_pt, cnt_pt.type));
 
     t = cnt_pt.t;
-    ++tl.current_bag;
 
     return status::success;
 }
 
-static status advance(timeline&    tl,
-                      simulation&  sim,
-                      time&        t,
-                      model_point& mdl_pt) noexcept
+static status advance(simulation& sim, time& t, model_point& mdl_pt) noexcept
 {
     irt_return_if_bad(apply(sim, mdl_pt, mdl_pt.type));
 
     t = mdl_pt.t;
-    ++tl.current_bag;
 
     return status::success;
 }
 
-static status advance(timeline&         tl,
-                      simulation&       sim,
+static status advance(simulation&       sim,
                       time&             t,
                       simulation_point& sim_pt) noexcept
 {
     irt_return_if_bad(apply(sim, sim_pt));
 
     t = sim_pt.t;
-    ++tl.current_bag;
 
     return status::success;
 }
 
 status advance(timeline& tl, simulation& sim, time& t) noexcept
 {
-    if (tl.current_bag + 1 == tl.bag)
+    if (tl.current_bag == tl.points.rend())
         return status::success;
 
-    auto& bag = tl.points[tl.current_bag];
+    --tl.current_bag;
+
+    if (tl.current_bag == tl.points.rend())
+        return status::success;
+
+    auto& bag = *tl.current_bag;
+
     switch (bag.type) {
     case timeline_point_type::connection:
-        return advance(tl, sim, t, tl.connection_points[bag.index]);
+        return advance(sim, t, tl.connection_points[bag.index]);
     case timeline_point_type::model:
-        return advance(tl, sim, t, tl.model_points[bag.index]);
+        return advance(sim, t, tl.model_points[bag.index]);
     case timeline_point_type::simulation:
-        return advance(tl, sim, t, tl.sim_points[bag.index]);
+        return advance(sim, t, tl.sim_points[bag.index]);
     }
 
     irt_unreachable();
 }
 
-static status back(timeline&         tl,
-                   simulation&       sim,
-                   time&             t,
-                   connection_point& cnt_pt) noexcept
+static status back(simulation& sim, time& t, connection_point& cnt_pt) noexcept
 {
     const auto overwrite_operation =
       cnt_pt.type == connection_point::operation_type::add
@@ -328,15 +327,11 @@ static status back(timeline&         tl,
     irt_return_if_bad(apply(sim, cnt_pt, overwrite_operation));
 
     t = cnt_pt.t;
-    --tl.current_bag;
 
     return status::success;
 }
 
-static status back(timeline&    tl,
-                   simulation&  sim,
-                   time&        t,
-                   model_point& mdl_pt) noexcept
+static status back(simulation& sim, time& t, model_point& mdl_pt) noexcept
 {
     const auto overwrite_operation =
       mdl_pt.type == model_point::operation_type::add
@@ -348,37 +343,38 @@ static status back(timeline&    tl,
     irt_return_if_bad(apply(sim, mdl_pt, overwrite_operation));
 
     t = mdl_pt.t;
-    --tl.current_bag;
 
     return status::success;
 }
 
-static status back(timeline&         tl,
-                   simulation&       sim,
-                   time&             t,
-                   simulation_point& sim_pt) noexcept
+static status back(simulation& sim, time& t, simulation_point& sim_pt) noexcept
 {
     irt_return_if_bad(apply(sim, sim_pt));
 
     t = sim_pt.t;
-    --tl.current_bag;
 
     return status::success;
 }
 
 status back(timeline& tl, simulation& sim, time& t) noexcept
 {
-    if (tl.current_bag < 0)
+    if (tl.current_bag == tl.points.rend())
         return status::success;
 
-    auto& bag = tl.points[tl.current_bag];
+    ++tl.current_bag;
+
+    if (tl.current_bag == tl.points.rend())
+        return status::success;
+
+    auto& bag = *tl.current_bag;
+
     switch (bag.type) {
     case timeline_point_type::connection:
-        return back(tl, sim, t, tl.connection_points[bag.index]);
+        return back(sim, t, tl.connection_points[bag.index]);
     case timeline_point_type::model:
-        return back(tl, sim, t, tl.model_points[bag.index]);
+        return back(sim, t, tl.model_points[bag.index]);
     case timeline_point_type::simulation:
-        return back(tl, sim, t, tl.sim_points[bag.index]);
+        return back(sim, t, tl.sim_points[bag.index]);
     }
 
     irt_unreachable();
@@ -398,7 +394,6 @@ status run(timeline& tl, simulation& sim, time& t) noexcept
     sim.sched.pop(sim.immediate_models);
 
     irt_return_if_bad(build_simulation_point(tl, sim, sim.immediate_models, t));
-    tl.make_next_bag();
 
     sim.emitting_output_ports.clear();
     for (const auto id : sim.immediate_models)
@@ -426,14 +421,43 @@ status run(timeline& tl, simulation& sim, time& t) noexcept
         });
     }
 
+    tl.current_bag = tl.points.rbegin();
+
     return status::success;
 }
 
 status finalize(timeline& tl, simulation& sim, time t) noexcept
 {
-    tl.current_bag = tl.bag - 1;
-
+    tl.current_bag = tl.points.rbegin();
     return sim.finalize(t);
+}
+
+bool timeline::can_advance() const noexcept
+{
+    if (current_bag == points.rend())
+        return false;
+
+    auto next = current_bag;
+    --next;
+
+    if (next == points.rend())
+        return false;
+
+    return true;
+}
+
+bool timeline::can_back() const noexcept
+{
+    if (current_bag == points.rend())
+        return false;
+
+    auto previous = current_bag;
+    ++previous;
+
+    if (previous == points.rend())
+        return false;
+
+    return true;
 }
 
 } // namespace irt

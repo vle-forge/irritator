@@ -69,7 +69,9 @@ struct task
 struct task_list
 {
     small_vector<task, 256> submit_task;
-    ring_buffer<task, 256>  tasks;
+
+    std::array<task, 256> task_buffer;
+    ring_buffer<task>     tasks;
 
     std::mutex              mutex;
     std::condition_variable cond;
@@ -188,7 +190,8 @@ constexpr task::task(task_function function_, void* parameter_) noexcept
  */
 
 inline task_list::task_list() noexcept
-  : task_number{ 0 }
+  : tasks{ task_buffer.data(), static_cast<i32>(task_buffer.size()) }
+  , task_number{ 0 }
 {}
 
 inline void task_list::add(task_function function, void* parameter) noexcept
@@ -259,12 +262,15 @@ inline void worker::run() noexcept
                   return left->priority < right->priority;
               });
 
-    bool                 running = true;
-    ring_buffer<task, 8> tasks;
+    bool                running = true;
+    std::array<task, 8> task_buffer;
+    ring_buffer<task>   tasks(task_buffer.data(),
+                            static_cast<i32>(task_buffer.size()));
 
     while (running) {
         while (!tasks.empty()) {
-            auto task = tasks.dequeue();
+            auto task = tasks.front();
+            tasks.dequeue();
             task.function(task.parameter);
         }
 
@@ -279,7 +285,9 @@ inline void worker::run() noexcept
                 });
 
                 while (!tasks.full() && !lst->tasks.empty()) {
-                    tasks.enqueue(lst->tasks.dequeue());
+                    auto task = lst->tasks.front();
+                    lst->tasks.dequeue();
+                    tasks.enqueue(task);
                     --lst->task_number;
                 }
             } else {
@@ -287,7 +295,9 @@ inline void worker::run() noexcept
                     {
                         std::unique_lock<std::mutex> lock{ lst->mutex };
                         while (!tasks.full() && !lst->tasks.empty()) {
-                            tasks.enqueue(lst->tasks.dequeue());
+                            auto task = lst->tasks.front();
+                            lst->tasks.dequeue();
+                            tasks.enqueue(task);
                             --lst->task_number;
                         }
                     }
@@ -296,7 +306,8 @@ inline void worker::run() noexcept
                         break;
 
                     while (!tasks.empty()) {
-                        auto task = tasks.dequeue();
+                        auto task = tasks.front();
+                        tasks.dequeue();
                         task.function(task.parameter);
                     }
                 }

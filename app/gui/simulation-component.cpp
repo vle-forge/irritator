@@ -404,8 +404,10 @@ static void simulation_copy(component_editor&  ed,
 static void simulation_init(component_editor&  ed,
                             simulation_editor& sim_ed) noexcept
 {
-    sim_ed.simulation_state = simulation_status::initializing;
+    sim_ed.simulation_state   = simulation_status::initializing;
     sim_ed.simulation_current = sim_ed.simulation_begin;
+
+    sim_ed.tl.reset();
 
     auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
     if (!head) {
@@ -437,21 +439,6 @@ static void simulation_init(component_editor&  ed,
 
         sim_ed.simulation_state = simulation_status::not_started;
         return;
-    }
-
-    if (sim_ed.store_all_changes || sim_ed.allow_user_changes) {
-        if (auto ret =
-              initialize(sim_ed.tl, sim_ed.sim, sim_ed.simulation_begin);
-            is_bad(ret)) {
-            auto* app = container_of(&ed, &application::c_editor);
-            auto& n   = app->notifications.alloc(notification_type::error);
-            n.title   = "Simulation initialization fail";
-            format(n.message,
-                   "Fail to initialize the debug mode: {}",
-                   status_string(ret));
-            app->notifications.enable(n);
-            sim_ed.simulation_state = simulation_status::not_started;
-        }
     }
 
     sim_ed.simulation_state = simulation_status::initialized;
@@ -695,7 +682,12 @@ static void task_simulation_finish(component_editor& /*ed*/,
                                    simulation_editor& sim_ed) noexcept
 {
     sim_ed.simulation_state = simulation_status::finishing;
-    sim_ed.sim.finalize(sim_ed.simulation_end);
+
+    if (sim_ed.store_all_changes)
+        finalize(sim_ed.tl, sim_ed.sim, sim_ed.simulation_current);
+    else
+        sim_ed.sim.finalize(sim_ed.simulation_end);
+
     sim_ed.simulation_state = simulation_status::finished;
 }
 
@@ -754,6 +746,36 @@ static void task_simulation_finish(void* param) noexcept
                           application_status_read_only_modeling;
 
     task_simulation_finish(g_task->app->c_editor, g_task->app->s_editor);
+
+    g_task->state = gui_task_status::finished;
+}
+
+static void task_enable_or_disable_debug(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = gui_task_status::started;
+    g_task->app->state |= application_status_read_only_simulating |
+                          application_status_read_only_modeling;
+
+    g_task->app->s_editor.tl.reset();
+
+    if (g_task->app->s_editor.store_all_changes) {
+        auto ret = initialize(g_task->app->s_editor.tl,
+                              g_task->app->s_editor.sim,
+                              g_task->app->s_editor.simulation_current);
+
+        if (is_bad(ret)) {
+            auto& n =
+              g_task->app->notifications.alloc(notification_type::error);
+            n.title = "Debug mode failed to initialize";
+            format(n.message,
+                   "Fail to initialize the debug mode: {}",
+                   status_string(ret));
+            g_task->app->notifications.enable(n);
+            g_task->app->s_editor.simulation_state =
+              simulation_status::not_started;
+        }
+    }
 
     g_task->state = gui_task_status::finished;
 }
@@ -938,6 +960,17 @@ void simulation_editor::simulation_back() noexcept
         auto& task = app->gui_tasks.alloc();
         task.app   = app;
         app->task_mgr.task_lists[0].add(task_simulation_back, &task);
+        app->task_mgr.task_lists[0].submit();
+    }
+}
+
+void simulation_editor::enable_or_disable_debug() noexcept
+{
+    if (auto* parent = tree_nodes.try_to_get(head); parent) {
+        auto* app  = container_of(this, &application::s_editor);
+        auto& task = app->gui_tasks.alloc();
+        task.app   = app;
+        app->task_mgr.task_lists[0].add(task_enable_or_disable_debug, &task);
         app->task_mgr.task_lists[0].submit();
     }
 }

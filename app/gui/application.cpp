@@ -69,7 +69,7 @@ bool application::init() noexcept
     c_editor.init();
 
     // @todo DEBUG MODE: Prefer user settings or better timeline constructor
-    s_editor.tl.init(32768, 4096, 65536, 4096, 32768, 32768);
+    s_editor.tl.init(32768, 4096, 65536, 65536, 32768, 32768);
 
     if (auto ret = c_editor.mod.registred_paths.init(max_component_dirs);
         is_bad(ret)) {
@@ -745,7 +745,7 @@ void task_simulation_back(void* param) noexcept
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
 
-    if (g_task->app->s_editor.tl.current_bag > 0) {
+    if (g_task->app->s_editor.tl.can_back()) {
         auto ret = back(g_task->app->s_editor.tl,
                         g_task->app->s_editor.sim,
                         g_task->app->s_editor.simulation_current);
@@ -769,7 +769,7 @@ void task_simulation_advance(void* param) noexcept
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
 
-    if (g_task->app->s_editor.tl.current_bag < g_task->app->s_editor.tl.bag) {
+    if (g_task->app->s_editor.tl.can_advance()) {
         auto ret = advance(g_task->app->s_editor.tl,
                            g_task->app->s_editor.sim,
                            g_task->app->s_editor.simulation_current);

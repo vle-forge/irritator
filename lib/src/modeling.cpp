@@ -679,10 +679,14 @@ static bool is_valid(const modeling_initializer& params) noexcept
            params.connection_capacity > 0 &&
            params.constant_source_capacity > 0 &&
            params.binary_file_source_capacity > 0 &&
-           params.text_file_source_capacity > 0 &&
+       params.text_file_source_capacity > 0 &&
            params.random_source_capacity > 0;
 }
 #endif
+
+modeling::modeling() noexcept
+  : warnings{ buffer.data(), static_cast<i32>(buffer.size()) }
+{}
 
 status modeling::init(modeling_initializer& p) noexcept
 {

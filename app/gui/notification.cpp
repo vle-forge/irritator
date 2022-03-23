@@ -50,10 +50,10 @@ static inline const ImVec4 notification_color[] = {
     { 0.16f, 0.29f, 0.48f, 1.f }
 };
 
-static inline const char* notification_prefix[] = { "" ,
-                                                    "Success " ,
-                                                    "Warning " ,
-                                                    "Error " ,
+static inline const char* notification_prefix[] = { "",
+                                                    "Success ",
+                                                    "Warning ",
+                                                    "Error ",
                                                     "Information " };
 
 static u64 get_elapsed_time(const notification& n) noexcept
@@ -65,11 +65,13 @@ static notification_state get_state(const notification& n) noexcept
 {
     const auto elapsed = get_elapsed_time(n);
 
-    if (elapsed > notification_fade_duration + notification_manager::notification_duration +
+    if (elapsed > notification_fade_duration +
+                    notification_manager::notification_duration +
                     notification_fade_duration)
         return notification_state::expired;
 
-    if (elapsed > notification_fade_duration + notification_manager::notification_duration)
+    if (elapsed > notification_fade_duration +
+                    notification_manager::notification_duration)
         return notification_state::fadeout;
 
     if (elapsed > notification_fade_duration)
@@ -93,7 +95,8 @@ static float get_fade_percent(const notification& n) noexcept
     case notification_state::fadeout:
         return 1.f -
                ((static_cast<float>(elapsed) - notification_fade_duration -
-                 static_cast<float>(notification_manager::notification_duration)) /
+                 static_cast<float>(
+                   notification_manager::notification_duration)) /
                 notification_fade_duration);
 
     case notification_state::expired:
@@ -109,6 +112,7 @@ notification::notification(notification_type type_) noexcept
 {}
 
 notification_manager::notification_manager() noexcept
+  : r_buffer(buffer.data(), static_cast<i32>(buffer.size()))
 {
     data.init(notification_number);
 }
@@ -133,9 +137,9 @@ void notification_manager::enable(const notification& n) noexcept
         {
             std::lock_guard<std::mutex> lock{ mutex };
 
-            if (!buffer.full()) {
+            if (!r_buffer.full()) {
                 const auto id = data.get_id(n);
-                buffer.enqueue(id);
+                r_buffer.enqueue(id);
                 return;
             }
         }
@@ -154,7 +158,7 @@ void notification_manager::show() noexcept
     std::lock_guard<std::mutex> lock{ mutex };
 
     int i = 0;
-    for (auto it = buffer.begin(), et = buffer.end(); it != et; ++it, ++i) {
+    for (auto it = r_buffer.begin(), et = r_buffer.end(); it != et; ++it, ++i) {
         auto* notif = data.try_to_get(*it);
         if (!notif) {
             *it = undefined<notification_id>();
@@ -204,8 +208,9 @@ void notification_manager::show() noexcept
         ImGui::End();
     }
 
-    while (!buffer.empty() && buffer.front() == undefined<notification_id>())
-        buffer.dequeue();
+    while (!r_buffer.empty() &&
+           r_buffer.front() == undefined<notification_id>())
+        r_buffer.dequeue();
 
     ImGui::PopStyleVar();
 }

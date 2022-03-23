@@ -273,6 +273,8 @@ struct modeling
 
     modeling_status state = modeling_status::unmodified;
 
+    modeling() noexcept;
+
     status init(modeling_initializer& params) noexcept;
 
     component_id search_component(const char* directory,
@@ -324,7 +326,8 @@ struct modeling
     status save_project(const char* filename) noexcept;
     void   clear_project() noexcept;
 
-    ring_buffer<status, 10> warnings;
+    std::array<status, 10> buffer;
+    ring_buffer<status>    warnings;
 };
 
 /*

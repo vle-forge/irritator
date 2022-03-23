@@ -7,6 +7,7 @@
 
 #include <irritator/core.hpp>
 
+#include <iterator>
 #include <utility>
 
 namespace irt {
@@ -104,6 +105,7 @@ public:
     constexpr const_iterator end() const noexcept;
 
     constexpr bool can_alloc(int number = 1) noexcept;
+    constexpr i32  available() const noexcept;
     constexpr sz   size() const noexcept;
     constexpr i32  ssize() const noexcept;
     constexpr sz   capacity() const noexcept;
@@ -116,27 +118,45 @@ public:
     constexpr void      swap_pop_back(index_type index) noexcept;
 };
 
-template<class T, i32 Size>
+//! @brief A ring-buffer based on a fixed size container.
+//! @tparam T Any type (trivial or not).
+template<class T>
 class ring_buffer
 {
+public:
+    using size_type       = u64;
+    using index_type      = i64;
+    using reference       = T&;
+    using const_reference = const T&;
+    using pointer         = T*;
+    using const_pointer   = const T*;
+
     static_assert(std::is_nothrow_constructible_v<T> ||
                   std::is_nothrow_move_constructible_v<T>);
 
 private:
-    T   buffer[Size];
-    i32 head   = 0;
-    i32 tail   = 0;
-    i32 number = 0;
+    // @todo Replace m_buffer and m_capacity with std::span<T>.
+    T*  m_buffer   = nullptr;
+    i32 m_head     = 0;
+    i32 m_tail     = 0;
+    i32 m_capacity = 0;
 
 public:
+    class iterator;
+    class const_iterator;
+
     class iterator
     {
     public:
         using iterator_category = std::bidirectional_iterator_tag;
         using difference_type   = std::ptrdiff_t;
-        using value             = T;
+        using value_type        = T;
         using pointer           = T*;
         using reference         = T&;
+        using const_pointer     = const T*;
+        using const_reference   = const T&;
+
+        friend ring_buffer;
 
     private:
         ring_buffer* ring;
@@ -148,6 +168,9 @@ public:
         {}
 
     public:
+        ring_buffer* buffer() noexcept { return ring; }
+        i32          index() noexcept { return i; }
+
         iterator() noexcept
           : ring(nullptr)
           , i(0)
@@ -168,18 +191,16 @@ public:
             return *this;
         }
 
-        reference operator*() noexcept { return ring->buffer[i]; }
-        pointer   operator->() noexcept { return &ring->buffer[i]; }
+        reference operator*() const noexcept { return ring->m_buffer[i]; }
+        pointer   operator->() const noexcept { return &ring->m_buffer[i]; }
 
         iterator& operator++() noexcept
         {
             if (ring) {
-                i = (i + 1) % Size;
+                ++i;
 
-                if (i == ring->tail) {
-                    ring = nullptr;
-                    i    = 0;
-                }
+                if (i == ring->capacity())
+                    i = 0;
             }
 
             return *this;
@@ -187,28 +208,19 @@ public:
 
         iterator operator++(int) noexcept
         {
-            auto ret = *this;
+            iterator orig(*this);
+            ++(*this);
 
-            if (ring) {
-                i = (i + 1) % Size;
-
-                if (i == ring->tail) {
-                    ring = nullptr;
-                    i    = 0;
-                }
-            }
-
-            return ret;
+            return orig;
         }
 
         iterator& operator--() noexcept
         {
             if (ring) {
-                if (i == ring->head) {
-                    ring = nullptr;
-                    i    = 0;
+                if (i == 0) {
+                    i = ring->capacity() - 1;
                 } else {
-                    i = i - 1 % Size;
+                    --i;
                 }
             }
 
@@ -217,52 +229,195 @@ public:
 
         iterator operator--(int) noexcept
         {
-            auto ret = *this;
+            iterator orig(*this);
+            --(*orig);
 
+            return orig;
+        }
+
+        bool operator==(const_iterator rhs) const noexcept
+        {
+            return ring == rhs.ring && i == rhs.i;
+        }
+
+        bool operator==(iterator rhs) const noexcept
+        {
+            return ring == rhs.ring && i == rhs.i;
+        }
+
+        bool operator!=(const_iterator rhs) const noexcept
+        {
+            return !(ring == rhs.ring && i == rhs.i);
+        }
+
+        bool operator!=(iterator rhs) const noexcept
+        {
+            return !(ring == rhs.ring && i == rhs.i);
+        }
+    };
+
+    class const_iterator
+    {
+    public:
+        using iterator_category = std::bidirectional_iterator_tag;
+        using difference_type   = std::ptrdiff_t;
+        using value_type        = T;
+        using pointer           = T*;
+        using reference         = T&;
+        using const_pointer     = const T*;
+        using const_reference   = const T&;
+
+        friend ring_buffer;
+
+    private:
+        const ring_buffer* ring;
+        i32                i;
+
+        const_iterator(const ring_buffer* ring_, i32 i_) noexcept
+          : ring(ring_)
+          , i(i_)
+        {}
+
+    public:
+        const ring_buffer* buffer() const noexcept { return ring; }
+        i32                index() const noexcept { return i; }
+
+        const_iterator() noexcept
+          : ring(nullptr)
+          , i(0)
+        {}
+
+        const_iterator(const const_iterator& other) noexcept
+          : ring(other.ring)
+          , i(other.i)
+        {}
+
+        const_iterator& operator=(const const_iterator& other) noexcept
+        {
+            if (this != &other) {
+                ring = const_cast<const ring_buffer*>(other.ring);
+                i    = other.i;
+            }
+
+            return *this;
+        }
+
+        const_reference operator*() const noexcept { return ring->m_buffer[i]; }
+        const_pointer operator->() const noexcept { return &ring->m_buffer[i]; }
+
+        const_iterator& operator++() noexcept
+        {
             if (ring) {
-                if (i == ring->head) {
-                    ring = nullptr;
-                    i    = 0;
+                ++i;
+
+                if (i == ring->capacity())
+                    i = 0;
+            }
+
+            return *this;
+        }
+
+        const_iterator operator++(int) noexcept
+        {
+            const_iterator orig(*this);
+            ++(*this);
+
+            return orig;
+        }
+
+        const_iterator& operator--() noexcept
+        {
+            if (ring) {
+                if (i == 0) {
+                    i = ring->capacity() - 1;
                 } else {
-                    i = i - 1 % Size;
+                    --i;
                 }
             }
 
-            return ret;
+            return *this;
         }
 
-        friend bool operator==(const iterator& a, const iterator& b) noexcept
+        const_iterator operator--(int) noexcept
         {
-            return a.ring == b.ring && a.i == b.i;
+            const_iterator orig(*this);
+            --(*orig);
+
+            return orig;
         }
 
-        friend bool operator!=(const iterator& a, const iterator& b) noexcept
+        bool operator==(const_iterator rhs) const noexcept
         {
-            return !(a == b);
+            return ring == rhs.ring && i == rhs.i;
         }
 
-        friend ring_buffer;
+        bool operator==(iterator rhs) const noexcept
+        {
+            return ring == rhs.ring && i == rhs.i;
+        }
+
+        bool operator!=(const_iterator rhs) const noexcept
+        {
+            return !(ring == rhs.ring && i == rhs.i);
+        }
+
+        bool operator!=(iterator rhs) const noexcept
+        {
+            return !(ring == rhs.ring && i == rhs.i);
+        }
     };
 
+    friend class iterator;
+    friend class const_iterator;
+
+    using reverse_iterator       = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
     constexpr ring_buffer() noexcept = default;
+    constexpr ring_buffer(T* buffer, i32 capacity) noexcept;
     constexpr ~ring_buffer() noexcept;
 
+    constexpr ring_buffer(const ring_buffer& rhs) noexcept = delete;
+    constexpr ring_buffer& operator=(const ring_buffer& rhs) noexcept = delete;
+    constexpr ring_buffer(ring_buffer&& rhs) noexcept;
+    constexpr ring_buffer& operator=(ring_buffer&& rhs) noexcept;
+
+    constexpr void swap(ring_buffer& rhs) noexcept;
     constexpr void clear() noexcept;
+
+    constexpr bool push_front(const T& item) noexcept;
+    constexpr bool pop_front() noexcept;
+    constexpr bool push_back(const T& item) noexcept;
+    constexpr bool pop_back() noexcept;
 
     template<typename... Args>
     constexpr bool emplace_enqueue(Args&&... args) noexcept;
 
+    template<typename... Args>
+    constexpr bool force_emplace_enqueue(Args&&... args) noexcept;
+
+    constexpr bool force_enqueue(const T& item) noexcept;
     constexpr bool enqueue(const T& item) noexcept;
-    constexpr T    dequeue() noexcept;
+    constexpr void dequeue() noexcept;
 
     constexpr T&       front() noexcept;
     constexpr const T& front() const noexcept;
+    constexpr T&       back() noexcept;
+    constexpr const T& back() const noexcept;
 
-    constexpr iterator begin() noexcept;
-    constexpr iterator end() noexcept;
+    constexpr iterator               begin() noexcept;
+    constexpr const_iterator         begin() const noexcept;
+    constexpr reverse_iterator       rbegin() noexcept;
+    constexpr const_reverse_iterator rbegin() const noexcept;
+    constexpr iterator               end() noexcept;
+    constexpr const_iterator         end() const noexcept;
+    constexpr reverse_iterator       rend() noexcept;
+    constexpr const_reverse_iterator rend() const noexcept;
 
     constexpr size_t size() const noexcept;
     constexpr i32    ssize() const noexcept;
+    constexpr i32    capacity() const noexcept;
+    constexpr i32    available() const noexcept;
     constexpr bool   empty() const noexcept;
     constexpr bool   full() const noexcept;
 };
@@ -632,113 +787,266 @@ constexpr void small_vector<T, length>::swap_pop_back(index_type index) noexcept
     }
 }
 
-template<class T, i32 Size>
-constexpr ring_buffer<T, Size>::~ring_buffer() noexcept
+template<class T>
+constexpr ring_buffer<T>::ring_buffer(T* buffer, i32 capacity) noexcept
+  : m_buffer(buffer)
+  , m_capacity(capacity)
+{
+    irt_assert(m_buffer);
+    irt_assert(m_capacity > 0);
+}
+
+template<class T>
+constexpr ring_buffer<T>::ring_buffer(ring_buffer&& rhs) noexcept
+{
+    m_buffer   = rhs.m_buffer;
+    m_head     = rhs.m_head;
+    m_tail     = rhs.m_tail;
+    m_capacity = rhs.m_capacity;
+
+    rhs.m_buffer   = nullptr;
+    rhs.m_head     = 0;
+    rhs.m_tail     = 0;
+    rhs.m_capacity = 0;
+}
+
+template<class T>
+constexpr ring_buffer<T>& ring_buffer<T>::operator=(ring_buffer&& rhs) noexcept
+{
+    if (this != &rhs) {
+        clear();
+
+        m_buffer   = rhs.m_buffer;
+        m_head     = rhs.m_head;
+        m_tail     = rhs.m_tail;
+        m_capacity = rhs.m_capacity;
+
+        rhs.m_buffer   = nullptr;
+        rhs.m_head     = 0;
+        rhs.m_tail     = 0;
+        rhs.m_capacity = 0;
+    }
+
+    return *this;
+}
+
+template<class T>
+constexpr ring_buffer<T>::~ring_buffer() noexcept
 {
     clear();
 }
 
-template<class T, i32 Size>
-constexpr void ring_buffer<T, Size>::clear() noexcept
+template<class T>
+constexpr void ring_buffer<T>::swap(ring_buffer& rhs) noexcept
 {
-    while (!empty())
-        dequeue();
-
-    head   = 0;
-    tail   = 0;
-    number = 0;
+    std::swap(m_buffer, rhs.m_buffer);
+    std::swap(m_head, rhs.m_head);
+    std::swap(m_tail, rhs.m_tail);
+    std::swap(m_capacity, rhs.m_capacity);
 }
 
-template<class T, i32 Size>
+template<class T>
+constexpr void ring_buffer<T>::clear() noexcept
+{
+    if (!std::is_trivially_destructible_v<T>) {
+        while (!empty())
+            dequeue();
+    }
+
+    m_head = 0;
+    m_tail = 0;
+}
+
+template<class T>
 template<typename... Args>
-constexpr bool ring_buffer<T, Size>::emplace_enqueue(Args&&... args) noexcept
+constexpr bool ring_buffer<T>::emplace_enqueue(Args&&... args) noexcept
 {
     if (full())
         return false;
 
-    new (&buffer[tail]) T(std::forward<Args>(args)...);
-    tail = (tail + 1) % Size;
-    ++number;
+    new (&m_buffer[m_tail]) T(std::forward<Args>(args)...);
+    m_tail = (m_tail + 1) % m_capacity;
 
     return true;
 }
 
-template<class T, i32 Size>
-constexpr bool ring_buffer<T, Size>::enqueue(const T& item) noexcept
+template<class T>
+template<typename... Args>
+constexpr bool ring_buffer<T>::force_emplace_enqueue(Args&&... args) noexcept
+{
+    new (&m_buffer[m_tail]) T(std::forward<Args>(args)...);
+    m_tail = (m_tail + 1) % m_capacity;
+
+    if (m_tail == m_head) {
+        if constexpr (!std::is_trivially_destructible_v<T>)
+            m_buffer[m_head].~T();
+
+        m_head = (m_head + 1) % m_capacity;
+    }
+
+    return true;
+}
+
+template<class T>
+constexpr bool ring_buffer<T>::enqueue(const T& item) noexcept
 {
     if (full())
         return false;
 
-    buffer[tail] = item;
-    tail         = (tail + 1) % Size;
-    ++number;
+    new (&m_buffer[m_tail]) T(item);
+    m_tail = (m_tail + 1) % m_capacity;
 
     return true;
 }
 
-template<class T, i32 Size>
-constexpr T ring_buffer<T, Size>::dequeue() noexcept
+template<class T>
+constexpr bool ring_buffer<T>::force_enqueue(const T& item) noexcept
+{
+    new (&m_buffer[m_tail]) T(item);
+    m_tail = (m_tail + 1) % m_capacity;
+
+    if (m_tail == m_head) {
+        if constexpr (!std::is_trivially_destructible_v<T>)
+            m_buffer[m_head].~T();
+
+        m_head = (m_head + 1) % m_capacity;
+    }
+
+    return true;
+}
+
+template<class T>
+constexpr void ring_buffer<T>::dequeue() noexcept
 {
     irt_assert(!empty());
 
-    T item = buffer[head];
-
     if constexpr (!std::is_trivially_destructible_v<T>)
-        buffer[head].~T();
+        m_buffer[m_head].~T();
 
-    head = (head + 1) % Size;
-    --number;
-
-    return item;
+    m_head = (m_head + 1) % m_capacity;
 }
 
-template<class T, i32 Size>
-constexpr typename ring_buffer<T, Size>::iterator
-ring_buffer<T, Size>::begin() noexcept
+template<class T>
+constexpr typename ring_buffer<T>::iterator ring_buffer<T>::begin() noexcept
 {
-    return head == tail ? iterator(nullptr, 0) : iterator(this, head);
+    return iterator{ this, m_head };
 }
 
-template<class T, i32 Size>
-constexpr typename ring_buffer<T, Size>::iterator
-ring_buffer<T, Size>::end() noexcept
+template<class T>
+constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::begin()
+  const noexcept
 {
-    return iterator(nullptr, 0);
+    return const_iterator{ this, m_head };
 }
 
-template<class T, i32 Size>
-constexpr T& ring_buffer<T, Size>::front() noexcept
+template<class T>
+constexpr typename ring_buffer<T>::reverse_iterator
+ring_buffer<T>::rbegin() noexcept
 {
-    return buffer[head];
-}
-template<class T, i32 Size>
-constexpr const T& ring_buffer<T, Size>::front() const noexcept
-{
-    return buffer[head];
+    return reverse_iterator{ end() };
 }
 
-template<class T, i32 Size>
-constexpr bool ring_buffer<T, Size>::empty() const noexcept
+template<class T>
+constexpr typename ring_buffer<T>::const_reverse_iterator
+ring_buffer<T>::rbegin() const noexcept
 {
-    return number == 0;
+    return const_reverse_iterator{ end() };
 }
 
-template<class T, i32 Size>
-constexpr bool ring_buffer<T, Size>::full() const noexcept
+template<class T>
+constexpr typename ring_buffer<T>::iterator ring_buffer<T>::end() noexcept
 {
-    return number == Size;
+    return iterator(this, m_tail);
 }
 
-template<class T, i32 Size>
-constexpr size_t ring_buffer<T, Size>::size() const noexcept
+template<class T>
+constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::end()
+  const noexcept
+{
+    return const_iterator(this, m_tail);
+}
+
+template<class T>
+constexpr typename ring_buffer<T>::reverse_iterator
+ring_buffer<T>::rend() noexcept
+{
+    return reverse_iterator{ begin() };
+}
+
+template<class T>
+constexpr typename ring_buffer<T>::const_reverse_iterator ring_buffer<T>::rend()
+  const noexcept
+{
+    return const_reverse_iterator{ begin() };
+}
+
+template<class T>
+constexpr T& ring_buffer<T>::front() noexcept
+{
+    irt_assert(!empty());
+
+    return m_buffer[m_head];
+}
+
+template<class T>
+constexpr const T& ring_buffer<T>::front() const noexcept
+{
+    irt_assert(!empty());
+
+    return m_buffer[m_head];
+}
+
+template<class T>
+constexpr T& ring_buffer<T>::back() noexcept
+{
+    irt_assert(!empty());
+
+    return m_buffer[m_tail == 0 ? m_capacity - 1 : m_tail - 1];
+}
+
+template<class T>
+constexpr const T& ring_buffer<T>::back() const noexcept
+{
+    irt_assert(!empty());
+
+    return m_buffer[m_tail == 0 ? m_capacity - 1 : m_tail - 1];
+}
+
+template<class T>
+constexpr bool ring_buffer<T>::empty() const noexcept
+{
+    return m_head == m_tail;
+}
+
+template<class T>
+constexpr bool ring_buffer<T>::full() const noexcept
+{
+    return (m_tail + 1) % m_capacity == m_head;
+}
+
+template<class T>
+constexpr sz ring_buffer<T>::size() const noexcept
 {
     return static_cast<sz>(ssize());
 }
 
-template<class T, i32 Size>
-constexpr i32 ring_buffer<T, Size>::ssize() const noexcept
+template<class T>
+constexpr i32 ring_buffer<T>::ssize() const noexcept
 {
-    return (tail >= head) ? tail - head : Size - head - tail;
+    return (m_tail >= m_head) ? m_tail - m_head
+                              : m_capacity - (m_head - m_tail);
+}
+
+template<class T>
+constexpr i32 ring_buffer<T>::available() const noexcept
+{
+    return capacity() - size();
+}
+
+template<class T>
+constexpr i32 ring_buffer<T>::capacity() const noexcept
+{
+    return m_capacity;
 }
 
 template<typename T>

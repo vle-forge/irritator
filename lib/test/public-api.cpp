@@ -873,6 +873,46 @@ int main()
         expect(tbl.data[4].value.x == 4.f);
     };
 
+    "ring-buffer"_test = [] {
+        int                   buffer[10];
+        irt::ring_buffer<int> ring(buffer, 10);
+
+        for (int i = 0; i < 9; ++i) {
+            auto is_success = ring.emplace_enqueue(i);
+            expect(is_success == true);
+        }
+
+        {
+            auto is_success = ring.emplace_enqueue(9);
+            expect(is_success == false);
+        }
+
+        expect(buffer[0] == 0);
+        expect(buffer[1] == 1);
+        expect(buffer[2] == 2);
+        expect(buffer[3] == 3);
+        expect(buffer[4] == 4);
+        expect(buffer[5] == 5);
+        expect(buffer[6] == 6);
+        expect(buffer[7] == 7);
+        expect(buffer[8] == 8);
+        expect(buffer[0] == 0);
+
+        for (int i = 10; i < 15; ++i)
+            ring.force_emplace_enqueue(i);
+
+        expect(buffer[0] == 11);
+        expect(buffer[1] == 12);
+        expect(buffer[2] == 13);
+        expect(buffer[3] == 14);
+        expect(buffer[4] == 4);
+        expect(buffer[5] == 5);
+        expect(buffer[6] == 6);
+        expect(buffer[7] == 7);
+        expect(buffer[8] == 8);
+        expect(buffer[9] == 10);
+    };
+
     "data_array_api"_test = [] {
         struct position
         {

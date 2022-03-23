@@ -917,7 +917,7 @@ static void compute_grid_layout(settings_manager&  settings,
     const auto size  = ed.sim.models.max_size();
     const auto fsize = static_cast<float>(size);
 
-    if (size == 0 || size > std::numeric_limits<int>::max())
+    if (size == 0 || size > std::numeric_limits<u32>::max())
         return;
 
     const auto column    = std::floor(std::sqrt(fsize));
@@ -1216,7 +1216,12 @@ void application::show_simulation_editor_widget() noexcept
 
     ImGui::InputReal("End", &s_editor.simulation_end);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    ImGui::Checkbox("Debug", &s_editor.store_all_changes);
+    if (ImGui::Checkbox("Debug", &s_editor.store_all_changes)) {
+        if (s_editor.store_all_changes &&
+            s_editor.simulation_state == simulation_status::running) {
+            s_editor.enable_or_disable_debug();
+        }
+    }
 
     ImGui::BeginDisabled(!s_editor.real_time);
     ImGui::InputScalar("Micro second for 1 unit time",
@@ -1281,21 +1286,33 @@ void application::show_simulation_editor_widget() noexcept
 
     ImGui::BeginDisabled(!history_mode);
 
-    if (s_editor.store_all_changes &&
-        s_editor.simulation_state != simulation_status::finished) {
+    if (s_editor.store_all_changes) {
         ImGui::SameLine();
         if (ImGui::Button("step-by-step"))
             s_editor.simulation_start_1();
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("<") && s_editor.tl.current_bag > 0)
+
+    ImGui::BeginDisabled(!s_editor.tl.can_back());
+    if (ImGui::Button("<"))
         s_editor.simulation_back();
+    ImGui::EndDisabled();
     ImGui::SameLine();
-    if (ImGui::Button(">") && s_editor.tl.current_bag < s_editor.tl.bag)
+
+    ImGui::BeginDisabled(!s_editor.tl.can_advance());
+    if (ImGui::Button(">"))
         s_editor.simulation_advance();
+    ImGui::EndDisabled();
     ImGui::SameLine();
-    ImGui::Text("bag %d/%d", s_editor.tl.current_bag, s_editor.tl.bag);
+
+    if (s_editor.tl.current_bag != s_editor.tl.points.rend()) {
+        ImGui::TextFormat(
+          "debug bag: {}/{}", s_editor.tl.current_bag->bag, s_editor.tl.bag);
+    } else {
+        ImGui::TextFormat("debug bag: {}", s_editor.tl.bag);
+    }
+
     ImGui::EndDisabled();
 
     show_simulation_graph_editor(*this);

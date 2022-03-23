@@ -396,9 +396,11 @@ static void modeling_update_state(component_editor& ed) noexcept
     auto* app = container_of(&ed, &application::c_editor);
 
     while (!ed.mod.warnings.empty()) {
-        auto& notif   = app->notifications.alloc(notification_type::warning);
-        notif.title   = "Modeling issue";
-        notif.message = status_string(ed.mod.warnings.dequeue());
+        auto& notif = app->notifications.alloc(notification_type::warning);
+        notif.title = "Modeling issue";
+        auto ret    = ed.mod.warnings.front();
+        ed.mod.warnings.dequeue();
+        notif.message = status_string(ret);
         app->notifications.enable(notif);
     }
 }

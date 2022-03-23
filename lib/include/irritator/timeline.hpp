@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_TIMELINE_2022
 
 #include <irritator/core.hpp>
+#include <irritator/ext.hpp>
 
 namespace irt {
 
@@ -62,6 +63,8 @@ struct connection_point
 
 struct timeline_point
 {
+    timeline_point() noexcept = default;
+
     timeline_point(timeline_point_type type_, i32 index_, i32 bag_) noexcept
       : index(index_)
       , bag(bag_)
@@ -92,20 +95,22 @@ struct timeline
 
     void reset() noexcept;
 
-    i32 make_next_bag() noexcept;
-
-    vector<simulation_point> sim_points;
-    vector<model_point>      model_points;
-    vector<connection_point> connection_points;
-    vector<timeline_point>   points;
+    vector<simulation_point>    sim_points;
+    vector<model_point>         model_points;
+    vector<connection_point>    connection_points;
+    vector<timeline_point>      points_buffer;
+    ring_buffer<timeline_point> points;
 
     i32 max_models_number       = 0;
     i32 max_messages_number     = 0;
     i32 current_models_number   = 0;
     i32 current_messages_number = 0;
 
-    i32 bag         = 0;  //! number of points @TODO replace with points.ssize()
-    i32 current_bag = -1; //! current point
+    bool can_advance() const noexcept;
+    bool can_back() const noexcept;
+
+    ring_buffer<timeline_point>::reverse_iterator current_bag;
+    i32                                           bag;
 };
 
 //! @brief Initialize simulation and store first state.
@@ -122,13 +127,6 @@ status advance(timeline& tl, simulation& sim, time& t) noexcept;
 
 //! @brief  Back the simulation by one step.
 status back(timeline& tl, simulation& sim, time& t) noexcept;
-
-inline i32 timeline::make_next_bag() noexcept
-{
-    current_bag = bag++;
-
-    return bag;
-}
 
 } // namespace irt
 
