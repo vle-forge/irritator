@@ -405,6 +405,7 @@ static void simulation_init(component_editor&  ed,
                             simulation_editor& sim_ed) noexcept
 {
     sim_ed.simulation_state = simulation_status::initializing;
+    sim_ed.simulation_current = sim_ed.simulation_begin;
 
     auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
     if (!head) {
