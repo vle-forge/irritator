@@ -8,6 +8,7 @@
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>

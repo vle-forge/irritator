@@ -9,6 +9,8 @@
 #include <irritator/ext.hpp>
 #include <irritator/external_source.hpp>
 
+#include <array>
+
 namespace irt {
 
 enum class component_id : u64;
