@@ -234,13 +234,14 @@ struct simulation_editor
     void simulation_back() noexcept;
     void enable_or_disable_debug() noexcept;
 
-    bool force_pause         = false;
-    bool force_stop          = false;
-    bool show_minimap        = true;
-    bool allow_user_changes  = false;
-    bool store_all_changes   = false;
-    bool infinity_simulation = false;
-    bool real_time           = false;
+    bool force_pause           = false;
+    bool force_stop            = false;
+    bool show_minimap          = true;
+    bool allow_user_changes    = false;
+    bool store_all_changes     = false;
+    bool infinity_simulation   = false;
+    bool real_time             = false;
+    bool have_use_back_advance = false;
 
     simulation sim;
     timeline   tl;

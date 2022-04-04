@@ -956,6 +956,8 @@ void simulation_editor::simulation_advance() noexcept
 void simulation_editor::simulation_back() noexcept
 {
     if (auto* parent = tree_nodes.try_to_get(head); parent) {
+        have_use_back_advance = true;
+
         auto* app  = container_of(this, &application::s_editor);
         auto& task = app->gui_tasks.alloc();
         task.app   = app;
@@ -967,6 +969,8 @@ void simulation_editor::simulation_back() noexcept
 void simulation_editor::enable_or_disable_debug() noexcept
 {
     if (auto* parent = tree_nodes.try_to_get(head); parent) {
+        have_use_back_advance = true;
+
         auto* app  = container_of(this, &application::s_editor);
         auto& task = app->gui_tasks.alloc();
         task.app   = app;

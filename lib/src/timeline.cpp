@@ -103,6 +103,59 @@ void timeline::reset() noexcept
     bag         = 0;
 }
 
+void timeline::cleanup_after_current_bag() noexcept
+{
+    if (current_bag == points.rend())
+        return;
+
+    const bool need_to_search_connections = !connection_points.empty();
+    const bool need_to_search_models      = !model_points.empty();
+    const bool need_to_search_simulations = !sim_points.empty();
+
+    i32  first_connection_index = -1;
+    i32  first_model_index      = -1;
+    i32  first_simulation_index = -1;
+    auto it                     = current_bag;
+
+    for (++it; it != points.rend(); ++it) {
+        switch (it->type) {
+        case timeline_point_type::connection:
+            if (first_connection_index == -1)
+                first_connection_index = it->index;
+            break;
+        case timeline_point_type::model:
+            if (first_model_index == -1)
+                first_model_index = it->index;
+            break;
+        case timeline_point_type::simulation:
+            if (first_simulation_index == -1)
+                first_simulation_index = it->index;
+            break;
+        }
+
+        if ((first_connection_index != -1 || !need_to_search_connections) &&
+            (first_model_index != -1 || !need_to_search_models) &&
+            (first_simulation_index != -1 || !need_to_search_simulations))
+            break;
+    }
+
+    if (first_connection_index != -1)
+        connection_points.erase(
+          connection_points.data() + first_connection_index,
+          connection_points.data() + connection_points.size());
+
+    if (first_model_index != -1)
+        model_points.erase(model_points.data() + first_model_index,
+                           model_points.data() + model_points.size());
+
+    if (first_simulation_index != -1)
+        sim_points.erase(sim_points.data() + first_simulation_index,
+                         sim_points.data() + sim_points.size());
+
+    while (current_bag != points.rbegin())
+        points.dequeue();
+}
+
 static status build_initial_simulation_point(timeline&   tl,
                                              simulation& sim,
                                              time        t) noexcept

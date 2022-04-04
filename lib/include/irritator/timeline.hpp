@@ -19,6 +19,11 @@ enum class timeline_point_type
 
 struct simulation_point
 {
+    simulation_point() noexcept = default;
+
+    simulation_point(const simulation_point& rhs) noexcept = delete;
+    simulation_point(simulation_point&& rhs) noexcept    = default;
+
     time t;
 
     vector<model>                            models;
@@ -94,6 +99,7 @@ struct timeline
                 i32 message_number) noexcept;
 
     void reset() noexcept;
+    void cleanup_after_current_bag() noexcept;
 
     vector<simulation_point>    sim_points;
     vector<model_point>         model_points;
