@@ -2103,7 +2103,7 @@ private:
            << ((dyn.default_adapt_state == quantifier::adapt_state::possible)
                  ? "possible "
                : dyn.default_adapt_state == quantifier::adapt_state::impossible
-                 ? "impossibe "
+                 ? "impossible "
                  : "done ")
            << (dyn.default_zero_init_offset == true ? "true\n" : "false\n");
     }
