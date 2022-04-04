@@ -44,6 +44,9 @@ public:
 
     container_type data;
 
+    constexpr table() noexcept  = default;
+    constexpr ~table() noexcept = default;
+
     constexpr void     set(Identifier id, T value) noexcept;
     constexpr T*       get(Identifier id) noexcept;
     constexpr const T* get(Identifier id) const noexcept;
@@ -577,7 +580,8 @@ constexpr status small_vector<T, length>::resize(i32 default_size) noexcept
                        status::vector_init_capacity_error);
 
     if (default_size > m_size)
-        std::uninitialized_default_construct_n(data() + m_size, default_size);
+        std::uninitialized_default_construct_n(data() + m_size,
+                                               default_size - m_size);
     else
         std::destroy_n(data() + default_size, m_size - default_size);
 

@@ -638,6 +638,7 @@ public:
     constexpr vector() noexcept = default;
     vector(i32 capacity) noexcept;
     vector(i32 capacity, i32 size) noexcept;
+    vector(i32 capacity, i32 size, const T& default_value) noexcept;
     ~vector() noexcept;
 
     constexpr vector(const vector& other) noexcept;
@@ -980,8 +981,6 @@ public:
             new_block = reinterpret_cast<block*>(&m_blocks[m_max_size++]);
         }
 
-        std::construct_at(reinterpret_cast<T*>(new_block));
-
         ++m_size;
 
         return reinterpret_cast<T*>(new_block);
@@ -1005,8 +1004,6 @@ public:
             irt_assert(m_max_size < m_capacity);
             new_block = reinterpret_cast<block*>(&m_blocks[m_max_size++]);
         }
-
-        std::construct_at(reinterpret_cast<T*>(new_block));
 
         ++m_size;
 
@@ -1284,7 +1281,8 @@ public:
             return emplace_front(std::forward<Args>(args)...);
 
         u32 new_node = m_allocator.alloc_index();
-        new (&m_allocator[new_node].value) T{ std::forward<Args>(args)... };
+        std::construct_at(&m_allocator[new_node].value,
+                          std::forward<Args>(args)...);
 
         m_allocator[new_node].prev = pos.id;
         m_allocator[new_node].next = m_allocator[pos.id].next;
@@ -1334,7 +1332,8 @@ public:
         irt_assert(m_allocator.can_alloc());
 
         u32 new_node = m_allocator.alloc_index();
-        new (&m_allocator[new_node].value) T{ std::forward<Args>(args)... };
+        std::construct_at(&m_allocator[new_node].value,
+                          std::forward<Args>(args)...);
 
         u32 first, last;
         unpack_doubleword(m_list, &first, &last);
@@ -1362,7 +1361,8 @@ public:
         irt_assert(m_allocator.can_alloc());
 
         u32 new_node = m_allocator.alloc_index();
-        new (&m_allocator[new_node].value) T{ std::forward<Args>(args)... };
+        std::construct_at(&m_allocator[new_node].value,
+                          std::forward<Args>(args)...);
 
         u32 first, last;
         unpack_doubleword(m_list, &first, &last);
@@ -1389,7 +1389,7 @@ public:
         irt_assert(m_allocator.can_alloc());
 
         u32 new_node = m_allocator.alloc_index();
-        new (&m_allocator[new_node].value) T(t);
+        std::construct_at(&m_allocator[new_node].value, t);
 
         u32 first, last;
         unpack_doubleword(m_list, &first, &last);
@@ -1710,7 +1710,8 @@ public:
             new_index = m_max_used++;
         }
 
-        new (&m_items[new_index].item) T(std::forward<Args>(args)...);
+        std::construct_at(&m_items[new_index].item,
+                          std::forward<Args>(args)...);
 
         m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
         m_next_key            = make_next_key<Identifier>(m_next_key);
@@ -1746,7 +1747,8 @@ public:
             new_index = m_max_used++;
         }
 
-        new (&m_items[new_index].item) T(std::forward<Args>(args)...);
+        std::construct_at(&m_items[new_index].item,
+                          std::forward<Args>(args)...);
 
         m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
         m_next_key            = make_next_key<Identifier>(m_next_key);
@@ -6377,7 +6379,7 @@ inline void copy(const model& src, model& dst) noexcept
 
     dispatch(dst, [&src]<typename Dynamics>(Dynamics& dst_dyn) -> void {
         const auto& src_dyn = get_dyn<Dynamics>(src);
-        new (&dst_dyn) Dynamics(src_dyn);
+        std::construct_at(&dst_dyn, src_dyn);
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>)
             for (int i = 0, e = length(dst_dyn.x); i != e; ++i)
@@ -6475,7 +6477,7 @@ public:
         mdl.type   = dynamics_typeof<Dynamics>();
         mdl.handle = nullptr;
 
-        new (&mdl.dyn) Dynamics{};
+        std::construct_at(reinterpret_cast<Dynamics*>(&mdl.dyn));
         auto& dyn = get_dyn<Dynamics>(mdl);
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>)
@@ -6501,7 +6503,7 @@ public:
 
         dispatch(new_mdl, [&mdl]<typename Dynamics>(Dynamics& dyn) -> void {
             const auto& src_dyn = get_dyn<Dynamics>(mdl);
-            new (&dyn) Dynamics(src_dyn);
+            std::construct_at(&dyn, src_dyn);
 
             if constexpr (is_detected_v<has_input_port_t, Dynamics>)
                 for (int i = 0, e = length(dyn.x); i != e; ++i)
@@ -6525,7 +6527,7 @@ public:
         mdl.handle = nullptr;
 
         dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
-            new (&dyn) Dynamics{};
+            std::construct_at(&dyn);
 
             if constexpr (is_detected_v<has_input_port_t, Dynamics>)
                 for (int i = 0, e = length(dyn.x); i != e; ++i)
@@ -6918,21 +6920,36 @@ inline vector<T>::vector(i32 capacity) noexcept
 template<typename T>
 inline vector<T>::vector(i32 capacity, i32 size) noexcept
 {
-    static_assert(std::is_nothrow_default_constructible_v<T> ||
-                    std::is_trivially_default_constructible_v<T>,
-                  "T must be nothrow or trivially default constructible to use "
-                  "init() function");
+    static_assert(std::is_constructible_v<T>,
+                  "T must be nothrow or trivially default constructible");
 
     capacity = std::max(capacity, size);
 
     if (capacity > 0) {
         m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
 
-        if constexpr (!std::is_trivially_default_constructible_v<T>) {
-            for (i32 i = 0; i < size; ++i) {
-                new (&(m_data[i])) T{};
-            }
-        }
+        std::uninitialized_value_construct_n(m_data, size);
+        // std::uninitialized_default_construct_n(m_data, size);
+
+        m_capacity = capacity;
+        m_size     = size;
+    }
+}
+
+template<typename T>
+inline vector<T>::vector(i32      capacity,
+                         i32      size,
+                         const T& default_value) noexcept
+{
+    static_assert(std::is_copy_constructible_v<T>,
+                  "T must be nothrow or trivially default constructible");
+
+    capacity = std::max(capacity, size);
+
+    if (capacity > 0) {
+        m_data = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
+
+        std::uninitialized_fill_n(m_data, size, default_value);
 
         m_capacity = capacity;
         m_size     = size;
@@ -7022,7 +7039,8 @@ void vector<T>::resize(i32 size) noexcept
     if (size > m_capacity)
         reserve(compute_new_capacity(size));
 
-    std::uninitialized_default_construct_n(data() + m_size, size);
+    std::uninitialized_value_construct_n(data() + m_size, size - m_size);
+    // std::uninitialized_default_construct_n(data() + m_size, size);
 
     m_size = size;
 }
@@ -7036,12 +7054,14 @@ void vector<T>::reserve(i32 new_capacity) noexcept
         T* new_data =
           reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
 
-        if constexpr (std::is_nothrow_move_constructible_v<T>)
-            std::uninitialized_move_n(data(), m_size, new_data);
-        else
-            std::uninitialized_copy_n(data(), m_size, new_data);
+        if (m_data) {
+            if constexpr (std::is_nothrow_move_constructible_v<T>)
+                std::uninitialized_move_n(data(), m_size, new_data);
+            else
+                std::uninitialized_copy_n(data(), m_size, new_data);
 
-        g_free_fn(m_data);
+            g_free_fn(m_data);
+        }
 
         m_data     = new_data;
         m_capacity = new_capacity;

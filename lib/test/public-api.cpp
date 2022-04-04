@@ -1397,6 +1397,7 @@ int main()
             irt::simulation      sim;
             irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 4096lu)));
+            expect(irt::is_success(srcs.init(64lu)));
 
             sim.alloc<irt::qss1_integrator>();
             sim.alloc<irt::qss1_multiplier>();
@@ -1458,7 +1459,7 @@ int main()
         }
 
         expect(!str.empty());
-        fmt::print("{}\n", str);
+        fmt::print("[\n{}\n]\n", str);
 
         {
             std::istringstream is(str);
@@ -1466,7 +1467,7 @@ int main()
             irt::simulation      sim;
             irt::external_source srcs;
             expect(irt::is_success(sim.init(64lu, 32lu)));
-            expect(irt::is_success(srcs.init(64u)));
+            // expect(irt::is_success(srcs.init(64u)));
 
             irt::reader r(is);
             expect(irt::is_success(r(sim, srcs)));
