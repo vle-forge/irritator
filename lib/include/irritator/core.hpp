@@ -17,6 +17,7 @@
 #endif
 #endif
 
+#include <memory>
 #include <string_view>
 #include <type_traits>
 
@@ -779,11 +780,15 @@ struct fixed_real_array
         return static_cast<difference_type>(size());
     }
 
-    constexpr fixed_real_array() noexcept  = default;
-    constexpr ~fixed_real_array() noexcept = default;
+    constexpr fixed_real_array() noexcept                            = default;
+    constexpr ~fixed_real_array() noexcept                           = default;
+    constexpr fixed_real_array(const fixed_real_array& rhs) noexcept = default;
+
+    constexpr fixed_real_array& operator    =(
+      const fixed_real_array& rhs) noexcept = default;
 
     template<typename... Args>
-    constexpr fixed_real_array(Args&&... args)
+    constexpr fixed_real_array(Args&&... args) noexcept
       : data{ std::forward<Args>(args)... }
     {
         auto size = sizeof...(args);
@@ -832,6 +837,9 @@ class block_allocator
 public:
     using value_type = T;
 
+    static_assert(std::is_trivially_destructible_v<T>,
+                  "T must be trivially destructible");
+
     union block
     {
         block*                                                     next;
@@ -846,10 +854,41 @@ private:
     sz     m_capacity{ 0 }; // capacity of the allocator
 
 public:
-    block_allocator() = default;
+    block_allocator() noexcept = default;
 
     block_allocator(const block_allocator&) = delete;
     block_allocator& operator=(const block_allocator&) = delete;
+
+    block_allocator(block_allocator&& rhs) noexcept
+      : m_blocks{ rhs.m_blocks }
+      , m_free_head{ rhs.m_free_head }
+      , m_size{ rhs.m_size }
+      , m_max_size{ rhs.m_max_size }
+      , m_capacity{ rhs.m_capacity }
+    {
+        rhs.m_blocks    = nullptr;
+        rhs.m_free_head = nullptr;
+        rhs.m_size      = 0;
+        rhs.m_max_size  = 0;
+        rhs.m_capacity  = 0;
+    }
+
+    block_allocator& operator=(block_allocator&& rhs) noexcept
+    {
+        if (this != &rhs) {
+            m_blocks        = rhs.m_blocks;
+            m_free_head     = rhs.m_free_head;
+            m_size          = rhs.m_size;
+            m_max_size      = rhs.m_max_size;
+            m_capacity      = rhs.m_capacity;
+            rhs.m_blocks    = nullptr;
+            rhs.m_free_head = nullptr;
+            rhs.m_size      = 0;
+            rhs.m_max_size  = 0;
+            rhs.m_capacity  = 0;
+        }
+        return *this;
+    }
 
     ~block_allocator() noexcept
     {
@@ -888,7 +927,7 @@ public:
         dst.m_capacity  = m_max_size;
         dst.m_free_head = nullptr;
 
-        std::copy_n(m_blocks, m_max_size, dst.m_blocks);
+        std::uninitialized_copy_n(m_blocks, m_max_size, dst.m_blocks);
 
         if (m_free_head) {
             dst.m_free_head = &m_blocks[m_free_head - m_blocks];
@@ -940,6 +979,9 @@ public:
             irt_assert(m_max_size < m_capacity);
             new_block = reinterpret_cast<block*>(&m_blocks[m_max_size++]);
         }
+
+        std::construct_at(reinterpret_cast<T*>(new_block));
+
         ++m_size;
 
         return reinterpret_cast<T*>(new_block);
@@ -963,6 +1005,9 @@ public:
             irt_assert(m_max_size < m_capacity);
             new_block = reinterpret_cast<block*>(&m_blocks[m_max_size++]);
         }
+
+        std::construct_at(reinterpret_cast<T*>(new_block));
+
         ++m_size;
 
         irt_assert(new_block - m_blocks >= 0);
@@ -1021,6 +1066,9 @@ template<typename T>
 struct list_view_node
 {
     using value_type = T;
+
+    static_assert(std::is_trivially_destructible_v<T>,
+                  "T must be trivially destructible");
 
     T   value;
     u32 prev;
@@ -1273,8 +1321,7 @@ public:
         m_allocator[prev].next = next;
         m_allocator[next].prev = prev;
 
-        if constexpr (!std::is_trivial_v<T>)
-            m_allocator[pos.id].value.~T();
+        std::destroy_at(&m_allocator[pos.id].value);
 
         m_allocator.free(pos.id);
 
@@ -1380,8 +1427,7 @@ public:
         else
             m_allocator[begin].prev = static_cast<u32>(-1);
 
-        if constexpr (!std::is_trivial_v<T>)
-            m_allocator[to_delete].value.~T();
+        std::destroy_at(&m_allocator[to_delete].value);
 
         m_allocator.free(to_delete);
         m_list = make_doubleword(begin, end);
@@ -1403,8 +1449,7 @@ public:
         else
             m_allocator[end].next = static_cast<u32>(-1);
 
-        if constexpr (!std::is_trivial_v<T>)
-            m_allocator[to_delete].value.~T();
+        std::destroy_at(&m_allocator[to_delete].value);
 
         m_allocator.free(to_delete);
         m_list = make_doubleword(begin, end);
@@ -1625,7 +1670,7 @@ public:
         if constexpr (!std::is_trivial_v<T>) {
             for (u32 i = 0; i != m_max_used; ++i) {
                 if (is_valid(m_items[i].id)) {
-                    m_items[i].item.~T();
+                    std::destroy_at(&m_items[i].item);
                     m_items[i].id = static_cast<identifier_type>(0);
                 }
             }
@@ -1724,8 +1769,7 @@ public:
         irt_assert(m_items[index].id == id);
         irt_assert(is_valid(id));
 
-        if constexpr (!std::is_trivial_v<T>)
-            m_items[index].item.~T();
+        std::destroy_at(&m_items[index].item);
 
         m_items[index].id = static_cast<Identifier>(m_free_head);
         m_free_head       = index;
@@ -1744,8 +1788,7 @@ public:
         irt_assert(m_items[index].id == id);
         irt_assert(is_valid(id));
 
-        if constexpr (std::is_trivial_v<T>)
-            m_items[index].item.~T();
+        std::destroy_at(&m_items[index].item);
 
         m_items[index].id = static_cast<Identifier>(m_free_head);
         m_free_head       = index;
@@ -6536,7 +6579,7 @@ public:
                 append_message(*this, elem).clear();
         }
 
-        dyn.~Dynamics();
+        std::destroy_at(&dyn);
     }
 
     bool can_connect(int number) const noexcept
@@ -6963,10 +7006,7 @@ inline void vector<T>::destroy() noexcept
 template<typename T>
 inline constexpr void vector<T>::clear() noexcept
 {
-    if constexpr (!std::is_trivially_destructible_v<T>) {
-        for (i32 i = 0; i != m_size; ++i)
-            data()[i].~T();
-    }
+    std::destroy_n(data(), m_size);
 
     m_size = 0;
 }
@@ -6982,10 +7022,7 @@ void vector<T>::resize(i32 size) noexcept
     if (size > m_capacity)
         reserve(compute_new_capacity(size));
 
-    if constexpr (!std::is_trivially_default_constructible_v<T>) {
-        for (i32 i = m_size; i < size; ++i)
-            new (&(m_data[i])) T{};
-    }
+    std::uninitialized_default_construct_n(data() + m_size, size);
 
     m_size = size;
 }
@@ -6999,12 +7036,10 @@ void vector<T>::reserve(i32 new_capacity) noexcept
         T* new_data =
           reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
 
-        if constexpr (std::is_trivially_copy_constructible_v<T> ||
-                      std::is_nothrow_copy_constructible_v<T>)
-            std::copy_n(m_data, m_size, new_data);
-        else if constexpr (std::is_nothrow_move_assignable_v<T>)
-            for (i32 i = 0; i != m_size; ++i)
-                new_data[i] = std::move(m_data[i]);
+        if constexpr (std::is_nothrow_move_constructible_v<T>)
+            std::uninitialized_move_n(data(), m_size, new_data);
+        else
+            std::uninitialized_copy_n(data(), m_size, new_data);
 
         g_free_fn(m_data);
 
@@ -7158,7 +7193,7 @@ inline constexpr typename vector<T>::reference vector<T>::emplace_back(
     if (m_size >= m_capacity)
         reserve(compute_new_capacity(m_size + 1));
 
-    new (&(data()[m_size])) T(std::forward<Args>(args)...);
+    std::construct_at(data() + m_size, std::forward<Args>(args)...);
 
     ++m_size;
 
@@ -7173,10 +7208,10 @@ inline constexpr void vector<T>::pop_back() noexcept
                   "T must be nothrow or trivially destructible to use "
                   "pop_back() function");
 
-    if (m_size) {
-        if constexpr (!std::is_trivially_destructible_v<T>)
-            data()[m_size - 1].~T();
+    irt_assert(m_size);
 
+    if (m_size) {
+        std::destroy_at(data() + m_size - 1);
         --m_size;
     }
 }
@@ -7189,18 +7224,19 @@ inline constexpr void vector<T>::swap_pop_back(index_type index) noexcept
     if (index == m_size - 1) {
         pop_back();
     } else {
-        if constexpr (std::is_trivially_destructible_v<T>) {
-            data()[index] = data()[m_size - 1];
-            pop_back();
-        } else if constexpr (std::is_nothrow_swappable_v<T>) {
-            using std::swap;
+        auto to_delete = data() + index;
+        auto last      = data() + m_size - 1;
 
-            swap(data()[index], data()[m_size - 1]);
-            pop_back();
+        std::destroy_at(to_delete);
+
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move_n(last, 1, to_delete);
         } else {
-            data()[index] = data()[m_size - 1];
-            pop_back();
+            std::uninitialized_copy_n(last, 1, to_delete);
+            std::destroy_at(last);
         }
+
+        --m_size;
     }
 }
 
@@ -7212,29 +7248,20 @@ inline constexpr void vector<T>::erase(iterator it) noexcept
     if (it == end())
         return;
 
-    if constexpr (std::is_trivially_copyable_v<T>) {
-        const ptrdiff_t off = it - data();
-        std::memmove(data() + off,
-                     data() + off + 1,
-                     (static_cast<sz>(m_size) - static_cast<sz>(off) - 1) *
-                       sizeof(T));
-        --m_size;
-    } else if constexpr (std::is_nothrow_move_constructible_v<T>) {
-        if constexpr (!std::is_trivially_destructible_v<T>)
-            (*it).~T();
+    std::destroy_at(it);
 
-        auto prev = it++;
-        for (; it != end(); ++it, ++prev)
-            (*prev) = std::move(*it);
+    auto last = data() + m_size - 1;
 
-        pop_back();
-    } else if (std::is_nothrow_constructible_v<T>) {
-        auto prev = it++;
-        for (; it != end(); ++it, ++prev)
-            (*prev) = (*it);
-
-        pop_back();
+    if (auto next = it + 1; next != end()) {
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move(next, end(), it);
+        } else {
+            std::uninitialized_copy(next, end(), it);
+            std::destroy_at(last);
+        }
     }
+
+    --m_size;
 }
 
 template<typename T>
@@ -7243,44 +7270,19 @@ inline constexpr void vector<T>::erase(iterator first, iterator last) noexcept
     irt_assert(first >= data() && first < data() + m_size && last > first &&
                last <= data() + m_size);
 
+    std::destroy(first, last);
     const ptrdiff_t count = last - first;
 
-    if constexpr (std::is_trivially_copyable_v<T>) {
-        const ptrdiff_t off = first - data();
-        std::memmove(data() + off,
-                     data() + off + count,
-                     (static_cast<sz>(m_size) - static_cast<sz>(off) -
-                      static_cast<sz>(count)) *
-                       sizeof(T));
-        m_size -= static_cast<i32>(count);
-    } else if (std::is_nothrow_move_constructible_v<T>) {
-        if constexpr (!std::is_trivially_destructible_v<T>) {
-            for (auto jt = first; jt < last; ++jt)
-                (*jt).~T();
+    if (count > 0) {
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move(last, end(), first);
+        } else {
+            std::uninitialized_copy(last, end(), first);
+            std::destroy(last + count, end());
         }
-
-        auto prev = first;
-        first     = last;
-        for (; last != end(); ++first, ++prev)
-            (*prev) = std::move(*first);
-
-        m_size -= static_cast<i32>(count);
-    } else if (std::is_nothrow_constructible_v<T>) {
-        if constexpr (!std::is_trivially_destructible_v<T>) {
-            for (auto jt = first; jt < last; ++jt)
-                (*jt).~T();
-        }
-
-        auto prev = first;
-        first     = last;
-        for (; last != end(); ++first, ++prev)
-            (*prev) = *first;
-
-        m_size -= static_cast<i32>(count);
-
-        for (ptrdiff_t i = 0; i < count; ++i)
-            pop_back();
     }
+
+    m_size -= static_cast<i32>(count);
 }
 
 template<typename T>

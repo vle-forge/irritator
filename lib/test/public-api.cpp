@@ -142,6 +142,24 @@ static void* null_alloc(size_t /*sz*/) { return nullptr; }
 
 static void null_free(void*) {}
 
+struct struct_with_static_member
+{
+    static int i;
+    static int j;
+
+    static void clear() noexcept
+    {
+        i = 0;
+        j = 0;
+    }
+
+    struct_with_static_member() noexcept { ++i; }
+    ~struct_with_static_member() noexcept { ++j; }
+};
+
+int struct_with_static_member::i = 0;
+int struct_with_static_member::j = 0;
+
 inline int make_input_node_id(const irt::model_id mdl, const int port) noexcept
 {
     fmt::print("make_input_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
@@ -631,6 +649,40 @@ int main()
         assert(v_1.ssize() == 4);
     };
 
+    "vector-static-member"_test = [] {
+        struct_with_static_member::clear();
+
+        irt::vector<struct_with_static_member> v;
+        v.reserve(4);
+
+        expect(v.ssize() == 0);
+        expect(v.capacity() >= 4);
+
+        v.emplace_back();
+        expect(struct_with_static_member::i == 1);
+        expect(struct_with_static_member::j == 0);
+
+        v.emplace_back();
+        v.emplace_back();
+        v.emplace_back();
+        expect(struct_with_static_member::i == 4);
+        expect(struct_with_static_member::j == 0);
+
+        v.pop_back();
+        expect(struct_with_static_member::i == 4);
+        expect(struct_with_static_member::j == 1);
+
+        v.swap_pop_back(2);
+        expect(struct_with_static_member::i == 4);
+        expect(struct_with_static_member::j == 2);
+
+        v.swap_pop_back(0);
+        expect(struct_with_static_member::i == 4);
+        expect(struct_with_static_member::j == 3);
+
+        expect(std::ssize(v) == 1);
+    };
+
     "small-vector-no-trivial"_test = [] {
         struct toto
         {
@@ -640,11 +692,7 @@ int main()
               : i(i_)
             {}
 
-            ~toto() noexcept
-            {
-                i = 0;
-                fmt::print("~toto called\n");
-            }
+            ~toto() noexcept { i = 0; }
         };
 
         irt::small_vector<toto, 4> v;
@@ -657,6 +705,35 @@ int main()
         expect(v.data()[0].i == 10);
         expect(v2.data()[0].i == 10);
         expect(v2.data()[1].i == 100);
+    };
+
+    "small-vector-static-member"_test = [] {
+        struct_with_static_member::clear();
+
+        irt::small_vector<struct_with_static_member, 4> v;
+        v.emplace_back();
+        expect(struct_with_static_member::i == 1);
+        expect(struct_with_static_member::j == 0);
+
+        v.emplace_back();
+        v.emplace_back();
+        v.emplace_back();
+        expect(struct_with_static_member::i == 4);
+        expect(struct_with_static_member::j == 0);
+
+        v.pop_back();
+        expect(struct_with_static_member::i == 4);
+        expect(struct_with_static_member::j == 1);
+
+        v.swap_pop_back(2);
+        expect(struct_with_static_member::i == 4);
+        expect(struct_with_static_member::j == 2);
+
+        v.swap_pop_back(0);
+        expect(struct_with_static_member::i == 4);
+        expect(struct_with_static_member::j == 3);
+
+        expect(std::ssize(v) == 1);
     };
 
     "small_string"_test = [] {

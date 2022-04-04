@@ -85,7 +85,7 @@ public:
     constexpr small_vector(small_vector&& other) noexcept = delete;
     constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
 
-    constexpr status init(i32 default_size) noexcept;
+    constexpr status resize(i32 default_size) noexcept;
     constexpr void   clear() noexcept;
 
     constexpr reference       front() noexcept;
@@ -543,13 +543,13 @@ constexpr small_vector<T, length>::small_vector(
   const small_vector<T, length>& other) noexcept
   : m_size(other.m_size)
 {
-    std::copy_n(other.data(), other.m_size, data());
+    std::uninitialized_copy_n(other.data(), other.m_size, data());
 }
 
 template<typename T, sz length>
 constexpr small_vector<T, length>::~small_vector() noexcept
 {
-    clear();
+    std::destroy_n(data(), m_size);
 }
 
 template<typename T, sz length>
@@ -565,7 +565,7 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 }
 
 template<typename T, sz length>
-constexpr status small_vector<T, length>::init(i32 default_size) noexcept
+constexpr status small_vector<T, length>::resize(i32 default_size) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<T> ||
                     std::is_trivially_default_constructible_v<T>,
@@ -576,8 +576,10 @@ constexpr status small_vector<T, length>::init(i32 default_size) noexcept
                          default_size < static_cast<i32>(length),
                        status::vector_init_capacity_error);
 
-    for (i32 i = 0; i < default_size; ++i)
-        new (&(m_buffer[i])) T{};
+    if (default_size > m_size)
+        std::uninitialized_default_construct_n(data() + m_size, default_size);
+    else
+        std::destroy_n(data() + default_size, m_size - default_size);
 
     m_size = default_size;
 
@@ -709,16 +711,7 @@ constexpr bool small_vector<T, length>::full() const noexcept
 template<typename T, sz length>
 constexpr void small_vector<T, length>::clear() noexcept
 {
-    static_assert(std::is_nothrow_destructible_v<T> ||
-                    std::is_trivially_destructible_v<T>,
-                  "T must be nothrow or trivially destructible to use "
-                  "clear() function");
-
-    if constexpr (!std::is_trivially_destructible_v<T>) {
-        for (i32 i = 0; i != m_size; ++i)
-            data()[i].~T();
-    }
-
+    std::destroy_n(data(), m_size);
     m_size = 0;
 }
 
@@ -741,8 +734,7 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
 
     assert(can_alloc(1) && "check alloc() with full() before using use.");
 
-    new (&(data()[m_size])) T(std::forward<Args>(args)...);
-
+    std::construct_at(&(data()[m_size]), std::forward<Args>(args)...);
     ++m_size;
 
     return data()[m_size - 1];
@@ -757,9 +749,7 @@ constexpr void small_vector<T, length>::pop_back() noexcept
                   "pop_back() function");
 
     if (m_size) {
-        if constexpr (!std::is_trivially_destructible_v<T>)
-            data()[m_size - 1].~T();
-
+        std::destroy_at(data() + m_size - 1);
         --m_size;
     }
 }
@@ -772,18 +762,19 @@ constexpr void small_vector<T, length>::swap_pop_back(index_type index) noexcept
     if (index == m_size - 1) {
         pop_back();
     } else {
-        if constexpr (std::is_trivially_destructible_v<T>) {
-            data()[index] = data()[m_size - 1];
-            pop_back();
-        } else if constexpr (std::is_nothrow_swappable_v<T>) {
-            using std::swap;
+        auto to_delete = data() + index;
+        auto last      = data() + m_size - 1;
 
-            swap(data()[index], data()[m_size - 1]);
-            pop_back();
+        std::destroy_at(to_delete);
+
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move_n(last, 1, to_delete);
         } else {
-            data()[index] = data()[m_size - 1];
-            pop_back();
+            std::uninitialized_copy_n(last, 1, to_delete);
+            std::destroy_at(last);
         }
+
+        --m_size;
     }
 }
 
@@ -864,7 +855,7 @@ constexpr bool ring_buffer<T>::emplace_enqueue(Args&&... args) noexcept
     if (full())
         return false;
 
-    new (&m_buffer[m_tail]) T(std::forward<Args>(args)...);
+    std::construct_at(&m_buffer[m_tail], std::forward<Args>(args)...);
     m_tail = (m_tail + 1) % m_capacity;
 
     return true;
@@ -874,12 +865,11 @@ template<class T>
 template<typename... Args>
 constexpr bool ring_buffer<T>::force_emplace_enqueue(Args&&... args) noexcept
 {
-    new (&m_buffer[m_tail]) T(std::forward<Args>(args)...);
+    std::construct_at(&m_buffer[m_tail], std::forward<Args>(args)...);
     m_tail = (m_tail + 1) % m_capacity;
 
     if (m_tail == m_head) {
-        if constexpr (!std::is_trivially_destructible_v<T>)
-            m_buffer[m_head].~T();
+        std::destroy_at(&m_buffer[m_head]);
 
         m_head = (m_head + 1) % m_capacity;
     }
@@ -893,7 +883,7 @@ constexpr bool ring_buffer<T>::enqueue(const T& item) noexcept
     if (full())
         return false;
 
-    new (&m_buffer[m_tail]) T(item);
+    std::construct_at(&m_buffer[m_tail], item);
     m_tail = (m_tail + 1) % m_capacity;
 
     return true;
@@ -902,12 +892,11 @@ constexpr bool ring_buffer<T>::enqueue(const T& item) noexcept
 template<class T>
 constexpr bool ring_buffer<T>::force_enqueue(const T& item) noexcept
 {
-    new (&m_buffer[m_tail]) T(item);
+    std::construct_at(&m_buffer[m_tail], item);
     m_tail = (m_tail + 1) % m_capacity;
 
     if (m_tail == m_head) {
-        if constexpr (!std::is_trivially_destructible_v<T>)
-            m_buffer[m_head].~T();
+        std::destroy_at(&m_buffer[m_head]);
 
         m_head = (m_head + 1) % m_capacity;
     }
@@ -920,8 +909,7 @@ constexpr void ring_buffer<T>::dequeue() noexcept
 {
     irt_assert(!empty());
 
-    if constexpr (!std::is_trivially_destructible_v<T>)
-        m_buffer[m_head].~T();
+    std::destroy_at(&m_buffer[m_head]);
 
     m_head = (m_head + 1) % m_capacity;
 }
