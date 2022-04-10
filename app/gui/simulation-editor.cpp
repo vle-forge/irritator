@@ -1097,15 +1097,14 @@ static void show_simulation_graph_editor(application& app) noexcept
 
     if (num_selected_nodes > 0) {
         app.s_editor.selected_nodes.resize(num_selected_nodes, -1);
+        ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
 
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('X')) {
-            ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
             free_children(app.s_editor, app.s_editor.selected_nodes);
             app.s_editor.selected_nodes.clear();
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();
         } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased('D')) {
-            ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
             copy(app.s_editor, app.s_editor.selected_nodes);
             app.s_editor.selected_nodes.clear();
             num_selected_nodes = 0;

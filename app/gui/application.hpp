@@ -47,6 +47,15 @@ struct window_logger;
 struct component_editor;
 struct simulation_editor;
 
+enum class notification_id : u64;
+enum class simulation_observation_id : u64;
+enum class simulation_plot_id : u64;
+enum class gui_task_id : u64;
+
+using application_status          = u32;
+using simulation_observation_type = i32;
+using selected_main_window        = i32;
+
 enum class notification_type
 {
     none,
@@ -56,7 +65,14 @@ enum class notification_type
     information
 };
 
-enum class log_status : int
+enum class gui_task_status
+{
+    not_started,
+    started,
+    finished
+};
+
+enum class log_status
 {
     emergency,
     alert,
@@ -66,6 +82,46 @@ enum class log_status : int
     notice,
     info,
     debug
+};
+
+enum class simulation_status
+{
+    not_started,
+    initializing,
+    initialized,
+    run_requiring,
+    running,
+    paused,
+    pause_forced,
+    finish_requiring,
+    finishing,
+    finished,
+    debugged,
+};
+
+enum simluation_observation_type_
+{
+    simulation_observation_type_raw,
+    simulation_observation_type_linearize
+};
+
+enum application_status_
+{
+    application_status_modeling             = 0,
+    application_status_simulating           = 1 << 1,
+    application_status_read_only_modeling   = 1 << 2,
+    application_status_read_only_simulating = 1 << 3,
+};
+
+enum selected_main_window_
+{
+    selected_main_window_none       = 0,      //! All windows are hidden
+    selected_main_window_modeling   = 1 << 1, //! Only modeling window
+    selected_main_window_simulation = 1 << 2, //! Only simulation window
+    selected_main_window_output     = 1 << 3, //! Only output window
+    selected_main_window_all =
+      selected_main_window_modeling | selected_main_window_simulation |
+      selected_main_window_output //! All windows are displayed
 };
 
 void show_menu_external_sources(external_source& srcs,
@@ -81,8 +137,6 @@ struct notification
     notification_type  type;
     u64                creation_time;
 };
-
-enum class notification_id : u64;
 
 //! @brief Show notification windows in bottom right.
 //!
@@ -128,59 +182,64 @@ struct window_logger
 
 const char* log_string(const log_status s) noexcept;
 
-using application_status = u32;
-
-enum class memory_output_id : u64;
-
-struct memory_output
+struct simulation_observation
 {
-    ImVector<real>    xs;
-    ImVector<real>    ys;
-    small_string<24u> name;
-    real              time_step   = one / to_real(10);
-    bool              interpolate = true;
+    struct raw_observation
+    {
+        raw_observation() noexcept = default;
+        raw_observation(const observation_message& msg_,
+                        const real                 t_,
+                        const dynamics_type        type_) noexcept;
+
+        observation_message msg;
+        real                t;
+        dynamics_type       type;
+    };
+
+    struct linear_observation
+    {
+        linear_observation() noexcept = default;
+        linear_observation(const real msg_, const real t_) noexcept;
+
+        real msg;
+        real t;
+    };
+
+    model_id                        model = undefined<model_id>();
+    u64                             plot_id;
+    small_string<16u>               name;
+    vector<raw_observation>         raw_outputs;
+    vector<linear_observation>      linear_outputs;
+    ring_buffer<raw_observation>    raw_ring_buffer;
+    ring_buffer<linear_observation> linear_ring_buffer;
+
+    real                        time_step = one / to_real(10);
+    real                        tl        = time_domain<real>::infinity;
+    simulation_observation_type type      = simulation_observation_type_raw;
+    ring_buffer<raw_observation>::reverse_iterator last_position;
+
+    simulation_observation() noexcept = default;
+
+    status reserve(i32 default_raw_length, i32 default_linear_length) noexcept;
+
+    void clear() noexcept;
+
+    void push(const observer&     obs,
+              const dynamics_type type,
+              const time          t) noexcept;
+
+    void compute_linear_buffer(real next) noexcept;
 };
 
-//! @brief Callback function used into simulation kernel
-//! @param obs
-//! @param type
-//! @param tl
-//! @param t
-//! @param s
-//! @return
-void memory_output_update(const irt::observer&        obs,
-                          const irt::dynamics_type    type,
-                          const irt::time             tl,
-                          const irt::time             t,
-                          const irt::observer::status s) noexcept;
+void simulation_observation_update(const observer&        obs,
+                                   const dynamics_type    type,
+                                   const time             tl,
+                                   const time             t,
+                                   const observer::status s) noexcept;
 
-enum class simulation_status
+struct simulation_plot
 {
-    not_started,
-    initializing,
-    initialized,
-    run_requiring,
-    running,
-    paused,
-    pause_forced,
-    finish_requiring,
-    finishing,
-    finished,
-};
-
-enum application_status_
-{
-    application_status_modeling             = 0,
-    application_status_simulating           = 1 << 1,
-    application_status_read_only_modeling   = 1 << 2,
-    application_status_read_only_simulating = 1 << 3,
-};
-
-enum class gui_task_status
-{
-    not_started,
-    started,
-    finished
+    small_string<16u> name;
 };
 
 void save_component(void* param) noexcept;
@@ -189,8 +248,6 @@ void load_project(void* param) noexcept;
 void save_project(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
-
-enum class gui_task_id : u64;
 
 struct gui_task
 {
@@ -260,7 +317,9 @@ struct simulation_editor
 
     simulation_status simulation_state = simulation_status::not_started;
 
-    data_array<simulation_tree_node, simulation_tree_node_id> tree_nodes;
+    data_array<simulation_tree_node, simulation_tree_node_id>     tree_nodes;
+    data_array<simulation_observation, simulation_observation_id> sim_obs;
+    data_array<simulation_plot, simulation_plot_id>               sim_plots;
 
     ImNodesEditorContext* context = nullptr;
     ImVector<int>         selected_links;
@@ -288,9 +347,9 @@ struct project_hierarchy_selection
 
 struct component_editor
 {
-    modeling                                    mod;
-    external_source                             srcs;
-    data_array<memory_output, memory_output_id> outputs;
+    modeling        mod;
+    external_source srcs;
+    // data_array<memory_output, memory_output_id> outputs;
     tree_node_id          selected_component  = undefined<tree_node_id>();
     ImNodesEditorContext* context             = nullptr;
     bool                  is_saved            = true;
@@ -391,17 +450,19 @@ struct application
     void show() noexcept;
     void shutdown() noexcept;
 
-    void show_external_sources() noexcept;
-    void show_simulation_window() noexcept;
-    void show_components_window() noexcept;
-    void show_project_window() noexcept;
-    void show_main_as_tabbar(ImVec2           position,
-                             ImVec2           size,
-                             ImGuiWindowFlags window_flags,
-                             ImGuiCond        position_flags,
-                             ImGuiCond        size_flags) noexcept;
-    void show_main_as_window(ImVec2 position, ImVec2 size) noexcept;
-    void show_memory_box(bool* is_open) noexcept;
+    void                 show_external_sources() noexcept;
+    void                 show_simulation_window() noexcept;
+    void                 show_simulation_observation_window() noexcept;
+    void                 show_components_window() noexcept;
+    void                 show_project_window() noexcept;
+    selected_main_window show_main_as_tabbar(ImVec2           position,
+                                             ImVec2           size,
+                                             ImGuiWindowFlags window_flags,
+                                             ImGuiCond        position_flags,
+                                             ImGuiCond size_flags) noexcept;
+    selected_main_window show_main_as_window(ImVec2 position,
+                                             ImVec2 size) noexcept;
+    void                 show_memory_box(bool* is_open) noexcept;
 
     void show_modeling_editor_widget() noexcept;
     void show_simulation_editor_widget() noexcept;
@@ -414,6 +475,22 @@ struct application
 };
 
 char* get_imgui_filename() noexcept;
+
+inline simulation_observation::raw_observation::raw_observation(
+  const observation_message& msg_,
+  const real                 t_,
+  const dynamics_type        type_) noexcept
+  : msg(msg_)
+  , t(t_)
+  , type(type_)
+{}
+
+inline simulation_observation::linear_observation::linear_observation(
+  const real msg_,
+  const real t_) noexcept
+  : msg(msg_)
+  , t(t_)
+{}
 
 } // namespace irt
 

@@ -252,8 +252,7 @@ static void simulation_clear(component_editor&  ed,
     sim_ed.clear();
 }
 
-static status simulation_init_observation(component_editor&  ed,
-                                          simulation_editor& sim_ed,
+static status simulation_init_observation(simulation_editor& sim_ed,
                                           tree_node&         tree,
                                           component&         compo)
 {
@@ -265,8 +264,8 @@ static status simulation_init_observation(component_editor&  ed,
             const auto mdl_id = enum_cast<model_id>(c->id);
 
             if (auto* obs_map = tree.observables.get(mdl_id); obs_map) {
-                auto  obs_id = enum_cast<memory_output_id>(*obs_map);
-                auto* obs    = ed.outputs.try_to_get(obs_id);
+                auto obs_id = enum_cast<simulation_observation_id>(obs_map->id);
+                auto* obs   = sim_ed.sim_obs.try_to_get(obs_id);
                 irt_assert(obs);
 
                 auto* sim_map = tree.sim.get(mdl_id);
@@ -280,8 +279,12 @@ static status simulation_init_observation(component_editor&  ed,
                 irt_return_if_fail(sim_ed.sim.observers.can_alloc(1),
                                    status::simulation_not_enough_model);
 
-                auto& output = sim_ed.sim.observers.alloc(
-                  obs->name.c_str(), memory_output_update, &ed, *obs_map, 0);
+                auto& output =
+                  sim_ed.sim.observers.alloc(obs->name.c_str(),
+                                             simulation_observation_update,
+                                             &sim_ed,
+                                             obs_map->id,
+                                             0);
                 sim_ed.sim.observe(*mdl, output);
             }
         }
@@ -294,10 +297,10 @@ static status simulation_init_observation(component_editor&  ed,
                                           simulation_editor& sim_ed,
                                           tree_node&         head) noexcept
 {
-    memory_output* mem = nullptr;
-    while (ed.outputs.next(mem)) {
-        mem->xs.clear();
-        mem->ys.clear();
+    simulation_observation* mem = nullptr;
+    while (sim_ed.sim_obs.next(mem)) {
+        mem->raw_ring_buffer.clear();
+        mem->linear_ring_buffer.clear();
     }
 
     sim_ed.sim.observers.clear();
@@ -314,7 +317,7 @@ static status simulation_init_observation(component_editor&  ed,
 
         if (compo)
             irt_return_if_bad(
-              simulation_init_observation(ed, sim_ed, *cur, *compo));
+              simulation_init_observation(sim_ed, *cur, *compo));
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
             stack.emplace_back(sibling);
@@ -415,18 +418,24 @@ static void simulation_init(component_editor&  ed,
         return;
     }
 
-    if (auto ret = simulation_init_observation(ed, sim_ed, *head);
-        is_bad(ret)) {
-        auto* app = container_of(&ed, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
-        n.title   = "Simulation initialization fail";
-        format(n.message,
-               "Initialization of observation failed: {}",
-               status_string(ret));
-        app->notifications.enable(n);
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
+    simulation_observation* mem = nullptr;
+    while (sim_ed.sim_obs.next(mem)) {
+        mem->raw_ring_buffer.clear();
+        mem->linear_ring_buffer.clear();
     }
+
+    // if (auto ret = simulation_init_observation(ed, sim_ed, *head);
+    //     is_bad(ret)) {
+    //     auto* app = container_of(&ed, &application::c_editor);
+    //     auto& n   = app->notifications.alloc(notification_type::error);
+    //     n.title   = "Simulation initialization fail";
+    //     format(n.message,
+    //            "Initialization of observation failed: {}",
+    //            status_string(ret));
+    //     app->notifications.enable(n);
+    //     sim_ed.simulation_state = simulation_status::not_started;
+    //     return;
+    // }
 
     if (auto ret = sim_ed.sim.initialize(sim_ed.simulation_begin);
         is_bad(ret)) {
@@ -892,7 +901,8 @@ void simulation_editor::simulation_start_1() noexcept
 {
     bool state = match(simulation_state,
                        simulation_status::initialized,
-                       simulation_status::pause_forced);
+                       simulation_status::pause_forced,
+                       simulation_status::debugged);
 
     irt_assert(state);
 
@@ -945,6 +955,9 @@ void simulation_editor::simulation_stop() noexcept
 void simulation_editor::simulation_advance() noexcept
 {
     if (auto* parent = tree_nodes.try_to_get(head); parent) {
+        simulation_state      = simulation_status::debugged;
+        have_use_back_advance = true;
+
         auto* app  = container_of(this, &application::s_editor);
         auto& task = app->gui_tasks.alloc();
         task.app   = app;
@@ -956,6 +969,7 @@ void simulation_editor::simulation_advance() noexcept
 void simulation_editor::simulation_back() noexcept
 {
     if (auto* parent = tree_nodes.try_to_get(head); parent) {
+        simulation_state      = simulation_status::debugged;
         have_use_back_advance = true;
 
         auto* app  = container_of(this, &application::s_editor);
@@ -969,8 +983,6 @@ void simulation_editor::simulation_back() noexcept
 void simulation_editor::enable_or_disable_debug() noexcept
 {
     if (auto* parent = tree_nodes.try_to_get(head); parent) {
-        have_use_back_advance = true;
-
         auto* app  = container_of(this, &application::s_editor);
         auto& task = app->gui_tasks.alloc();
         task.app   = app;

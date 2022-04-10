@@ -132,9 +132,16 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = c_editor.outputs.init(32); is_bad(ret)) {
+    if (auto ret = s_editor.sim_obs.init(16); is_bad(ret)) {
+        log_w.log(2,
+                  "Fail to initialize simulation observation: %s\n",
+                  status_string(ret));
+        return false;
+    }
+
+    if (auto ret = s_editor.sim_plots.init(4); is_bad(ret)) {
         log_w.log(
-          2, "Fail to initialize memory output: %s\n", status_string(ret));
+          2, "Fail to initialize simulation plots: %s\n", status_string(ret));
         return false;
     }
 
@@ -388,14 +395,15 @@ static void application_show_windows(application& app) noexcept
         ImGui::End();
     }
 
+    selected_main_window windows;
     if (app.is_fixed_main_window) {
-        app.show_main_as_tabbar(modeling_pos,
-                                modeling_size,
-                                window_flags,
-                                window_pos_flags,
-                                window_size_flags);
+        windows = app.show_main_as_tabbar(modeling_pos,
+                                          modeling_size,
+                                          window_flags,
+                                          window_pos_flags,
+                                          window_size_flags);
     } else {
-        app.show_main_as_window(modeling_pos, modeling_size);
+        windows = app.show_main_as_window(modeling_pos, modeling_size);
     }
 
     ImGui::SetNextWindowPos(simulation_pos, window_pos_flags);
@@ -407,9 +415,16 @@ static void application_show_windows(application& app) noexcept
 
     ImGui::SetNextWindowPos(components_pos, window_pos_flags);
     ImGui::SetNextWindowSize(components_size, window_size_flags);
-    if (ImGui::Begin("Components list##Window", 0, window_flags)) {
-        app.show_components_window();
-        ImGui::End();
+    if (windows & selected_main_window_simulation) {
+        if (ImGui::Begin("Observations##Window", 0, window_flags)) {
+            app.show_simulation_observation_window();
+            ImGui::End();
+        }
+    } else {
+        if (ImGui::Begin("Components list##Window", 0, window_flags)) {
+            app.show_components_window();
+            ImGui::End();
+        }
     }
 }
 
@@ -520,12 +535,14 @@ void application::show() noexcept
 //     ImGui::End();
 // }
 
-void application::show_main_as_tabbar(ImVec2           position,
-                                      ImVec2           size,
-                                      ImGuiWindowFlags window_flags,
-                                      ImGuiCond        position_flags,
-                                      ImGuiCond        size_flags) noexcept
+selected_main_window application::show_main_as_tabbar(
+  ImVec2           position,
+  ImVec2           size,
+  ImGuiWindowFlags window_flags,
+  ImGuiCond        position_flags,
+  ImGuiCond        size_flags) noexcept
 {
+    selected_main_window ret = selected_main_window_none;
 
     ImGui::SetNextWindowPos(position, position_flags);
     ImGui::SetNextWindowSize(size, size_flags);
@@ -534,27 +551,30 @@ void application::show_main_as_tabbar(ImVec2           position,
           c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
         if (!tree) {
             ImGui::End();
-            return;
+            return ret;
         }
 
         component* compo = c_editor.mod.components.try_to_get(tree->id);
         if (!compo) {
             ImGui::End();
-            return;
+            return ret;
         }
 
         if (ImGui::BeginTabBar("##ModelingTabBar")) {
             if (ImGui::BeginTabItem("Modeling editor")) {
+                ret = selected_main_window_modeling;
                 show_modeling_editor_widget();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("Simulation editor")) {
+                ret = selected_main_window_simulation;
                 show_simulation_editor_widget();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("Output editor")) {
+                ret = selected_main_window_output;
                 show_output_editor_widget();
                 ImGui::EndTabItem();
             }
@@ -563,18 +583,26 @@ void application::show_main_as_tabbar(ImVec2           position,
         }
     }
     ImGui::End();
+
+    return ret;
 }
 
-void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
+int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
 {
+    selected_main_window ret = selected_main_window_none;
+
     size.x -= 50;
     size.y -= 50;
 
     if (show_modeling_editor) {
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Modeling editor", &show_modeling_editor))
+        if (ImGui::Begin("Modeling editor", &show_modeling_editor)) {
+            if (ImGui::IsWindowFocused())
+                ret |= selected_main_window_modeling;
+
             show_modeling_editor_widget();
+        }
         ImGui::End();
     }
 
@@ -584,8 +612,12 @@ void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
     if (show_simulation_editor) {
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Simulation editor", &show_simulation_editor))
+        if (ImGui::Begin("Simulation editor", &show_simulation_editor)) {
+            if (ImGui::IsWindowFocused())
+                ret |= selected_main_window_simulation;
+
             show_simulation_editor_widget();
+        }
         ImGui::End();
     }
 
@@ -595,10 +627,16 @@ void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
     if (show_output_editor) {
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Output editor", &show_output_editor))
+        if (ImGui::Begin("Output editor", &show_output_editor)) {
+            if (ImGui::IsWindowFocused())
+                ret |= selected_main_window_output;
+
             show_output_editor_widget();
+        }
         ImGui::End();
     }
+
+    return ret;
 }
 
 void application::shutdown() noexcept

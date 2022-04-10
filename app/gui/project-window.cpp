@@ -40,22 +40,22 @@ void project_hierarchy_selection::clear() noexcept
     ch     = undefined<child_id>();
 }
 
-static void show_project_hierarchy_child_observable(component_editor& ed,
-                                                    tree_node&        parent,
-                                                    component&        compo,
+static void show_project_hierarchy_child_observable(simulation_editor& sim_ed,
+                                                    tree_node&         parent,
+                                                    component&         compo,
                                                     child& ch) noexcept
 {
     auto  id  = enum_cast<model_id>(ch.id);
     auto* mdl = compo.models.try_to_get(id);
 
     if (mdl) {
-        auto*          value       = parent.observables.get(id);
-        memory_output* obs         = nullptr;
-        bool           is_observed = false;
+        auto*                   value       = parent.observables.get(id);
+        simulation_observation* obs         = nullptr;
+        bool                    is_observed = false;
 
         if (value) {
-            auto output_id = enum_cast<memory_output_id>(*value);
-            obs            = ed.outputs.try_to_get(output_id);
+            auto output_id = enum_cast<simulation_observation_id>(value->id);
+            obs            = sim_ed.sim_obs.try_to_get(output_id);
             if (!obs) {
                 parent.observables.erase(id);
                 value = nullptr;
@@ -66,56 +66,44 @@ static void show_project_hierarchy_child_observable(component_editor& ed,
 
         if (ImGui::Checkbox("Observation##obs", &is_observed)) {
             if (is_observed) {
-                if (ed.outputs.can_alloc(1)) {
-                    auto& new_obs    = ed.outputs.alloc();
-                    auto  new_obs_id = ed.outputs.get_id(new_obs);
+                if (sim_ed.sim_obs.can_alloc(1)) {
+                    auto& new_obs    = sim_ed.sim_obs.alloc();
+                    auto  new_obs_id = sim_ed.sim_obs.get_id(new_obs);
                     obs              = &new_obs;
                     new_obs.name     = ch.name.sv();
-                    parent.observables.set(id, ordinal(new_obs_id));
+
+                    parent.observables.set(
+                      id,
+                      observable{ ordinal(new_obs_id),
+                                  observable_type_single });
                 } else {
                     is_observed = false;
                 }
             } else {
-                if (obs) {
-                    ed.outputs.free(*obs);
-                }
+                if (obs)
+                    sim_ed.sim_obs.free(*obs);
+
                 parent.observables.erase(id);
             }
         }
 
         if (is_observed && obs) {
             ImGui::InputFilteredString("name##obs", obs->name);
-            if (ImGui::InputReal("time-step##obs", &obs->time_step)) {
-                if (obs->time_step <= zero)
-                    obs->time_step = one / to_real(100);
+
+            {
+                auto* ptr = &obs->type;
+
+                ImGui::RadioButton("raw", ptr, simulation_observation_type_raw);
+                ImGui::SameLine();
+                ImGui::RadioButton(
+                  "linearize", ptr, simulation_observation_type_linearize);
             }
 
-            ImGui::Checkbox("interpolate##obs", &obs->interpolate);
-
-            if (obs->xs.capacity() == 0) {
-                obs->xs.reserve(1000);
-                obs->ys.reserve(1000);
-            }
-
-            int old_current = obs->xs.capacity() <= 1000    ? 0
-                              : obs->xs.capacity() <= 10000 ? 1
-                                                            : 2;
-            int current     = old_current;
-
-            ImGui::TextUnformatted("number");
-            ImGui::RadioButton("1,000", &current, 0);
-            ImGui::SameLine();
-            ImGui::RadioButton("10,000", &current, 1);
-            ImGui::SameLine();
-            ImGui::RadioButton("100,000", &current, 2);
-
-            if (current != old_current) {
-                i32 capacity = current == 0   ? 1000
-                               : current == 1 ? 10000
-                                              : 100000;
-
-                obs->xs.reserve(capacity);
-                obs->ys.reserve(capacity);
+            if (obs->type == simulation_observation_type_linearize) {
+                if (ImGui::InputReal("time-step##obs", &obs->time_step)) {
+                    if (obs->time_step <= zero)
+                        obs->time_step = one / to_real(100);
+                }
             }
         }
     }
@@ -213,6 +201,7 @@ static void show_project_hierarchy_child_configuration(component_editor& ed,
 }
 
 static void show_project_hierarchy(component_editor&            ed,
+                                   simulation_editor&           sim_ed,
                                    tree_node&                   parent,
                                    project_hierarchy_selection& data) noexcept
 {
@@ -227,7 +216,7 @@ static void show_project_hierarchy(component_editor&            ed,
             }
 
             if (auto* child = parent.tree.get_child(); child) {
-                show_project_hierarchy(ed, *child, data);
+                show_project_hierarchy(ed, sim_ed, *child, data);
             }
 
             {
@@ -252,7 +241,7 @@ static void show_project_hierarchy(component_editor&            ed,
                                   ed, parent, *compo, *pc);
                             if (pc->observable)
                                 show_project_hierarchy_child_observable(
-                                  ed, parent, *compo, *pc);
+                                  sim_ed, parent, *compo, *pc);
                         }
 
                         ImGui::PopID();
@@ -264,7 +253,7 @@ static void show_project_hierarchy(component_editor&            ed,
         }
 
         if (auto* sibling = parent.tree.get_sibling(); sibling)
-            show_project_hierarchy(ed, *sibling, data);
+            show_project_hierarchy(ed, sim_ed, *sibling, data);
     }
 }
 
@@ -411,7 +400,7 @@ void application::show_project_window() noexcept
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Hierarchy", flags)) {
-        show_project_hierarchy(c_editor, *parent, project_selection);
+        show_project_hierarchy(c_editor, s_editor, *parent, project_selection);
 
         if (auto* parent =
               c_editor.mod.tree_nodes.try_to_get(project_selection.parent);

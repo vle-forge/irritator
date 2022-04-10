@@ -47,7 +47,7 @@ public:
     constexpr table() noexcept  = default;
     constexpr ~table() noexcept = default;
 
-    constexpr void     set(Identifier id, T value) noexcept;
+    constexpr void     set(Identifier id, const T& value) noexcept;
     constexpr T*       get(Identifier id) noexcept;
     constexpr const T* get(Identifier id) const noexcept;
     constexpr void     erase(Identifier id) noexcept;
@@ -390,6 +390,7 @@ public:
 
     constexpr void swap(ring_buffer& rhs) noexcept;
     constexpr void clear() noexcept;
+    constexpr void reset(T* buffer, i32 capacity) noexcept;
 
     template<typename... Args>
     constexpr bool emplace_front(Args&&... args) noexcept;
@@ -433,6 +434,7 @@ public:
     constexpr i32    available() const noexcept;
     constexpr bool   empty() const noexcept;
     constexpr bool   full() const noexcept;
+    constexpr i32    index_from_begin(i32 index) const noexcept;
 };
 
 template<typename T>
@@ -485,7 +487,7 @@ table<Identifier, T>::value_type::value_type(Identifier id_,
 {}
 
 template<typename Identifier, typename T>
-constexpr void table<Identifier, T>::set(Identifier id, T value) noexcept
+constexpr void table<Identifier, T>::set(Identifier id, const T& value) noexcept
 {
     if (auto* value_found = get(id); value_found) {
         *value_found = value;
@@ -875,6 +877,13 @@ constexpr void ring_buffer<T>::clear() noexcept
 }
 
 template<class T>
+constexpr void ring_buffer<T>::reset(T* buffer, i32 capacity) noexcept
+{
+    m_buffer   = buffer;
+    m_capacity = capacity;
+}
+
+template<class T>
 template<typename... Args>
 constexpr bool ring_buffer<T>::emplace_front(Args&&... args) noexcept
 {
@@ -1147,6 +1156,14 @@ template<class T>
 constexpr i32 ring_buffer<T>::capacity() const noexcept
 {
     return m_capacity;
+}
+
+template<class T>
+constexpr i32 ring_buffer<T>::index_from_begin(i32 idx) const noexcept
+{
+    //irt_assert(idx < ssize());
+
+    return (m_tail + idx) % m_capacity;
 }
 
 template<typename T>

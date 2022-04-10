@@ -6550,16 +6550,23 @@ public:
         obs.model  = models.get_id(mdl);
     }
 
+    void unobserve(model& mdl) noexcept
+    {
+        if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
+            obs->model = undefined<model_id>();
+            mdl.obs_id = undefined<observer_id>();
+            observers.free(*obs);
+        }
+
+        mdl.obs_id = undefined<observer_id>();
+    }
+
     status deallocate(model_id id)
     {
         auto* mdl = models.try_to_get(id);
         irt_return_if_fail(mdl, status::unknown_dynamics);
 
-        if (auto* obs = observers.try_to_get(mdl->obs_id); obs) {
-            obs->model  = static_cast<model_id>(0);
-            mdl->obs_id = static_cast<observer_id>(0);
-            observers.free(*obs);
-        }
+        unobserve(*mdl);
 
         dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
             this->do_deallocate<Dynamics>(dyn);
