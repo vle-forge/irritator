@@ -990,6 +990,28 @@ int main()
         expect(buffer[9] == 10);
     };
 
+    "ring-buffer-front-back-access"_test = [] {
+        int                   buffer[4];
+        irt::ring_buffer<int> ring(buffer, std::size(buffer));
+
+        expect(ring.push_front(0) == true);
+        expect(ring.push_front(-1) == true);
+        expect(ring.push_front(-2) == true);
+        expect(ring.push_front(-3) == false);
+        expect(ring.push_front(-4) == false);
+
+        ring.pop_back();
+
+        expect(ring.ssize() == 2);
+        expect(ring.front() == -2);
+        expect(ring.back() == -1);
+
+        expect(ring.push_back(1) == true);
+
+        expect(ring.front() == -2);
+        expect(ring.back() == 1);
+    };
+
     "data_array_api"_test = [] {
         struct position
         {
@@ -1284,8 +1306,9 @@ int main()
         irt::heap h;
         h.init(256u);
 
-        for (auto t = 0._r; t < 100.0_r; ++t)
-            h.insert(t, irt::model_id{ static_cast<unsigned>(t) });
+        for (int t = 0; t < 100; ++t) {
+            h.insert(irt::to_real(t), static_cast<irt::model_id>(t));
+        }
 
         expect(h.size() == 100_ul);
 

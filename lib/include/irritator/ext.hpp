@@ -144,6 +144,9 @@ private:
     i32 m_tail     = 0;
     i32 m_capacity = 0;
 
+    constexpr i32 advance(i32 position) const noexcept;
+    constexpr i32 back(i32 position) const noexcept;
+
 public:
     class iterator;
     class const_iterator;
@@ -388,18 +391,25 @@ public:
     constexpr void swap(ring_buffer& rhs) noexcept;
     constexpr void clear() noexcept;
 
+    template<typename... Args>
+    constexpr bool emplace_front(Args&&... args) noexcept;
+    template<typename... Args>
+    constexpr bool emplace_back(Args&&... args) noexcept;
+
     constexpr bool push_front(const T& item) noexcept;
-    constexpr bool pop_front() noexcept;
+    constexpr void pop_front() noexcept;
     constexpr bool push_back(const T& item) noexcept;
-    constexpr bool pop_back() noexcept;
+    constexpr void pop_back() noexcept;
+    constexpr void erase_after(iterator not_included) noexcept;
+    constexpr void erase_before(iterator not_included) noexcept;
 
     template<typename... Args>
     constexpr bool emplace_enqueue(Args&&... args) noexcept;
 
     template<typename... Args>
-    constexpr bool force_emplace_enqueue(Args&&... args) noexcept;
+    constexpr void force_emplace_enqueue(Args&&... args) noexcept;
 
-    constexpr bool force_enqueue(const T& item) noexcept;
+    constexpr void force_enqueue(const T& item) noexcept;
     constexpr bool enqueue(const T& item) noexcept;
     constexpr void dequeue() noexcept;
 
@@ -783,6 +793,18 @@ constexpr void small_vector<T, length>::swap_pop_back(index_type index) noexcept
 }
 
 template<class T>
+constexpr i32 ring_buffer<T>::advance(i32 position) const noexcept
+{
+    return (position + 1) % m_capacity;
+}
+
+template<class T>
+constexpr i32 ring_buffer<T>::back(i32 position) const noexcept
+{
+    return (((position - 1) % m_capacity) + m_capacity) % m_capacity;
+}
+
+template<class T>
 constexpr ring_buffer<T>::ring_buffer(T* buffer, i32 capacity) noexcept
   : m_buffer(buffer)
   , m_capacity(capacity)
@@ -854,31 +876,123 @@ constexpr void ring_buffer<T>::clear() noexcept
 
 template<class T>
 template<typename... Args>
-constexpr bool ring_buffer<T>::emplace_enqueue(Args&&... args) noexcept
+constexpr bool ring_buffer<T>::emplace_front(Args&&... args) noexcept
 {
     if (full())
         return false;
 
-    std::construct_at(&m_buffer[m_tail], std::forward<Args>(args)...);
-    m_tail = (m_tail + 1) % m_capacity;
+    m_head = back(m_head);
+    std::construct_at(&m_buffer[m_head], std::forward<Args>(args)...);
 
     return true;
 }
 
 template<class T>
 template<typename... Args>
-constexpr bool ring_buffer<T>::force_emplace_enqueue(Args&&... args) noexcept
+constexpr bool ring_buffer<T>::emplace_back(Args&&... args) noexcept
 {
+    if (full())
+        return false;
+
     std::construct_at(&m_buffer[m_tail], std::forward<Args>(args)...);
-    m_tail = (m_tail + 1) % m_capacity;
-
-    if (m_tail == m_head) {
-        std::destroy_at(&m_buffer[m_head]);
-
-        m_head = (m_head + 1) % m_capacity;
-    }
+    m_tail = advance(m_tail);
 
     return true;
+}
+
+template<class T>
+constexpr bool ring_buffer<T>::push_front(const T& item) noexcept
+{
+    if (full())
+        return false;
+
+    m_head = back(m_head);
+    std::construct_at(&m_buffer[m_head], item);
+
+    return true;
+}
+
+template<class T>
+constexpr void ring_buffer<T>::pop_front() noexcept
+{
+    if (!empty()) {
+        std::destroy_at(&m_buffer[m_head]);
+        m_head = advance(m_head);
+    }
+}
+
+template<class T>
+constexpr bool ring_buffer<T>::push_back(const T& item) noexcept
+{
+    if (full())
+        return false;
+
+    std::construct_at(&m_buffer[m_tail], item);
+    m_tail = advance(m_tail);
+
+    return true;
+}
+
+template<class T>
+constexpr void ring_buffer<T>::pop_back() noexcept
+{
+    if (!empty()) {
+        m_tail = back(m_tail);
+        std::destroy_at(&m_buffer[m_tail]);
+    }
+}
+
+template<class T>
+constexpr void ring_buffer<T>::erase_after(iterator this_it) noexcept
+{
+    if (this_it == end())
+        return;
+
+    auto it = this_it;
+    ++it;
+
+    while (it != end())
+        pop_back();
+}
+
+template<class T>
+constexpr void ring_buffer<T>::erase_before(iterator this_it) noexcept
+{
+    if (this_it == end()) {
+        clear();
+        return;
+    }
+
+    if (this_it == begin())
+        return;
+
+    auto it = begin();
+    while (it != this_it)
+        pop_front();
+}
+
+template<class T>
+template<typename... Args>
+constexpr bool ring_buffer<T>::emplace_enqueue(Args&&... args) noexcept
+{
+    if (full())
+        return false;
+
+    std::construct_at(&m_buffer[m_tail], std::forward<Args>(args)...);
+    m_tail = advance(m_tail);
+
+    return true;
+}
+
+template<class T>
+template<typename... Args>
+constexpr void ring_buffer<T>::force_emplace_enqueue(Args&&... args) noexcept
+{
+    if (full())
+        dequeue();
+
+    std::construct_at(&m_buffer[m_tail], std::forward<Args>(args)...);
+    m_tail = advance(m_tail);
 }
 
 template<class T>
@@ -888,34 +1002,28 @@ constexpr bool ring_buffer<T>::enqueue(const T& item) noexcept
         return false;
 
     std::construct_at(&m_buffer[m_tail], item);
-    m_tail = (m_tail + 1) % m_capacity;
+    m_tail = advance(m_tail);
 
     return true;
 }
 
 template<class T>
-constexpr bool ring_buffer<T>::force_enqueue(const T& item) noexcept
+constexpr void ring_buffer<T>::force_enqueue(const T& item) noexcept
 {
+    if (full())
+        dequeue();
+
     std::construct_at(&m_buffer[m_tail], item);
-    m_tail = (m_tail + 1) % m_capacity;
-
-    if (m_tail == m_head) {
-        std::destroy_at(&m_buffer[m_head]);
-
-        m_head = (m_head + 1) % m_capacity;
-    }
-
-    return true;
+    m_tail = advance(m_tail);
 }
 
 template<class T>
 constexpr void ring_buffer<T>::dequeue() noexcept
 {
-    irt_assert(!empty());
-
-    std::destroy_at(&m_buffer[m_head]);
-
-    m_head = (m_head + 1) % m_capacity;
+    if (!empty()) {
+        std::destroy_at(&m_buffer[m_head]);
+        m_head = advance(m_head);
+    }
 }
 
 template<class T>
@@ -1013,7 +1121,7 @@ constexpr bool ring_buffer<T>::empty() const noexcept
 template<class T>
 constexpr bool ring_buffer<T>::full() const noexcept
 {
-    return (m_tail + 1) % m_capacity == m_head;
+    return advance(m_tail) == m_head;
 }
 
 template<class T>
