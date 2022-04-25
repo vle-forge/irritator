@@ -784,9 +784,12 @@ struct fixed_real_array
     constexpr fixed_real_array() noexcept                            = default;
     constexpr ~fixed_real_array() noexcept                           = default;
     constexpr fixed_real_array(const fixed_real_array& rhs) noexcept = default;
+    constexpr fixed_real_array(fixed_real_array&& rhs) noexcept      = default;
 
     constexpr fixed_real_array& operator    =(
       const fixed_real_array& rhs) noexcept = default;
+    constexpr fixed_real_array& operator    =(fixed_real_array&& rhs) noexcept =
+      default;
 
     template<typename... Args>
     constexpr fixed_real_array(Args&&... args) noexcept
@@ -7055,7 +7058,7 @@ void vector<T>::reserve(i32 new_capacity) noexcept
           reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
 
         if (m_data) {
-            if constexpr (std::is_nothrow_move_constructible_v<T>)
+            if constexpr (std::is_move_constructible_v<T>)
                 std::uninitialized_move_n(data(), m_size, new_data);
             else
                 std::uninitialized_copy_n(data(), m_size, new_data);
