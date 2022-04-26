@@ -357,7 +357,7 @@ status add_negative_lif(modeling& mod, component& com) noexcept
 }
 
 template<int QssLevel>
-status add_seir_lineaire(modeling& mod, component& com) noexcept
+status add_seir_linear(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
     bool success = com.models.can_alloc(10) && com.children.can_alloc(10) &&
@@ -380,23 +380,23 @@ status add_seir_lineaire(modeling& mod, component& com) noexcept
     auto constant_a = alloc<constant>(com);
     auto constant_b = alloc<constant>(com);
 
-    sum_a.first->input_coeffs[0] = -0.005_r;
-    sum_a.first->input_coeffs[1] = -0.4_r;
+    sum_a.first->default_input_coeffs[0] = -0.005_r;
+    sum_a.first->default_input_coeffs[1] = -0.4_r;
 
-    sum_b.first->input_coeffs[0] = -0.135_r;
-    sum_b.first->input_coeffs[1] = 0.1_r;
+    sum_b.first->default_input_coeffs[0] = -0.135_r;
+    sum_b.first->default_input_coeffs[1] = 0.1_r;
 
-    integrator_a.first->X  = 10.0_r;
-    integrator_a.first->dQ = 0.01_r;
+    integrator_a.first->default_X  = 10.0_r;
+    integrator_a.first->default_dQ = 0.01_r;
 
-    integrator_b.first->X  = 15.0_r;
-    integrator_b.first->dQ = 0.01_r;
+    integrator_b.first->default_X  = 15.0_r;
+    integrator_b.first->default_dQ = 0.01_r;
 
-    integrator_c.first->X  = 10.0_r;
-    integrator_c.first->dQ = 0.01_r;
+    integrator_c.first->default_X  = 10.0_r;
+    integrator_c.first->default_dQ = 0.01_r;
 
-    integrator_d.first->X  = 18.0_r;
-    integrator_d.first->dQ = 0.01_r;
+    integrator_d.first->default_X  = 18.0_r;
+    integrator_d.first->default_dQ = 0.01_r;
 
     constant_a.first->value = -0.005_r;
 
@@ -424,7 +424,7 @@ status add_seir_lineaire(modeling& mod, component& com) noexcept
 }
 
 template<int QssLevel>
-status add_seir_nonlineaire(modeling& mod, component& com) noexcept
+status add_seir_nonlinear(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
     bool success = com.models.can_alloc(27) && com.children.can_alloc(27) &&
@@ -568,22 +568,22 @@ static bool get_component_type(const char*     type_string,
         { "qss1_lif", component_type::qss1_lif },
         { "qss1_lotka_volterra", component_type::qss1_lotka_volterra },
         { "qss1_negative_lif", component_type::qss1_negative_lif },
-        { "qss1_seir_lineaire", component_type::qss1_seir_lineaire },
-        { "qss1_seir_nonlineaire", component_type::qss1_seir_nonlineaire },
+        { "qss1_seir_linear", component_type::qss1_seir_linear },
+        { "qss1_seir_nonlinear", component_type::qss1_seir_nonlinear },
         { "qss1_van_der_pol", component_type::qss1_van_der_pol },
         { "qss2_izhikevich", component_type::qss2_izhikevich },
         { "qss2_lif", component_type::qss2_lif },
         { "qss2_lotka_volterra", component_type::qss2_lotka_volterra },
         { "qss2_negative_lif", component_type::qss2_negative_lif },
-        { "qss2_seir_lineaire", component_type::qss2_seir_lineaire },
-        { "qss2_seir_nonlineaire", component_type::qss2_seir_nonlineaire },
+        { "qss2_seir_linear", component_type::qss2_seir_linear },
+        { "qss2_seir_nonlinear", component_type::qss2_seir_nonlinear },
         { "qss2_van_der_pol", component_type::qss2_van_der_pol },
         { "qss3_izhikevich", component_type::qss3_izhikevich },
         { "qss3_lif", component_type::qss3_lif },
         { "qss3_lotka_volterra", component_type::qss3_lotka_volterra },
         { "qss3_negative_lif", component_type::qss3_negative_lif },
-        { "qss3_seir_lineaire", component_type::qss3_seir_lineaire },
-        { "qss3_seir_nonlineaire", component_type::qss3_seir_nonlineaire },
+        { "qss3_seir_linear", component_type::qss3_seir_linear },
+        { "qss3_seir_nonlinear", component_type::qss3_seir_nonlinear },
         { "qss3_van_der_pol", component_type::qss3_van_der_pol },
         { "file", component_type::file },
         { "memory", component_type::memory }
@@ -732,7 +732,7 @@ component_id modeling::search_component(const char* directory_name,
 
 status modeling::fill_internal_components() noexcept
 {
-    irt_return_if_fail(components.can_alloc(15), status::success);
+    irt_return_if_fail(components.can_alloc(21), status::success);
 
     {
         auto& c = components.alloc();
@@ -853,6 +853,54 @@ status modeling::fill_internal_components() noexcept
         c.type  = component_type::qss3_lif;
         c.state = component_status::read_only;
         irt_return_if_bad(add_negative_lif<3>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name  = "QSS1 seir linear";
+        c.type  = component_type::qss1_seir_linear;
+        c.state = component_status::read_only;
+        irt_return_if_bad(add_seir_linear<1>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name  = "QSS2 seir linear";
+        c.type  = component_type::qss2_seir_linear;
+        c.state = component_status::read_only;
+        irt_return_if_bad(add_seir_linear<2>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name  = "QSS3 seir linear";
+        c.type  = component_type::qss3_seir_linear;
+        c.state = component_status::read_only;
+        irt_return_if_bad(add_seir_linear<3>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name  = "QSS1 seir nonlinear";
+        c.type  = component_type::qss1_seir_nonlinear;
+        c.state = component_status::read_only;
+        irt_return_if_bad(add_seir_linear<1>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name  = "QSS2 seir nonlinear";
+        c.type  = component_type::qss2_seir_nonlinear;
+        c.state = component_status::read_only;
+        irt_return_if_bad(add_seir_linear<2>(*this, c));
+    }
+
+    {
+        auto& c = components.alloc();
+        c.name  = "QSS3 seir nonlinear";
+        c.type  = component_type::qss3_seir_nonlinear;
+        c.state = component_status::read_only;
+        irt_return_if_bad(add_seir_linear<3>(*this, c));
     }
 
     return status::success;
