@@ -91,7 +91,7 @@ public:
     constexpr small_vector(small_vector&& other) noexcept = delete;
     constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
 
-    constexpr status resize(i32 default_size) noexcept;
+    constexpr status resize(std::integral auto capacity) noexcept;
     constexpr void   clear() noexcept;
 
     constexpr reference       front() noexcept;
@@ -102,15 +102,16 @@ public:
     constexpr T*       data() noexcept;
     constexpr const T* data() const noexcept;
 
-    constexpr reference       operator[](const index_type index) noexcept;
-    constexpr const_reference operator[](const index_type index) const noexcept;
+    constexpr reference       operator[](std::integral auto index) noexcept;
+    constexpr const_reference operator[](
+      std::integral auto index) const noexcept;
 
     constexpr iterator       begin() noexcept;
     constexpr const_iterator begin() const noexcept;
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
 
-    constexpr bool can_alloc(int number = 1) noexcept;
+    constexpr bool can_alloc(std::integral auto number = 1) noexcept;
     constexpr i32  available() const noexcept;
     constexpr sz   size() const noexcept;
     constexpr i32  ssize() const noexcept;
@@ -121,7 +122,7 @@ public:
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
     constexpr void      pop_back() noexcept;
-    constexpr void      swap_pop_back(index_type index) noexcept;
+    constexpr void      swap_pop_back(std::integral auto index) noexcept;
 };
 
 //! @brief A ring-buffer based on a fixed size container.
@@ -583,24 +584,27 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 }
 
 template<typename T, sz length>
-constexpr status small_vector<T, length>::resize(i32 default_size) noexcept
+constexpr status small_vector<T, length>::resize(
+  std::integral auto default_size) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<T> ||
                     std::is_trivially_default_constructible_v<T>,
                   "T must be nothrow or trivially default constructible to use "
                   "init() function");
 
-    irt_return_if_fail(default_size > 0 &&
-                         default_size < static_cast<i32>(length),
+    irt_return_if_fail(std::cmp_greater(default_size, 0) &&
+                         std::cmp_less(default_size, length),
                        status::vector_init_capacity_error);
 
-    if (default_size > m_size)
-        std::uninitialized_default_construct_n(data() + m_size,
-                                               default_size - m_size);
-    else
-        std::destroy_n(data() + default_size, m_size - default_size);
+    const auto new_default_size = static_cast<size_type>(default_size);
 
-    m_size = default_size;
+    if (new_default_size > m_size)
+        std::uninitialized_default_construct_n(data() + m_size,
+                                               new_default_size - m_size);
+    else
+        std::destroy_n(data() + new_default_size, m_size - new_default_size);
+
+    m_size = new_default_size;
 
     return status::success;
 }
@@ -651,20 +655,20 @@ small_vector<T, length>::back() const noexcept
 
 template<typename T, sz length>
 constexpr typename small_vector<T, length>::reference
-small_vector<T, length>::operator[](const index_type index) noexcept
+small_vector<T, length>::operator[](std::integral auto index) noexcept
 {
-    irt_assert(index >= 0);
-    irt_assert(index < m_size);
+    irt_assert(std::cmp_greater_equal(index, 0));
+    irt_assert(std::cmp_less(index, m_size));
 
     return data()[index];
 }
 
 template<typename T, sz length>
 constexpr typename small_vector<T, length>::const_reference
-small_vector<T, length>::operator[](const index_type index) const noexcept
+small_vector<T, length>::operator[](std::integral auto index) const noexcept
 {
-    irt_assert(index >= 0);
-    irt_assert(index < m_size);
+    irt_assert(std::cmp_greater_equal(index, 0));
+    irt_assert(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -735,10 +739,12 @@ constexpr void small_vector<T, length>::clear() noexcept
 }
 
 template<typename T, sz length>
-constexpr bool small_vector<T, length>::can_alloc(int number) noexcept
+constexpr bool small_vector<T, length>::can_alloc(
+  std::integral auto number) noexcept
 {
-    return static_cast<i64>(length) - static_cast<i64>(m_size) >=
-           static_cast<i64>(number);
+    return static_cast<std::ptrdiff_t>(length) -
+             static_cast<std::ptrdiff_t>(m_size) >=
+           static_cast<std::ptrdiff_t>(number);
 }
 
 template<typename T, sz length>
@@ -774,14 +780,18 @@ constexpr void small_vector<T, length>::pop_back() noexcept
 }
 
 template<typename T, sz length>
-constexpr void small_vector<T, length>::swap_pop_back(index_type index) noexcept
+constexpr void small_vector<T, length>::swap_pop_back(
+  std::integral auto index) noexcept
 {
-    irt_assert(index >= 0 && index < m_size);
+    irt_assert(std::cmp_greater_equal(index, 0) &&
+               std::cmp_less(index, m_size));
 
-    if (index == m_size - 1) {
+    const auto new_index = static_cast<size_type>(index);
+
+    if (new_index == m_size - 1) {
         pop_back();
     } else {
-        auto to_delete = data() + index;
+        auto to_delete = data() + new_index;
         auto last      = data() + m_size - 1;
 
         std::destroy_at(to_delete);
