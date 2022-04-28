@@ -632,8 +632,39 @@ void simulation_editor::clear() noexcept
 {
     unselect();
 
-    tree_nodes.clear();
+    force_pause           = false;
+    force_stop            = false;
+    show_minimap          = true;
+    allow_user_changes    = false;
+    store_all_changes     = false;
+    infinity_simulation   = false;
+    real_time             = false;
+    have_use_back_advance = false;
+
     sim.clear();
+    tl.reset();
+
+    simulation_begin   = 0;
+    simulation_end     = 100;
+    simulation_current = 0;
+
+    simulation_real_time_relation = 1000000;
+
+    head    = undefined<simulation_tree_node_id>();
+    current = undefined<simulation_tree_node_id>();
+    mode    = visualization_mode::flat;
+
+    simulation_state = simulation_status::not_started;
+
+    tree_nodes.clear();
+    sim_obs.clear();
+    sim_plots.clear();
+
+    selected_links.clear();
+    selected_nodes.clear();
+
+    automatic_layout_iteration = 0;
+    displacements.clear();
 }
 
 static status copy_port(simulation&                      sim,
@@ -1239,10 +1270,13 @@ void application::show_simulation_editor_widget() noexcept
 
     ImGui::PopItemWidth();
 
+    if (ImGui::Button("clear"))
+        s_editor.simulation_clear();
+    ImGui::SameLine();
+
     ImGui::BeginDisabled(can_be_initialized);
-    if (ImGui::Button("Import model")) {
+    if (ImGui::Button("import"))
         s_editor.simulation_copy_modeling();
-    }
     ImGui::SameLine();
 
     if (ImGui::Button("init")) {
@@ -1305,7 +1339,7 @@ void application::show_simulation_editor_widget() noexcept
     ImGui::EndDisabled();
     ImGui::SameLine();
 
-    if (s_editor.tl.current_bag != s_editor.tl.points.rend()) {
+    if (s_editor.tl.current_bag != s_editor.tl.points.end()) {
         ImGui::TextFormat(
           "debug bag: {}/{}", s_editor.tl.current_bag->bag, s_editor.tl.bag);
     } else {

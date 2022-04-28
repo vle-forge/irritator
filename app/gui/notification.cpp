@@ -154,11 +154,11 @@ void notification_manager::show() noexcept
 
     const auto vp_size = ImGui::GetMainViewport()->Size;
     auto       height  = 0.f;
+    auto       i       = 0;
 
     std::lock_guard<std::mutex> lock{ mutex };
 
-    int i = 0;
-    for (auto it = r_buffer.begin(), et = r_buffer.end(); it != et; ++it, ++i) {
+    for (auto it = r_buffer.head(); it != r_buffer.end(); ++it) {
         auto* notif = data.try_to_get(*it);
         if (!notif) {
             *it = undefined<notification_id>();
@@ -206,6 +206,8 @@ void notification_manager::show() noexcept
         height += ImGui::GetWindowHeight() + notification_y_message_padding;
 
         ImGui::End();
+
+        ++i;
     }
 
     while (!r_buffer.empty() &&

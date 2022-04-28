@@ -9,71 +9,112 @@
 
 namespace irt {
 
-static void show_output_widget([[maybe_unused]] component_editor& ed) noexcept
+const char* simulation_plot_type_string[] = { "None",
+                                              "Plot line",
+                                              "Plot scatter" };
+
+static void show_output_widget(application& app) noexcept
 {
-    // if (ImGui::BeginTable("Observations", 5)) {
-    //     ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
-    //     ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
-    //     ImGui::TableSetupColumn("time-step",
-    //     ImGuiTableColumnFlags_WidthFixed); ImGui::TableSetupColumn("size",
-    //     ImGuiTableColumnFlags_WidthFixed);
-    //     ImGui::TableSetupColumn("capacity",
-    //     ImGuiTableColumnFlags_WidthFixed);
+    if (ImGui::CollapsingHeader("Raw observations list",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::BeginTable("Observations", 7)) {
+            ImGui::TableSetupColumn("id");
+            ImGui::TableSetupColumn("name");
+            ImGui::TableSetupColumn("time-step");
+            ImGui::TableSetupColumn("size");
+            ImGui::TableSetupColumn("capacity");
+            ImGui::TableSetupColumn("plot");
+            ImGui::TableSetupColumn("action");
 
-    //     ImGui::TableHeadersRow();
-    //     memory_output* out = nullptr;
-    //     while (ed.outputs.next(out)) {
-    //         ImGui::TableNextRow();
-    //         ImGui::TableNextColumn();
+            ImGui::TableHeadersRow();
+            simulation_observation* out = nullptr;
+            while (app.s_editor.sim_obs.next(out)) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
 
-    //         ImGui::TextFormat("{}", ordinal(ed.outputs.get_id(*out)));
-    //         ImGui::TableNextColumn();
-    //         ImGui::TextUnformatted(out->name.c_str());
-    //         ImGui::TableNextColumn();
-    //         ImGui::TextFormat("{}", out->time_step);
-    //         ImGui::TableNextColumn();
-    //         ImGui::TextFormat("{}", out->xs.size());
-    //         ImGui::TableNextColumn();
-    //         ImGui::TextFormat("{}", out->xs.capacity());
-    //     }
+                ImGui::TextFormat("{}",
+                                  ordinal(app.s_editor.sim_obs.get_id(*out)));
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(out->name.c_str());
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", out->time_step);
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", out->raw_ring_buffer.size());
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", out->raw_outputs.capacity());
+                ImGui::TableNextColumn();
+                if (ImGui::SmallButton("save")) {
+                    auto err       = std::error_code{};
+                    auto file_path = std::filesystem::current_path(err);
+                    out->save(file_path);
+                }
 
-    //     ImGui::EndTable();
-    // }
+                ImGui::TableNextColumn();
+                if (ImGui::Combo("##plot",
+                                 &out->plot_type,
+                                 simulation_plot_type_string,
+                                 IM_ARRAYSIZE(simulation_plot_type_string))) {
+                    switch (out->plot_type) {
+                    case simulation_plot_type_plotlines:
+                        out->compute_complete_interpolate();
+                        break;
 
-    // if (ImGui::CollapsingHeader("Outputs", ImGuiTreeNodeFlags_DefaultOpen)) {
-    //     if (ImPlot::BeginPlot("simulation", "t", "s")) {
-    //         ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-    //         ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+                    case simulation_plot_type_plotscatters:
+                        out->compute_complete_interpolate();
+                        break;
 
-    //         memory_output* obs = nullptr;
-    //         while (ed.outputs.next(obs)) {
-    //             const auto sz = obs->ys.size();
+                    default:
+                        out->plot_outputs.clear();
+                        break;
+                    }
+                }
+            }
 
-    //             if (sz) {
-    //                 if (obs->interpolate) {
-    //                     ImPlot::PlotLine(obs->name.c_str(),
-    //                                      obs->xs.begin(),
-    //                                      obs->ys.begin(),
-    //                                      sz);
+            ImGui::EndTable();
+        }
+    }
 
-    //                 } else {
-    //                     ImPlot::PlotScatter(obs->name.c_str(),
-    //                                         obs->xs.begin(),
-    //                                         obs->ys.begin(),
-    //                                         sz);
-    //                 }
-    //             }
-    //         }
+    if (ImGui::CollapsingHeader("Plots outputs",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImPlot::BeginPlot("Plot", "t", "s")) {
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-    //         ImPlot::PopStyleVar(2);
-    //         ImPlot::EndPlot();
-    //     }
-    // }
+            simulation_observation* obs = nullptr;
+            while (app.s_editor.sim_obs.next(obs)) {
+                switch (obs->plot_type) {
+                case simulation_plot_type_plotlines:
+                    ImPlot::PlotLine(obs->name.c_str(),
+                                     &obs->plot_outputs[0].x,
+                                     &obs->plot_outputs[0].y,
+                                     obs->plot_outputs.size(),
+                                     0,
+                                     sizeof(ImVec2));
+                    break;
+
+                case simulation_plot_type_plotscatters:
+                    ImPlot::PlotScatter(obs->name.c_str(),
+                                        &obs->plot_outputs[0].x,
+                                        &obs->plot_outputs[0].y,
+                                        obs->plot_outputs.size(),
+                                        0,
+                                        sizeof(ImVec2));
+                    break;
+
+                default:
+                    break;
+                }
+            }
+
+            ImPlot::PopStyleVar(2);
+            ImPlot::EndPlot();
+        }
+    }
 }
 
 void application::show_output_editor_widget() noexcept
 {
-    show_output_widget(c_editor);
+    show_output_widget(*this);
 }
 
 } // namespace irt

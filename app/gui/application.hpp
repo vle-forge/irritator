@@ -52,9 +52,9 @@ enum class simulation_observation_id : u64;
 enum class simulation_plot_id : u64;
 enum class gui_task_id : u64;
 
-using application_status          = u32;
-using simulation_observation_type = i32;
-using selected_main_window        = i32;
+using application_status   = u32;
+using selected_main_window = i32;
+using simulation_plot_type = i32;
 
 enum class notification_type
 {
@@ -99,12 +99,6 @@ enum class simulation_status
     debugged,
 };
 
-enum simluation_observation_type_
-{
-    simulation_observation_type_raw,
-    simulation_observation_type_linearize
-};
-
 enum application_status_
 {
     application_status_modeling             = 0,
@@ -122,6 +116,13 @@ enum selected_main_window_
     selected_main_window_all =
       selected_main_window_modeling | selected_main_window_simulation |
       selected_main_window_output //! All windows are displayed
+};
+
+enum simulation_plot_
+{
+    simulation_plot_type_none,
+    simulation_plot_type_plotlines,
+    simulation_plot_type_plotscatters
 };
 
 void show_menu_external_sources(external_source& srcs,
@@ -188,12 +189,10 @@ struct simulation_observation
     {
         raw_observation() noexcept = default;
         raw_observation(const observation_message& msg_,
-                        const real                 t_,
-                        const dynamics_type        type_) noexcept;
+                        const real                 t_) noexcept;
 
         observation_message msg;
         real                t;
-        dynamics_type       type;
     };
 
     struct linear_observation
@@ -206,29 +205,32 @@ struct simulation_observation
     };
 
     model_id                        model = undefined<model_id>();
+    dynamics_type                   type  = dynamics_type::constant;
     u64                             plot_id;
     small_string<16u>               name;
     vector<raw_observation>         raw_outputs;
     vector<linear_observation>      linear_outputs;
+    ImVector<ImVec2>                plot_outputs;
     ring_buffer<raw_observation>    raw_ring_buffer;
     ring_buffer<linear_observation> linear_ring_buffer;
 
-    real                        time_step = one / to_real(10);
-    real                        tl        = time_domain<real>::infinity;
-    simulation_observation_type type      = simulation_observation_type_raw;
-    ring_buffer<raw_observation>::reverse_iterator last_position;
+    real                                   window    = to_real(10);
+    real                                   time_step = one / to_real(10);
+    ring_buffer<raw_observation>::iterator last_position;
 
-    simulation_observation() noexcept = default;
+    simulation_plot_type plot_type = simulation_plot_type_none;
 
-    status reserve(i32 default_raw_length, i32 default_linear_length) noexcept;
+    simulation_observation(model_id      mdl,
+                           dynamics_type type,
+                           i32           default_raw_length,
+                           i32           default_linear_length) noexcept;
 
     void clear() noexcept;
 
-    void push(const observer&     obs,
-              const dynamics_type type,
-              const time          t) noexcept;
+    void save(const std::filesystem::path& file_path) noexcept;
 
-    void compute_linear_buffer(real next) noexcept;
+    void compute_complete_interpolate() noexcept;
+    void compute_linear_buffer(real t) noexcept;
 };
 
 void simulation_observation_update(const observer&        obs,
@@ -478,11 +480,9 @@ char* get_imgui_filename() noexcept;
 
 inline simulation_observation::raw_observation::raw_observation(
   const observation_message& msg_,
-  const real                 t_,
-  const dynamics_type        type_) noexcept
+  const real                 t_) noexcept
   : msg(msg_)
   , t(t_)
-  , type(type_)
 {}
 
 inline simulation_observation::linear_observation::linear_observation(

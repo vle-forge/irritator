@@ -22,7 +22,7 @@ struct simulation_point
     simulation_point() noexcept = default;
 
     simulation_point(const simulation_point& rhs) noexcept = delete;
-    simulation_point(simulation_point&& rhs) noexcept    = default;
+    simulation_point(simulation_point&& rhs) noexcept      = default;
 
     time t;
 
@@ -115,8 +115,8 @@ struct timeline
     bool can_advance() const noexcept;
     bool can_back() const noexcept;
 
-    ring_buffer<timeline_point>::reverse_iterator current_bag;
-    i32                                           bag;
+    ring_buffer<timeline_point>::iterator current_bag;
+    i32                                   bag;
 };
 
 //! @brief Initialize simulation and store first state.

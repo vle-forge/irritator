@@ -424,19 +424,6 @@ static void simulation_init(component_editor&  ed,
         mem->linear_ring_buffer.clear();
     }
 
-    // if (auto ret = simulation_init_observation(ed, sim_ed, *head);
-    //     is_bad(ret)) {
-    //     auto* app = container_of(&ed, &application::c_editor);
-    //     auto& n   = app->notifications.alloc(notification_type::error);
-    //     n.title   = "Simulation initialization fail";
-    //     format(n.message,
-    //            "Initialization of observation failed: {}",
-    //            status_string(ret));
-    //     app->notifications.enable(n);
-    //     sim_ed.simulation_state = simulation_status::not_started;
-    //     return;
-    // }
-
     if (auto ret = sim_ed.sim.initialize(sim_ed.simulation_begin);
         is_bad(ret)) {
         auto* app = container_of(&ed, &application::c_editor);
@@ -833,6 +820,8 @@ void simulation_editor::simulation_copy_modeling() noexcept
             notif.title = "Empty model";
             app->notifications.enable(notif);
         } else {
+            app->s_editor.clear();
+
             auto& task = app->gui_tasks.alloc();
             task.app   = app;
             app->task_mgr.task_lists[0].add(simulation_copy_impl, &task);
@@ -863,18 +852,12 @@ void simulation_editor::simulation_init() noexcept
 
 void simulation_editor::simulation_clear() noexcept
 {
-    bool state = match(simulation_state, simulation_status::not_started);
-
-    irt_assert(state);
-
-    if (state) {
-        if (auto* parent = tree_nodes.try_to_get(head); parent) {
-            auto* app  = container_of(this, &application::s_editor);
-            auto& task = app->gui_tasks.alloc();
-            task.app   = app;
-            app->task_mgr.task_lists[0].add(simulation_clear_impl, &task);
-            app->task_mgr.task_lists[0].submit();
-        }
+    if (auto* parent = tree_nodes.try_to_get(head); parent) {
+        auto* app  = container_of(this, &application::s_editor);
+        auto& task = app->gui_tasks.alloc();
+        task.app   = app;
+        app->task_mgr.task_lists[0].add(simulation_clear_impl, &task);
+        app->task_mgr.task_lists[0].submit();
     }
 }
 

@@ -11,11 +11,14 @@
 
 namespace irt {
 
-status simulation_observation::reserve(i32 default_raw_length,
-                                       i32 default_linear_length) noexcept
+simulation_observation::simulation_observation(
+  model_id      mdl_,
+  dynamics_type type_,
+  i32           default_raw_length,
+  i32           default_linear_length) noexcept
+  : model{ mdl_ }
+  , type{ type_ }
 {
-    clear();
-
     irt_assert(default_raw_length > 0);
 
     raw_outputs.resize(default_raw_length);
@@ -25,8 +28,6 @@ status simulation_observation::reserve(i32 default_raw_length,
         linear_outputs.resize(default_linear_length);
         linear_ring_buffer.reset(linear_outputs.data(), linear_outputs.ssize());
     }
-
-    return status::success;
 }
 
 void simulation_observation::clear() noexcept
@@ -35,11 +36,70 @@ void simulation_observation::clear() noexcept
     linear_ring_buffer.clear();
 }
 
-void simulation_observation::push(const irt::observer&     obs,
-                                  const irt::dynamics_type type,
-                                  const irt::time          t) noexcept
+void simulation_observation::save(
+  const std::filesystem::path& file_path) noexcept
 {
-    raw_ring_buffer.force_emplace_enqueue(obs.msg, t, type);
+    try {
+        auto raw_file = file_path / "raw.csv";
+        if (auto ofs = std::ofstream{ raw_file }; ofs.is_open()) {
+            auto it = raw_ring_buffer.head();
+            auto et = raw_ring_buffer.end();
+
+            switch (type) {
+            case dynamics_type::qss1_integrator:
+                ofs << "t,value\n";
+                for (; it != et; ++it)
+                    ofs << it->t << ',' << it->msg[0] << '\n';
+                break;
+
+            case dynamics_type::qss2_integrator:
+                ofs << "t,value,value2\n";
+                for (; it != et; ++it)
+                    ofs << it->t << ',' << it->msg[0] << ',' << it->msg[1]
+                        << '\n';
+                break;
+
+            case dynamics_type::qss3_integrator:
+                ofs << "t,value,value2,value3\n";
+                for (; it != et; ++it)
+                    ofs << it->t << ',' << it->msg[0] << ',' << it->msg[1]
+                        << ',' << it->msg[2] << '\n';
+                break;
+            }
+        }
+
+        auto linear_file = file_path / "interpolate.csv";
+        if (auto ofs = std::ofstream{ raw_file }; ofs.is_open()) {
+            auto it = raw_ring_buffer.head();
+            auto et = raw_ring_buffer.end();
+
+            switch (type) {
+            case dynamics_type::qss1_integrator:
+                ofs << "t,value\n";
+                for (; it != et; ++it)
+                    ofs << it->t << ',' << it->msg[0] << '\n';
+                break;
+
+            case dynamics_type::qss2_integrator:
+                ofs << "t,value,value2\n";
+                for (; it != et; ++it)
+                    ofs << it->t << ',' << it->msg[0] << '\n';
+                break;
+
+            case dynamics_type::qss3_integrator:
+                ofs << "t,value,value2,value3\n";
+                for (; it != et; ++it)
+                    ofs << it->t << ',' << it->msg[0] << '\n';
+                break;
+            }
+        }
+    } catch (const std::exception& /*e*/) {
+    }
+}
+static real compute_value_0(const observation_message& msg,
+                            const time                 elapsed) noexcept
+{
+    return msg[0];
 }
 
 static real compute_value_1(const observation_message& msg,
@@ -61,64 +121,158 @@ static real compute_value_3(const observation_message& msg,
            (msg[3] * elapsed * elapsed * elapsed / three);
 }
 
-void simulation_observation::compute_linear_buffer(real next) noexcept
+template<typename Function>
+static void compute_interpolate(
+  simulation_observation&                        obs,
+  const simulation_observation::raw_observation& raw,
+  real                                           next,
+  Function                                       f) noexcept
 {
-    irt_assert(linear_outputs.size() > 0);
+    const auto elapsed = next - raw.t;
+    const auto nb      = static_cast<int>(elapsed / obs.time_step);
+    auto       td      = raw.t;
 
-    if (raw_ring_buffer.empty())
-        return;
-
-    auto end = last_position;
-    auto it  = raw_ring_buffer.rbegin();
-
-    for (; it != end; ++it) {
-        const auto elapsed   = it->t - tl;
-        const auto nb        = static_cast<i32>(elapsed / time_step);
-        const auto remaining = std::fmod(elapsed, time_step);
-        auto       td        = it->t;
-        real       value;
-
-        for (i32 i = 0; i < nb; ++i, td += time_step) {
-            switch (it->type) {
-            case dynamics_type::qss1_integrator:
-                value = compute_value_1(it->msg, time_step);
-                break;
-            case dynamics_type::qss2_integrator:
-                value = compute_value_2(it->msg, time_step);
-                break;
-            case dynamics_type::qss3_integrator:
-                value = compute_value_3(it->msg, time_step);
-                break;
-            default:
-                value = it->msg[0];
-                break;
-            }
-
-            linear_ring_buffer.force_emplace_enqueue(value, td);
-        }
-
-        if (remaining > zero) {
-            switch (it->type) {
-            case dynamics_type::qss1_integrator:
-                value = compute_value_1(it->msg, next - td);
-                break;
-            case dynamics_type::qss2_integrator:
-                value = compute_value_2(it->msg, next - td);
-                break;
-            case dynamics_type::qss3_integrator:
-                value = compute_value_3(it->msg, next - td);
-                break;
-            default:
-                value = it->msg[0];
-                break;
-            }
-
-            linear_ring_buffer.force_emplace_enqueue(value, td);
-        }
+    for (int i = 0; i < nb; ++i, td += obs.time_step) {
+        const auto e     = td - raw.t;
+        const auto value = f(raw.msg, e);
+        obs.linear_ring_buffer.force_emplace_enqueue(value, td);
     }
 
-    tl            = next;
-    last_position = raw_ring_buffer.rbegin();
+    const auto e = next - td;
+    if (e > 0) {
+        const auto value = f(raw.msg, e);
+        obs.linear_ring_buffer.force_emplace_enqueue(value, next);
+    }
+}
+
+template<typename Function>
+static void compute_n_interpolate(
+  simulation_observation&                        obs,
+  const simulation_observation::raw_observation& raw,
+  real                                           next,
+  Function                                       f) noexcept
+{
+    const auto elapsed = next - raw.t;
+    const auto nb      = static_cast<int>(elapsed / obs.time_step);
+    auto       td      = raw.t;
+
+    while (!obs.plot_outputs.empty() && obs.plot_outputs.back().x == td)
+        obs.plot_outputs.pop_back();
+
+    for (int i = 0; i < nb; ++i, td += obs.time_step) {
+        const auto e     = td - raw.t;
+        const auto value = f(raw.msg, e);
+        obs.plot_outputs.push_back(ImVec2{ (float)td, (float)value });
+    }
+
+    const auto value = f(raw.msg, elapsed);
+    obs.plot_outputs.push_back(ImVec2{ (float)next, (float)value });
+}
+
+static auto get_min_it(auto head, auto tail, auto end, real min_time) noexcept
+{
+    for (; tail != end; --tail)
+        if (tail->t < min_time)
+            return tail;
+
+    return head;
+}
+
+void simulation_observation::compute_complete_interpolate() noexcept
+{
+    auto it{ raw_ring_buffer.head() };
+    auto et{ raw_ring_buffer.end() };
+
+    switch (type) {
+    case dynamics_type::qss1_integrator:
+        for (; it != et; ++it) {
+            auto next{ it };
+            ++next;
+
+            if (next != et)
+                compute_n_interpolate(*this, *it, next->t, compute_value_1);
+        }
+        break;
+    case dynamics_type::qss2_integrator:
+        for (; it != et; ++it) {
+            auto next{ it };
+            ++next;
+
+            if (next != et)
+                compute_n_interpolate(*this, *it, next->t, compute_value_2);
+        }
+        break;
+    case dynamics_type::qss3_integrator:
+        for (int i = 0; it != et; ++it, ++i) {
+            auto next{ it };
+            ++next;
+
+            if (next != et)
+                compute_n_interpolate(*this, *it, next->t, compute_value_3);
+        }
+
+        break;
+    default:
+        for (; it != et; ++it) {
+            auto next{ it };
+            ++next;
+
+            if (next != et)
+                compute_n_interpolate(*this, *it, next->t, compute_value_0);
+        }
+        break;
+    }
+}
+
+void simulation_observation::compute_linear_buffer(real t) noexcept
+{
+    auto head     = raw_ring_buffer.head();
+    auto tail     = raw_ring_buffer.tail();
+    auto et       = raw_ring_buffer.end();
+    auto min_time = t - window;
+    auto min_it   = get_min_it(head, tail, et, min_time);
+
+    linear_ring_buffer.clear();
+
+    switch (type) {
+    case dynamics_type::qss1_integrator:
+        for (; min_it != et; ++min_it) {
+            auto next{ min_it };
+            ++next;
+
+            compute_interpolate(
+              *this, *min_it, next == et ? t : next->t, compute_value_1);
+        }
+        break;
+    case dynamics_type::qss2_integrator:
+        for (; min_it != et; ++min_it) {
+            auto next{ min_it };
+            ++next;
+
+            compute_interpolate(
+              *this, *min_it, next == et ? t : next->t, compute_value_2);
+        }
+        break;
+    case dynamics_type::qss3_integrator:
+        for (int i = 0; min_it != et; ++min_it, ++i) {
+            auto next{ min_it };
+            ++next;
+
+            compute_interpolate(
+              *this, *min_it, next == et ? t : next->t, compute_value_3);
+        }
+
+        break;
+    default:
+        for (; min_it != et; ++min_it) {
+            auto next{ min_it };
+            ++next;
+
+            compute_interpolate(
+              *this, *min_it, next == et ? t : next->t, compute_value_0);
+        }
+        break;
+    }
 }
 
 static inline void simulation_observation_initialize(
@@ -130,22 +284,22 @@ static inline void simulation_observation_initialize(
 {
     output.raw_ring_buffer.clear();
     output.linear_ring_buffer.clear();
-    output.last_position = output.raw_ring_buffer.rend();
+    output.last_position.reset();
 }
 
-static inline void simulation_observation_run(
-  simulation_observation&          output,
-  const irt::observer&             obs,
-  const irt::dynamics_type         type,
-  [[maybe_unused]] const irt::time tl,
-  const irt::time                  t) noexcept
+static inline void simulation_observation_run(simulation_observation& output,
+                                              const irt::observer&    obs,
+                                              const irt::dynamics_type /*type*/,
+                                              const irt::time /*tl*/,
+                                              const irt::time t) noexcept
 {
-    // Store only one value for a time
+    // Store only one raw value for a time.
+
     while (!output.raw_ring_buffer.empty() &&
            output.raw_ring_buffer.back().t == t)
         output.raw_ring_buffer.pop_back();
 
-    output.raw_ring_buffer.force_emplace_enqueue(obs.msg, t, type);
+    output.raw_ring_buffer.force_emplace_enqueue(obs.msg, t);
     output.compute_linear_buffer(t);
 }
 
@@ -223,10 +377,9 @@ static void task_simulation_observation_add(void* param) noexcept
     auto mdl_id = enum_cast<model_id>(g_task->param_1);
     if (auto* mdl = sim.models.try_to_get(mdl_id); mdl) {
         if (sim.observers.can_alloc(1) && sim_ed.sim_obs.can_alloc(1)) {
-            auto& obs    = sim_ed.sim_obs.alloc();
-            auto  obs_id = sim_ed.sim_obs.get_id(obs);
-            obs.model    = mdl_id;
-            obs.reserve(4096, 4099);
+            auto& obs =
+              sim_ed.sim_obs.alloc(mdl_id, mdl->type, 4096, 4096 * 4096);
+            auto obs_id = sim_ed.sim_obs.get_id(obs);
 
             auto& output =
               sim_ed.sim.observers.alloc(obs.name.c_str(),

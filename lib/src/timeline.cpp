@@ -98,13 +98,13 @@ void timeline::reset() noexcept
     current_models_number   = 0;
     current_messages_number = 0;
 
-    current_bag = points.rend();
-    bag         = 0;
+    current_bag.reset();
+    bag = 0;
 }
 
 void timeline::cleanup_after_current_bag() noexcept
 {
-    if (current_bag == points.rend())
+    if (current_bag == points.end())
         return;
 
     const bool need_to_search_connections = !connection_points.empty();
@@ -114,9 +114,9 @@ void timeline::cleanup_after_current_bag() noexcept
     i32  first_connection_index = -1;
     i32  first_model_index      = -1;
     i32  first_simulation_index = -1;
-    auto it                     = current_bag;
+    auto it{ current_bag };
 
-    for (++it; it != points.rend(); ++it) {
+    for (++it; it != points.end(); ++it) {
         switch (it->type) {
         case timeline_point_type::connection:
             if (first_connection_index == -1)
@@ -151,8 +151,7 @@ void timeline::cleanup_after_current_bag() noexcept
         sim_points.erase(sim_points.data() + first_simulation_index,
                          sim_points.data() + sim_points.size());
 
-    while (current_bag != points.rbegin())
-        points.dequeue();
+    points.erase_before(current_bag);
 }
 
 static status build_initial_simulation_point(timeline&   tl,
@@ -347,12 +346,12 @@ static status advance(simulation&       sim,
 
 status advance(timeline& tl, simulation& sim, time& t) noexcept
 {
-    if (tl.current_bag == tl.points.rend())
+    if (tl.current_bag == tl.points.end())
         return status::success;
 
     --tl.current_bag;
 
-    if (tl.current_bag == tl.points.rend())
+    if (tl.current_bag == tl.points.end())
         return status::success;
 
     auto& bag = *tl.current_bag;
@@ -410,12 +409,12 @@ static status back(simulation& sim, time& t, simulation_point& sim_pt) noexcept
 
 status back(timeline& tl, simulation& sim, time& t) noexcept
 {
-    if (tl.current_bag == tl.points.rend())
+    if (tl.current_bag == tl.points.end())
         return status::success;
 
     ++tl.current_bag;
 
-    if (tl.current_bag == tl.points.rend())
+    if (tl.current_bag == tl.points.end())
         return status::success;
 
     auto& bag = *tl.current_bag;
@@ -473,26 +472,26 @@ status run(timeline& tl, simulation& sim, time& t) noexcept
         });
     }
 
-    tl.current_bag = tl.points.rbegin();
+    tl.current_bag = tl.points.tail();
 
     return status::success;
 }
 
 status finalize(timeline& tl, simulation& sim, time t) noexcept
 {
-    tl.current_bag = tl.points.rbegin();
+    tl.current_bag = tl.points.tail();
     return sim.finalize(t);
 }
 
 bool timeline::can_advance() const noexcept
 {
-    if (current_bag == points.rend())
+    if (current_bag == points.end())
         return false;
 
     auto next = current_bag;
     --next;
 
-    if (next == points.rend())
+    if (next == points.end())
         return false;
 
     return true;
@@ -500,13 +499,13 @@ bool timeline::can_advance() const noexcept
 
 bool timeline::can_back() const noexcept
 {
-    if (current_bag == points.rend())
+    if (current_bag == points.end())
         return false;
 
     auto previous = current_bag;
     ++previous;
 
-    if (previous == points.rend())
+    if (previous == points.end())
         return false;
 
     return true;
