@@ -685,7 +685,7 @@ static bool is_valid(const modeling_initializer& params) noexcept
 #endif
 
 modeling::modeling() noexcept
-  : warnings{ buffer.data(), static_cast<i32>(buffer.size()) }
+  : warnings{ buffer.data(), buffer.size() }
 {}
 
 status modeling::init(modeling_initializer& p) noexcept

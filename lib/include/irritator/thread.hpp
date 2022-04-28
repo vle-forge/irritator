@@ -191,7 +191,7 @@ constexpr task::task(task_function function_, void* parameter_) noexcept
  */
 
 inline task_list::task_list() noexcept
-  : tasks{ task_buffer.data(), static_cast<i32>(task_buffer.size()) }
+  : tasks{ task_buffer.data(), task_buffer.size() }
   , task_number{ 0 }
 {}
 
@@ -265,8 +265,7 @@ inline void worker::run() noexcept
 
     bool                running = true;
     std::array<task, 8> task_buffer;
-    ring_buffer<task>   tasks(task_buffer.data(),
-                            static_cast<i32>(task_buffer.size()));
+    ring_buffer<task>   tasks(task_buffer.data(), task_buffer.size());
 
     while (running) {
         while (!tasks.empty()) {

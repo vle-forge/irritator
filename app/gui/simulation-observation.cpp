@@ -19,14 +19,11 @@ status simulation_observation::reserve(i32 default_raw_length,
     irt_assert(default_raw_length > 0);
 
     raw_outputs.resize(default_raw_length);
-    raw_ring_buffer =
-      ring_buffer<raw_observation>{ raw_outputs.data(), raw_outputs.ssize() };
+    raw_ring_buffer.reset(raw_outputs.data(), raw_outputs.ssize());
 
     if (default_linear_length > 0) {
         linear_outputs.resize(default_linear_length);
-        linear_ring_buffer =
-          ring_buffer<linear_observation>{ linear_outputs.data(),
-                                           linear_outputs.ssize() };
+        linear_ring_buffer.reset(linear_outputs.data(), linear_outputs.ssize());
     }
 
     return status::success;

@@ -112,7 +112,7 @@ notification::notification(notification_type type_) noexcept
 {}
 
 notification_manager::notification_manager() noexcept
-  : r_buffer(buffer.data(), static_cast<i32>(buffer.size()))
+  : r_buffer(buffer.data(), buffer.size())
 {
     data.init(notification_number);
 }

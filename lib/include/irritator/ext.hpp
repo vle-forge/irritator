@@ -8,7 +8,10 @@
 #include <irritator/core.hpp>
 
 #include <iterator>
+#include <type_traits>
 #include <utility>
+
+#include <cstdint>
 
 namespace irt {
 
@@ -380,7 +383,7 @@ public:
     using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
     constexpr ring_buffer() noexcept = default;
-    constexpr ring_buffer(T* buffer, i32 capacity) noexcept;
+    constexpr ring_buffer(T* buffer, std::integral auto capacity) noexcept;
     constexpr ~ring_buffer() noexcept;
 
     constexpr ring_buffer(const ring_buffer& rhs) noexcept = delete;
@@ -390,7 +393,7 @@ public:
 
     constexpr void swap(ring_buffer& rhs) noexcept;
     constexpr void clear() noexcept;
-    constexpr void reset(T* buffer, i32 capacity) noexcept;
+    constexpr void reset(T* buffer, std::integral auto capacity) noexcept;
 
     template<typename... Args>
     constexpr bool emplace_front(Args&&... args) noexcept;
@@ -807,12 +810,14 @@ constexpr i32 ring_buffer<T>::back(i32 position) const noexcept
 }
 
 template<class T>
-constexpr ring_buffer<T>::ring_buffer(T* buffer, i32 capacity) noexcept
+constexpr ring_buffer<T>::ring_buffer(T*                 buffer,
+                                      std::integral auto capacity) noexcept
   : m_buffer(buffer)
-  , m_capacity(capacity)
+  , m_capacity(static_cast<i32>(capacity))
 {
     irt_assert(m_buffer);
     irt_assert(m_capacity > 0);
+    irt_assert(capacity < INT32_MAX);
 }
 
 template<class T>
@@ -877,10 +882,15 @@ constexpr void ring_buffer<T>::clear() noexcept
 }
 
 template<class T>
-constexpr void ring_buffer<T>::reset(T* buffer, i32 capacity) noexcept
+constexpr void ring_buffer<T>::reset(T*                 buffer,
+                                     std::integral auto capacity) noexcept
 {
+    irt_assert(m_buffer);
+    irt_assert(m_capacity > 0);
+    irt_assert(capacity < INT32_MAX);
+
     m_buffer   = buffer;
-    m_capacity = capacity;
+    m_capacity = static_cast<i32>(capacity);
 }
 
 template<class T>
@@ -1161,7 +1171,7 @@ constexpr i32 ring_buffer<T>::capacity() const noexcept
 template<class T>
 constexpr i32 ring_buffer<T>::index_from_begin(i32 idx) const noexcept
 {
-    //irt_assert(idx < ssize());
+    // irt_assert(idx < ssize());
 
     return (m_tail + idx) % m_capacity;
 }

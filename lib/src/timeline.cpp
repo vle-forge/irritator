@@ -50,8 +50,7 @@ status timeline::init(i32 simulation_point_number,
     model_points.reserve(model_point_number);
     connection_points.reserve(connection_point_number);
     points_buffer.resize(timeline_point_number);
-    points =
-      ring_buffer(points_buffer.data(), static_cast<i32>(points_buffer.size()));
+    points.reset(points_buffer.data(), points_buffer.size());
 
     max_models_number   = model_number;
     max_messages_number = message_number;

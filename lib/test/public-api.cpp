@@ -952,7 +952,7 @@ int main()
 
     "ring-buffer"_test = [] {
         int                   buffer[10];
-        irt::ring_buffer<int> ring(buffer, 10);
+        irt::ring_buffer<int> ring{ buffer, std::size(buffer) };
 
         for (int i = 0; i < 9; ++i) {
             auto is_success = ring.emplace_enqueue(i);
@@ -992,7 +992,7 @@ int main()
 
     "ring-buffer-front-back-access"_test = [] {
         int                   buffer[4];
-        irt::ring_buffer<int> ring(buffer, std::size(buffer));
+        irt::ring_buffer<int> ring(buffer, std::ssize(buffer));
 
         expect(ring.push_front(0) == true);
         expect(ring.push_front(-1) == true);
