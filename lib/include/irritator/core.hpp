@@ -628,7 +628,6 @@ class vector
 
 public:
     using size_type       = sz;
-    using index_type      = i64;
     using iterator        = T*;
     using const_iterator  = const T*;
     using reference       = T&;
@@ -663,8 +662,9 @@ public:
     constexpr reference       back() noexcept;
     constexpr const_reference back() const noexcept;
 
-    constexpr reference       operator[](const index_type index) noexcept;
-    constexpr const_reference operator[](const index_type index) const noexcept;
+    constexpr reference       operator[](std::integral auto index) noexcept;
+    constexpr const_reference operator[](
+      std::integral auto index) const noexcept;
 
     constexpr iterator       begin() noexcept;
     constexpr const_iterator begin() const noexcept;
@@ -684,7 +684,7 @@ public:
     constexpr i32 find(const T& t) const noexcept;
 
     constexpr void pop_back() noexcept;
-    constexpr void swap_pop_back(index_type index) noexcept;
+    constexpr void swap_pop_back(std::integral auto index) noexcept;
 
     constexpr void erase(iterator it) noexcept;
     constexpr void erase(iterator begin, iterator end) noexcept;
@@ -7123,7 +7123,7 @@ inline constexpr typename vector<T>::const_reference vector<T>::back()
 
 template<typename T>
 inline constexpr typename vector<T>::reference vector<T>::operator[](
-  const index_type index) noexcept
+  std::integral auto index) noexcept
 {
     irt_assert(index >= 0 && index < m_size);
 
@@ -7132,7 +7132,7 @@ inline constexpr typename vector<T>::reference vector<T>::operator[](
 
 template<typename T>
 inline constexpr typename vector<T>::const_reference vector<T>::operator[](
-  const index_type index) const noexcept
+  std::integral auto index) const noexcept
 {
     irt_assert(index >= 0 && index < m_size);
 
@@ -7248,7 +7248,8 @@ inline constexpr void vector<T>::pop_back() noexcept
 }
 
 template<typename T>
-inline constexpr void vector<T>::swap_pop_back(index_type index) noexcept
+inline constexpr void vector<T>::swap_pop_back(
+  std::integral auto index) noexcept
 {
     irt_assert(index < m_size);
 

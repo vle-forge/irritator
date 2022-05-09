@@ -37,7 +37,6 @@ public:
 
     using container_type  = vector<value_type>;
     using size_type       = typename container_type::size_type;
-    using index_type      = typename container_type::index_type;
     using iterator        = typename container_type::iterator;
     using const_iterator  = typename container_type::const_iterator;
     using reference       = typename container_type::reference;
@@ -75,7 +74,6 @@ private:
     size_type m_size;
 
 public:
-    using index_type      = i32;
     using iterator        = T*;
     using const_iterator  = const T*;
     using reference       = T&;
@@ -134,7 +132,6 @@ class ring_buffer
 {
 public:
     using size_type       = u64;
-    using index_type      = i64;
     using reference       = T&;
     using const_reference = const T&;
     using pointer         = T*;
