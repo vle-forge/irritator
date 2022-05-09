@@ -65,6 +65,12 @@ void simulation_observation::save(
                     ofs << it->t << ',' << it->msg[0] << ',' << it->msg[1]
                         << ',' << it->msg[2] << '\n';
                 break;
+
+            default:
+                ofs << "t,value\n";
+                for (; it != et; ++it)
+                    ofs << it->t << ',' << it->msg[0] << '\n';
+                break;
             }
         }
 
@@ -91,13 +97,19 @@ void simulation_observation::save(
                 for (; it != et; ++it)
                     ofs << it->t << ',' << it->msg[0] << '\n';
                 break;
+
+            default:
+                ofs << "t,value\n";
+                for (; it != et; ++it)
+                    ofs << it->t << ',' << it->msg[0] << '\n';
+                break;
             }
         }
     } catch (const std::exception& /*e*/) {
     }
 }
 static real compute_value_0(const observation_message& msg,
-                            const time                 elapsed) noexcept
+                            const time /*elapsed*/) noexcept
 {
     return msg[0];
 }
@@ -156,7 +168,7 @@ static void compute_n_interpolate(
     const auto nb      = static_cast<int>(elapsed / obs.time_step);
     auto       td      = raw.t;
 
-    while (!obs.plot_outputs.empty() && obs.plot_outputs.back().x == td)
+    while (!obs.plot_outputs.empty() && obs.plot_outputs.back().x == (float)td)
         obs.plot_outputs.pop_back();
 
     for (int i = 0; i < nb; ++i, td += obs.time_step) {
