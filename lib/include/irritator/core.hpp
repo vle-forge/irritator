@@ -7042,9 +7042,9 @@ inline constexpr void vector<T>::clear() noexcept
 template<typename T>
 void vector<T>::resize(i32 size) noexcept
 {
-    static_assert(std::is_nothrow_default_constructible_v<T> ||
+    static_assert(std::is_default_constructible_v<T> ||
                     std::is_trivially_default_constructible_v<T>,
-                  "T must be nothrow or trivially default constructible to use "
+                  "T must be default or trivially default constructible to use "
                   "resize() function");
 
     if (size > m_capacity)

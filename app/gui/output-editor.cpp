@@ -29,6 +29,8 @@ static void show_output_widget(application& app) noexcept
             ImGui::TableHeadersRow();
             simulation_observation* out = nullptr;
             while (app.s_editor.sim_obs.next(out)) {
+                const auto id = app.s_editor.sim_obs.get_id(*out);
+                ImGui::PushID(out);
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
@@ -43,10 +45,20 @@ static void show_output_widget(application& app) noexcept
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("{}", out->raw_outputs.capacity());
                 ImGui::TableNextColumn();
-                if (ImGui::SmallButton("save")) {
-                    auto err       = std::error_code{};
+                if (ImGui::SmallButton("raw")) {
+                    app.s_editor.selected_sim_obs = id;
+                    app.save_raw_file             = true;
+                    auto err                      = std::error_code{};
                     auto file_path = std::filesystem::current_path(err);
-                    out->save(file_path);
+                    out->save_raw(file_path);
+                }
+                ImGui::SameLine();
+                if (ImGui::SmallButton("int")) {
+                    app.s_editor.selected_sim_obs = id;
+                    app.save_int_file             = true;
+                    auto err                      = std::error_code{};
+                    auto file_path = std::filesystem::current_path(err);
+                    out->save_interpolate(file_path);
                 }
 
                 ImGui::TableNextColumn();
@@ -54,13 +66,18 @@ static void show_output_widget(application& app) noexcept
                                  &out->plot_type,
                                  simulation_plot_type_string,
                                  IM_ARRAYSIZE(simulation_plot_type_string))) {
+
+                    auto until = out->raw_ring_buffer.size() > 0
+                                   ? out->raw_ring_buffer.back().t
+                                   : app.s_editor.simulation_current;
+
                     switch (out->plot_type) {
                     case simulation_plot_type_plotlines:
-                        out->compute_complete_interpolate();
+                        out->compute_interpolate(until, out->plot_outputs);
                         break;
 
                     case simulation_plot_type_plotscatters:
-                        out->compute_complete_interpolate();
+                        out->compute_interpolate(until, out->plot_outputs);
                         break;
 
                     default:
@@ -68,6 +85,7 @@ static void show_output_widget(application& app) noexcept
                         break;
                     }
                 }
+                ImGui::PopID();
             }
 
             ImGui::EndTable();
@@ -82,27 +100,29 @@ static void show_output_widget(application& app) noexcept
 
             simulation_observation* obs = nullptr;
             while (app.s_editor.sim_obs.next(obs)) {
-                switch (obs->plot_type) {
-                case simulation_plot_type_plotlines:
-                    ImPlot::PlotLine(obs->name.c_str(),
-                                     &obs->plot_outputs[0].x,
-                                     &obs->plot_outputs[0].y,
-                                     obs->plot_outputs.size(),
-                                     0,
-                                     sizeof(ImVec2));
-                    break;
+                if (obs->plot_outputs.size() > 0) {
+                    switch (obs->plot_type) {
+                    case simulation_plot_type_plotlines:
+                        ImPlot::PlotLine(obs->name.c_str(),
+                                         &obs->plot_outputs[0].x,
+                                         &obs->plot_outputs[0].y,
+                                         obs->plot_outputs.size(),
+                                         0,
+                                         sizeof(ImVec2));
+                        break;
 
-                case simulation_plot_type_plotscatters:
-                    ImPlot::PlotScatter(obs->name.c_str(),
-                                        &obs->plot_outputs[0].x,
-                                        &obs->plot_outputs[0].y,
-                                        obs->plot_outputs.size(),
-                                        0,
-                                        sizeof(ImVec2));
-                    break;
+                    case simulation_plot_type_plotscatters:
+                        ImPlot::PlotScatter(obs->name.c_str(),
+                                            &obs->plot_outputs[0].x,
+                                            &obs->plot_outputs[0].y,
+                                            obs->plot_outputs.size(),
+                                            0,
+                                            sizeof(ImVec2));
+                        break;
 
-                default:
-                    break;
+                    default:
+                        break;
+                    }
                 }
             }
 

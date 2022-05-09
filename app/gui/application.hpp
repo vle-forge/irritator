@@ -195,24 +195,18 @@ struct simulation_observation
         real                t;
     };
 
-    struct linear_observation
-    {
-        linear_observation() noexcept = default;
-        linear_observation(const real msg_, const real t_) noexcept;
+    model_id                     model = undefined<model_id>();
+    dynamics_type                type  = dynamics_type::constant;
+    u64                          plot_id;
+    small_string<16u>            name;
+    vector<raw_observation>      raw_outputs;
+    vector<ImVec2>               linear_outputs;
+    ImVector<ImVec2>             plot_outputs;
+    ring_buffer<raw_observation> raw_ring_buffer;
+    ring_buffer<ImVec2>          linear_ring_buffer;
 
-        real msg;
-        real t;
-    };
-
-    model_id                        model = undefined<model_id>();
-    dynamics_type                   type  = dynamics_type::constant;
-    u64                             plot_id;
-    small_string<16u>               name;
-    vector<raw_observation>         raw_outputs;
-    vector<linear_observation>      linear_outputs;
-    ImVector<ImVec2>                plot_outputs;
-    ring_buffer<raw_observation>    raw_ring_buffer;
-    ring_buffer<linear_observation> linear_ring_buffer;
+    std::filesystem::path raw_file;
+    std::filesystem::path linear_file;
 
     real                                   window    = to_real(10);
     real                                   time_step = one / to_real(10);
@@ -227,10 +221,12 @@ struct simulation_observation
 
     void clear() noexcept;
 
-    void save(const std::filesystem::path& file_path) noexcept;
+    void save_raw(const std::filesystem::path& file_path) noexcept;
+    void save_interpolate(const std::filesystem::path& file_path) noexcept;
 
-    void compute_complete_interpolate() noexcept;
-    void compute_linear_buffer(real t) noexcept;
+    void compute_interpolate(const real           until,
+                             ring_buffer<ImVec2>& out) noexcept;
+    void compute_interpolate(const real until, ImVector<ImVec2>& out) noexcept;
 };
 
 void simulation_observation_update(const observer&        obs,
@@ -322,6 +318,8 @@ struct simulation_editor
     data_array<simulation_tree_node, simulation_tree_node_id>     tree_nodes;
     data_array<simulation_observation, simulation_observation_id> sim_obs;
     data_array<simulation_plot, simulation_plot_id>               sim_plots;
+
+    simulation_observation_id selected_sim_obs;
 
     ImNodesEditorContext* context = nullptr;
     ImVector<int>         selected_links;
@@ -446,6 +444,8 @@ struct application
     bool load_project_file    = false; // rename menu_*
     bool save_project_file    = false; // rename menu_*
     bool save_as_project_file = false; // rename menu_*
+    bool save_raw_file        = false;
+    bool save_int_file        = false;
     bool menu_quit            = false;
 
     bool init() noexcept;
@@ -481,13 +481,6 @@ char* get_imgui_filename() noexcept;
 inline simulation_observation::raw_observation::raw_observation(
   const observation_message& msg_,
   const real                 t_) noexcept
-  : msg(msg_)
-  , t(t_)
-{}
-
-inline simulation_observation::linear_observation::linear_observation(
-  const real msg_,
-  const real t_) noexcept
   : msg(msg_)
   , t(t_)
 {}

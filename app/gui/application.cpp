@@ -343,6 +343,54 @@ static void application_manage_menu_action(application& app) noexcept
             app.save_as_project_file = false;
         }
     }
+
+    if (app.save_raw_file) {
+        auto* obs =
+          app.s_editor.sim_obs.try_to_get(app.s_editor.selected_sim_obs);
+
+        if (obs) {
+            const char*              title = "Select raw file path to save";
+            const std::u8string_view default_filename = u8"filename.txt";
+            const char8_t*           filters[]        = { u8".txt", nullptr };
+
+            ImGui::OpenPopup(title);
+            if (app.f_dialog.show_save_file(title, default_filename, filters)) {
+                if (app.f_dialog.state == file_dialog::status::ok) {
+                    obs->raw_file = app.f_dialog.result;
+                    obs->save_raw(obs->raw_file);
+                }
+
+                app.s_editor.selected_sim_obs =
+                  undefined<simulation_observation_id>();
+                app.save_raw_file = false;
+                app.f_dialog.clear();
+            }
+        }
+    }
+
+    if (app.save_int_file) {
+        auto* obs =
+          app.s_editor.sim_obs.try_to_get(app.s_editor.selected_sim_obs);
+
+        if (obs) {
+            const char*              title = "Select int. file path to save";
+            const std::u8string_view default_filename = u8"filename.txt";
+            const char8_t*           filters[]        = { u8".txt", nullptr };
+
+            ImGui::OpenPopup(title);
+            if (app.f_dialog.show_save_file(title, default_filename, filters)) {
+                if (app.f_dialog.state == file_dialog::status::ok) {
+                    obs->linear_file = app.f_dialog.result;
+                    obs->save_interpolate(obs->linear_file);
+                }
+
+                app.s_editor.selected_sim_obs =
+                  undefined<simulation_observation_id>();
+                app.save_int_file = false;
+                app.f_dialog.clear();
+            }
+        }
+    }
 }
 
 static void application_show_windows(application& app) noexcept
