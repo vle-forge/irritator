@@ -725,14 +725,14 @@ public:
 
     constexpr void assign(const std::string_view str) noexcept;
     constexpr void clear() noexcept;
-    void           resize(sz size) noexcept;
+    void           resize(std::integral auto size) noexcept;
     constexpr bool empty() const noexcept;
 
     constexpr sz size() const noexcept;
     constexpr sz capacity() const noexcept;
 
-    constexpr reference       operator[](const size_type index) noexcept;
-    constexpr const_reference operator[](const size_type index) const noexcept;
+    constexpr reference       operator[](std::integral auto index) noexcept;
+    constexpr const_reference operator[](std::integral auto index) const noexcept;
 
     constexpr std::string_view   sv() const noexcept;
     constexpr std::u8string_view u8sv() const noexcept;
@@ -7415,7 +7415,7 @@ inline constexpr small_string<length>::small_string(
 }
 
 template<sz length>
-void small_string<length>::resize(sz size) noexcept
+void small_string<length>::resize(std::integral auto size) noexcept
 {
     size_type real_size = size > std::numeric_limits<size_type>::max()
                             ? std::numeric_limits<size_type>::max()
@@ -7428,9 +7428,7 @@ void small_string<length>::resize(sz size) noexcept
 template<sz length>
 inline constexpr bool small_string<length>::empty() const noexcept
 {
-    constexpr unsigned char zero{ 0 };
-
-    return zero == m_size;
+    return std::cmp_equal(m_size, 0);
 }
 
 template<sz length>
@@ -7438,6 +7436,7 @@ inline constexpr sz small_string<length>::size() const noexcept
 {
     return m_size;
 }
+
 template<sz length>
 inline constexpr sz small_string<length>::capacity() const noexcept
 {
@@ -7476,7 +7475,7 @@ inline constexpr void small_string<length>::clear() noexcept
 
 template<sz length>
 inline constexpr typename small_string<length>::reference
-small_string<length>::operator[](const size_type index) noexcept
+small_string<length>::operator[](std::integral auto index) noexcept
 {
     irt_assert(index < m_size);
 
@@ -7485,7 +7484,7 @@ small_string<length>::operator[](const size_type index) noexcept
 
 template<sz length>
 inline constexpr typename small_string<length>::const_reference
-small_string<length>::operator[](const size_type index) const noexcept
+small_string<length>::operator[](std::integral auto index) const noexcept
 {
     irt_assert(index < m_size);
 
