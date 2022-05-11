@@ -170,6 +170,13 @@ inline constexpr real operator"" _r(long double v) noexcept
 
 } // namespace literals
 
+
+/*****************************************************************************
+ *
+ * Some constants used in core and models
+ *
+ ****************************************************************************/
+
 constexpr static inline real one   = to_real(1.);
 constexpr static inline real two   = to_real(2.);
 constexpr static inline real three = to_real(3.);
