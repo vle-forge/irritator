@@ -18,12 +18,15 @@ target_include_directories(libirritator SYSTEM INTERFACE
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>)
 
 target_compile_options(libirritator INTERFACE
-  $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
-      -pipe -march=native
-      $<$<CONFIG:Debug>:-O0 -ggdb3 -Wall -Wextra>>
-  $<$<CXX_COMPILER_ID:MSVC>:
-      /EHsc /bigobj /Zc:__cplusplus /std:c++latest
-      $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
+    $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
+        -pipe -march=native
+        $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
+        /EHsc /bigobj /Zc:__cplusplus /std:c++latest
+        $<$<CONFIG:Debug>:/Od /W3 /Zi>>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
+        /EHsc /bigobj /Zc:__cplusplus /std:c++20
+        $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
@@ -72,8 +75,11 @@ function(irritator_add_test test_name)
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
         -pipe -march=native
         $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
-    $<$<CXX_COMPILER_ID:MSVC>:
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
         /EHsc /bigobj /Zc:__cplusplus /std:c++latest
+        $<$<CONFIG:Debug>:/Od /W3 /Zi>>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
+        /EHsc /bigobj /Zc:__cplusplus /std:c++20
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
   target_compile_definitions(${test_name}
@@ -113,8 +119,11 @@ function(irritator_add_benchmark test_name)
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
         -pipe -march=native
         $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
-    $<$<CXX_COMPILER_ID:MSVC>:
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
         /EHsc /bigobj /Zc:__cplusplus /std:c++latest
+        $<$<CONFIG:Debug>:/Od /W3 /Zi>>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
+        /EHsc /bigobj /Zc:__cplusplus /std:c++20
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
   target_compile_definitions(${test_name}

@@ -78,12 +78,15 @@ target_link_libraries(irritator-gui
 
 target_compile_options(irritator-gui
   PRIVATE
-  $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
-      -pipe -march=native
-      $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
-  $<$<CXX_COMPILER_ID:MSVC>:
-      /EHsc /bigobj /Zc:__cplusplus /std:c++latest
-      $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
+    $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
+        -pipe -march=native
+        $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
+        /EHsc /bigobj /Zc:__cplusplus /std:c++latest
+        $<$<CONFIG:Debug>:/Od /W3 /Zi>>
+    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
+        /EHsc /bigobj /Zc:__cplusplus /std:c++20
+        $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
 target_compile_definitions(irritator-gui
     PRIVATE
