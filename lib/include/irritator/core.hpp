@@ -170,7 +170,6 @@ inline constexpr real operator"" _r(long double v) noexcept
 
 } // namespace literals
 
-
 /*****************************************************************************
  *
  * Some constants used in core and models
@@ -739,7 +738,8 @@ public:
     constexpr sz capacity() const noexcept;
 
     constexpr reference       operator[](std::integral auto index) noexcept;
-    constexpr const_reference operator[](std::integral auto index) const noexcept;
+    constexpr const_reference operator[](
+      std::integral auto index) const noexcept;
 
     constexpr std::string_view   sv() const noexcept;
     constexpr std::u8string_view u8sv() const noexcept;
