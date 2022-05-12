@@ -5630,7 +5630,7 @@ public:
 
         auto span = get_message(sim, x[0]);
         for (const auto& msg : span) {
-            double value;
+            real value = zero;
 
             if (stop_on_error) {
                 irt_return_if_bad(update_source(sim, default_source_ta, value));
