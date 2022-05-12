@@ -5511,7 +5511,7 @@ struct dynamic_queue
             if (!can_alloc_dated_message(sim, 1))
                 return status::model_dynamic_queue_full;
 
-            double ta;
+            real ta = zero;
             if (stop_on_error) {
                 irt_return_if_bad(update_source(sim, default_source_ta, ta));
                 list.emplace_back(
