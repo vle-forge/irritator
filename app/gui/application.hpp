@@ -121,6 +121,7 @@ enum selected_main_window_
 enum simulation_plot_
 {
     simulation_plot_type_none,
+    simulation_plot_type_raw,
     simulation_plot_type_plotlines,
     simulation_plot_type_plotscatters
 };
@@ -207,10 +208,7 @@ struct simulation_observation
 
     std::filesystem::path raw_file;
     std::filesystem::path linear_file;
-
-    real                                   window    = to_real(10);
-    real                                   time_step = one / to_real(10);
-    ring_buffer<raw_observation>::iterator last_position;
+    real                  time_step = one / to_real(100);
 
     simulation_plot_type plot_type = simulation_plot_type_none;
 

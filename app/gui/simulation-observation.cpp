@@ -104,13 +104,13 @@ static real compute_value_1(const observation_message& msg,
 static real compute_value_2(const observation_message& msg,
                             const time                 elapsed) noexcept
 {
-    return msg[0] + msg[1] * elapsed + (msg[2] * elapsed * elapsed / two);
+    return msg[0] + (msg[1] * elapsed) + (msg[2] * elapsed * elapsed / two);
 }
 
 static real compute_value_3(const observation_message& msg,
                             const time                 elapsed) noexcept
 {
-    return msg[0] + msg[1] * elapsed + (msg[2] * elapsed * elapsed / two) +
+    return msg[0] + (msg[1] * elapsed) + (msg[2] * elapsed * elapsed / two) +
            (msg[3] * elapsed * elapsed * elapsed / three);
 }
 
@@ -122,25 +122,15 @@ static void compute_interpolate_step(
   function_ref<void(real, time)>                       output_f) noexcept
 
 {
-    const auto elapsed = next - prev.t;
-
-    if (elapsed <= 0)
-        return;
-
-    const auto nb = static_cast<int>(elapsed / time_step);
-    auto       td = prev.t;
-
-    for (int i = 0; i < nb; ++i, td += time_step) {
+    for (auto td = prev.t; td < next; td += time_step) {
         const auto e     = td - prev.t;
         const auto value = compute_f(prev.msg, e);
         output_f(value, td);
     }
 
-    const auto e = next - td - std::numeric_limits<real>::epsilon();
-    if (e > zero) {
-        const auto value = compute_f(prev.msg, e);
-        output_f(value, td + e);
-    }
+    const auto e     = next - prev.t - std::numeric_limits<real>::epsilon();
+    const auto value = compute_f(prev.msg, e);
+    output_f(value, next - -std::numeric_limits<real>::epsilon());
 }
 
 static void compute_and_store_interpolate(
@@ -155,8 +145,8 @@ static void compute_and_store_interpolate(
     ++it;
 
     auto out_cb = [&out](real value, time t) {
-        out.force_emplace_enqueue(static_cast<float>(value),
-                                  static_cast<float>(t));
+        out.force_emplace_enqueue(static_cast<float>(t),
+                                  static_cast<float>(value));
     };
 
     for (; it != et; ++it, ++prev)
@@ -178,6 +168,9 @@ static void compute_and_store_interpolate(
     ++it;
 
     auto out_cb = [&out](real value, time t) {
+        while (!out.empty() && out.back().x == static_cast<float>(t))
+            out.pop_back();
+
         out.push_back(ImVec2(static_cast<float>(t), static_cast<float>(value)));
     };
 
@@ -359,18 +352,6 @@ void simulation_observation::compute_interpolate(const real        until,
     }
 }
 
-static inline void simulation_observation_initialize(
-  simulation_observation&                   output,
-  [[maybe_unused]] const irt::observer&     obs,
-  [[maybe_unused]] const irt::dynamics_type type,
-  [[maybe_unused]] const irt::time          tl,
-  [[maybe_unused]] const irt::time          t) noexcept
-{
-    output.raw_ring_buffer.clear();
-    output.linear_ring_buffer.clear();
-    output.last_position.reset();
-}
-
 static inline void simulation_observation_run(simulation_observation&  output,
                                               const irt::observer&     obs,
                                               const irt::dynamics_type type,
@@ -418,16 +399,6 @@ static inline void simulation_observation_run(simulation_observation&  output,
     }
 }
 
-static inline void simulation_observation_finalize(
-  [[maybe_unused]] simulation_observation&  output,
-  [[maybe_unused]] const irt::observer&     obs,
-  [[maybe_unused]] const irt::dynamics_type type,
-  [[maybe_unused]] const irt::time          tl,
-  [[maybe_unused]] const irt::time          t) noexcept
-{
-    simulation_observation_run(output, obs, type, tl, t);
-}
-
 void simulation_observation_update(const irt::observer&        obs,
                                    const irt::dynamics_type    type,
                                    const irt::time             tl,
@@ -439,19 +410,12 @@ void simulation_observation_update(const irt::observer&        obs,
     auto* output = s_ed->sim_obs.try_to_get(id);
     irt_assert(output);
 
-    switch (s) {
-    case observer::status::initialize:
-        simulation_observation_initialize(*output, obs, type, tl, t);
-        break;
-
-    case observer::status::run:
-        simulation_observation_run(*output, obs, type, tl, t);
-        break;
-
-    case observer::status::finalize:
-        simulation_observation_finalize(*output, obs, type, tl, t);
-        break;
+    if (s == observer::status::initialize) {
+        output->raw_ring_buffer.clear();
+        output->linear_ring_buffer.clear();
     }
+
+    simulation_observation_run(*output, obs, type, tl, t);
 }
 
 static void task_simulation_observation_remove(void* param) noexcept

@@ -67,10 +67,11 @@ static void show_project_hierarchy_child_observable(simulation_editor& sim_ed,
         if (ImGui::Checkbox("Observation##obs", &is_observed)) {
             if (is_observed) {
                 if (sim_ed.sim_obs.can_alloc(1)) {
-                    auto& new_obs    = sim_ed.sim_obs.alloc(id, mdl->type, 4096, 4096*4096);
-                    auto  new_obs_id = sim_ed.sim_obs.get_id(new_obs);
-                    obs              = &new_obs;
-                    new_obs.name     = ch.name.sv();
+                    auto& new_obs =
+                      sim_ed.sim_obs.alloc(id, mdl->type, 4096, 4096 * 4096);
+                    auto new_obs_id = sim_ed.sim_obs.get_id(new_obs);
+                    obs             = &new_obs;
+                    new_obs.name    = ch.name.sv();
 
                     parent.observables.set(
                       id,
@@ -89,11 +90,6 @@ static void show_project_hierarchy_child_observable(simulation_editor& sim_ed,
 
         if (is_observed && obs) {
             ImGui::InputFilteredString("name##obs", obs->name);
-
-            if (ImGui::InputReal("window-length##obs", &obs->window)) {
-                if (obs->window <= zero)
-                    obs->window = one / to_real(100);
-            }
 
             if (ImGui::InputReal("time-step##obs", &obs->time_step)) {
                 if (obs->time_step <= zero)

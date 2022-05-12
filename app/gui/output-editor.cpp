@@ -10,6 +10,7 @@
 namespace irt {
 
 const char* simulation_plot_type_string[] = { "None",
+                                              "Plot raw",
                                               "Plot line",
                                               "Plot scatter" };
 
@@ -72,11 +73,23 @@ static void show_output_widget(application& app) noexcept
                                    : app.s_editor.simulation_current;
 
                     switch (out->plot_type) {
+                    case simulation_plot_type_raw:
+                        out->plot_outputs.clear();
+                        for (auto it = out->raw_ring_buffer.head();
+                             it != out->raw_ring_buffer.end();
+                             ++it)
+                            out->plot_outputs.push_back(
+                              ImVec2(static_cast<float>(it->t),
+                                     static_cast<float>(it->msg[0])));
+                        break;
+
                     case simulation_plot_type_plotlines:
+                        out->plot_outputs.clear();
                         out->compute_interpolate(until, out->plot_outputs);
                         break;
 
                     case simulation_plot_type_plotscatters:
+                        out->plot_outputs.clear();
                         out->compute_interpolate(until, out->plot_outputs);
                         break;
 
@@ -102,6 +115,15 @@ static void show_output_widget(application& app) noexcept
             while (app.s_editor.sim_obs.next(obs)) {
                 if (obs->plot_outputs.size() > 0) {
                     switch (obs->plot_type) {
+                    case simulation_plot_type_raw:
+                        ImPlot::PlotScatter(obs->name.c_str(),
+                                            &obs->plot_outputs[0].x,
+                                            &obs->plot_outputs[0].y,
+                                            obs->plot_outputs.size(),
+                                            0,
+                                            sizeof(ImVec2));
+                        break;
+
                     case simulation_plot_type_plotlines:
                         ImPlot::PlotLine(obs->name.c_str(),
                                          &obs->plot_outputs[0].x,
