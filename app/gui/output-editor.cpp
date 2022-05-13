@@ -40,13 +40,16 @@ static void show_output_widget(application& app) noexcept
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(out->name.c_str());
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", out->time_step);
+                if (ImGui::InputReal("##ts", &out->time_step))
+                    out->time_step = std::clamp(
+                      out->time_step, out->min_time_step, out->max_time_step);
+
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("{}", out->raw_ring_buffer.size());
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("{}", out->raw_outputs.capacity());
                 ImGui::TableNextColumn();
-                if (ImGui::SmallButton("raw")) {
+                if (ImGui::Button("raw")) {
                     app.s_editor.selected_sim_obs = id;
                     app.save_raw_file             = true;
                     auto err                      = std::error_code{};
@@ -54,7 +57,7 @@ static void show_output_widget(application& app) noexcept
                     out->save_raw(file_path);
                 }
                 ImGui::SameLine();
-                if (ImGui::SmallButton("int")) {
+                if (ImGui::Button("int")) {
                     app.s_editor.selected_sim_obs = id;
                     app.save_int_file             = true;
                     auto err                      = std::error_code{};

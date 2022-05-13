@@ -308,6 +308,7 @@ void simulation_observation::compute_interpolate(
   ring_buffer<ImVec2>& out) noexcept
 {
     const auto i_type = get_interpolate_type(type);
+    time_step = std::clamp(time_step, min_time_step, max_time_step);
 
     switch (i_type) {
     case interpolate_type_qss1:
@@ -332,6 +333,7 @@ void simulation_observation::compute_interpolate(const real        until,
                                                  ImVector<ImVec2>& out) noexcept
 {
     const auto i_type = get_interpolate_type(type);
+    time_step = std::clamp(time_step, min_time_step, max_time_step);
 
     switch (i_type) {
     case interpolate_type_qss1:
