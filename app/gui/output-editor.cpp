@@ -107,7 +107,7 @@ static void show_output_widget(application& app) noexcept
 
     if (ImGui::CollapsingHeader("Plots outputs",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImPlot::BeginPlot("Plot", "t", "s")) {
+        if (ImPlot::BeginPlot("Plot", "t", "s", ImVec2(-1, -1))) {
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
             ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
