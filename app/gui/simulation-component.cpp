@@ -264,10 +264,6 @@ static status simulation_init_observation(simulation_editor& sim_ed,
             const auto mdl_id = enum_cast<model_id>(c->id);
 
             if (auto* obs_map = tree.observables.get(mdl_id); obs_map) {
-                auto obs_id = enum_cast<simulation_observation_id>(obs_map->id);
-                auto* obs   = sim_ed.sim_obs.try_to_get(obs_id);
-                irt_assert(obs);
-
                 auto* sim_map = tree.sim.get(mdl_id);
                 irt_assert(sim_map);
 
@@ -275,17 +271,7 @@ static status simulation_init_observation(simulation_editor& sim_ed,
                 auto*      mdl    = sim_ed.sim.models.try_to_get(sim_id);
 
                 irt_assert(mdl);
-
-                irt_return_if_fail(sim_ed.sim.observers.can_alloc(1),
-                                   status::simulation_not_enough_model);
-
-                auto& output =
-                  sim_ed.sim.observers.alloc(obs->name.c_str(),
-                                             simulation_observation_update,
-                                             &sim_ed,
-                                             obs_map->id,
-                                             0);
-                sim_ed.sim.observe(*mdl, output);
+                sim_ed.add_simulation_observation_for(sim_id);
             }
         }
     }
@@ -297,12 +283,7 @@ static status simulation_init_observation(component_editor&  ed,
                                           simulation_editor& sim_ed,
                                           tree_node&         head) noexcept
 {
-    simulation_observation* mem = nullptr;
-    while (sim_ed.sim_obs.next(mem)) {
-        mem->raw_ring_buffer.clear();
-        mem->linear_ring_buffer.clear();
-    }
-
+    sim_ed.sim_obs.clear();
     sim_ed.sim.observers.clear();
 
     vector<tree_node*> stack;

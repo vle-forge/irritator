@@ -49,14 +49,11 @@ static void show_project_hierarchy_child_observable(simulation_editor& sim_ed,
     auto* mdl = compo.models.try_to_get(id);
 
     if (mdl) {
-        auto*                   value       = parent.observables.get(id);
-        simulation_observation* obs         = nullptr;
-        bool                    is_observed = false;
+        auto* value       = parent.observables.get(id);
+        bool  is_observed = false;
 
         if (value) {
-            auto output_id = enum_cast<simulation_observation_id>(value->id);
-            obs            = sim_ed.sim_obs.try_to_get(output_id);
-            if (!obs) {
+            if (*value == observable_type_none) {
                 parent.observables.erase(id);
                 value = nullptr;
             } else {
@@ -66,34 +63,10 @@ static void show_project_hierarchy_child_observable(simulation_editor& sim_ed,
 
         if (ImGui::Checkbox("Observation##obs", &is_observed)) {
             if (is_observed) {
-                if (sim_ed.sim_obs.can_alloc(1)) {
-                    auto& new_obs =
-                      sim_ed.sim_obs.alloc(id, mdl->type, 4096, 4096 * 4096);
-                    auto new_obs_id = sim_ed.sim_obs.get_id(new_obs);
-                    obs             = &new_obs;
-                    new_obs.name    = ch.name.sv();
-
-                    parent.observables.set(
-                      id,
-                      observable{ ordinal(new_obs_id),
-                                  observable_type_single });
-                } else {
-                    is_observed = false;
-                }
+                parent.observables.set(id, observable_type_single);
             } else {
-                if (obs)
-                    sim_ed.sim_obs.free(*obs);
-
                 parent.observables.erase(id);
-            }
-        }
-
-        if (is_observed && obs) {
-            ImGui::InputFilteredString("name##obs", obs->name);
-
-            if (ImGui::InputReal("time-step##obs", &obs->time_step)) {
-                if (obs->time_step <= zero)
-                    obs->time_step = one / to_real(100);
+                is_observed = false;
             }
         }
     }

@@ -252,12 +252,6 @@ enum observable_type_
     observable_type_space,
 };
 
-struct observable
-{
-    u64             id;   //! Userspace identifier
-    observable_type type; //! Type of observation
-};
-
 struct tree_node
 {
     tree_node(component_id id_, child_id id_in_parent_) noexcept;
@@ -269,8 +263,8 @@ struct tree_node
     child_id             id_in_parent;
     hierarchy<tree_node> tree;
 
-    table<model_id, model_id>   parameters;
-    table<model_id, observable> observables;
+    table<model_id, model_id>        parameters;
+    table<model_id, observable_type> observables;
 
     table<model_id, model_id> sim;
 };

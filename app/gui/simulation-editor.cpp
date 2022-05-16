@@ -606,6 +606,55 @@ void simulation_editor::shutdown() noexcept
     }
 }
 
+void simulation_editor::remove_simulation_observation_from(
+  model_id mdl_id) noexcept
+{
+    simulation_observation* obs = nullptr;
+    while (sim_obs.next(obs)) {
+        if (obs->model == mdl_id) {
+            obs->clear();
+
+            auto obs_id = sim_obs.get_id(*obs);
+            sim_obs.free(obs_id);
+            break;
+        }
+    }
+
+    if (auto* mdl = sim.models.try_to_get(mdl_id); mdl)
+        sim.unobserve(*mdl);
+}
+
+void simulation_editor::add_simulation_observation_for(model_id mdl_id) noexcept
+{
+    if (auto* mdl = sim.models.try_to_get(mdl_id); mdl) {
+        if (sim.observers.can_alloc(1) && sim_obs.can_alloc(1)) {
+            auto& obs    = sim_obs.alloc(mdl_id, mdl->type, 4096, 4096 * 4096);
+            auto  obs_id = sim_obs.get_id(obs);
+
+            auto& output = sim.observers.alloc(obs.name.c_str(),
+                                               simulation_observation_update,
+                                               this,
+                                               ordinal(obs_id),
+                                               0);
+            sim.observe(*mdl, output);
+        } else {
+            if (!sim.observers.can_alloc(1)) {
+                auto* app = container_of(this, &application::s_editor);
+                auto& n   = app->notifications.alloc(notification_type::error);
+                n.title   = "Too many observer in simulation";
+                app->notifications.enable(n);
+            }
+
+            if (!sim_obs.can_alloc(1)) {
+                auto* app = container_of(this, &application::s_editor);
+                auto& n   = app->notifications.alloc(notification_type::error);
+                n.title   = "Too many simulation observation in simulation";
+                app->notifications.enable(n);
+            }
+        }
+    }
+}
+
 void simulation_editor::select(simulation_tree_node_id id) noexcept
 {
     if (auto* tree = tree_nodes.try_to_get(id); tree) {

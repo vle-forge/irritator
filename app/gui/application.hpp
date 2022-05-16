@@ -290,6 +290,9 @@ struct simulation_editor
     void simulation_back() noexcept;
     void enable_or_disable_debug() noexcept;
 
+    void remove_simulation_observation_from(model_id id) noexcept;
+    void add_simulation_observation_for(model_id id) noexcept;
+
     bool force_pause           = false;
     bool force_stop            = false;
     bool show_minimap          = true;
@@ -476,6 +479,9 @@ struct application
 
     window_logger log_w;
 };
+
+void task_remove_simulation_observation(application& app, model_id id) noexcept;
+void task_add_simulation_observation(application& app, model_id id) noexcept;
 
 char* get_imgui_filename() noexcept;
 

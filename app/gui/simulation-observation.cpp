@@ -308,7 +308,7 @@ void simulation_observation::compute_interpolate(
   ring_buffer<ImVec2>& out) noexcept
 {
     const auto i_type = get_interpolate_type(type);
-    time_step = std::clamp(time_step, min_time_step, max_time_step);
+    time_step         = std::clamp(time_step, min_time_step, max_time_step);
 
     switch (i_type) {
     case interpolate_type_qss1:
@@ -333,7 +333,7 @@ void simulation_observation::compute_interpolate(const real        until,
                                                  ImVector<ImVec2>& out) noexcept
 {
     const auto i_type = get_interpolate_type(type);
-    time_step = std::clamp(time_step, min_time_step, max_time_step);
+    time_step         = std::clamp(time_step, min_time_step, max_time_step);
 
     switch (i_type) {
     case interpolate_type_qss1:
@@ -420,33 +420,7 @@ void simulation_observation_update(const irt::observer&        obs,
     simulation_observation_run(*output, obs, type, tl, t);
 }
 
-static void task_simulation_observation_remove(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = gui_task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
-
-    auto mdl_id = enum_cast<model_id>(g_task->param_1);
-
-    simulation_observation* obs = nullptr;
-    while (g_task->app->s_editor.sim_obs.next(obs)) {
-        if (obs->model == mdl_id) {
-            obs->clear();
-
-            auto obs_id = g_task->app->s_editor.sim_obs.get_id(*obs);
-            g_task->app->s_editor.sim_obs.free(obs_id);
-            break;
-        }
-    }
-
-    if (auto* mdl = g_task->app->s_editor.sim.models.try_to_get(mdl_id); mdl)
-        g_task->app->s_editor.sim.unobserve(*mdl);
-
-    g_task->state = gui_task_status::finished;
-}
-
-static void task_simulation_observation_add(void* param) noexcept
+static void task_remove_simulation_observation_impl(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = gui_task_status::started;
@@ -455,58 +429,39 @@ static void task_simulation_observation_add(void* param) noexcept
 
     auto& app    = *g_task->app;
     auto& sim_ed = app.s_editor;
-    auto& sim    = app.s_editor.sim;
+    auto  mdl_id = enum_cast<model_id>(g_task->param_1);
 
-    auto mdl_id = enum_cast<model_id>(g_task->param_1);
-    if (auto* mdl = sim.models.try_to_get(mdl_id); mdl) {
-        if (sim.observers.can_alloc(1) && sim_ed.sim_obs.can_alloc(1)) {
-            auto& obs =
-              sim_ed.sim_obs.alloc(mdl_id, mdl->type, 4096, 4096 * 4096);
-            auto obs_id = sim_ed.sim_obs.get_id(obs);
-
-            auto& output =
-              sim_ed.sim.observers.alloc(obs.name.c_str(),
-                                         simulation_observation_update,
-                                         &sim_ed,
-                                         ordinal(obs_id),
-                                         0);
-            sim_ed.sim.observe(*mdl, output);
-        } else {
-            if (!sim.observers.can_alloc(1)) {
-                auto& n = app.notifications.alloc(notification_type::error);
-                n.title = "Too many observer in simulation";
-                g_task->app->notifications.enable(n);
-            }
-
-            if (!sim_ed.sim_obs.can_alloc(1)) {
-                auto& n = app.notifications.alloc(notification_type::error);
-                n.title = "Too many simulation observation in simulation";
-                g_task->app->notifications.enable(n);
-            }
-        }
-    }
+    sim_ed.remove_simulation_observation_from(mdl_id);
 
     g_task->state = gui_task_status::finished;
 }
 
-static void remove_simulation_observation_from(application& app,
-                                               model_id     mdl_id) noexcept
+static void task_add_simulation_observation_impl(void* param) noexcept
 {
-    auto& task   = app.gui_tasks.alloc();
-    task.param_1 = ordinal(mdl_id);
-    task.app     = &app;
-    app.task_mgr.task_lists[0].add(task_simulation_observation_remove, &task);
-    app.task_mgr.task_lists[0].submit();
-}
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = gui_task_status::started;
+    g_task->app->state |= application_status_read_only_simulating |
+                          application_status_read_only_modeling;
 
-static void add_simulation_observation_for(application& app,
-                                           model_id     mdl_id) noexcept
-{
-    auto& task   = app.gui_tasks.alloc();
-    task.param_1 = ordinal(mdl_id);
-    task.app     = &app;
-    app.task_mgr.task_lists[0].add(task_simulation_observation_add, &task);
-    app.task_mgr.task_lists[0].submit();
+    auto& app    = *g_task->app;
+    auto& sim_ed = app.s_editor;
+    auto  mdl_id = enum_cast<model_id>(g_task->param_1);
+
+    sim_ed.add_simulation_observation_for(mdl_id);
+
+    // if (!sim.observers.can_alloc(1)) {
+    //     auto& n = app.notifications.alloc(notification_type::error);
+    //     n.title = "Too many observer in simulation";
+    //     g_task->app->notifications.enable(n);
+    // }
+
+    // if (!sim_ed.sim_obs.can_alloc(1)) {
+    //     auto& n = app.notifications.alloc(notification_type::error);
+    //     n.title = "Too many simulation observation in simulation";
+    //     g_task->app->notifications.enable(n);
+    // }
+
+    g_task->state = gui_task_status::finished;
 }
 
 static float values_getter(void* data, int idx) noexcept
@@ -515,6 +470,25 @@ static float values_getter(void* data, int idx) noexcept
     auto  index = obs->linear_ring_buffer.index_from_begin(idx);
 
     return static_cast<float>(obs->linear_outputs[index].x);
+}
+
+void task_remove_simulation_observation(application& app, model_id id) noexcept
+{
+    auto& task   = app.gui_tasks.alloc();
+    task.param_1 = ordinal(id);
+    task.app     = &app;
+    app.task_mgr.task_lists[0].add(task_remove_simulation_observation_impl,
+                                   &task);
+    app.task_mgr.task_lists[0].submit();
+}
+
+void task_add_simulation_observation(application& app, model_id id) noexcept
+{
+    auto& task   = app.gui_tasks.alloc();
+    task.param_1 = ordinal(id);
+    task.app     = &app;
+    app.task_mgr.task_lists[0].add(task_add_simulation_observation_impl, &task);
+    app.task_mgr.task_lists[0].submit();
 }
 
 void application::show_simulation_observation_window() noexcept
@@ -571,10 +545,10 @@ void application::show_simulation_observation_window() noexcept
 
             if (already_observed) {
                 if (ImGui::Button("remove"))
-                    remove_simulation_observation_from(*this, mdl_id);
+                    task_remove_simulation_observation(*this, mdl_id);
             } else {
                 if (ImGui::Button("observe"))
-                    add_simulation_observation_for(*this, mdl_id);
+                    task_add_simulation_observation(*this, mdl_id);
             }
 
             ImGui::PopID();
