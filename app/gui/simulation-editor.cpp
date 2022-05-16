@@ -1126,6 +1126,16 @@ static void show_simulation_graph_editor(application& app) noexcept
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
 
+    if (num_selected_nodes == 0) {
+        app.s_editor.selected_nodes.clear();
+        ImNodes::ClearNodeSelection();
+    }
+
+    if (num_selected_links == 0) {
+        app.s_editor.selected_links.clear();
+        ImNodes::ClearLinkSelection();
+    }
+
     if (num_selected_nodes > 0) {
         app.s_editor.selected_nodes.resize(num_selected_nodes, -1);
         ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
