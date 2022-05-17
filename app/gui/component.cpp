@@ -366,28 +366,6 @@ void component_editor::open_as_main(component_id id) noexcept
     }
 }
 
-void component_editor::init() noexcept
-{
-    if (!context) {
-        context = ImNodes::EditorContextCreate();
-        ImNodes::EditorContextSet(context);
-        ImNodes::PushAttributeFlag(
-          ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
-        ImNodesIO& io                           = ImNodes::GetIO();
-        io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
-    }
-}
-
-void component_editor::shutdown() noexcept
-{
-    if (context) {
-        ImNodes::EditorContextSet(context);
-        ImNodes::PopAttributeFlag();
-        ImNodes::EditorContextFree(context);
-        context = nullptr;
-    }
-}
-
 static void modeling_update_state(component_editor& ed) noexcept
 {
     // @TODO missing std::mutex in application or component_editor to protect

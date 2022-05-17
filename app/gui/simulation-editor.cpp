@@ -538,8 +538,14 @@ simulation_editor::simulation_editor() noexcept
     context = ImNodes::EditorContextCreate();
     ImNodes::PushAttributeFlag(
       ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
+
     ImNodesIO& io                           = ImNodes::GetIO();
     io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
+    io.MultipleSelectModifier.Modifier      = &ImGui::GetIO().KeyCtrl;
+
+    ImNodesStyle& style = ImNodes::GetStyle();
+    style.Flags |=
+      ImNodesStyleFlags_GridLinesPrimary | ImNodesStyleFlags_GridSnapping;
 }
 
 simulation_editor::~simulation_editor() noexcept
@@ -548,17 +554,6 @@ simulation_editor::~simulation_editor() noexcept
         ImNodes::EditorContextSet(context);
         ImNodes::PopAttributeFlag();
         ImNodes::EditorContextFree(context);
-        context = nullptr;
-    }
-}
-
-void simulation_editor::shutdown() noexcept
-{
-    if (context) {
-        ImNodes::EditorContextSet(context);
-        ImNodes::PopAttributeFlag();
-        ImNodes::EditorContextFree(context);
-        context = nullptr;
     }
 }
 

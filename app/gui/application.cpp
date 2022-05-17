@@ -66,8 +66,6 @@ application::~application() noexcept
 
 bool application::init() noexcept
 {
-    c_editor.init();
-
     // @todo DEBUG MODE: Prefer user settings or better timeline constructor
     s_editor.tl.init(32768, 4096, 65536, 65536, 32768, 32768);
 
@@ -687,12 +685,7 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
     return ret;
 }
 
-void application::shutdown() noexcept
-{
-    c_editor.shutdown();
-    s_editor.shutdown();
-    log_w.clear();
-}
+void application::shutdown() noexcept { log_w.clear(); }
 
 // static void run_for(editor& ed, long long int duration_in_microseconds)
 // noexcept

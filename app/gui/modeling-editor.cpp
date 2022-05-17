@@ -706,6 +706,30 @@ static void show_modeling_widget(const settings_manager& settings,
     }
 }
 
+component_editor::component_editor() noexcept
+{
+    context = ImNodes::EditorContextCreate();
+    ImNodes::PushAttributeFlag(
+      ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
+
+    ImNodesIO& io                           = ImNodes::GetIO();
+    io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
+    io.MultipleSelectModifier.Modifier      = &ImGui::GetIO().KeyCtrl;
+
+    ImNodesStyle& style = ImNodes::GetStyle();
+    style.Flags |=
+      ImNodesStyleFlags_GridLinesPrimary | ImNodesStyleFlags_GridSnapping;
+}
+
+component_editor::~component_editor() noexcept
+{
+    if (context) {
+        ImNodes::EditorContextSet(context);
+        ImNodes::PopAttributeFlag();
+        ImNodes::EditorContextFree(context);
+    }
+}
+
 void application::show_modeling_editor_widget() noexcept
 {
     auto* tree =

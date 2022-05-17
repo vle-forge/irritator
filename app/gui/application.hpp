@@ -271,7 +271,6 @@ struct simulation_editor
 
     simulation_editor() noexcept;
     ~simulation_editor() noexcept;
-    void shutdown() noexcept;
 
     void select(simulation_tree_node_id id) noexcept;
     void unselect() noexcept;
@@ -354,6 +353,9 @@ struct project_hierarchy_selection
 
 struct component_editor
 {
+    component_editor() noexcept;
+    ~component_editor() noexcept;
+
     modeling        mod;
     external_source srcs;
     // data_array<memory_output, memory_output_id> outputs;
@@ -374,9 +376,7 @@ struct component_editor
     void save_project(const char* filename) noexcept;
     void load_project(const char* filename) noexcept;
 
-    void init() noexcept;
     void show(bool* is_show) noexcept;
-    void shutdown() noexcept;
 };
 
 struct settings_manager
