@@ -685,8 +685,6 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
     return ret;
 }
 
-void application::shutdown() noexcept { log_w.clear(); }
-
 // static void run_for(editor& ed, long long int duration_in_microseconds)
 // noexcept
 //{

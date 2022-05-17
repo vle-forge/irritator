@@ -151,164 +151,171 @@ int main(int, char**)
     ImVec4 clear_color         = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     ImNodes::CreateContext();
-    irt::application app;
-    if (!app.init()) {
-        app.shutdown();
-        ImNodes::DestroyContext();
 
-        ImGui_ImplDX12_Shutdown();
-        ImGui_ImplWin32_Shutdown();
-        ImGui::DestroyContext();
+    {
+        irt::application app;
+        if (!app.init()) {
+            ImNodes::DestroyContext();
 
-        CleanupDeviceD3D();
-        ::DestroyWindow(hwnd);
-        ::UnregisterClass(wc.lpszClassName, wc.hInstance);
-        return 0;
-    }
+            ImGui_ImplDX12_Shutdown();
+            ImGui_ImplWin32_Shutdown();
+            ImGui::DestroyContext();
 
-    // Main loop
-    MSG msg;
-    ZeroMemory(&msg, sizeof(msg));
-    while (msg.message != WM_QUIT) {
-        // Poll and handle messages (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to
-        // tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data
-        // to your main application.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input
-        // data to your main application. Generally you may always pass all
-        // inputs to dear imgui, and hide them from your application based on
-        // those two flags.
-        if (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
-            ::TranslateMessage(&msg);
-            ::DispatchMessage(&msg);
-            continue;
+            CleanupDeviceD3D();
+            ::DestroyWindow(hwnd);
+            ::UnregisterClass(wc.lpszClassName, wc.hInstance);
+            return 0;
         }
 
-        // Start the Dear ImGui frame
-        ImGui_ImplDX12_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
+        // Main loop
+        MSG msg;
+        ZeroMemory(&msg, sizeof(msg));
+        while (msg.message != WM_QUIT) {
+            // Poll and handle messages (inputs, window resize, etc.)
+            // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard
+            // flags to tell if dear imgui wants to use your inputs.
+            // - When io.WantCaptureMouse is true, do not dispatch mouse input
+            // data to your main application.
+            // - When io.WantCaptureKeyboard is true, do not dispatch keyboard
+            // input data to your main application. Generally you may always
+            // pass all inputs to dear imgui, and hide them from your
+            // application based on those two flags.
+            if (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
+                ::TranslateMessage(&msg);
+                ::DispatchMessage(&msg);
+                continue;
+            }
 
-        app.show();
+            // Start the Dear ImGui frame
+            ImGui_ImplDX12_NewFrame();
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
 
-        if (app.menu_quit)
-            ::PostMessage(hwnd, WM_CLOSE, 0, 0);
+            app.show();
 
-        // 1. Show the big demo window (Most of the sample code is in
-        // ImGui::ShowDemoWindow()! You can browse its code to learn more about
-        // Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+            if (app.menu_quit)
+                ::PostMessage(hwnd, WM_CLOSE, 0, 0);
 
-        // 2. Show a simple window that we create ourselves. We use a Begin/End
-        // pair to created a named window.
+            // 1. Show the big demo window (Most of the sample code is in
+            // ImGui::ShowDemoWindow()! You can browse its code to learn more
+            // about Dear ImGui!).
+            if (show_demo_window)
+                ImGui::ShowDemoWindow(&show_demo_window);
 
-        //{
-        //    static float f = 0.0f;
-        //    static int counter = 0;
+            // 2. Show a simple window that we create ourselves. We use a
+            // Begin/End pair to created a named window.
 
-        //    ImGui::Begin("Hello, world!"); // Create a window called "Hello,
-        //                                   // world!" and append into it.
+            //{
+            //    static float f = 0.0f;
+            //    static int counter = 0;
 
-        //    ImGui::Text(
-        //      "This is some useful text."); // Display some text (you can use
-        //      a
-        //                                    // format strings too)
-        //    ImGui::Checkbox("Demo Window",
-        //                    &show_demo_window); // Edit bools storing our
-        //                    window
-        //                                        // open/close state
-        //    ImGui::Checkbox("Another Window", &show_another_window);
+            //    ImGui::Begin("Hello, world!"); // Create a window called
+            //    "Hello,
+            //                                   // world!" and append into it.
 
-        //    ImGui::SliderFloat(
-        //      "float",
-        //      &f,
-        //      0.0f,
-        //      1.0f); // Edit 1 float using a slider from 0.0f to 1.0f
-        //    ImGui::ColorEdit3(
-        //      "clear color",
-        //      (float*)&clear_color); // Edit 3 floats representing a color
+            //    ImGui::Text(
+            //      "This is some useful text."); // Display some text (you can
+            //      use
+            //      a
+            //                                    // format strings too)
+            //    ImGui::Checkbox("Demo Window",
+            //                    &show_demo_window); // Edit bools storing our
+            //                    window
+            //                                        // open/close state
+            //    ImGui::Checkbox("Another Window", &show_another_window);
 
-        //    if (ImGui::Button(
-        //          "Button")) // Buttons return true when clicked (most widgets
-        //                     // return true when edited/activated)
-        //        counter++;
-        //    ImGui::SameLine();
-        //    ImGui::Text("counter = %d", counter);
+            //    ImGui::SliderFloat(
+            //      "float",
+            //      &f,
+            //      0.0f,
+            //      1.0f); // Edit 1 float using a slider from 0.0f to 1.0f
+            //    ImGui::ColorEdit3(
+            //      "clear color",
+            //      (float*)&clear_color); // Edit 3 floats representing a color
 
-        //    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-        //                1000.0f / ImGui::GetIO().Framerate,
-        //                ImGui::GetIO().Framerate);
-        //    ImGui::End();
-        //}
+            //    if (ImGui::Button(
+            //          "Button")) // Buttons return true when clicked (most
+            //          widgets
+            //                     // return true when edited/activated)
+            //        counter++;
+            //    ImGui::SameLine();
+            //    ImGui::Text("counter = %d", counter);
 
-        // 3. Show another simple window.
-        if (show_another_window) {
-            ImGui::Begin(
-              "Another Window",
-              &show_another_window); // Pass a pointer to our bool variable (the
-                                     // window will have a closing button that
-                                     // will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
+            //    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+            //                1000.0f / ImGui::GetIO().Framerate,
+            //                ImGui::GetIO().Framerate);
+            //    ImGui::End();
+            //}
+
+            // 3. Show another simple window.
+            if (show_another_window) {
+                ImGui::Begin(
+                  "Another Window",
+                  &show_another_window); // Pass a pointer to our bool variable
+                                         // (the window will have a closing
+                                         // button that will clear the bool when
+                                         // clicked)
+                ImGui::Text("Hello from another window!");
+                if (ImGui::Button("Close Me"))
+                    show_another_window = false;
+                ImGui::End();
+            }
+
+            // Rendering
+            ImGui::Render();
+
+            FrameContext* frameCtx = WaitForNextFrameResources();
+            UINT backBufferIdx     = g_pSwapChain->GetCurrentBackBufferIndex();
+            frameCtx->CommandAllocator->Reset();
+
+            D3D12_RESOURCE_BARRIER barrier = {};
+            barrier.Type  = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier.Transition.pResource =
+              g_mainRenderTargetResource[backBufferIdx];
+            barrier.Transition.Subresource =
+              D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+            barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            g_pd3dCommandList->Reset(frameCtx->CommandAllocator, NULL);
+            g_pd3dCommandList->ResourceBarrier(1, &barrier);
+
+            // Render Dear ImGui graphics
+            const float clear_color_with_alpha[4] = {
+                clear_color.x * clear_color.w,
+                clear_color.y * clear_color.w,
+                clear_color.z * clear_color.w,
+                clear_color.w
+            };
+            g_pd3dCommandList->ClearRenderTargetView(
+              g_mainRenderTargetDescriptor[backBufferIdx],
+              clear_color_with_alpha,
+              0,
+              NULL);
+            g_pd3dCommandList->OMSetRenderTargets(
+              1, &g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
+            g_pd3dCommandList->SetDescriptorHeaps(1, &g_pd3dSrvDescHeap);
+            ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(),
+                                          g_pd3dCommandList);
+            barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PRESENT;
+            g_pd3dCommandList->ResourceBarrier(1, &barrier);
+            g_pd3dCommandList->Close();
+
+            g_pd3dCommandQueue->ExecuteCommandLists(
+              1, (ID3D12CommandList* const*)&g_pd3dCommandList);
+
+            g_pSwapChain->Present(1, 0); // Present with vsync
+            // g_pSwapChain->Present(0, 0); // Present without vsync
+
+            UINT64 fenceValue = g_fenceLastSignaledValue + 1;
+            g_pd3dCommandQueue->Signal(g_fence, fenceValue);
+            g_fenceLastSignaledValue = fenceValue;
+            frameCtx->FenceValue     = fenceValue;
         }
 
-        // Rendering
-        ImGui::Render();
-
-        FrameContext* frameCtx      = WaitForNextFrameResources();
-        UINT          backBufferIdx = g_pSwapChain->GetCurrentBackBufferIndex();
-        frameCtx->CommandAllocator->Reset();
-
-        D3D12_RESOURCE_BARRIER barrier = {};
-        barrier.Type                   = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-        barrier.Flags                  = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-        barrier.Transition.pResource =
-          g_mainRenderTargetResource[backBufferIdx];
-        barrier.Transition.Subresource =
-          D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-        barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        g_pd3dCommandList->Reset(frameCtx->CommandAllocator, NULL);
-        g_pd3dCommandList->ResourceBarrier(1, &barrier);
-
-        // Render Dear ImGui graphics
-        const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w,
-                                                  clear_color.y * clear_color.w,
-                                                  clear_color.z * clear_color.w,
-                                                  clear_color.w };
-        g_pd3dCommandList->ClearRenderTargetView(
-          g_mainRenderTargetDescriptor[backBufferIdx],
-          clear_color_with_alpha,
-          0,
-          NULL);
-        g_pd3dCommandList->OMSetRenderTargets(
-          1, &g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
-        g_pd3dCommandList->SetDescriptorHeaps(1, &g_pd3dSrvDescHeap);
-        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_pd3dCommandList);
-        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        barrier.Transition.StateAfter  = D3D12_RESOURCE_STATE_PRESENT;
-        g_pd3dCommandList->ResourceBarrier(1, &barrier);
-        g_pd3dCommandList->Close();
-
-        g_pd3dCommandQueue->ExecuteCommandLists(
-          1, (ID3D12CommandList* const*)&g_pd3dCommandList);
-
-        g_pSwapChain->Present(1, 0); // Present with vsync
-        // g_pSwapChain->Present(0, 0); // Present without vsync
-
-        UINT64 fenceValue = g_fenceLastSignaledValue + 1;
-        g_pd3dCommandQueue->Signal(g_fence, fenceValue);
-        g_fenceLastSignaledValue = fenceValue;
-        frameCtx->FenceValue     = fenceValue;
+        WaitForLastSubmittedFrame();
     }
-
-    WaitForLastSubmittedFrame();
-
-    app.shutdown();
     ImNodes::DestroyContext();
 
     // Cleanup

@@ -457,7 +457,6 @@ struct application
 
     bool init() noexcept;
     void show() noexcept;
-    void shutdown() noexcept;
 
     void                 show_external_sources() noexcept;
     void                 show_simulation_window() noexcept;
