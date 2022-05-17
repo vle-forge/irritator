@@ -931,6 +931,8 @@ static void compute_automatic_layout(settings_manager&  settings,
     //                   static_cast<float>(automatic_layout_iteration_limit);
     // t *= t;
 
+    ed.displacements.resize(size);
+
     float t =
       1.f - 1.f / static_cast<float>(settings.automatic_layout_iteration_limit);
 
