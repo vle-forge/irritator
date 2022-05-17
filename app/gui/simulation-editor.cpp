@@ -535,7 +535,8 @@ static status add_popup_menuitem(simulation_editor& ed,
 
 simulation_editor::simulation_editor() noexcept
 {
-    context = ImNodes::EditorContextCreate();
+    output_context = ImPlot::CreateContext();
+    context        = ImNodes::EditorContextCreate();
     ImNodes::PushAttributeFlag(
       ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
 
@@ -550,6 +551,10 @@ simulation_editor::simulation_editor() noexcept
 
 simulation_editor::~simulation_editor() noexcept
 {
+    if (output_context) {
+        ImPlot::DestroyContext(output_context);
+    }
+
     if (context) {
         ImNodes::EditorContextSet(context);
         ImNodes::PopAttributeFlag();

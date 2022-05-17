@@ -327,9 +327,11 @@ struct simulation_editor
 
     simulation_observation_id selected_sim_obs;
 
-    ImNodesEditorContext* context = nullptr;
-    ImVector<int>         selected_links;
-    ImVector<int>         selected_nodes;
+    ImNodesEditorContext* context        = nullptr;
+    ImPlotContext*        output_context = nullptr;
+
+    ImVector<int> selected_links;
+    ImVector<int> selected_nodes;
 
     //! Position of each node
     int              automatic_layout_iteration = 0;
