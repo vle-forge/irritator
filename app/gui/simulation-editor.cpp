@@ -471,92 +471,48 @@ static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
 {
     dispatch(mdl, [&](const auto& dyn) {
         add_input_attribute(ed, dyn);
-        ImGui::PushItemWidth(120.0f);
-        show_dynamics_values(ed.sim, dyn);
-        ImGui::PopItemWidth();
+        if (ed.show_internal_values) {
+            ImGui::PushItemWidth(120.0f);
+            show_dynamics_values(ed.sim, dyn);
+            ImGui::PopItemWidth();
+        }
         add_output_attribute(ed, dyn);
     });
-
-    // if (simulation_show_value && st != editor_status::editing) {
-    //    dispatch(mdl, [&](const auto& dyn) {
-    //        add_input_attribute(*this, dyn);
-    //        ImGui::PushItemWidth(120.0f);
-    //        show_dynamics_values(sim, dyn);
-    //        ImGui::PopItemWidth();
-    //        add_output_attribute(*this, dyn);
-    //    });
-    //} else {
-    //    dispatch(mdl, [&](auto& dyn) {
-    //        add_input_attribute(*this, dyn);
-    //        ImGui::PushItemWidth(120.0f);
-
-    //        if (settings.show_dynamics_inputs_in_editor)
-    //            show_dynamics_inputs(this->srcs, dyn);
-    //        ImGui::PopItemWidth();
-    //        add_output_attribute(*this, dyn);
-    //    });
-    //}
 }
 
 static void show_top(simulation_editor& ed) noexcept
 {
-    model* mdl = nullptr;
-    while (ed.sim.models.next(mdl)) {
-        const auto mdl_id    = ed.sim.models.get_id(mdl);
-        const auto mdl_index = get_index(mdl_id);
+    if (ed.show_identifiers) {
+        model* mdl = nullptr;
+        while (ed.sim.models.next(mdl)) {
+            const auto mdl_id    = ed.sim.models.get_id(mdl);
+            const auto mdl_index = get_index(mdl_id);
 
-        // if (st != editor_status::editing &&
-        // models_make_transition[mdl_index]) {
+            ImNodes::BeginNode(mdl_index);
+            ImNodes::BeginNodeTitleBar();
 
-        //    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-        //                            ImGui::ColorConvertFloat4ToU32(
-        //                              settings.gui_model_transition_color));
+            ImGui::TextFormat("{}\n{}",
+                              mdl_index,
+                              dynamics_type_names[static_cast<int>(mdl->type)]);
 
-        //    ImNodes::PushColorStyle(
-        //      ImNodesCol_TitleBarHovered,
-        //      settings.gui_hovered_model_transition_color);
-        //    ImNodes::PushColorStyle(
-        //      ImNodesCol_TitleBarSelected,
-        //      settings.gui_selected_model_transition_color);
-        //} else {
-        // ImNodes::PushColorStyle(
-        //  ImNodesCol_TitleBar,
-        //  ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
+            ImNodes::EndNodeTitleBar();
+            show_model_dynamics(ed, *mdl);
+            ImNodes::EndNode();
+        }
+    } else {
+        model* mdl = nullptr;
+        while (ed.sim.models.next(mdl)) {
+            const auto mdl_id    = ed.sim.models.get_id(mdl);
+            const auto mdl_index = get_index(mdl_id);
 
-        // ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-        //                        settings.gui_hovered_model_color);
-        // ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-        //                        settings.gui_selected_model_color);
-        //}
-
-        ImNodes::BeginNode(mdl_index);
-        ImNodes::BeginNodeTitleBar();
-
-        // ImGui::TextUnformatted(mdl->name.c_str());
-        // ImGui::OpenPopupOnItemClick("Rename model", 1);
-
-        // bool is_rename = true;
-        // ImGui::SetNextWindowSize(ImVec2(250, 200),
-        // ImGuiCond_Always); if (ImGui::BeginPopupModal("Rename
-        // model", &is_rename)) {
-        //    ImGui::InputText(
-        //      "Name##edit-1", mdl->name.begin(),
-        //      mdl->name.capacity());
-        //    if (ImGui::Button("Close"))
-        //        ImGui::CloseCurrentPopup();
-        //    ImGui::EndPopup();
-        //}
-
-        ImGui::TextFormat("{}\n{}",
-                          mdl_index,
-                          dynamics_type_names[static_cast<int>(mdl->type)]);
-
-        ImNodes::EndNodeTitleBar();
-        show_model_dynamics(ed, *mdl);
-        ImNodes::EndNode();
-
-        // ImNodes::PopColorStyle();
-        // ImNodes::PopColorStyle();
+            ImNodes::BeginNode(mdl_index);
+            ImNodes::BeginNodeTitleBar();
+            ImGui::TextUnformatted(
+              dynamics_type_names[static_cast<int>(mdl->type)]);
+            ImNodes::EndNodeTitleBar();
+            show_model_dynamics(ed, *mdl);
+            ImNodes::EndNode();
+        }
     }
 }
 
@@ -1074,6 +1030,10 @@ static void show_simulation_graph_editor(application& app) noexcept
             app.s_editor.automatic_layout_iteration =
               app.settings.automatic_layout_iteration_limit;
         }
+
+        ImGui::MenuItem(
+          "Show internal values", "", &app.s_editor.show_internal_values);
+        ImGui::MenuItem("Show identifiers", "", &app.s_editor.show_identifiers);
 
         ImGui::Separator();
 

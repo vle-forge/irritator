@@ -302,6 +302,9 @@ struct simulation_editor
     bool real_time             = false;
     bool have_use_back_advance = false;
 
+    bool show_internal_values = false;
+    bool show_identifiers     = false;
+
     simulation sim;
     timeline   tl;
 
