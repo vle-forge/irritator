@@ -113,9 +113,11 @@ enum selected_main_window_
     selected_main_window_modeling   = 1 << 1, //! Only modeling window
     selected_main_window_simulation = 1 << 2, //! Only simulation window
     selected_main_window_output     = 1 << 3, //! Only output window
+    selected_main_window_data       = 1 << 4, // !Only data window
     selected_main_window_all =
       selected_main_window_modeling | selected_main_window_simulation |
-      selected_main_window_output //! All windows are displayed
+      selected_main_window_output |
+      selected_main_window_data //! All windows are displayed
 };
 
 enum simulation_plot_
@@ -445,6 +447,7 @@ struct application
     bool show_settings   = false;
     bool show_memory     = false;
 
+    bool show_data_editor       = true;
     bool show_output_editor     = true;
     bool show_simulation_editor = true;
     bool show_modeling_editor   = true;
@@ -461,7 +464,7 @@ struct application
     void show() noexcept;
 
     void                 show_external_sources() noexcept;
-    void                 show_simulation_window() noexcept;
+    void                 show_log_window() noexcept;
     void                 show_simulation_observation_window() noexcept;
     void                 show_components_window() noexcept;
     void                 show_project_window() noexcept;

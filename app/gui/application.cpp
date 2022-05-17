@@ -228,6 +228,8 @@ static void application_show_menu(application& app) noexcept
                                 &app.show_simulation_editor);
                 ImGui::MenuItem(
                   "Show output editor", nullptr, &app.show_output_editor);
+                ImGui::MenuItem(
+                  "Show data editor", nullptr, &app.show_data_editor);
             }
 
             ImGui::MenuItem("Show memory usage", nullptr, &app.show_memory);
@@ -454,8 +456,8 @@ static void application_show_windows(application& app) noexcept
 
     ImGui::SetNextWindowPos(simulation_pos, window_pos_flags);
     ImGui::SetNextWindowSize(simulation_size, window_size_flags);
-    if (ImGui::Begin("Simulation window", 0, window_flags)) {
-        app.show_simulation_window();
+    if (ImGui::Begin("Log", 0, window_flags)) {
+        app.show_log_window();
         ImGui::End();
     }
 
@@ -625,6 +627,12 @@ selected_main_window application::show_main_as_tabbar(
                 ImGui::EndTabItem();
             }
 
+            if (ImGui::BeginTabItem("Data editor")) {
+                ret = selected_main_window_data;
+                show_external_sources();
+                ImGui::EndTabItem();
+            }
+
             ImGui::EndTabBar();
         }
     }
@@ -678,6 +686,21 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
                 ret |= selected_main_window_output;
 
             show_output_editor_widget();
+        }
+        ImGui::End();
+    }
+
+    position.x += 25;
+    position.y += 25;
+
+    if (show_data_editor) {
+        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
+        if (ImGui::Begin("Data editor", &show_data_editor)) {
+            if (ImGui::IsWindowFocused())
+                ret |= selected_main_window_data;
+
+            show_external_sources();
         }
         ImGui::End();
     }

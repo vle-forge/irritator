@@ -121,4 +121,6 @@ void window_logger::show() noexcept
     ImGui::EndChild();
 }
 
+void application::show_log_window() noexcept { log_w.show(); }
+
 } // irt
