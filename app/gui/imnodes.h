@@ -1,6 +1,15 @@
 #pragma once
 
 #include <stddef.h>
+#include <imgui.h>
+
+#ifdef IMNODES_USER_CONFIG
+#include IMNODES_USER_CONFIG
+#endif
+
+#ifndef IMNODES_NAMESPACE
+#define IMNODES_NAMESPACE ImNodes
+#endif
 
 typedef int ImNodesCol;             // -> enum ImNodesCol_
 typedef int ImNodesStyleVar;        // -> enum ImNodesStyleVar_
@@ -27,6 +36,7 @@ enum ImNodesCol_
     ImNodesCol_BoxSelectorOutline,
     ImNodesCol_GridBackground,
     ImNodesCol_GridLine,
+    ImNodesCol_GridLinePrimary,
     ImNodesCol_MiniMapBackground,
     ImNodesCol_MiniMapBackgroundHovered,
     ImNodesCol_MiniMapOutline,
@@ -37,6 +47,8 @@ enum ImNodesCol_
     ImNodesCol_MiniMapNodeOutline,
     ImNodesCol_MiniMapLink,
     ImNodesCol_MiniMapLinkSelected,
+    ImNodesCol_MiniMapCanvas,
+    ImNodesCol_MiniMapCanvasOutline,
     ImNodesCol_COUNT
 };
 
@@ -44,8 +56,7 @@ enum ImNodesStyleVar_
 {
     ImNodesStyleVar_GridSpacing = 0,
     ImNodesStyleVar_NodeCornerRounding,
-    ImNodesStyleVar_NodePaddingHorizontal,
-    ImNodesStyleVar_NodePaddingVertical,
+    ImNodesStyleVar_NodePadding,
     ImNodesStyleVar_NodeBorderThickness,
     ImNodesStyleVar_LinkThickness,
     ImNodesStyleVar_LinkLineSegmentsPerLength,
@@ -55,14 +66,19 @@ enum ImNodesStyleVar_
     ImNodesStyleVar_PinTriangleSideLength,
     ImNodesStyleVar_PinLineThickness,
     ImNodesStyleVar_PinHoverRadius,
-    ImNodesStyleVar_PinOffset
+    ImNodesStyleVar_PinOffset,
+    ImNodesStyleVar_MiniMapPadding,
+    ImNodesStyleVar_MiniMapOffset,
+    ImNodesStyleVar_COUNT
 };
 
 enum ImNodesStyleFlags_
 {
     ImNodesStyleFlags_None = 0,
     ImNodesStyleFlags_NodeOutline = 1 << 0,
-    ImNodesStyleFlags_GridLines = 1 << 2
+    ImNodesStyleFlags_GridLines = 1 << 2,
+    ImNodesStyleFlags_GridLinesPrimary = 1 << 3,
+    ImNodesStyleFlags_GridSnapping = 1 << 4
 };
 
 enum ImNodesPinShape_
@@ -121,9 +137,27 @@ struct ImNodesIO
         const bool* Modifier;
     } LinkDetachWithModifierClick;
 
+    struct MultipleSelectModifier
+    {
+        MultipleSelectModifier();
+
+        // Pointer to a boolean value indicating when the desired modifier is pressed. Set to NULL
+        // by default. To enable the feature, set the modifier to point to a boolean indicating the
+        // state of a modifier. For example,
+        //
+        // ImNodes::GetIO().MultipleSelectModifier.Modifier = &ImGui::GetIO().KeyCtrl;
+        //
+        // Left-clicking a node with this modifier pressed will add the node to the list of
+        // currently selected nodes. If this value is NULL, the Ctrl key will be used.
+        const bool* Modifier;
+    } MultipleSelectModifier;
+
     // Holding alt mouse button pans the node area, by default middle mouse button will be used
     // Set based on ImGuiMouseButton values
     int AltMouseButton;
+
+    // Panning speed when dragging an element and mouse is outside the main editor view.
+    float AutoPanningSpeed;
 
     ImNodesIO();
 };
@@ -132,10 +166,9 @@ struct ImNodesStyle
 {
     float GridSpacing;
 
-    float NodeCornerRounding;
-    float NodePaddingHorizontal;
-    float NodePaddingVertical;
-    float NodeBorderThickness;
+    float  NodeCornerRounding;
+    ImVec2 NodePadding;
+    float  NodeBorderThickness;
 
     float LinkThickness;
     float LinkLineSegmentsPerLength;
@@ -160,6 +193,11 @@ struct ImNodesStyle
     float PinHoverRadius;
     // Offsets the pins' positions from the edge of the node to the outside of the node.
     float PinOffset;
+
+    // Mini-map padding size between mini-map edge and mini-map content.
+    ImVec2 MiniMapPadding;
+    // Mini-map offset from the screen side.
+    ImVec2 MiniMapOffset;
 
     // By default, ImNodesStyleFlags_NodeOutline and ImNodesStyleFlags_Gridlines are enabled.
     ImNodesStyleFlags Flags;
@@ -191,9 +229,15 @@ struct ImNodesContext;
 struct ImNodesEditorContext;
 
 // Callback type used to specify special behavior when hovering a node in the minimap
+#ifndef ImNodesMiniMapNodeHoveringCallback
 typedef void (*ImNodesMiniMapNodeHoveringCallback)(int, void*);
+#endif
 
-namespace ImNodes
+#ifndef ImNodesMiniMapNodeHoveringCallbackUserData
+typedef void* ImNodesMiniMapNodeHoveringCallbackUserData;
+#endif
+
+namespace IMNODES_NAMESPACE
 {
 // Call this function if you are compiling imnodes in to a dll, separate from ImGui. Calling this
 // function sets the GImGui global variable, which is not shared across dll boundaries.
@@ -228,16 +272,17 @@ void EndNodeEditor();
 // Add a navigable minimap to the editor; call before EndNodeEditor after all
 // nodes and links have been specified
 void MiniMap(
-    const float                              minimap_size_fraction = 0.2f,
-    const ImNodesMiniMapLocation             location = ImNodesMiniMapLocation_TopLeft,
-    const ImNodesMiniMapNodeHoveringCallback node_hovering_callback = NULL,
-    void*                                    node_hovering_callback_data = NULL);
+    const float                                      minimap_size_fraction = 0.2f,
+    const ImNodesMiniMapLocation                     location = ImNodesMiniMapLocation_TopLeft,
+    const ImNodesMiniMapNodeHoveringCallback         node_hovering_callback = NULL,
+    const ImNodesMiniMapNodeHoveringCallbackUserData node_hovering_callback_data = NULL);
 
 // Use PushColorStyle and PopColorStyle to modify ImNodesStyle::Colors mid-frame.
 void PushColorStyle(ImNodesCol item, unsigned int color);
 void PopColorStyle();
 void PushStyleVar(ImNodesStyleVar style_item, float value);
-void PopStyleVar();
+void PushStyleVar(ImNodesStyleVar style_item, const ImVec2& value);
+void PopStyleVar(int count = 1);
 
 // id can be any positive or negative integer, but INT_MIN is currently reserved for internal use.
 void BeginNode(int id);
@@ -301,6 +346,9 @@ ImVec2 GetNodeScreenSpacePos(const int node_id);
 ImVec2 GetNodeEditorSpacePos(const int node_id);
 ImVec2 GetNodeGridSpacePos(const int node_id);
 
+// If ImNodesStyleFlags_GridSnapping is enabled, snap the specified node's origin to the grid.
+void SnapNodeToGrid(int node_id);
+
 // Returns true if the current node editor canvas is being hovered over by the mouse, and is not
 // blocked by any other windows.
 bool IsEditorHovered();
@@ -320,10 +368,21 @@ int NumSelectedLinks();
 // returned.
 void GetSelectedNodes(int* node_ids);
 void GetSelectedLinks(int* link_ids);
-
 // Clears the list of selected nodes/links. Useful if you want to delete a selected node or link.
 void ClearNodeSelection();
 void ClearLinkSelection();
+// Use the following functions to add or remove individual nodes or links from the current editors
+// selection. Note that all functions require the id to be an existing valid id for this editor.
+// Select-functions has the precondition that the object is currently considered unselected.
+// Clear-functions has the precondition that the object is currently considered selected.
+// Preconditions listed above can be checked via IsNodeSelected/IsLinkSelected if not already
+// known.
+void SelectNode(int node_id);
+void ClearNodeSelection(int node_id);
+bool IsNodeSelected(int node_id);
+void SelectLink(int link_id);
+void ClearLinkSelection(int link_id);
+bool IsLinkSelected(int link_id);
 
 // Was the previous attribute active? This will continuously return true while the left mouse button
 // is being pressed over the UI content of the attribute.
@@ -375,4 +434,4 @@ void SaveEditorStateToIniFile(const ImNodesEditorContext* editor, const char* fi
 
 void LoadCurrentEditorStateFromIniFile(const char* file_name);
 void LoadEditorStateFromIniFile(ImNodesEditorContext* editor, const char* file_name);
-} // namespace ImNodes
+} // namespace IMNODES_NAMESPACE
