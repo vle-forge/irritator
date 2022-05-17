@@ -604,6 +604,17 @@ static void is_link_created(component& parent) noexcept
     }
 }
 
+static void is_link_destroyed(component& parent) noexcept
+{
+    int link_id;
+    if (ImNodes::IsLinkDestroyed(&link_id)) {
+        if (auto* con = parent.connections.try_to_get(link_id); con) {
+            parent.connections.free(*con);
+            parent.state = component_status::modified;
+        }
+    }
+}
+
 static void remove_nodes(component_editor& ed,
                          tree_node&        tree,
                          component&        parent) noexcept
@@ -681,6 +692,7 @@ static void show_modeling_widget(const settings_manager& settings,
     }
 
     is_link_created(compo);
+    is_link_destroyed(compo);
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
