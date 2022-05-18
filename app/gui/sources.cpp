@@ -14,93 +14,6 @@
 
 namespace irt {
 
-/*
-static void
-show_random_distribution_text(const random_source& src) noexcept
-{
-switch (src.distribution) {
-case distribution_type::uniform_int:
-ImGui::Text("a: %d", src.a32);
-ImGui::Text("b: %d", src.b32);
-break;
-
-case distribution_type::uniform_real:
-ImGui::Text("a: %f", src.a);
-ImGui::Text("b: %f", src.b);
-break;
-
-case distribution_type::bernouilli:
-ImGui::Text("p: %f", src.p);
-break;
-
-case distribution_type::binomial:
-ImGui::Text("p: %f", src.p);
-ImGui::Text("t: %d", src.t32);
-break;
-
-case distribution_type::negative_binomial:
-ImGui::Text("p: %f", src.p);
-ImGui::Text("t: %d", src.k32);
-break;
-
-case distribution_type::geometric:
-ImGui::Text("p: %f", src.p);
-break;
-
-case distribution_type::poisson:
-ImGui::Text("mean: %f", src.mean);
-break;
-
-case distribution_type::exponential:
-ImGui::Text("lambda: %f", src.lambda);
-break;
-
-case distribution_type::gamma:
-ImGui::Text("alpha: %f", src.alpha);
-ImGui::Text("beta: %f", src.beta);
-break;
-
-case distribution_type::weibull:
-ImGui::Text("a: %f", src.a);
-ImGui::Text("b: %f", src.b);
-break;
-
-case distribution_type::exterme_value:
-ImGui::Text("a: %f", src.a);
-ImGui::Text("b: %f", src.b);
-break;
-
-case distribution_type::normal:
-ImGui::Text("mean: %f", src.mean);
-ImGui::Text("stddev: %f", src.stddev);
-break;
-
-case distribution_type::lognormal:
-ImGui::Text("m: %f", src.m);
-ImGui::Text("s: %f", src.s);
-break;
-
-case distribution_type::chi_squared:
-ImGui::Text("n: %f", src.n);
-break;
-
-case distribution_type::cauchy:
-ImGui::Text("a: %f", src.a);
-ImGui::Text("b: %f", src.b);
-break;
-
-case distribution_type::fisher_f:
-ImGui::Text("m: %f", src.m);
-ImGui::Text("s: %f", src.n);
-break;
-
-case distribution_type::student_t:
-ImGui::Text("n: %f", src.n);
-break;
-}
-}
-*/
-
 static void show_random_distribution_input(random_source& src) noexcept
 {
     int current_item = ordinal(src.distribution);
@@ -267,18 +180,25 @@ static void show_random_distribution_input(random_source& src) noexcept
     }
 }
 
-void application::show_external_sources() noexcept
+data_window::data_window() noexcept
+  : context{ ImPlot::CreateContext() }
+{}
+
+data_window::~data_window() noexcept
 {
-    static bool                     show_file_dialog  = false;
-    static irt::constant_source*    constant_ptr      = nullptr;
-    static irt::binary_file_source* binary_file_ptr   = nullptr;
-    static irt::text_file_source*   text_file_ptr     = nullptr;
-    static irt::random_source*      random_source_ptr = nullptr;
+    if (context)
+        ImPlot::DestroyContext(context);
+}
+
+void data_window::show() noexcept
+{
+    auto* c_editor = container_of(this, &component_editor::data);
+    auto* app      = container_of(c_editor, &application::c_editor);
 
     if (ImGui::BeginTable("All sources",
                           5,
                           ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg)) {
-        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthStretch);
@@ -288,8 +208,8 @@ void application::show_external_sources() noexcept
         small_string<32> label;
 
         constant_source* cst_src = nullptr;
-        while (c_editor.mod.srcs.constant_sources.next(cst_src)) {
-            const auto id               = c_editor.mod.srcs.constant_sources.get_id(cst_src);
+        while (c_editor->mod.srcs.constant_sources.next(cst_src)) {
+            const auto id = c_editor->mod.srcs.constant_sources.get_id(cst_src);
             const auto index            = get_index(id);
             const bool item_is_selected = cst_src == constant_ptr;
 
@@ -332,9 +252,10 @@ void application::show_external_sources() noexcept
         }
 
         text_file_source* txt_src = nullptr;
-        while (c_editor.mod.srcs.text_file_sources.next(txt_src)) {
-            const auto id    = c_editor.mod.srcs.text_file_sources.get_id(txt_src);
-            const auto index = get_index(id);
+        while (c_editor->mod.srcs.text_file_sources.next(txt_src)) {
+            const auto id =
+              c_editor->mod.srcs.text_file_sources.get_id(txt_src);
+            const auto index            = get_index(id);
             const bool item_is_selected = txt_src == text_file_ptr;
 
             ImGui::TableNextRow();
@@ -362,9 +283,10 @@ void application::show_external_sources() noexcept
         }
 
         binary_file_source* bin_src = nullptr;
-        while (c_editor.mod.srcs.binary_file_sources.next(bin_src)) {
-            const auto id    = c_editor.mod.srcs.binary_file_sources.get_id(bin_src);
-            const auto index = get_index(id);
+        while (c_editor->mod.srcs.binary_file_sources.next(bin_src)) {
+            const auto id =
+              c_editor->mod.srcs.binary_file_sources.get_id(bin_src);
+            const auto index            = get_index(id);
             const bool item_is_selected = bin_src == binary_file_ptr;
 
             ImGui::TableNextRow();
@@ -394,8 +316,8 @@ void application::show_external_sources() noexcept
         }
 
         random_source* rnd_src = nullptr;
-        while (c_editor.mod.srcs.random_sources.next(rnd_src)) {
-            const auto id               = c_editor.mod.srcs.random_sources.get_id(rnd_src);
+        while (c_editor->mod.srcs.random_sources.next(rnd_src)) {
+            const auto id = c_editor->mod.srcs.random_sources.get_id(rnd_src);
             const auto index            = get_index(id);
             const bool item_is_selected = rnd_src == random_source_ptr;
 
@@ -430,48 +352,51 @@ void application::show_external_sources() noexcept
         ImVec2 button_sz(width, 20);
 
         if (ImGui::Button("+constant", button_sz)) {
-            if (c_editor.mod.srcs.constant_sources.can_alloc(1u)) {
-                auto& new_src = c_editor.mod.srcs.constant_sources.alloc();
-                if (is_bad(new_src.init(c_editor.mod.srcs.block_size))) {
-                    log_w.log(
+            if (c_editor->mod.srcs.constant_sources.can_alloc(1u)) {
+                auto& new_src = c_editor->mod.srcs.constant_sources.alloc();
+                if (is_bad(new_src.init(c_editor->mod.srcs.block_size))) {
+                    app->log_w.log(
                       2, "Not enough memory to allocate constant source");
-                    c_editor.mod.srcs.constant_sources.free(new_src);
+                    c_editor->mod.srcs.constant_sources.free(new_src);
                 }
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+text file", button_sz)) {
-            if (c_editor.mod.srcs.text_file_sources.can_alloc(1u)) {
-                auto& new_src = c_editor.mod.srcs.text_file_sources.alloc();
-                if (is_bad(new_src.init(c_editor.mod.srcs.block_size, c_editor.mod.srcs.block_number))) {
-                    log_w.log(
+            if (c_editor->mod.srcs.text_file_sources.can_alloc(1u)) {
+                auto& new_src = c_editor->mod.srcs.text_file_sources.alloc();
+                if (is_bad(new_src.init(c_editor->mod.srcs.block_size,
+                                        c_editor->mod.srcs.block_number))) {
+                    app->log_w.log(
                       2, "Not enough memory to allocate text file source");
-                    c_editor.mod.srcs.text_file_sources.free(new_src);
+                    c_editor->mod.srcs.text_file_sources.free(new_src);
                 }
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+binary file", button_sz)) {
-            if (c_editor.mod.srcs.binary_file_sources.can_alloc(1u)) {
-                auto& new_src = c_editor.mod.srcs.binary_file_sources.alloc();
-                if (is_bad(new_src.init(c_editor.mod.srcs.block_size, c_editor.mod.srcs.block_number))) {
-                    log_w.log(
+            if (c_editor->mod.srcs.binary_file_sources.can_alloc(1u)) {
+                auto& new_src = c_editor->mod.srcs.binary_file_sources.alloc();
+                if (is_bad(new_src.init(c_editor->mod.srcs.block_size,
+                                        c_editor->mod.srcs.block_number))) {
+                    app->log_w.log(
                       2, "Not enough memory to allocate binary text source");
-                    c_editor.mod.srcs.binary_file_sources.free(new_src);
+                    c_editor->mod.srcs.binary_file_sources.free(new_src);
                 }
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+random", button_sz)) {
-            if (c_editor.mod.srcs.random_sources.can_alloc(1u)) {
-                auto& new_src = c_editor.mod.srcs.random_sources.alloc();
-                if (is_bad(new_src.init(c_editor.mod.srcs.block_size, c_editor.mod.srcs.block_number))) {
-                    log_w.log(
+            if (c_editor->mod.srcs.random_sources.can_alloc(1u)) {
+                auto& new_src = c_editor->mod.srcs.random_sources.alloc();
+                if (is_bad(new_src.init(c_editor->mod.srcs.block_size,
+                                        c_editor->mod.srcs.block_number))) {
+                    app->log_w.log(
                       2, "Not enough memory to allocate random source");
-                    c_editor.mod.srcs.random_sources.free(new_src);
+                    c_editor->mod.srcs.random_sources.free(new_src);
                 }
             }
         }
@@ -479,13 +404,13 @@ void application::show_external_sources() noexcept
         ImGui::SameLine();
         if (ImGui::Button("delete", button_sz)) {
             if (constant_ptr)
-                c_editor.mod.srcs.constant_sources.free(*constant_ptr);
+                c_editor->mod.srcs.constant_sources.free(*constant_ptr);
             if (text_file_ptr)
-                c_editor.mod.srcs.text_file_sources.free(*text_file_ptr);
+                c_editor->mod.srcs.text_file_sources.free(*text_file_ptr);
             if (binary_file_ptr)
-                c_editor.mod.srcs.binary_file_sources.free(*binary_file_ptr);
+                c_editor->mod.srcs.binary_file_sources.free(*binary_file_ptr);
             if (random_source_ptr)
-                c_editor.mod.srcs.random_sources.free(*random_source_ptr);
+                c_editor->mod.srcs.random_sources.free(*random_source_ptr);
 
             constant_ptr      = nullptr;
             text_file_ptr     = nullptr;
@@ -501,8 +426,9 @@ void application::show_external_sources() noexcept
     if (ImGui::CollapsingHeader("Source editor",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         if (constant_ptr) {
-            const auto id    = c_editor.mod.srcs.constant_sources.get_id(constant_ptr);
-            auto       index = get_index(id);
+            const auto id =
+              c_editor->mod.srcs.constant_sources.get_id(constant_ptr);
+            auto index = get_index(id);
 
             static u32 new_size = 1;
             new_size            = static_cast<u32>(constant_ptr->buffer.size());
@@ -533,8 +459,9 @@ void application::show_external_sources() noexcept
         }
 
         if (text_file_ptr) {
-            const auto id    = c_editor.mod.srcs.text_file_sources.get_id(text_file_ptr);
-            auto       index = get_index(id);
+            const auto id =
+              c_editor->mod.srcs.text_file_sources.get_id(text_file_ptr);
+            auto index = get_index(id);
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -555,8 +482,9 @@ void application::show_external_sources() noexcept
         }
 
         if (binary_file_ptr) {
-            const auto id    = c_editor.mod.srcs.binary_file_sources.get_id(binary_file_ptr);
-            auto       index = get_index(id);
+            const auto id =
+              c_editor->mod.srcs.binary_file_sources.get_id(binary_file_ptr);
+            auto index = get_index(id);
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -577,8 +505,9 @@ void application::show_external_sources() noexcept
         }
 
         if (random_source_ptr) {
-            const auto id    = c_editor.mod.srcs.random_sources.get_id(random_source_ptr);
-            auto       index = get_index(id);
+            const auto id =
+              c_editor->mod.srcs.random_sources.get_id(random_source_ptr);
+            auto index = get_index(id);
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -602,11 +531,11 @@ void application::show_external_sources() noexcept
             const char8_t* filters[] = { u8".dat", nullptr };
 
             ImGui::OpenPopup(title);
-            if (f_dialog.show_load_file(title, filters)) {
-                if (f_dialog.state == file_dialog::status::ok) {
-                    binary_file_ptr->file_path = f_dialog.result;
+            if (app->f_dialog.show_load_file(title, filters)) {
+                if (app->f_dialog.state == file_dialog::status::ok) {
+                    binary_file_ptr->file_path = app->f_dialog.result;
                 }
-                f_dialog.clear();
+                app->f_dialog.clear();
                 binary_file_ptr  = nullptr;
                 show_file_dialog = false;
             }
@@ -617,11 +546,11 @@ void application::show_external_sources() noexcept
             const char8_t* filters[] = { u8".txt", nullptr };
 
             ImGui::OpenPopup(title);
-            if (f_dialog.show_load_file(title, filters)) {
-                if (f_dialog.state == file_dialog::status::ok) {
-                    text_file_ptr->file_path = f_dialog.result;
+            if (app->f_dialog.show_load_file(title, filters)) {
+                if (app->f_dialog.state == file_dialog::status::ok) {
+                    text_file_ptr->file_path = app->f_dialog.result;
                 }
-                f_dialog.clear();
+                app->f_dialog.clear();
                 text_file_ptr    = nullptr;
                 show_file_dialog = false;
             }
@@ -739,5 +668,7 @@ void show_menu_external_sources(external_source& srcs,
         (*random_ptr)(src, source::operation_type::initialize);
     }
 }
+
+void application::show_external_sources() noexcept { c_editor.data.show(); }
 
 } // namespace irt

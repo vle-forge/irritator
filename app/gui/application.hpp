@@ -355,12 +355,32 @@ struct project_hierarchy_selection
                child_id     ch) const noexcept;
 };
 
+struct data_window
+{
+    data_window() noexcept;
+    ~data_window() noexcept;
+
+    void show() noexcept;
+
+    ImVector<ImVec2> plot;
+
+    ImPlotContext* context = nullptr;
+
+    irt::constant_source*    constant_ptr      = nullptr;
+    irt::binary_file_source* binary_file_ptr   = nullptr;
+    irt::text_file_source*   text_file_ptr     = nullptr;
+    irt::random_source*      random_source_ptr = nullptr;
+
+    bool show_file_dialog = false;
+};
+
 struct component_editor
 {
     component_editor() noexcept;
     ~component_editor() noexcept;
 
-    modeling mod;
+    modeling    mod;
+    data_window data;
 
     tree_node_id          selected_component  = undefined<tree_node_id>();
     ImNodesEditorContext* context             = nullptr;
