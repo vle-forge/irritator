@@ -360,9 +360,8 @@ struct component_editor
     component_editor() noexcept;
     ~component_editor() noexcept;
 
-    modeling        mod;
-    external_source srcs;
-    // data_array<memory_output, memory_output_id> outputs;
+    modeling mod;
+
     tree_node_id          selected_component  = undefined<tree_node_id>();
     ImNodesEditorContext* context             = nullptr;
     bool                  is_saved            = true;

@@ -143,12 +143,12 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = c_editor.srcs.init(50); is_bad(ret)) {
+    if (auto ret = c_editor.mod.srcs.init(50); is_bad(ret)) {
         log_w.log(
           2, "Fail to initialize external sources: %s\n", status_string(ret));
         return false;
     } else {
-        s_editor.sim.source_dispatch = c_editor.srcs;
+        s_editor.sim.source_dispatch = c_editor.mod.srcs;
     }
 
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
