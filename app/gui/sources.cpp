@@ -180,6 +180,70 @@ static void show_random_distribution_input(random_source& src) noexcept
     }
 }
 
+static void try_init_source(data_window& data, source& src) noexcept
+{
+    auto*  c_editor = container_of(&data, &component_editor::data);
+    auto*  app      = container_of(c_editor, &application::c_editor);
+    status ret = c_editor->mod.srcs(src, source::operation_type::initialize);
+
+    if (is_bad(ret)) {
+        auto& n = app->notifications.alloc(notification_type::error);
+        n.title = "Fail to initialize data";
+        app->notifications.enable(n);
+
+        return;
+    }
+
+    const i32 size_max = std::min(src.size, 1024);
+    data.plot.clear();
+    for (i32 i = 0; i < size_max; ++i)
+        data.plot.push_back(
+          ImVec2{ static_cast<float>(i), static_cast<float>(src.buffer[i]) });
+    data.plot_available = true;
+}
+
+static void task_try_finalize_source(application& app,
+                                     u64          id,
+                                     i32          type) noexcept
+{
+    source src;
+    src.id   = id;
+    src.type = type;
+    auto ret = app.c_editor.mod.srcs(src, source::operation_type::finalize);
+
+    if (is_bad(ret)) {
+        auto& n = app.notifications.alloc(notification_type::error);
+        n.title = "Fail to finalize data";
+        app.notifications.enable(n);
+    }
+}
+
+static void task_try_init_source(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = gui_task_status::started;
+    g_task->app->state |= application_status_read_only_simulating |
+                          application_status_read_only_modeling;
+
+    source src;
+    src.id   = g_task->param_1;
+    src.type = static_cast<i32>(g_task->param_2);
+
+    try_init_source(g_task->app->c_editor.data, src);
+
+    g_task->state = gui_task_status::finished;
+}
+
+void task_try_init_source(application& app, u64 id, i32 type) noexcept
+{
+    auto& task   = app.gui_tasks.alloc();
+    task.app     = &app;
+    task.param_1 = id;
+    task.param_2 = static_cast<u64>(type);
+
+    app.task_mgr.task_lists[0].add(task_try_init_source, &task);
+    app.task_mgr.task_lists[0].submit();
+}
 data_window::data_window() noexcept
   : context{ ImPlot::CreateContext() }
 {}
@@ -195,13 +259,17 @@ void data_window::show() noexcept
     auto* c_editor = container_of(this, &component_editor::data);
     auto* app      = container_of(c_editor, &application::c_editor);
 
+    auto* old_constant_ptr      = constant_ptr;
+    auto* old_text_file_ptr     = text_file_ptr;
+    auto* old_binary_file_ptr   = binary_file_ptr;
+    auto* old_random_source_ptr = random_source_ptr;
+
     if (ImGui::BeginTable("All sources",
-                          5,
+                          4,
                           ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
 
@@ -231,8 +299,6 @@ void data_window::show() noexcept
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
               external_source_str(external_source_type::constant));
-            ImGui::TableNextColumn();
-            ImGui::Text("%" PRIu64, cst_src->buffer.size());
             ImGui::TableNextColumn();
             if (cst_src->buffer.empty()) {
                 ImGui::TextUnformatted("-");
@@ -277,8 +343,6 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(
               external_source_str(external_source_type::text_file));
             ImGui::TableNextColumn();
-            ImGui::Text("%" PRIu64, txt_src->buffer.size);
-            ImGui::TableNextColumn();
             ImGui::Text("%s", txt_src->file_path.string().c_str());
         }
 
@@ -310,8 +374,6 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(
               external_source_str(external_source_type::binary_file));
             ImGui::TableNextColumn();
-            ImGui::Text("%" PRIu64, bin_src->buffer.size);
-            ImGui::TableNextColumn();
             ImGui::Text("%s", bin_src->file_path.string().c_str());
         }
 
@@ -340,8 +402,6 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(
               external_source_str(external_source_type::random));
             ImGui::TableNextColumn();
-            ImGui::Text("%" PRIu64, rnd_src->buffer.size);
-            ImGui::TableNextColumn();
             ImGui::TextUnformatted(distribution_str(rnd_src->distribution));
         }
         ImGui::EndTable();
@@ -353,51 +413,42 @@ void data_window::show() noexcept
 
         if (ImGui::Button("+constant", button_sz)) {
             if (c_editor->mod.srcs.constant_sources.can_alloc(1u)) {
-                auto& new_src = c_editor->mod.srcs.constant_sources.alloc();
-                if (is_bad(new_src.init(c_editor->mod.srcs.block_size))) {
-                    app->log_w.log(
-                      2, "Not enough memory to allocate constant source");
-                    c_editor->mod.srcs.constant_sources.free(new_src);
-                }
+                auto& new_src = c_editor->mod.srcs.constant_sources.alloc(
+                  c_editor->mod.srcs.block_size);
+                new_src.buffer.resize(3);
+                new_src.buffer[0] = 0.0;
+                new_src.buffer[1] = 1.0;
+                new_src.buffer[2] = 2.0;
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+text file", button_sz)) {
             if (c_editor->mod.srcs.text_file_sources.can_alloc(1u)) {
-                auto& new_src = c_editor->mod.srcs.text_file_sources.alloc();
-                if (is_bad(new_src.init(c_editor->mod.srcs.block_size,
-                                        c_editor->mod.srcs.block_number))) {
-                    app->log_w.log(
-                      2, "Not enough memory to allocate text file source");
-                    c_editor->mod.srcs.text_file_sources.free(new_src);
-                }
+                auto& new_src = c_editor->mod.srcs.text_file_sources.alloc(
+                  c_editor->mod.srcs.block_size,
+                  c_editor->mod.srcs.block_number);
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+binary file", button_sz)) {
             if (c_editor->mod.srcs.binary_file_sources.can_alloc(1u)) {
-                auto& new_src = c_editor->mod.srcs.binary_file_sources.alloc();
-                if (is_bad(new_src.init(c_editor->mod.srcs.block_size,
-                                        c_editor->mod.srcs.block_number))) {
-                    app->log_w.log(
-                      2, "Not enough memory to allocate binary text source");
-                    c_editor->mod.srcs.binary_file_sources.free(new_src);
-                }
+                auto& new_src = c_editor->mod.srcs.binary_file_sources.alloc(
+                  c_editor->mod.srcs.block_size,
+                  c_editor->mod.srcs.block_number);
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+random", button_sz)) {
             if (c_editor->mod.srcs.random_sources.can_alloc(1u)) {
-                auto& new_src = c_editor->mod.srcs.random_sources.alloc();
-                if (is_bad(new_src.init(c_editor->mod.srcs.block_size,
-                                        c_editor->mod.srcs.block_number))) {
-                    app->log_w.log(
-                      2, "Not enough memory to allocate random source");
-                    c_editor->mod.srcs.random_sources.free(new_src);
-                }
+                auto& new_src = c_editor->mod.srcs.random_sources.alloc(
+                  c_editor->mod.srcs.block_size,
+                  c_editor->mod.srcs.block_number);
+                new_src.a32          = 0;
+                new_src.b32          = 100;
+                new_src.distribution = distribution_type::uniform_int;
             }
         }
 
@@ -534,6 +585,12 @@ void data_window::show() noexcept
             if (app->f_dialog.show_load_file(title, filters)) {
                 if (app->f_dialog.state == file_dialog::status::ok) {
                     binary_file_ptr->file_path = app->f_dialog.result;
+
+                    task_try_init_source(
+                      *app,
+                      ordinal(c_editor->mod.srcs.binary_file_sources.get_id(
+                        binary_file_ptr)),
+                      ordinal(external_source_type::binary_file));
                 }
                 app->f_dialog.clear();
                 binary_file_ptr  = nullptr;
@@ -553,6 +610,82 @@ void data_window::show() noexcept
                 app->f_dialog.clear();
                 text_file_ptr    = nullptr;
                 show_file_dialog = false;
+            }
+        }
+    }
+
+    const bool user_select_other_source =
+      old_constant_ptr != constant_ptr || old_text_file_ptr != text_file_ptr ||
+      old_binary_file_ptr != binary_file_ptr ||
+      old_random_source_ptr != random_source_ptr;
+
+    if (user_select_other_source) {
+        plot_available = false;
+        u64 id         = 0;
+        i32 type       = 0;
+
+        if (old_text_file_ptr) {
+            id = ordinal(
+              c_editor->mod.srcs.text_file_sources.get_id(*old_text_file_ptr));
+            type = ordinal(external_source_type::text_file);
+        } else if (old_random_source_ptr) {
+            id = ordinal(
+              c_editor->mod.srcs.random_sources.get_id(*old_random_source_ptr));
+            type = ordinal(external_source_type::random);
+        } else if (old_binary_file_ptr) {
+            id   = ordinal(c_editor->mod.srcs.binary_file_sources.get_id(
+              *old_binary_file_ptr));
+            type = ordinal(external_source_type::binary_file);
+        } else if (old_constant_ptr) {
+            id = ordinal(
+              c_editor->mod.srcs.constant_sources.get_id(*old_constant_ptr));
+            type = ordinal(external_source_type::constant);
+        }
+
+        if (id && type)
+            task_try_finalize_source(*app, id, type);
+
+        if (text_file_ptr) {
+            id = ordinal(
+              c_editor->mod.srcs.text_file_sources.get_id(*text_file_ptr));
+            type = ordinal(external_source_type::text_file);
+        } else if (random_source_ptr) {
+            id = ordinal(
+              c_editor->mod.srcs.random_sources.get_id(*random_source_ptr));
+            type = ordinal(external_source_type::random);
+        } else if (binary_file_ptr) {
+            id = ordinal(
+              c_editor->mod.srcs.binary_file_sources.get_id(*binary_file_ptr));
+            type = ordinal(external_source_type::binary_file);
+        } else if (constant_ptr) {
+            id = ordinal(
+              c_editor->mod.srcs.constant_sources.get_id(*constant_ptr));
+            type = ordinal(external_source_type::constant);
+        }
+
+        if (id && type)
+            task_try_init_source(*app, id, type);
+    }
+
+    const bool show_source =
+      constant_ptr || random_source_ptr || binary_file_ptr || text_file_ptr;
+
+    if (show_source) {
+        if (plot_available) {
+            irt_assert(plot.size() > 0);
+            if (ImPlot::BeginPlot("Plot", ImVec2(-1, -1))) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+
+                ImPlot::PlotScatter("value",
+                                    &plot[0].x,
+                                    &plot[0].y,
+                                    plot.Size,
+                                    0,
+                                    sizeof(ImVec2));
+
+                ImPlot::PopStyleVar(2);
+                ImPlot::EndPlot();
             }
         }
     }

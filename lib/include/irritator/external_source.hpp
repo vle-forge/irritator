@@ -33,12 +33,12 @@ enum class block_vector_policy
 template<block_vector_policy P>
 struct block_vector_base
 {
-    double* buffer = nullptr;
-    sz size = 0;
-    sz max_size = 0;
-    sz capacity = 0;
-    sz block_size = 0;
-    sz free_head = static_cast<sz>(-1);
+    double* buffer     = nullptr;
+    sz      size       = 0;
+    sz      max_size   = 0;
+    sz      capacity   = 0;
+    sz      block_size = 0;
+    sz      free_head  = static_cast<sz>(-1);
 
     block_vector_base() = default;
 
@@ -51,10 +51,7 @@ struct block_vector_base
             g_free_fn(buffer);
     }
 
-    bool empty() const noexcept
-    {
-        return size == 0;
-    }
+    bool empty() const noexcept { return size == 0; }
 
     status init(sz block_size_, sz capacity_) noexcept
     {
@@ -70,11 +67,11 @@ struct block_vector_base
                 return status::block_allocator_not_enough_memory;
         }
 
-        size = 0;
-        max_size = 0;
-        capacity = capacity_;
+        size       = 0;
+        max_size   = 0;
+        capacity   = capacity_;
         block_size = block_size_;
-        free_head = static_cast<sz>(-1);
+        free_head  = static_cast<sz>(-1);
 
         return status::success;
     }
@@ -111,15 +108,15 @@ struct block_vector_base
     void free([[maybe_unused]] double* block) noexcept
     {
         if constexpr (P == block_vector_policy::reuse_free_list) {
-            auto ptr_diff = buffer - block;
+            auto ptr_diff    = buffer - block;
             auto block_index = ptr_diff / block_size;
 
-            block[0] = static_cast<double>(free_head);
+            block[0]  = static_cast<double>(free_head);
             free_head = static_cast<sz>(block_index);
             --size;
 
             if (size == 0) {
-                max_size = 0;
+                max_size  = 0;
                 free_head = static_cast<sz>(-1);
             }
         }
@@ -130,8 +127,8 @@ using limited_block_vector =
   block_vector_base<block_vector_policy::not_reuse_free_list>;
 using block_vector = block_vector_base<block_vector_policy::reuse_free_list>;
 
-inline bool
-external_source_type_cast(int value, external_source_type* type) noexcept
+inline bool external_source_type_cast(int                   value,
+                                      external_source_type* type) noexcept
 {
     if (value < 0 || value > 3)
         return false;
@@ -145,8 +142,7 @@ static inline const char* external_source_type_string[] = { "binary_file",
                                                             "random",
                                                             "text_file" };
 
-inline const char*
-external_source_str(const external_source_type type) noexcept
+inline const char* external_source_str(const external_source_type type) noexcept
 {
     return external_source_type_string[static_cast<int>(type)];
 }
@@ -179,8 +175,7 @@ static const char* distribution_type_string[] = {
     "uniform_real",      "weibull"
 };
 
-inline const char*
-distribution_str(const distribution_type type) noexcept
+inline const char* distribution_str(const distribution_type type) noexcept
 {
 
     return distribution_type_string[static_cast<int>(type)];
@@ -188,29 +183,35 @@ distribution_str(const distribution_type type) noexcept
 
 struct constant_source
 {
-    small_string<23> name;
+    small_string<23>    name;
     std::vector<double> buffer;
+    status              st;
 
-    status init(sz block_size) noexcept
+    constant_source(sz block_size) noexcept
     {
+        // @todo Reuse a block of data
         try {
             buffer.reserve(block_size);
-            return status::success;
+            st = status::success;
         } catch (const std::bad_alloc& /*e*/) {
-            return status::gui_not_enough_memory;
+            st = status::gui_not_enough_memory;
         }
     }
 
-    status start_or_restart() noexcept
+    status init(source& src) noexcept
     {
+        src.buffer = buffer.data();
+        src.size   = static_cast<int>(buffer.size());
+        src.index  = 0;
+
         return status::success;
     }
 
     status update(source& src) noexcept
     {
         src.buffer = buffer.data();
-        src.size = static_cast<int>(buffer.size());
-        src.index = 0;
+        src.size   = static_cast<int>(buffer.size());
+        src.index  = 0;
 
         return status::success;
     }
@@ -226,7 +227,7 @@ struct constant_source
     {
         switch (op) {
         case source::operation_type::initialize:
-            return update(src);
+            return init(src);
         case source::operation_type::update:
             return update(src);
         case source::operation_type::finalize:
@@ -239,24 +240,24 @@ struct constant_source
 
 struct binary_file_source
 {
-    small_string<23> name;
-    limited_block_vector buffer;
+    small_string<23>      name;
+    block_vector          buffer;
     std::filesystem::path file_path;
-    std::ifstream ifs;
-    sz size = 0; // Number of double read
+    std::ifstream         ifs;
+    sz                    size = 0; // Number of double read
 
-    status init(sz block_size, sz capacity) noexcept
+    binary_file_source(sz block_size, sz capacity) noexcept
     {
-        file_path.clear();
-
-        if (ifs.is_open())
-            ifs.close();
-
-        return buffer.init(block_size, capacity);
+        buffer.init(block_size, capacity);
     }
 
-    status start_or_restart() noexcept
+    status init(source& src) noexcept
     {
+        if (!src.buffer)
+            src.buffer = buffer.alloc();
+        src.size  = 0;
+        src.index = 0;
+
         if (!ifs) {
             ifs.open(file_path);
 
@@ -266,23 +267,18 @@ struct binary_file_source
             ifs.seekg(0);
         }
 
-        return fill_buffer();
+        return fill_buffer(src);
     }
 
     status update(source& src)
     {
-        if (!buffer.can_alloc()) {
-            if (src.buffer)
-                buffer.free(src.buffer);
+        if (!ifs)
+            return status::source_empty;
 
-            irt_return_if_bad(fill_buffer());
-        }
-
-        src.buffer = buffer.alloc();
-        src.size = static_cast<int>(buffer.block_size);
+        irt_assert(src.buffer);
         src.index = 0;
 
-        return status::success;
+        return fill_buffer(src);
     }
 
     status finalize(source& src)
@@ -299,7 +295,7 @@ struct binary_file_source
     {
         switch (op) {
         case source::operation_type::initialize:
-            return update(src);
+            return init(src);
         case source::operation_type::update:
             return update(src);
         case source::operation_type::finalize:
@@ -310,15 +306,19 @@ struct binary_file_source
     }
 
 private:
-    status fill_buffer() noexcept
+    status fill_buffer(source& src) noexcept
     {
-        ifs.read(reinterpret_cast<char*>(buffer.buffer),
-                 buffer.capacity * buffer.block_size);
-        const auto read = ifs.gcount();
-
-        buffer.capacity = static_cast<sz>(read) / buffer.block_size;
-        if (buffer.capacity == 0)
+        if (!ifs)
             return status::source_empty;
+
+        ifs.read(reinterpret_cast<char*>(src.buffer),
+                 buffer.block_size * sizeof(double));
+        const auto read     = ifs.gcount();
+        const auto capacity = static_cast<sz>(read) / sizeof(double);
+        if (capacity == 0)
+            return status::source_empty;
+
+        src.size = static_cast<i32>(capacity);
 
         return status::success;
     }
@@ -326,22 +326,23 @@ private:
 
 struct text_file_source
 {
-    small_string<23> name;
-    limited_block_vector buffer;
+    small_string<23>      name;
+    block_vector          buffer;
     std::filesystem::path file_path;
-    std::ifstream ifs;
+    std::ifstream         ifs;
 
-    status init(sz block_size, sz capacity) noexcept
+    text_file_source(sz block_size, sz capacity) noexcept
     {
-        return buffer.init(block_size, capacity);
-        file_path.clear();
-
-        if (ifs.is_open())
-            ifs.close();
+        buffer.init(block_size, capacity);
     }
 
-    status start_or_restart() noexcept
+    status init(source& src) noexcept
     {
+        if (!src.buffer)
+            src.buffer = buffer.alloc();
+        src.size  = 0;
+        src.index = 0;
+
         if (!ifs) {
             ifs.open(file_path);
 
@@ -351,26 +352,21 @@ struct text_file_source
             ifs.seekg(0);
         }
 
-        return fill_buffer();
+        return fill_buffer(src);
     }
 
-    status update(source& src)
+    status update(source& src) noexcept
     {
-        if (!buffer.can_alloc()) {
-            if (src.buffer)
-                buffer.free(src.buffer);
+        if (!ifs)
+            return status::source_empty;
 
-            irt_return_if_bad(fill_buffer());
-        }
-
-        src.buffer = buffer.alloc();
-        src.size = static_cast<int>(buffer.block_size);
+        irt_assert(src.buffer);
         src.index = 0;
 
-        return status::success;
+        return fill_buffer(src);
     }
 
-    status finalize(source& src)
+    status finalize(source& src) noexcept
     {
         if (src.buffer)
             buffer.free(src.buffer);
@@ -380,11 +376,11 @@ struct text_file_source
         return status::success;
     }
 
-    status operator()(source& src, source::operation_type op)
+    status operator()(source& src, source::operation_type op) noexcept
     {
         switch (op) {
         case source::operation_type::initialize:
-            return update(src);
+            return init(src);
         case source::operation_type::update:
             return update(src);
         case source::operation_type::finalize:
@@ -395,18 +391,22 @@ struct text_file_source
     }
 
 private:
-    status fill_buffer() noexcept
+    status fill_buffer(source& src) noexcept
     {
-        size_t i = 0;
-        const size_t e = buffer.capacity * buffer.block_size;
+        if (!ifs)
+            return status::source_empty;
+
+        size_t       i = 0;
+        const size_t e = buffer.block_size;
         for (; i < e && ifs.good(); ++i) {
-            if (!(ifs >> buffer.buffer[i]))
+            if (!(ifs >> src.buffer[i]))
                 break;
         }
 
-        buffer.capacity = i / buffer.block_size;
-        if (buffer.capacity == 0)
+        if (i == 0 && ifs.eof())
             return status::source_empty;
+
+        src.size = static_cast<int>(i - 1);
 
         return status::success;
     }
@@ -414,17 +414,17 @@ private:
 
 struct random_source
 {
-    small_string<23> name;
-    block_vector buffer;
+    small_string<23>  name;
+    block_vector      buffer;
     distribution_type distribution = distribution_type::uniform_int;
-    double a, b, p, mean, lambda, alpha, beta, stddev, m, s, n;
-    int a32, b32, t32, k32;
+    double            a = 0, b = 1, p, mean, lambda, alpha, beta, stddev, m, s, n;
+    int               a32, b32, t32, k32;
 
     template<typename RandomGenerator, typename Distribution>
     void generate(RandomGenerator& gen,
-                  Distribution dist,
-                  double* ptr,
-                  sz size) noexcept
+                  Distribution     dist,
+                  double*          ptr,
+                  sz               size) noexcept
     {
         for (sz i = 0; i < size; ++i)
             ptr[i] = dist(gen);
@@ -505,30 +505,25 @@ struct random_source
         }
     }
 
-    status init(sz block_size, sz capacity) noexcept
+    random_source(sz block_size, sz capacity) noexcept
     {
-        distribution = distribution_type::uniform_int;
-        a = 0;
-        b = 100;
+        buffer.init(block_size, capacity);
+    }
 
-        return buffer.init(block_size, capacity);
+    status init(source& src) noexcept
+    {
+        src.buffer = buffer.alloc();
+        src.size   = static_cast<int>(buffer.block_size);
+        src.index  = 0;
+
+        return fill_buffer(src);
     }
 
     status update(source& src) noexcept
     {
-        if (src.buffer == nullptr) {
-            if (!buffer.can_alloc())
-                return status::source_empty;
+        irt_assert(src.buffer);
 
-            src.buffer = buffer.alloc();
-            src.size = static_cast<int>(buffer.block_size);
-            src.index = 0;
-        }
-
-        std::mt19937_64 gen;
-        generate(gen, src.buffer, src.size);
-
-        return status::success;
+        return fill_buffer(src);
     }
 
     status finalize(source& src)
@@ -545,7 +540,7 @@ struct random_source
     {
         switch (op) {
         case source::operation_type::initialize:
-            return update(src);
+            return init(src);
         case source::operation_type::update:
             return update(src);
         case source::operation_type::finalize:
@@ -553,6 +548,14 @@ struct random_source
         }
 
         irt_unreachable();
+    }
+
+    status fill_buffer(source& src) noexcept
+    {
+        std::mt19937_64 gen;
+        generate(gen, src.buffer, src.size);
+
+        return status::success;
     }
 };
 
@@ -563,11 +566,11 @@ enum class random_source_id : u64;
 
 struct external_source
 {
-    data_array<constant_source, constant_source_id> constant_sources;
+    data_array<constant_source, constant_source_id>       constant_sources;
     data_array<binary_file_source, binary_file_source_id> binary_file_sources;
-    data_array<text_file_source, text_file_source_id> text_file_sources;
-    data_array<random_source, random_source_id> random_sources;
-    std::mt19937_64 generator;
+    data_array<text_file_source, text_file_source_id>     text_file_sources;
+    data_array<random_source, random_source_id>           random_sources;
+    std::mt19937_64                                       generator;
 
     // Chunk of memory used by a model.
     sz block_size = 512;
@@ -632,12 +635,11 @@ enum class random_file_type
 };
 
 template<typename RandomGenerator, typename Distribution>
-inline int
-generate_random_file(std::ostream& os,
-                     RandomGenerator& gen,
-                     Distribution& dist,
-                     const std::size_t size,
-                     const random_file_type type) noexcept
+inline int generate_random_file(std::ostream&          os,
+                                RandomGenerator&       gen,
+                                Distribution&          dist,
+                                const std::size_t      size,
+                                const random_file_type type) noexcept
 {
     switch (type) {
     case random_file_type::text: {

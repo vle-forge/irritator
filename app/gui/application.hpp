@@ -372,6 +372,7 @@ struct data_window
     irt::random_source*      random_source_ptr = nullptr;
 
     bool show_file_dialog = false;
+    bool plot_available   = false;
 };
 
 struct component_editor

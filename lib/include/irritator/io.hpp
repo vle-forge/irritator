@@ -680,12 +680,8 @@ private:
         if (!(is >> id))
             return status::io_file_format_error;
 
-        auto& elem = srcs.binary_file_sources.alloc();
-        if (auto ret = elem.init(srcs.block_size, srcs.block_number);
-            is_bad(ret)) {
-            srcs.binary_file_sources.free(elem);
-            return ret;
-        }
+        auto& elem =
+          srcs.binary_file_sources.alloc(srcs.block_size, srcs.block_number);
 
         auto elem_id = srcs.binary_file_sources.get_id(elem);
 
@@ -706,12 +702,8 @@ private:
         if (!(is >> id))
             return status::io_file_format_error;
 
-        auto& elem = srcs.text_file_sources.alloc();
-        if (auto ret = elem.init(srcs.block_size, srcs.block_number);
-            is_bad(ret)) {
-            srcs.text_file_sources.free(elem);
-            return ret;
-        }
+        auto& elem =
+          srcs.text_file_sources.alloc(srcs.block_size, srcs.block_number);
 
         auto elem_id = srcs.text_file_sources.get_id(elem);
 
@@ -733,11 +725,7 @@ private:
         if (!(is >> id >> size))
             return status::io_file_format_error;
 
-        auto& cst = srcs.constant_sources.alloc();
-        if (auto ret = cst.init(srcs.block_size); is_bad(ret)) {
-            srcs.constant_sources.free(cst);
-            return ret;
-        }
+        auto& cst = srcs.constant_sources.alloc(srcs.block_size);
 
         auto cst_id = srcs.constant_sources.get_id(cst);
 
@@ -779,12 +767,8 @@ private:
         const auto dist_id =
           std::distance(std::begin(distribution_type_string), it);
 
-        auto& elem = srcs.random_sources.alloc();
-        if (auto ret = elem.init(srcs.block_size, srcs.block_number);
-            is_bad(ret)) {
-            srcs.random_sources.free(elem);
-            return ret;
-        }
+        auto& elem =
+          srcs.random_sources.alloc(srcs.block_size, srcs.block_number);
 
         auto elem_id = srcs.random_sources.get_id(elem);
 
