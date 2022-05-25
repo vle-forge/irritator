@@ -10,19 +10,19 @@ namespace irt {
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
-    ImGui::InputReal("reset", &dyn.default_dQ);
+    ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
-    ImGui::InputReal("reset", &dyn.default_dQ);
+    ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
-    ImGui::InputReal("reset", &dyn.default_dQ);
+    ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_multiplier& /*dyn*/)
