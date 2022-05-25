@@ -5,7 +5,7 @@ set(gui_sources
     application.cpp application.hpp component.cpp components-window.cpp
     dialog.cpp dialog.hpp editor.cpp editor.hpp imnodes.cpp imnodes.h
     imnodes_internal.h implot.cpp implot.h implot_internal.h
-    implot_items.cpp internal.hpp internal.cpp io.cpp
+    implot_items.cpp implot_demo.cpp internal.hpp internal.cpp io.cpp
     modeling-editor.cpp notification.cpp output-editor.cpp 
     project-window.cpp simulation-editor.cpp simulation-component.cpp
     simulation-observation.cpp sources.cpp window-logger.cpp

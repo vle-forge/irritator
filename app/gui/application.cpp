@@ -237,7 +237,8 @@ static void application_show_menu(application& app) noexcept
         }
 
         if (ImGui::BeginMenu("Preferences")) {
-            ImGui::MenuItem("Demo window", nullptr, &app.show_demo);
+            ImGui::MenuItem("ImGui demo window", nullptr, &app.show_imgui_demo);
+            ImGui::MenuItem("ImPlot demo window", nullptr, &app.show_implot_demo);
             ImGui::Separator();
             ImGui::MenuItem("Component settings", nullptr, &app.show_settings);
 
@@ -485,8 +486,11 @@ void application::show() noexcept
 
     s_editor.simulation_update_state();
 
-    if (show_demo)
+    if (show_imgui_demo)
         ImGui::ShowDemoWindow();
+
+    if (show_implot_demo)
+        ImPlot::ShowDemoWindow();
 
     application_show_windows(*this);
 

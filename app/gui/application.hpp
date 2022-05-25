@@ -460,12 +460,13 @@ struct application
     bool is_fixed_window_placement = true;
     bool is_fixed_main_window      = true;
 
-    bool show_modeling   = true;
-    bool show_simulation = false;
-    bool show_demo       = false;
-    bool show_plot       = false;
-    bool show_settings   = false;
-    bool show_memory     = false;
+    bool show_modeling    = true;
+    bool show_simulation  = false;
+    bool show_imgui_demo  = false;
+    bool show_implot_demo = false;
+    bool show_plot        = false;
+    bool show_settings    = false;
+    bool show_memory      = false;
 
     bool show_data_editor       = true;
     bool show_output_editor     = true;
