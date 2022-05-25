@@ -609,25 +609,25 @@ selected_main_window application::show_main_as_tabbar(
         }
 
         if (ImGui::BeginTabBar("##ModelingTabBar")) {
-            if (ImGui::BeginTabItem("Modeling editor")) {
+            if (ImGui::BeginTabItem("modeling")) {
                 ret = selected_main_window_modeling;
                 show_modeling_editor_widget();
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("Simulation editor")) {
+            if (ImGui::BeginTabItem("simulation")) {
                 ret = selected_main_window_simulation;
                 show_simulation_editor_widget();
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("Output editor")) {
+            if (ImGui::BeginTabItem("output")) {
                 ret = selected_main_window_output;
                 show_output_editor_widget();
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("Data editor")) {
+            if (ImGui::BeginTabItem("input")) {
                 ret = selected_main_window_data;
                 show_external_sources();
                 ImGui::EndTabItem();
@@ -651,7 +651,7 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
     if (show_modeling_editor) {
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Modeling editor", &show_modeling_editor)) {
+        if (ImGui::Begin("modeling", &show_modeling_editor)) {
             if (ImGui::IsWindowFocused())
                 ret |= selected_main_window_modeling;
 
@@ -666,7 +666,7 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
     if (show_simulation_editor) {
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Simulation editor", &show_simulation_editor)) {
+        if (ImGui::Begin("simulation", &show_simulation_editor)) {
             if (ImGui::IsWindowFocused())
                 ret |= selected_main_window_simulation;
 
@@ -681,7 +681,7 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
     if (show_output_editor) {
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Output editor", &show_output_editor)) {
+        if (ImGui::Begin("outputs", &show_output_editor)) {
             if (ImGui::IsWindowFocused())
                 ret |= selected_main_window_output;
 
@@ -696,7 +696,7 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
     if (show_data_editor) {
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("Data editor", &show_data_editor)) {
+        if (ImGui::Begin("inputs", &show_data_editor)) {
             if (ImGui::IsWindowFocused())
                 ret |= selected_main_window_data;
 
