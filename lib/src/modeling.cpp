@@ -357,198 +357,94 @@ status add_negative_lif(modeling& mod, component& com) noexcept
 }
 
 template<int QssLevel>
-status add_seir_linear(modeling& mod, component& com) noexcept
+status add_seirs(modeling& mod, component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = com.models.can_alloc(10) && com.children.can_alloc(10) &&
-                   com.connections.can_alloc(12);
+    bool success = com.models.can_alloc(17);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum_a     = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto sum_b     = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto product_a = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_b = alloc<abstract_multiplier<QssLevel>>(com);
-    auto integrator_a =
-      alloc<abstract_integrator<QssLevel>>(com, "a", alloc_parameter::both);
-    auto integrator_b =
-      alloc<abstract_integrator<QssLevel>>(com, "b", alloc_parameter::both);
-    auto integrator_c =
-      alloc<abstract_integrator<QssLevel>>(com, "c", alloc_parameter::both);
-    auto integrator_d =
-      alloc<abstract_integrator<QssLevel>>(com, "d", alloc_parameter::both);
-    auto constant_a = alloc<constant>(com);
-    auto constant_b = alloc<constant>(com);
+    auto dS =
+      alloc<abstract_integrator<QssLevel>>(com, "dS", alloc_parameter::both);
+    dS.first->default_X  = 0.999_r;
+    dS.first->default_dQ = 0.0001_r;
 
-    sum_a.first->default_input_coeffs[0] = -0.005_r;
-    sum_a.first->default_input_coeffs[1] = -0.4_r;
+    auto dE =
+      alloc<abstract_integrator<QssLevel>>(com, "dE", alloc_parameter::both);
+    dE.first->default_X  = 0.0_r;
+    dE.first->default_dQ = 0.0001_r;
 
-    sum_b.first->default_input_coeffs[0] = -0.135_r;
-    sum_b.first->default_input_coeffs[1] = 0.1_r;
+    auto dI =
+      alloc<abstract_integrator<QssLevel>>(com, "dI", alloc_parameter::both);
+    dI.first->default_X  = 0.001_r;
+    dI.first->default_dQ = 0.0001_r;
 
-    integrator_a.first->default_X  = 10.0_r;
-    integrator_a.first->default_dQ = 0.01_r;
+    auto dR =
+      alloc<abstract_integrator<QssLevel>>(com, "dR", alloc_parameter::both);
+    dR.first->default_X  = 0.0_r;
+    dR.first->default_dQ = 0.0001_r;
 
-    integrator_b.first->default_X  = 15.0_r;
-    integrator_b.first->default_dQ = 0.01_r;
+    auto beta                  = alloc<constant>(com, "beta");
+    beta.first->default_value  = 0.5_r;
+    auto rho                   = alloc<constant>(com, "rho");
+    rho.first->default_value   = 0.00274397_r;
+    auto sigma                 = alloc<constant>(com, "sigma");
+    sigma.first->default_value = 0.33333_r;
+    auto gamma                 = alloc<constant>(com, "gamma");
+    gamma.first->default_value = 0.142857_r;
 
-    integrator_c.first->default_X  = 10.0_r;
-    integrator_c.first->default_dQ = 0.01_r;
+    auto rho_R    = alloc<abstract_multiplier<QssLevel>>(com, "rho R");
+    auto beta_S   = alloc<abstract_multiplier<QssLevel>>(com, "beta S");
+    auto beta_S_I = alloc<abstract_multiplier<QssLevel>>(com, "beta S I");
 
-    integrator_d.first->default_X  = 18.0_r;
-    integrator_d.first->default_dQ = 0.01_r;
+    auto rho_R_beta_S_I =
+      alloc<abstract_wsum<QssLevel, 2>>(com, "rho R - beta S I");
+    rho_R_beta_S_I.first->default_input_coeffs[0] = 1.0_r;
+    rho_R_beta_S_I.first->default_input_coeffs[1] = -1.0_r;
+    auto beta_S_I_sigma_E =
+      alloc<abstract_wsum<QssLevel, 2>>(com, "beta S I - sigma E");
+    beta_S_I_sigma_E.first->default_input_coeffs[0] = 1.0_r;
+    beta_S_I_sigma_E.first->default_input_coeffs[1] = -1.0_r;
 
-    constant_a.first->value = -0.005_r;
+    auto sigma_E = alloc<abstract_multiplier<QssLevel>>(com, "sigma E");
+    auto gamma_I = alloc<abstract_multiplier<QssLevel>>(com, "gamma I");
 
-    constant_b.first->value = -0.135_r;
+    auto sigma_E_gamma_I =
+      alloc<abstract_wsum<QssLevel, 2>>(com, "sigma E - gamma I");
+    sigma_E_gamma_I.first->default_input_coeffs[0] = 1.0_r;
+    sigma_E_gamma_I.first->default_input_coeffs[1] = -1.0_r;
+    auto gamma_I_rho_R =
+      alloc<abstract_wsum<QssLevel, 2>>(com, "gamma I - rho R");
+    gamma_I_rho_R.first->default_input_coeffs[0] = -1.0_r;
+    gamma_I_rho_R.first->default_input_coeffs[1] = 1.0_r;
 
-    connect(mod, com, constant_a, 0, product_a, 0);
-    connect(mod, com, constant_b, 0, product_b, 0);
-    connect(mod, com, sum_a, 0, integrator_c, 0);
-    connect(mod, com, sum_b, 0, integrator_d, 0);
-    connect(mod, com, integrator_b, 0, sum_a, 0);
-    connect(mod, com, integrator_c, 0, sum_a, 1);
-    connect(mod, com, integrator_c, 0, sum_b, 0);
-    connect(mod, com, integrator_d, 0, sum_b, 1);
-    connect(mod, com, integrator_a, 0, product_a, 1);
-    connect(mod, com, integrator_b, 0, product_b, 1);
-    connect(mod, com, product_a, 0, sum_a, 1);
-    connect(mod, com, product_b, 0, sum_b, 1);
+    connect(mod, com, rho, 0, rho_R, 0);
+    connect(mod, com, beta, 0, rho_R, 1);
+    connect(mod, com, beta, 0, beta_S, 1);
+    connect(mod, com, dS, 0, beta_S, 0);
+    connect(mod, com, dI, 0, beta_S_I, 0);
+    connect(mod, com, beta_S, 0, beta_S_I, 1);
+    connect(mod, com, rho_R, 0, rho_R_beta_S_I, 0);
+    connect(mod, com, beta_S_I, 0, rho_R_beta_S_I, 1);
+    connect(mod, com, rho_R_beta_S_I, 0, dS, 0);
+    connect(mod, com, dE, 0, sigma_E, 0);
+    connect(mod, com, sigma, 0, sigma_E, 1);
+    connect(mod, com, beta_S_I, 0, beta_S_I_sigma_E, 0);
+    connect(mod, com, sigma_E, 0, beta_S_I_sigma_E, 1);
+    connect(mod, com, beta_S_I_sigma_E, 0, dE, 0);
+    connect(mod, com, dI, 0, gamma_I, 0);
+    connect(mod, com, gamma, 0, gamma_I, 1);
+    connect(mod, com, sigma_E, 0, sigma_E_gamma_I, 0);
+    connect(mod, com, gamma_I, 0, sigma_E_gamma_I, 1);
+    connect(mod, com, sigma_E_gamma_I, 0, dI, 0);
+    connect(mod, com, rho_R, 0, gamma_I_rho_R, 0);
+    connect(mod, com, gamma_I, 0, gamma_I_rho_R, 1);
+    connect(mod, com, gamma_I_rho_R, 0, dR, 0);
 
-    add_integrator_component_port(com, integrator_a.second);
-    add_integrator_component_port(com, integrator_b.second);
-    add_integrator_component_port(com, integrator_c.second);
-    add_integrator_component_port(com, integrator_d.second);
-
-    return status::success;
-}
-
-template<int QssLevel>
-status add_seir_nonlinear(modeling& mod, component& com) noexcept
-{
-    using namespace irt::literals;
-    bool success = com.models.can_alloc(27) && com.children.can_alloc(27) &&
-                   com.connections.can_alloc(32);
-
-    irt_return_if_fail(success, status::simulation_not_enough_model);
-
-    auto sum_a = alloc<abstract_wsum<QssLevel, 3>>(com);
-    sum_a.first->default_input_coeffs[0] = 0.5_r;
-    sum_a.first->default_input_coeffs[1] = 1.0_r;
-    sum_a.first->default_input_coeffs[2] = 1.0_r;
-
-    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(com);
-    sum_b.first->default_input_coeffs[0] = 1.0_r;
-    sum_b.first->default_input_coeffs[1] = 1.0_r;
-
-    auto sum_c = alloc<abstract_wsum<QssLevel, 3>>(com);
-    sum_c.first->default_input_coeffs[0] = 1.5_r;
-    sum_c.first->default_input_coeffs[1] = 0.698_r;
-    sum_c.first->default_input_coeffs[2] = 0.387_r;
-
-    auto sum_d = alloc<abstract_wsum<QssLevel, 2>>(com);
-    sum_d.first->default_input_coeffs[0] = 1.0_r;
-    sum_d.first->default_input_coeffs[1] = 1.5_r;
-
-    auto product_a = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_b = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_c = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_d = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_e = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_f = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_g = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_h = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product_i = alloc<abstract_multiplier<QssLevel>>(com);
-
-    auto integrator_a =
-      alloc<abstract_integrator<QssLevel>>(com, "a", alloc_parameter::both);
-    integrator_a.first->default_X  = 10.0_r;
-    integrator_a.first->default_dQ = 0.01_r;
-
-    auto integrator_b =
-      alloc<abstract_integrator<QssLevel>>(com, "b", alloc_parameter::both);
-    integrator_b.first->default_X  = 12.0_r;
-    integrator_b.first->default_dQ = 0.01_r;
-
-    auto integrator_c =
-      alloc<abstract_integrator<QssLevel>>(com, "c", alloc_parameter::both);
-    integrator_c.first->default_X  = 13.50_r;
-    integrator_c.first->default_dQ = 0.01_r;
-
-    auto integrator_d =
-      alloc<abstract_integrator<QssLevel>>(com, "d", alloc_parameter::both);
-    integrator_d.first->default_X  = 15.0_r;
-    integrator_d.first->default_dQ = 0.01_r;
-
-    // The values used here are from Singh et al., 2017
-
-    auto constant_a                 = alloc<constant>(com);
-    constant_a.first->default_value = 0.005_r;
-
-    auto constant_b                 = alloc<constant>(com);
-    constant_b.first->default_value = -0.0057_r;
-
-    auto constant_c                 = alloc<constant>(com);
-    constant_c.first->default_value = -0.005_r;
-
-    auto constant_d                 = alloc<constant>(com);
-    constant_d.first->default_value = 0.0057_r;
-
-    auto constant_e                 = alloc<constant>(com);
-    constant_e.first->default_value = -0.135_r;
-
-    auto constant_f                 = alloc<constant>(com);
-    constant_f.first->default_value = 0.135_r;
-
-    auto constant_g                 = alloc<constant>(com);
-    constant_g.first->default_value = -0.072_r;
-
-    auto constant_h                 = alloc<constant>(com);
-    constant_h.first->default_value = 0.005_r;
-
-    auto constant_i                 = alloc<constant>(com);
-    constant_i.first->default_value = 0.067_r;
-
-    auto constant_j                 = alloc<constant>(com);
-    constant_j.first->default_value = -0.005_r;
-
-    connect(mod, com, constant_a, 0, sum_a, 0);
-    connect(mod, com, constant_h, 0, sum_c, 2);
-    connect(mod, com, constant_b, 0, product_a, 0);
-    connect(mod, com, constant_c, 0, product_b, 0);
-    connect(mod, com, constant_d, 0, product_c, 0);
-    connect(mod, com, constant_e, 0, product_d, 0);
-    connect(mod, com, constant_f, 0, product_e, 0);
-    connect(mod, com, constant_g, 0, product_f, 0);
-    connect(mod, com, constant_h, 0, product_g, 0);
-    connect(mod, com, constant_i, 0, product_h, 0);
-    connect(mod, com, product_i, 0, product_a, 1);
-    connect(mod, com, product_i, 0, product_c, 1);
-    connect(mod, com, sum_a, 0, integrator_a, 0);
-    connect(mod, com, sum_b, 0, integrator_b, 0);
-    connect(mod, com, sum_c, 0, integrator_c, 0);
-    connect(mod, com, sum_d, 0, integrator_d, 0);
-    connect(mod, com, product_a, 0, sum_a, 1);
-    connect(mod, com, product_b, 0, sum_a, 2);
-    connect(mod, com, product_c, 0, sum_b, 0);
-    connect(mod, com, product_d, 0, sum_b, 1);
-    connect(mod, com, product_e, 0, sum_c, 0);
-    connect(mod, com, product_f, 0, sum_c, 1);
-    connect(mod, com, product_g, 0, sum_d, 0);
-    connect(mod, com, product_h, 0, sum_d, 1);
-    connect(mod, com, integrator_a, 0, product_b, 1);
-    connect(mod, com, integrator_b, 0, product_d, 1);
-    connect(mod, com, integrator_b, 0, product_e, 1);
-    connect(mod, com, integrator_c, 0, product_f, 1);
-    connect(mod, com, integrator_c, 0, product_g, 1);
-    connect(mod, com, integrator_d, 0, product_h, 1);
-    connect(mod, com, integrator_a, 0, product_i, 0);
-    connect(mod, com, integrator_c, 0, product_i, 1);
-
-    add_integrator_component_port(com, integrator_a.second);
-    add_integrator_component_port(com, integrator_b.second);
-    add_integrator_component_port(com, integrator_c.second);
-    add_integrator_component_port(com, integrator_d.second);
+    add_integrator_component_port(com, dS.second);
+    add_integrator_component_port(com, dE.second);
+    add_integrator_component_port(com, dI.second);
+    add_integrator_component_port(com, dR.second);
 
     return status::success;
 }
@@ -857,50 +753,26 @@ status modeling::fill_internal_components() noexcept
 
     {
         auto& c = components.alloc();
-        c.name  = "QSS1 seir linear";
-        c.type  = component_type::qss1_seir_linear;
+        c.name  = "QSS1 seirs";
+        c.type  = component_type::qss1_seirs;
         c.state = component_status::read_only;
-        irt_return_if_bad(add_seir_linear<1>(*this, c));
+        irt_return_if_bad(add_seirs<1>(*this, c));
     }
 
     {
         auto& c = components.alloc();
-        c.name  = "QSS2 seir linear";
-        c.type  = component_type::qss2_seir_linear;
+        c.name  = "QSS2 seirs";
+        c.type  = component_type::qss2_seirs;
         c.state = component_status::read_only;
-        irt_return_if_bad(add_seir_linear<2>(*this, c));
+        irt_return_if_bad(add_seirs<2>(*this, c));
     }
 
     {
         auto& c = components.alloc();
-        c.name  = "QSS3 seir linear";
-        c.type  = component_type::qss3_seir_linear;
+        c.name  = "QSS3 seirs";
+        c.type  = component_type::qss3_seirs;
         c.state = component_status::read_only;
-        irt_return_if_bad(add_seir_linear<3>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS1 seir nonlinear";
-        c.type  = component_type::qss1_seir_nonlinear;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_seir_linear<1>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS2 seir nonlinear";
-        c.type  = component_type::qss2_seir_nonlinear;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_seir_linear<2>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS3 seir nonlinear";
-        c.type  = component_type::qss3_seir_nonlinear;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_seir_linear<3>(*this, c));
+        irt_return_if_bad(add_seirs<3>(*this, c));
     }
 
     return status::success;
