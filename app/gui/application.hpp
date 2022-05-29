@@ -207,6 +207,7 @@ struct simulation_observation
     ImVector<ImVec2>             plot_outputs;
     ring_buffer<raw_observation> raw_ring_buffer;
     ring_buffer<ImVec2>          linear_ring_buffer;
+    ImVec4                       limits;
 
     std::filesystem::path raw_file;
     std::filesystem::path linear_file;
@@ -328,6 +329,8 @@ struct simulation_editor
     data_array<simulation_plot, simulation_plot_id>               sim_plots;
 
     simulation_observation_id selected_sim_obs;
+    float                     history = 10.f;
+    bool                      scrolling = true;
 
     ImNodesEditorContext* context        = nullptr;
     ImPlotContext*        output_context = nullptr;

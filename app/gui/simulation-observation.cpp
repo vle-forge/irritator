@@ -367,10 +367,23 @@ static inline void simulation_observation_run(simulation_observation&  output,
 
     if (output.raw_ring_buffer.empty()) {
         output.raw_ring_buffer.force_emplace_enqueue(obs.msg, t);
+        output.limits.x = static_cast<float>(t);
+        output.limits.y = static_cast<float>(obs.msg[0]);
+        output.limits.z = static_cast<float>(t);
+        output.limits.w = static_cast<float>(obs.msg[0]);
+
     } else {
         const auto i_type   = get_interpolate_type(type);
         auto       old_tail = output.raw_ring_buffer.tail();
         output.raw_ring_buffer.force_emplace_enqueue(obs.msg, t);
+
+        output.limits.z = static_cast<float>(t);
+        output.limits.y = output.limits.y < static_cast<float>(obs.msg[0])
+                            ? output.limits.y
+                            : static_cast<float>(obs.msg[0]);
+        output.limits.w = output.limits.w > static_cast<float>(obs.msg[0])
+                            ? output.limits.w
+                            : static_cast<float>(obs.msg[0]);
 
         auto out = [&output](real value, time t) {
             output.linear_ring_buffer.force_emplace_enqueue(
@@ -464,13 +477,21 @@ static void task_add_simulation_observation_impl(void* param) noexcept
     g_task->state = gui_task_status::finished;
 }
 
-static float values_getter(void* data, int idx) noexcept
-{
+auto values_getter = [](void* data, int idx) noexcept {
     auto* obs   = reinterpret_cast<simulation_observation*>(data);
     auto  index = obs->linear_ring_buffer.index_from_begin(idx);
 
-    return static_cast<float>(obs->linear_outputs[index].x);
-}
+    return ImPlotPoint{ static_cast<double>(obs->linear_outputs[index].y),
+                        static_cast<double>(obs->linear_outputs[index].x) };
+};
+
+auto zero_getter = [](void* data, int idx) noexcept {
+    auto* obs   = reinterpret_cast<simulation_observation*>(data);
+    auto  index = obs->linear_ring_buffer.index_from_begin(idx);
+
+    return ImPlotPoint{ static_cast<double>(obs->linear_outputs[index].y),
+                        0.0 };
+};
 
 void task_remove_simulation_observation(application& app, model_id id) noexcept
 {
@@ -493,34 +514,84 @@ void task_add_simulation_observation(application& app, model_id id) noexcept
 
 void application::show_simulation_observation_window() noexcept
 {
-    constexpr ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
+    ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter |
+                            ImGuiTableFlags_BordersV | ImGuiTableFlags_RowBg |
+                            ImGuiTableFlags_Resizable |
+                            ImGuiTableFlags_Reorderable;
 
-    if (ImGui::CollapsingHeader("Observations", flags)) {
+    ImGui::Checkbox("Enable history", &s_editor.scrolling);
+
+    ImGui::BeginDisabled(!s_editor.scrolling);
+    if (ImGui::InputFloat("History", &s_editor.history))
+        s_editor.history = s_editor.history <= 0 ? 1 : s_editor.history;
+    ImGui::EndDisabled();
+
+    if (ImGui::BeginTable("##table", 1, flags, ImVec2(-1, 0))) {
+        ImGui::TableSetupColumn("Signal");
+        ImGui::TableHeadersRow();
+        ImPlot::PushColormap(ImPlotColormap_Pastel);
+
         simulation_observation* obs = nullptr;
+        int                     row = -1;
         while (s_editor.sim_obs.next(obs)) {
+            ++row;
+            if (obs->linear_ring_buffer.empty())
+                continue;
+
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+
             ImGui::PushID(obs);
-            ImGui::InputFilteredString("name", obs->name);
-            ImGui::PlotLines("test",
-                             values_getter,
-                             obs,
-                             obs->linear_ring_buffer.ssize(),
-                             0,
-                             nullptr,
-                             FLT_MIN,
-                             FLT_MAX,
-                             ImVec2{ 0.f, 80.f });
+
+            ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0, 0));
+            if (ImPlot::BeginPlot("##Plot",
+                                  ImVec2(-1, 70),
+                                  ImPlotFlags_NoTitle | ImPlotFlags_NoMenus |
+                                    ImPlotFlags_NoBoxSelect |
+                                    ImPlotFlags_NoChild)) {
+                ImPlot::SetupAxes(nullptr,
+                                  nullptr,
+                                  ImPlotAxisFlags_NoDecorations,
+                                  ImPlotAxisFlags_NoDecorations);
+
+                float start_t = obs->limits.x;
+
+                if (s_editor.scrolling) {
+                    start_t = obs->limits.z - s_editor.history;
+                    if (start_t < obs->limits.x)
+                        start_t = obs->limits.x;
+                }
+
+                ImPlot::SetupAxesLimits(start_t,
+                                        obs->limits.z,
+                                        obs->limits.y,
+                                        obs->limits.w,
+                                        ImGuiCond_Always);
+
+                ImPlot::PushStyleColor(ImPlotCol_Line,
+                                       ImPlot::GetColormapColor(row));
+
+                ImPlot::PlotLineG(obs->name.c_str(),
+                                  values_getter,
+                                  obs,
+                                  obs->linear_ring_buffer.ssize());
+
+                ImPlot::PopStyleColor();
+                ImPlot::EndPlot();
+            }
+
+            ImPlot::PopStyleVar();
             ImGui::PopID();
         }
+
+        ImPlot::PopColormap();
     }
+
+    ImGui::EndTable();
 
     if (ImGui::CollapsingHeader("Selected", flags)) {
         for (int i = 0, e = s_editor.selected_nodes.size(); i != e; ++i) {
             const auto index = s_editor.selected_nodes[i];
-
-            if (index == -1)
-                continue;
-
             auto* mdl = s_editor.sim.models.try_to_get(static_cast<u32>(index));
             if (!mdl)
                 continue;
@@ -537,11 +608,15 @@ void application::show_simulation_observation_window() noexcept
                 }
             }
 
+            ImGui::TextFormat("Type...: {}",
+                              dynamics_type_names[ordinal(mdl->type)]);
+
+            if (obs)
+                ImGui::InputSmallString("Name", obs->name);
+
             ImGui::TextFormat(
               "ID.....: {}",
               static_cast<u64>(s_editor.sim.models.get_id(*mdl)));
-            ImGui::TextFormat("Type...: {}",
-                              dynamics_type_names[ordinal(mdl->type)]);
 
             if (already_observed) {
                 if (ImGui::Button("remove"))
