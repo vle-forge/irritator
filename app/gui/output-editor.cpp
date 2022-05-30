@@ -10,22 +10,35 @@
 namespace irt {
 
 const char* simulation_plot_type_string[] = { "None",
-                                              "Plot raw",
-                                              "Plot line",
-                                              "Plot scatter" };
+                                              "Plot raw dot",
+                                              "Plot interpolate line",
+                                              "Plot interpolate dot" };
 
 static void show_output_widget(application& app) noexcept
 {
     if (ImGui::CollapsingHeader("Raw observations list",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::BeginTable("Observations", 7)) {
-            ImGui::TableSetupColumn("id");
-            ImGui::TableSetupColumn("name");
-            ImGui::TableSetupColumn("time-step");
-            ImGui::TableSetupColumn("size");
-            ImGui::TableSetupColumn("capacity");
+
+        static ImGuiTableFlags flags =
+          ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
+          ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
+          ImGuiTableFlags_Reorderable;
+
+        if (ImGui::BeginTable("Observations", 8, flags)) {
+            ImGui::TableSetupColumn(
+              "name", ImGuiTableColumnFlags_WidthFixed, 80.f);
+            ImGui::TableSetupColumn(
+              "id", ImGuiTableColumnFlags_WidthFixed, 60.f);
+            ImGui::TableSetupColumn(
+              "time-step", ImGuiTableColumnFlags_WidthFixed, 100.f);
+            ImGui::TableSetupColumn(
+              "size", ImGuiTableColumnFlags_WidthFixed, 60.f);
+            ImGui::TableSetupColumn(
+              "capacity", ImGuiTableColumnFlags_WidthFixed, 60.f);
+            ImGui::TableSetupColumn(
+              "export as", ImGuiTableColumnFlags_WidthFixed, 100.f);
+            ImGui::TableSetupColumn("path");
             ImGui::TableSetupColumn("plot");
-            ImGui::TableSetupColumn("action");
 
             ImGui::TableHeadersRow();
             simulation_observation* out = nullptr;
@@ -33,12 +46,13 @@ static void show_output_widget(application& app) noexcept
                 const auto id = app.s_editor.sim_obs.get_id(*out);
                 ImGui::PushID(out);
                 ImGui::TableNextRow();
-                ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}",
-                                  ordinal(app.s_editor.sim_obs.get_id(*out)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(out->name.c_str());
+
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}",
+                                  ordinal(app.s_editor.sim_obs.get_id(*out)));
                 ImGui::TableNextColumn();
                 if (ImGui::InputReal("##ts", &out->time_step))
                     out->time_step = std::clamp(
@@ -57,7 +71,7 @@ static void show_output_widget(application& app) noexcept
                     out->save_raw(file_path);
                 }
                 ImGui::SameLine();
-                if (ImGui::Button("int")) {
+                if (ImGui::Button("int.")) {
                     app.s_editor.selected_sim_obs = id;
                     app.save_int_file             = true;
                     auto err                      = std::error_code{};
@@ -66,11 +80,14 @@ static void show_output_widget(application& app) noexcept
                 }
 
                 ImGui::TableNextColumn();
+                ImGui::TextUnformatted(reinterpret_cast<const char*>(
+                  out->file.generic_string().c_str()));
+
+                ImGui::TableNextColumn();
                 if (ImGui::Combo("##plot",
                                  &out->plot_type,
                                  simulation_plot_type_string,
                                  IM_ARRAYSIZE(simulation_plot_type_string))) {
-
                     auto until = out->raw_ring_buffer.size() > 0
                                    ? out->raw_ring_buffer.back().t
                                    : app.s_editor.simulation_current;

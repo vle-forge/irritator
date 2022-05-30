@@ -357,8 +357,8 @@ static void application_manage_menu_action(application& app) noexcept
             ImGui::OpenPopup(title);
             if (app.f_dialog.show_save_file(title, default_filename, filters)) {
                 if (app.f_dialog.state == file_dialog::status::ok) {
-                    obs->raw_file = app.f_dialog.result;
-                    obs->save_raw(obs->raw_file);
+                    obs->file = app.f_dialog.result;
+                    obs->save_raw(obs->file);
                 }
 
                 app.s_editor.selected_sim_obs =
@@ -381,8 +381,8 @@ static void application_manage_menu_action(application& app) noexcept
             ImGui::OpenPopup(title);
             if (app.f_dialog.show_save_file(title, default_filename, filters)) {
                 if (app.f_dialog.state == file_dialog::status::ok) {
-                    obs->linear_file = app.f_dialog.result;
-                    obs->save_interpolate(obs->linear_file);
+                    obs->file = app.f_dialog.result;
+                    obs->save_interpolate(obs->file);
                 }
 
                 app.s_editor.selected_sim_obs =

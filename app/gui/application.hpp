@@ -209,8 +209,7 @@ struct simulation_observation
     ring_buffer<ImVec2>          linear_ring_buffer;
     ImVec4                       limits;
 
-    std::filesystem::path raw_file;
-    std::filesystem::path linear_file;
+    std::filesystem::path file;
 
     real min_time_step = to_real(0.0001);
     real max_time_step = to_real(1);
@@ -294,7 +293,7 @@ struct simulation_editor
 
     void remove_simulation_observation_from(model_id id) noexcept;
     void add_simulation_observation_for(std::string_view name,
-                                        model_id               id) noexcept;
+                                        model_id         id) noexcept;
 
     bool force_pause           = false;
     bool force_stop            = false;
