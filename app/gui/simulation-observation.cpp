@@ -460,19 +460,7 @@ static void task_add_simulation_observation_impl(void* param) noexcept
     auto& sim_ed = app.s_editor;
     auto  mdl_id = enum_cast<model_id>(g_task->param_1);
 
-    sim_ed.add_simulation_observation_for(mdl_id);
-
-    // if (!sim.observers.can_alloc(1)) {
-    //     auto& n = app.notifications.alloc(notification_type::error);
-    //     n.title = "Too many observer in simulation";
-    //     g_task->app->notifications.enable(n);
-    // }
-
-    // if (!sim_ed.sim_obs.can_alloc(1)) {
-    //     auto& n = app.notifications.alloc(notification_type::error);
-    //     n.title = "Too many simulation observation in simulation";
-    //     g_task->app->notifications.enable(n);
-    // }
+    sim_ed.add_simulation_observation_for(std::string_view{}, mdl_id);
 
     g_task->state = gui_task_status::finished;
 }

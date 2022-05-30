@@ -271,7 +271,7 @@ static status simulation_init_observation(simulation_editor& sim_ed,
                 auto*      mdl    = sim_ed.sim.models.try_to_get(sim_id);
 
                 irt_assert(mdl);
-                sim_ed.add_simulation_observation_for(sim_id);
+                sim_ed.add_simulation_observation_for(c->name.sv(), sim_id);
             }
         }
     }

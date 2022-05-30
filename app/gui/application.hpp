@@ -293,7 +293,8 @@ struct simulation_editor
     void enable_or_disable_debug() noexcept;
 
     void remove_simulation_observation_from(model_id id) noexcept;
-    void add_simulation_observation_for(model_id id) noexcept;
+    void add_simulation_observation_for(std::string_view name,
+                                        model_id               id) noexcept;
 
     bool force_pause           = false;
     bool force_stop            = false;
@@ -329,7 +330,7 @@ struct simulation_editor
     data_array<simulation_plot, simulation_plot_id>               sim_plots;
 
     simulation_observation_id selected_sim_obs;
-    float                     history = 10.f;
+    float                     history   = 10.f;
     bool                      scrolling = true;
 
     ImNodesEditorContext* context        = nullptr;
