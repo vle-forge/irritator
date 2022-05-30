@@ -137,12 +137,6 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = s_editor.sim_plots.init(4); is_bad(ret)) {
-        log_w.log(
-          2, "Fail to initialize simulation plots: %s\n", status_string(ret));
-        return false;
-    }
-
     if (auto ret = c_editor.mod.srcs.init(50); is_bad(ret)) {
         log_w.log(
           2, "Fail to initialize external sources: %s\n", status_string(ret));

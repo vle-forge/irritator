@@ -666,7 +666,6 @@ void simulation_editor::clear() noexcept
 
     tree_nodes.clear();
     sim_obs.clear();
-    sim_plots.clear();
 
     selected_links.clear();
     selected_nodes.clear();

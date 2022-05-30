@@ -49,7 +49,6 @@ struct simulation_editor;
 
 enum class notification_id : u64;
 enum class simulation_observation_id : u64;
-enum class simulation_plot_id : u64;
 enum class gui_task_id : u64;
 
 using application_status   = u32;
@@ -238,11 +237,6 @@ void simulation_observation_update(const observer&        obs,
                                    const time             t,
                                    const observer::status s) noexcept;
 
-struct simulation_plot
-{
-    small_string<16u> name;
-};
-
 void save_component(void* param) noexcept;
 void save_description(void* param) noexcept;
 void load_project(void* param) noexcept;
@@ -326,7 +320,6 @@ struct simulation_editor
 
     data_array<simulation_tree_node, simulation_tree_node_id>     tree_nodes;
     data_array<simulation_observation, simulation_observation_id> sim_obs;
-    data_array<simulation_plot, simulation_plot_id>               sim_plots;
 
     simulation_observation_id selected_sim_obs;
     float                     history   = 10.f;
