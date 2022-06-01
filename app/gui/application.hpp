@@ -254,6 +254,19 @@ struct gui_task
     gui_task_status    state        = gui_task_status::not_started;
 };
 
+struct output_editor
+{
+    output_editor() noexcept;
+    ~output_editor() noexcept;
+
+    void show() noexcept;
+
+    ImPlotContext* implot_context = nullptr;
+
+    bool save_raw_file = false;
+    bool save_int_file = false;
+};
+
 struct simulation_editor
 {
     enum class visualization_mode
@@ -324,6 +337,8 @@ struct simulation_editor
     simulation_observation_id selected_sim_obs;
     float                     history   = 10.f;
     bool                      scrolling = true;
+
+    output_editor output_ed;
 
     ImNodesEditorContext* context        = nullptr;
     ImPlotContext*        output_context = nullptr;
@@ -473,8 +488,6 @@ struct application
     bool load_project_file    = false; // rename menu_*
     bool save_project_file    = false; // rename menu_*
     bool save_as_project_file = false; // rename menu_*
-    bool save_raw_file        = false;
-    bool save_int_file        = false;
     bool menu_quit            = false;
 
     bool init() noexcept;

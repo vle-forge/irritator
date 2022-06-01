@@ -232,7 +232,8 @@ static void application_show_menu(application& app) noexcept
 
         if (ImGui::BeginMenu("Preferences")) {
             ImGui::MenuItem("ImGui demo window", nullptr, &app.show_imgui_demo);
-            ImGui::MenuItem("ImPlot demo window", nullptr, &app.show_implot_demo);
+            ImGui::MenuItem(
+              "ImPlot demo window", nullptr, &app.show_implot_demo);
             ImGui::Separator();
             ImGui::MenuItem("Component settings", nullptr, &app.show_settings);
 
@@ -339,7 +340,7 @@ static void application_manage_menu_action(application& app) noexcept
         }
     }
 
-    if (app.save_raw_file) {
+    if (app.s_editor.output_ed.save_raw_file) {
         auto* obs =
           app.s_editor.sim_obs.try_to_get(app.s_editor.selected_sim_obs);
 
@@ -357,13 +358,13 @@ static void application_manage_menu_action(application& app) noexcept
 
                 app.s_editor.selected_sim_obs =
                   undefined<simulation_observation_id>();
-                app.save_raw_file = false;
+                app.s_editor.output_ed.save_raw_file = false;
                 app.f_dialog.clear();
             }
         }
     }
 
-    if (app.save_int_file) {
+    if (app.s_editor.output_ed.save_int_file) {
         auto* obs =
           app.s_editor.sim_obs.try_to_get(app.s_editor.selected_sim_obs);
 
@@ -381,7 +382,7 @@ static void application_manage_menu_action(application& app) noexcept
 
                 app.s_editor.selected_sim_obs =
                   undefined<simulation_observation_id>();
-                app.save_int_file = false;
+                app.s_editor.output_ed.save_int_file = false;
                 app.f_dialog.clear();
             }
         }
