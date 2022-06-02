@@ -26,6 +26,38 @@ output_editor::~output_editor() noexcept
         ImPlot::DestroyContext(implot_context);
 }
 
+static void compute_plot_outputs(simulation_editor&      sim_ed,
+                                 simulation_observation& obs) noexcept
+{
+    auto until = obs.raw_ring_buffer.size() > 0 ? obs.raw_ring_buffer.back().t
+                                                : sim_ed.simulation_current;
+
+    switch (obs.plot_type) {
+    case simulation_plot_type_raw:
+        obs.plot_outputs.clear();
+        for (auto it = obs.raw_ring_buffer.head();
+             it != obs.raw_ring_buffer.end();
+             ++it)
+            obs.plot_outputs.push_back(ImVec2(static_cast<float>(it->t),
+                                              static_cast<float>(it->msg[0])));
+        break;
+
+    case simulation_plot_type_plotlines:
+        obs.plot_outputs.clear();
+        obs.compute_interpolate(until, obs.plot_outputs);
+        break;
+
+    case simulation_plot_type_plotscatters:
+        obs.plot_outputs.clear();
+        obs.compute_interpolate(until, obs.plot_outputs);
+        break;
+
+    default:
+        obs.plot_outputs.clear();
+        break;
+    }
+}
+
 static void show_observation_table(simulation_editor& sim_ed) noexcept
 {
     static const ImGuiTableFlags flags =
@@ -93,36 +125,14 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
                              &out->plot_type,
                              simulation_plot_type_string,
                              IM_ARRAYSIZE(simulation_plot_type_string))) {
-                auto until = out->raw_ring_buffer.size() > 0
-                               ? out->raw_ring_buffer.back().t
-                               : sim_ed.simulation_current;
-
-                switch (out->plot_type) {
-                case simulation_plot_type_raw:
-                    out->plot_outputs.clear();
-                    for (auto it = out->raw_ring_buffer.head();
-                         it != out->raw_ring_buffer.end();
-                         ++it)
-                        out->plot_outputs.push_back(
-                          ImVec2(static_cast<float>(it->t),
-                                 static_cast<float>(it->msg[0])));
-                    break;
-
-                case simulation_plot_type_plotlines:
-                    out->plot_outputs.clear();
-                    out->compute_interpolate(until, out->plot_outputs);
-                    break;
-
-                case simulation_plot_type_plotscatters:
-                    out->plot_outputs.clear();
-                    out->compute_interpolate(until, out->plot_outputs);
-                    break;
-
-                default:
-                    out->plot_outputs.clear();
-                    break;
-                }
+                compute_plot_outputs(sim_ed, *out);
             }
+
+            ImGui::SameLine();
+            if (ImGui::Button("refresh")) {
+                compute_plot_outputs(sim_ed, *out);
+            }
+
             ImGui::PopID();
         }
 
@@ -160,13 +170,12 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
         ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
         ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-        auto limits = compute_plot_limits(sim_ed);
-
         ImPlot::SetupAxes(
           nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
 
-        // ImPlot::SetupAxesLimits(
-        //   limits.x, limits.z, limits.y, limits.w, ImPlotCond_None);
+        const auto limits = compute_plot_limits(sim_ed);
+        ImPlot::SetupAxesLimits(
+          limits.x, limits.z, limits.y, limits.w, ImPlotCond_None);
 
         simulation_observation* obs = nullptr;
         while (sim_ed.sim_obs.next(obs)) {
@@ -213,7 +222,6 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
 void output_editor::show() noexcept
 {
     auto* s_editor = container_of(this, &simulation_editor::output_ed);
-    auto* app      = container_of(s_editor, &application::s_editor);
 
     static const ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen;
 
