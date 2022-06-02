@@ -65,18 +65,18 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
       ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
       ImGuiTableFlags_Reorderable;
 
-    if (ImGui::BeginTable("Observations", 8, flags)) {
+    if (ImGui::BeginTable("Observations", 7, flags)) {
         ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthFixed, 80.f);
         ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn(
-          "time-step", ImGuiTableColumnFlags_WidthFixed, 100.f);
+          "time-step", ImGuiTableColumnFlags_WidthFixed, 80.f);
         ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn(
           "capacity", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn(
-          "export as", ImGuiTableColumnFlags_WidthFixed, 100.f);
-        ImGui::TableSetupColumn("path");
-        ImGui::TableSetupColumn("plot");
+          "plot", ImGuiTableColumnFlags_WidthFixed, 180.f);
+        ImGui::TableSetupColumn("export as",
+                                ImGuiTableColumnFlags_WidthStretch);
 
         ImGui::TableHeadersRow();
         simulation_observation* out = nullptr;
@@ -91,14 +91,30 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
             ImGui::TableNextColumn();
             ImGui::TextFormat("{}", ordinal(sim_ed.sim_obs.get_id(*out)));
             ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1);
             if (ImGui::InputReal("##ts", &out->time_step))
                 out->time_step = std::clamp(
                   out->time_step, out->min_time_step, out->max_time_step);
+            ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
             ImGui::TextFormat("{}", out->raw_ring_buffer.size());
             ImGui::TableNextColumn();
             ImGui::TextFormat("{}", out->raw_outputs.capacity());
+
+            ImGui::TableNextColumn();
+            if (ImGui::Combo("##plot",
+                             &out->plot_type,
+                             simulation_plot_type_string,
+                             IM_ARRAYSIZE(simulation_plot_type_string))) {
+                compute_plot_outputs(sim_ed, *out);
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("refresh")) {
+                compute_plot_outputs(sim_ed, *out);
+            }
+
             ImGui::TableNextColumn();
             if (ImGui::Button("raw")) {
                 sim_ed.selected_sim_obs        = id;
@@ -116,22 +132,9 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
                 out->save_interpolate(file_path);
             }
 
-            ImGui::TableNextColumn();
+            ImGui::SameLine();
             ImGui::TextUnformatted(reinterpret_cast<const char*>(
               out->file.generic_string().c_str()));
-
-            ImGui::TableNextColumn();
-            if (ImGui::Combo("##plot",
-                             &out->plot_type,
-                             simulation_plot_type_string,
-                             IM_ARRAYSIZE(simulation_plot_type_string))) {
-                compute_plot_outputs(sim_ed, *out);
-            }
-
-            ImGui::SameLine();
-            if (ImGui::Button("refresh")) {
-                compute_plot_outputs(sim_ed, *out);
-            }
 
             ImGui::PopID();
         }
