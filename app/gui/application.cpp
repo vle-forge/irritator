@@ -137,6 +137,13 @@ bool application::init() noexcept
         return false;
     }
 
+    if (auto ret = s_editor.copy_obs.init(16); is_bad(ret)) {
+        log_w.log(2,
+                  "Fail to initialize copy simulation observation: %s\n",
+                  status_string(ret));
+        return false;
+    }
+
     if (auto ret = c_editor.mod.srcs.init(50); is_bad(ret)) {
         log_w.log(
           2, "Fail to initialize external sources: %s\n", status_string(ret));

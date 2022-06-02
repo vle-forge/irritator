@@ -49,6 +49,7 @@ struct simulation_editor;
 
 enum class notification_id : u64;
 enum class simulation_observation_id : u64;
+enum class simulation_observation_copy_id : u64;
 enum class gui_task_id : u64;
 
 using application_status   = u32;
@@ -185,18 +186,17 @@ struct window_logger
 
 const char* log_string(const log_status s) noexcept;
 
+struct raw_observation
+{
+    raw_observation() noexcept = default;
+    raw_observation(const observation_message& msg_, const real t_) noexcept;
+
+    observation_message msg;
+    real                t;
+};
+
 struct simulation_observation
 {
-    struct raw_observation
-    {
-        raw_observation() noexcept = default;
-        raw_observation(const observation_message& msg_,
-                        const real                 t_) noexcept;
-
-        observation_message msg;
-        real                t;
-    };
-
     model_id                     model = undefined<model_id>();
     dynamics_type                type  = dynamics_type::constant;
     u64                          plot_id;
@@ -227,8 +227,16 @@ struct simulation_observation
     void save_interpolate(const std::filesystem::path& file_path) noexcept;
 
     void compute_interpolate(const real           until,
-                             ring_buffer<ImVec2>& out) noexcept;
-    void compute_interpolate(const real until, ImVector<ImVec2>& out) noexcept;
+                             ring_buffer<ImVec2>& out) const noexcept;
+    void compute_interpolate(const real        until,
+                             ImVector<ImVec2>& out) const noexcept;
+};
+
+struct simulation_observation_copy
+{
+    small_string<16u>    name;
+    ImVector<ImVec2>     data;
+    simulation_plot_type plot_type = simulation_plot_type_none;
 };
 
 void simulation_observation_update(const observer&        obs,
@@ -333,6 +341,8 @@ struct simulation_editor
 
     data_array<simulation_tree_node, simulation_tree_node_id>     tree_nodes;
     data_array<simulation_observation, simulation_observation_id> sim_obs;
+    data_array<simulation_observation_copy, simulation_observation_copy_id>
+      copy_obs;
 
     simulation_observation_id selected_sim_obs;
     float                     history   = 10.f;
@@ -522,9 +532,8 @@ void task_add_simulation_observation(application& app, model_id id) noexcept;
 
 char* get_imgui_filename() noexcept;
 
-inline simulation_observation::raw_observation::raw_observation(
-  const observation_message& msg_,
-  const real                 t_) noexcept
+inline raw_observation::raw_observation(const observation_message& msg_,
+                                        const real                 t_) noexcept
   : msg(msg_)
   , t(t_)
 {}

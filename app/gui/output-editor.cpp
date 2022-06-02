@@ -58,6 +58,21 @@ static void compute_plot_outputs(simulation_editor&      sim_ed,
     }
 }
 
+static void copy_simulation_observation(
+  const simulation_editor&      sim_ed,
+  const simulation_observation& obs,
+  simulation_observation_copy&  out) noexcept
+{
+    out.data.clear();
+    format(out.name, "{}-copy", obs.name.c_str());
+
+    const auto until = obs.raw_ring_buffer.size() > 0
+                         ? obs.raw_ring_buffer.back().t
+                         : sim_ed.simulation_current;
+
+    obs.compute_interpolate(until, out.data);
+}
+
 static void show_observation_table(simulation_editor& sim_ed) noexcept
 {
     static const ImGuiTableFlags flags =
@@ -118,6 +133,14 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
             }
 
             ImGui::TableNextColumn();
+            if (ImGui::Button("copy")) {
+                if (sim_ed.copy_obs.can_alloc(1)) {
+                    auto& new_obs = sim_ed.copy_obs.alloc();
+                    copy_simulation_observation(sim_ed, *out, new_obs);
+                }
+            }
+
+            ImGui::SameLine();
             if (ImGui::Button("raw")) {
                 sim_ed.selected_sim_obs        = id;
                 sim_ed.output_ed.save_raw_file = true;
@@ -125,6 +148,7 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
                 auto file_path = std::filesystem::current_path(err);
                 out->save_raw(file_path);
             }
+
             ImGui::SameLine();
             if (ImGui::Button("int.")) {
                 sim_ed.selected_sim_obs        = id;
@@ -139,6 +163,45 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
               out->file.generic_string().c_str()));
 
             ImGui::PopID();
+        }
+
+        simulation_observation_copy *copy = nullptr, *prev = nullptr;
+        while (sim_ed.copy_obs.next(copy)) {
+            const auto id = sim_ed.copy_obs.get_id(*copy);
+            ImGui::PushID(copy);
+            ImGui::TableNextRow();
+
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1);
+            ImGui::InputFilteredString("##name", copy->name);
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+            ImGui::TextFormat("{}", ordinal(id));
+
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("-");
+
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("-");
+            ;
+            ImGui::TableNextColumn();
+            ImGui::TextFormat("{}", copy->data.size());
+
+            ImGui::TableNextColumn();
+            ImGui::Combo("##plot",
+                         &copy->plot_type,
+                         simulation_plot_type_string,
+                         IM_ARRAYSIZE(simulation_plot_type_string));
+
+            ImGui::TableNextColumn();
+            if (ImGui::Button("del")) {
+                sim_ed.copy_obs.free(*copy);
+                copy = prev;
+            }
+
+            ImGui::PopID();
+            prev = copy;
         }
 
         ImGui::EndTable();
@@ -209,6 +272,43 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
                                         &obs->plot_outputs[0].x,
                                         &obs->plot_outputs[0].y,
                                         obs->plot_outputs.size(),
+                                        0,
+                                        sizeof(ImVec2));
+                    break;
+
+                default:
+                    break;
+                }
+            }
+        }
+
+        simulation_observation_copy* copy = nullptr;
+        while (sim_ed.copy_obs.next(copy)) {
+            if (copy->data.size() > 0) {
+                switch (copy->plot_type) {
+                case simulation_plot_type_raw:
+                    ImPlot::PlotScatter(copy->name.c_str(),
+                                        &copy->data[0].x,
+                                        &copy->data[0].y,
+                                        copy->data.size(),
+                                        0,
+                                        sizeof(ImVec2));
+                    break;
+
+                case simulation_plot_type_plotlines:
+                    ImPlot::PlotLine(copy->name.c_str(),
+                                     &copy->data[0].x,
+                                     &copy->data[0].y,
+                                     copy->data.size(),
+                                     0,
+                                     sizeof(ImVec2));
+                    break;
+
+                case simulation_plot_type_plotscatters:
+                    ImPlot::PlotScatter(copy->name.c_str(),
+                                        &copy->data[0].x,
+                                        &copy->data[0].y,
+                                        copy->data.size(),
                                         0,
                                         sizeof(ImVec2));
                     break;

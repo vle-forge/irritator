@@ -115,7 +115,7 @@ static real compute_value_3(const observation_message& msg,
 }
 
 static void compute_interpolate_step(
-  const simulation_observation::raw_observation&       prev,
+  const raw_observation&                               prev,
   const real                                           next,
   const real                                           time_step,
   function_ref<real(const observation_message&, time)> compute_f,
@@ -134,7 +134,7 @@ static void compute_interpolate_step(
 }
 
 static void compute_and_store_interpolate(
-  simulation_observation&                              obs,
+  const simulation_observation&                        obs,
   const real                                           until,
   function_ref<real(const observation_message&, time)> f,
   ring_buffer<ImVec2>&                                 out) noexcept
@@ -157,7 +157,7 @@ static void compute_and_store_interpolate(
 }
 
 static void compute_and_store_interpolate(
-  simulation_observation&                              obs,
+  const simulation_observation&                        obs,
   const real                                           until,
   function_ref<real(const observation_message&, time)> f,
   ImVector<ImVec2>&                                    out) noexcept
@@ -182,7 +182,7 @@ static void compute_and_store_interpolate(
 }
 
 static void compute_and_stream_interpolate(
-  simulation_observation&                              obs,
+  const simulation_observation&                        obs,
   const real                                           until,
   std::ofstream&                                       ofs,
   function_ref<real(const observation_message&, time)> f) noexcept
@@ -305,10 +305,9 @@ void simulation_observation::save_interpolate(
 
 void simulation_observation::compute_interpolate(
   const real           until,
-  ring_buffer<ImVec2>& out) noexcept
+  ring_buffer<ImVec2>& out) const noexcept
 {
     const auto i_type = get_interpolate_type(type);
-    time_step         = std::clamp(time_step, min_time_step, max_time_step);
 
     switch (i_type) {
     case interpolate_type_qss1:
@@ -329,11 +328,11 @@ void simulation_observation::compute_interpolate(
     }
 }
 
-void simulation_observation::compute_interpolate(const real        until,
-                                                 ImVector<ImVec2>& out) noexcept
+void simulation_observation::compute_interpolate(
+  const real        until,
+  ImVector<ImVec2>& out) const noexcept
 {
     const auto i_type = get_interpolate_type(type);
-    time_step         = std::clamp(time_step, min_time_step, max_time_step);
 
     switch (i_type) {
     case interpolate_type_qss1:
