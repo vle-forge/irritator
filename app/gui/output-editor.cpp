@@ -86,7 +86,9 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
             ImGui::TableNextRow();
 
             ImGui::TableNextColumn();
-            ImGui::TextUnformatted(out->name.c_str());
+            ImGui::PushItemWidth(-1);
+            ImGui::InputFilteredString("##name", out->name);
+            ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
             ImGui::TextFormat("{}", ordinal(sim_ed.sim_obs.get_id(*out)));
