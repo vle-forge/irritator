@@ -54,6 +54,9 @@ public:
     constexpr const T* get(Identifier id) const noexcept;
     constexpr void     erase(Identifier id) noexcept;
     constexpr void     sort() noexcept;
+
+    constexpr unsigned size() const noexcept;
+    constexpr int      ssize() const noexcept;
 };
 
 //! @brief A vector like class but without dynamic allocation.
@@ -89,7 +92,7 @@ public:
     constexpr small_vector(small_vector&& other) noexcept = delete;
     constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
 
-    constexpr status resize(std::integral auto capacity) noexcept;
+    constexpr status resize(int capacity) noexcept;
     constexpr void   clear() noexcept;
 
     constexpr reference       front() noexcept;
@@ -100,27 +103,26 @@ public:
     constexpr T*       data() noexcept;
     constexpr const T* data() const noexcept;
 
-    constexpr reference       operator[](std::integral auto index) noexcept;
-    constexpr const_reference operator[](
-      std::integral auto index) const noexcept;
+    constexpr reference       operator[](int index) noexcept;
+    constexpr const_reference operator[](int index) const noexcept;
 
     constexpr iterator       begin() noexcept;
     constexpr const_iterator begin() const noexcept;
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
 
-    constexpr bool can_alloc(std::integral auto number = 1) noexcept;
-    constexpr i32  available() const noexcept;
-    constexpr sz   size() const noexcept;
-    constexpr i32  ssize() const noexcept;
-    constexpr sz   capacity() const noexcept;
-    constexpr bool empty() const noexcept;
-    constexpr bool full() const noexcept;
+    constexpr bool     can_alloc(int number = 1) noexcept;
+    constexpr int      available() const noexcept;
+    constexpr unsigned size() const noexcept;
+    constexpr int      ssize() const noexcept;
+    constexpr int      capacity() const noexcept;
+    constexpr bool     empty() const noexcept;
+    constexpr bool     full() const noexcept;
 
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
     constexpr void      pop_back() noexcept;
-    constexpr void      swap_pop_back(std::integral auto index) noexcept;
+    constexpr void      swap_pop_back(int index) noexcept;
 };
 
 //! @brief A ring-buffer based on a fixed size container. m_head point to the
@@ -390,7 +392,7 @@ public:
     friend class const_iterator;
 
     constexpr ring_buffer() noexcept = default;
-    constexpr ring_buffer(T* buffer, std::integral auto capacity) noexcept;
+    constexpr ring_buffer(T* buffer, int capacity) noexcept;
     constexpr ~ring_buffer() noexcept;
 
     constexpr ring_buffer(const ring_buffer& rhs) noexcept = delete;
@@ -400,7 +402,7 @@ public:
 
     constexpr void swap(ring_buffer& rhs) noexcept;
     constexpr void clear() noexcept;
-    constexpr void reset(T* buffer, std::integral auto capacity) noexcept;
+    constexpr void reset(T* buffer, int capacity) noexcept;
 
     template<typename... Args>
     constexpr bool emplace_front(Args&&... args) noexcept;
@@ -436,13 +438,13 @@ public:
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
 
-    constexpr size_t size() const noexcept;
-    constexpr i32    ssize() const noexcept;
-    constexpr i32    capacity() const noexcept;
-    constexpr i32    available() const noexcept;
-    constexpr bool   empty() const noexcept;
-    constexpr bool   full() const noexcept;
-    constexpr i32    index_from_begin(i32 index) const noexcept;
+    constexpr unsigned size() const noexcept;
+    constexpr int      ssize() const noexcept;
+    constexpr i32      capacity() const noexcept;
+    constexpr i32      available() const noexcept;
+    constexpr bool     empty() const noexcept;
+    constexpr bool     full() const noexcept;
+    constexpr i32      index_from_begin(i32 index) const noexcept;
 };
 
 template<typename T>
@@ -552,6 +554,18 @@ constexpr void table<Identifier, T>::sort() noexcept
                   });
 }
 
+template<typename Identifier, typename T>
+constexpr unsigned table<Identifier, T>::size() const noexcept
+{
+    return data.size();
+}
+
+template<typename Identifier, typename T>
+constexpr int table<Identifier, T>::ssize() const noexcept
+{
+    return data.ssize();
+}
+
 // template<typename T, size_type length>
 // class small_vector;
 
@@ -588,8 +602,7 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 }
 
 template<typename T, sz length>
-constexpr status small_vector<T, length>::resize(
-  std::integral auto default_size) noexcept
+constexpr status small_vector<T, length>::resize(int default_size) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<T> ||
                     std::is_trivially_default_constructible_v<T>,
@@ -659,7 +672,7 @@ small_vector<T, length>::back() const noexcept
 
 template<typename T, sz length>
 constexpr typename small_vector<T, length>::reference
-small_vector<T, length>::operator[](std::integral auto index) noexcept
+small_vector<T, length>::operator[](int index) noexcept
 {
     irt_assert(std::cmp_greater_equal(index, 0));
     irt_assert(std::cmp_less(index, m_size));
@@ -669,7 +682,7 @@ small_vector<T, length>::operator[](std::integral auto index) noexcept
 
 template<typename T, sz length>
 constexpr typename small_vector<T, length>::const_reference
-small_vector<T, length>::operator[](std::integral auto index) const noexcept
+small_vector<T, length>::operator[](int index) const noexcept
 {
     irt_assert(std::cmp_greater_equal(index, 0));
     irt_assert(std::cmp_less(index, m_size));
@@ -706,19 +719,19 @@ small_vector<T, length>::end() const noexcept
 }
 
 template<typename T, sz length>
-constexpr sz small_vector<T, length>::size() const noexcept
+constexpr unsigned small_vector<T, length>::size() const noexcept
 {
     return m_size;
 }
 
 template<typename T, sz length>
-constexpr i32 small_vector<T, length>::ssize() const noexcept
+constexpr int small_vector<T, length>::ssize() const noexcept
 {
-    return static_cast<i32>(m_size);
+    return m_size;
 }
 
 template<typename T, sz length>
-constexpr sz small_vector<T, length>::capacity() const noexcept
+constexpr int small_vector<T, length>::capacity() const noexcept
 {
     return length;
 }
@@ -743,8 +756,7 @@ constexpr void small_vector<T, length>::clear() noexcept
 }
 
 template<typename T, sz length>
-constexpr bool small_vector<T, length>::can_alloc(
-  std::integral auto number) noexcept
+constexpr bool small_vector<T, length>::can_alloc(int number) noexcept
 {
     return static_cast<std::ptrdiff_t>(length) -
              static_cast<std::ptrdiff_t>(m_size) >=
@@ -784,8 +796,7 @@ constexpr void small_vector<T, length>::pop_back() noexcept
 }
 
 template<typename T, sz length>
-constexpr void small_vector<T, length>::swap_pop_back(
-  std::integral auto index) noexcept
+constexpr void small_vector<T, length>::swap_pop_back(int index) noexcept
 {
     irt_assert(std::cmp_greater_equal(index, 0) &&
                std::cmp_less(index, m_size));
@@ -824,8 +835,7 @@ constexpr i32 ring_buffer<T>::back(i32 position) const noexcept
 }
 
 template<class T>
-constexpr ring_buffer<T>::ring_buffer(T*                 buffer,
-                                      std::integral auto capacity) noexcept
+constexpr ring_buffer<T>::ring_buffer(T* buffer, int capacity) noexcept
   : m_buffer(buffer)
   , m_capacity(static_cast<i32>(capacity))
 {
@@ -896,8 +906,7 @@ constexpr void ring_buffer<T>::clear() noexcept
 }
 
 template<class T>
-constexpr void ring_buffer<T>::reset(T*                 buffer,
-                                     std::integral auto capacity) noexcept
+constexpr void ring_buffer<T>::reset(T* buffer, int capacity) noexcept
 {
     irt_assert(buffer);
     irt_assert(capacity > 0);
@@ -1141,32 +1150,32 @@ constexpr bool ring_buffer<T>::full() const noexcept
 }
 
 template<class T>
-constexpr sz ring_buffer<T>::size() const noexcept
+constexpr unsigned ring_buffer<T>::size() const noexcept
 {
     return static_cast<sz>(ssize());
 }
 
 template<class T>
-constexpr i32 ring_buffer<T>::ssize() const noexcept
+constexpr int ring_buffer<T>::ssize() const noexcept
 {
     return (m_tail >= m_head) ? m_tail - m_head
                               : m_capacity - (m_head - m_tail);
 }
 
 template<class T>
-constexpr i32 ring_buffer<T>::available() const noexcept
+constexpr int ring_buffer<T>::available() const noexcept
 {
     return capacity() - size();
 }
 
 template<class T>
-constexpr i32 ring_buffer<T>::capacity() const noexcept
+constexpr int ring_buffer<T>::capacity() const noexcept
 {
     return m_capacity;
 }
 
 template<class T>
-constexpr i32 ring_buffer<T>::index_from_begin(i32 idx) const noexcept
+constexpr int ring_buffer<T>::index_from_begin(int idx) const noexcept
 {
     // irt_assert(idx < ssize());
 

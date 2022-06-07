@@ -191,7 +191,7 @@ constexpr task::task(task_function function_, void* parameter_) noexcept
  */
 
 inline task_list::task_list() noexcept
-  : tasks{ task_buffer.data(), task_buffer.size() }
+  : tasks{ task_buffer.data(), length(task_buffer) }
   , task_number{ 0 }
 {}
 

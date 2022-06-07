@@ -602,7 +602,7 @@ bool memory::write(const i64 value) noexcept
 
 bool memory::read(void* buffer, i64 length) noexcept
 {
-    irt_assert(data.size() == data.capacity());
+    irt_assert(data.ssize() == data.capacity());
     irt_assert(buffer);
     irt_assert(length > 0);
 
@@ -621,7 +621,7 @@ bool memory::read(void* buffer, i64 length) noexcept
 
 bool memory::write(const void* buffer, i64 length) noexcept
 {
-    irt_assert(data.size() == data.capacity());
+    irt_assert(data.ssize() == data.capacity());
     irt_assert(buffer);
     irt_assert(length > 0);
 
