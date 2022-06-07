@@ -443,8 +443,8 @@ static void application_show_windows(application& app) noexcept
     ImGui::SetNextWindowSize(project_size, window_size_flags);
     if (ImGui::Begin("Project", 0, window_flags)) {
         app.show_project_window();
-        ImGui::End();
     }
+    ImGui::End();
 
     selected_main_window windows;
     if (app.is_fixed_main_window) {
@@ -461,21 +461,21 @@ static void application_show_windows(application& app) noexcept
     ImGui::SetNextWindowSize(simulation_size, window_size_flags);
     if (ImGui::Begin("Log", 0, window_flags)) {
         app.show_log_window();
-        ImGui::End();
     }
+    ImGui::End();
 
     ImGui::SetNextWindowPos(components_pos, window_pos_flags);
     ImGui::SetNextWindowSize(components_size, window_size_flags);
     if (windows & selected_main_window_simulation) {
         if (ImGui::Begin("Observations##Window", 0, window_flags)) {
             app.show_simulation_observation_window();
-            ImGui::End();
         }
+        ImGui::End();
     } else {
         if (ImGui::Begin("Components list##Window", 0, window_flags)) {
             app.show_components_window();
-            ImGui::End();
         }
+        ImGui::End();
     }
 }
 
