@@ -231,6 +231,13 @@ static void application_show_menu(application& app) noexcept
                   "Show output editor", nullptr, &app.show_output_editor);
                 ImGui::MenuItem(
                   "Show data editor", nullptr, &app.show_data_editor);
+
+                ImGui::MenuItem("Show observation window",
+                                nullptr,
+                                &app.show_observation_window);
+                ImGui::MenuItem("Show component hierarchy",
+                                nullptr,
+                                &app.show_component_store_window);
             }
 
             ImGui::MenuItem("Show memory usage", nullptr, &app.show_memory);
@@ -446,15 +453,14 @@ static void application_show_windows(application& app) noexcept
     }
     ImGui::End();
 
-    selected_main_window windows;
     if (app.is_fixed_main_window) {
-        windows = app.show_main_as_tabbar(modeling_pos,
-                                          modeling_size,
-                                          window_flags,
-                                          window_pos_flags,
-                                          window_size_flags);
+        app.show_main_as_tabbar(modeling_pos,
+                                modeling_size,
+                                window_flags,
+                                window_pos_flags,
+                                window_size_flags);
     } else {
-        windows = app.show_main_as_window(modeling_pos, modeling_size);
+        app.show_main_as_window(modeling_pos, modeling_size);
     }
 
     ImGui::SetNextWindowPos(simulation_pos, window_pos_flags);
@@ -464,18 +470,42 @@ static void application_show_windows(application& app) noexcept
     }
     ImGui::End();
 
-    ImGui::SetNextWindowPos(components_pos, window_pos_flags);
-    ImGui::SetNextWindowSize(components_size, window_size_flags);
-    if (windows & selected_main_window_simulation) {
-        if (ImGui::Begin("Observations##Window", 0, window_flags)) {
-            app.show_simulation_observation_window();
+    if (app.is_fixed_main_window) {
+        ImGui::SetNextWindowPos(components_pos, window_pos_flags);
+        ImGui::SetNextWindowSize(components_size, window_size_flags);
+
+        if (ImGui::Begin("Tools", 0, window_flags)) {
+            if (ImGui::BeginTabBar("##Obs-Compo")) {
+                if (ImGui::BeginTabItem("Observations")) {
+                    app.show_simulation_observation_window();
+                    ImGui::EndTabItem();
+                }
+
+                if (ImGui::BeginTabItem("Component store")) {
+                    app.show_components_window();
+                    ImGui::EndTabItem();
+                }
+
+                ImGui::EndTabBar();
+            }
+            ImGui::End();
         }
-        ImGui::End();
     } else {
-        if (ImGui::Begin("Components list##Window", 0, window_flags)) {
-            app.show_components_window();
+        if (app.show_observation_window) {
+            if (ImGui::Begin("Observations##Window",
+                             &app.show_observation_window)) {
+                app.show_simulation_observation_window();
+            }
+            ImGui::End();
         }
-        ImGui::End();
+
+        if (app.show_component_store_window) {
+            if (ImGui::Begin("Components store##Window",
+                             &app.show_component_store_window)) {
+                app.show_components_window();
+            }
+            ImGui::End();
+        }
     }
 }
 
@@ -589,15 +619,12 @@ void application::show() noexcept
 //     ImGui::End();
 // }
 
-selected_main_window application::show_main_as_tabbar(
-  ImVec2           position,
-  ImVec2           size,
-  ImGuiWindowFlags window_flags,
-  ImGuiCond        position_flags,
-  ImGuiCond        size_flags) noexcept
+void application::show_main_as_tabbar(ImVec2           position,
+                                      ImVec2           size,
+                                      ImGuiWindowFlags window_flags,
+                                      ImGuiCond        position_flags,
+                                      ImGuiCond        size_flags) noexcept
 {
-    selected_main_window ret = selected_main_window_none;
-
     ImGui::SetNextWindowPos(position, position_flags);
     ImGui::SetNextWindowSize(size, size_flags);
     if (ImGui::Begin("Main", 0, window_flags)) {
@@ -605,36 +632,32 @@ selected_main_window application::show_main_as_tabbar(
           c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
         if (!tree) {
             ImGui::End();
-            return ret;
+            return;
         }
 
         component* compo = c_editor.mod.components.try_to_get(tree->id);
         if (!compo) {
             ImGui::End();
-            return ret;
+            return;
         }
 
         if (ImGui::BeginTabBar("##ModelingTabBar")) {
             if (ImGui::BeginTabItem("modeling")) {
-                ret = selected_main_window_modeling;
                 show_modeling_editor_widget();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("simulation")) {
-                ret = selected_main_window_simulation;
                 show_simulation_editor_widget();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("output")) {
-                ret = selected_main_window_output;
                 show_output_editor_widget();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("input")) {
-                ret = selected_main_window_data;
                 show_external_sources();
                 ImGui::EndTabItem();
             }
@@ -643,14 +666,10 @@ selected_main_window application::show_main_as_tabbar(
         }
     }
     ImGui::End();
-
-    return ret;
 }
 
-int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
+void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
 {
-    selected_main_window ret = selected_main_window_none;
-
     size.x -= 50;
     size.y -= 50;
 
@@ -658,9 +677,6 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
         if (ImGui::Begin("modeling", &show_modeling_editor)) {
-            if (ImGui::IsWindowFocused())
-                ret |= selected_main_window_modeling;
-
             show_modeling_editor_widget();
         }
         ImGui::End();
@@ -673,9 +689,6 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
         if (ImGui::Begin("simulation", &show_simulation_editor)) {
-            if (ImGui::IsWindowFocused())
-                ret |= selected_main_window_simulation;
-
             show_simulation_editor_widget();
         }
         ImGui::End();
@@ -688,9 +701,6 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
         if (ImGui::Begin("outputs", &show_output_editor)) {
-            if (ImGui::IsWindowFocused())
-                ret |= selected_main_window_output;
-
             show_output_editor_widget();
         }
         ImGui::End();
@@ -703,15 +713,10 @@ int application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
         ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(size, ImGuiCond_Once);
         if (ImGui::Begin("inputs", &show_data_editor)) {
-            if (ImGui::IsWindowFocused())
-                ret |= selected_main_window_data;
-
             show_external_sources();
         }
         ImGui::End();
     }
-
-    return ret;
 }
 
 // static void run_for(editor& ed, long long int duration_in_microseconds)

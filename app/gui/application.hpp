@@ -53,7 +53,6 @@ enum class simulation_observation_copy_id : u64;
 enum class gui_task_id : u64;
 
 using application_status   = u32;
-using selected_main_window = i32;
 using simulation_plot_type = i32;
 
 enum class notification_type
@@ -105,19 +104,6 @@ enum application_status_
     application_status_simulating           = 1 << 1,
     application_status_read_only_modeling   = 1 << 2,
     application_status_read_only_simulating = 1 << 3,
-};
-
-enum selected_main_window_
-{
-    selected_main_window_none       = 0,      //! All windows are hidden
-    selected_main_window_modeling   = 1 << 1, //! Only modeling window
-    selected_main_window_simulation = 1 << 2, //! Only simulation window
-    selected_main_window_output     = 1 << 3, //! Only output window
-    selected_main_window_data       = 1 << 4, // !Only data window
-    selected_main_window_all =
-      selected_main_window_modeling | selected_main_window_simulation |
-      selected_main_window_output |
-      selected_main_window_data //! All windows are displayed
 };
 
 enum simulation_plot_
@@ -489,10 +475,12 @@ struct application
     bool show_settings    = false;
     bool show_memory      = false;
 
-    bool show_data_editor       = true;
-    bool show_output_editor     = true;
-    bool show_simulation_editor = true;
-    bool show_modeling_editor   = true;
+    bool show_data_editor            = true;
+    bool show_output_editor          = true;
+    bool show_simulation_editor      = true;
+    bool show_modeling_editor        = true;
+    bool show_observation_window     = true;
+    bool show_component_store_window = true;
 
     bool new_project_file     = false; // rename menu_*
     bool load_project_file    = false; // rename menu_*
@@ -503,19 +491,18 @@ struct application
     bool init() noexcept;
     void show() noexcept;
 
-    void                 show_external_sources() noexcept;
-    void                 show_log_window() noexcept;
-    void                 show_simulation_observation_window() noexcept;
-    void                 show_components_window() noexcept;
-    void                 show_project_window() noexcept;
-    selected_main_window show_main_as_tabbar(ImVec2           position,
-                                             ImVec2           size,
-                                             ImGuiWindowFlags window_flags,
-                                             ImGuiCond        position_flags,
-                                             ImGuiCond size_flags) noexcept;
-    selected_main_window show_main_as_window(ImVec2 position,
-                                             ImVec2 size) noexcept;
-    void                 show_memory_box(bool* is_open) noexcept;
+    void show_external_sources() noexcept;
+    void show_log_window() noexcept;
+    void show_simulation_observation_window() noexcept;
+    void show_components_window() noexcept;
+    void show_project_window() noexcept;
+    void show_main_as_tabbar(ImVec2           position,
+                             ImVec2           size,
+                             ImGuiWindowFlags window_flags,
+                             ImGuiCond        position_flags,
+                             ImGuiCond        size_flags) noexcept;
+    void show_main_as_window(ImVec2 position, ImVec2 size) noexcept;
+    void show_memory_box(bool* is_open) noexcept;
 
     void show_modeling_editor_widget() noexcept;
     void show_simulation_editor_widget() noexcept;
