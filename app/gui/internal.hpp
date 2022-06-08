@@ -129,7 +129,7 @@ bool InputFilteredString(const char*                label,
     return ret;
 }
 
-template<size_t Length>
+template<int Length>
 bool InputSmallStringMultiline(const char*                label,
                                irt::small_string<Length>& string,
                                const ImVec2&              size  = ImVec2(0, 0),
