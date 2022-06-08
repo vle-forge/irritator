@@ -860,9 +860,9 @@ static void compute_automatic_layout(settings_manager&  settings,
        Experience, Vol. 21(1 1), 1129-1164 (november 1991).
        */
 
-    const auto orig_size = ed.sim.models.size();
+    const auto orig_size = ed.sim.models.ssize();
 
-    if (orig_size == 0 || orig_size > std::numeric_limits<int>::max())
+    if (orig_size == 0)
         return;
 
     const auto size      = static_cast<int>(orig_size);
@@ -957,7 +957,7 @@ static void compute_grid_layout(settings_manager&  settings,
     const auto size  = ed.sim.models.max_size();
     const auto fsize = static_cast<float>(size);
 
-    if (size == 0 || size > std::numeric_limits<u32>::max())
+    if (size == 0)
         return;
 
     const auto column    = std::floor(std::sqrt(fsize));

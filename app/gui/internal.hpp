@@ -88,22 +88,26 @@ bool InputReal(const char*         label,
     }
 }
 
-template<size_t Length>
+template<int Length>
 bool InputSmallString(const char*                label,
                       irt::small_string<Length>& string,
                       ImGuiInputTextFlags        flags     = 0,
                       ImGuiInputTextCallback     callback  = nullptr,
                       void*                      user_data = nullptr)
 {
-    const bool ret = ImGui::InputText(
-      label, string.begin(), string.capacity(), flags, callback, user_data);
+    const bool ret = ImGui::InputText(label,
+                                      string.begin(),
+                                      static_cast<size_t>(string.capacity()),
+                                      flags,
+                                      callback,
+                                      user_data);
 
-    string.resize(std::strlen(string.begin()));
+    string.resize(static_cast<int>(std::strlen(string.begin())));
 
     return ret;
 }
 
-template<size_t Length>
+template<int Length>
 bool InputFilteredString(const char*                label,
                          irt::small_string<Length>& string,
                          ImGuiInputTextFlags        flags = 0)
@@ -113,12 +117,12 @@ bool InputFilteredString(const char*                label,
 
     const bool ret = ImGui::InputText(label,
                                       string.begin(),
-                                      string.capacity(),
+                                      static_cast<size_t>(string.capacity()),
                                       flags,
                                       irt::portable_filename_dirname_callback,
                                       nullptr);
 
-    string.resize(std::strlen(string.begin()));
+    string.resize(static_cast<int>(std::strlen(string.begin())));
 
     return ret;
 }
@@ -131,15 +135,16 @@ bool InputSmallStringMultiline(const char*                label,
                                ImGuiInputTextCallback     callback  = nullptr,
                                void*                      user_data = nullptr)
 {
-    const bool ret = ImGui::InputTextMultiline(label,
-                                               string.begin(),
-                                               string.capacity(),
-                                               size,
-                                               flags,
-                                               callback,
-                                               user_data);
+    const bool ret =
+      ImGui::InputTextMultiline(label,
+                                string.begin(),
+                                static_cast<size_t>(string.capacity()),
+                                size,
+                                flags,
+                                callback,
+                                user_data);
 
-    string.resize(std::strlen(string.begin()));
+    string.resize(static_cast<int>(std::strlen(string.begin())));
 
     return ret;
 }

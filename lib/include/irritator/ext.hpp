@@ -62,7 +62,7 @@ public:
 //! @brief A vector like class but without dynamic allocation.
 //! @tparam T Any type (trivial or not).
 //! @tparam length The capacity of the vector.
-template<typename T, sz length>
+template<typename T, int length>
 class small_vector
 {
 public:
@@ -569,13 +569,13 @@ constexpr int table<Identifier, T>::ssize() const noexcept
 // template<typename T, size_type length>
 // class small_vector;
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr small_vector<T, length>::small_vector() noexcept
 {
     m_size = 0;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr small_vector<T, length>::small_vector(
   const small_vector<T, length>& other) noexcept
   : m_size(other.m_size)
@@ -583,13 +583,13 @@ constexpr small_vector<T, length>::small_vector(
     std::uninitialized_copy_n(other.data(), other.m_size, data());
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr small_vector<T, length>::~small_vector() noexcept
 {
     std::destroy_n(data(), m_size);
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr small_vector<T, length>& small_vector<T, length>::operator=(
   const small_vector<T, length>& other) noexcept
 {
@@ -601,7 +601,7 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
     return *this;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr status small_vector<T, length>::resize(int default_size) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<T> ||
@@ -626,19 +626,19 @@ constexpr status small_vector<T, length>::resize(int default_size) noexcept
     return status::success;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr T* small_vector<T, length>::data() noexcept
 {
     return reinterpret_cast<T*>(&m_buffer[0]);
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr const T* small_vector<T, length>::data() const noexcept
 {
     return reinterpret_cast<const T*>(&m_buffer[0]);
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::front() noexcept
 {
@@ -646,7 +646,7 @@ small_vector<T, length>::front() noexcept
     return m_buffer[0];
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::front() const noexcept
 {
@@ -654,7 +654,7 @@ small_vector<T, length>::front() const noexcept
     return m_buffer[0];
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::back() noexcept
 {
@@ -662,7 +662,7 @@ small_vector<T, length>::back() noexcept
     return m_buffer[m_size - 1];
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::back() const noexcept
 {
@@ -670,7 +670,7 @@ small_vector<T, length>::back() const noexcept
     return m_buffer[m_size - 1];
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::operator[](int index) noexcept
 {
@@ -680,7 +680,7 @@ small_vector<T, length>::operator[](int index) noexcept
     return data()[index];
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::operator[](int index) const noexcept
 {
@@ -690,72 +690,72 @@ small_vector<T, length>::operator[](int index) const noexcept
     return data()[index];
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::iterator
 small_vector<T, length>::begin() noexcept
 {
     return data();
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::const_iterator
 small_vector<T, length>::begin() const noexcept
 {
     return data();
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::iterator
 small_vector<T, length>::end() noexcept
 {
     return data() + m_size;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr typename small_vector<T, length>::const_iterator
 small_vector<T, length>::end() const noexcept
 {
     return data() + m_size;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr unsigned small_vector<T, length>::size() const noexcept
 {
     return m_size;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr int small_vector<T, length>::ssize() const noexcept
 {
     return m_size;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr int small_vector<T, length>::capacity() const noexcept
 {
     return length;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr bool small_vector<T, length>::empty() const noexcept
 {
     return m_size == 0;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr bool small_vector<T, length>::full() const noexcept
 {
     return m_size >= length;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr void small_vector<T, length>::clear() noexcept
 {
     std::destroy_n(data(), m_size);
     m_size = 0;
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr bool small_vector<T, length>::can_alloc(int number) noexcept
 {
     return static_cast<std::ptrdiff_t>(length) -
@@ -763,7 +763,7 @@ constexpr bool small_vector<T, length>::can_alloc(int number) noexcept
            static_cast<std::ptrdiff_t>(number);
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 template<typename... Args>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::emplace_back(Args&&... args) noexcept
@@ -781,7 +781,7 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
     return data()[m_size - 1];
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr void small_vector<T, length>::pop_back() noexcept
 {
     static_assert(std::is_nothrow_destructible_v<T> ||
@@ -795,7 +795,7 @@ constexpr void small_vector<T, length>::pop_back() noexcept
     }
 }
 
-template<typename T, sz length>
+template<typename T, int length>
 constexpr void small_vector<T, length>::swap_pop_back(int index) noexcept
 {
     irt_assert(std::cmp_greater_equal(index, 0) &&

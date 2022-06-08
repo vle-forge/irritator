@@ -699,7 +699,7 @@ private:
 };
 
 //! @brief A small_string without heap allocation.
-template<sz length = 8>
+template<int length = 8>
 class small_string
 {
 public:
@@ -735,7 +735,7 @@ public:
 
     constexpr unsigned size() const noexcept;
     constexpr int      ssize() const noexcept;
-    constexpr unsigned capacity() const noexcept;
+    constexpr int      capacity() const noexcept;
 
     constexpr reference       operator[](int index) noexcept;
     constexpr const_reference operator[](int index) const noexcept;
@@ -1924,7 +1924,15 @@ public:
         return m_free_head == none && m_max_used == m_capacity;
     }
 
-    constexpr unsigned size() const noexcept { return m_max_size; }
+    constexpr unsigned size() const noexcept
+    {
+        return static_cast<unsigned>(m_max_size);
+    }
+
+    constexpr int ssize() const noexcept
+    {
+        return static_cast<int>(m_max_size);
+    }
 
     constexpr bool can_alloc(const sz nb) const noexcept
     {
@@ -1939,11 +1947,9 @@ public:
         return m_capacity - m_max_size >= 1u;
     }
 
-    constexpr u32 max_size() const noexcept { return m_max_size; }
-
-    constexpr u32 max_used() const noexcept { return m_max_used; }
-
-    constexpr u32 capacity() const noexcept { return m_capacity; }
+    constexpr int max_size() const noexcept { return static_cast<int>(m_max_size); }
+    constexpr int max_used() const noexcept { return static_cast<int>(m_max_used); }
+    constexpr int capacity() const noexcept { return static_cast<int>(m_capacity); }
 
     constexpr u32 next_key() const noexcept { return m_next_key; }
 
@@ -7340,13 +7346,13 @@ i32 vector<T>::compute_new_capacity(i32 size) const
 // template<size_t length = 8>
 // class small_string
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>::small_string() noexcept
 {
     clear();
 }
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>::small_string(
   const small_string<length>& str) noexcept
 {
@@ -7355,7 +7361,7 @@ inline constexpr small_string<length>::small_string(
     m_size               = str.m_size;
 }
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>::small_string(
   small_string<length>&& str) noexcept
 {
@@ -7365,7 +7371,7 @@ inline constexpr small_string<length>::small_string(
     str.clear();
 }
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>& small_string<length>::operator=(
   const small_string<length>& str) noexcept
 {
@@ -7378,7 +7384,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
     return *this;
 }
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>& small_string<length>::operator=(
   small_string<length>&& str) noexcept
 {
@@ -7391,7 +7397,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
     return *this;
 }
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>& small_string<length>::operator=(
   const char* str) noexcept
 {
@@ -7403,7 +7409,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
     return *this;
 }
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>& small_string<length>::operator=(
   const std::string_view str) noexcept
 {
@@ -7412,7 +7418,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
     return *this;
 }
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>::small_string(const char* str) noexcept
 {
     std::strncpy(m_buffer, str, length - 1);
@@ -7420,14 +7426,14 @@ inline constexpr small_string<length>::small_string(const char* str) noexcept
     m_size               = static_cast<u8>(std::strlen(m_buffer));
 }
 
-template<sz length>
+template<int length>
 inline constexpr small_string<length>::small_string(
   const std::string_view str) noexcept
 {
     assign(str);
 }
 
-template<sz length>
+template<int length>
 void small_string<length>::resize(int size) noexcept
 {
     size_type real_size = size > std::numeric_limits<size_type>::max()
@@ -7438,61 +7444,64 @@ void small_string<length>::resize(int size) noexcept
     m_buffer[m_size] = '\0';
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::empty() const noexcept
 {
     return std::cmp_equal(m_size, 0);
 }
 
-template<sz length>
+template<int length>
 inline constexpr unsigned small_string<length>::size() const noexcept
 {
     return m_size;
 }
 
-template<sz length>
+template<int length>
 inline constexpr int small_string<length>::ssize() const noexcept
 {
     return m_size;
 }
 
-template<sz length>
-inline constexpr unsigned small_string<length>::capacity() const noexcept
+template<int length>
+inline constexpr int small_string<length>::capacity() const noexcept
 {
     return length;
 }
 
-template<sz length>
+template<int length>
 inline constexpr void small_string<length>::assign(
   const std::string_view str) noexcept
 {
-    const auto copy_length = std::min(str.size(), length - 1);
+    irt_assert(str.size() < std::numeric_limits<int>::max());
+
+    const auto orig_length = static_cast<int>(str.size());
+    const auto copy_length = std::min(orig_length, length - 1);
 
     std::memcpy(&m_buffer[0], str.data(), copy_length);
     m_buffer[copy_length] = '\0';
     m_size                = static_cast<size_type>(copy_length);
 }
 
-template<sz length>
+template<int length>
 inline constexpr std::string_view small_string<length>::sv() const noexcept
 {
     return { &m_buffer[0], m_size };
 }
 
-template<sz length>
+template<int length>
 inline constexpr std::u8string_view small_string<length>::u8sv() const noexcept
 {
     return { reinterpret_cast<const char8_t*>(&m_buffer[0]), m_size };
 }
 
-template<sz length>
+template<int length>
 inline constexpr void small_string<length>::clear() noexcept
 {
     std::fill_n(m_buffer, length, '\0');
     m_size = 0;
 }
 
-template<sz length>
+template<int length>
 inline constexpr typename small_string<length>::reference
 small_string<length>::operator[](int index) noexcept
 {
@@ -7501,7 +7510,7 @@ small_string<length>::operator[](int index) noexcept
     return m_buffer[index];
 }
 
-template<sz length>
+template<int length>
 inline constexpr typename small_string<length>::const_reference
 small_string<length>::operator[](int index) const noexcept
 {
@@ -7510,90 +7519,90 @@ small_string<length>::operator[](int index) const noexcept
     return m_buffer[index];
 }
 
-template<sz length>
+template<int length>
 inline constexpr const char* small_string<length>::c_str() const noexcept
 {
     return m_buffer;
 }
 
-template<sz length>
+template<int length>
 inline constexpr typename small_string<length>::iterator
 small_string<length>::begin() noexcept
 {
     return m_buffer;
 }
 
-template<sz length>
+template<int length>
 inline constexpr typename small_string<length>::iterator
 small_string<length>::end() noexcept
 {
     return m_buffer + m_size;
 }
 
-template<sz length>
+template<int length>
 inline constexpr typename small_string<length>::const_iterator
 small_string<length>::begin() const noexcept
 {
     return m_buffer;
 }
 
-template<sz length>
+template<int length>
 inline constexpr typename small_string<length>::const_iterator
 small_string<length>::end() const noexcept
 {
     return m_buffer + m_size;
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::operator==(
   const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) == 0;
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::operator!=(
   const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) != 0;
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::operator>(
   const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) > 0;
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::operator<(
   const small_string<length>& rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs.m_buffer, length) < 0;
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::operator==(
   const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) == 0;
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::operator!=(
   const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) != 0;
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::operator>(
   const char* rhs) const noexcept
 {
     return std::strncmp(m_buffer, rhs, length) > 0;
 }
 
-template<sz length>
+template<int length>
 inline constexpr bool small_string<length>::operator<(
   const char* rhs) const noexcept
 {

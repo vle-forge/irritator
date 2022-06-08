@@ -265,7 +265,7 @@ inline void worker::run() noexcept
 
     bool                running = true;
     std::array<task, 8> task_buffer;
-    ring_buffer<task>   tasks(task_buffer.data(), task_buffer.size());
+    ring_buffer<task>   tasks(task_buffer.data(), length(task_buffer));
 
     while (running) {
         while (!tasks.empty()) {

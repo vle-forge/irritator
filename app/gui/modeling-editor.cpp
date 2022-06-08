@@ -314,10 +314,10 @@ static void add_popup_menuitem(component_editor& ed,
 static void compute_grid_layout(settings_manager& settings,
                                 component&        compo) noexcept
 {
-    const auto size  = compo.children.size();
+    const auto size  = compo.children.ssize();
     const auto fsize = static_cast<float>(size);
 
-    if (size == 0 || size > std::numeric_limits<int>::max())
+    if (size == 0)
         return;
 
     const auto column    = std::floor(std::sqrt(fsize));
