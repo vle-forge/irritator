@@ -297,8 +297,10 @@ static void add_popup_menuitem(component_editor& ed,
         parent.state = component_status::modified;
 
         auto* app = container_of(&ed, &application::c_editor);
-        app->log_w.log(
-          7, "new model %zu\n", ordinal(parent.children.get_id(child)));
+        app->log_w.log(7,
+                       "new model %llu\n",
+                       static_cast<unsigned long long>(
+                         ordinal(parent.children.get_id(child))));
     }
 }
 
