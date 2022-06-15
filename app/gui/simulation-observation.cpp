@@ -82,7 +82,7 @@ static interpolate_type get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::time_func:
     case dynamics_type::accumulator_2:
     case dynamics_type::filter:
-    case dynamics_type::flow:
+    case dynamics_type::hsm_wrapper:
         return interpolate_type_none;
     }
 

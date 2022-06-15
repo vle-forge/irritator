@@ -1759,24 +1759,16 @@ void write(json_writer& writer, const filter& dyn) noexcept
     writer.EndObject();
 }
 
-bool load(flow& dyn, const stack_element_type type, const double value) noexcept
+bool load(hsm_wrapper& /*dyn*/,
+          const stack_element_type /*type*/,
+          const double /*value*/) noexcept
 {
-    if (type == stack_element_type::parameter_samplerate) {
-        dyn.default_samplerate = to_real(value);
-        return true;
-    }
-
     return false;
 }
 
-void write(json_writer& writer, const flow& dyn) noexcept
+void write(json_writer& writer, const hsm_wrapper& dyn) noexcept
 {
-    writer.Key("flow");
-
-    writer.StartObject();
-    writer.Key("samplerate");
-    writer.Double(dyn.default_samplerate);
-    writer.EndObject();
+    writer.Key("hsm");
 }
 
 inline bool convert_parameter_key(const std::string_view str,

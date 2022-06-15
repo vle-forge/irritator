@@ -465,7 +465,7 @@ void editor::show_editor(window_logger& log_w) noexcept
             add_popup_menuitem(*this, dynamics_type::time_func, &new_model);
             add_popup_menuitem(*this, dynamics_type::accumulator_2, &new_model);
             add_popup_menuitem(*this, dynamics_type::filter, &new_model);
-            add_popup_menuitem(*this, dynamics_type::flow, &new_model);
+            add_popup_menuitem(*this, dynamics_type::hsm_wrapper, &new_model);
 
             ImGui::EndPopup();
         }

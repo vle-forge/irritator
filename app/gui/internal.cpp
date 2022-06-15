@@ -61,8 +61,6 @@ const char* status_string(const status s) noexcept
         "model_quantifier_shifting_value_neg",
         "model_quantifier_shifting_value_less_1",
         "model_time_func_bad_init_message",
-        "model_flow_bad_samplerate",
-        "model_flow_bad_data",
 
         "modeling_too_many_description_open",
         "modeling_too_many_file_open",

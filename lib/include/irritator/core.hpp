@@ -370,8 +370,6 @@ enum class status
     model_quantifier_shifting_value_neg,
     model_quantifier_shifting_value_less_1,
     model_time_func_bad_init_message,
-    model_flow_bad_samplerate,
-    model_flow_bad_data,
 
     modeling_too_many_description_open,
     modeling_too_many_file_open,
@@ -2452,12 +2450,13 @@ enum class dynamics_type : i32
     time_func,
     accumulator_2,
     filter,
-    flow
+
+    hsm_wrapper
 };
 
 constexpr i8 dynamics_type_last() noexcept
 {
-    return static_cast<i8>(dynamics_type::flow);
+    return static_cast<i8>(dynamics_type::hsm_wrapper);
 }
 
 constexpr sz dynamics_type_size() noexcept
@@ -4882,76 +4881,36 @@ struct filter
     message observation(const time) const noexcept { return inValue[0]; }
 };
 
-struct flow
+struct hsm_wrapper
 {
-    output_port y[1];
-    time        sigma;
+    small_vector<input_port, 8>  x;
+    small_vector<output_port, 8> y;
 
-    real  default_samplerate = 44100.0;
-    real* default_data       = nullptr;
-    real* default_sigmas     = nullptr;
-    sz    default_size       = 0u;
+    real sigma;
 
-    real accu_sigma;
-    sz   i;
+    hsm_wrapper() noexcept = default;
 
-    flow() noexcept = default;
-
-    flow(const flow& other) noexcept
-      : sigma(other.sigma)
-      , default_samplerate(other.default_samplerate)
-      , default_data(other.default_data)
-      , default_sigmas(other.default_sigmas)
-      , default_size(other.default_size)
-      , accu_sigma(other.accu_sigma)
-      , i(other.i)
+    hsm_wrapper(const hsm_wrapper& other) noexcept
+      : x{ other.x }
+      , y{ other.y }
     {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        irt_return_if_fail(default_samplerate > zero,
-                           status::model_flow_bad_samplerate);
-
-        irt_return_if_fail(default_data != nullptr &&
-                             default_sigmas != nullptr && default_size > 1,
-                           status::model_flow_bad_data);
-
-        sigma      = one / default_samplerate;
-        accu_sigma = zero;
-        i          = 0;
+        sigma = time_domain<time>::infinity;
 
         return status::success;
     }
 
     status transition(simulation& /*sim*/,
-                      time t,
+                      time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        for (; i < default_size; ++i) {
-            accu_sigma += default_sigmas[i];
-
-            if (accu_sigma > t) {
-                sigma = default_sigmas[i];
-                return status::success;
-            }
-        }
-
-        sigma = time_domain<time>::infinity;
-        i     = default_size - 1;
-
         return status::success;
     }
 
-    status lambda(simulation& sim) noexcept
-    {
-        return send_message(sim, y[0], default_data[i]);
-    }
-
-    observation_message observation(const time /*e*/) const noexcept
-    {
-        return { default_data[i] };
-    }
+    status lambda(simulation& sim) noexcept { return status::success; }
 };
 
 template<size_t PortNumber>
@@ -5826,7 +5785,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(time_func),
                sizeof(accumulator_2),
                sizeof(filter),
-               sizeof(flow));
+               sizeof(hsm_wrapper));
 }
 
 struct model
@@ -5950,8 +5909,8 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
     case dynamics_type::filter:
         return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
-    case dynamics_type::flow:
-        return f(*reinterpret_cast<const flow*>(&mdl.dyn), args...);
+    case dynamics_type::hsm_wrapper:
+        return f(*reinterpret_cast<const hsm_wrapper*>(&mdl.dyn), args...);
     }
 
     irt_unreachable();
@@ -6066,8 +6025,8 @@ constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
     case dynamics_type::filter:
         return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
-    case dynamics_type::flow:
-        return f(*reinterpret_cast<flow*>(&mdl.dyn), args...);
+    case dynamics_type::hsm_wrapper:
+        return f(*reinterpret_cast<hsm_wrapper*>(&mdl.dyn), args...);
     }
 
     irt_unreachable();
@@ -6141,6 +6100,12 @@ inline bool is_ports_compatible(const model&               mdl_src,
     if (&mdl_src == &mdl_dst)
         return false;
 
+    if (mdl_dst.type == dynamics_type::hsm_wrapper) {
+        auto& dyn = get_dyn<hsm_wrapper>(mdl_dst);
+        if (i_port_index >= dyn.y.ssize())
+            return false;
+    }
+
     switch (mdl_src.type) {
     case dynamics_type::quantifier:
         if (mdl_dst.type == dynamics_type::integrator &&
@@ -6199,7 +6164,7 @@ inline bool is_ports_compatible(const model&               mdl_src,
     case dynamics_type::cross:
     case dynamics_type::time_func:
     case dynamics_type::filter:
-    case dynamics_type::flow:
+    case dynamics_type::hsm_wrapper:
     case dynamics_type::accumulator_2:
         if (mdl_dst.type == dynamics_type::integrator &&
             i_port_index ==
@@ -6465,8 +6430,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::accumulator_2;
     if constexpr (std::is_same_v<Dynamics, filter>)
         return dynamics_type::filter;
-    if constexpr (std::is_same_v<Dynamics, flow>)
-        return dynamics_type::flow;
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        return dynamics_type::hsm_wrapper;
 
     irt_unreachable();
 }

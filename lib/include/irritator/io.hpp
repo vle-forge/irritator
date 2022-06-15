@@ -58,8 +58,8 @@ inline bool convert(const std::string_view dynamics_name,
         { "cross", dynamics_type::cross },
         { "dynamic_queue", dynamics_type::dynamic_queue },
         { "filter", dynamics_type::filter },
-        { "flow", dynamics_type::flow },
         { "generator", dynamics_type::generator },
+        { "hsm", dynamics_type::hsm_wrapper },
         { "integrator", dynamics_type::integrator },
         { "mult_2", dynamics_type::mult_2 },
         { "mult_3", dynamics_type::mult_3 },
@@ -224,7 +224,7 @@ static constexpr const char** get_input_port_names() noexcept
     if constexpr (std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, flow>)
+                  std::is_same_v<Dynamics, hsm_wrapper>)
         return str_empty;
 
     if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
@@ -301,7 +301,9 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::generator:
     case dynamics_type::constant:
     case dynamics_type::time_func:
-    case dynamics_type::flow:
+        return str_empty;
+
+    case dynamics_type::hsm_wrapper:
         return str_empty;
 
     case dynamics_type::qss1_cross:
@@ -370,8 +372,7 @@ static constexpr const char** get_output_port_names() noexcept
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, filter> ||
-                  std::is_same_v<Dynamics, flow>)
+                  std::is_same_v<Dynamics, filter>)
         return str_out_1;
 
     if constexpr (std::is_same_v<Dynamics, cross> ||
@@ -380,7 +381,8 @@ static constexpr const char** get_output_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_cross>)
         return str_out_cross;
 
-    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
+    if constexpr (std::is_same_v<Dynamics, accumulator_2> ||
+                  std::is_same_v<Dynamics, hsm_wrapper>)
         return str_empty;
 
     irt_unreachable();
@@ -436,8 +438,10 @@ static constexpr const char** get_output_port_names(
     case dynamics_type::constant:
     case dynamics_type::time_func:
     case dynamics_type::filter:
-    case dynamics_type::flow:
         return str_out_1;
+
+    case dynamics_type::hsm_wrapper: // @todo Fix dynamics names
+        return str_empty;
 
     case dynamics_type::cross:
     case dynamics_type::qss1_cross:
@@ -1589,7 +1593,7 @@ private:
                   dyn.default_upper_threshold);
     }
 
-    bool read(flow& dyn) noexcept { return !!(is >> dyn.default_samplerate); }
+    bool read(hsm_wrapper& dyn) noexcept { return true; }
 };
 
 struct writer
@@ -2241,10 +2245,7 @@ private:
            << dyn.default_upper_threshold << '\n';
     }
 
-    void write(const flow& dyn) noexcept
-    {
-        os << "flow " << dyn.default_samplerate << '\n';
-    }
+    void write(const hsm_wrapper& dyn) noexcept { os << "hsm \n"; }
 };
 
 class dot_writer

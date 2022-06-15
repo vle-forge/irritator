@@ -39,7 +39,7 @@ inline const char* get_dynamics_type_name(dynamics_type type) noexcept
                                    "priority_queue",  "generator",
                                    "constant",        "cross",
                                    "time_func",       "accumulator_2",
-                                   "filter",          "flow" };
+                                   "filter",          "hsm" };
 
     return names[ordinal(type)];
 }
@@ -178,7 +178,7 @@ void show_dynamics_inputs(external_source& srcs, qss3_square& dyn);
 void show_dynamics_inputs(external_source& srcs, cross& dyn);
 void show_dynamics_inputs(external_source& srcs, accumulator_2& dyn);
 void show_dynamics_inputs(external_source& srcs, filter& dyn);
-void show_dynamics_inputs(external_source& srcs, flow& dyn);
+void show_dynamics_inputs(external_source& srcs, hsm_wrapper& dyn);
 void show_dynamics_inputs(external_source& srcs, time_func& dyn);
 
 void show_external_sources_combo(external_source& srcs,

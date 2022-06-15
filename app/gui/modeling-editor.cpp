@@ -574,7 +574,7 @@ static void show_popup_menuitem(component_editor& ed,
         add_popup_menuitem(ed, parent, dynamics_type::time_func, new_model);
         add_popup_menuitem(ed, parent, dynamics_type::accumulator_2, new_model);
         add_popup_menuitem(ed, parent, dynamics_type::filter, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::flow, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::hsm_wrapper, new_model);
 
         ImGui::EndPopup();
     }

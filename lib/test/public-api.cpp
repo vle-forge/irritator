@@ -335,7 +335,7 @@ int main()
         fmt::print("cross {}\n", sizeof(irt::cross));
         fmt::print("time_func {}\n", sizeof(irt::time_func));
         fmt::print("accumulator {}\n", sizeof(irt::accumulator_2));
-        fmt::print("flow {}\n", sizeof(irt::flow));
+        fmt::print("hsm_wrapper {}\n", sizeof(irt::hsm_wrapper));
         fmt::print("model {}\n", sizeof(irt::model));
         fmt::print("input_port {}\n", sizeof(irt::input_port));
         fmt::print("output_port {}\n", sizeof(irt::output_port));
@@ -1472,7 +1472,7 @@ int main()
             sim.alloc<irt::cross>();
             sim.alloc<irt::time_func>();
             sim.alloc<irt::accumulator_2>();
-            sim.alloc<irt::flow>();
+            sim.alloc<irt::hsm_wrapper>();
 
             std::ostringstream os;
             irt::writer        w(os);

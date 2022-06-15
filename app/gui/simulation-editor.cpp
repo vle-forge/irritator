@@ -459,12 +459,9 @@ static void show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
     ImGui::TextFormat("value {}", dyn.value);
 }
 
-static void show_dynamics_values(simulation& /*sim*/, const flow& dyn)
+static void show_dynamics_values(simulation& /*sim*/, const hsm_wrapper& /*dyn*/)
 {
-    if (dyn.i < dyn.default_size)
-        ImGui::TextFormat("value {}", dyn.default_data[dyn.i]);
-    else
-        ImGui::TextFormat("no data");
+    ImGui::TextFormat("no data");
 }
 
 static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
@@ -1098,7 +1095,7 @@ static void show_simulation_graph_editor(application& app) noexcept
         add_popup_menuitem(
           app.s_editor, dynamics_type::accumulator_2, &new_model);
         add_popup_menuitem(app.s_editor, dynamics_type::filter, &new_model);
-        add_popup_menuitem(app.s_editor, dynamics_type::flow, &new_model);
+        add_popup_menuitem(app.s_editor, dynamics_type::hsm_wrapper, &new_model);
 
         ImGui::EndPopup();
     }
