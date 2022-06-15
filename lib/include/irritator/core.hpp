@@ -6073,6 +6073,34 @@ constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
     irt_unreachable();
 }
 
+template<typename Dynamics>
+Dynamics& get_dyn(model& mdl) noexcept
+{
+    irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
+    return *reinterpret_cast<Dynamics*>(&mdl.dyn);
+}
+
+template<typename Dynamics>
+const Dynamics& get_dyn(const model& mdl) noexcept
+{
+    irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
+    return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
+}
+
+template<typename Dynamics>
+constexpr const model& get_model(const Dynamics& d) noexcept
+{
+    const Dynamics* __mptr = &d;
+    return *(const model*)((const char*)__mptr - offsetof(model, dyn));
+}
+
+template<typename Dynamics>
+constexpr model& get_model(Dynamics& d) noexcept
+{
+    Dynamics* __mptr = &d;
+    return *(model*)((char*)__mptr - offsetof(model, dyn));
+}
+
 inline status get_input_port(model& src, int port_src, input_port*& p) noexcept
 {
     return dispatch(
@@ -6441,34 +6469,6 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::flow;
 
     irt_unreachable();
-}
-
-template<typename Dynamics>
-Dynamics& get_dyn(model& mdl) noexcept
-{
-    irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
-    return *reinterpret_cast<Dynamics*>(&mdl.dyn);
-}
-
-template<typename Dynamics>
-const Dynamics& get_dyn(const model& mdl) noexcept
-{
-    irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
-    return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
-}
-
-template<typename Dynamics>
-constexpr const model& get_model(const Dynamics& d) noexcept
-{
-    const Dynamics* __mptr = &d;
-    return *(const model*)((const char*)__mptr - offsetof(model, dyn));
-}
-
-template<typename Dynamics>
-constexpr model& get_model(Dynamics& d) noexcept
-{
-    Dynamics* __mptr = &d;
-    return *(model*)((char*)__mptr - offsetof(model, dyn));
 }
 
 inline void copy(const model& src, model& dst) noexcept
