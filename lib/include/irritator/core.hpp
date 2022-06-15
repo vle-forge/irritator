@@ -2013,9 +2013,18 @@ public:
         return m_capacity - m_max_size >= 1u;
     }
 
-    constexpr int max_size() const noexcept { return static_cast<int>(m_max_size); }
-    constexpr int max_used() const noexcept { return static_cast<int>(m_max_used); }
-    constexpr int capacity() const noexcept { return static_cast<int>(m_capacity); }
+    constexpr int max_size() const noexcept
+    {
+        return static_cast<int>(m_max_size);
+    }
+    constexpr int max_used() const noexcept
+    {
+        return static_cast<int>(m_max_used);
+    }
+    constexpr int capacity() const noexcept
+    {
+        return static_cast<int>(m_capacity);
+    }
 
     constexpr u32 next_key() const noexcept { return m_next_key; }
 
