@@ -5800,6 +5800,119 @@ struct model
     std::byte dyn[max_size_in_bytes()];
 };
 
+template<typename Dynamics>
+static constexpr dynamics_type dynamics_typeof() noexcept
+{
+    if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
+        return dynamics_type::qss1_integrator;
+    if constexpr (std::is_same_v<Dynamics, qss1_multiplier>)
+        return dynamics_type::qss1_multiplier;
+    if constexpr (std::is_same_v<Dynamics, qss1_cross>)
+        return dynamics_type::qss1_cross;
+    if constexpr (std::is_same_v<Dynamics, qss1_power>)
+        return dynamics_type::qss1_power;
+    if constexpr (std::is_same_v<Dynamics, qss1_square>)
+        return dynamics_type::qss1_square;
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_2>)
+        return dynamics_type::qss1_sum_2;
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_3>)
+        return dynamics_type::qss1_sum_3;
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_4>)
+        return dynamics_type::qss1_sum_4;
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_2>)
+        return dynamics_type::qss1_wsum_2;
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_3>)
+        return dynamics_type::qss1_wsum_3;
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_4>)
+        return dynamics_type::qss1_wsum_4;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
+        return dynamics_type::qss2_integrator;
+    if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
+        return dynamics_type::qss2_multiplier;
+    if constexpr (std::is_same_v<Dynamics, qss2_cross>)
+        return dynamics_type::qss2_cross;
+    if constexpr (std::is_same_v<Dynamics, qss2_power>)
+        return dynamics_type::qss2_power;
+    if constexpr (std::is_same_v<Dynamics, qss2_square>)
+        return dynamics_type::qss2_square;
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
+        return dynamics_type::qss2_sum_2;
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
+        return dynamics_type::qss2_sum_3;
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_4>)
+        return dynamics_type::qss2_sum_4;
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_2>)
+        return dynamics_type::qss2_wsum_2;
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_3>)
+        return dynamics_type::qss2_wsum_3;
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
+        return dynamics_type::qss2_wsum_4;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
+        return dynamics_type::qss3_integrator;
+    if constexpr (std::is_same_v<Dynamics, qss3_multiplier>)
+        return dynamics_type::qss3_multiplier;
+    if constexpr (std::is_same_v<Dynamics, qss3_cross>)
+        return dynamics_type::qss3_cross;
+    if constexpr (std::is_same_v<Dynamics, qss3_power>)
+        return dynamics_type::qss3_power;
+    if constexpr (std::is_same_v<Dynamics, qss3_square>)
+        return dynamics_type::qss3_square;
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_2>)
+        return dynamics_type::qss3_sum_2;
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_3>)
+        return dynamics_type::qss3_sum_3;
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_4>)
+        return dynamics_type::qss3_sum_4;
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_2>)
+        return dynamics_type::qss3_wsum_2;
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_3>)
+        return dynamics_type::qss3_wsum_3;
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
+        return dynamics_type::qss3_wsum_4;
+    if constexpr (std::is_same_v<Dynamics, integrator>)
+        return dynamics_type::integrator;
+    if constexpr (std::is_same_v<Dynamics, quantifier>)
+        return dynamics_type::quantifier;
+    if constexpr (std::is_same_v<Dynamics, adder_2>)
+        return dynamics_type::adder_2;
+    if constexpr (std::is_same_v<Dynamics, adder_3>)
+        return dynamics_type::adder_3;
+    if constexpr (std::is_same_v<Dynamics, adder_4>)
+        return dynamics_type::adder_4;
+    if constexpr (std::is_same_v<Dynamics, mult_2>)
+        return dynamics_type::mult_2;
+    if constexpr (std::is_same_v<Dynamics, mult_3>)
+        return dynamics_type::mult_3;
+    if constexpr (std::is_same_v<Dynamics, mult_4>)
+        return dynamics_type::mult_4;
+    if constexpr (std::is_same_v<Dynamics, counter>)
+        return dynamics_type::counter;
+    if constexpr (std::is_same_v<Dynamics, queue>)
+        return dynamics_type::queue;
+    if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
+        return dynamics_type::dynamic_queue;
+    if constexpr (std::is_same_v<Dynamics, priority_queue>)
+        return dynamics_type::priority_queue;
+    if constexpr (std::is_same_v<Dynamics, generator>)
+        return dynamics_type::generator;
+    if constexpr (std::is_same_v<Dynamics, constant>)
+        return dynamics_type::constant;
+    if constexpr (std::is_same_v<Dynamics, cross>)
+        return dynamics_type::cross;
+    if constexpr (std::is_same_v<Dynamics, time_func>)
+        return dynamics_type::time_func;
+    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
+        return dynamics_type::accumulator_2;
+    if constexpr (std::is_same_v<Dynamics, filter>)
+        return dynamics_type::filter;
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        return dynamics_type::hsm_wrapper;
+
+    irt_unreachable();
+}
+
 template<typename Function, typename... Args>
 constexpr auto dispatch(const model& mdl, Function&& f, Args... args) noexcept
 {
@@ -6322,119 +6435,6 @@ public:
  * simulation
  *
  ****************************************************************************/
-
-template<typename Dynamics>
-static constexpr dynamics_type dynamics_typeof() noexcept
-{
-    if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
-        return dynamics_type::qss1_integrator;
-    if constexpr (std::is_same_v<Dynamics, qss1_multiplier>)
-        return dynamics_type::qss1_multiplier;
-    if constexpr (std::is_same_v<Dynamics, qss1_cross>)
-        return dynamics_type::qss1_cross;
-    if constexpr (std::is_same_v<Dynamics, qss1_power>)
-        return dynamics_type::qss1_power;
-    if constexpr (std::is_same_v<Dynamics, qss1_square>)
-        return dynamics_type::qss1_square;
-    if constexpr (std::is_same_v<Dynamics, qss1_sum_2>)
-        return dynamics_type::qss1_sum_2;
-    if constexpr (std::is_same_v<Dynamics, qss1_sum_3>)
-        return dynamics_type::qss1_sum_3;
-    if constexpr (std::is_same_v<Dynamics, qss1_sum_4>)
-        return dynamics_type::qss1_sum_4;
-    if constexpr (std::is_same_v<Dynamics, qss1_wsum_2>)
-        return dynamics_type::qss1_wsum_2;
-    if constexpr (std::is_same_v<Dynamics, qss1_wsum_3>)
-        return dynamics_type::qss1_wsum_3;
-    if constexpr (std::is_same_v<Dynamics, qss1_wsum_4>)
-        return dynamics_type::qss1_wsum_4;
-
-    if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
-        return dynamics_type::qss2_integrator;
-    if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
-        return dynamics_type::qss2_multiplier;
-    if constexpr (std::is_same_v<Dynamics, qss2_cross>)
-        return dynamics_type::qss2_cross;
-    if constexpr (std::is_same_v<Dynamics, qss2_power>)
-        return dynamics_type::qss2_power;
-    if constexpr (std::is_same_v<Dynamics, qss2_square>)
-        return dynamics_type::qss2_square;
-    if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
-        return dynamics_type::qss2_sum_2;
-    if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
-        return dynamics_type::qss2_sum_3;
-    if constexpr (std::is_same_v<Dynamics, qss2_sum_4>)
-        return dynamics_type::qss2_sum_4;
-    if constexpr (std::is_same_v<Dynamics, qss2_wsum_2>)
-        return dynamics_type::qss2_wsum_2;
-    if constexpr (std::is_same_v<Dynamics, qss2_wsum_3>)
-        return dynamics_type::qss2_wsum_3;
-    if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
-        return dynamics_type::qss2_wsum_4;
-
-    if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
-        return dynamics_type::qss3_integrator;
-    if constexpr (std::is_same_v<Dynamics, qss3_multiplier>)
-        return dynamics_type::qss3_multiplier;
-    if constexpr (std::is_same_v<Dynamics, qss3_cross>)
-        return dynamics_type::qss3_cross;
-    if constexpr (std::is_same_v<Dynamics, qss3_power>)
-        return dynamics_type::qss3_power;
-    if constexpr (std::is_same_v<Dynamics, qss3_square>)
-        return dynamics_type::qss3_square;
-    if constexpr (std::is_same_v<Dynamics, qss3_sum_2>)
-        return dynamics_type::qss3_sum_2;
-    if constexpr (std::is_same_v<Dynamics, qss3_sum_3>)
-        return dynamics_type::qss3_sum_3;
-    if constexpr (std::is_same_v<Dynamics, qss3_sum_4>)
-        return dynamics_type::qss3_sum_4;
-    if constexpr (std::is_same_v<Dynamics, qss3_wsum_2>)
-        return dynamics_type::qss3_wsum_2;
-    if constexpr (std::is_same_v<Dynamics, qss3_wsum_3>)
-        return dynamics_type::qss3_wsum_3;
-    if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
-        return dynamics_type::qss3_wsum_4;
-    if constexpr (std::is_same_v<Dynamics, integrator>)
-        return dynamics_type::integrator;
-    if constexpr (std::is_same_v<Dynamics, quantifier>)
-        return dynamics_type::quantifier;
-    if constexpr (std::is_same_v<Dynamics, adder_2>)
-        return dynamics_type::adder_2;
-    if constexpr (std::is_same_v<Dynamics, adder_3>)
-        return dynamics_type::adder_3;
-    if constexpr (std::is_same_v<Dynamics, adder_4>)
-        return dynamics_type::adder_4;
-    if constexpr (std::is_same_v<Dynamics, mult_2>)
-        return dynamics_type::mult_2;
-    if constexpr (std::is_same_v<Dynamics, mult_3>)
-        return dynamics_type::mult_3;
-    if constexpr (std::is_same_v<Dynamics, mult_4>)
-        return dynamics_type::mult_4;
-    if constexpr (std::is_same_v<Dynamics, counter>)
-        return dynamics_type::counter;
-    if constexpr (std::is_same_v<Dynamics, queue>)
-        return dynamics_type::queue;
-    if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
-        return dynamics_type::dynamic_queue;
-    if constexpr (std::is_same_v<Dynamics, priority_queue>)
-        return dynamics_type::priority_queue;
-    if constexpr (std::is_same_v<Dynamics, generator>)
-        return dynamics_type::generator;
-    if constexpr (std::is_same_v<Dynamics, constant>)
-        return dynamics_type::constant;
-    if constexpr (std::is_same_v<Dynamics, cross>)
-        return dynamics_type::cross;
-    if constexpr (std::is_same_v<Dynamics, time_func>)
-        return dynamics_type::time_func;
-    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
-        return dynamics_type::accumulator_2;
-    if constexpr (std::is_same_v<Dynamics, filter>)
-        return dynamics_type::filter;
-    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-        return dynamics_type::hsm_wrapper;
-
-    irt_unreachable();
-}
 
 inline void copy(const model& src, model& dst) noexcept
 {
