@@ -1613,10 +1613,10 @@ int main()
         expect(sim.can_alloc(2));
 
         expect(srcs.constant_sources.can_alloc(2u));
-        auto& cst_value = srcs.constant_sources.alloc(32);
+        auto& cst_value  = srcs.constant_sources.alloc(32);
         cst_value.buffer = { 1., 2., 3., 4., 5., 6., 7., 8., 9., 10. };
 
-        auto& cst_ta = srcs.constant_sources.alloc(32);
+        auto& cst_ta  = srcs.constant_sources.alloc(32);
         cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
 
         auto& gen = sim.alloc<irt::generator>();

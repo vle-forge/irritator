@@ -17,13 +17,12 @@
 #endif
 #endif
 
-#include <memory>
-#include <string_view>
-#include <type_traits>
-
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <memory>
+#include <string_view>
+#include <type_traits>
 
 /*****************************************************************************
  *
@@ -44,7 +43,7 @@ static inline bool is_fatal_breakpoint = true;
 static inline bool is_fatal_breakpoint = false;
 #endif
 
-}
+} // namespace irt
 
 #ifndef NDEBUG
 #if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
