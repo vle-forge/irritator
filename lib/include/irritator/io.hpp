@@ -1593,7 +1593,7 @@ private:
                   dyn.default_upper_threshold);
     }
 
-    bool read(hsm_wrapper& dyn) noexcept { return true; }
+    bool read(hsm_wrapper& /*dyn*/) noexcept { return true; }
 };
 
 struct writer
@@ -2245,7 +2245,7 @@ private:
            << dyn.default_upper_threshold << '\n';
     }
 
-    void write(const hsm_wrapper& dyn) noexcept { os << "hsm \n"; }
+    void write(const hsm_wrapper& /*dyn*/) noexcept { os << "hsm \n"; }
 };
 
 class dot_writer

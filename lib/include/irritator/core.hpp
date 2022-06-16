@@ -4910,7 +4910,7 @@ struct hsm_wrapper
         return status::success;
     }
 
-    status lambda(simulation& sim) noexcept { return status::success; }
+    status lambda(simulation& /*sim*/) noexcept { return status::success; }
 };
 
 template<size_t PortNumber>

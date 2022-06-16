@@ -1766,7 +1766,7 @@ bool load(hsm_wrapper& /*dyn*/,
     return false;
 }
 
-void write(json_writer& writer, const hsm_wrapper& dyn) noexcept
+void write(json_writer& writer, const hsm_wrapper& /*dyn*/) noexcept
 {
     writer.Key("hsm");
 }

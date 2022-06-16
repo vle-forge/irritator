@@ -738,39 +738,39 @@ int main()
 
     "small_string"_test = [] {
         irt::small_string<8> f1;
-        expect(f1.capacity() == 8_ul);
+        expect(f1.capacity() == 8);
         expect(f1 == "");
-        expect(f1.size() == 0_ul);
+        expect(f1.ssize() == 0);
 
         f1 = "ok";
         expect(f1 == "ok");
-        expect(f1.size() == 2_ul);
+        expect(f1.ssize() == 2);
 
         f1 = "okok";
         expect(f1 == "okok");
-        expect(f1.size() == 4_ul);
+        expect(f1.ssize() == 4);
 
         f1 = "okok123456";
         expect(f1 == "okok123");
-        expect(f1.size() == 7_ul);
+        expect(f1.ssize() == 7);
 
         irt::small_string<8> f2(f1);
         expect(f2 == "okok123");
-        expect(f2.size() == 7_ul);
+        expect(f2.ssize() == 7);
 
         expect(f1.c_str() != f2.c_str());
 
         irt::small_string<8> f3("012345678");
         expect(f3 == "0123456");
-        expect(f3.size() == 7_ul);
+        expect(f3.ssize() == 7);
 
         f3.clear();
         expect(f3 == "");
-        expect(f3.size() == 0_ul);
+        expect(f3.ssize() == 0);
 
         f3 = f2;
         expect(f3 == "okok123");
-        expect(f3.size() == 7_ul);
+        expect(f3.ssize() == 7);
 
         irt::small_string<8> f4;
         std::string_view     t0 = "012345678";
@@ -778,11 +778,11 @@ int main()
 
         f4 = t0;
         expect(f4 == "0123456");
-        expect(f4.size() == 7_ul);
+        expect(f4.ssize() == 7);
 
         f4 = t1;
         expect(f4 == "okok123");
-        expect(f4.size() == 7_ul);
+        expect(f4.ssize() == 7);
     };
 
     "list"_test = [] {

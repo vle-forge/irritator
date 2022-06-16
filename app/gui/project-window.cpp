@@ -40,10 +40,11 @@ void project_hierarchy_selection::clear() noexcept
     ch     = undefined<child_id>();
 }
 
-static void show_project_hierarchy_child_observable(simulation_editor& sim_ed,
-                                                    tree_node&         parent,
-                                                    component&         compo,
-                                                    child& ch) noexcept
+static void show_project_hierarchy_child_observable(
+  simulation_editor& /*sim_ed*/,
+  tree_node& parent,
+  component& compo,
+  child&     ch) noexcept
 {
     auto  id  = enum_cast<model_id>(ch.id);
     auto* mdl = compo.models.try_to_get(id);
