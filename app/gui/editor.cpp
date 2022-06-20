@@ -446,6 +446,34 @@ void show_dynamics_inputs(external_source& /*srcs*/, filter& dyn)
     ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
 }
 
+void show_dynamics_inputs(external_source& /*srcs*/, logical_and_2& dyn)
+{
+    ImGui::Checkbox("value 1", &dyn.default_values[0]);
+    ImGui::Checkbox("value 2", &dyn.default_values[1]);
+}
+
+void show_dynamics_inputs(external_source& /*srcs*/, logical_or_2& dyn)
+{
+    ImGui::Checkbox("value 1", &dyn.default_values[0]);
+    ImGui::Checkbox("value 2", &dyn.default_values[1]);
+}
+
+void show_dynamics_inputs(external_source& /*srcs*/, logical_and_3& dyn)
+{
+    ImGui::Checkbox("value 1", &dyn.default_values[0]);
+    ImGui::Checkbox("value 2", &dyn.default_values[1]);
+    ImGui::Checkbox("value 3", &dyn.default_values[2]);
+}
+
+void show_dynamics_inputs(external_source& /*srcs*/, logical_or_3& dyn)
+{
+    ImGui::Checkbox("value 1", &dyn.default_values[0]);
+    ImGui::Checkbox("value 2", &dyn.default_values[1]);
+    ImGui::Checkbox("value 3", &dyn.default_values[2]);
+}
+
+void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
+
 void show_dynamics_inputs(external_source& /*srcs*/, hsm_wrapper& /*dyn*/) {}
 
 void show_dynamics_inputs(external_source& /*srcs*/, time_func& dyn)

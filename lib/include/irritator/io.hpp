@@ -18,19 +18,25 @@
 namespace irt {
 
 static inline const char* dynamics_type_names[] = {
-    "qss1_integrator", "qss1_multiplier", "qss1_cross",      "qss1_power",
-    "qss1_square",     "qss1_sum_2",      "qss1_sum_3",      "qss1_sum_4",
-    "qss1_wsum_2",     "qss1_wsum_3",     "qss1_wsum_4",     "qss2_integrator",
-    "qss2_multiplier", "qss2_cross",      "qss2_power",      "qss2_square",
-    "qss2_sum_2",      "qss2_sum_3",      "qss2_sum_4",      "qss2_wsum_2",
-    "qss2_wsum_3",     "qss2_wsum_4",     "qss3_integrator", "qss3_multiplier",
-    "qss3_cross",      "qss3_power",      "qss3_square",     "qss3_sum_2",
-    "qss3_sum_3",      "qss3_sum_4",      "qss3_wsum_2",     "qss3_wsum_3",
-    "qss3_wsum_4",     "integrator",      "quantifier",      "adder_2",
-    "adder_3",         "adder_4",         "mult_2",          "mult_3",
-    "mult_4",          "counter",         "queue",           "dynamic_queue",
-    "priority_queue",  "generator",       "constant",        "cross",
-    "time_func",       "accumulator_2",   "filter",          "flow"
+    "qss1_integrator", "qss1_multiplier", "qss1_cross",
+    "qss1_power",      "qss1_square",     "qss1_sum_2",
+    "qss1_sum_3",      "qss1_sum_4",      "qss1_wsum_2",
+    "qss1_wsum_3",     "qss1_wsum_4",     "qss2_integrator",
+    "qss2_multiplier", "qss2_cross",      "qss2_power",
+    "qss2_square",     "qss2_sum_2",      "qss2_sum_3",
+    "qss2_sum_4",      "qss2_wsum_2",     "qss2_wsum_3",
+    "qss2_wsum_4",     "qss3_integrator", "qss3_multiplier",
+    "qss3_cross",      "qss3_power",      "qss3_square",
+    "qss3_sum_2",      "qss3_sum_3",      "qss3_sum_4",
+    "qss3_wsum_2",     "qss3_wsum_3",     "qss3_wsum_4",
+    "integrator",      "quantifier",      "adder_2",
+    "adder_3",         "adder_4",         "mult_2",
+    "mult_3",          "mult_4",          "counter",
+    "queue",           "dynamic_queue",   "priority_queue",
+    "generator",       "constant",        "cross",
+    "time_func",       "accumulator_2",   "filter",
+    "logical_and_2",   "logical_and_3",   "logical_invert",
+    "logical_or_2",    "logical_or_3",    "hsm"
 };
 
 inline bool convert(const std::string_view dynamics_name,
@@ -61,6 +67,11 @@ inline bool convert(const std::string_view dynamics_name,
         { "generator", dynamics_type::generator },
         { "hsm", dynamics_type::hsm_wrapper },
         { "integrator", dynamics_type::integrator },
+        { "logical_and_2", dynamics_type::logical_and_2 },
+        { "logical_and_3", dynamics_type::logical_and_3 },
+        { "logical_invert", dynamics_type::logical_invert },
+        { "logical_or_2", dynamics_type::logical_or_2 },
+        { "logical_or_3", dynamics_type::logical_or_3 },
         { "mult_2", dynamics_type::mult_2 },
         { "mult_3", dynamics_type::mult_3 },
         { "mult_4", dynamics_type::mult_4 },
@@ -181,7 +192,9 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_sum_2> ||
                   std::is_same_v<Dynamics, qss3_wsum_2> ||
                   std::is_same_v<Dynamics, adder_2> ||
-                  std::is_same_v<Dynamics, mult_2>)
+                  std::is_same_v<Dynamics, mult_2> ||
+                  std::is_same_v<Dynamics, logical_and_2> ||
+                  std::is_same_v<Dynamics, logical_or_2>)
         return str_in_2;
 
     if constexpr (std::is_same_v<Dynamics, qss1_sum_3> ||
@@ -191,7 +204,9 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_sum_3> ||
                   std::is_same_v<Dynamics, qss3_wsum_3> ||
                   std::is_same_v<Dynamics, adder_3> ||
-                  std::is_same_v<Dynamics, mult_3>)
+                  std::is_same_v<Dynamics, mult_3> ||
+                  std::is_same_v<Dynamics, logical_and_3> ||
+                  std::is_same_v<Dynamics, logical_or_3>)
         return str_in_3;
 
     if constexpr (std::is_same_v<Dynamics, qss1_sum_4> ||
@@ -218,7 +233,8 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_power> ||
                   std::is_same_v<Dynamics, qss1_square> ||
                   std::is_same_v<Dynamics, qss2_square> ||
-                  std::is_same_v<Dynamics, qss3_square>)
+                  std::is_same_v<Dynamics, qss3_square> ||
+                  std::is_same_v<Dynamics, logical_invert>)
         return str_in_1;
 
     if constexpr (std::is_same_v<Dynamics, generator> ||
@@ -259,6 +275,8 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::qss3_wsum_2:
     case dynamics_type::adder_2:
     case dynamics_type::mult_2:
+    case dynamics_type::logical_and_2:
+    case dynamics_type::logical_or_2:
         return str_in_2;
 
     case dynamics_type::qss1_sum_3:
@@ -269,6 +287,8 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::adder_3:
     case dynamics_type::mult_3:
+    case dynamics_type::logical_and_3:
+    case dynamics_type::logical_or_3:
         return str_in_3;
 
     case dynamics_type::qss1_sum_4:
@@ -296,6 +316,7 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::qss1_square:
     case dynamics_type::qss2_square:
     case dynamics_type::qss3_square:
+    case dynamics_type::logical_invert:
         return str_in_1;
 
     case dynamics_type::generator:
@@ -372,7 +393,12 @@ static constexpr const char** get_output_port_names() noexcept
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, filter>)
+                  std::is_same_v<Dynamics, filter> ||
+                  std::is_same_v<Dynamics, logical_and_2> ||
+                  std::is_same_v<Dynamics, logical_and_3> ||
+                  std::is_same_v<Dynamics, logical_or_2> ||
+                  std::is_same_v<Dynamics, logical_or_3> ||
+                  std::is_same_v<Dynamics, logical_invert>)
         return str_out_1;
 
     if constexpr (std::is_same_v<Dynamics, cross> ||
@@ -438,6 +464,11 @@ static constexpr const char** get_output_port_names(
     case dynamics_type::constant:
     case dynamics_type::time_func:
     case dynamics_type::filter:
+    case dynamics_type::logical_and_2:
+    case dynamics_type::logical_or_2:
+    case dynamics_type::logical_and_3:
+    case dynamics_type::logical_or_3:
+    case dynamics_type::logical_invert:
         return str_out_1;
 
     case dynamics_type::hsm_wrapper: // @todo Fix dynamics names
@@ -1593,6 +1624,29 @@ private:
                   dyn.default_upper_threshold);
     }
 
+    bool read(logical_and_2& dyn) noexcept
+    {
+        return !!(is >> dyn.default_values[0] >> dyn.default_values[1]);
+    }
+
+    bool read(logical_or_2& dyn) noexcept
+    {
+        return !!(is >> dyn.default_values[0] >> dyn.default_values[1]);
+    }
+
+    bool read(logical_and_3& dyn) noexcept
+    {
+        return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
+                  dyn.default_values[2]);
+    }
+
+    bool read(logical_or_3& dyn) noexcept
+    {
+        return !!(is >> dyn.default_values[0] >> dyn.default_values[1] >>
+                  dyn.default_values[2]);
+    }
+
+    bool read(logical_invert& /*dyn*/) noexcept { return true; }
     bool read(hsm_wrapper& /*dyn*/) noexcept { return true; }
 };
 
@@ -2245,6 +2299,34 @@ private:
            << dyn.default_upper_threshold << '\n';
     }
 
+    void write(const logical_and_2& dyn) noexcept
+    {
+        os << "logical_and_2 " << dyn.default_values[0] << ' '
+           << dyn.default_values[1] << '\n';
+    }
+
+    void write(const logical_or_2& dyn) noexcept
+    {
+        os << "logical_or_2 " << dyn.default_values[0] << ' '
+           << dyn.default_values[1] << '\n';
+    }
+
+    void write(const logical_and_3& dyn) noexcept
+    {
+        os << "logical_and_3 " << dyn.default_values[0] << ' '
+           << dyn.default_values[1] << ' ' << dyn.default_values[2] << '\n';
+    }
+
+    void write(const logical_or_3& dyn) noexcept
+    {
+        os << "logical_or_3 " << dyn.default_values[0] << ' '
+           << dyn.default_values[1] << ' ' << dyn.default_values[2] << '\n';
+    }
+
+    void write(const logical_invert& /*dyn*/) noexcept
+    {
+        os << "logical_invert\n";
+    }
     void write(const hsm_wrapper& /*dyn*/) noexcept { os << "hsm \n"; }
 };
 

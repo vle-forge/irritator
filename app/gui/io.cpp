@@ -1759,6 +1759,148 @@ void write(json_writer& writer, const filter& dyn) noexcept
     writer.EndObject();
 }
 
+bool load(logical_and_2&           dyn,
+          const stack_element_type type,
+          const bool               value) noexcept
+{
+    if (type == stack_element_type::parameter_value0) {
+        dyn.default_values[0] = value;
+        return true;
+    }
+
+    if (type == stack_element_type::parameter_value1) {
+        dyn.default_values[1] = value;
+        return true;
+    }
+
+    return false;
+}
+
+bool load(logical_or_2&            dyn,
+          const stack_element_type type,
+          const bool               value) noexcept
+{
+    if (type == stack_element_type::parameter_value0) {
+        dyn.default_values[0] = value;
+        return true;
+    }
+
+    if (type == stack_element_type::parameter_value1) {
+        dyn.default_values[1] = value;
+        return true;
+    }
+
+    return false;
+}
+
+bool load(logical_and_3&           dyn,
+          const stack_element_type type,
+          const bool               value) noexcept
+{
+    if (type == stack_element_type::parameter_value0) {
+        dyn.default_values[0] = value;
+        return true;
+    }
+
+    if (type == stack_element_type::parameter_value1) {
+        dyn.default_values[1] = value;
+        return true;
+    }
+
+    if (type == stack_element_type::parameter_value2) {
+        dyn.default_values[2] = value;
+        return true;
+    }
+
+    return false;
+}
+
+bool load(logical_or_3&            dyn,
+          const stack_element_type type,
+          const bool               value) noexcept
+{
+    if (type == stack_element_type::parameter_value0) {
+        dyn.default_values[0] = value;
+        return true;
+    }
+
+    if (type == stack_element_type::parameter_value1) {
+        dyn.default_values[1] = value;
+        return true;
+    }
+
+    if (type == stack_element_type::parameter_value2) {
+        dyn.default_values[2] = value;
+        return true;
+    }
+
+    return false;
+}
+
+bool load(logical_invert& /*dyn*/,
+          const stack_element_type /*type*/,
+          const bool /*value*/) noexcept
+{
+    return false;
+}
+
+void write(json_writer& writer, const logical_and_2& dyn) noexcept
+{
+    writer.Key("logical_and_2");
+
+    writer.StartObject();
+    writer.Key("value0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value1");
+    writer.Bool(dyn.default_values[1]);
+    writer.EndObject();
+}
+
+void write(json_writer& writer, const logical_and_3& dyn) noexcept
+{
+    writer.Key("logical_and_3");
+
+    writer.StartObject();
+    writer.Key("value0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value1");
+    writer.Bool(dyn.default_values[1]);
+    writer.EndObject();
+}
+
+void write(json_writer& writer, const logical_or_2& dyn) noexcept
+{
+    writer.Key("logical_or_2");
+
+    writer.StartObject();
+    writer.Key("value0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value1");
+    writer.Bool(dyn.default_values[1]);
+    writer.Key("value2");
+    writer.Bool(dyn.default_values[2]);
+    writer.EndObject();
+}
+
+void write(json_writer& writer, const logical_or_3& dyn) noexcept
+{
+    writer.Key("logical_or_3");
+
+    writer.StartObject();
+    writer.Key("value0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value1");
+    writer.Bool(dyn.default_values[1]);
+    writer.Key("value2");
+    writer.Bool(dyn.default_values[2]);
+    writer.EndObject();
+}
+
+void write(json_writer& writer, const logical_invert& /*dyn*/) noexcept
+{
+    writer.Key("logical_invert");
+}
+
 bool load(hsm_wrapper& /*dyn*/,
           const stack_element_type /*type*/,
           const double /*value*/) noexcept

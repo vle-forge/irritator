@@ -459,7 +459,43 @@ static void show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
     ImGui::TextFormat("value {}", dyn.value);
 }
 
-static void show_dynamics_values(simulation& /*sim*/, const hsm_wrapper& /*dyn*/)
+static void show_dynamics_values(simulation& /*sim*/, const logical_and_2& dyn)
+{
+    ImGui::TextFormat("value {}", dyn.is_valid);
+    ImGui::TextFormat("- 0 {}", dyn.values[0]);
+    ImGui::TextFormat("- 1 {}", dyn.values[1]);
+}
+
+static void show_dynamics_values(simulation& /*sim*/, const logical_or_2& dyn)
+{
+    ImGui::TextFormat("value {}", dyn.is_valid);
+    ImGui::TextFormat("- 0 {}", dyn.values[0]);
+    ImGui::TextFormat("- 1 {}", dyn.values[1]);
+}
+
+static void show_dynamics_values(simulation& /*sim*/, const logical_and_3& dyn)
+{
+    ImGui::TextFormat("value {}", dyn.is_valid);
+    ImGui::TextFormat("- 0 {}", dyn.values[0]);
+    ImGui::TextFormat("- 1 {}", dyn.values[1]);
+    ImGui::TextFormat("- 2 {}", dyn.values[2]);
+}
+
+static void show_dynamics_values(simulation& /*sim*/, const logical_or_3& dyn)
+{
+    ImGui::TextFormat("value {}", dyn.is_valid);
+    ImGui::TextFormat("- 0 {}", dyn.values[0]);
+    ImGui::TextFormat("- 1 {}", dyn.values[1]);
+    ImGui::TextFormat("- 2 {}", dyn.values[2]);
+}
+
+static void show_dynamics_values(simulation& /*sim*/, const logical_invert& dyn)
+{
+    ImGui::TextFormat("value {}", dyn.value);
+}
+
+static void show_dynamics_values(simulation& /*sim*/,
+                                 const hsm_wrapper& /*dyn*/)
 {
     ImGui::TextFormat("no data");
 }
@@ -1083,6 +1119,20 @@ static void show_simulation_graph_editor(application& app) noexcept
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("Logical")) {
+            add_popup_menuitem(
+              app.s_editor, dynamics_type::logical_and_2, &new_model);
+            add_popup_menuitem(
+              app.s_editor, dynamics_type::logical_or_2, &new_model);
+            add_popup_menuitem(
+              app.s_editor, dynamics_type::logical_and_3, &new_model);
+            add_popup_menuitem(
+              app.s_editor, dynamics_type::logical_or_3, &new_model);
+            add_popup_menuitem(
+              app.s_editor, dynamics_type::logical_invert, &new_model);
+            ImGui::EndMenu();
+        }
+
         add_popup_menuitem(app.s_editor, dynamics_type::counter, &new_model);
         add_popup_menuitem(app.s_editor, dynamics_type::queue, &new_model);
         add_popup_menuitem(
@@ -1095,7 +1145,8 @@ static void show_simulation_graph_editor(application& app) noexcept
         add_popup_menuitem(
           app.s_editor, dynamics_type::accumulator_2, &new_model);
         add_popup_menuitem(app.s_editor, dynamics_type::filter, &new_model);
-        add_popup_menuitem(app.s_editor, dynamics_type::hsm_wrapper, &new_model);
+        add_popup_menuitem(
+          app.s_editor, dynamics_type::hsm_wrapper, &new_model);
 
         ImGui::EndPopup();
     }

@@ -2450,6 +2450,12 @@ enum class dynamics_type : i32
     accumulator_2,
     filter,
 
+    logical_and_2,
+    logical_and_3,
+    logical_or_2,
+    logical_or_3,
+    logical_invert,
+
     hsm_wrapper
 };
 
@@ -4880,6 +4886,161 @@ struct filter
     message observation(const time) const noexcept { return inValue[0]; }
 };
 
+struct abstract_and_check
+{
+    template<typename Iterator>
+    bool operator()(Iterator begin, Iterator end) const noexcept
+    {
+        return std::all_of(
+          begin, end, [](const bool value) noexcept { return value == true; });
+    }
+};
+
+struct abstract_or_check
+{
+    template<typename Iterator>
+    bool operator()(Iterator begin, Iterator end) const noexcept
+    {
+        return std::any_of(
+          begin, end, [](const bool value) noexcept { return value == true; });
+    }
+};
+
+template<typename AbstractLogicalTester, int PortNumber>
+struct abstract_logical
+{
+    input_port  x[PortNumber];
+    output_port y[1];
+    time        sigma = time_domain<time>::infinity;
+
+    bool default_values[PortNumber];
+    bool values[PortNumber];
+
+    bool is_valid      = true;
+    bool value_changed = false;
+
+    abstract_logical() noexcept = default;
+
+    status initialize() noexcept
+    {
+        std::copy_n(std::data(default_values),
+                    std::size(default_values),
+                    std::data(values));
+
+        AbstractLogicalTester tester;
+        is_valid      = tester(std::begin(values), std::end(values));
+        sigma         = time_domain<time>::zero;
+        value_changed = true;
+
+        return status::success;
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (value_changed)
+            return send_message(sim, y[0], is_valid ? one : zero);
+
+        return status::success;
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        const bool old_is_value = is_valid;
+
+        for (int i = 0; i < PortNumber; ++i) {
+            if (have_message(x[i])) {
+                auto lst = get_message(sim, x[i]);
+                auto msg = lst.front();
+
+                if (msg[0] != zero) {
+                    if (values[i] == false) {
+                        values[i] = true;
+                    }
+                } else {
+                    if (values[i] == true) {
+                        values[i] = zero;
+                    }
+                }
+            }
+        }
+
+        AbstractLogicalTester tester;
+        is_valid = tester(std::begin(values), std::end(values));
+
+        if (is_valid != old_is_value) {
+            value_changed = true;
+            sigma         = time_domain<time>::zero;
+        } else {
+            value_changed = false;
+            sigma         = time_domain<time>::infinity;
+        }
+
+        return status::success;
+    }
+
+    message observation(const time) const noexcept
+    {
+        return is_valid ? one : zero;
+    }
+};
+
+using logical_and_2 = abstract_logical<abstract_and_check, 2>;
+using logical_and_3 = abstract_logical<abstract_and_check, 3>;
+using logical_or_2  = abstract_logical<abstract_or_check, 2>;
+using logical_or_3  = abstract_logical<abstract_or_check, 3>;
+
+struct logical_invert
+{
+    input_port  x[1];
+    output_port y[1];
+    time        sigma;
+
+    bool default_value = false;
+    bool value;
+    bool value_changed;
+
+    logical_invert() noexcept { sigma = time_domain<time>::infinity; }
+
+    status initialize() noexcept
+    {
+        value         = default_value;
+        sigma         = time_domain<time>::infinity;
+        value_changed = false;
+
+        return status::success;
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (value_changed)
+            return send_message(sim, y[0], value ? zero : one);
+
+        return status::success;
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        bool value_changed = false;
+
+        if (have_message(x[0])) {
+            auto lst = get_message(sim, x[0]);
+            auto msg = lst.front();
+
+            if ((msg[0] != zero && !value) || (msg[0] == zero && value))
+                value_changed = true;
+        }
+
+        sigma =
+          value_changed ? time_domain<time>::zero : time_domain<time>::infinity;
+        return status::success;
+    }
+
+    message observation(const time) const noexcept
+    {
+        return value ? zero : one;
+    }
+};
+
 struct hsm_wrapper
 {
     small_vector<input_port, 8>  x;
@@ -5799,6 +5960,11 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(time_func),
                sizeof(accumulator_2),
                sizeof(filter),
+               sizeof(logical_and_2),
+               sizeof(logical_and_3),
+               sizeof(logical_or_2),
+               sizeof(logical_or_3),
+               sizeof(logical_invert),
                sizeof(hsm_wrapper));
 }
 
@@ -5921,6 +6087,18 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::accumulator_2;
     if constexpr (std::is_same_v<Dynamics, filter>)
         return dynamics_type::filter;
+
+    if constexpr (std::is_same_v<Dynamics, logical_and_2>)
+        return dynamics_type::logical_and_2;
+    if constexpr (std::is_same_v<Dynamics, logical_and_3>)
+        return dynamics_type::logical_and_3;
+    if constexpr (std::is_same_v<Dynamics, logical_or_2>)
+        return dynamics_type::logical_or_2;
+    if constexpr (std::is_same_v<Dynamics, logical_or_3>)
+        return dynamics_type::logical_or_3;
+    if constexpr (std::is_same_v<Dynamics, logical_invert>)
+        return dynamics_type::logical_invert;
+
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return dynamics_type::hsm_wrapper;
 
@@ -6036,6 +6214,18 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
     case dynamics_type::filter:
         return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
+
+    case dynamics_type::logical_and_2:
+        return f(*reinterpret_cast<const logical_and_2*>(&mdl.dyn), args...);
+    case dynamics_type::logical_and_3:
+        return f(*reinterpret_cast<const logical_and_3*>(&mdl.dyn), args...);
+    case dynamics_type::logical_or_2:
+        return f(*reinterpret_cast<const logical_or_2*>(&mdl.dyn), args...);
+    case dynamics_type::logical_or_3:
+        return f(*reinterpret_cast<const logical_or_3*>(&mdl.dyn), args...);
+    case dynamics_type::logical_invert:
+        return f(*reinterpret_cast<const logical_invert*>(&mdl.dyn), args...);
+
     case dynamics_type::hsm_wrapper:
         return f(*reinterpret_cast<const hsm_wrapper*>(&mdl.dyn), args...);
     }
@@ -6152,6 +6342,18 @@ constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
     case dynamics_type::filter:
         return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
+
+    case dynamics_type::logical_and_2:
+        return f(*reinterpret_cast<logical_and_2*>(&mdl.dyn), args...);
+    case dynamics_type::logical_and_3:
+        return f(*reinterpret_cast<logical_and_3*>(&mdl.dyn), args...);
+    case dynamics_type::logical_or_2:
+        return f(*reinterpret_cast<logical_or_2*>(&mdl.dyn), args...);
+    case dynamics_type::logical_or_3:
+        return f(*reinterpret_cast<logical_or_3*>(&mdl.dyn), args...);
+    case dynamics_type::logical_invert:
+        return f(*reinterpret_cast<logical_invert*>(&mdl.dyn), args...);
+
     case dynamics_type::hsm_wrapper:
         return f(*reinterpret_cast<hsm_wrapper*>(&mdl.dyn), args...);
     }
@@ -6244,7 +6446,6 @@ inline bool is_ports_compatible(const model&               mdl_src,
 
     case dynamics_type::qss1_integrator:
     case dynamics_type::qss1_multiplier:
-    case dynamics_type::qss1_cross:
     case dynamics_type::qss1_power:
     case dynamics_type::qss1_square:
     case dynamics_type::qss1_sum_2:
@@ -6255,7 +6456,6 @@ inline bool is_ports_compatible(const model&               mdl_src,
     case dynamics_type::qss1_wsum_4:
     case dynamics_type::qss2_integrator:
     case dynamics_type::qss2_multiplier:
-    case dynamics_type::qss2_cross:
     case dynamics_type::qss2_power:
     case dynamics_type::qss2_square:
     case dynamics_type::qss2_sum_2:
@@ -6266,7 +6466,6 @@ inline bool is_ports_compatible(const model&               mdl_src,
     case dynamics_type::qss2_wsum_4:
     case dynamics_type::qss3_integrator:
     case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_cross:
     case dynamics_type::qss3_power:
     case dynamics_type::qss3_square:
     case dynamics_type::qss3_sum_2:
@@ -6288,7 +6487,6 @@ inline bool is_ports_compatible(const model&               mdl_src,
     case dynamics_type::priority_queue:
     case dynamics_type::generator:
     case dynamics_type::constant:
-    case dynamics_type::cross:
     case dynamics_type::time_func:
     case dynamics_type::filter:
     case dynamics_type::hsm_wrapper:
@@ -6299,6 +6497,46 @@ inline bool is_ports_compatible(const model&               mdl_src,
             return false;
 
         return true;
+
+    case dynamics_type::cross:
+    case dynamics_type::qss2_cross:
+    case dynamics_type::qss3_cross:
+    case dynamics_type::qss1_cross:
+        if (o_port_index == 2) {
+            if (match(mdl_dst.type,
+                      dynamics_type::counter,
+                      dynamics_type::logical_and_2,
+                      dynamics_type::logical_and_3,
+                      dynamics_type::logical_or_2,
+                      dynamics_type::logical_or_3,
+                      dynamics_type::logical_invert)) {
+                return true;
+            }
+        } else {
+            if (!match(mdl_dst.type,
+                       dynamics_type::counter,
+                       dynamics_type::logical_and_2,
+                       dynamics_type::logical_and_3,
+                       dynamics_type::logical_or_2,
+                       dynamics_type::logical_or_3,
+                       dynamics_type::logical_invert)) {
+                return true;
+            }
+        }
+
+    case dynamics_type::logical_and_2:
+    case dynamics_type::logical_and_3:
+    case dynamics_type::logical_or_2:
+    case dynamics_type::logical_or_3:
+    case dynamics_type::logical_invert:
+        if (match(mdl_dst.type,
+                  dynamics_type::counter,
+                  dynamics_type::logical_and_2,
+                  dynamics_type::logical_and_3,
+                  dynamics_type::logical_or_2,
+                  dynamics_type::logical_or_3,
+                  dynamics_type::logical_invert))
+            return true;
     }
 
     return false;
@@ -6751,8 +6989,8 @@ public:
     //             irt_return_if_bad(make_transition(*mdl, t));
 
     //     for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
-    //         auto* mdl = models.try_to_get(emitting_output_ports[i].model);
-    //         if (!mdl)
+    //         auto* mdl =
+    //         models.try_to_get(emitting_output_ports[i].model); if (!mdl)
     //             continue;
 
     //         sched.update(*mdl, t);
@@ -6764,8 +7002,10 @@ public:
     //         auto& msg  = emitting_output_ports[i].msg;
 
     //         dispatch(
-    //           *mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
-    //               if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+    //           *mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn)
+    //           {
+    //               if constexpr (is_detected_v<has_input_port_t,
+    //               Dynamics>) {
     //                   auto list = append_message(*this, dyn.x[port]);
     //                   list.push_back(msg);
     //               }
@@ -7290,10 +7530,10 @@ template<typename... Args>
 inline constexpr typename vector<T>::reference vector<T>::emplace_back(
   Args&&... args) noexcept
 {
-    static_assert(
-      std::is_trivially_constructible_v<T, Args...> ||
-        std::is_nothrow_constructible_v<T, Args...>,
-      "T must but trivially or nothrow constructible from this argument(s)");
+    static_assert(std::is_trivially_constructible_v<T, Args...> ||
+                    std::is_nothrow_constructible_v<T, Args...>,
+                  "T must but trivially or nothrow constructible from this "
+                  "argument(s)");
 
     if (m_size >= m_capacity)
         reserve(compute_new_capacity(m_size + 1));
@@ -7599,10 +7839,10 @@ template<typename... Args>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::emplace_back(Args&&... args) noexcept
 {
-    static_assert(
-      std::is_trivially_constructible_v<T, Args...> ||
-        std::is_nothrow_constructible_v<T, Args...>,
-      "T must but trivially or nothrow constructible from this argument(s)");
+    static_assert(std::is_trivially_constructible_v<T, Args...> ||
+                    std::is_nothrow_constructible_v<T, Args...>,
+                  "T must but trivially or nothrow constructible from this "
+                  "argument(s)");
 
     assert(can_alloc(1) && "check alloc() with full() before using use.");
 

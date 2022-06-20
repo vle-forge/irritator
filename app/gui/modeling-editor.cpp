@@ -564,6 +564,15 @@ static void show_popup_menuitem(component_editor& ed,
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("Logical")) {
+            add_popup_menuitem(ed, parent, dynamics_type::logical_and_2, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::logical_or_2, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::logical_and_3, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::logical_or_3, new_model);
+            add_popup_menuitem(ed, parent, dynamics_type::logical_invert, new_model);
+            ImGui::EndMenu();
+        }
+
         add_popup_menuitem(ed, parent, dynamics_type::counter, new_model);
         add_popup_menuitem(ed, parent, dynamics_type::queue, new_model);
         add_popup_menuitem(ed, parent, dynamics_type::dynamic_queue, new_model);
