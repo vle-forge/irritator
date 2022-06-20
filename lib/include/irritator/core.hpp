@@ -5125,7 +5125,7 @@ struct abstract_cross
     {
         o_if_value,
         o_else_value,
-        o_event
+        o_threshold_reached
     };
 
     status initialize(simulation& /*sim*/) noexcept
@@ -5293,42 +5293,57 @@ struct abstract_cross
     status lambda(simulation& sim) noexcept
     {
         if constexpr (QssLevel == 1) {
-            irt_return_if_bad(
-              send_message(sim, y[o_else_value], else_value[0]));
-
             if (reach_threshold) {
                 irt_return_if_bad(
                   send_message(sim, y[o_if_value], if_value[0]));
-                irt_return_if_bad(send_message(sim, y[o_event], one));
+
+                irt_return_if_bad(
+                  send_message(sim, y[o_threshold_reached], one));
+            } else {
+                irt_return_if_bad(
+                  send_message(sim, y[o_else_value], else_value[0]));
+
+                irt_return_if_bad(
+                  send_message(sim, y[o_threshold_reached], zero));
             }
 
             return status::success;
         }
 
         if constexpr (QssLevel == 2) {
-            irt_return_if_bad(
-              send_message(sim, y[o_else_value], else_value[0], else_value[1]));
-
             if (reach_threshold) {
                 irt_return_if_bad(
                   send_message(sim, y[o_if_value], if_value[0], if_value[1]));
-                irt_return_if_bad(send_message(sim, y[o_event], one));
+
+                irt_return_if_bad(
+                  send_message(sim, y[o_threshold_reached], one));
+            } else {
+                irt_return_if_bad(send_message(
+                  sim, y[o_else_value], else_value[0], else_value[1]));
+
+                irt_return_if_bad(
+                  send_message(sim, y[o_threshold_reached], zero));
             }
 
             return status::success;
         }
 
         if constexpr (QssLevel == 3) {
-            irt_return_if_bad(send_message(sim,
-                                           y[o_else_value],
-                                           else_value[0],
-                                           else_value[1],
-                                           else_value[2]));
-
             if (reach_threshold) {
                 irt_return_if_bad(send_message(
                   sim, y[o_if_value], if_value[0], if_value[1], if_value[2]));
-                irt_return_if_bad(send_message(sim, y[o_event], one));
+
+                irt_return_if_bad(
+                  send_message(sim, y[o_threshold_reached], one));
+            } else {
+                irt_return_if_bad(send_message(sim,
+                                               y[o_else_value],
+                                               else_value[0],
+                                               else_value[1],
+                                               else_value[2]));
+
+                irt_return_if_bad(
+                  send_message(sim, y[o_threshold_reached], zero));
             }
 
             return status::success;
