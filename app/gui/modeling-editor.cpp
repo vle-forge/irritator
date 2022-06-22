@@ -565,11 +565,16 @@ static void show_popup_menuitem(component_editor& ed,
         }
 
         if (ImGui::BeginMenu("Logical")) {
-            add_popup_menuitem(ed, parent, dynamics_type::logical_and_2, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::logical_or_2, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::logical_and_3, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::logical_or_3, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::logical_invert, new_model);
+            add_popup_menuitem(
+              ed, parent, dynamics_type::logical_and_2, new_model);
+            add_popup_menuitem(
+              ed, parent, dynamics_type::logical_or_2, new_model);
+            add_popup_menuitem(
+              ed, parent, dynamics_type::logical_and_3, new_model);
+            add_popup_menuitem(
+              ed, parent, dynamics_type::logical_or_3, new_model);
+            add_popup_menuitem(
+              ed, parent, dynamics_type::logical_invert, new_model);
             ImGui::EndMenu();
         }
 
@@ -591,7 +596,226 @@ static void show_popup_menuitem(component_editor& ed,
     ImGui::PopStyleVar();
 }
 
-static void is_link_created(component& parent) noexcept
+static bool is_ports_compatible(const component_editor& ed,
+                                const model&            output,
+                                const int               output_port,
+                                const model&            input,
+                                const int               input_port) noexcept
+{
+    return is_ports_compatible(output, output_port, input, input_port);
+}
+
+static bool is_ports_compatible(const component_editor& ed,
+                                const model&            output,
+                                const int               output_port,
+                                const component&        input,
+                                const int               input_port) noexcept
+{
+    irt_assert(0 <= input_port && input_port < input.x.ssize());
+
+    child_id input_id         = input.x[input_port].id;
+    int      input_port_index = input.x[input_port].index;
+    auto*    child            = input.children.try_to_get(input_id);
+
+    if (child) {
+        if (child->type == child_type::model) {
+            auto  mdl_id = enum_cast<model_id>(child->id);
+            auto* mdl    = input.models.try_to_get(mdl_id);
+
+            if (mdl)
+                return is_ports_compatible(
+                  ed, output, output_port, *mdl, input_port_index);
+        } else {
+            auto  compo_id = enum_cast<component_id>(child->id);
+            auto* compo    = ed.mod.components.try_to_get(compo_id);
+
+            if (compo)
+                return is_ports_compatible(
+                  ed, output, output_port, *compo, input_port_index);
+        }
+    }
+
+    return false;
+}
+
+static bool is_ports_compatible(const component_editor& ed,
+                                const component&        output,
+                                const int               output_port,
+                                const model&            input,
+                                const int               input_port) noexcept
+{
+    irt_assert(0 <= output_port && output_port < output.y.ssize());
+
+    child_id output_id         = output.y[output_port].id;
+    int      output_port_index = output.y[output_port].index;
+    auto*    child             = output.children.try_to_get(output_id);
+
+    if (child) {
+        if (child->type == child_type::model) {
+            auto  mdl_id = enum_cast<model_id>(child->id);
+            auto* mdl    = output.models.try_to_get(mdl_id);
+
+            if (mdl)
+                return is_ports_compatible(
+                  ed, *mdl, output_port_index, input, input_port);
+        } else {
+            auto  compo_id = enum_cast<component_id>(child->id);
+            auto* compo    = ed.mod.components.try_to_get(compo_id);
+
+            if (compo)
+                return is_ports_compatible(
+                  ed, *compo, output_port_index, input, input_port);
+        }
+    }
+
+    return false;
+}
+
+static bool is_ports_compatible(const component_editor& ed,
+                                const component&        output,
+                                const int               output_port,
+                                const component&        input,
+                                const int               input_port) noexcept
+{
+    irt_assert(0 <= input_port && input_port < input.x.ssize());
+    irt_assert(0 <= output_port && output_port < output.y.ssize());
+
+    child_id input_id         = input.x[input_port].id;
+    int      input_port_index = input.x[input_port].index;
+    auto*    input_child      = input.children.try_to_get(input_id);
+
+    child_id output_id         = output.y[output_port].id;
+    int      output_port_index = output.y[output_port].index;
+    auto*    output_child      = output.children.try_to_get(output_id);
+
+    if (!input_child || !output_child)
+        return false;
+
+    if (input_child->type == child_type::model) {
+        auto  input_mdl_id = enum_cast<model_id>(input_child->id);
+        auto* input_mdl    = input.models.try_to_get(input_mdl_id);
+
+        if (!input_mdl)
+            return false;
+
+        if (output_child->type == child_type::model) {
+            auto  output_mdl_id = enum_cast<model_id>(output_child->id);
+            auto* output_mdl    = output.models.try_to_get(output_mdl_id);
+
+            if (output_mdl)
+                return is_ports_compatible(ed,
+                                           *output_mdl,
+                                           output_port_index,
+                                           *input_mdl,
+                                           input_port_index);
+        } else {
+            auto  output_compo_id = enum_cast<component_id>(output_child->id);
+            auto* output_compo = ed.mod.components.try_to_get(output_compo_id);
+
+            if (output_compo)
+                return is_ports_compatible(ed,
+                                           *output_compo,
+                                           output_port_index,
+                                           *input_mdl,
+                                           input_port_index);
+        }
+    } else {
+        auto  input_compo_id = enum_cast<component_id>(input_child->id);
+        auto* input_compo    = ed.mod.components.try_to_get(input_compo_id);
+
+        if (!input_compo)
+            return false;
+
+        if (output_child->type == child_type::model) {
+            auto  output_mdl_id = enum_cast<model_id>(output_child->id);
+            auto* output_mdl    = output.models.try_to_get(output_mdl_id);
+
+            if (output_mdl)
+                return is_ports_compatible(ed,
+                                           *output_mdl,
+                                           output_port_index,
+                                           *input_compo,
+                                           input_port_index);
+        } else {
+            auto  output_compo_id = enum_cast<component_id>(output_child->id);
+            auto* output_compo = ed.mod.components.try_to_get(output_compo_id);
+
+            if (output_compo)
+                return is_ports_compatible(ed,
+                                           *output_compo,
+                                           output_port_index,
+                                           *input_compo,
+                                           input_port_index);
+        }
+    }
+
+    return false;
+}
+
+static bool is_ports_compatible(const component_editor& ed,
+                                const component&        parent,
+                                const child&            output,
+                                const int               output_port,
+                                const child&            input,
+                                const int               input_port) noexcept
+{
+    if (output.type == child_type::model) {
+        auto  mdl_output_id = enum_cast<model_id>(output.id);
+        auto* mdl_output    = parent.models.try_to_get(mdl_output_id);
+
+        if (!mdl_output)
+            return false;
+
+        if (input.type == child_type::model) {
+            auto  mdl_input_id = enum_cast<model_id>(input.id);
+            auto* mdl_input    = parent.models.try_to_get(mdl_input_id);
+
+            if (!mdl_input)
+                return false;
+
+            return is_ports_compatible(
+              ed, *mdl_output, output_port, *mdl_input, input_port);
+        } else {
+            auto  compo_input_id = enum_cast<component_id>(input.id);
+            auto* compo_input    = ed.mod.components.try_to_get(compo_input_id);
+
+            if (compo_input)
+                return false;
+
+            return is_ports_compatible(
+              ed, *mdl_output, output_port, *compo_input, input_port);
+        }
+    } else {
+        auto  compo_output_id = enum_cast<component_id>(output.id);
+        auto* compo_output    = ed.mod.components.try_to_get(compo_output_id);
+
+        if (!compo_output)
+            return false;
+
+        if (input.type == child_type::model) {
+            auto  mdl_input_id = enum_cast<model_id>(input.id);
+            auto* mdl_input    = parent.models.try_to_get(mdl_input_id);
+
+            if (!mdl_input)
+                return false;
+
+            return is_ports_compatible(
+              ed, *compo_output, output_port, *mdl_input, input_port);
+        } else {
+            auto  compo_input_id = enum_cast<component_id>(input.id);
+            auto* compo_input    = ed.mod.components.try_to_get(compo_input_id);
+
+            if (compo_input)
+                return false;
+
+            return is_ports_compatible(
+              ed, *compo_output, output_port, *compo_input, input_port);
+        }
+    }
+}
+
+static void is_link_created(const component_editor& ed,
+                            component&              parent) noexcept
 {
     int start = 0, end = 0;
     if (ImNodes::IsLinkCreated(&start, &end)) {
@@ -607,10 +831,18 @@ static void is_link_created(component& parent) noexcept
         if (child_src != nullptr && child_dst != nullptr) {
             auto child_src_id = parent.children.get_id(*child_src);
             auto child_dst_id = parent.children.get_id(*child_dst);
-            parent.connections.alloc(
-              child_src_id, port_src_index, child_dst_id, port_dst_index);
 
-            parent.state = component_status::modified;
+            if (is_ports_compatible(ed,
+                                    parent,
+                                    *child_src,
+                                    port_src_index,
+                                    *child_dst,
+                                    port_dst_index)) {
+
+                parent.connections.alloc(
+                  child_src_id, port_src_index, child_dst_id, port_dst_index);
+                parent.state = component_status::modified;
+            }
         }
     }
 }
@@ -702,7 +934,7 @@ static void show_modeling_widget(const settings_manager& settings,
         child->y = click_pos.y;
     }
 
-    is_link_created(compo);
+    is_link_created(ed, compo);
     is_link_destroyed(compo);
 
     int num_selected_links = ImNodes::NumSelectedLinks();

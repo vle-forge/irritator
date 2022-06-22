@@ -6421,23 +6421,14 @@ inline status get_output_port(model&        dst,
       });
 }
 
-inline bool is_ports_compatible(const model&               mdl_src,
-                                [[maybe_unused]] const int o_port_index,
-                                const model&               mdl_dst,
-                                const int i_port_index) noexcept
+inline bool is_ports_compatible(const dynamics_type mdl_src,
+                                const int           o_port_index,
+                                const dynamics_type mdl_dst,
+                                const int           i_port_index) noexcept
 {
-    if (&mdl_src == &mdl_dst)
-        return false;
-
-    if (mdl_dst.type == dynamics_type::hsm_wrapper) {
-        auto& dyn = get_dyn<hsm_wrapper>(mdl_dst);
-        if (i_port_index >= dyn.y.ssize())
-            return false;
-    }
-
-    switch (mdl_src.type) {
+    switch (mdl_src) {
     case dynamics_type::quantifier:
-        if (mdl_dst.type == dynamics_type::integrator &&
+        if (mdl_dst == dynamics_type::integrator &&
             i_port_index ==
               static_cast<int>(integrator::port_name::port_quanta))
             return true;
@@ -6486,16 +6477,25 @@ inline bool is_ports_compatible(const model&               mdl_src,
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
     case dynamics_type::generator:
-    case dynamics_type::constant:
     case dynamics_type::time_func:
     case dynamics_type::filter:
     case dynamics_type::hsm_wrapper:
     case dynamics_type::accumulator_2:
-        if (mdl_dst.type == dynamics_type::integrator &&
+        if (mdl_dst == dynamics_type::integrator &&
             i_port_index ==
               static_cast<int>(integrator::port_name::port_quanta))
             return false;
 
+        if (match(mdl_dst,
+                  dynamics_type::logical_and_2,
+                  dynamics_type::logical_and_3,
+                  dynamics_type::logical_or_2,
+                  dynamics_type::logical_or_3,
+                  dynamics_type::logical_invert))
+            return false;
+        return true;
+
+    case dynamics_type::constant:
         return true;
 
     case dynamics_type::cross:
@@ -6503,33 +6503,29 @@ inline bool is_ports_compatible(const model&               mdl_src,
     case dynamics_type::qss3_cross:
     case dynamics_type::qss1_cross:
         if (o_port_index == 2) {
-            if (match(mdl_dst.type,
-                      dynamics_type::counter,
-                      dynamics_type::logical_and_2,
-                      dynamics_type::logical_and_3,
-                      dynamics_type::logical_or_2,
-                      dynamics_type::logical_or_3,
-                      dynamics_type::logical_invert)) {
-                return true;
-            }
+            return match(mdl_dst,
+                         dynamics_type::counter,
+                         dynamics_type::logical_and_2,
+                         dynamics_type::logical_and_3,
+                         dynamics_type::logical_or_2,
+                         dynamics_type::logical_or_3,
+                         dynamics_type::logical_invert);
         } else {
-            if (!match(mdl_dst.type,
-                       dynamics_type::counter,
-                       dynamics_type::logical_and_2,
-                       dynamics_type::logical_and_3,
-                       dynamics_type::logical_or_2,
-                       dynamics_type::logical_or_3,
-                       dynamics_type::logical_invert)) {
-                return true;
-            }
+            return !match(mdl_dst,
+                          dynamics_type::logical_and_2,
+                          dynamics_type::logical_and_3,
+                          dynamics_type::logical_or_2,
+                          dynamics_type::logical_or_3,
+                          dynamics_type::logical_invert);
         }
+        return true;
 
     case dynamics_type::logical_and_2:
     case dynamics_type::logical_and_3:
     case dynamics_type::logical_or_2:
     case dynamics_type::logical_or_3:
     case dynamics_type::logical_invert:
-        if (match(mdl_dst.type,
+        if (match(mdl_dst,
                   dynamics_type::counter,
                   dynamics_type::logical_and_2,
                   dynamics_type::logical_and_3,
@@ -6540,6 +6536,24 @@ inline bool is_ports_compatible(const model&               mdl_src,
     }
 
     return false;
+}
+
+inline bool is_ports_compatible(const model& mdl_src,
+                                const int    o_port_index,
+                                const model& mdl_dst,
+                                const int    i_port_index) noexcept
+{
+    if (&mdl_src == &mdl_dst)
+        return false;
+
+    if (mdl_dst.type == dynamics_type::hsm_wrapper) {
+        auto& dyn = get_dyn<hsm_wrapper>(mdl_dst);
+        if (i_port_index >= dyn.y.ssize())
+            return false;
+    }
+
+    return is_ports_compatible(
+      mdl_src.type, o_port_index, mdl_dst.type, i_port_index);
 }
 
 inline status global_connect(simulation& sim,

@@ -1172,13 +1172,16 @@ static void show_simulation_graph_editor(application& app) noexcept
             const gport in  = get_in(sim, end);
 
             if (out.model && in.model && sim.can_connect(1)) {
-                if (auto status = sim.connect(
-                      *out.model, out.port_index, *in.model, in.port_index);
-                    is_bad(status)) {
-                    auto& notif =
-                      app.notifications.alloc(notification_type::warning);
-                    notif.title = "Not enough memory to connect model";
-                    app.notifications.enable(notif);
+                if (is_ports_compatible(
+                      *out.model, out.port_index, *in.model, in.port_index)) {
+                    if (auto status = sim.connect(
+                          *out.model, out.port_index, *in.model, in.port_index);
+                        is_bad(status)) {
+                        auto& notif =
+                          app.notifications.alloc(notification_type::warning);
+                        notif.title = "Not enough memory to connect model";
+                        app.notifications.enable(notif);
+                    }
                 }
             }
         }

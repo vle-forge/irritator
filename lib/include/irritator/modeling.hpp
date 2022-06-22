@@ -155,6 +155,7 @@ struct component
     data_array<child, child_id>           children;
     data_array<connection, connection_id> connections;
 
+     // One port is currently connected to only one child.
     small_vector<port, 8> x;
     small_vector<port, 8> y;
 
