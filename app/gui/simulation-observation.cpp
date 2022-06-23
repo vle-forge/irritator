@@ -72,17 +72,7 @@ static interpolate_type get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::mult_4:
         return interpolate_type_qss1;
 
-    case dynamics_type::counter:
-    case dynamics_type::queue:
-    case dynamics_type::dynamic_queue:
-    case dynamics_type::priority_queue:
-    case dynamics_type::generator:
-    case dynamics_type::constant:
-    case dynamics_type::cross:
-    case dynamics_type::time_func:
-    case dynamics_type::accumulator_2:
-    case dynamics_type::filter:
-    case dynamics_type::hsm_wrapper:
+    default:
         return interpolate_type_none;
     }
 
