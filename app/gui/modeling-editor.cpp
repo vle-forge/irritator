@@ -596,11 +596,11 @@ static void show_popup_menuitem(component_editor& ed,
     ImGui::PopStyleVar();
 }
 
-static bool is_ports_compatible(const component_editor& ed,
-                                const model&            output,
-                                const int               output_port,
-                                const model&            input,
-                                const int               input_port) noexcept
+static bool is_ports_compatible(const component_editor& /*ed*/,
+                                const model& output,
+                                const int    output_port,
+                                const model& input,
+                                const int    input_port) noexcept
 {
     return is_ports_compatible(output, output_port, input, input_port);
 }
