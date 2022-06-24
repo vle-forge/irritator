@@ -5023,8 +5023,8 @@ struct logical_invert
         bool value_changed = false;
 
         if (have_message(x[0])) {
-            auto lst = get_message(sim, x[0]);
-            auto msg = lst.front();
+            const auto  lst = get_message(sim, x[0]);
+            const auto& msg = lst.front();
 
             if ((msg[0] != zero && !value) || (msg[0] == zero && value))
                 value_changed = true;
@@ -5052,49 +5052,56 @@ struct logical_invert
  * imposed only to prevent the user from creating extremely complicated to trace
  * state machines (which is what we are trying to avoid).
  */
-template<typename Data, typename Action, u8 MaxNumberOfState = 254>
-class HSM
+class hierarchical_state_machine
 {
 public:
-    static_assert(std::is_nothrow_default_constructible_v<Data> &&
-                  std::is_nothrow_destructible_v<Data>);
-    static_assert(std::is_nothrow_default_constructible_v<Action> &&
-                  std::is_nothrow_destructible_v<Action>);
-    static_assert(MaxNumberOfState > 0 && MaxNumberOfState < 255);
-
-    using state_id = u8;
-
-    enum event_id_type
-    {
-        invalid_event_id       = -4,
-        exit_event_id          = -2,
-        enter_event_id         = -1,
-        input_changed_event_id = 0
-    };
-
-    static const u8 max_number_of_state = MaxNumberOfState;
+    using state_id                      = u8;
+    static const u8 max_number_of_state = 254;
     static const u8 invalid_state_id    = 255;
 
-    struct event
+    enum event_type
     {
-        event() noexcept = default;
-        event(i32 id_) noexcept;
-
-        i32  id = invalid_event_id;
-        Data user_data;
+        invalid_event_id         = -4,
+        exit_event_id            = -2,
+        enter_event_id           = -1,
+        event_type_input_changed = 0
     };
 
-    /// Call from event to perform state update. \return true if the event
-    /// change the current state, false otherwise.
-    using state_handler = bool (*)(HSM& sm, const event& e);
+    enum action_type : u8
+    {
+        action_type_none = 0,  // no param
+        action_type_set,       // [0-7] values index
+        action_type_unset,     // [0-7] values index
+        action_type_reset,     // no param
+        action_type_output,    // [0-7] output port + constant to send
+        action_type_transition // next state_id
+    };
 
-    HSM() noexcept = default;
+    struct state
+    {
+        state() noexcept = default;
+
+        u8          condition      = 0;
+        action_type action         = action_type_none;
+        u8          action_param_1 = 0;
+        u8          action_param_2 = 0;
+
+        state_id super_id = invalid_state_id;
+        state_id sub_id   = invalid_state_id;
+    };
+
+    small_vector<state, max_number_of_state> m_states;
+    small_vector<u16, 6>                     outputs;
+    small_vector<bool, 6>                    values;
+
+    hierarchical_state_machine() noexcept = default;
 
     void start() noexcept;
+    void clear() noexcept;
 
     /// Dispatches an event, return true if the event was processed, otherwise
     /// false.
-    bool dispatch(const event& e) noexcept;
+    bool dispatch(const event_type e) noexcept;
 
     /// Return true if the state machine is currently dispatching an event.
     bool is_dispatching() const noexcept;
@@ -5116,19 +5123,23 @@ public:
     /// \param sub_id if !=
     /// invalid_state_id this sub state (child state) will be entered after the
     /// state Enter event is executed.
-    void set_state(state_id      id,
-                   state_handler handler,
-                   state_id      super_id = invalid_state_id,
-                   state_id      sub_id   = invalid_state_id) noexcept;
+    void set_state(state_id id,
+                   state_id super_id = invalid_state_id,
+                   state_id sub_id   = invalid_state_id) noexcept;
 
     /// Resets the state to invalid mode.
     void clear_state(state_id id) noexcept;
 
     bool is_in_state(state_id id) const noexcept;
 
+    bool handle(const state_id state, const event_type event) noexcept;
+
 protected:
     int  steps_to_common_root(state_id source, state_id target) noexcept;
     void on_enter_sub_state() noexcept;
+
+    void affect_enter_exit_action(const state_id state) noexcept;
+    void affect_action(const state_id state) noexcept;
 
     state_id m_current_state        = invalid_state_id;
     state_id m_next_state           = invalid_state_id;
@@ -5136,62 +5147,110 @@ protected:
     state_id m_current_source_state = invalid_state_id;
     state_id m_top_state            = invalid_state_id;
     bool     m_disallow_transition  = false;
-
-    struct state
-    {
-        state() noexcept = default;
-
-        Action   action;
-        state_id super_id = invalid_state_id;
-        state_id subId    = invalid_state_id;
-    };
-
-    std::array<state, max_number_of_state> m_states;
 };
+
+enum class hsm_id : u64;
+
+status get_hierarchical_state_machine(simulation&                  sim,
+                                      hierarchical_state_machine*& hsm,
+                                      hsm_id                       id) noexcept;
 
 struct hsm_wrapper
 {
-    small_vector<input_port, 8>  x;
-    small_vector<output_port, 8> y;
+    using hsm_type = hierarchical_state_machine;
+    using state_id = hierarchical_state_machine::state_id;
 
-    struct action_type
-    {
-        i8 next_state;
-        i8 output_port;
-        i8 output_port_value;
-    };
+    small_vector<input_port, 6>  x;
+    small_vector<output_port, 6> y;
 
-    struct data_type
-    {
-        hsm_wrapper* hsm;
-    };
-
-    real                            sigma;
-    HSM<data_type, action_type, 32> automata;
+    hsm_id   id;
+    state_id m_previous_state;
+    real     sigma;
 
     hsm_wrapper() noexcept = default;
 
     hsm_wrapper(const hsm_wrapper& other) noexcept
       : x{ other.x }
       , y{ other.y }
+      , id{ undefined<hsm_id>() }
+      , m_previous_state{ other.m_previous_state }
+      , sigma{ other.sigma }
     {}
 
-    status initialize(simulation& /*sim*/) noexcept
+    status initialize(simulation& sim) noexcept
     {
+        hierarchical_state_machine* machine = nullptr;
+        irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
+
+        m_previous_state = hierarchical_state_machine::invalid_state_id;
+        machine->start();
+
         sigma = time_domain<time>::infinity;
 
         return status::success;
     }
 
-    status transition(simulation& /*sim*/,
+    status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
                       time /*r*/) noexcept
     {
+        hierarchical_state_machine* machine = nullptr;
+        irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
+
+        machine->outputs.clear();
+        sigma                     = time_domain<time>::infinity;
+        const u8 old_values_state = compute_values(machine->values);
+
+        for (int i = 0, e = x.ssize(); i != e; ++i) {
+            if (have_message(x[i])) {
+                auto span = get_message(sim, x[i]);
+                for (const auto& msg : span)
+                    machine->values[i] = msg.data[0] != zero ? true : false;
+            }
+        }
+
+        const u8 new_values_state = compute_values(machine->values);
+
+        if (old_values_state != new_values_state) {
+            m_previous_state = machine->get_current_state();
+            if (machine->dispatch(
+                  hierarchical_state_machine::event_type_input_changed))
+                if (!machine->outputs.empty())
+                    sigma = time_domain<time>::zero;
+        }
+
         return status::success;
     }
 
-    status lambda(simulation& /*sim*/) noexcept { return status::success; }
+    status lambda(simulation& sim) noexcept
+    {
+        hierarchical_state_machine* machine = nullptr;
+        irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
+
+        if (m_previous_state != hierarchical_state_machine::invalid_state_id &&
+            !machine->outputs.empty()) {
+            for (int i = 0, e = machine->outputs.ssize(); i != e; ++i) {
+                u8 port = 0, value = 0;
+                unpack_halfword(machine->outputs[i], &port, &value);
+
+                irt_return_if_bad(send_message(sim, y[port], to_real(value)));
+            }
+        }
+
+        return status::success;
+    }
+
+private:
+    static u8 compute_values(const small_vector<bool, 6>& values) noexcept
+    {
+        u8 result = 0;
+
+        for (int i = 0, e = values.ssize(); i < e; ++i)
+            result = (result << 1) | (values[i] ? 1 : 0);
+
+        return result;
+    }
 };
 
 template<size_t PortNumber>
@@ -6851,6 +6910,7 @@ struct simulation
     vector<output_message>                         emitting_output_ports;
     vector<model_id>                               immediate_models;
     data_array<model, model_id>                    models;
+    data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<observer, observer_id>              observers;
 
     scheduller sched;
@@ -6872,12 +6932,14 @@ public:
     status init(int model_capacity, int messages_capacity)
     {
         constexpr size_t ten{ 10 };
+        size_t max_hsms = (model_capacity / 10) <= 0 ? 1 : model_capacity / 10;
 
         irt_return_if_bad(message_alloc.init(messages_capacity));
         irt_return_if_bad(node_alloc.init(model_capacity * ten));
         irt_return_if_bad(record_alloc.init(model_capacity * ten));
         irt_return_if_bad(dated_message_alloc.init(model_capacity));
         irt_return_if_bad(models.init(model_capacity));
+        irt_return_if_bad(hsms.init(max_hsms));
         irt_return_if_bad(observers.init(model_capacity));
         irt_return_if_bad(sched.init(model_capacity));
 
@@ -8349,6 +8411,16 @@ inline status send_message(simulation&  sim,
     return status::success;
 }
 
+inline status get_hierarchical_state_machine(simulation&                  sim,
+                                             hierarchical_state_machine*& hsm,
+                                             const hsm_id id) noexcept
+{
+    if (hsm = sim.hsms.try_to_get(id); hsm)
+        irt_bad_return(status::unknown_dynamics); // @TODO new message
+
+    return status::success;
+}
+
 inline status simulation::run(time& t) noexcept
 {
     if (sched.empty()) {
@@ -8391,39 +8463,32 @@ inline status simulation::run(time& t) noexcept
     return status::success;
 }
 
-//
-// HSM Implementation
-//
+// // class HSM
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline bool HSM<Data, Action, MaxNumberOfState>::is_dispatching() const noexcept
+inline bool hierarchical_state_machine::is_dispatching() const noexcept
 {
     return m_current_source_state != invalid_state_id;
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline typename HSM<Data, Action, MaxNumberOfState>::state_id
-HSM<Data, Action, MaxNumberOfState>::get_current_state() const noexcept
+inline typename hierarchical_state_machine::state_id
+hierarchical_state_machine::get_current_state() const noexcept
 {
     return m_current_state;
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline typename HSM<Data, Action, MaxNumberOfState>::state_id
-HSM<Data, Action, MaxNumberOfState>::get_source_state() const noexcept
+inline typename hierarchical_state_machine::state_id
+hierarchical_state_machine::get_source_state() const noexcept
 {
     return m_source_state;
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline void HSM<Data, Action, MaxNumberOfState>::start() noexcept
+inline void hierarchical_state_machine::start() noexcept
 {
     irt_assert(m_top_state != invalid_state_id);
     m_current_state = m_top_state;
     m_next_state    = invalid_state_id;
 
-    if (m_states[m_current_state].handler)
-        m_states[m_current_state].handler(*this, event(enter_event_id));
+    handle(m_current_state, enter_event_id);
 
     while ((m_next_state = m_states[m_current_state].sub_id) !=
            invalid_state_id) {
@@ -8431,11 +8496,22 @@ inline void HSM<Data, Action, MaxNumberOfState>::start() noexcept
     }
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline bool HSM<Data, Action, MaxNumberOfState>::dispatch(
-  const event& e) noexcept
+inline void hierarchical_state_machine::clear() noexcept
 {
-    irt_assert(e.id >= 0);
+    std::fill_n(values.data(), values.size(), false);
+    outputs.clear();
+
+    m_current_state        = invalid_state_id;
+    m_next_state           = invalid_state_id;
+    m_source_state         = invalid_state_id;
+    m_current_source_state = invalid_state_id;
+    m_disallow_transition  = false;
+}
+
+inline bool hierarchical_state_machine::dispatch(
+  const event_type event) noexcept
+{
+    irt_assert(event >= 0);
     irt_assert(!is_dispatching());
 
     bool is_processed = false;
@@ -8444,7 +8520,7 @@ inline bool HSM<Data, Action, MaxNumberOfState>::dispatch(
         auto& state            = m_states[sid];
         m_current_source_state = sid;
 
-        if (state.handler && state.handler(*this, e)) {
+        if (handle(sid, event)) {
             if (m_next_state != invalid_state_id) {
                 do {
                     on_enter_sub_state();
@@ -8462,16 +8538,15 @@ inline bool HSM<Data, Action, MaxNumberOfState>::dispatch(
     return is_processed;
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline void HSM<Data, Action, MaxNumberOfState>::on_enter_sub_state() noexcept
+inline void hierarchical_state_machine::on_enter_sub_state() noexcept
 {
     irt_assert(m_next_state != invalid_state_id);
 
-    small_vector<state*, max_number_of_state / 10> entry_path;
+    small_vector<state_id, max_number_of_state> entry_path;
     for (state_id sid = m_next_state; sid != m_current_state;) {
         auto& state = m_states[sid];
 
-        entry_path.push_back(&state);
+        entry_path.emplace_back(sid);
         sid = state.super_id;
 
         irt_assert(sid != invalid_state_id);
@@ -8480,8 +8555,7 @@ inline void HSM<Data, Action, MaxNumberOfState>::on_enter_sub_state() noexcept
     while (!entry_path.empty()) {
         m_disallow_transition = true;
 
-        if (entry_path.back()->handler)
-            entry_path.back()->handler(*this, event(enter_event_id));
+        handle(entry_path.back(), enter_event_id);
 
         m_disallow_transition = false;
         entry_path.pop_back();
@@ -8491,9 +8565,7 @@ inline void HSM<Data, Action, MaxNumberOfState>::on_enter_sub_state() noexcept
     m_next_state    = invalid_state_id;
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline void HSM<Data, Action, MaxNumberOfState>::transition(
-  state_id target) noexcept
+inline void hierarchical_state_machine::transition(state_id target) noexcept
 {
     irt_assert(target < max_number_of_state);
     irt_assert(m_disallow_transition == false);
@@ -8508,21 +8580,16 @@ inline void HSM<Data, Action, MaxNumberOfState>::transition(
     m_disallow_transition = true;
     state_id sid;
     for (sid = m_current_state; sid != m_source_state;) {
-        auto& state = m_states[sid];
-        state.handler(*this, event(exit_event_id));
-        sid = state.super_id;
+        handle(sid, exit_event_id);
+        sid = m_states[sid].super_id;
     }
 
     int stepsToCommonRoot = steps_to_common_root(m_source_state, target);
     irt_assert(stepsToCommonRoot >= 0);
 
     while (stepsToCommonRoot--) {
-        auto& state = m_states[sid];
-
-        if (state.handler)
-            state.handler(*this, event(exit_event_id));
-
-        sid = state.super_id;
+        handle(sid, exit_event_id);
+        sid = m_states[sid].super_id;
     }
 
     m_disallow_transition = false;
@@ -8531,12 +8598,9 @@ inline void HSM<Data, Action, MaxNumberOfState>::transition(
     m_next_state    = target;
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline void HSM<Data, Action, MaxNumberOfState>::set_state(
-  state_id      id,
-  state_handler handler,
-  state_id      super_id,
-  state_id      sub_id) noexcept
+inline void hierarchical_state_machine::set_state(state_id id,
+                                                  state_id super_id,
+                                                  state_id sub_id) noexcept
 {
     if (super_id == invalid_state_id) {
         irt_assert(m_top_state == invalid_state_id);
@@ -8545,24 +8609,22 @@ inline void HSM<Data, Action, MaxNumberOfState>::set_state(
 
     m_states[id].super_id = super_id;
     m_states[id].sub_id   = sub_id;
-    m_states[id].handler  = handler;
 
     irt_assert(super_id == invalid_state_id ||
                m_states[super_id].sub_id != invalid_state_id);
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline void HSM<Data, Action, MaxNumberOfState>::clear_state(
-  state_id id) noexcept
+inline void hierarchical_state_machine::clear_state(state_id id) noexcept
 {
-    m_states[id].handler.clear();
-    m_states[id].name     = nullptr;
+    m_states[id].condition = 0;
+    m_states[id].action = action_type_none;
+    m_states[id].action_param_1 = 0;
+    m_states[id].action_param_2 = 0;
     m_states[id].super_id = invalid_state_id;
+    m_states[id].sub_id = invalid_state_id;
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline bool HSM<Data, Action, MaxNumberOfState>::is_in_state(
-  state_id id) const noexcept
+inline bool hierarchical_state_machine::is_in_state(state_id id) const noexcept
 {
     state_id sid = m_current_state;
 
@@ -8576,19 +8638,96 @@ inline bool HSM<Data, Action, MaxNumberOfState>::is_in_state(
     return false;
 }
 
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline int HSM<Data, Action, MaxNumberOfState>::steps_to_common_root(
+inline bool hierarchical_state_machine::handle(const state_id   state,
+                                               const event_type event) noexcept
+{
+    switch (event) {
+    case invalid_event_id:
+        irt_unreachable();
+        break;
+    case exit_event_id:
+        if (values[m_states[state].condition])
+            affect_enter_exit_action(state);
+        return true;
+    case enter_event_id:
+        if (values[m_states[state].condition])
+            affect_enter_exit_action(state);
+        return true;
+    case event_type_input_changed:
+        if (values[m_states[state].condition])
+            affect_action(state);
+        return true;
+
+    default:
+        irt_unreachable();
+        break;
+    }
+
+    return false;
+}
+
+inline void hierarchical_state_machine::affect_enter_exit_action(
+  const state_id s) noexcept
+{
+    switch (m_states[s].action) {
+    case action_type_none:
+        break;
+    case action_type_set:
+        values[m_states[s].action_param_1] = true;
+        break;
+    case action_type_unset:
+        values[m_states[s].action_param_1] = false;
+        break;
+    case action_type_reset:
+        std::fill_n(values.data(), values.size(), u8{ 0 });
+        break;
+    case action_type_output:
+        outputs.emplace_back(make_halfword(m_states[s].action_param_1,
+                                           m_states[s].action_param_2));
+        break;
+    default:
+        irt_unreachable();
+    }
+}
+
+inline void hierarchical_state_machine::affect_action(const state_id s) noexcept
+{
+    switch (m_states[s].action) {
+    case action_type_none:
+        break;
+    case action_type_set:
+        values[m_states[s].action_param_1] = true;
+        break;
+    case action_type_unset:
+        values[m_states[s].action_param_1] = false;
+        break;
+    case action_type_reset:
+        std::fill_n(values.data(), values.size(), u8{ 0 });
+        break;
+    case action_type_output:
+        outputs.emplace_back(make_halfword(m_states[s].action_param_1,
+                                           m_states[s].action_param_2));
+        break;
+    case action_type_transition:
+        transition(static_cast<state_id>(m_states[s].action_param_1));
+        break;
+    default:
+        irt_unreachable();
+    }
+}
+
+inline int hierarchical_state_machine::steps_to_common_root(
   state_id source,
   state_id target) noexcept
 {
     if (source == target)
         return 1;
 
-    int toLca = 0;
-    for (state_id s = source; s != invalid_state_id; ++toLca) {
+    int tolca = 0;
+    for (state_id s = source; s != invalid_state_id; ++tolca) {
         for (state_id t = target; t != invalid_state_id;) {
             if (s == t)
-                return toLca;
+                return tolca;
 
             t = m_states[t].super_id;
         }
@@ -8598,12 +8737,6 @@ inline int HSM<Data, Action, MaxNumberOfState>::steps_to_common_root(
 
     return -1;
 }
-
-template<typename Data, typename Action, u8 MaxNumberOfState>
-inline HSM<Data, Action, MaxNumberOfState>::event::event(i32 id_) noexcept
-  : id(id_)
-  , user_data{}
-{}
 
 } // namespace irt
 

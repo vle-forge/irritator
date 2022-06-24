@@ -1602,6 +1602,69 @@ int main()
         expect(cnt.number == static_cast<irt::i64>(2));
     };
 
+    "hsm_simulation"_test = [] {
+        irt::simulation      sim;
+        irt::external_source srcs;
+        sim.source_dispatch = srcs;
+
+        expect(irt::is_success(sim.init(16lu, 256lu)));
+        expect(irt::is_success(srcs.init(4lu)));
+        expect(sim.can_alloc(3));
+
+        expect(srcs.constant_sources.can_alloc(2u));
+        auto& cst_value  = srcs.constant_sources.alloc(32);
+        cst_value.buffer = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0 };
+
+        auto& cst_ta  = srcs.constant_sources.alloc(32);
+        cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
+
+        auto& cst_1         = sim.alloc<irt::constant>();
+        cst_1.default_value = 1.0;
+
+        auto& gen = sim.alloc<irt::generator>();
+        gen.default_source_value.id =
+          irt::ordinal(srcs.constant_sources.get_id(cst_value));
+        gen.default_source_value.type =
+          irt::ordinal(irt::external_source_type::constant);
+        gen.default_source_ta.id =
+          irt::ordinal(srcs.constant_sources.get_id(cst_ta));
+        gen.default_source_ta.type =
+          irt::ordinal(irt::external_source_type::constant);
+
+        expect(sim.hsms.can_alloc());
+        expect(sim.models.can_alloc());
+
+        auto& hsm = sim.hsms.alloc();
+        hsm.values.resize(2);
+
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        hsmw.id = sim.hsms.get_id(hsm);
+        hsmw.x.resize(2);
+        hsmw.y.resize(1);
+
+        //hsm.actions[0].next_state        = 1;
+        //hsm.actions[0].output_port       = -1;
+        //hsm.actions[0].output_port_value = -1;
+
+
+        // state_handler : function_ref<bool(HSM& sm, const event& e)>
+        // hsm.set_state(0, state_handler(this, &hsm_wrapper::xxxx),
+        // invalid_state_id, 1); hsm.set_state(1, state_handler(this,
+        // &hsm_wrapper::xxxx), 0, 2); hsm.set_state(2, state_handler(this,
+        // &hsm_wrapper::xxxx),
+
+        //
+
+        // hsm.set_
+        //     void set_state(state_id      id,
+        // state_handler handler,
+        // state_id      super_id = invalid_state_id,
+        // state_id      sub_id   = invalid_state_id) noexcept;
+        //
+
+        auto& cnt = sim.alloc<irt::counter>();
+    };
+
     "generator_counter_simluation"_test = [] {
         fmt::print("generator_counter_simluation\n");
         irt::simulation      sim;
