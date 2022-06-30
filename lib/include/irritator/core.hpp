@@ -6691,12 +6691,12 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
                          dynamics_type::logical_or_3,
                          dynamics_type::logical_invert);
         } else {
-            return match(mdl_dst,
-                         dynamics_type::logical_and_2,
-                         dynamics_type::logical_and_3,
-                         dynamics_type::logical_or_2,
-                         dynamics_type::logical_or_3,
-                         dynamics_type::logical_invert);
+            return !match(mdl_dst,
+                          dynamics_type::logical_and_2,
+                          dynamics_type::logical_and_3,
+                          dynamics_type::logical_or_2,
+                          dynamics_type::logical_or_3,
+                          dynamics_type::logical_invert);
         }
         return true;
 
