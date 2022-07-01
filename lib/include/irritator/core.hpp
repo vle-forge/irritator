@@ -5095,6 +5095,8 @@ public:
     small_vector<bool, 6>                    values;
 
     hierarchical_state_machine() noexcept = default;
+    hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
+      default;
 
     void start() noexcept;
     void clear() noexcept;
@@ -6954,6 +6956,15 @@ public:
         return models.can_alloc(place);
     }
 
+    template<typename Dynamics>
+    bool can_alloc_dynamics(int place = 1) const noexcept
+    {
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+            return models.can_alloc(place) && hsms.can_alloc(place);
+        else
+            return models.can_alloc(place);
+    }
+
     //! @brief cleanup simulation object
     //!
     //! Clean scheduller and input/output port from message.
@@ -7001,6 +7012,12 @@ public:
             for (int i = 0, e = length(dyn.y); i != e; ++i)
                 dyn.y[i] = static_cast<u64>(-1);
 
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            auto& hsm = hsms.alloc();
+            auto  id  = hsms.get_id(hsm);
+            dyn.id    = id;
+        }
+
         return dyn;
     }
 
@@ -7014,18 +7031,31 @@ public:
         new_mdl.type   = mdl.type;
         new_mdl.handle = nullptr;
 
-        dispatch(new_mdl, [&mdl]<typename Dynamics>(Dynamics& dyn) -> void {
-            const auto& src_dyn = get_dyn<Dynamics>(mdl);
-            std::construct_at(&dyn, src_dyn);
+        dispatch(
+          new_mdl, [this, &mdl]<typename Dynamics>(Dynamics& dyn) -> void {
+              const auto& src_dyn = get_dyn<Dynamics>(mdl);
+              std::construct_at(&dyn, src_dyn);
 
-            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                for (int i = 0, e = length(dyn.x); i != e; ++i)
-                    dyn.x[i] = static_cast<u64>(-1);
+              if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+                  for (int i = 0, e = length(dyn.x); i != e; ++i)
+                      dyn.x[i] = static_cast<u64>(-1);
 
-            if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                for (int i = 0, e = length(dyn.y); i != e; ++i)
-                    dyn.y[i] = static_cast<u64>(-1);
-        });
+              if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+                  for (int i = 0, e = length(dyn.y); i != e; ++i)
+                      dyn.y[i] = static_cast<u64>(-1);
+
+              if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                  if (auto* hsm_src = hsms.try_to_get(src_dyn.id); hsm_src) {
+                      auto& hsm = hsms.alloc(*hsm_src);
+                      auto  id  = hsms.get_id(hsm);
+                      dyn.id    = id;
+                  } else {
+                      auto& hsm = hsms.alloc();
+                      auto  id  = hsms.get_id(hsm);
+                      dyn.id    = id;
+                  }
+              }
+          });
 
         return new_mdl;
     }
@@ -7039,7 +7069,7 @@ public:
         mdl.type   = type;
         mdl.handle = nullptr;
 
-        dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
+        dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
             std::construct_at(&dyn);
 
             if constexpr (is_detected_v<has_input_port_t, Dynamics>)
@@ -7049,6 +7079,12 @@ public:
             if constexpr (is_detected_v<has_output_port_t, Dynamics>)
                 for (int i = 0, e = length(dyn.y); i != e; ++i)
                     dyn.y[i] = static_cast<u64>(-1);
+
+            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                auto& hsm = hsms.alloc();
+                auto  id  = hsms.get_id(hsm);
+                dyn.id    = id;
+            }
         });
 
         return mdl;
@@ -7099,6 +7135,11 @@ public:
         if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
             for (auto& elem : dyn.x)
                 append_message(*this, elem).clear();
+        }
+
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            if (auto* machine = hsms.try_to_get(dyn.id); machine)
+                hsms.free(dyn.id);
         }
 
         std::destroy_at(&dyn);
@@ -8616,12 +8657,12 @@ inline void hierarchical_state_machine::set_state(state_id id,
 
 inline void hierarchical_state_machine::clear_state(state_id id) noexcept
 {
-    m_states[id].condition = 0;
-    m_states[id].action = action_type_none;
+    m_states[id].condition      = 0;
+    m_states[id].action         = action_type_none;
     m_states[id].action_param_1 = 0;
     m_states[id].action_param_2 = 0;
-    m_states[id].super_id = invalid_state_id;
-    m_states[id].sub_id = invalid_state_id;
+    m_states[id].super_id       = invalid_state_id;
+    m_states[id].sub_id         = invalid_state_id;
 }
 
 inline bool hierarchical_state_machine::is_in_state(state_id id) const noexcept
