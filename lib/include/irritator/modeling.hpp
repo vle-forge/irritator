@@ -143,7 +143,8 @@ struct component
 {
     component() noexcept
     {
-        models.init(64);
+        models.init(64); // @TODO replace these constants
+        hsms.init(8);    // with variables from init files
         children.init(80);
         connections.init(256);
     }
@@ -151,11 +152,12 @@ struct component
     component(const component&) = delete;
     component& operator=(const component&) = delete;
 
-    data_array<model, model_id>           models;
-    data_array<child, child_id>           children;
-    data_array<connection, connection_id> connections;
+    data_array<model, model_id>                    models;
+    data_array<hierarchical_state_machine, hsm_id> hsms;
+    data_array<child, child_id>                    children;
+    data_array<connection, connection_id>          connections;
 
-     // One port is currently connected to only one child.
+    // One port is currently connected to only one child.
     small_vector<port, 8> x;
     small_vector<port, 8> y;
 

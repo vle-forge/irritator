@@ -42,6 +42,13 @@ std::pair<Dynamics*, child_id> alloc(
         for (int i = 0, e = length(dyn.y); i != e; ++i)
             dyn.y[i] = static_cast<u64>(-1);
 
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+        irt_assert(parent.hsms.can_alloc());
+        auto& machine = parent.hsms.alloc();
+        auto  id      = parent.hsms.get_id(machine);
+        dyn.id        = id;
+    }
+
     auto& child      = parent.children.alloc(parent.models.get_id(mdl));
     child.name       = name;
     child.observable = ordinal(param) & ordinal(alloc_parameter::observable);
