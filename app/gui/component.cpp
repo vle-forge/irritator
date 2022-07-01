@@ -229,9 +229,17 @@ void application::show_memory_box(bool* is_open) noexcept
         while (c_editor.mod.components.next(compo)) {
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {
-                ImGui::TextFormat("children: {}", compo->children.size());
-                ImGui::TextFormat("models: {}", compo->models.size());
-                ImGui::TextFormat("connections: {}", compo->connections.size());
+                ImGui::TextFormat("children: {}/{}",
+                                  compo->children.size(),
+                                  compo->children.capacity());
+                ImGui::TextFormat("models: {}/{}",
+                                  compo->models.size(),
+                                  compo->models.capacity());
+                ImGui::TextFormat(
+                  "hsm: {}/{}", compo->hsms.size(), compo->hsms.capacity());
+                ImGui::TextFormat("connections: {}/{}",
+                                  compo->connections.size(),
+                                  compo->connections.capacity());
                 ImGui::Separator();
 
                 ImGui::TextFormat("Dir: {}", ordinal(compo->dir));
