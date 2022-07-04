@@ -1602,14 +1602,55 @@ int main()
         expect(cnt.number == static_cast<irt::i64>(2));
     };
 
+    "hsm_automata"_test = [] {
+        irt::hierarchical_state_machine hsmw;
+        hsmw.m_states.resize(3);
+
+        hsmw.set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u);
+
+        hsmw.set_state(1u, 0u);
+        hsmw.m_states[1u].input_changed_action.value_condition_1 = 3u;
+        hsmw.m_states[1u].input_changed_action.value_mask_1      = 7u;
+        hsmw.m_states[1u].input_changed_action.transition_1      = 2u;
+
+        hsmw.set_state(2u, 0u);
+        hsmw.m_states[2u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type_output;
+        hsmw.m_states[2u].enter_action.parameter_1 = 0u;
+        hsmw.m_states[2u].enter_action.parameter_2 = 1u;
+
+        // irt_breakpoint();
+        hsmw.start();
+
+        fmt::print("1. current state: {}\n",
+                   (unsigned)hsmw.get_current_state());
+
+        expect((int)hsmw.get_current_state() == 1);
+        hsmw.values = 0b00000011;
+
+        expect(hsmw.outputs.ssize() == 0);
+
+        const auto processed = hsmw.dispatch(
+          irt::hierarchical_state_machine::event_type_input_changed);
+
+        expect(processed == true);
+
+        fmt::print("2. current state: {}\n",
+                   (unsigned)hsmw.get_current_state());
+
+        expect(hsmw.outputs.ssize() == 1);
+    };
+
     "hsm_simulation"_test = [] {
         irt::simulation      sim;
         irt::external_source srcs;
         sim.source_dispatch = srcs;
 
-        expect(irt::is_success(sim.init(16lu, 256lu)));
-        expect(irt::is_success(srcs.init(4lu)));
-        expect(sim.can_alloc(3));
+        expect((irt::is_success(sim.init(16lu, 256lu))) >> fatal);
+        expect((irt::is_success(srcs.init(4lu))) >> fatal);
+        expect((sim.can_alloc(3)) >> fatal);
+        expect((sim.hsms.can_alloc(1)) >> fatal);
 
         expect(srcs.constant_sources.can_alloc(2u));
         auto& cst_value  = srcs.constant_sources.alloc(32);
@@ -1620,6 +1661,8 @@ int main()
 
         auto& cst_1         = sim.alloc<irt::constant>();
         cst_1.default_value = 1.0;
+
+        auto& cnt = sim.alloc<irt::counter>();
 
         auto& gen = sim.alloc<irt::generator>();
         gen.default_source_value.id =
@@ -1634,35 +1677,44 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsm = sim.hsms.alloc();
-        hsm.values.resize(2);
+        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
+        auto* hsmw = sim.hsms.try_to_get(hsm.id);
+        expect((hsmw != nullptr) >> fatal);
+        hsmw->x_names.resize(2);
+        hsmw->y_names.resize(1);
+        hsmw->m_states.resize(2);
 
-        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        hsmw.id = sim.hsms.get_id(hsm);
-        hsmw.x.resize(2);
-        hsmw.y.resize(1);
+        hsmw->set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u);
+        hsmw->m_states[0u].input_changed_action.value_condition_1 = 3u;
+        hsmw->m_states[0u].input_changed_action.transition_1      = 1u;
 
-        //hsm.actions[0].next_state        = 1;
-        //hsm.actions[0].output_port       = -1;
-        //hsm.actions[0].output_port_value = -1;
+        hsmw->set_state(1u, 0u);
+        hsmw->m_states[1u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type_output;
+        hsmw->m_states[1u].enter_action.parameter_1 = 0u;
+        hsmw->m_states[1u].enter_action.parameter_2 = 1u;
 
+        hsmw->m_states[1u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type_output;
+        hsmw->m_states[1u].enter_action.parameter_1 = 0u;
+        hsmw->m_states[1u].enter_action.parameter_2 = 1u;
 
-        // state_handler : function_ref<bool(HSM& sm, const event& e)>
-        // hsm.set_state(0, state_handler(this, &hsm_wrapper::xxxx),
-        // invalid_state_id, 1); hsm.set_state(1, state_handler(this,
-        // &hsm_wrapper::xxxx), 0, 2); hsm.set_state(2, state_handler(this,
-        // &hsm_wrapper::xxxx),
+        expect(sim.connect(gen, 0, hsm, 0) == irt::status::success);
+        expect(sim.connect(gen, 0, hsm, 1) == irt::status::success);
+        expect(sim.connect(hsm, 0, cnt, 0) == irt::status::success);
 
-        //
+        irt::time t = 0.0;
+        expect(sim.initialize(t) == irt::status::success);
 
-        // hsm.set_
-        //     void set_state(state_id      id,
-        // state_handler handler,
-        // state_id      super_id = invalid_state_id,
-        // state_id      sub_id   = invalid_state_id) noexcept;
-        //
+        irt::status st;
 
-        auto& cnt = sim.alloc<irt::counter>();
+        do {
+            st = sim.run(t);
+            expect(irt::is_success(st));
+        } while (t < 10);
+
+        expect(cnt.number == static_cast<irt::i64>(1));
     };
 
     "generator_counter_simluation"_test = [] {
