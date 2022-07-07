@@ -133,10 +133,17 @@ static void show(const settings_manager& settings,
       "{}\n{}", c.name.c_str(), get_dynamics_type_name(mdl.type));
     ImNodes::EndNodeTitleBar();
 
-    dispatch(mdl, [&ed, id](auto& dyn) {
+    dispatch(mdl, [&ed, id]<typename Dynamics>(Dynamics& dyn) {
         add_input_attribute(dyn, id);
         ImGui::PushItemWidth(120.0f);
-        show_dynamics_inputs(ed.mod.srcs, dyn);
+
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            if (auto* machine = ed.mod.hsms.try_to_get(dyn.id); machine)
+                show_dynamics_inputs(ed.mod.srcs, dyn);
+        } else {
+            show_dynamics_inputs(ed.mod.srcs, dyn);
+        }
+
         ImGui::PopItemWidth();
         add_output_attribute(dyn, id);
     });

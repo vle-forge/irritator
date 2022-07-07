@@ -271,13 +271,14 @@ struct tree_node
 
 struct modeling
 {
-    data_array<tree_node, tree_node_id>           tree_nodes;
-    data_array<description, description_id>       descriptions;
-    data_array<component, component_id>           components;
-    data_array<registred_path, registred_path_id> registred_paths;
-    data_array<dir_path, dir_path_id>             dir_paths;
-    data_array<file_path, file_path_id>           file_paths;
-    data_array<model, model_id>                   parameters;
+    data_array<tree_node, tree_node_id>            tree_nodes;
+    data_array<description, description_id>        descriptions;
+    data_array<component, component_id>            components;
+    data_array<registred_path, registred_path_id>  registred_paths;
+    data_array<dir_path, dir_path_id>              dir_paths;
+    data_array<file_path, file_path_id>            file_paths;
+    data_array<model, model_id>                    parameters;
+    data_array<hierarchical_state_machine, hsm_id> hsms;
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     irt::external_source                                srcs;
