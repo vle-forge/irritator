@@ -1680,8 +1680,6 @@ int main()
         auto& hsm  = sim.alloc<irt::hsm_wrapper>();
         auto* hsmw = sim.hsms.try_to_get(hsm.id);
         expect((hsmw != nullptr) >> fatal);
-        hsmw->x_names.resize(2);
-        hsmw->y_names.resize(1);
         hsmw->m_states.resize(2);
 
         hsmw->set_state(

@@ -271,14 +271,13 @@ struct tree_node
 
 struct modeling
 {
-    data_array<tree_node, tree_node_id>            tree_nodes;
-    data_array<description, description_id>        descriptions;
-    data_array<component, component_id>            components;
-    data_array<registred_path, registred_path_id>  registred_paths;
-    data_array<dir_path, dir_path_id>              dir_paths;
-    data_array<file_path, file_path_id>            file_paths;
-    data_array<model, model_id>                    parameters;
-    data_array<hierarchical_state_machine, hsm_id> hsms;
+    data_array<tree_node, tree_node_id>           tree_nodes;
+    data_array<description, description_id>       descriptions;
+    data_array<component, component_id>           components;
+    data_array<registred_path, registred_path_id> registred_paths;
+    data_array<dir_path, dir_path_id>             dir_paths;
+    data_array<file_path, file_path_id>           file_paths;
+    data_array<model, model_id>                   parameters;
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     irt::external_source                                srcs;
@@ -385,7 +384,7 @@ inline child& modeling::alloc(component& parent, dynamics_type type) noexcept
     mdl.type   = type;
     mdl.handle = nullptr;
 
-    dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
+    dispatch(mdl, [&parent]<typename Dynamics>(Dynamics& dyn) -> void {
         new (&dyn) Dynamics{};
 
         if constexpr (is_detected_v<has_input_port_t, Dynamics>)
@@ -395,6 +394,13 @@ inline child& modeling::alloc(component& parent, dynamics_type type) noexcept
         if constexpr (is_detected_v<has_output_port_t, Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
                 dyn.y[i] = static_cast<u64>(-1);
+
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            irt_assert(parent.hsms.can_alloc());
+
+            auto& machine = parent.hsms.alloc();
+            dyn.id        = parent.hsms.get_id(machine);
+        }
     });
 
     auto  mdl_id = parent.models.get_id(mdl);

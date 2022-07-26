@@ -474,7 +474,9 @@ void show_dynamics_inputs(external_source& /*srcs*/, logical_or_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, hsm_wrapper& /*dyn*/)
+void show_dynamics_inputs(external_source& /*srcs*/,
+                          hsm_wrapper& /*dyn*/,
+                          hierarchical_state_machine& /*machine*/)
 {
     ImGui::Button("Edit");
 }

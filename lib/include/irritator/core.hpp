@@ -5160,8 +5160,8 @@ public:
     u8                                       values = 0;
     // i32 a, b;
 
-    small_vector<small_string<8>, 6> x_names;
-    small_vector<small_string<8>, 6> y_names;
+    small_string<8> x_names[6];
+    small_string<8> y_names[6];
 
     hierarchical_state_machine() noexcept = default;
     hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
@@ -8600,6 +8600,9 @@ hierarchical_state_machine::conditional_state_action::clear() noexcept
 
 inline void hierarchical_state_machine::start() noexcept
 {
+    if (m_states.empty())
+        return;
+
     irt_assert(m_top_state != invalid_state_id);
     m_current_state = m_top_state;
     m_next_state    = invalid_state_id;

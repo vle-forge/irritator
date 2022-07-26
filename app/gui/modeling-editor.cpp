@@ -60,6 +60,19 @@ inline child* unpack_node(const int                          node_id,
     return data.try_to_get(static_cast<u32>(node_id));
 }
 
+static void add_input_attribute(
+  const hsm_wrapper&                dyn,
+  child_id                          id,
+  const hierarchical_state_machine& machine) noexcept
+{
+    for (int i = 0; i < length(dyn.x); ++i) {
+        ImNodes::BeginInputAttribute(pack_in(id, static_cast<i8>(i)),
+                                     ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(machine.x_names[i].c_str());
+        ImNodes::EndInputAttribute();
+    }
+}
+
 template<typename Dynamics>
 static void add_input_attribute(const Dynamics& dyn, child_id id) noexcept
 {
@@ -74,6 +87,19 @@ static void add_input_attribute(const Dynamics& dyn, child_id id) noexcept
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndInputAttribute();
         }
+    }
+}
+
+static void add_output_attribute(
+  const hsm_wrapper&                dyn,
+  child_id                          id,
+  const hierarchical_state_machine& machine) noexcept
+{
+    for (int i = 0; i < length(dyn.y); ++i) {
+        ImNodes::BeginOutputAttribute(pack_out(id, static_cast<i8>(i)),
+                                      ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(machine.y_names[i].c_str());
+        ImNodes::EndOutputAttribute();
     }
 }
 
@@ -114,6 +140,7 @@ static bool show_connection(const component&  parent,
 
 static void show(const settings_manager& settings,
                  component_editor&       ed,
+                 component&              parent,
                  model&                  mdl,
                  child&                  c,
                  child_id                id) noexcept
@@ -133,19 +160,22 @@ static void show(const settings_manager& settings,
       "{}\n{}", c.name.c_str(), get_dynamics_type_name(mdl.type));
     ImNodes::EndNodeTitleBar();
 
-    dispatch(mdl, [&ed, id]<typename Dynamics>(Dynamics& dyn) {
-        add_input_attribute(dyn, id);
-        ImGui::PushItemWidth(120.0f);
-
+    dispatch(mdl, [&ed, &parent, id]<typename Dynamics>(Dynamics& dyn) {
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            if (auto* machine = ed.mod.hsms.try_to_get(dyn.id); machine)
-                show_dynamics_inputs(ed.mod.srcs, dyn);
+            if (auto* machine = parent.hsms.try_to_get(dyn.id); machine) {
+                add_input_attribute(dyn, id, *machine);
+                ImGui::PushItemWidth(120.0f);
+                show_dynamics_inputs(ed.mod.srcs, dyn, *machine);
+                ImGui::PopItemWidth();
+                add_output_attribute(dyn, id, *machine);
+            }
         } else {
+            add_input_attribute(dyn, id);
+            ImGui::PushItemWidth(120.0f);
             show_dynamics_inputs(ed.mod.srcs, dyn);
+            ImGui::PopItemWidth();
+            add_output_attribute(dyn, id);
         }
-
-        ImGui::PopItemWidth();
-        add_output_attribute(dyn, id);
     });
 
     ImNodes::EndNode();
@@ -245,7 +275,7 @@ static void show_opened_component_ref(const settings_manager& settings,
         if (c->type == child_type::model) {
             auto id = enum_cast<model_id>(c->id);
             if (auto* mdl = parent.models.try_to_get(id); mdl)
-                show(settings, ed, *mdl, *c, child_id);
+                show(settings, ed, parent, *mdl, *c, child_id);
         } else {
             auto id = enum_cast<component_id>(c->id);
             if (auto* compo = ed.mod.components.try_to_get(id); compo)

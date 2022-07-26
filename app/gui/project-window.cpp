@@ -157,11 +157,11 @@ static void show_project_hierarchy_child_configuration(component_editor& ed,
         }
 
         if (is_configured && param) {
-            dispatch(*param, [&ed]<typename Dynamics>(Dynamics& dyn) {
+            dispatch(*param, [&ed, &compo]<typename Dynamics>(Dynamics& dyn) {
                 if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                    if (auto* machine = ed.mod.hsms.try_to_get(dyn.id);
+                    if (auto* machine = compo.hsms.try_to_get(dyn.id);
                         machine) {
-                        show_dynamics_inputs(ed.mod.srcs, dyn);
+                        show_dynamics_inputs(ed.mod.srcs, dyn, *machine);
                     }
                 } else
                     show_dynamics_inputs(ed.mod.srcs, dyn);
