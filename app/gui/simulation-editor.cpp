@@ -28,6 +28,63 @@
 
 namespace irt {
 
+static int make_input_node_id(const irt::model_id mdl, const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    irt::u32 index = irt::get_index(mdl);
+    irt_assert(index < 268435456u);
+
+    irt::u32 port_index = static_cast<irt::u32>(port) << 28u;
+    index |= port_index;
+
+    return static_cast<int>(index);
+}
+
+static int make_output_node_id(const irt::model_id mdl, const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+
+    irt::u32 index = irt::get_index(mdl);
+    irt_assert(index < 268435456u);
+
+    irt::u32 port_index = static_cast<irt::u32>(8u + port) << 28u;
+    index |= port_index;
+
+    return static_cast<int>(index);
+}
+
+static std::pair<irt::u32, irt::u32> get_model_input_port(
+  const int node_id) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    irt::u32 port = real_node_id >> 28u;
+    irt_assert(port < 8u);
+
+    constexpr irt::u32 mask  = ~(15u << 28u);
+    irt::u32           index = real_node_id & mask;
+
+    return std::make_pair(index, port);
+}
+
+static std::pair<irt::u32, irt::u32> get_model_output_port(
+  const int node_id) noexcept
+{
+    const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
+
+    irt::u32 port = real_node_id >> 28u;
+    irt_assert(port >= 8u && port < 16u);
+    port -= 8u;
+    irt_assert(port < 8u);
+
+    constexpr irt::u32 mask = ~(15u << 28u);
+
+    irt::u32 index = real_node_id & mask;
+
+    return std::make_pair(index, port);
+}
+
 template<typename Dynamics>
 static void add_input_attribute(simulation_editor& ed,
                                 const Dynamics&    dyn) noexcept
