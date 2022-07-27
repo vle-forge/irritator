@@ -168,6 +168,8 @@ static inline const char* str_in_1[]                  = { "in" };
 static inline const char* str_in_2[]                  = { "in-1", "in-2" };
 static inline const char* str_in_3[] = { "in-1", "in-2", "in-3" };
 static inline const char* str_in_4[] = { "in-1", "in-2", "in-3", "in-4" };
+static inline const char* str_in_6[] = { "in-1", "in-2", "in-3",
+                                         "in-4", "in-5", "in-6" };
 static inline const char* str_value_if_else[] = { "value",
                                                   "if",
                                                   "else",
@@ -239,9 +241,11 @@ static constexpr const char** get_input_port_names() noexcept
 
     if constexpr (std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
-                  std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, hsm_wrapper>)
+                  std::is_same_v<Dynamics, time_func>)
         return str_empty;
+
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        return str_in_6;
 
     if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
                   std::is_same_v<Dynamics, qss2_cross> ||
@@ -325,7 +329,7 @@ static constexpr const char** get_input_port_names(
         return str_empty;
 
     case dynamics_type::hsm_wrapper:
-        return str_empty;
+        return str_in_6;
 
     case dynamics_type::qss1_cross:
     case dynamics_type::qss2_cross:
@@ -341,6 +345,8 @@ static constexpr const char** get_input_port_names(
 }
 
 static inline const char* str_out_1[]     = { "out" };
+static inline const char* str_out_6[]     = { "out-1", "out-2", "out-3",
+                                          "out-4", "out-5", "out-6" };
 static inline const char* str_out_cross[] = { "if-value",
                                               "else-value",
                                               "event" };
@@ -471,8 +477,8 @@ static constexpr const char** get_output_port_names(
     case dynamics_type::logical_invert:
         return str_out_1;
 
-    case dynamics_type::hsm_wrapper: // @todo Fix dynamics names
-        return str_empty;
+    case dynamics_type::hsm_wrapper:
+        return str_out_6;
 
     case dynamics_type::cross:
     case dynamics_type::qss1_cross:
