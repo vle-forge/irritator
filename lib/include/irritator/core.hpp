@@ -5160,9 +5160,6 @@ public:
     u8                                       values = 0;
     // i32 a, b;
 
-    small_string<8> x_names[6];
-    small_string<8> y_names[6];
-
     hierarchical_state_machine() noexcept = default;
     hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
       default;
