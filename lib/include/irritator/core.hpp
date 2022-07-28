@@ -7011,6 +7011,14 @@ public:
         return models.can_alloc(place);
     }
 
+    bool can_alloc(dynamics_type type, int place = 1) const noexcept
+    {
+        if (type == dynamics_type::hsm_wrapper)
+            return models.can_alloc(place) && hsms.can_alloc(place);
+        else
+            return models.can_alloc(place);
+    }
+
     template<typename Dynamics>
     bool can_alloc_dynamics(int place = 1) const noexcept
     {

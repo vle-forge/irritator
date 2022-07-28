@@ -141,16 +141,16 @@ struct connection
 
 struct component
 {
-    component() noexcept
-    {
-        models.init(64); // @TODO replace these constants
-        hsms.init(8);    // with variables from init files
-        children.init(80);
-        connections.init(256);
-    }
+    component() noexcept;
 
     component(const component&) = delete;
     component& operator=(const component&) = delete;
+
+    bool can_alloc(int place = 1) const noexcept;
+    bool can_alloc(dynamics_type type, int place = 1) const noexcept;
+
+    template<typename Dynamics>
+    bool can_alloc_dynamics(int place = 1) const noexcept;
 
     data_array<model, model_id>                    models;
     data_array<hierarchical_state_machine, hsm_id> hsms;
@@ -375,6 +375,36 @@ inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
   : id(id_)
   , id_in_parent(id_in_parent_)
 {}
+
+inline component::component() noexcept
+{
+    models.init(64); // @TODO replace these constants
+    hsms.init(8);    // with variables from init files
+    children.init(80);
+    connections.init(256);
+}
+
+inline bool component::can_alloc(int place) const noexcept
+{
+    return models.can_alloc(place);
+}
+
+inline bool component::can_alloc(dynamics_type type, int place) const noexcept
+{
+    if (type == dynamics_type::hsm_wrapper)
+        return models.can_alloc(place) && hsms.can_alloc(place);
+    else
+        return models.can_alloc(place);
+}
+
+template<typename Dynamics>
+inline bool component::can_alloc_dynamics(int place) const noexcept
+{
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        return models.can_alloc(place) && hsms.can_alloc(place);
+    else
+        return models.can_alloc(place);
+}
 
 inline child& modeling::alloc(component& parent, dynamics_type type) noexcept
 {
