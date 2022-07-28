@@ -1604,21 +1604,21 @@ int main()
 
     "hsm_automata"_test = [] {
         irt::hierarchical_state_machine hsmw;
-        hsmw.m_states.resize(3);
+        hsmw.states.resize(3);
 
         hsmw.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u);
 
         hsmw.set_state(1u, 0u);
-        hsmw.m_states[1u].input_changed_action.value_condition_1 = 3u;
-        hsmw.m_states[1u].input_changed_action.value_mask_1      = 7u;
-        hsmw.m_states[1u].input_changed_action.transition_1      = 2u;
+        hsmw.states[1u].input_changed_action.value_condition_1 = 3u;
+        hsmw.states[1u].input_changed_action.value_mask_1      = 7u;
+        hsmw.states[1u].input_changed_action.transition_1      = 2u;
 
         hsmw.set_state(2u, 0u);
-        hsmw.m_states[2u].enter_action.type =
+        hsmw.states[2u].enter_action.type =
           irt::hsm_wrapper::hsm::action_type_output;
-        hsmw.m_states[2u].enter_action.parameter_1 = 0u;
-        hsmw.m_states[2u].enter_action.parameter_2 = 1u;
+        hsmw.states[2u].enter_action.parameter_1 = 0u;
+        hsmw.states[2u].enter_action.parameter_2 = 1u;
 
         // irt_breakpoint();
         hsmw.start();
@@ -1680,23 +1680,23 @@ int main()
         auto& hsm  = sim.alloc<irt::hsm_wrapper>();
         auto* hsmw = sim.hsms.try_to_get(hsm.id);
         expect((hsmw != nullptr) >> fatal);
-        hsmw->m_states.resize(2);
+        hsmw->states.resize(2);
 
         hsmw->set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u);
-        hsmw->m_states[0u].input_changed_action.value_condition_1 = 3u;
-        hsmw->m_states[0u].input_changed_action.transition_1      = 1u;
+        hsmw->states[0u].input_changed_action.value_condition_1 = 3u;
+        hsmw->states[0u].input_changed_action.transition_1      = 1u;
 
         hsmw->set_state(1u, 0u);
-        hsmw->m_states[1u].enter_action.type =
+        hsmw->states[1u].enter_action.type =
           irt::hsm_wrapper::hsm::action_type_output;
-        hsmw->m_states[1u].enter_action.parameter_1 = 0u;
-        hsmw->m_states[1u].enter_action.parameter_2 = 1u;
+        hsmw->states[1u].enter_action.parameter_1 = 0u;
+        hsmw->states[1u].enter_action.parameter_2 = 1u;
 
-        hsmw->m_states[1u].enter_action.type =
+        hsmw->states[1u].enter_action.type =
           irt::hsm_wrapper::hsm::action_type_output;
-        hsmw->m_states[1u].enter_action.parameter_1 = 0u;
-        hsmw->m_states[1u].enter_action.parameter_2 = 1u;
+        hsmw->states[1u].enter_action.parameter_1 = 0u;
+        hsmw->states[1u].enter_action.parameter_2 = 1u;
 
         expect(sim.connect(gen, 0, hsm, 0) == irt::status::success);
         expect(sim.connect(gen, 0, hsm, 1) == irt::status::success);

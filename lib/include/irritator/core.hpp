@@ -5155,7 +5155,7 @@ public:
         state_id sub_id   = invalid_state_id;
     };
 
-    small_vector<state, max_number_of_state> m_states;
+    small_vector<state, max_number_of_state> states;
     small_vector<u16, 6>                     outputs;
     u8                                       values = 0;
     // i32 a, b;
@@ -8597,7 +8597,7 @@ hierarchical_state_machine::conditional_state_action::clear() noexcept
 
 inline void hierarchical_state_machine::start() noexcept
 {
-    if (m_states.empty())
+    if (states.empty())
         return;
 
     irt_assert(m_top_state != invalid_state_id);
@@ -8606,7 +8606,7 @@ inline void hierarchical_state_machine::start() noexcept
 
     handle(m_current_state, event_type_enter);
 
-    while ((m_next_state = m_states[m_current_state].sub_id) !=
+    while ((m_next_state = states[m_current_state].sub_id) !=
            invalid_state_id) {
         on_enter_sub_state();
     }
@@ -8633,14 +8633,14 @@ inline bool hierarchical_state_machine::dispatch(
     bool is_processed = false;
 
     for (state_id sid = m_current_state; sid != invalid_state_id;) {
-        auto& state            = m_states[sid];
+        auto& state            = states[sid];
         m_current_source_state = sid;
 
         if (handle(sid, event)) {
             if (m_next_state != invalid_state_id) {
                 do {
                     on_enter_sub_state();
-                } while ((m_next_state = m_states[m_current_state].sub_id) !=
+                } while ((m_next_state = states[m_current_state].sub_id) !=
                          invalid_state_id);
             }
             is_processed = true;
@@ -8660,7 +8660,7 @@ inline void hierarchical_state_machine::on_enter_sub_state() noexcept
 
     small_vector<state_id, max_number_of_state> entry_path;
     for (state_id sid = m_next_state; sid != m_current_state;) {
-        auto& state = m_states[sid];
+        auto& state = states[sid];
 
         entry_path.emplace_back(sid);
         sid = state.super_id;
@@ -8697,7 +8697,7 @@ inline void hierarchical_state_machine::transition(state_id target) noexcept
     state_id sid;
     for (sid = m_current_state; sid != m_source_state;) {
         handle(sid, event_type_exit);
-        sid = m_states[sid].super_id;
+        sid = states[sid].super_id;
     }
 
     int stepsToCommonRoot = steps_to_common_root(m_source_state, target);
@@ -8705,7 +8705,7 @@ inline void hierarchical_state_machine::transition(state_id target) noexcept
 
     while (stepsToCommonRoot--) {
         handle(sid, event_type_exit);
-        sid = m_states[sid].super_id;
+        sid = states[sid].super_id;
     }
 
     m_disallow_transition = false;
@@ -8723,21 +8723,21 @@ inline void hierarchical_state_machine::set_state(state_id id,
         m_top_state = id;
     }
 
-    m_states[id].super_id = super_id;
-    m_states[id].sub_id   = sub_id;
+    states[id].super_id = super_id;
+    states[id].sub_id   = sub_id;
 
     irt_assert(super_id == invalid_state_id ||
-               m_states[super_id].sub_id != invalid_state_id);
+               states[super_id].sub_id != invalid_state_id);
 }
 
 inline void hierarchical_state_machine::clear_state(state_id id) noexcept
 {
-    m_states[id].enter_action.clear();
-    m_states[id].exit_action.clear();
-    m_states[id].input_changed_action.clear();
+    states[id].enter_action.clear();
+    states[id].exit_action.clear();
+    states[id].input_changed_action.clear();
 
-    m_states[id].super_id = invalid_state_id;
-    m_states[id].sub_id   = invalid_state_id;
+    states[id].super_id = invalid_state_id;
+    states[id].sub_id   = invalid_state_id;
 }
 
 inline bool hierarchical_state_machine::is_in_state(state_id id) const noexcept
@@ -8748,7 +8748,7 @@ inline bool hierarchical_state_machine::is_in_state(state_id id) const noexcept
         if (sid == id)
             return true;
 
-        sid = m_states[sid].super_id;
+        sid = states[sid].super_id;
     }
 
     return false;
@@ -8759,13 +8759,13 @@ inline bool hierarchical_state_machine::handle(const state_id   state,
 {
     switch (event) {
     case event_type_enter:
-        affect_action(m_states[state].enter_action);
+        affect_action(states[state].enter_action);
         return true;
     case event_type_exit:
-        affect_action(m_states[state].exit_action);
+        affect_action(states[state].exit_action);
         return true;
     case event_type_input_changed:
-        return affect_action(m_states[state].input_changed_action);
+        return affect_action(states[state].input_changed_action);
     default:
         break;
     }
@@ -8875,10 +8875,10 @@ inline int hierarchical_state_machine::steps_to_common_root(
             if (s == t)
                 return tolca;
 
-            t = m_states[t].super_id;
+            t = states[t].super_id;
         }
 
-        s = m_states[s].super_id;
+        s = states[s].super_id;
     }
 
     return -1;
