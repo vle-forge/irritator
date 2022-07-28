@@ -5079,6 +5079,7 @@ public:
         action_type_unset,    // [0-7] bit index to unset
         action_type_reset,    // Reset value to 0
         action_type_output,   // [0-7] output port + constant to send
+        action_type_COUNT
 
         // action_type_affect_constant,
         // action_type_affect,

@@ -413,8 +413,10 @@ static constexpr const char** get_output_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_cross>)
         return str_out_cross;
 
-    if constexpr (std::is_same_v<Dynamics, accumulator_2> ||
-                  std::is_same_v<Dynamics, hsm_wrapper>)
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        return str_out_6;
+
+    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return str_empty;
 
     irt_unreachable();
@@ -1189,12 +1191,26 @@ private:
         irt_return_if_fail(convert(dynamics_name, &type),
                            status::io_file_format_dynamics_unknown);
 
+        irt_return_if_fail(sim.can_alloc(type, 1),
+                           status::io_file_format_dynamics_init_error);
+
         auto& mdl = sim.alloc(type);
 
-        auto ret =
-          dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
-              irt_return_if_fail(this->read(dyn),
-                                 status::io_file_format_dynamics_init_error);
+        auto ret = dispatch(
+          mdl, [this, &sim]<typename Dynamics>(Dynamics& dyn) -> status {
+              if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                  auto* machine = sim.hsms.try_to_get(dyn.id);
+                  irt_return_if_fail(machine,
+                                     status::io_file_format_dynamics_unknown);
+
+                  irt_return_if_fail(
+                    this->read(dyn, *machine),
+                    status::io_file_format_dynamics_init_error);
+              } else {
+                  irt_return_if_fail(
+                    this->read(dyn),
+                    status::io_file_format_dynamics_init_error);
+              }
 
               return status::success;
           });
@@ -1237,6 +1253,9 @@ private:
             irt_return_if_fail(convert(dynamics_name, &type),
                                status::io_file_format_dynamics_unknown);
 
+            irt_return_if_fail(compo.can_alloc(type, 1),
+                               status::io_file_format_dynamics_init_error);
+
             auto& child = mod.alloc(compo, type);
             last        = compo.children.get_id(child);
 
@@ -1245,11 +1264,21 @@ private:
 
             auto& mdl = compo.models.get(enum_cast<model_id>(child.id));
 
-            auto ret =
-              dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
-                  irt_return_if_fail(
-                    this->read(dyn),
-                    status::io_file_format_dynamics_init_error);
+            auto ret = dispatch(
+              mdl, [this, &compo]<typename Dynamics>(Dynamics& dyn) -> status {
+                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                      auto* machine = compo.hsms.try_to_get(dyn.id);
+                      irt_return_if_fail(
+                        machine, status::io_file_format_dynamics_unknown);
+
+                      irt_return_if_fail(
+                        this->read(dyn, *machine),
+                        status::io_file_format_dynamics_init_error);
+                  } else {
+                      irt_return_if_fail(
+                        this->read(dyn),
+                        status::io_file_format_dynamics_init_error);
+                  }
 
                   return status::success;
               });
@@ -1653,7 +1682,89 @@ private:
     }
 
     bool read(logical_invert& /*dyn*/) noexcept { return true; }
-    bool read(hsm_wrapper& /*dyn*/) noexcept { return true; }
+
+    bool read(hierarchical_state_machine::state_action& action) noexcept
+    {
+        if (!(is >> action.type >> action.parameter_1 >> action.parameter_2))
+            return false;
+
+        if (action.type > hierarchical_state_machine::action_type_COUNT)
+            return false;
+
+        return true;
+    }
+
+    bool read(
+      hierarchical_state_machine::conditional_state_action& action) noexcept
+    {
+        if (!(is >> action.value_condition_1 >> action.value_mask_1))
+            return false;
+
+        if (!read(action.action_1))
+            return false;
+
+        if (!(is >> action.transition_1 >> action.value_condition_2 >>
+              action.value_mask_2))
+            return false;
+
+        if (!read(action.action_2))
+            return false;
+
+        if (!(is >> action.transition_2))
+            return false;
+
+        return true;
+    }
+
+    bool read(hsm_wrapper& /*dyn*/,
+              hierarchical_state_machine& machine) noexcept
+    {
+        int machine_state_size;
+
+        if (!(is >> machine_state_size))
+            return false;
+
+        if (machine_state_size < 0 ||
+            machine_state_size >
+              hierarchical_state_machine::max_number_of_state)
+            return false;
+
+        for (int i = 0; i < machine_state_size; ++i) {
+            if (!(read(machine.states[i].enter_action) &&
+                  read(machine.states[i].exit_action) &&
+                  read(machine.states[i].input_changed_action)))
+                return false;
+
+            int super_id, sub_id;
+            if (!(is >> super_id >> sub_id))
+                return false;
+
+            if ((super_id < 0 || super_id > machine_state_size) &&
+                (sub_id < 0 || sub_id > machine_state_size))
+                return false;
+
+            machine.set_state(static_cast<u8>(i),
+                              static_cast<u8>(super_id),
+                              static_cast<u8>(sub_id));
+        }
+
+        int machine_output_size;
+        if (!(is >> machine_output_size))
+            return false;
+
+        if (machine_output_size < 0 ||
+            machine_output_size > machine.outputs.capacity())
+            return false;
+
+        machine.outputs.clear();
+        for (int i = 0; i < machine_output_size; ++i) {
+            machine.outputs.emplace_back(0);
+            if (!(is >> machine.outputs.back()))
+                return false;
+        }
+
+        return true;
+    }
 };
 
 struct writer
@@ -1788,15 +1899,20 @@ struct writer
 
             os << id << " 0.0 0.0 ";
 
-            dispatch(*mdl, [this](auto& dyn) -> void { this->write(dyn); });
+            dispatch(*mdl,
+                     [this, &sim]<typename Dynamics>(Dynamics& dyn) -> void {
+                         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                             auto* machine = sim.hsms.try_to_get(dyn.id);
+                             irt_assert(machine);
+
+                             this->write(dyn, *machine);
+                         } else {
+                             this->write(dyn);
+                         }
+                     });
 
             ++id;
         }
-    }
-
-    void do_write_model_dynamics(const model& mdl) noexcept
-    {
-        dispatch(mdl, [this](auto& dyn) -> void { this->write(dyn); });
     }
 
     void do_write_component_dynamics(const modeling&  mod,
@@ -1829,7 +1945,18 @@ struct writer
                 get_pos(mdl_id, x, y);
 
             os << id << ' ' << x << ' ' << y << ' ';
-            do_write_model_dynamics(*mdl);
+
+            dispatch(*mdl,
+                     [this, &sim]<typename Dynamics>(Dynamics& dyn) -> void {
+                         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                             auto* machine = sim.hsms.try_to_get(dyn.id);
+                             irt_assert(machine);
+                             this->write(dyn, *machine);
+                         } else {
+                             this->write(dyn);
+                         }
+                     });
+
             ++id;
         }
     }
@@ -1949,7 +2076,17 @@ private:
                 auto* mdl    = compo.models.try_to_get(mdl_id);
                 irt_assert(mdl && "cleanup all component vectors before save");
 
-                do_write_model_dynamics(*mdl);
+                dispatch(
+                  *mdl,
+                  [this, &compo]<typename Dynamics>(Dynamics& dyn) -> void {
+                      if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                          auto* machine = compo.hsms.try_to_get(dyn.id);
+                          irt_assert(machine);
+                          this->write(dyn, *machine);
+                      } else {
+                          this->write(dyn);
+                      }
+                  });
             }
         }
     }
@@ -2333,7 +2470,51 @@ private:
     {
         os << "logical_invert\n";
     }
-    void write(const hsm_wrapper& /*dyn*/) noexcept { os << "hsm \n"; }
+
+    void write(const hierarchical_state_machine::state_action& action) noexcept
+    {
+        os << static_cast<int>(action.type) << ' '
+           << static_cast<int>(action.parameter_1) << ' '
+           << static_cast<int>(action.parameter_2) << ' ';
+    }
+
+    void write(const hierarchical_state_machine::conditional_state_action&
+                 action) noexcept
+    {
+        os << static_cast<int>(action.value_condition_1) << ' '
+           << static_cast<int>(action.value_mask_1) << ' ';
+
+        write(action.action_1);
+
+        os << static_cast<int>(action.transition_1) << ' '
+           << static_cast<int>(action.value_condition_2) << ' '
+           << static_cast<int>(action.value_mask_2) << ' ';
+
+        write(action.action_2);
+
+        os << static_cast<int>(action.transition_2) << ' ';
+    }
+
+    void write(const hsm_wrapper& /*dyn*/,
+               const hierarchical_state_machine& machine) noexcept
+    {
+        os << "hsm ";
+
+        os << machine.states.ssize() << ' ';
+        for (int i = 0, e = machine.states.ssize(); i != e; ++i) {
+            write(machine.states[i].enter_action);
+            write(machine.states[i].exit_action);
+            write(machine.states[i].input_changed_action);
+
+            os << static_cast<int>(machine.states[i].super_id) << ' '
+               << static_cast<int>(machine.states[i].sub_id) << ' ';
+        }
+
+        os << machine.outputs.ssize() << ' ';
+        for (int i = 0, e = machine.outputs.ssize(); i != e; ++i) {
+            os << static_cast<int>(machine.outputs[i]) << ' ';
+        }
+    }
 };
 
 class dot_writer
