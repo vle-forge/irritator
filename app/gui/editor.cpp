@@ -474,11 +474,271 @@ void show_dynamics_inputs(external_source& /*srcs*/, logical_or_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
 
+static void show_ports(u8* value) noexcept
+{
+    bool sub_value_0 = (*value) & 0b0001;
+    bool sub_value_1 = (*value) & 0b0010;
+    bool sub_value_2 = (*value) & 0b0100;
+    bool sub_value_3 = (*value) & 0b1000;
+
+    ImGui::PushID(static_cast<void*>(value));
+    ImGui::Checkbox("0", &sub_value_0);
+    ImGui::SameLine();
+    ImGui::Checkbox("1", &sub_value_1);
+    ImGui::SameLine();
+    ImGui::Checkbox("2", &sub_value_2);
+    ImGui::SameLine();
+    ImGui::Checkbox("3", &sub_value_3);
+    ImGui::PopID();
+
+    *value = static_cast<u8>((static_cast<unsigned>(sub_value_3) << 3) |
+                             (static_cast<unsigned>(sub_value_2) << 2) |
+                             (static_cast<unsigned>(sub_value_1) << 1) |
+                             static_cast<unsigned>(sub_value_0));
+}
+
+static void show_state_action(
+  hierarchical_state_machine::state_action& action) noexcept
+{
+    static const char* action_names[] = {
+        "none", "set", "unset", "reset", "output"
+    };
+
+    static const char* action_input_port[] = {
+        "port 0", "port 1", "port 2", "port 3"
+    };
+
+    static const char* action_output_port[] = { "port 0", "port 1" };
+
+    int action_type = static_cast<int>(action.type);
+
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo(
+          "##event", &action_type, action_names, length(action_names)))
+        action.type = static_cast<u8>(action_type);
+    ImGui::PopItemWidth();
+
+    ImGui::TableNextColumn();
+
+    switch (action_type) {
+    case hierarchical_state_machine::action_type_set: {
+        int value = static_cast<int>(action.parameter_1);
+        ImGui::PushItemWidth(-1);
+        if (ImGui::Combo("##input-set",
+                         &value,
+                         action_input_port,
+                         length(action_input_port)))
+            action.parameter_1 = static_cast<u8>(value);
+        ImGui::PopItemWidth();
+    } break;
+
+    case hierarchical_state_machine::action_type_unset: {
+        int value = static_cast<int>(action.parameter_1);
+        ImGui::PushItemWidth(-1);
+        if (ImGui::Combo("##input-unset",
+                         &value,
+                         action_input_port,
+                         length(action_input_port)))
+            action.parameter_1 = static_cast<u8>(value);
+        ImGui::PopItemWidth();
+    } break;
+
+    case hierarchical_state_machine::action_type_reset:
+        break;
+
+    case hierarchical_state_machine::action_type_output: {
+        int value = static_cast<int>(action.parameter_1);
+        if (ImGui::Combo("##output",
+                         &value,
+                         action_output_port,
+                         length(action_output_port)))
+            action.parameter_1 = static_cast<u8>(value);
+        ImGui::SameLine();
+        ImGui::InputScalar("value", ImGuiDataType_U8, &action.parameter_2);
+    } break;
+
+    default:
+        break;
+    }
+}
+
+static void show_state_id_editor(
+  hierarchical_state_machine::state_id* current) noexcept
+{
+    ImGui::PushID(current);
+
+    small_string<7> preview_value("-");
+    if (*current != hierarchical_state_machine::invalid_state_id)
+        format(preview_value, "{}", *current);
+
+    ImGui::PushItemWidth(-1);
+    if (ImGui::BeginCombo("##transition", preview_value.c_str())) {
+
+        if (ImGui::Selectable(
+              "-", *current == hierarchical_state_machine::invalid_state_id))
+            *current = hierarchical_state_machine::invalid_state_id;
+
+        for (u8 i = 0, e = hierarchical_state_machine::max_number_of_state;
+             i < e;
+             ++i) {
+            format(preview_value, "{}", i);
+            if (ImGui::Selectable(preview_value.c_str(), i == *current))
+                *current = i;
+        }
+
+        ImGui::EndCombo();
+    }
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+static void show_hsm_inputs(hierarchical_state_machine& machine)
+{
+    int machine_state_size = machine.states.ssize();
+
+    if (ImGui::SliderInt(
+          "state number", &machine_state_size, 0, machine.states.capacity())) {
+        if (machine_state_size == 0)
+            machine.states.clear();
+        else
+            machine.states.resize(machine_state_size);
+    }
+
+    static const ImGuiTableFlags flags =
+      ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
+      ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable;
+
+    if (ImGui::BeginTable("states", 4, flags)) {
+        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 30.f);
+        ImGui::TableSetupColumn(
+          "super-id", ImGuiTableColumnFlags_WidthFixed, 30.f);
+        ImGui::TableSetupColumn(
+          "sub-id", ImGuiTableColumnFlags_WidthFixed, 30.f);
+        ImGui::TableSetupColumn("state", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableHeadersRow();
+
+        for (int i = 0; i != machine_state_size; ++i) {
+            ImGui::PushID(i);
+            auto& state = machine.states[i];
+
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", i);
+            ImGui::TableNextColumn();
+            show_state_id_editor(&state.super_id);
+            ImGui::TableNextColumn();
+            show_state_id_editor(&state.sub_id);
+            ImGui::TableNextColumn();
+
+            if (ImGui::BeginTable("nested", 6, flags)) {
+                ImGui::TableSetupColumn("event");
+                ImGui::TableSetupColumn("input port");
+                ImGui::TableSetupColumn("mandatory port");
+                ImGui::TableSetupColumn("action");
+                ImGui::TableSetupColumn("parameters");
+                ImGui::TableSetupColumn("transition");
+                ImGui::TableHeadersRow();
+
+                ImGui::TableNextRow();
+                ImGui::PushID("enter-event");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("enter");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("-");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("-");
+                ImGui::TableNextColumn();
+                show_state_action(state.enter_action);
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("-");
+                ImGui::PopID();
+
+                ImGui::TableNextRow();
+                ImGui::PushID("input-if-event");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("if");
+                ImGui::TableNextColumn();
+                show_ports(&state.input_changed_action.value_condition_1);
+                ImGui::TableNextColumn();
+                show_ports(&state.input_changed_action.value_mask_1);
+                ImGui::TableNextColumn();
+                show_state_action(state.input_changed_action.action_1);
+                ImGui::TableNextColumn();
+                show_state_id_editor(&state.input_changed_action.transition_1);
+                ImGui::PopID();
+
+                ImGui::TableNextRow();
+                ImGui::PushID("else-if");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("else-if");
+                ImGui::TableNextColumn();
+                show_ports(&state.input_changed_action.value_condition_2);
+                ImGui::TableNextColumn();
+                show_ports(&state.input_changed_action.value_mask_2);
+                ImGui::TableNextColumn();
+                show_state_action(state.input_changed_action.action_2);
+                ImGui::TableNextColumn();
+                show_state_id_editor(&state.input_changed_action.transition_2);
+                ImGui::PopID();
+
+                ImGui::TableNextRow();
+                ImGui::PushID("exit-event");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("exit");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("-");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("-");
+                ImGui::TableNextColumn();
+                show_state_action(state.exit_action);
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("-");
+                ImGui::PopID();
+
+                ImGui::EndTable();
+            }
+            ImGui::PopID();
+            ImGui::TableNextRow(ImGuiTableRowFlags_None);
+        }
+        ImGui::EndTable();
+    }
+}
+
 void show_dynamics_inputs(external_source& /*srcs*/,
                           hsm_wrapper& /*dyn*/,
-                          hierarchical_state_machine& /*machine*/)
+                          hierarchical_state_machine& machine)
 {
-    ImGui::Button("Edit");
+    hierarchical_state_machine copy{ machine };
+
+    ImGui::Text("current state: %d",
+                static_cast<int>(machine.get_current_state()));
+    ImGui::Text("number states: %d", static_cast<int>(machine.states.ssize()));
+
+    if (ImGui::Button("Edit"))
+        ImGui::OpenPopup("Edit HSM");
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(800, 400), ImGuiCond_Appearing);
+
+    if (ImGui::BeginPopupModal("Edit HSM", nullptr)) {
+        ImGui::BeginChild("Child windows",
+                          ImVec2(0, -ImGui::GetFrameHeightWithSpacing()));
+        show_hsm_inputs(machine);
+        ImGui::EndChild();
+
+        if (ImGui::Button("OK", ImVec2(120, 0)))
+            ImGui::CloseCurrentPopup();
+
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            machine = copy;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, time_func& dyn)
