@@ -82,10 +82,12 @@ static void add_output_attribute(const Dynamics& dyn, child_id id) noexcept
 {
     if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
         const auto** names = get_output_port_names<Dynamics>();
+        const auto   e     = length(dyn.y);
 
-        irt_assert(length(dyn.y) < 8);
+        irt_assert(names != nullptr);
+        irt_assert(0 <= e && e < 8);
 
-        for (int i = 0; i < length(dyn.y); ++i) {
+        for (int i = 0; i != e; ++i) {
             ImNodes::BeginOutputAttribute(pack_out(id, static_cast<i8>(i)),
                                           ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);

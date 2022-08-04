@@ -78,9 +78,8 @@ static std::pair<irt::u32, irt::u32> get_model_output_port(
     port -= 8u;
     irt_assert(port < 8u);
 
-    constexpr irt::u32 mask = ~(15u << 28u);
-
-    irt::u32 index = real_node_id & mask;
+    constexpr irt::u32 mask  = ~(15u << 28u);
+    irt::u32           index = real_node_id & mask;
 
     return std::make_pair(index, port);
 }
@@ -93,17 +92,17 @@ static void add_input_attribute(simulation_editor& ed,
         const auto** names  = get_input_port_names<Dynamics>();
         const auto&  mdl    = get_model(dyn);
         const auto   mdl_id = ed.sim.models.get_id(mdl);
+        const auto   e      = length(dyn.x);
 
-        sz i = 0;
-        for ([[maybe_unused]] auto& elem : dyn.x) {
-            irt_assert(i < 8u);
-            assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
+        irt_assert(names != nullptr);
+        irt_assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
+        irt_assert(0 <= e && e < 8);
 
-            ImNodes::BeginInputAttribute(make_input_node_id(mdl_id, (int)i),
+        for (int i = 0; i != e; ++i) {
+            ImNodes::BeginInputAttribute(make_input_node_id(mdl_id, i),
                                          ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndInputAttribute();
-            ++i;
         }
     }
 }
@@ -116,18 +115,17 @@ static void add_output_attribute(simulation_editor& ed,
         const auto** names  = get_output_port_names<Dynamics>();
         const auto&  mdl    = get_model(dyn);
         const auto   mdl_id = ed.sim.models.get_id(mdl);
+        const auto   e      = length(dyn.y);
 
-        sz i = 0;
-        for ([[maybe_unused]] auto& elem : dyn.y) {
-            irt_assert(i < 8u);
+        irt_assert(names != nullptr);
+        irt_assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
+        irt_assert(0 <= e && e < 8);
 
-            assert(ed.sim.models.try_to_get(mdl_id) == &mdl);
-
-            ImNodes::BeginOutputAttribute(make_output_node_id(mdl_id, (int)i),
+        for (int i = 0; i != e; ++i) {
+            ImNodes::BeginOutputAttribute(make_output_node_id(mdl_id, i),
                                           ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndOutputAttribute();
-            ++i;
         }
     }
 }
