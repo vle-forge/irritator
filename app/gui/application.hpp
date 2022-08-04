@@ -306,6 +306,7 @@ struct simulation_editor
     bool have_use_back_advance = false;
 
     bool show_internal_values = false;
+    bool show_internal_inputs = false;
     bool show_identifiers     = false;
 
     simulation sim;

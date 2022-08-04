@@ -557,13 +557,30 @@ static void show_dynamics_values(simulation& /*sim*/,
 
 static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
 {
-    dispatch(mdl, [&](const auto& dyn) {
+    dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
         add_input_attribute(ed, dyn);
         if (ed.show_internal_values) {
             ImGui::PushItemWidth(120.0f);
             show_dynamics_values(ed.sim, dyn);
             ImGui::PopItemWidth();
         }
+
+        if (ed.show_internal_inputs) {
+            auto* app = container_of(&ed, &application::s_editor);
+            ImGui::PushItemWidth(120.0f);
+
+            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                auto* machine = ed.sim.hsms.try_to_get(dyn.id);
+                irt_assert(machine != nullptr);
+
+                show_dynamics_inputs(app->c_editor.mod.srcs, dyn, *machine);
+            } else {
+                show_dynamics_inputs(app->c_editor.mod.srcs, dyn);
+            }
+
+            ImGui::PopItemWidth();
+        }
+
         add_output_attribute(ed, dyn);
     });
 }
@@ -1123,6 +1140,8 @@ static void show_simulation_graph_editor(application& app) noexcept
 
         ImGui::MenuItem(
           "Show internal values", "", &app.s_editor.show_internal_values);
+        ImGui::MenuItem(
+          "Show internal parameters", "", &app.s_editor.show_internal_inputs);
         ImGui::MenuItem("Show identifiers", "", &app.s_editor.show_identifiers);
 
         ImGui::Separator();
