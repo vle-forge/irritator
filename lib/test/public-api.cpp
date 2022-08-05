@@ -1634,7 +1634,8 @@ int main()
         const auto processed = hsmw.dispatch(
           irt::hierarchical_state_machine::event_type_input_changed);
 
-        expect(processed == true);
+        expect(processed.first == irt::status::success);
+        expect(processed.second == true);
 
         fmt::print("2. current state: {}\n",
                    (unsigned)hsmw.get_current_state());
