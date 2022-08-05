@@ -821,25 +821,21 @@ void simulation_editor::simulation_init() noexcept
     irt_assert(state);
 
     if (state) {
-        if (auto* parent = tree_nodes.try_to_get(head); parent) {
-            auto* app  = container_of(this, &application::s_editor);
-            auto& task = app->gui_tasks.alloc();
-            task.app   = app;
-            app->task_mgr.task_lists[0].add(simulation_init_impl, &task);
-            app->task_mgr.task_lists[0].submit();
-        }
+        auto* app  = container_of(this, &application::s_editor);
+        auto& task = app->gui_tasks.alloc();
+        task.app   = app;
+        app->task_mgr.task_lists[0].add(simulation_init_impl, &task);
+        app->task_mgr.task_lists[0].submit();
     }
 }
 
 void simulation_editor::simulation_clear() noexcept
 {
-    if (auto* parent = tree_nodes.try_to_get(head); parent) {
-        auto* app  = container_of(this, &application::s_editor);
-        auto& task = app->gui_tasks.alloc();
-        task.app   = app;
-        app->task_mgr.task_lists[0].add(simulation_clear_impl, &task);
-        app->task_mgr.task_lists[0].submit();
-    }
+    auto* app  = container_of(this, &application::s_editor);
+    auto& task = app->gui_tasks.alloc();
+    task.app   = app;
+    app->task_mgr.task_lists[0].add(simulation_clear_impl, &task);
+    app->task_mgr.task_lists[0].submit();
 }
 
 void simulation_editor::simulation_start() noexcept
@@ -851,13 +847,11 @@ void simulation_editor::simulation_start() noexcept
     irt_assert(state);
 
     if (state) {
-        if (auto* parent = tree_nodes.try_to_get(head); parent) {
-            auto* app  = container_of(this, &application::s_editor);
-            auto& task = app->gui_tasks.alloc();
-            task.app   = app;
-            app->task_mgr.task_lists[0].add(task_simulation_run, &task);
-            app->task_mgr.task_lists[0].submit();
-        }
+        auto* app  = container_of(this, &application::s_editor);
+        auto& task = app->gui_tasks.alloc();
+        task.app   = app;
+        app->task_mgr.task_lists[0].add(task_simulation_run, &task);
+        app->task_mgr.task_lists[0].submit();
     }
 }
 
@@ -888,13 +882,11 @@ void simulation_editor::simulation_pause() noexcept
     irt_assert(state);
 
     if (state) {
-        if (auto* parent = tree_nodes.try_to_get(head); parent) {
-            auto* app  = container_of(this, &application::s_editor);
-            auto& task = app->gui_tasks.alloc();
-            task.app   = app;
-            app->task_mgr.task_lists[0].add(simulation_pause_impl, &task);
-            app->task_mgr.task_lists[0].submit();
-        }
+        auto* app  = container_of(this, &application::s_editor);
+        auto& task = app->gui_tasks.alloc();
+        task.app   = app;
+        app->task_mgr.task_lists[0].add(simulation_pause_impl, &task);
+        app->task_mgr.task_lists[0].submit();
     }
 }
 
@@ -906,53 +898,45 @@ void simulation_editor::simulation_stop() noexcept
     irt_assert(state);
 
     if (state) {
-        if (auto* parent = tree_nodes.try_to_get(head); parent) {
-            auto* app  = container_of(this, &application::s_editor);
-            auto& task = app->gui_tasks.alloc();
-            task.app   = app;
-            app->task_mgr.task_lists[0].add(task_simulation_stop, &task);
-            app->task_mgr.task_lists[0].submit();
-        }
+        auto* app  = container_of(this, &application::s_editor);
+        auto& task = app->gui_tasks.alloc();
+        task.app   = app;
+        app->task_mgr.task_lists[0].add(task_simulation_stop, &task);
+        app->task_mgr.task_lists[0].submit();
     }
 }
 
 void simulation_editor::simulation_advance() noexcept
 {
-    if (auto* parent = tree_nodes.try_to_get(head); parent) {
-        simulation_state      = simulation_status::debugged;
-        have_use_back_advance = true;
+    simulation_state      = simulation_status::debugged;
+    have_use_back_advance = true;
 
-        auto* app  = container_of(this, &application::s_editor);
-        auto& task = app->gui_tasks.alloc();
-        task.app   = app;
-        app->task_mgr.task_lists[0].add(task_simulation_advance, &task);
-        app->task_mgr.task_lists[0].submit();
-    }
+    auto* app  = container_of(this, &application::s_editor);
+    auto& task = app->gui_tasks.alloc();
+    task.app   = app;
+    app->task_mgr.task_lists[0].add(task_simulation_advance, &task);
+    app->task_mgr.task_lists[0].submit();
 }
 
 void simulation_editor::simulation_back() noexcept
 {
-    if (auto* parent = tree_nodes.try_to_get(head); parent) {
-        simulation_state      = simulation_status::debugged;
-        have_use_back_advance = true;
+    simulation_state      = simulation_status::debugged;
+    have_use_back_advance = true;
 
-        auto* app  = container_of(this, &application::s_editor);
-        auto& task = app->gui_tasks.alloc();
-        task.app   = app;
-        app->task_mgr.task_lists[0].add(task_simulation_back, &task);
-        app->task_mgr.task_lists[0].submit();
-    }
+    auto* app  = container_of(this, &application::s_editor);
+    auto& task = app->gui_tasks.alloc();
+    task.app   = app;
+    app->task_mgr.task_lists[0].add(task_simulation_back, &task);
+    app->task_mgr.task_lists[0].submit();
 }
 
 void simulation_editor::enable_or_disable_debug() noexcept
 {
-    if (auto* parent = tree_nodes.try_to_get(head); parent) {
-        auto* app  = container_of(this, &application::s_editor);
-        auto& task = app->gui_tasks.alloc();
-        task.app   = app;
-        app->task_mgr.task_lists[0].add(task_enable_or_disable_debug, &task);
-        app->task_mgr.task_lists[0].submit();
-    }
+    auto* app  = container_of(this, &application::s_editor);
+    auto& task = app->gui_tasks.alloc();
+    task.app   = app;
+    app->task_mgr.task_lists[0].add(task_enable_or_disable_debug, &task);
+    app->task_mgr.task_lists[0].submit();
 }
 
 } // namespace irt
