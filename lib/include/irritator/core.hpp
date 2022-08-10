@@ -5163,9 +5163,8 @@ public:
     u8                                       values = 0;
     // i32 a, b;
 
-    hierarchical_state_machine() noexcept = default;
-    hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
-      default;
+    hierarchical_state_machine() noexcept;
+    hierarchical_state_machine(const hierarchical_state_machine&) noexcept;
 
     status start() noexcept;
     void   clear() noexcept;
@@ -5238,92 +5237,12 @@ struct hsm_wrapper
     state_id m_previous_state;
     real     sigma;
 
-    hsm_wrapper() noexcept = default;
+    hsm_wrapper() noexcept;
+    hsm_wrapper(const hsm_wrapper& other) noexcept;
 
-    hsm_wrapper(const hsm_wrapper& other) noexcept
-      : id{ undefined<hsm_id>() }
-      , m_previous_state{ other.m_previous_state }
-      , sigma{ other.sigma }
-    {}
-
-    status initialize(simulation& sim) noexcept
-    {
-        hierarchical_state_machine* machine = nullptr;
-        irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
-
-        m_previous_state = hierarchical_state_machine::invalid_state_id;
-        irt_return_if_bad(machine->start());
-
-        sigma = time_domain<time>::infinity;
-
-        return status::success;
-    }
-
-    status transition(simulation& sim,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        hierarchical_state_machine* machine = nullptr;
-        irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
-
-        machine->outputs.clear();
-        sigma                       = time_domain<time>::infinity;
-        const auto old_values_state = machine->values;
-
-        for (int i = 0, e = length(x); i != e; ++i) {
-            if (have_message(x[i]))
-                machine->values |= static_cast<u8>(1u << i);
-
-            // notice for clear a bit if negative value ? or 0 value ?
-            // for (const auto& msg : span) {
-            //     if (msg[0] != 0)
-            //         machine->values |= 1u << i;
-            //     else
-            //         machine->values &= ~(1u << n);
-            // }
-            //
-            // Setting a bit number |= 1UL << n;
-            // clearing a bit bit number &= ~(1UL << n);
-            // Toggling a bit number ^= 1UL << n;
-            // Checking a bit bit = (number >> n) & 1U;
-            // Changing the nth bit to x
-            //  number = (number & ~(1UL << n)) | (x << n);
-        }
-
-        if (old_values_state != machine->values) {
-            m_previous_state = machine->get_current_state();
-
-            auto ret = machine->dispatch(
-              hierarchical_state_machine::event_type_input_changed);
-
-            if (is_bad(ret.first))
-                irt_bad_return(ret.first);
-
-            if (ret.second && !machine->outputs.empty())
-                sigma = time_domain<time>::zero;
-        }
-
-        return status::success;
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        hierarchical_state_machine* machine = nullptr;
-        irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
-
-        if (m_previous_state != hierarchical_state_machine::invalid_state_id &&
-            !machine->outputs.empty()) {
-            for (int i = 0, e = machine->outputs.ssize(); i != e; ++i) {
-                u8 port = 0, value = 0;
-                unpack_halfword(machine->outputs[i], &port, &value);
-
-                irt_return_if_bad(send_message(sim, y[port], to_real(value)));
-            }
-        }
-
-        return status::success;
-    }
+    status initialize(simulation& sim) noexcept;
+    status transition(simulation& sim, time t, time e, time r) noexcept;
+    status lambda(simulation& sim) noexcept;
 };
 
 template<size_t PortNumber>
@@ -8577,7 +8496,15 @@ inline status simulation::run(time& t) noexcept
     return status::success;
 }
 
-// // class HSM
+//
+// class HSM
+//
+
+inline hierarchical_state_machine::hierarchical_state_machine() noexcept =
+  default;
+
+inline hierarchical_state_machine::hierarchical_state_machine(
+  const hierarchical_state_machine&) noexcept = default;
 
 inline bool hierarchical_state_machine::is_dispatching() const noexcept
 {
@@ -8913,6 +8840,93 @@ inline int hierarchical_state_machine::steps_to_common_root(
     }
 
     return -1;
+}
+
+inline hsm_wrapper::hsm_wrapper() noexcept = default;
+
+inline hsm_wrapper::hsm_wrapper(const hsm_wrapper& other) noexcept
+  : id{ undefined<hsm_id>() }
+  , m_previous_state{ other.m_previous_state }
+  , sigma{ other.sigma }
+{}
+
+inline status hsm_wrapper::initialize(simulation& sim) noexcept
+{
+    hierarchical_state_machine* machine = nullptr;
+    irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
+
+    m_previous_state = hierarchical_state_machine::invalid_state_id;
+    irt_return_if_bad(machine->start());
+
+    sigma = time_domain<time>::infinity;
+
+    return status::success;
+}
+
+inline status hsm_wrapper::transition(simulation& sim,
+                                      time /*t*/,
+                                      time /*e*/,
+                                      time /*r*/) noexcept
+{
+    hierarchical_state_machine* machine = nullptr;
+    irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
+
+    machine->outputs.clear();
+    sigma                       = time_domain<time>::infinity;
+    const auto old_values_state = machine->values;
+
+    for (int i = 0, e = length(x); i != e; ++i) {
+        if (have_message(x[i]))
+            machine->values |= static_cast<u8>(1u << i);
+
+        // notice for clear a bit if negative value ? or 0 value ?
+        // for (const auto& msg : span) {
+        //     if (msg[0] != 0)
+        //         machine->values |= 1u << i;
+        //     else
+        //         machine->values &= ~(1u << n);
+        // }
+        //
+        // Setting a bit number |= 1UL << n;
+        // clearing a bit bit number &= ~(1UL << n);
+        // Toggling a bit number ^= 1UL << n;
+        // Checking a bit bit = (number >> n) & 1U;
+        // Changing the nth bit to x
+        //  number = (number & ~(1UL << n)) | (x << n);
+    }
+
+    if (old_values_state != machine->values) {
+        m_previous_state = machine->get_current_state();
+
+        auto ret = machine->dispatch(
+          hierarchical_state_machine::event_type_input_changed);
+
+        if (is_bad(ret.first))
+            irt_bad_return(ret.first);
+
+        if (ret.second && !machine->outputs.empty())
+            sigma = time_domain<time>::zero;
+    }
+
+    return status::success;
+}
+
+inline status hsm_wrapper::lambda(simulation& sim) noexcept
+{
+    hierarchical_state_machine* machine = nullptr;
+    irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
+
+    if (m_previous_state != hierarchical_state_machine::invalid_state_id &&
+        !machine->outputs.empty()) {
+        for (int i = 0, e = machine->outputs.ssize(); i != e; ++i) {
+            u8 port = 0, value = 0;
+            unpack_halfword(machine->outputs[i], &port, &value);
+
+            irt_return_if_bad(send_message(sim, y[port], to_real(value)));
+        }
+    }
+
+    return status::success;
 }
 
 } // namespace irt
