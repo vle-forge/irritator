@@ -33,14 +33,16 @@ static component_id add_empty_component(component_editor& ed) noexcept
     return ret;
 }
 
-static component* show_component(component_editor& ed, component& c) noexcept
+static component* show_component(component_editor&  ed,
+                                 component&         c,
+                                 const component_id head_id) noexcept
 {
     component* ret  = nullptr;
     auto*      file = ed.mod.file_paths.try_to_get(c.file);
     irt_assert(file);
 
-    if (ImGui::Selectable(file->path.c_str())) {
-        auto id = ed.mod.components.get_id(c);
+    auto id = ed.mod.components.get_id(c);
+    if (ImGui::Selectable(file->path.c_str(), head_id == id)) {
         ed.open_as_main(id);
     }
 
@@ -58,7 +60,8 @@ static component* show_component(component_editor& ed, component& c) noexcept
     return ret;
 }
 
-static component* show_notsaved_components(irt::component_editor& ed) noexcept
+static component* show_notsaved_components(irt::component_editor& ed,
+                                           const component_id head_id) noexcept
 {
     component* ret   = nullptr;
     component* compo = nullptr;
@@ -66,8 +69,8 @@ static component* show_notsaved_components(irt::component_editor& ed) noexcept
         const auto is_notsaved = match(compo->type, component_type::memory);
 
         if (is_notsaved) {
-            if (ImGui::Selectable(compo->name.c_str())) {
-                auto id = ed.mod.components.get_id(*compo);
+            const auto id = ed.mod.components.get_id(*compo);
+            if (ImGui::Selectable(compo->name.c_str(), id == head_id)) {
                 ed.open_as_main(id);
             }
 
@@ -82,7 +85,8 @@ static component* show_notsaved_components(irt::component_editor& ed) noexcept
     return ret;
 }
 
-static component* show_internal_components(irt::component_editor& ed) noexcept
+static component* show_internal_components(irt::component_editor& ed,
+                                           const component_id head_id) noexcept
 {
     component* ret   = nullptr;
     component* compo = nullptr;
@@ -91,8 +95,8 @@ static component* show_internal_components(irt::component_editor& ed) noexcept
           !match(compo->type, component_type::file, component_type::memory);
 
         if (is_internal) {
-            if (ImGui::Selectable(compo->name.c_str())) {
-                auto id = ed.mod.components.get_id(*compo);
+            const auto id = ed.mod.components.get_id(*compo);
+            if (ImGui::Selectable(compo->name.c_str(), id == head_id)) {
                 ed.open_as_main(id);
             }
 
@@ -113,9 +117,14 @@ void application::show_components_window() noexcept
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
     component* selected = nullptr;
 
+    component_id head_id = undefined<component_id>();
+    if (auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
+        tree)
+        head_id = tree->id;
+
     if (ImGui::CollapsingHeader("Component library", flags)) {
         if (ImGui::TreeNodeEx("Internal")) {
-            if (auto* ret = show_internal_components(c_editor); ret)
+            if (auto* ret = show_internal_components(c_editor, head_id); ret)
                 selected = ret;
 
             ImGui::TreePop();
@@ -143,7 +152,8 @@ void application::show_components_window() noexcept
                             auto& compo =
                               c_editor.mod.components.get(file.component);
 
-                            if (auto* ret = show_component(c_editor, compo);
+                            if (auto* ret =
+                                  show_component(c_editor, compo, head_id);
                                 ret)
                                 selected = ret;
                         }
@@ -156,7 +166,7 @@ void application::show_components_window() noexcept
         }
 
         if (ImGui::TreeNodeEx("Not saved")) {
-            if (auto* ret = show_notsaved_components(c_editor); ret)
+            if (auto* ret = show_notsaved_components(c_editor, head_id); ret)
                 selected = ret;
             ImGui::TreePop();
         }
