@@ -21,10 +21,12 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
 /*****************************************************************************
  *
