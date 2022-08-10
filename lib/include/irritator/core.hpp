@@ -5138,12 +5138,12 @@ public:
         u8           value_condition_1 = 0;
         u8           value_mask_1      = 0;
         state_action action_1;
-        state_id     transition_1;
+        state_id     transition_1 = invalid_state_id;
 
         u8           value_condition_2 = 0;
         u8           value_mask_2      = 0;
         state_action action_2;
-        state_id     transition_2;
+        state_id     transition_2 = invalid_state_id;
 
         void clear() noexcept;
     };
@@ -8537,9 +8537,11 @@ hierarchical_state_machine::conditional_state_action::clear() noexcept
 {
     value_condition_1 = 0;
     action_1.clear();
+    transition_1 = invalid_state_id;
 
     value_condition_2 = 0;
     action_2.clear();
+    transition_2 = invalid_state_id;
 }
 
 inline status hierarchical_state_machine::start() noexcept
