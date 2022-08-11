@@ -33,82 +33,129 @@ static component_id add_empty_component(component_editor& ed) noexcept
     return ret;
 }
 
-static component* show_component(component_editor&  ed,
-                                 component&         c,
-                                 const component_id head_id) noexcept
+static void show_component_popup_menu(irt::component_editor& ed,
+                                      component*             compo) noexcept
 {
-    component* ret  = nullptr;
-    auto*      file = ed.mod.file_paths.try_to_get(c.file);
-    irt_assert(file);
+    if (ImGui::BeginPopupContextItem()) {
+        if (ImGui::MenuItem("New")) {
+            // log_w.log(7, "adding a new component");
+            auto id = add_empty_component(ed);
+            ed.open_as_main(id);
+        }
 
-    auto id = ed.mod.components.get_id(c);
-    if (ImGui::Selectable(file->path.c_str(), head_id == id)) {
-        ed.open_as_main(id);
+        if (compo) {
+            if (ImGui::MenuItem("Copy")) {
+                if (ed.mod.components.can_alloc()) {
+                    auto& new_c = ed.mod.components.alloc();
+                    new_c.type  = component_type::memory;
+                    new_c.name  = compo->name;
+                    new_c.state = component_status::modified;
+                    ed.mod.copy(*compo, new_c);
+                } else {
+                    // log_w.log(3, "Can not alloc a new component");
+                }
+            }
+
+            if (compo->type == component_type::memory) {
+                if (ImGui::MenuItem("Delete")) {
+                    ed.mod.components.free(*compo);
+                    compo = nullptr;
+                }
+            }
+
+            if (compo && compo->type == component_type::file) {
+                if (ImGui::MenuItem("Delete file")) {
+                    ed.mod.components.free(*compo);
+                    compo = nullptr;
+                }
+            }
+
+            ImGui::EndPopup();
+        }
     }
+}
 
-    if (ImGui::IsItemHovered() &&
-        ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-        ret = &c;
-        ImGui::OpenPopup("Component Menu");
+static void show_component(component_editor& ed,
+                           dir_path&         dir,
+                           file_path&        file,
+                           component&        c,
+                           irt::tree_node*   head) noexcept
+{
+    const auto id       = ed.mod.components.get_id(c);
+    const bool selected = head ? id == head->id : false;
+
+    if (ImGui::Selectable(file.path.c_str(), selected))
+        ed.open_as_main(id);
+
+    if (ImGui::BeginPopupContextItem()) {
+        if (ImGui::MenuItem("New")) {
+            // log_w.log(7, "adding a new component");
+            auto id = add_empty_component(ed);
+            ed.open_as_main(id);
+        }
+
+        if (ImGui::MenuItem("Copy")) {
+            if (ed.mod.components.can_alloc()) {
+                auto& new_c = ed.mod.components.alloc();
+                new_c.type  = component_type::memory;
+                new_c.name  = c.name;
+                new_c.state = component_status::modified;
+                ed.mod.copy(c, new_c);
+            } else {
+                // log_w.log(3, "Can not alloc a new component");
+            }
+        }
+
+        if (ImGui::MenuItem("Delete file")) {
+            ed.mod.free(c);
+        }
+
+        ImGui::EndPopup();
     }
 
     if (c.state == component_status::modified) {
         ImGui::SameLine();
         ImGui::TextUnformatted("(modified)");
     }
-
-    return ret;
 }
 
-static component* show_notsaved_components(irt::component_editor& ed,
-                                           const component_id head_id) noexcept
+static void show_notsaved_components(irt::component_editor& ed,
+                                     irt::tree_node*        head) noexcept
 {
-    component* ret   = nullptr;
     component* compo = nullptr;
     while (ed.mod.components.next(compo)) {
         const auto is_notsaved = match(compo->type, component_type::memory);
 
         if (is_notsaved) {
-            const auto id = ed.mod.components.get_id(*compo);
-            if (ImGui::Selectable(compo->name.c_str(), id == head_id)) {
-                ed.open_as_main(id);
-            }
+            const auto id       = ed.mod.components.get_id(*compo);
+            const bool selected = head ? id == head->id : false;
 
-            if (ImGui::IsItemHovered() &&
-                ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-                ret = compo;
-                ImGui::OpenPopup("Component Menu");
-            }
+            if (ImGui::Selectable(compo->name.c_str(), selected))
+                ed.open_as_main(id);
+
+            show_component_popup_menu(ed, compo);
         }
     }
-
-    return ret;
 }
 
-static component* show_internal_components(irt::component_editor& ed,
-                                           const component_id head_id) noexcept
+static void show_internal_components(irt::component_editor& ed,
+                                     irt::tree_node*        head) noexcept
 {
-    component* ret   = nullptr;
     component* compo = nullptr;
     while (ed.mod.components.next(compo)) {
         const auto is_internal =
           !match(compo->type, component_type::file, component_type::memory);
 
         if (is_internal) {
-            const auto id = ed.mod.components.get_id(*compo);
-            if (ImGui::Selectable(compo->name.c_str(), id == head_id)) {
-                ed.open_as_main(id);
-            }
+            const auto id       = ed.mod.components.get_id(*compo);
+            const bool selected = head ? id == head->id : false;
 
-            if (ImGui::IsItemHovered() &&
-                ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-                ret = compo;
-                ImGui::OpenPopup("Component Menu");
-            }
+            if (ImGui::Selectable(compo->name.c_str(), selected))
+                ed.open_as_main(id);
+
+            show_component_popup_menu(ed, compo);
         }
     }
-
-    return ret;
 }
 
 void application::show_components_window() noexcept
@@ -117,16 +164,12 @@ void application::show_components_window() noexcept
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
     component* selected = nullptr;
 
-    component_id head_id = undefined<component_id>();
-    if (auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
-        tree)
-        head_id = tree->id;
+    auto*        tree = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
+    component_id head_id = tree ? tree->id : undefined<component_id>();
 
     if (ImGui::CollapsingHeader("Component library", flags)) {
         if (ImGui::TreeNodeEx("Internal")) {
-            if (auto* ret = show_internal_components(c_editor, head_id); ret)
-                selected = ret;
-
+            show_internal_components(c_editor, tree);
             ImGui::TreePop();
         }
 
@@ -144,20 +187,34 @@ void application::show_components_window() noexcept
 
             ImGui::PushID(&reg_dir);
             if (ImGui::TreeNodeEx(select->c_str())) {
-                for (auto dir_id : reg_dir.children) {
-                    auto& dir = c_editor.mod.dir_paths.get(dir_id);
-                    if (ImGui::TreeNodeEx(dir.path.c_str())) {
-                        for (auto file_id : dir.children) {
-                            auto& file = c_editor.mod.file_paths.get(file_id);
-                            auto& compo =
-                              c_editor.mod.components.get(file.component);
-
-                            if (auto* ret =
-                                  show_component(c_editor, compo, head_id);
-                                ret)
-                                selected = ret;
+                int i = 0;
+                while (i != reg_dir.children.ssize()) {
+                    if (auto* dir = c_editor.mod.dir_paths.try_to_get(
+                          reg_dir.children[i]);
+                        dir) {
+                        if (ImGui::TreeNodeEx(dir->path.c_str())) {
+                            int j = 0;
+                            while (j < dir->children.ssize()) {
+                                if (auto* file =
+                                      c_editor.mod.file_paths.try_to_get(
+                                        dir->children[j]);
+                                    file) {
+                                    if (auto* compo =
+                                          c_editor.mod.components.try_to_get(
+                                            file->component);
+                                        compo)
+                                        show_component(
+                                          c_editor, *dir, *file, *compo, tree);
+                                    ++j;
+                                } else {
+                                    dir->children.swap_pop_back(j);
+                                }
+                            }
+                            ImGui::TreePop();
                         }
-                        ImGui::TreePop();
+                        ++i;
+                    } else {
+                        reg_dir.children.swap_pop_back(i);
                     }
                 }
                 ImGui::TreePop();
@@ -166,42 +223,8 @@ void application::show_components_window() noexcept
         }
 
         if (ImGui::TreeNodeEx("Not saved")) {
-            if (auto* ret = show_notsaved_components(c_editor, head_id); ret)
-                selected = ret;
+            show_notsaved_components(c_editor, tree);
             ImGui::TreePop();
-        }
-
-        if (ImGui::BeginPopupContextWindow("Component Menu")) {
-            if (ImGui::MenuItem("New component")) {
-                log_w.log(7, "adding a new component");
-                auto id = add_empty_component(c_editor);
-                c_editor.open_as_main(id);
-            }
-
-            if (selected) {
-                if (ImGui::MenuItem("Open as main")) {
-                    auto id = c_editor.mod.components.get_id(*selected);
-                    c_editor.open_as_main(id);
-                }
-
-                if (ImGui::MenuItem("Copy")) {
-                    if (c_editor.mod.components.can_alloc()) {
-                        auto& new_c = c_editor.mod.components.alloc();
-                        new_c.type  = component_type::memory;
-                        new_c.name  = selected->name;
-                        new_c.state = component_status::modified;
-                        c_editor.mod.copy(*selected, new_c);
-                    } else {
-                        log_w.log(3, "Can not alloc a new component");
-                    }
-                }
-
-                if (selected->type == component_type::memory &&
-                    ImGui::MenuItem("Delete")) {
-                    c_editor.mod.free(*selected);
-                }
-            }
-            ImGui::EndPopup();
         }
     }
 
