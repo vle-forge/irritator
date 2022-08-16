@@ -476,13 +476,13 @@ static void application_show_windows(application& app) noexcept
 
         if (ImGui::Begin("Tools", 0, window_flags)) {
             if (ImGui::BeginTabBar("##Obs-Compo")) {
-                if (ImGui::BeginTabItem("Observations")) {
-                    app.show_simulation_observation_window();
+                if (ImGui::BeginTabItem("Component store")) {
+                    app.show_components_window();
                     ImGui::EndTabItem();
                 }
 
-                if (ImGui::BeginTabItem("Component store")) {
-                    app.show_components_window();
+                if (ImGui::BeginTabItem("Observations")) {
+                    app.show_simulation_observation_window();
                     ImGui::EndTabItem();
                 }
 
