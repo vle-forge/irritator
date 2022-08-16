@@ -296,6 +296,8 @@ struct simulation_editor
     void add_simulation_observation_for(std::string_view name,
                                         model_id         id) noexcept;
 
+    bool can_edit() const noexcept;
+
     bool force_pause           = false;
     bool force_stop            = false;
     bool show_minimap          = true;
@@ -524,7 +526,18 @@ inline raw_observation::raw_observation(const observation_message& msg_,
                                         const real                 t_) noexcept
   : msg(msg_)
   , t(t_)
-{}
+{
+}
+
+inline bool simulation_editor::can_edit() const noexcept
+{
+    if (match(simulation_state,
+              simulation_status::not_started,
+              simulation_status::finished))
+        return true;
+
+    return allow_user_changes;
+}
 
 } // namespace irt
 

@@ -137,7 +137,8 @@ struct gport
     gport(irt::model* model_, const int port_index_) noexcept
       : model(model_)
       , port_index(port_index_)
-    {}
+    {
+    }
 
     irt::model* model      = nullptr;
     int         port_index = 0;
@@ -622,13 +623,17 @@ static void show_top(simulation_editor& ed) noexcept
 }
 
 static status add_popup_menuitem(simulation_editor& ed,
+                                 bool               enable_menu_item,
                                  dynamics_type      type,
                                  model_id*          new_model) noexcept
 {
     if (!ed.sim.models.can_alloc(1))
         return status::data_array_not_enough_memory;
 
-    if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)])) {
+    if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)],
+                        nullptr,
+                        nullptr,
+                        enable_menu_item)) {
         auto& mdl  = ed.sim.alloc(type);
         *new_model = ed.sim.models.get_id(mdl);
 
@@ -1103,26 +1108,12 @@ static void compute_grid_layout(settings_manager&  settings,
     }
 }
 
-static void show_simulation_graph_editor(application& app) noexcept
+static void show_simulation_graph_editor_edit_menu(application& app,
+                                                   model_id* new_model) noexcept
 {
-    ImNodes::EditorContextSet(app.s_editor.context);
-
-    ImNodes::BeginNodeEditor();
-
-    if (app.s_editor.automatic_layout_iteration > 0) {
-        compute_automatic_layout(app.settings, app.s_editor);
-        --app.s_editor.automatic_layout_iteration;
-    }
-
-    show_top(app.s_editor);
-    show_connections(app.s_editor);
-
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
       ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
-
-    model_id new_model = undefined<model_id>();
-    ImVec2   click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
     if (!ImGui::IsAnyItemHovered() && open_popup)
@@ -1146,12 +1137,16 @@ static void show_simulation_graph_editor(application& app) noexcept
 
         ImGui::Separator();
 
+        const auto can_edit = app.s_editor.can_edit();
+
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = static_cast<int>(dynamics_type::qss1_integrator);
             const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
             for (; i != e; ++i)
-                add_popup_menuitem(
-                  app.s_editor, static_cast<dynamics_type>(i), &new_model);
+                add_popup_menuitem(app.s_editor,
+                                   can_edit,
+                                   static_cast<dynamics_type>(i),
+                                   new_model);
             ImGui::EndMenu();
         }
 
@@ -1160,8 +1155,10 @@ static void show_simulation_graph_editor(application& app) noexcept
             const auto e = static_cast<int>(dynamics_type::qss2_wsum_4) + 1;
 
             for (; i != e; ++i)
-                add_popup_menuitem(
-                  app.s_editor, static_cast<dynamics_type>(i), &new_model);
+                add_popup_menuitem(app.s_editor,
+                                   can_edit,
+                                   static_cast<dynamics_type>(i),
+                                   new_model);
             ImGui::EndMenu();
         }
 
@@ -1170,62 +1167,94 @@ static void show_simulation_graph_editor(application& app) noexcept
             const auto e = static_cast<int>(dynamics_type::qss3_wsum_4) + 1;
 
             for (; i != e; ++i)
-                add_popup_menuitem(
-                  app.s_editor, static_cast<dynamics_type>(i), &new_model);
+                add_popup_menuitem(app.s_editor,
+                                   can_edit,
+                                   static_cast<dynamics_type>(i),
+                                   new_model);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("AQSS (experimental)")) {
             add_popup_menuitem(
-              app.s_editor, dynamics_type::integrator, &new_model);
+              app.s_editor, can_edit, dynamics_type::integrator, new_model);
             add_popup_menuitem(
-              app.s_editor, dynamics_type::quantifier, &new_model);
+              app.s_editor, can_edit, dynamics_type::quantifier, new_model);
             add_popup_menuitem(
-              app.s_editor, dynamics_type::adder_2, &new_model);
+              app.s_editor, can_edit, dynamics_type::adder_2, new_model);
             add_popup_menuitem(
-              app.s_editor, dynamics_type::adder_3, &new_model);
+              app.s_editor, can_edit, dynamics_type::adder_3, new_model);
             add_popup_menuitem(
-              app.s_editor, dynamics_type::adder_4, &new_model);
-            add_popup_menuitem(app.s_editor, dynamics_type::mult_2, &new_model);
-            add_popup_menuitem(app.s_editor, dynamics_type::mult_3, &new_model);
-            add_popup_menuitem(app.s_editor, dynamics_type::mult_4, &new_model);
-            add_popup_menuitem(app.s_editor, dynamics_type::cross, &new_model);
+              app.s_editor, can_edit, dynamics_type::adder_4, new_model);
+            add_popup_menuitem(
+              app.s_editor, can_edit, dynamics_type::mult_2, new_model);
+            add_popup_menuitem(
+              app.s_editor, can_edit, dynamics_type::mult_3, new_model);
+            add_popup_menuitem(
+              app.s_editor, can_edit, dynamics_type::mult_4, new_model);
+            add_popup_menuitem(
+              app.s_editor, can_edit, dynamics_type::cross, new_model);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Logical")) {
             add_popup_menuitem(
-              app.s_editor, dynamics_type::logical_and_2, &new_model);
+              app.s_editor, can_edit, dynamics_type::logical_and_2, new_model);
             add_popup_menuitem(
-              app.s_editor, dynamics_type::logical_or_2, &new_model);
+              app.s_editor, can_edit, dynamics_type::logical_or_2, new_model);
             add_popup_menuitem(
-              app.s_editor, dynamics_type::logical_and_3, &new_model);
+              app.s_editor, can_edit, dynamics_type::logical_and_3, new_model);
             add_popup_menuitem(
-              app.s_editor, dynamics_type::logical_or_3, &new_model);
+              app.s_editor, can_edit, dynamics_type::logical_or_3, new_model);
             add_popup_menuitem(
-              app.s_editor, dynamics_type::logical_invert, &new_model);
+              app.s_editor, can_edit, dynamics_type::logical_invert, new_model);
             ImGui::EndMenu();
         }
 
-        add_popup_menuitem(app.s_editor, dynamics_type::counter, &new_model);
-        add_popup_menuitem(app.s_editor, dynamics_type::queue, &new_model);
         add_popup_menuitem(
-          app.s_editor, dynamics_type::dynamic_queue, &new_model);
+          app.s_editor, can_edit, dynamics_type::counter, new_model);
         add_popup_menuitem(
-          app.s_editor, dynamics_type::priority_queue, &new_model);
-        add_popup_menuitem(app.s_editor, dynamics_type::generator, &new_model);
-        add_popup_menuitem(app.s_editor, dynamics_type::constant, &new_model);
-        add_popup_menuitem(app.s_editor, dynamics_type::time_func, &new_model);
+          app.s_editor, can_edit, dynamics_type::queue, new_model);
         add_popup_menuitem(
-          app.s_editor, dynamics_type::accumulator_2, &new_model);
-        add_popup_menuitem(app.s_editor, dynamics_type::filter, &new_model);
+          app.s_editor, can_edit, dynamics_type::dynamic_queue, new_model);
         add_popup_menuitem(
-          app.s_editor, dynamics_type::hsm_wrapper, &new_model);
+          app.s_editor, can_edit, dynamics_type::priority_queue, new_model);
+        add_popup_menuitem(
+          app.s_editor, can_edit, dynamics_type::generator, new_model);
+        add_popup_menuitem(
+          app.s_editor, can_edit, dynamics_type::constant, new_model);
+        add_popup_menuitem(
+          app.s_editor, can_edit, dynamics_type::time_func, new_model);
+        add_popup_menuitem(
+          app.s_editor, can_edit, dynamics_type::accumulator_2, new_model);
+        add_popup_menuitem(
+          app.s_editor, can_edit, dynamics_type::filter, new_model);
+        add_popup_menuitem(
+          app.s_editor, can_edit, dynamics_type::hsm_wrapper, new_model);
 
         ImGui::EndPopup();
     }
 
     ImGui::PopStyleVar();
+}
+
+static void show_simulation_graph_editor(application& app) noexcept
+{
+    ImNodes::EditorContextSet(app.s_editor.context);
+
+    ImNodes::BeginNodeEditor();
+
+    if (app.s_editor.automatic_layout_iteration > 0) {
+        compute_automatic_layout(app.settings, app.s_editor);
+        --app.s_editor.automatic_layout_iteration;
+    }
+
+    show_top(app.s_editor);
+    show_connections(app.s_editor);
+
+    ImVec2   click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+    model_id new_model = undefined<model_id>();
+
+    show_simulation_graph_editor_edit_menu(app, &new_model);
 
     if (app.s_editor.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
@@ -1241,7 +1270,7 @@ static void show_simulation_graph_editor(application& app) noexcept
         auto& sim   = app.s_editor.sim;
         int   start = 0, end = 0;
 
-        if (ImNodes::IsLinkCreated(&start, &end)) {
+        if (ImNodes::IsLinkCreated(&start, &end) && app.s_editor.can_edit()) {
             const gport out = get_out(sim, start);
             const gport in  = get_in(sim, end);
 
@@ -1274,7 +1303,7 @@ static void show_simulation_graph_editor(application& app) noexcept
         ImNodes::ClearLinkSelection();
     }
 
-    if (num_selected_nodes > 0) {
+    if (app.s_editor.can_edit() && num_selected_nodes > 0) {
         app.s_editor.selected_nodes.resize(num_selected_nodes, -1);
         ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
 
@@ -1289,7 +1318,7 @@ static void show_simulation_graph_editor(application& app) noexcept
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();
         }
-    } else if (num_selected_links > 0) {
+    } else if (app.s_editor.can_edit() && num_selected_links > 0) {
         app.s_editor.selected_links.resize(num_selected_links);
 
         if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased(ImGuiKey_X)) {
