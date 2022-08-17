@@ -5,9 +5,9 @@
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
-#include <filesystem>
+#include "internal.hpp"
 
-#include <fmt/format.h>
+#include <filesystem>
 
 namespace irt {
 
@@ -587,9 +587,7 @@ static bool is_valid(const modeling_initializer& params) noexcept
 }
 #endif
 
-modeling::modeling() noexcept
-  : warnings{ buffer.data(), length(buffer) }
-{}
+modeling::modeling() noexcept {}
 
 status modeling::init(modeling_initializer& p) noexcept
 {
@@ -812,12 +810,13 @@ static void prepare_component_loading(modeling&             mod,
                 desc.status = description_status::unread;
                 compo.desc  = mod.descriptions.get_id(desc);
             } else {
-                mod.warnings.emplace_enqueue(
-                  status::modeling_too_many_description_open);
+                mod.log(4,
+                        status::modeling_too_many_description_open,
+                        desc_file.generic_string());
             }
         }
     } catch (const std::exception& /*e*/) {
-        mod.warnings.emplace_enqueue(status::io_filesystem_error);
+        mod.log(4, status::io_filesystem_error, reg_dir.path.c_str());
     }
 }
 
@@ -858,10 +857,10 @@ static void prepare_component_loading(modeling&             mod,
         }
 
         if (too_many_file) {
-            mod.warnings.emplace_enqueue(status::modeling_too_many_file_open);
+            mod.log(4, status::modeling_too_many_file_open, reg_dir.path.sv());
         }
     } catch (...) {
-        mod.warnings.emplace_enqueue(status::io_filesystem_error);
+        mod.log(4, status::modeling_file_access_error, reg_dir.path.sv());
     }
 }
 
@@ -904,13 +903,16 @@ static void prepare_component_loading(modeling&              mod,
             }
 
             if (too_many_directory)
-                mod.warnings.emplace_enqueue(
-                  status::modeling_too_many_directory_open);
+                mod.log(4,
+                        status::modeling_too_many_directory_open,
+                        reg_dir.path.sv());
         } else {
-            mod.warnings.emplace_enqueue(
-              status::modeling_registred_path_access_error);
+            mod.log(4,
+                    status::modeling_registred_path_access_error,
+                    reg_dir.path.sv());
         }
     } catch (...) {
+        mod.log(4, status::modeling_file_access_error, reg_dir.path.sv());
     }
 }
 
@@ -928,6 +930,7 @@ static void prepare_component_loading(modeling&       mod,
             reg_dir.status = registred_path::status_option::read;
         }
     } catch (...) {
+        mod.log(4, status::modeling_file_access_error, reg_dir.path.sv());
     }
 }
 
@@ -1456,6 +1459,34 @@ void modeling::clear_project() noexcept
 
     head = undefined<tree_node_id>();
     tree_nodes.clear();
+}
+
+void modeling::log(int level, std::string_view message) noexcept
+{
+    if (log_cb)
+        log_cb(level, message, log_user_data);
+}
+
+void modeling::log(int level, status s, std::string_view message) noexcept
+{
+    if (log_cb) {
+        small_string<256> buffer;
+        format(buffer, "{}: {}", status_string(s), message);
+        log(level, buffer.sv());
+    }
+}
+
+void modeling::register_log_callback(log_callback cb, void* user_data) noexcept
+{
+    small_string<256> buffer;
+
+    format(buffer, "unregistring modeling log callback: {}", (void*)log_cb);
+    log(1, buffer.sv());
+
+    log_cb        = cb;
+    log_user_data = user_data;
+    format(buffer, "registring modeling log callback: {}", (void*)log_cb);
+    log(1, buffer.sv());
 }
 
 } // namespace irt

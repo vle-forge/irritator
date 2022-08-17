@@ -64,8 +64,28 @@ application::~application() noexcept
     log_w.log(7, "Application shutdown\n");
 }
 
+static void modeling_log(int              level,
+                         std::string_view message,
+                         void*            user_data) noexcept
+{
+    if (auto* app = reinterpret_cast<application*>(user_data); app) {
+        auto  new_level = std::clamp(level, 0, 5);
+        auto  type      = enum_cast<notification_type>(level);
+        auto& n         = app->notifications.alloc(type);
+
+        app->log_w.log(new_level, "%.*s: ", message.size(), message.data());
+
+        n.title   = "Modeling message";
+        n.message = message;
+        app->notifications.enable(n);
+    }
+}
+
 bool application::init() noexcept
 {
+    c_editor.mod.register_log_callback(modeling_log,
+                                       reinterpret_cast<void*>(this));
+
     // @todo DEBUG MODE: Prefer user settings or better timeline constructor
     s_editor.tl.init(32768, 4096, 65536, 65536, 32768, 32768);
 

@@ -143,7 +143,7 @@ struct component
 {
     component() noexcept;
 
-    component(const component&) = delete;
+    component(const component&)            = delete;
     component& operator=(const component&) = delete;
 
     bool can_alloc(int place = 1) const noexcept;
@@ -338,8 +338,14 @@ struct modeling
     status save_project(const char* filename) noexcept;
     void   clear_project() noexcept;
 
-    std::array<status, 10> buffer;
-    ring_buffer<status>    warnings;
+    typedef void (*log_callback)(int, std::string_view, void*);
+
+    void log(int level, std::string_view message) noexcept;
+    void log(int level, status s, std::string_view message) noexcept;
+    void register_log_callback(log_callback cb, void* user_data) noexcept;
+
+    void*             log_user_data = nullptr;
+    log_callback      log_cb        = nullptr;
 };
 
 /*
@@ -354,27 +360,32 @@ inline connection::connection(child_id src_,
   , dst(dst_)
   , index_src(index_src_)
   , index_dst(index_dst_)
-{}
+{
+}
 
 inline child::child(model_id model) noexcept
   : id{ ordinal(model) }
   , type{ child_type::model }
-{}
+{
+}
 
 inline child::child(component_id component) noexcept
   : id{ ordinal(component) }
   , type{ child_type::component }
-{}
+{
+}
 
 inline port::port(child_id id_, i8 port_) noexcept
   : id{ id_ }
   , index{ port_ }
-{}
+{
+}
 
 inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
   : id(id_)
   , id_in_parent(id_in_parent_)
-{}
+{
+}
 
 inline component::component() noexcept
 {
