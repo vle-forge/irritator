@@ -187,6 +187,9 @@ struct registred_path
     status_option          status   = status_option::unread;
     i8                     priority = 0;
 
+    bool make() const noexcept;
+    bool exists() const noexcept;
+
     vector<dir_path_id> children;
 };
 
@@ -202,6 +205,9 @@ struct dir_path
     small_string<256> path;
     status_option     status = status_option::unread;
     registred_path_id parent{ 0 };
+
+    bool make() const noexcept;
+    bool exists() const noexcept;
 
     vector<file_path_id> children;
 };
@@ -301,6 +307,7 @@ struct modeling
     void free(component& parent, connection& c) noexcept;
     void free(tree_node& node) noexcept;
 
+
     bool can_alloc_file(i32 number = 1) const noexcept;
     bool can_alloc_dir(i32 number = 1) const noexcept;
     bool can_alloc_registred(i32 number = 1) const noexcept;
@@ -308,6 +315,10 @@ struct modeling
     file_path&      alloc_file(dir_path& dir) noexcept;
     dir_path&       alloc_dir(registred_path& reg) noexcept;
     registred_path& alloc_registred() noexcept;
+
+    void remove_file(registred_path& reg,
+                     dir_path&       dir,
+                     file_path&      file) noexcept;
 
     void move_file(registred_path& reg,
                    dir_path&       from,
@@ -344,8 +355,8 @@ struct modeling
     void log(int level, status s, std::string_view message) noexcept;
     void register_log_callback(log_callback cb, void* user_data) noexcept;
 
-    void*             log_user_data = nullptr;
-    log_callback      log_cb        = nullptr;
+    void*        log_user_data = nullptr;
+    log_callback log_cb        = nullptr;
 };
 
 /*

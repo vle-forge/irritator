@@ -38,7 +38,6 @@ static void show_component_popup_menu(irt::component_editor& ed,
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New")) {
-            // log_w.log(7, "adding a new component");
             auto id = add_empty_component(ed);
             ed.open_as_main(id);
         }
@@ -52,7 +51,8 @@ static void show_component_popup_menu(irt::component_editor& ed,
                     new_c.state = component_status::modified;
                     ed.mod.copy(*compo, new_c);
                 } else {
-                    // log_w.log(3, "Can not alloc a new component");
+                    auto* app = container_of(&ed, &application::c_editor);
+                    app->log_w.log(4, "Can not alloc a new component");
                 }
             }
 
@@ -63,33 +63,28 @@ static void show_component_popup_menu(irt::component_editor& ed,
                 }
             }
 
-            if (compo && compo->type == component_type::file) {
-                if (ImGui::MenuItem("Delete file")) {
-                    ed.mod.components.free(*compo);
-                    compo = nullptr;
-                }
-            }
-
             ImGui::EndPopup();
         }
     }
 }
 
-static void show_component(component_editor& ed,
+static bool show_component(component_editor& ed,
+                           registred_path&   reg,
                            dir_path&         dir,
                            file_path&        file,
                            component&        c,
                            irt::tree_node*   head) noexcept
 {
-    const auto id       = ed.mod.components.get_id(c);
-    const bool selected = head ? id == head->id : false;
+    auto*      app        = container_of(&ed, &application::c_editor);
+    const auto id         = ed.mod.components.get_id(c);
+    const bool selected   = head ? id == head->id : false;
+    bool       is_deleted = false;
 
     if (ImGui::Selectable(file.path.c_str(), selected))
         ed.open_as_main(id);
 
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New")) {
-            // log_w.log(7, "adding a new component");
             auto id = add_empty_component(ed);
             ed.open_as_main(id);
         }
@@ -102,21 +97,28 @@ static void show_component(component_editor& ed,
                 new_c.state = component_status::modified;
                 ed.mod.copy(c, new_c);
             } else {
-                // log_w.log(3, "Can not alloc a new component");
+                app->log_w.log(4, "Can not alloc a new component\n");
             }
         }
 
         if (ImGui::MenuItem("Delete file")) {
+            app->log_w.log(
+              0, "Remove file %.*s\n", file.path.size(), file.path.begin());
+
+            ed.mod.remove_file(reg, dir, file);
             ed.mod.free(c);
+            is_deleted = true;
         }
 
         ImGui::EndPopup();
     }
 
-    if (c.state == component_status::modified) {
+    if (!is_deleted && c.state == component_status::modified) {
         ImGui::SameLine();
-        ImGui::TextUnformatted("(modified)");
+        ImGui::TextUnformatted(" (modified)");
     }
+
+    return is_deleted;
 }
 
 static void show_notsaved_components(irt::component_editor& ed,
@@ -161,6 +163,7 @@ static void show_internal_components(irt::component_editor& ed,
 }
 
 static void show_dirpath_component(irt::component_editor& ed,
+                                   registred_path&        reg,
                                    dir_path&              dir,
                                    irt::tree_node*        head) noexcept
 {
@@ -175,8 +178,13 @@ static void show_dirpath_component(irt::component_editor& ed,
                 auto* compo    = ed.mod.components.try_to_get(compo_id);
 
                 if (compo) {
-                    show_component(ed, dir, *file, *compo, head);
-                    ++j;
+                    auto is_deleted =
+                      show_component(ed, reg, dir, *file, *compo, head);
+                    if (is_deleted) {
+                        dir.children.swap_pop_back(j);
+                    } else {
+                        ++j;
+                    }
                 } else {
                     file->component = undefined<component_id>();
                     dir.children.swap_pop_back(j);
@@ -227,7 +235,7 @@ void application::show_components_window() noexcept
                     auto* dir    = c_editor.mod.dir_paths.try_to_get(dir_id);
 
                     if (dir) {
-                        show_dirpath_component(c_editor, *dir, tree);
+                        show_dirpath_component(c_editor, *reg_dir, *dir, tree);
                         ++i;
                     } else {
                         reg_dir->children.swap_pop_back(i);

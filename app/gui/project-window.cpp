@@ -227,6 +227,37 @@ static void show_project_hierarchy(component_editor&            ed,
     }
 }
 
+template<typename T, typename Identifier>
+T* find(data_array<T, Identifier>& data,
+        vector<Identifier>&        container,
+        std::string_view           name) noexcept
+{
+    int i = 0;
+    while (i < container.ssize()) {
+        auto  test_id = container[i];
+        auto* test    = data.try_to_get(test_id);
+
+        if (test) {
+            if (test->path.sv() == name)
+                return test;
+
+            ++i;
+        } else {
+            container.swap_pop_back(i);
+        }
+    }
+
+    return nullptr;
+}
+
+template<typename T, typename Identifier>
+bool exist(data_array<T, Identifier>& data,
+           vector<Identifier>&        container,
+           std::string_view           name) noexcept
+{
+    return find(data, container, name) != nullptr;
+}
+
 static void show_hierarchy_settings(component_editor& ed,
                                     tree_node&        parent) noexcept
 {
@@ -273,36 +304,46 @@ static void show_hierarchy_settings(component_editor& ed,
                 small_string<256> dir_name{};
 
                 if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
-                    auto& new_dir  = ed.mod.dir_paths.alloc();
-                    auto  dir_id   = ed.mod.dir_paths.get_id(new_dir);
-                    auto  reg_id   = ed.mod.registred_paths.get_id(*reg_dir);
-                    new_dir.parent = reg_id;
-                    new_dir.path   = dir_name;
-                    new_dir.status = dir_path::status_option::unread;
-                    reg_dir->children.emplace_back(dir_id);
+                    if (!exist(
+                          ed.mod.dir_paths, reg_dir->children, dir_name.sv())) {
+                        auto& new_dir = ed.mod.dir_paths.alloc();
+                        auto  dir_id  = ed.mod.dir_paths.get_id(new_dir);
+                        auto  reg_id  = ed.mod.registred_paths.get_id(*reg_dir);
+                        new_dir.parent = reg_id;
+                        new_dir.path   = dir_name;
+                        new_dir.status = dir_path::status_option::unread;
+                        reg_dir->children.emplace_back(dir_id);
+                        compo->reg_path = reg_id;
+                        compo->dir      = dir_id;
 
-                    compo->reg_path = reg_id;
-                    compo->dir      = dir_id;
+                        if (!new_dir.make()) {
+                            auto* app =
+                              container_of(&ed, &application::c_editor);
+                            app->log_w.log(4,
+                                           "Fail to create directory `%.*s'",
+                                           new_dir.path.ssize(),
+                                           new_dir.path.begin());
+                        }
+                    }
                 }
             }
 
             if (dir) {
-                small_string<256> file_name{};
-
                 auto* file = ed.mod.file_paths.try_to_get(compo->file);
                 if (!file) {
-                    if (ImGui::InputFilteredString("File##text", file_name)) {
-                        auto& f     = ed.mod.file_paths.alloc();
-                        auto  id    = ed.mod.file_paths.get_id(f);
-                        f.component = ed.mod.components.get_id(*compo);
-                        f.parent    = ed.mod.dir_paths.get_id(*dir);
-                        f.path      = file_name;
-                        compo->file = id;
-                        dir->children.emplace_back(id);
-                        file = &f;
+                    auto& f     = ed.mod.file_paths.alloc();
+                    auto  id    = ed.mod.file_paths.get_id(f);
+                    f.component = ed.mod.components.get_id(*compo);
+                    f.parent    = ed.mod.dir_paths.get_id(*dir);
+                    compo->file = id;
+                    dir->children.emplace_back(id);
+                    file = &f;
+                }
+
+                if (ImGui::InputFilteredString("File##text", file->path)) {
+                    if (!exist(
+                          ed.mod.file_paths, dir->children, file->path.sv())) {
                     }
-                } else {
-                    ImGui::InputFilteredString("File##text", file->path);
                 }
 
                 auto* desc = ed.mod.descriptions.try_to_get(compo->desc);

@@ -587,6 +587,41 @@ static bool is_valid(const modeling_initializer& params) noexcept
 }
 #endif
 
+static bool make_path(std::string_view sv) noexcept
+{
+    bool ret = false;
+
+    try {
+        std::error_code       ec;
+        std::filesystem::path p(sv);
+        std::filesystem::create_directories(p, ec);
+        ret = true;
+    } catch (...) {
+    }
+
+    return ret;
+}
+
+static bool exists_path(std::string_view sv) noexcept
+{
+    bool ret = false;
+
+    try {
+        std::error_code       ec;
+        std::filesystem::path p(sv);
+        std::filesystem::create_directories(p, ec);
+        ret = true;
+    } catch (...) {
+    }
+
+    return ret;
+}
+
+bool registred_path::make() const noexcept { return make_path(path.sv()); }
+bool registred_path::exists() const noexcept { return exists_path(path.sv()); }
+bool dir_path::make() const noexcept { return exists_path(path.sv()); }
+bool dir_path::exists() const noexcept { return exists_path(path.sv()); }
+
 modeling::modeling() noexcept {}
 
 status modeling::init(modeling_initializer& p) noexcept
@@ -1094,6 +1129,21 @@ dir_path& modeling::alloc_dir(registred_path& reg) noexcept
 registred_path& modeling::alloc_registred() noexcept
 {
     return registred_paths.alloc();
+}
+
+void modeling::remove_file(registred_path& reg,
+                           dir_path&       dir,
+                           file_path&      file) noexcept
+{
+    try {
+        std::filesystem::path p{ reg.path.sv() };
+        p /= dir.path.sv();
+        p /= file.path.sv();
+
+        std::error_code ec;
+        std::filesystem::remove(p, ec);
+    } catch (...) {
+    }
 }
 
 void modeling::move_file(registred_path& /*reg*/,
