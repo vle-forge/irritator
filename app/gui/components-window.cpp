@@ -130,8 +130,10 @@ static void show_notsaved_components(irt::component_editor& ed,
             const auto id       = ed.mod.components.get_id(*compo);
             const bool selected = head ? id == head->id : false;
 
+            ImGui::PushID(compo);
             if (ImGui::Selectable(compo->name.c_str(), selected))
                 ed.open_as_main(id);
+            ImGui::PopID();
 
             show_component_popup_menu(ed, compo);
         }
@@ -158,6 +160,35 @@ static void show_internal_components(irt::component_editor& ed,
     }
 }
 
+static void show_dirpath_component(irt::component_editor& ed,
+                                   dir_path&              dir,
+                                   irt::tree_node*        head) noexcept
+{
+    if (ImGui::TreeNodeEx(dir.path.c_str())) {
+        int j = 0;
+        while (j < dir.children.ssize()) {
+            auto  file_id = dir.children[j];
+            auto* file    = ed.mod.file_paths.try_to_get(file_id);
+
+            if (file) {
+                auto  compo_id = file->component;
+                auto* compo    = ed.mod.components.try_to_get(compo_id);
+
+                if (compo) {
+                    show_component(ed, dir, *file, *compo, head);
+                    ++j;
+                } else {
+                    file->component = undefined<component_id>();
+                    dir.children.swap_pop_back(j);
+                }
+            } else {
+                dir.children.swap_pop_back(j);
+            }
+        }
+        ImGui::TreePop();
+    }
+}
+
 void application::show_components_window() noexcept
 {
     constexpr ImGuiTreeNodeFlags flags =
@@ -174,47 +205,32 @@ void application::show_components_window() noexcept
         }
 
         for (auto id : c_editor.mod.component_repertories) {
-            static small_string<32> s; //! @TODO remove this variable
-            small_string<32>*       select;
+            small_string<32>  s;
+            small_string<32>* select;
 
-            auto& reg_dir = c_editor.mod.registred_paths.get(id);
-            if (reg_dir.name.empty()) {
+            auto* reg_dir = c_editor.mod.registred_paths.try_to_get(id);
+            if (!reg_dir)
+                continue;
+
+            if (reg_dir->name.empty()) {
                 format(s, "{}", ordinal(id));
                 select = &s;
             } else {
-                select = &reg_dir.name;
+                select = &reg_dir->name;
             }
 
-            ImGui::PushID(&reg_dir);
+            ImGui::PushID(reg_dir);
             if (ImGui::TreeNodeEx(select->c_str())) {
                 int i = 0;
-                while (i != reg_dir.children.ssize()) {
-                    if (auto* dir = c_editor.mod.dir_paths.try_to_get(
-                          reg_dir.children[i]);
-                        dir) {
-                        if (ImGui::TreeNodeEx(dir->path.c_str())) {
-                            int j = 0;
-                            while (j < dir->children.ssize()) {
-                                if (auto* file =
-                                      c_editor.mod.file_paths.try_to_get(
-                                        dir->children[j]);
-                                    file) {
-                                    if (auto* compo =
-                                          c_editor.mod.components.try_to_get(
-                                            file->component);
-                                        compo)
-                                        show_component(
-                                          c_editor, *dir, *file, *compo, tree);
-                                    ++j;
-                                } else {
-                                    dir->children.swap_pop_back(j);
-                                }
-                            }
-                            ImGui::TreePop();
-                        }
+                while (i != reg_dir->children.ssize()) {
+                    auto  dir_id = reg_dir->children[i];
+                    auto* dir    = c_editor.mod.dir_paths.try_to_get(dir_id);
+
+                    if (dir) {
+                        show_dirpath_component(c_editor, *dir, tree);
                         ++i;
                     } else {
-                        reg_dir.children.swap_pop_back(i);
+                        reg_dir->children.swap_pop_back(i);
                     }
                 }
                 ImGui::TreePop();
