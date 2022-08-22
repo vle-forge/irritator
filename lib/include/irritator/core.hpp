@@ -8580,7 +8580,6 @@ inline void hierarchical_state_machine::clear() noexcept
 inline std::pair<status, bool> hierarchical_state_machine::dispatch(
   const event_type event) noexcept
 {
-    irt_assert(event >= 0);
     irt_assert(!is_dispatching());
 
     bool is_processed = false;
