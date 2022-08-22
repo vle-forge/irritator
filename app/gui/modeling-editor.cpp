@@ -790,7 +790,7 @@ static bool is_ports_compatible(const component_editor& ed,
             auto  compo_input_id = enum_cast<component_id>(input.id);
             auto* compo_input    = ed.mod.components.try_to_get(compo_input_id);
 
-            if (compo_input)
+            if (!compo_input)
                 return false;
 
             return is_ports_compatible(
@@ -816,7 +816,7 @@ static bool is_ports_compatible(const component_editor& ed,
             auto  compo_input_id = enum_cast<component_id>(input.id);
             auto* compo_input    = ed.mod.components.try_to_get(compo_input_id);
 
-            if (compo_input)
+            if (!compo_input)
                 return false;
 
             return is_ports_compatible(
