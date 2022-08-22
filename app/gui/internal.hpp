@@ -81,11 +81,12 @@ bool InputReal(const char*         label,
                const char*         format    = "%.6f",
                ImGuiInputTextFlags flags     = 0)
 {
+    static_assert(std::is_same_v<RealType, float> ||
+                  std::is_same_v<RealType, double>);
+
     if constexpr (std::is_same_v<RealType, float>) {
         return InputFloat(label, v, step, step_fast, format, flags);
-    }
-
-    if constexpr (std::is_same_v<RealType, double>) {
+    } else {
         return InputDouble(label, v, step, step_fast, format, flags);
     }
 }
