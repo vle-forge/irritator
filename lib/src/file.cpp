@@ -354,11 +354,13 @@ file::file(file&& other) noexcept
 
 file& file::operator=(file&& other) noexcept
 {
-    if (file_handle)
-        std::fclose(to_handle(file_handle));
+    if (this != &other) {
+        if (file_handle)
+            std::fclose(to_handle(file_handle));
 
-    file_handle       = other.file_handle;
-    other.file_handle = nullptr;
+        file_handle       = other.file_handle;
+        other.file_handle = nullptr;
+    }
 
     return *this;
 }
