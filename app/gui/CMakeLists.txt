@@ -9,6 +9,7 @@ set(gui_sources
     modeling-editor.cpp notification.cpp output-editor.cpp 
     project-window.cpp simulation-editor.cpp simulation-component.cpp
     simulation-observation.cpp sources.cpp window-logger.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/archiver.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/file.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/modeling.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/timeline.cpp

@@ -105,7 +105,7 @@ static irt::status run_simulation(irt::simulation& sim, const double duration_p)
     return irt::status::success;
 }
 
-struct global_alloc
+struct global_allocator
 {
     size_t allocation_size   = 0;
     int    allocation_number = 0;
@@ -122,9 +122,9 @@ struct global_alloc
 
         return std::malloc(size);
     }
-};
+} global_alloc;
 
-struct global_free
+struct global_deallocator
 {
     int free_number = 0;
 
@@ -136,7 +136,7 @@ struct global_free
             std::free(ptr);
         }
     }
-};
+} global_free;
 
 static void* null_alloc(size_t /*sz*/) { return nullptr; }
 
@@ -631,7 +631,8 @@ int main()
 
             t_1(int x_) noexcept
               : x(x_)
-            {}
+            {
+            }
         };
 
         irt::vector<t_1> v_1(10, 10);
@@ -690,7 +691,8 @@ int main()
 
             toto(int i_) noexcept
               : i(i_)
-            {}
+            {
+            }
 
             ~toto() noexcept { i = 0; }
         };
@@ -897,7 +899,8 @@ int main()
             position(float x_, float y_) noexcept
               : x(x_)
               , y(y_)
-            {}
+            {
+            }
 
             float x = 0, y = 0;
         };
@@ -919,7 +922,8 @@ int main()
             position() noexcept = default;
             position(float x_) noexcept
               : x(x_)
-            {}
+            {
+            }
 
             float x = 0;
         };
@@ -1018,7 +1022,8 @@ int main()
             position() = default;
             constexpr position(float x_)
               : x(x_)
-            {}
+            {
+            }
 
             float x;
         };
@@ -1343,7 +1348,8 @@ int main()
         {
             data_type(int i_) noexcept
               : i(i_)
-            {}
+            {
+            }
 
             int                       i;
             irt::hierarchy<data_type> d;
@@ -3249,23 +3255,26 @@ int main()
     };
 
     "memory"_test = [] {
-        global_alloc g_a;
-        global_free  g_b;
-
         {
-            irt::g_alloc_fn = g_a;
-            irt::g_free_fn  = g_b;
+            irt::g_alloc_fn = global_alloc;
+            irt::g_free_fn  = global_free;
 
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
         }
 
-        fmt::print("memory: {}/{}\n", g_a.allocation_number, g_b.free_number);
-        expect(g_a.allocation_size > 0);
-        expect(g_a.allocation_number == g_b.free_number);
+        fmt::print("memory: {}/{}\n",
+                   global_alloc.allocation_number,
+                   global_free.free_number);
+
+        expect(global_alloc.allocation_size > 0);
+        expect(global_alloc.allocation_number == global_free.free_number);
 
         irt::g_alloc_fn.reset();
         irt::g_free_fn.reset();
+
+        irt::g_alloc_fn = irt::malloc_wrapper;
+        irt::g_free_fn  = irt::free_wrapper;
     };
 
     "null_memory"_test = [] {
@@ -3277,6 +3286,9 @@ int main()
         expect(sim.init(30u, 30u) != irt::status::success);
 
         irt::is_fatal_breakpoint = true;
+
+        irt::g_alloc_fn = irt::malloc_wrapper;
+        irt::g_free_fn  = irt::free_wrapper;
     };
 
     "external_source"_test = [] {
@@ -3392,5 +3404,78 @@ int main()
         }
 
         std::filesystem::remove(file_path, ec);
+    };
+
+    "memory"_test = [] {
+        irt::memory mem(2040, irt::open_mode::write);
+        expect(mem.write(0x00112233) == true);
+        expect(mem.write(0x44556677) == true);
+
+        expect(mem.data.ssize() == 2040);
+        expect(mem.pos == 8);
+
+        mem.rewind();
+
+        irt::u32 a, b;
+        expect(mem.read(a) == true);
+        expect(mem.read(b) == true);
+
+        expect(a == 0x00112233);
+        expect(b == 0x44556677);
+    };
+
+    "archive"_test = [] {
+        irt::vector<irt::u8> data;
+
+        {
+            irt::memory          m(2040, irt::open_mode::write);
+            irt::simulation      sim;
+            irt::external_source srcs;
+            irt::status          ret;
+
+            ret = sim.init(64u, 256u);
+            expect(ret == irt::status::success);
+
+            (void)sim.alloc<irt::qss1_sum_2>();
+            (void)sim.alloc<irt::qss1_integrator>();
+            (void)sim.alloc<irt::qss1_multiplier>();
+
+            irt::archiver arc;
+
+            ret = arc.perform(sim, srcs, m);
+            expect(ret == irt::status::success);
+
+            data.resize(static_cast<int>(m.pos));
+            std::copy_n(m.data.data(), m.pos, data.data());
+        }
+
+        expect(data.size() > 0);
+
+        {
+            irt::memory          m(data.size(), irt::open_mode::read);
+            irt::simulation      sim;
+            irt::external_source srcs;
+            irt::status          ret;
+            irt::dearchiver      d_arc;
+
+            std::copy_n(data.data(), 200, m.data.data());
+            m.pos = 0;
+
+            ret = d_arc.perform(
+              sim,
+              srcs,
+              m,
+              [&sim](const irt::memory_requirement& mem) noexcept -> bool {
+                  auto b1 = sim.models.init(mem.models);
+                  auto b2 = sim.hsms.init(mem.hsms);
+
+                  return irt::is_success(b1) && irt::is_success(b2);
+              });
+
+            expect(ret == irt::status::success);
+
+            expect(sim.models.size() == 3u);
+            expect(sim.hsms.size() == 0u);
+        }
     };
 }

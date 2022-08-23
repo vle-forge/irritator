@@ -106,7 +106,7 @@ public:
     //!     0).
     //! @return false if failure, true otherwise.
     bool write(const void* buffer, i64 length) noexcept;
-
+    
     void*     get_handle() const noexcept;
     open_mode get_mode() const noexcept;
 

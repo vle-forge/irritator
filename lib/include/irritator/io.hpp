@@ -7,6 +7,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/external_source.hpp>
+#include <irritator/file.hpp>
 #include <irritator/modeling.hpp>
 
 #include <algorithm>
@@ -16,6 +17,64 @@
 #include <vector>
 
 namespace irt {
+
+struct file_header
+{
+    enum class mode_type : i32
+    {
+        none = 0,
+        all  = 1,
+    };
+
+    i32       code    = 0x11223344;
+    i32       length  = sizeof(file_header);
+    i32       version = 1;
+    mode_type type    = mode_type::all;
+};
+
+struct memory_requirement
+{
+    i32 constant_external_source = 0;
+    i32 binary_external_source   = 0;
+    i32 text_external_source     = 0;
+    i32 random_external_source   = 0;
+    i32 models                   = 0;
+    i32 hsms                     = 0;
+};
+
+//! Callbacks call after read the number of models, hsms, observer and
+//! messages to allocate. Use this function to preallocate the simulation @c
+//! data_array.
+using memory_callback = function_ref<bool(const memory_requirement&)>;
+
+struct archiver
+{
+    status perform(simulation& sim, external_source& srcs, file& io) noexcept;
+    status perform(simulation& sim, external_source& srcs, memory& io) noexcept;
+};
+
+struct dearchiver
+{
+    table<u32, model_id>              u32_to_models;
+    table<u32, hsm_id>                u32_to_hsms;
+    table<u32, constant_source_id>    u32_to_constant;
+    table<u32, binary_file_source_id> u32_to_binary;
+    table<u32, text_file_source_id>   u32_to_text;
+    table<u32, random_source_id>      u32_to_random;
+
+    data_array<model, model_id>*                    models = nullptr;
+    data_array<hierarchical_state_machine, hsm_id>* hsms   = nullptr;
+
+    status perform(simulation&      sim,
+                   external_source& srcs,
+                   file&            io,
+                   memory_callback  callback) noexcept;
+
+    status perform(simulation&      sim,
+                   external_source& srcs,
+                   memory&          io,
+                   memory_callback  callback) noexcept;
+};
 
 static inline const char* dynamics_type_names[] = {
     "qss1_integrator", "qss1_multiplier", "qss1_cross",
@@ -48,7 +107,8 @@ inline bool convert(const std::string_view dynamics_name,
                                  const dynamics_type    t) noexcept
           : name(n)
           , type(t)
-        {}
+        {
+        }
 
         const std::string_view name;
         dynamics_type          type;
@@ -346,7 +406,7 @@ static constexpr const char** get_input_port_names(
 
 static inline const char* str_out_1[]     = { "out" };
 static inline const char* str_out_6[]     = { "out-1", "out-2", "out-3",
-                                          "out-4", "out-5", "out-6" };
+                                              "out-4", "out-5", "out-6" };
 static inline const char* str_out_cross[] = { "if-value",
                                               "else-value",
                                               "event" };
@@ -507,9 +567,10 @@ public:
 
     streambuf(std::streambuf* sbuf)
       : m_stream_buffer(sbuf)
-    {}
+    {
+    }
 
-    streambuf(const streambuf&) = delete;
+    streambuf(const streambuf&)            = delete;
     streambuf& operator=(const streambuf&) = delete;
 
 protected:
@@ -602,7 +663,8 @@ private:
         position(const float x_, const float y_) noexcept
           : x(x_)
           , y(y_)
-        {}
+        {
+        }
 
         float x, y;
     };
@@ -1779,7 +1841,8 @@ struct writer
 
     writer(std::ostream& os_) noexcept
       : os(os_)
-    {}
+    {
+    }
 
     void write_constant_sources(
       const data_array<constant_source, constant_source_id>& srcs)
@@ -2525,7 +2588,8 @@ private:
 public:
     dot_writer(std::ostream& os_)
       : os(os_)
-    {}
+    {
+    }
 
     void operator()(const simulation& sim) noexcept
     {

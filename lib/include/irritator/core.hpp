@@ -5206,7 +5206,6 @@ public:
 
     bool handle(const state_id state, const event_type event) noexcept;
 
-protected:
     int    steps_to_common_root(state_id source, state_id target) noexcept;
     status on_enter_sub_state() noexcept;
 

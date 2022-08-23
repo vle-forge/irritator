@@ -689,7 +689,6 @@ bool memory::read(void* buffer, i64 length) noexcept
                     reinterpret_cast<u8*>(buffer));
 
         pos += length;
-
         return true;
     }
 

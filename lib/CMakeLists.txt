@@ -145,7 +145,7 @@ function(irritator_add_benchmark test_name)
 endfunction()
 
 irritator_add_test(test-thread test/threading.cpp)
-irritator_add_test(test-api test/public-api.cpp)
+irritator_add_test(test-api test/public-api.cpp src/archiver.cpp src/file.cpp)
 irritator_add_test(test-simulations test/simulations.cpp)
 # irritator_add_test(auditory test/auditory.cpp)
 
