@@ -51,6 +51,9 @@ public:
     bool read(i32& value) noexcept;
     bool read(i64& value) noexcept;
 
+    bool read(float& value) noexcept;
+    bool read(double& value) noexcept;
+
     bool write(const u8 value) noexcept;
     bool write(const u16 value) noexcept;
     bool write(const u32 value) noexcept;
@@ -59,6 +62,9 @@ public:
     bool write(const i16 value) noexcept;
     bool write(const i32 value) noexcept;
     bool write(const i64 value) noexcept;
+
+    bool write(const float value) noexcept;
+    bool write(const double value) noexcept;
 
     //! Low level read function.
     //! @param buffer A pointer to buffer (must be not null)

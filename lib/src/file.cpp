@@ -436,6 +436,10 @@ bool file::read(i32& value) noexcept { return read_from_file(*this, value); }
 
 bool file::read(i64& value) noexcept { return read_from_file(*this, value); }
 
+bool file::read(float& value) noexcept { return read_from_file(*this, value); }
+
+bool file::read(double& value) noexcept { return read_from_file(*this, value); }
+
 bool file::write(const u8 value) noexcept
 {
     return write_to_file(*this, value);
@@ -472,6 +476,16 @@ bool file::write(const i32 value) noexcept
 }
 
 bool file::write(const i64 value) noexcept
+{
+    return write_to_file(*this, value);
+}
+
+bool file::write(const float value) noexcept
+{
+    return write_to_file(*this, value);
+}
+
+bool file::write(const double value) noexcept
 {
     return write_to_file(*this, value);
 }
