@@ -143,7 +143,7 @@ struct component
 {
     component() noexcept;
 
-    component(const component&)            = delete;
+    component(const component&) = delete;
     component& operator=(const component&) = delete;
 
     bool can_alloc(int place = 1) const noexcept;
@@ -302,11 +302,12 @@ struct modeling
     status fill_components() noexcept;
     status fill_components(registred_path& path) noexcept;
 
+    //! Deletes the component, the file (@c file_path_id) and the description
+    //! (@c description_id) objects attached.
     void free(component& c) noexcept;
     void free(component& parent, child& c) noexcept;
     void free(component& parent, connection& c) noexcept;
     void free(tree_node& node) noexcept;
-
 
     bool can_alloc_file(i32 number = 1) const noexcept;
     bool can_alloc_dir(i32 number = 1) const noexcept;
@@ -371,32 +372,27 @@ inline connection::connection(child_id src_,
   , dst(dst_)
   , index_src(index_src_)
   , index_dst(index_dst_)
-{
-}
+{}
 
 inline child::child(model_id model) noexcept
   : id{ ordinal(model) }
   , type{ child_type::model }
-{
-}
+{}
 
 inline child::child(component_id component) noexcept
   : id{ ordinal(component) }
   , type{ child_type::component }
-{
-}
+{}
 
 inline port::port(child_id id_, i8 port_) noexcept
   : id{ id_ }
   , index{ port_ }
-{
-}
+{}
 
 inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
   : id(id_)
   , id_in_parent(id_in_parent_)
-{
-}
+{}
 
 inline component::component() noexcept
 {

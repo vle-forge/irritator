@@ -1313,8 +1313,6 @@ void modeling::free(file_path& file) noexcept
 {
     if (auto* compo = components.try_to_get(file.component); compo)
         free(*compo);
-
-    file_paths.free(file);
 }
 
 void modeling::free(dir_path& dir) noexcept
