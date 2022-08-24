@@ -26,6 +26,7 @@ enum class open_mode
 class file
 {
 public:
+    file() noexcept = default;
     file(const char* filename, const open_mode mode) noexcept;
     ~file() noexcept;
 
@@ -34,6 +35,8 @@ public:
     file(file&& other) noexcept;
     file& operator=(file&& other) noexcept;
 
+    void open(const char* filename, const open_mode mode) noexcept;
+    void close() noexcept;
     bool is_open() const noexcept;
 
     i64  length() const noexcept;

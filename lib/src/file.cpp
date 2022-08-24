@@ -367,8 +367,26 @@ file& file::operator=(file&& other) noexcept
 
 file::~file() noexcept
 {
+    if (file_handle)
+        std::fclose(to_handle(file_handle));
+}
+
+void file::open(const char* filename, const open_mode mode) noexcept
+{
+    if (file_handle)
+        std::fclose(to_handle(file_handle));
+
+    file_handle = to_void(internal_fopen(filename,
+                                         mode == open_mode::read    ? "rb"
+                                         : mode == open_mode::write ? "wb"
+                                                                    : "ab"));
+}
+
+void file::close() noexcept
+{
     if (file_handle) {
         std::fclose(to_handle(file_handle));
+        file_handle = nullptr;
     }
 }
 
@@ -515,7 +533,8 @@ bool file::write(const void* buffer, i64 length) noexcept
 memory::memory(const i64 length, const open_mode /*mode*/) noexcept
   : data(static_cast<i32>(length), static_cast<i32>(length))
   , pos(0)
-{}
+{
+}
 
 memory::memory(memory&& other) noexcept
   : data(std::move(other.data))
