@@ -30,7 +30,7 @@ public:
     file(const char* filename, const open_mode mode) noexcept;
     ~file() noexcept;
 
-    file(const file& other) noexcept = delete;
+    file(const file& other) noexcept            = delete;
     file& operator=(const file& other) noexcept = delete;
     file(file&& other) noexcept;
     file& operator=(file&& other) noexcept;
@@ -57,6 +57,18 @@ public:
     bool read(float& value) noexcept;
     bool read(double& value) noexcept;
 
+    template<typename EnumType>
+    requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
+    {
+        const auto integer = ordinal(value);
+        const auto ret     = read(value);
+
+        if (ret)
+            value = enum_cast<EnumType>(integer);
+
+        return ret;
+    }
+
     bool write(const u8 value) noexcept;
     bool write(const u16 value) noexcept;
     bool write(const u32 value) noexcept;
@@ -68,6 +80,12 @@ public:
 
     bool write(const float value) noexcept;
     bool write(const double value) noexcept;
+
+    template<typename EnumType>
+    requires(std::is_enum_v<EnumType>) bool write(const EnumType value) noexcept
+    {
+        return write(ordinal(value));
+    }
 
     //! Low level read function.
     //! @param buffer A pointer to buffer (must be not null)
@@ -97,7 +115,7 @@ public:
     memory(const i64 length, const open_mode mode) noexcept;
     ~memory() noexcept = default;
 
-    memory(const memory& other) noexcept = delete;
+    memory(const memory& other) noexcept            = delete;
     memory& operator=(const memory& other) noexcept = delete;
     memory(memory&& other) noexcept;
     memory& operator=(memory&& other) noexcept;
