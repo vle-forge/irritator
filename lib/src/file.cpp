@@ -579,60 +579,77 @@ i64 memory::seek(i64 offset, seek_origin origin) noexcept
 
 void memory::rewind() noexcept { pos = 0; }
 
-bool memory::read(u8& value) noexcept { return write_to_file(*this, value); }
+bool memory::read(u8& value) noexcept { return read(&value, sizeof(value)); }
 
-bool memory::read(u16& value) noexcept { return write_to_file(*this, value); }
+bool memory::read(u16& value) noexcept { return read(&value, sizeof(value)); }
 
-bool memory::read(u32& value) noexcept { return write_to_file(*this, value); }
+bool memory::read(u32& value) noexcept { return read(&value, sizeof(value)); }
 
-bool memory::read(u64& value) noexcept { return write_to_file(*this, value); }
+bool memory::read(u64& value) noexcept { return read(&value, sizeof(value)); }
 
-bool memory::read(i8& value) noexcept { return write_to_file(*this, value); }
+bool memory::read(i8& value) noexcept { return read(&value, sizeof(value)); }
 
-bool memory::read(i16& value) noexcept { return write_to_file(*this, value); }
+bool memory::read(i16& value) noexcept { return read(&value, sizeof(value)); }
 
-bool memory::read(i32& value) noexcept { return write_to_file(*this, value); }
+bool memory::read(i32& value) noexcept { return read(&value, sizeof(value)); }
 
-bool memory::read(i64& value) noexcept { return write_to_file(*this, value); }
+bool memory::read(i64& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(float& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(double& value) noexcept
+{
+    return read(&value, sizeof(value));
+}
 
 bool memory::write(const u8 value) noexcept
 {
-    return write_to_file(*this, value);
+    return write(&value, sizeof(value));
 }
 
 bool memory::write(const u16 value) noexcept
 {
-    return write_to_file(*this, value);
+    return write(&value, sizeof(value));
 }
 
 bool memory::write(const u32 value) noexcept
 {
-    return write_to_file(*this, value);
+    return write(&value, sizeof(value));
 }
 
 bool memory::write(const u64 value) noexcept
 {
-    return write_to_file(*this, value);
+    return write(&value, sizeof(value));
 }
 
 bool memory::write(const i8 value) noexcept
 {
-    return write_to_file(*this, value);
+    return write(&value, sizeof(value));
 }
 
 bool memory::write(const i16 value) noexcept
 {
-    return write_to_file(*this, value);
+    return write(&value, sizeof(value));
 }
 
 bool memory::write(const i32 value) noexcept
 {
-    return write_to_file(*this, value);
+    return write(&value, sizeof(value));
 }
 
 bool memory::write(const i64 value) noexcept
 {
-    return write_to_file(*this, value);
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const float value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const double value) noexcept
+{
+    return write(&value, sizeof(value));
 }
 
 bool memory::read(void* buffer, i64 length) noexcept
