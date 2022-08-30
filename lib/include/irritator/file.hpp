@@ -60,13 +60,14 @@ public:
     template<typename EnumType>
     requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
     {
-        const auto integer = ordinal(value);
-        const auto ret     = read(value);
+        auto integer = ordinal(value);
 
-        if (ret)
+        if (auto ret = read(integer); ret) {
             value = enum_cast<EnumType>(integer);
+            return true;
+        }
 
-        return ret;
+        return false;
     }
 
     bool write(const u8 value) noexcept;
@@ -143,13 +144,14 @@ public:
     template<typename EnumType>
     requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
     {
-        const auto integer = ordinal(value);
-        const auto ret     = read(value);
+        auto integer = ordinal(value);
 
-        if (ret)
+        if (auto ret = read(integer); ret) {
             value = enum_cast<EnumType>(integer);
+            return true;
+        }
 
-        return ret;
+        return false;
     }
 
     bool write(const u8 value) noexcept;
