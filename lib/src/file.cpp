@@ -438,6 +438,18 @@ void file::rewind() noexcept
     std::rewind(to_handle(file_handle));
 }
 
+bool file::read(bool& value) noexcept
+{
+    i8 integer_value{};
+
+    if (auto ret = read_from_file(*this, integer_value); ret) {
+        value = integer_value != 0;
+        return true;
+    }
+
+    return false;
+}
+
 bool file::read(u8& value) noexcept { return read_from_file(*this, value); }
 
 bool file::read(u16& value) noexcept { return read_from_file(*this, value); }
@@ -457,6 +469,12 @@ bool file::read(i64& value) noexcept { return read_from_file(*this, value); }
 bool file::read(float& value) noexcept { return read_from_file(*this, value); }
 
 bool file::read(double& value) noexcept { return read_from_file(*this, value); }
+
+bool file::write(const bool value) noexcept
+{
+    const i8 new_value = value ? 0xff : 0x0;
+    return write_to_file(*this, new_value);
+}
 
 bool file::write(const u8 value) noexcept
 {
@@ -579,6 +597,8 @@ i64 memory::seek(i64 offset, seek_origin origin) noexcept
 
 void memory::rewind() noexcept { pos = 0; }
 
+bool memory::read(bool& value) noexcept { return read(&value, sizeof(value)); }
+
 bool memory::read(u8& value) noexcept { return read(&value, sizeof(value)); }
 
 bool memory::read(u16& value) noexcept { return read(&value, sizeof(value)); }
@@ -600,6 +620,11 @@ bool memory::read(float& value) noexcept { return read(&value, sizeof(value)); }
 bool memory::read(double& value) noexcept
 {
     return read(&value, sizeof(value));
+}
+
+bool memory::write(const bool value) noexcept
+{
+    return write(&value, sizeof(value));
 }
 
 bool memory::write(const u8 value) noexcept

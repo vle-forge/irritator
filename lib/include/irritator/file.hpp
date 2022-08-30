@@ -45,6 +45,7 @@ public:
     i64  seek(i64 offset, seek_origin origin) noexcept;
     void rewind() noexcept;
 
+    bool read(bool& value) noexcept;
     bool read(u8& value) noexcept;
     bool read(u16& value) noexcept;
     bool read(u32& value) noexcept;
@@ -70,6 +71,7 @@ public:
         return false;
     }
 
+    bool write(const bool value) noexcept;
     bool write(const u8 value) noexcept;
     bool write(const u16 value) noexcept;
     bool write(const u32 value) noexcept;
@@ -129,6 +131,7 @@ public:
     i64  seek(i64 offset, seek_origin origin) noexcept;
     void rewind() noexcept;
 
+    bool read(bool& value) noexcept;
     bool read(u8& value) noexcept;
     bool read(u16& value) noexcept;
     bool read(u32& value) noexcept;
@@ -154,6 +157,7 @@ public:
         return false;
     }
 
+    bool write(const bool value) noexcept;
     bool write(const u8 value) noexcept;
     bool write(const u16 value) noexcept;
     bool write(const u32 value) noexcept;
