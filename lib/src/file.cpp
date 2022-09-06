@@ -440,10 +440,10 @@ void file::rewind() noexcept
 
 bool file::read(bool& value) noexcept
 {
-    i8 integer_value{};
+    u8 integer_value{};
 
     if (auto ret = read_from_file(*this, integer_value); ret) {
-        value = integer_value != 0;
+        value = integer_value != 0u;
         return true;
     }
 
@@ -472,7 +472,7 @@ bool file::read(double& value) noexcept { return read_from_file(*this, value); }
 
 bool file::write(const bool value) noexcept
 {
-    const i8 new_value = value ? 0xff : 0x0;
+    const u8 new_value = value ? 0xff : 0x0;
     return write_to_file(*this, new_value);
 }
 
