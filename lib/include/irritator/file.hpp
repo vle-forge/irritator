@@ -59,7 +59,8 @@ public:
     bool read(double& value) noexcept;
 
     template<typename EnumType>
-    requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
+        requires(std::is_enum_v<EnumType>) bool
+    read(EnumType& value) noexcept
     {
         auto integer = ordinal(value);
 
@@ -85,7 +86,8 @@ public:
     bool write(const double value) noexcept;
 
     template<typename EnumType>
-    requires(std::is_enum_v<EnumType>) bool write(const EnumType value) noexcept
+        requires(std::is_enum_v<EnumType>) bool
+    write(const EnumType value) noexcept
     {
         return write(ordinal(value));
     }
@@ -105,7 +107,8 @@ public:
     //! @return false if failure, true otherwise.
     bool write(const void* buffer, i64 length) noexcept;
 
-    void* get_handle() const noexcept;
+    void*     get_handle() const noexcept;
+    open_mode get_mode() const noexcept;
 
 private:
     void*     file_handle = nullptr;
@@ -145,7 +148,8 @@ public:
     bool read(double& value) noexcept;
 
     template<typename EnumType>
-    requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
+        requires(std::is_enum_v<EnumType>) bool
+    read(EnumType& value) noexcept
     {
         auto integer = ordinal(value);
 
@@ -171,7 +175,8 @@ public:
     bool write(const double value) noexcept;
 
     template<typename EnumType>
-    requires(std::is_enum_v<EnumType>) bool write(const EnumType value) noexcept
+        requires(std::is_enum_v<EnumType>) bool
+    write(const EnumType value) noexcept
     {
         return write(ordinal(value));
     }
@@ -195,7 +200,8 @@ public:
     i64        pos = 0;
 };
 
-inline void* file::get_handle() const noexcept { return file_handle; }
+inline void*     file::get_handle() const noexcept { return file_handle; }
+inline open_mode file::get_mode() const noexcept { return mode; }
 
 } // irt
 
