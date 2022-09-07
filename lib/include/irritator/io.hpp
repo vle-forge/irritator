@@ -780,15 +780,14 @@ public:
 private:
     status do_read_binary_file_source(external_source& srcs) noexcept
     {
-        u32 id;
+        u32 id          = 0u;
+        i32 max_clients = 0;
 
-        if (!(is >> id))
+        if (!(is >> id >> max_clients))
             return status::io_file_format_error;
 
-        auto& elem =
-          srcs.binary_file_sources.alloc(srcs.block_size, srcs.block_number);
-
-        auto elem_id = srcs.binary_file_sources.get_id(elem);
+        auto& elem    = srcs.binary_file_sources.alloc(max_clients);
+        auto  elem_id = srcs.binary_file_sources.get_id(elem);
 
         std::string file_path;
         if (!(is >> std::quoted(file_path)))
@@ -802,15 +801,14 @@ private:
 
     status do_read_text_file_source(external_source& srcs) noexcept
     {
-        u32 id;
+        u32 id          = 0u;
+        i32 max_clients = 0;
 
-        if (!(is >> id))
+        if (!(is >> id >> max_clients))
             return status::io_file_format_error;
 
-        auto& elem =
-          srcs.text_file_sources.alloc(srcs.block_size, srcs.block_number);
-
-        auto elem_id = srcs.text_file_sources.get_id(elem);
+        auto& elem    = srcs.text_file_sources.alloc(max_clients);
+        auto  elem_id = srcs.text_file_sources.get_id(elem);
 
         std::string file_path;
         if (!(is >> std::quoted(file_path)))
@@ -824,21 +822,18 @@ private:
 
     status do_read_constant_source(external_source& srcs) noexcept
     {
-        u32 id;
-        sz  size;
+        u32 id   = 0u;
+        u32 size = 0u;
 
         if (!(is >> id >> size))
             return status::io_file_format_error;
 
-        auto& cst = srcs.constant_sources.alloc(srcs.block_size);
+        auto& cst    = srcs.constant_sources.alloc();
+        auto  cst_id = srcs.constant_sources.get_id(cst);
 
-        auto cst_id = srcs.constant_sources.get_id(cst);
+        cst.length = size;
 
-        try {
-            constant_mapping.data.emplace_back(id, ordinal(cst_id));
-        } catch (const std::bad_alloc& /*e*/) {
-            return status::io_not_enough_memory;
-        }
+        constant_mapping.data.emplace_back(id, ordinal(cst_id));
 
         for (size_t i = 0; i < size; ++i) {
             if (!(is >> cst.buffer[i]))
@@ -850,9 +845,10 @@ private:
 
     status do_read_random_source(external_source& srcs) noexcept
     {
-        u32 id;
+        u32 id          = 0u;
+        i32 max_clients = 0;
 
-        if (!(is >> id))
+        if (!(is >> id >> max_clients))
             return status::io_file_format_error;
 
         char type_str[30];
@@ -872,10 +868,8 @@ private:
         const auto dist_id =
           std::distance(std::begin(distribution_type_string), it);
 
-        auto& elem =
-          srcs.random_sources.alloc(srcs.block_size, srcs.block_number);
-
-        auto elem_id = srcs.random_sources.get_id(elem);
+        auto& elem    = srcs.random_sources.alloc();
+        auto  elem_id = srcs.random_sources.get_id(elem);
 
         try {
             random_mapping.data.emplace_back(id, ordinal(elem_id));

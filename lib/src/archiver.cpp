@@ -49,8 +49,8 @@ struct read_write_operator
     }
 
     template<typename T>
-        requires(std::is_same_v<ReadOrWriteOperator, read_operator<Stream>>)
-    void operator()(T& value) noexcept
+    requires(std::is_same_v<ReadOrWriteOperator, read_operator<Stream>>) void
+    operator()(T& value) noexcept
     {
         ReadOrWriteOperator op{};
 
@@ -59,8 +59,8 @@ struct read_write_operator
     }
 
     template<typename T>
-        requires(std::is_same_v<ReadOrWriteOperator, write_operator<Stream>>)
-    void operator()(const T value) noexcept
+    requires(std::is_same_v<ReadOrWriteOperator, write_operator<Stream>>) void
+    operator()(const T value) noexcept
     {
         ReadOrWriteOperator op{};
 
@@ -536,14 +536,14 @@ static void do_serialize_dynamics(Archiver& /*s*/,
     auto ta_id = get_index(dyn.default_source_ta.id);
     io(ta_id);
     io(dyn.default_source_ta.type);
-    io(dyn.default_source_ta.size);
     io(dyn.default_source_ta.index);
+    io(dyn.default_source_ta.chuck_id);
 
     auto value_id = get_index(dyn.default_source_value.id);
     io(value_id);
     io(dyn.default_source_value.type);
-    io(dyn.default_source_value.size);
     io(dyn.default_source_value.index);
+    io(dyn.default_source_value.chuck_id);
 
     io(dyn.stop_on_error);
 }
@@ -776,8 +776,8 @@ static void do_serialize_dynamics(Archiver& /*s*/,
     auto id = dyn.default_source_ta.id;
     io(id);
     io(dyn.default_source_ta.type);
-    io(dyn.default_source_ta.size);
     io(dyn.default_source_ta.index);
+    io(dyn.default_source_ta.chuck_id);
 
     io(dyn.stop_on_error);
 }
@@ -794,8 +794,8 @@ static void do_serialize_dynamics(Archiver& /*s*/,
     auto id = get_index(dyn.default_source_ta.id);
     io(id);
     io(dyn.default_source_ta.type);
-    io(dyn.default_source_ta.size);
     io(dyn.default_source_ta.index);
+    io(dyn.default_source_ta.chuck_id);
 
     io(dyn.stop_on_error);
 }
@@ -889,19 +889,6 @@ static void do_serialize_external_source(Archiver& /*s*/,
                                          IO&              io,
                                          constant_source& src) noexcept
 {
-    if constexpr (std::is_same_v<Archiver, dearchiver>) {
-        i32 size = 0;
-        io(size);
-
-        src.buffer.resize(static_cast<size_t>(size));
-    } else {
-        auto orig_size = src.buffer.size();
-        irt_assert(orig_size < INT32_MAX);
-
-        auto size = static_cast<i32>(orig_size);
-        io(size);
-    }
-
     io(std::span(src.buffer.data(), src.buffer.size()));
 }
 
@@ -1010,6 +997,7 @@ static status do_serialize(archiver&        arc,
             auto index = get_index(id);
 
             io(index);
+            io(src->length);
             do_serialize_external_source(arc, io, *src);
         }
     }
@@ -1021,6 +1009,7 @@ static status do_serialize(archiver&        arc,
             auto index = get_index(id);
 
             io(index);
+            io(src->max_clients);
             do_serialize_external_source(arc, io, *src);
         }
     }
@@ -1032,6 +1021,7 @@ static status do_serialize(archiver&        arc,
             auto index = get_index(id);
 
             io(index);
+            io(src->max_clients);
             do_serialize_external_source(arc, io, *src);
         }
     }
@@ -1043,6 +1033,7 @@ static status do_serialize(archiver&        arc,
             auto index = get_index(id);
 
             io(index);
+            io(src->max_clients);
             do_serialize_external_source(arc, io, *src);
         }
     }
@@ -1143,7 +1134,7 @@ static status do_deserialize(dearchiver&      arc,
             u32 index = 0u;
             io(index);
 
-            auto& src = srcs.constant_sources.alloc(4096u);
+            auto& src = srcs.constant_sources.alloc();
             auto  id  = srcs.constant_sources.get_id(src);
             arc.u32_to_constant.data.emplace_back(index, id);
 
@@ -1158,7 +1149,10 @@ static status do_deserialize(dearchiver&      arc,
             u32 index = 0u;
             io(index);
 
-            auto& src = srcs.binary_file_sources.alloc(4096u, 4096u * 1024u);
+            i32 max_clients = 0;
+            io(max_clients);
+
+            auto& src = srcs.binary_file_sources.alloc(max_clients);
             auto  id  = srcs.binary_file_sources.get_id(src);
             arc.u32_to_binary.data.emplace_back(index, id);
 
@@ -1173,7 +1167,10 @@ static status do_deserialize(dearchiver&      arc,
             u32 index = 0u;
             io(index);
 
-            auto& src = srcs.text_file_sources.alloc(4096u, 4096u * 1024u);
+            i32 max_clients = 0;
+            io(max_clients);
+
+            auto& src = srcs.text_file_sources.alloc(max_clients);
             auto  id  = srcs.text_file_sources.get_id(src);
             arc.u32_to_text.data.emplace_back(index, id);
 
@@ -1188,7 +1185,10 @@ static status do_deserialize(dearchiver&      arc,
             u32 index = 0u;
             io(index);
 
-            auto& src = srcs.random_sources.alloc(4096u, 4096u * 1024u);
+            i32 max_clients = 0;
+            io(max_clients);
+
+            auto& src = srcs.random_sources.alloc(max_clients);
             auto  id  = srcs.random_sources.get_id(src);
             arc.u32_to_random.data.emplace_back(index, id);
 

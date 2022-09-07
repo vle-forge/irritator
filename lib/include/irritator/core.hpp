@@ -487,7 +487,7 @@ public:
     }
 
     //! Makes `*this` refer to the same callable as `rhs`.
-    constexpr function_ref<R(Args...)>& operator    =(
+    constexpr function_ref<R(Args...)>& operator=(
       const function_ref<R(Args...)>& rhs) noexcept = default;
 
     //! Makes `*this` refer to `f`.
@@ -581,7 +581,8 @@ using time = real;
 
 template<typename T>
 struct time_domain
-{};
+{
+};
 
 template<>
 struct time_domain<time>
@@ -731,7 +732,7 @@ public:
     constexpr ~small_vector() noexcept;
 
     constexpr small_vector& operator=(const small_vector& other) noexcept;
-    constexpr small_vector(small_vector&& other) noexcept = delete;
+    constexpr small_vector(small_vector&& other) noexcept            = delete;
     constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
 
     constexpr status resize(int capacity) noexcept;
@@ -859,9 +860,9 @@ struct fixed_real_array
     constexpr fixed_real_array(const fixed_real_array& rhs) noexcept = default;
     constexpr fixed_real_array(fixed_real_array&& rhs) noexcept      = default;
 
-    constexpr fixed_real_array& operator    =(
+    constexpr fixed_real_array& operator=(
       const fixed_real_array& rhs) noexcept = default;
-    constexpr fixed_real_array& operator    =(fixed_real_array&& rhs) noexcept =
+    constexpr fixed_real_array& operator=(fixed_real_array&& rhs) noexcept =
       default;
 
     template<typename... Args>
@@ -933,7 +934,7 @@ private:
 public:
     block_allocator() noexcept = default;
 
-    block_allocator(const block_allocator&) = delete;
+    block_allocator(const block_allocator&)            = delete;
     block_allocator& operator=(const block_allocator&) = delete;
 
     block_allocator(block_allocator&& rhs) noexcept
@@ -1186,12 +1187,14 @@ public:
     list_view_iterator_impl(container_type& lst_, u32 id_) noexcept
       : lst(lst_)
       , id(id_)
-    {}
+    {
+    }
 
     list_view_iterator_impl(const list_view_iterator_impl& other) noexcept
       : lst(other.lst)
       , id(other.id)
-    {}
+    {
+    }
 
     list_view_iterator_impl& operator=(
       const list_view_iterator_impl& other) noexcept
@@ -1290,7 +1293,8 @@ public:
     list_view(allocator_type& allocator, u64& id) noexcept
       : m_allocator(allocator)
       , m_list(id)
-    {}
+    {
+    }
 
     ~list_view() noexcept = default;
 
@@ -1564,7 +1568,8 @@ public:
     list_view_const(const allocator_type& allocator, const u64 id) noexcept
       : m_allocator(allocator)
       , m_list(id)
-    {}
+    {
+    }
 
     ~list_view_const() noexcept = default;
 
@@ -2044,7 +2049,8 @@ struct record
     record(real x_dot_, time date_) noexcept
       : x_dot{ x_dot_ }
       , date{ date_ }
-    {}
+    {
+    }
 
     real x_dot{ 0 };
     time date{ time_domain<time>::infinity };
@@ -2336,44 +2342,47 @@ struct simulation;
  *
  ****************************************************************************/
 
+static constexpr int external_source_chunk_size = 512;
+
 struct source
 {
     enum class operation_type
     {
         initialize, // Use to initialize the buffer at simulation init step.
         update,     // Use to update the buffer when all values are read.
+        restore,    // Use to restore the buffer when debug mode activated.
         finalize    // Use to clear the buffer at simulation finalize step.
     };
 
-    double* buffer = nullptr;
-    u64     id   = 0; // The identifier of the external source (see operation())
-    i32     type = -1; // The type of the external source (see operation())
-    i32     size = 0;
-    i32     index = 0;
+    std::span<double> buffer;
+    u64 id       = 0; // The identifier of the external source (see operation()).
+    i32 type     = -1; // The type of the external source (see operation()).
+    u32 index    = 0;  // The index of the current double in chunk.
+    i32 chuck_id = 0;  // Current chunk. Use when restore is apply.
 
-    void reset() noexcept
-    {
-        buffer = nullptr;
-        size   = 0;
-        index  = 0;
-        type   = -1;
-        id     = 0;
-    }
+    //! Call to reset the position in the current chunk.
+    void reset() noexcept { index = 0u; }
 
+    //! Clear the source (buffer and external source access)
     void clear() noexcept
     {
-        buffer = nullptr;
-        size   = 0;
-        index  = 0;
+        buffer   = std::span<double>();
+        id       = 0u;
+        type     = 0;
+        index    = 0u;
+        chuck_id = 0u;
     }
 
+    //! Try to get next double in the buffer.
+    //!
+    //! @param value stores the new double read from the buffer.
+    //! @return true if success, false otherwise.
     bool next(double& value) noexcept
     {
-        if (index >= size)
+        if (index >= buffer.size())
             return false;
 
         value = buffer[index++];
-
         return true;
     }
 };
@@ -2512,7 +2521,8 @@ struct node
     node(const model_id model_, const i8 port_index_) noexcept
       : model(model_)
       , port_index(port_index_)
-    {}
+    {
+    }
 
     model_id model      = undefined<model_id>();
     i8       port_index = 0;
@@ -2573,17 +2583,20 @@ namespace detail {
 
 template<typename, template<typename...> class, typename...>
 struct is_detected : std::false_type
-{};
+{
+};
 
 template<template<class...> class Operation, typename... Arguments>
 struct is_detected<std::void_t<Operation<Arguments...>>,
                    Operation,
                    Arguments...> : std::true_type
-{};
+{
+};
 
 template<typename T, T>
 struct helper
-{};
+{
+};
 
 } // namespace detail
 
@@ -2671,7 +2684,8 @@ struct integrator
       , expected_value(other.expected_value)
       , reset(other.reset)
       , st(other.st)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -2911,7 +2925,8 @@ struct abstract_integrator<1>
       , q(other.q)
       , u(other.u)
       , sigma(other.sigma)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -3035,7 +3050,8 @@ struct abstract_integrator<2>
       , q(other.q)
       , mq(other.mq)
       , sigma(other.sigma)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -3198,7 +3214,8 @@ struct abstract_integrator<3>
       , mq(other.mq)
       , pq(other.pq)
       , sigma(other.sigma)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -4205,7 +4222,8 @@ struct quantifier
       , m_zero_init_offset(other.m_zero_init_offset)
       , m_state(other.m_state)
       , m_adapt_state(other.m_adapt_state)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -4666,7 +4684,8 @@ struct counter
     counter(const counter& other) noexcept
       : sigma(other.sigma)
       , number(other.number)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -4717,7 +4736,8 @@ struct generator
       , default_source_ta(other.default_source_ta)
       , default_source_value(other.default_source_value)
       , stop_on_error(other.stop_on_error)
-    {}
+    {
+    }
 
     status initialize(simulation& sim) noexcept
     {
@@ -4800,7 +4820,8 @@ struct constant
       , default_value(other.default_value)
       , default_offset(other.default_offset)
       , value(other.value)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -5323,7 +5344,8 @@ struct cross
       , else_value(other.else_value)
       , result(other.result)
       , event(other.event)
-    {}
+    {
+    }
 
     enum port_name
     {
@@ -5735,7 +5757,8 @@ struct time_func
       , default_f(other.default_f)
       , value(other.value)
       , f(other.f)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -5791,7 +5814,8 @@ struct queue
       : sigma(other.sigma)
       , fifo(static_cast<u64>(-1))
       , default_ta(other.default_ta)
-    {}
+    {
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -5871,7 +5895,8 @@ struct dynamic_queue
       , fifo(static_cast<u64>(-1))
       , default_source_ta(other.default_source_ta)
       , stop_on_error(other.stop_on_error)
-    {}
+    {
+    }
 
     status initialize(simulation& sim) noexcept
     {
@@ -5965,7 +5990,8 @@ struct priority_queue
       , default_ta(other.default_ta)
       , default_source_ta(other.default_source_ta)
       , stop_on_error(other.stop_on_error)
-    {}
+    {
+    }
 
 private:
     status try_to_insert(simulation&    sim,
@@ -8400,7 +8426,8 @@ inline observer::observer(const char* name_,
   , user_data(user_data_)
   , user_id(user_id_)
   , user_type(user_type_)
-{}
+{
+}
 
 inline void scheduller::pop(vector<model_id>& out) noexcept
 {
@@ -8850,7 +8877,8 @@ inline hsm_wrapper::hsm_wrapper(const hsm_wrapper& other) noexcept
   : id{ undefined<hsm_id>() }
   , m_previous_state{ other.m_previous_state }
   , sigma{ other.sigma }
-{}
+{
+}
 
 inline status hsm_wrapper::initialize(simulation& sim) noexcept
 {

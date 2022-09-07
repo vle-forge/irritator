@@ -59,8 +59,7 @@ public:
     bool read(double& value) noexcept;
 
     template<typename EnumType>
-        requires(std::is_enum_v<EnumType>) bool
-    read(EnumType& value) noexcept
+    requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
     {
         auto integer = ordinal(value);
 
@@ -86,8 +85,7 @@ public:
     bool write(const double value) noexcept;
 
     template<typename EnumType>
-        requires(std::is_enum_v<EnumType>) bool
-    write(const EnumType value) noexcept
+    requires(std::is_enum_v<EnumType>) bool write(const EnumType value) noexcept
     {
         return write(ordinal(value));
     }
@@ -106,7 +104,7 @@ public:
     //!     0).
     //! @return false if failure, true otherwise.
     bool write(const void* buffer, i64 length) noexcept;
-    
+
     void*     get_handle() const noexcept;
     open_mode get_mode() const noexcept;
 
@@ -148,8 +146,7 @@ public:
     bool read(double& value) noexcept;
 
     template<typename EnumType>
-        requires(std::is_enum_v<EnumType>) bool
-    read(EnumType& value) noexcept
+    requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
     {
         auto integer = ordinal(value);
 
@@ -175,8 +172,7 @@ public:
     bool write(const double value) noexcept;
 
     template<typename EnumType>
-        requires(std::is_enum_v<EnumType>) bool
-    write(const EnumType value) noexcept
+    requires(std::is_enum_v<EnumType>) bool write(const EnumType value) noexcept
     {
         return write(ordinal(value));
     }

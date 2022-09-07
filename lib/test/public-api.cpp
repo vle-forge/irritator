@@ -1660,10 +1660,12 @@ int main()
         expect((sim.hsms.can_alloc(1)) >> fatal);
 
         expect(srcs.constant_sources.can_alloc(2u));
-        auto& cst_value  = srcs.constant_sources.alloc(32);
+        auto& cst_value  = srcs.constant_sources.alloc();
+        cst_value.length = 10;
         cst_value.buffer = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0 };
 
-        auto& cst_ta  = srcs.constant_sources.alloc(32);
+        auto& cst_ta  = srcs.constant_sources.alloc();
+        cst_ta.length = 10;
         cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
 
         auto& cst_1         = sim.alloc<irt::constant>();
@@ -1731,11 +1733,13 @@ int main()
         expect(sim.can_alloc(2));
 
         expect(srcs.constant_sources.can_alloc(2u));
-        auto& cst_value  = srcs.constant_sources.alloc(32);
+        auto& cst_value  = srcs.constant_sources.alloc();
         cst_value.buffer = { 1., 2., 3., 4., 5., 6., 7., 8., 9., 10. };
+        cst_value.length = 10;
 
-        auto& cst_ta  = srcs.constant_sources.alloc(32);
+        auto& cst_ta  = srcs.constant_sources.alloc();
         cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
+        cst_ta.length = 10;
 
         auto& gen = sim.alloc<irt::generator>();
         auto& cnt = sim.alloc<irt::counter>();

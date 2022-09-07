@@ -194,9 +194,9 @@ static void try_init_source(data_window& data, source& src) noexcept
         return;
     }
 
-    const i32 size_max = std::min(src.size, 1024);
     data.plot.clear();
-    for (i32 i = 0; i < size_max; ++i)
+
+    for (sz i = 0, e = src.buffer.size(); i != e; ++i)
         data.plot.push_back(
           ImVec2{ static_cast<float>(i), static_cast<float>(src.buffer[i]) });
     data.plot_available = true;
@@ -246,7 +246,8 @@ void task_try_init_source(application& app, u64 id, i32 type) noexcept
 }
 data_window::data_window() noexcept
   : context{ ImPlot::CreateContext() }
-{}
+{
+}
 
 data_window::~data_window() noexcept
 {
@@ -413,9 +414,8 @@ void data_window::show() noexcept
 
         if (ImGui::Button("+constant", button_sz)) {
             if (c_editor->mod.srcs.constant_sources.can_alloc(1u)) {
-                auto& new_src = c_editor->mod.srcs.constant_sources.alloc(
-                  c_editor->mod.srcs.block_size);
-                new_src.buffer.resize(3);
+                auto& new_src     = c_editor->mod.srcs.constant_sources.alloc();
+                new_src.length    = 3;
                 new_src.buffer[0] = 0.0;
                 new_src.buffer[1] = 1.0;
                 new_src.buffer[2] = 2.0;
@@ -426,8 +426,7 @@ void data_window::show() noexcept
         if (ImGui::Button("+text file", button_sz)) {
             if (c_editor->mod.srcs.text_file_sources.can_alloc(1u)) {
                 auto& new_src = c_editor->mod.srcs.text_file_sources.alloc(
-                  c_editor->mod.srcs.block_size,
-                  c_editor->mod.srcs.block_number);
+                  default_max_client_number);
             }
         }
 
@@ -435,8 +434,7 @@ void data_window::show() noexcept
         if (ImGui::Button("+binary file", button_sz)) {
             if (c_editor->mod.srcs.binary_file_sources.can_alloc(1u)) {
                 auto& new_src = c_editor->mod.srcs.binary_file_sources.alloc(
-                  c_editor->mod.srcs.block_size,
-                  c_editor->mod.srcs.block_number);
+                  default_max_client_number);
             }
         }
 
@@ -444,8 +442,7 @@ void data_window::show() noexcept
         if (ImGui::Button("+random", button_sz)) {
             if (c_editor->mod.srcs.random_sources.can_alloc(1u)) {
                 auto& new_src = c_editor->mod.srcs.random_sources.alloc(
-                  c_editor->mod.srcs.block_size,
-                  c_editor->mod.srcs.block_number);
+                  default_max_client_number);
                 new_src.a32          = 0;
                 new_src.b32          = 100;
                 new_src.distribution = distribution_type::uniform_int;
@@ -481,8 +478,7 @@ void data_window::show() noexcept
               c_editor->mod.srcs.constant_sources.get_id(constant_ptr);
             auto index = get_index(id);
 
-            static u32 new_size = 1;
-            new_size            = static_cast<u32>(constant_ptr->buffer.size());
+            i32 new_size = constant_ptr->length;
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -497,12 +493,12 @@ void data_window::show() noexcept
                              constant_ptr->name.capacity());
 
             if (ImGui::InputScalar("length", ImGuiDataType_U32, &new_size) &&
-                new_size != constant_ptr->buffer.size() &&
-                new_size < std::numeric_limits<u32>::max()) {
-                constant_ptr->buffer.resize(new_size);
+                new_size != constant_ptr->length &&
+                new_size < external_source_chunk_size) {
+                constant_ptr->length = new_size;
             }
 
-            for (u32 i = 0; i < new_size; ++i) {
+            for (i32 i = 0; i < constant_ptr->length; ++i) {
                 ImGui::PushID(static_cast<int>(i));
                 ImGui::InputDouble("##name", &constant_ptr->buffer[i]);
                 ImGui::PopID();
