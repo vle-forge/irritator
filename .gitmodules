@@ -13,3 +13,6 @@
 [submodule "external/rapidjson"]
 	path = external/rapidjson
 	url = https://github.com/Tencent/rapidjson.git
+[submodule "external/random123"]
+	path = external/random123
+	url = https://github.com/DEShawResearch/random123.git
