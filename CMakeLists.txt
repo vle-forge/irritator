@@ -16,6 +16,7 @@ add_definitions(-DFMT_HEADER_ONLY)
 include_directories(${CMAKE_SOURCE_DIR}/external/fmt/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/ut/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/rapidjson/include)
+include_directories(${CMAKE_SOURCE_DIR}/external/random123/include)
 
 enable_testing()
 add_subdirectory(lib)
