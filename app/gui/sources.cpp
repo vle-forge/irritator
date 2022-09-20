@@ -425,26 +425,23 @@ void data_window::show() noexcept
         ImGui::SameLine();
         if (ImGui::Button("+text file", button_sz)) {
             if (c_editor->mod.srcs.text_file_sources.can_alloc(1u)) {
-                auto& new_src = c_editor->mod.srcs.text_file_sources.alloc(
-                  default_max_client_number);
+                auto& new_src = c_editor->mod.srcs.text_file_sources.alloc();
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+binary file", button_sz)) {
             if (c_editor->mod.srcs.binary_file_sources.can_alloc(1u)) {
-                auto& new_src = c_editor->mod.srcs.binary_file_sources.alloc(
-                  default_max_client_number);
+                auto& new_src = c_editor->mod.srcs.binary_file_sources.alloc();
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+random", button_sz)) {
             if (c_editor->mod.srcs.random_sources.can_alloc(1u)) {
-                auto& new_src = c_editor->mod.srcs.random_sources.alloc(
-                  default_max_client_number);
-                new_src.a32          = 0;
-                new_src.b32          = 100;
+                auto& new_src = c_editor->mod.srcs.random_sources.alloc();
+                new_src.a32   = 0;
+                new_src.b32   = 100;
                 new_src.distribution = distribution_type::uniform_int;
             }
         }

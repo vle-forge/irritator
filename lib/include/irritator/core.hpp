@@ -581,8 +581,7 @@ using time = real;
 
 template<typename T>
 struct time_domain
-{
-};
+{};
 
 template<>
 struct time_domain<time>
@@ -2354,11 +2353,11 @@ struct source
         finalize    // Use to clear the buffer at simulation finalize step.
     };
 
-    std::span<double> buffer;
-    u64 id       = 0; // The identifier of the external source (see operation()).
-    i32 type     = -1; // The type of the external source (see operation()).
-    u32 index    = 0;  // The index of the current double in chunk.
-    i32 chuck_id = 0;  // Current chunk. Use when restore is apply.
+    std::span<double> buffer;    // The buffer
+    u64               id   = 0;  // The identifier of the external source.
+    i16               type = -1; // The type of the external source.
+    i16 index = 0; // The index of the next double to read in current chunk.
+    std::array<u64, 4> chunk_id; // Current chunk. Use when restore is apply.
 
     //! Call to reset the position in the current chunk.
     void reset() noexcept { index = 0u; }
@@ -2366,11 +2365,11 @@ struct source
     //! Clear the source (buffer and external source access)
     void clear() noexcept
     {
-        buffer   = std::span<double>();
-        id       = 0u;
-        type     = 0;
-        index    = 0u;
-        chuck_id = 0u;
+        buffer = std::span<double>();
+        id     = 0u;
+        type   = 0;
+        index  = 0;
+        std::fill_n(chunk_id.data(), chunk_id.size(), 0);
     }
 
     //! Try to get next double in the buffer.
@@ -2379,7 +2378,7 @@ struct source
     //! @return true if success, false otherwise.
     bool next(double& value) noexcept
     {
-        if (index >= buffer.size())
+        if (std::cmp_greater_equal(index, buffer.size()))
             return false;
 
         value = buffer[index++];
@@ -2583,20 +2582,17 @@ namespace detail {
 
 template<typename, template<typename...> class, typename...>
 struct is_detected : std::false_type
-{
-};
+{};
 
 template<template<class...> class Operation, typename... Arguments>
 struct is_detected<std::void_t<Operation<Arguments...>>,
                    Operation,
                    Arguments...> : std::true_type
-{
-};
+{};
 
 template<typename T, T>
 struct helper
-{
-};
+{};
 
 } // namespace detail
 

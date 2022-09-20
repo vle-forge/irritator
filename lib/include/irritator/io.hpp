@@ -786,13 +786,14 @@ private:
         if (!(is >> id >> max_clients))
             return status::io_file_format_error;
 
-        auto& elem    = srcs.binary_file_sources.alloc(max_clients);
+        auto& elem    = srcs.binary_file_sources.alloc();
         auto  elem_id = srcs.binary_file_sources.get_id(elem);
 
         std::string file_path;
         if (!(is >> std::quoted(file_path)))
             return status::io_file_format_error;
 
+        elem.max_clients = max_clients;
         elem.file_path = file_path;
         binary_file_mapping.data.emplace_back(id, ordinal(elem_id));
 
@@ -802,12 +803,11 @@ private:
     status do_read_text_file_source(external_source& srcs) noexcept
     {
         u32 id          = 0u;
-        i32 max_clients = 0;
 
-        if (!(is >> id >> max_clients))
+        if (!(is >> id))
             return status::io_file_format_error;
 
-        auto& elem    = srcs.text_file_sources.alloc(max_clients);
+        auto& elem    = srcs.text_file_sources.alloc();
         auto  elem_id = srcs.text_file_sources.get_id(elem);
 
         std::string file_path;
