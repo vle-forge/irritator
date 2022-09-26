@@ -673,8 +673,7 @@ struct external_source
     data_array<text_file_source, text_file_source_id>     text_file_sources;
     data_array<random_source, random_source_id>           random_sources;
 
-    u64 seed_0 = 0xdeadbeef12345678U;
-    u64 seed_1 = 0xdeadbeef12345678U;
+    u64 seed[2] = { 0xdeadbeef12345678U, 0xdeadbeef12345678U };
 
     status init(const sz size) noexcept
     {
@@ -710,7 +709,7 @@ struct external_source
             u32            start_counter = 0;
             random_source* src           = nullptr;
             while (random_sources.next(src)) {
-                src->key           = { { seed_0, seed_1 } };
+                src->key           = { { seed[0], seed[1] } };
                 src->start_counter = start_counter;
                 start_counter += src->max_clients;
 
