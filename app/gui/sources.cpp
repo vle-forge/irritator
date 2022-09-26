@@ -549,6 +549,13 @@ void data_window::show() noexcept
                              binary_file_ptr->name.begin(),
                              binary_file_ptr->name.capacity());
 
+            if (ImGui::InputScalar(
+                  "max source",
+                  ImGuiDataType_U32,
+                  reinterpret_cast<void*>(&binary_file_ptr->max_clients))) {
+                binary_file_ptr->init();
+            }
+
             ImGui::Text("%s", binary_file_ptr->file_path.string().c_str());
             if (ImGui::Button("...")) {
                 show_file_dialog = true;
@@ -571,6 +578,13 @@ void data_window::show() noexcept
             ImGui::InputText("name",
                              random_source_ptr->name.begin(),
                              random_source_ptr->name.capacity());
+
+            if (ImGui::InputScalar(
+                  "max source",
+                  ImGuiDataType_U32,
+                  reinterpret_cast<void*>(&random_source_ptr->max_clients))) {
+                random_source_ptr->init();
+            }
 
             show_random_distribution_input(*random_source_ptr);
         }
