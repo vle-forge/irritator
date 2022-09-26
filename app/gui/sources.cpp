@@ -412,6 +412,16 @@ void data_window::show() noexcept
           (ImGui::GetContentRegionAvail().x - 4.f * style.ItemSpacing.x) / 5.f;
         ImVec2 button_sz(width, 20);
 
+        ImGui::Spacing();
+        ImGui::InputScalarN("seed",
+                            ImGuiDataType_U64,
+                            &c_editor->mod.srcs.seed,
+                            2,
+                            nullptr,
+                            nullptr,
+                            nullptr,
+                            ImGuiInputTextFlags_CharsHexadecimal);
+
         if (ImGui::Button("+constant", button_sz)) {
             if (c_editor->mod.srcs.constant_sources.can_alloc(1u)) {
                 auto& new_src = c_editor->mod.srcs.constant_sources.alloc();
