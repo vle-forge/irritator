@@ -448,19 +448,26 @@ void data_window::show() noexcept
 
         ImGui::SameLine();
         if (ImGui::Button("delete", button_sz)) {
-            if (constant_ptr)
+            if (constant_ptr) {
                 c_editor->mod.srcs.constant_sources.free(*constant_ptr);
-            if (text_file_ptr)
+                constant_ptr     = nullptr;
+                old_constant_ptr = nullptr;
+            }
+            if (text_file_ptr) {
                 c_editor->mod.srcs.text_file_sources.free(*text_file_ptr);
-            if (binary_file_ptr)
+                text_file_ptr     = nullptr;
+                old_text_file_ptr = nullptr;
+            }
+            if (binary_file_ptr) {
                 c_editor->mod.srcs.binary_file_sources.free(*binary_file_ptr);
-            if (random_source_ptr)
+                binary_file_ptr     = nullptr;
+                old_binary_file_ptr = nullptr;
+            }
+            if (random_source_ptr) {
                 c_editor->mod.srcs.random_sources.free(*random_source_ptr);
-
-            constant_ptr      = nullptr;
-            text_file_ptr     = nullptr;
-            binary_file_ptr   = nullptr;
-            random_source_ptr = nullptr;
+                random_source_ptr     = nullptr;
+                old_random_source_ptr = nullptr;
+            }
         }
     }
 
