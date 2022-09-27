@@ -18,9 +18,11 @@
 #endif
 
 #include <array>
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+
 #include <functional>
 #include <memory>
 #include <span>
