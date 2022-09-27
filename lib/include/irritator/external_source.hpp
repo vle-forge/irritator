@@ -100,6 +100,19 @@ inline int to_int(T value) noexcept
     return static_cast<int>(value);
 }
 
+template<typename T>
+    requires(std::is_integral_v<T>)
+inline i16 to_i16(T value) noexcept
+{
+    if constexpr (std::is_signed_v<T>) {
+        irt_assert(INT16_MIN <= value && value <= INT16_MAX);
+        return static_cast<i16>(value);
+    }
+
+    irt_assert(value <= INT16_MAX);
+    return static_cast<i16>(value);
+}
+
 //! Use a buffer with a set of double real to produce external data. This
 //! external source can be shared between @c undefined number of  @c source.
 struct constant_source
@@ -484,12 +497,12 @@ struct random_source
         src.chunk_id[2] = ctr[2];
         src.chunk_id[3] = ctr[3];
 
-        const auto id = to_int(src.chunk_id[0]);
+        const auto client = to_int(src.chunk_id[3] - start_counter);
 
-        counters[id][0] = ctr[0];
-        counters[id][1] = ctr[1];
-        counters[id][2] = ctr[2];
-        counters[id][3] = ctr[3];
+        counters[client][0] = ctr[0];
+        counters[client][1] = ctr[1];
+        counters[client][2] = ctr[2];
+        counters[client][3] = ctr[3];
     }
 
     random_source() noexcept = default;
@@ -500,7 +513,9 @@ struct random_source
         start_source(src);
         local_rng gen(ctr, key);
 
-        for (sz i = 0, e = buffers.size(); i < e; ++i)
+        const auto client = to_int(src.chunk_id[3] - start_counter);
+
+        for (sz i = 0, e = buffers[client].size(); i < e; ++i)
             src.buffer[i] = dist(gen);
 
         ctr = gen.counter();
@@ -525,10 +540,10 @@ struct random_source
         src.buffer = std::span(buffers[next_client]);
         src.index  = 0;
 
-        src.chunk_id[0] = start_counter + next_client;
+        src.chunk_id[0] = 0;
         src.chunk_id[1] = 0;
         src.chunk_id[2] = 0;
-        src.chunk_id[3] = 0;
+        src.chunk_id[3] = start_counter + next_client;
 
         counters[next_client][0] = src.chunk_id[0];
         counters[next_client][1] = src.chunk_id[1];
@@ -549,9 +564,9 @@ struct random_source
 
     status restore(source& src) noexcept
     {
-        irt_assert(src.chunk_id[0] >= start_counter);
+        irt_assert(src.chunk_id[3] >= start_counter);
 
-        auto client = to_int(src.chunk_id[0] - start_counter);
+        const auto client = to_int(src.chunk_id[3] - start_counter);
 
         if (!(counters[client][0] == src.chunk_id[0] &&
               counters[client][1] == src.chunk_id[1] &&

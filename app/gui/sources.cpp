@@ -200,6 +200,8 @@ static void try_init_source(data_window& data, source& src) noexcept
         data.plot.push_back(
           ImVec2{ static_cast<float>(i), static_cast<float>(src.buffer[i]) });
     data.plot_available = true;
+
+    c_editor->mod.srcs.prepare();
 }
 
 static void task_try_finalize_source(application& app,
@@ -208,7 +210,7 @@ static void task_try_finalize_source(application& app,
 {
     source src;
     src.id   = id;
-    src.type = type;
+    src.type = to_i16(type);
     auto ret = app.c_editor.mod.srcs(src, source::operation_type::finalize);
 
     if (is_bad(ret)) {
@@ -227,7 +229,7 @@ static void task_try_init_source(void* param) noexcept
 
     source src;
     src.id   = g_task->param_1;
-    src.type = static_cast<i32>(g_task->param_2);
+    src.type = to_i16(g_task->param_2);
 
     try_init_source(g_task->app->c_editor.data, src);
 
