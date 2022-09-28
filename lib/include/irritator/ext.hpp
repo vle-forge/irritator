@@ -110,7 +110,8 @@ public:
         iterator(ring_buffer* ring_, i32 i_) noexcept
           : ring(ring_)
           , i(i_)
-        {}
+        {
+        }
 
     public:
         ring_buffer* buffer() noexcept { return ring; }
@@ -119,12 +120,14 @@ public:
         iterator() noexcept
           : ring(nullptr)
           , i(0)
-        {}
+        {
+        }
 
         iterator(const iterator& other) noexcept
           : ring(other.ring)
           , i(other.i)
-        {}
+        {
+        }
 
         iterator& operator=(const iterator& other) noexcept
         {
@@ -226,7 +229,8 @@ public:
         const_iterator(const ring_buffer* ring_, i32 i_) noexcept
           : ring(ring_)
           , i(i_)
-        {}
+        {
+        }
 
     public:
         const ring_buffer* buffer() const noexcept { return ring; }
@@ -235,12 +239,14 @@ public:
         const_iterator() noexcept
           : ring(nullptr)
           , i(0)
-        {}
+        {
+        }
 
         const_iterator(const const_iterator& other) noexcept
           : ring(other.ring)
           , i(other.i)
-        {}
+        {
+        }
 
         const_iterator& operator=(const const_iterator& other) noexcept
         {
@@ -329,7 +335,7 @@ public:
     constexpr ring_buffer(T* buffer, int capacity) noexcept;
     constexpr ~ring_buffer() noexcept;
 
-    constexpr ring_buffer(const ring_buffer& rhs) noexcept = delete;
+    constexpr ring_buffer(const ring_buffer& rhs) noexcept            = delete;
     constexpr ring_buffer& operator=(const ring_buffer& rhs) noexcept = delete;
     constexpr ring_buffer(ring_buffer&& rhs) noexcept;
     constexpr ring_buffer& operator=(ring_buffer&& rhs) noexcept;
@@ -379,6 +385,8 @@ public:
     constexpr bool     empty() const noexcept;
     constexpr bool     full() const noexcept;
     constexpr i32      index_from_begin(i32 index) const noexcept;
+    constexpr i32      head_index() const noexcept;
+    constexpr i32      tail_index() const noexcept;
 };
 
 template<typename T>
@@ -428,7 +436,8 @@ table<Identifier, T>::value_type::value_type(Identifier id_,
                                              const T&   value_) noexcept
   : id(id_)
   , value(value_)
-{}
+{
+}
 
 template<typename Identifier, typename T>
 constexpr void table<Identifier, T>::set(Identifier id, const T& value) noexcept
@@ -856,11 +865,21 @@ constexpr int ring_buffer<T>::capacity() const noexcept
 }
 
 template<class T>
-constexpr int ring_buffer<T>::index_from_begin(int idx) const noexcept
+constexpr i32 ring_buffer<T>::index_from_begin(i32 idx) const noexcept
 {
-    // irt_assert(idx < ssize());
-
     return (m_head + idx) % m_capacity;
+}
+
+template<class T>
+constexpr i32 ring_buffer<T>::head_index() const noexcept
+{
+    return m_head;
+}
+
+template<class T>
+constexpr i32 ring_buffer<T>::tail_index() const noexcept
+{
+    return m_tail;
 }
 
 template<typename T>
