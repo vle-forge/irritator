@@ -185,7 +185,8 @@ main_action::main_action(action_type      type_,
   , short_string(short_string_)
   , long_string(long_string_)
   , argument(argument_)
-{}
+{
+}
 
 bool main_action::operator<(const std::string_view other) const noexcept
 {
@@ -339,16 +340,24 @@ void run_simulation(irt::real   begin,
     irt::time   t   = begin;
     irt::time   end = begin + duration;
 
+    if (ret = srcs.prepare(); is_bad(ret)) {
+        fmt::print(stderr,
+                   "Fail to initialize external sources: {}\n",
+                   status_str[irt::ordinal(ret)]);
+        return;
+    }
+
     if (ret = sim.initialize(t); is_bad(ret)) {
-        fmt::print(
-          stderr, "Fail in simulation: {}\n", status_str[irt::ordinal(ret)]);
+        fmt::print(stderr,
+                   "Fail in initialize simulation: {}\n",
+                   status_str[irt::ordinal(ret)]);
         return;
     }
 
     do {
         if (ret = sim.run(t); is_bad(ret)) {
             fmt::print(stderr,
-                       "Fail in simulation: {}\n",
+                       "Fail in during simulation: {}\n",
                        status_str[irt::ordinal(ret)]);
             break;
         }
