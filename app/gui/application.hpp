@@ -484,6 +484,7 @@ struct application
     bool show_modeling_editor        = true;
     bool show_observation_window     = true;
     bool show_component_store_window = true;
+    bool show_task_window            = false;
 
     bool new_project_file     = false; // rename menu_*
     bool load_project_file    = false; // rename menu_*

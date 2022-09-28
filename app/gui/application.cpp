@@ -261,6 +261,7 @@ static void application_show_menu(application& app) noexcept
             }
 
             ImGui::MenuItem("Show memory usage", nullptr, &app.show_memory);
+            ImGui::MenuItem("Show task usage", nullptr, &app.show_task_window);
             ImGui::EndMenu();
         }
 
@@ -529,6 +530,82 @@ static void application_show_windows(application& app) noexcept
     }
 }
 
+static void show_task_box(application& app, bool* is_open) noexcept
+{
+    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
+    if (!ImGui::Begin("Task usage", is_open)) {
+        ImGui::End();
+        return;
+    }
+
+    int workers = app.task_mgr.workers.ssize();
+    ImGui::InputInt("workers", &workers, 1, 100, ImGuiSliderFlags_NoInput);
+
+    int lists = app.task_mgr.task_lists.ssize();
+    ImGui::InputInt("lists", &lists, 1, 100, ImGuiInputTextFlags_ReadOnly);
+
+    if (ImGui::CollapsingHeader("Tasks list", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::BeginTable("Tasks", 7)) {
+            ImGui::TableSetupColumn("submit");
+            ImGui::TableSetupColumn("tasks");
+            ImGui::TableSetupColumn("tasks-start");
+            ImGui::TableSetupColumn("tasks-end");
+            ImGui::TableSetupColumn("tasks");
+            ImGui::TableSetupColumn("priority");
+            ImGui::TableSetupColumn("terminate");
+            ImGui::TableHeadersRow();
+
+            for (const auto& elem : app.task_mgr.task_lists) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", elem.submit_task.ssize());
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", elem.tasks.ssize());
+
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", elem.tasks.head_index());
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", elem.tasks.tail_index());
+
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", elem.task_number.load());
+
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", elem.priority);
+
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", elem.is_terminating ? 1 : 0);
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Worker list",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::BeginTable("Workers", 2)) {
+            ImGui::TableSetupColumn("lists");
+            ImGui::TableSetupColumn("running");
+            ImGui::TableHeadersRow();
+
+            for (const auto& elem : app.task_mgr.workers) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                ImGui::Text("%d", elem.task_lists.ssize());
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", elem.is_running ? 1 : 0);
+            }
+
+            ImGui::EndTable();
+        }
+    }
+
+    ImGui::End();
+    return;
+}
+
 void application::show() noexcept
 {
     state = gui_task_clean_up(*this);
@@ -548,6 +625,9 @@ void application::show() noexcept
 
     if (show_memory)
         show_memory_box(&show_memory);
+
+    if (show_task_window)
+        show_task_box(*this, &show_task_window);
 
     if (show_settings)
         settings.show(&show_settings);
