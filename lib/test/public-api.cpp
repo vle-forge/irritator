@@ -1425,6 +1425,8 @@ int main()
         {
             irt::simulation      sim;
             irt::external_source srcs;
+            sim.source_dispatch = srcs;
+
             expect(irt::is_success(sim.init(64lu, 4096lu)));
             expect(irt::is_success(srcs.init(64lu)));
 
@@ -1495,6 +1497,8 @@ int main()
 
             irt::simulation      sim;
             irt::external_source srcs;
+            sim.source_dispatch = srcs;
+
             expect(irt::is_success(sim.init(64lu, 32lu)));
             // expect(irt::is_success(srcs.init(64u)));
 
@@ -1510,6 +1514,7 @@ int main()
 
             irt::simulation      sim;
             irt::external_source srcs;
+            sim.source_dispatch = srcs;
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
             irt::reader r(is);
@@ -1527,6 +1532,7 @@ int main()
             std::istringstream   is{ string_error };
             irt::simulation      sim;
             irt::external_source srcs;
+            sim.source_dispatch = srcs;
 
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
@@ -1710,6 +1716,7 @@ int main()
         expect(sim.connect(hsm, 0, cnt, 0) == irt::status::success);
 
         irt::time t = 0.0;
+        expect(srcs.prepare() == irt::status::success);
         expect(sim.initialize(t) == irt::status::success);
 
         irt::status st;
@@ -1756,6 +1763,7 @@ int main()
         expect(sim.connect(gen, 0, cnt, 0) == irt::status::success);
 
         irt::time t = 0.0;
+        expect(srcs.prepare() == irt::status::success);
         expect(sim.initialize(t) == irt::status::success);
 
         irt::status st;
@@ -3435,6 +3443,8 @@ int main()
             irt::memory          m(2040, irt::open_mode::write);
             irt::simulation      sim;
             irt::external_source srcs;
+            sim.source_dispatch = srcs;
+
             irt::status          ret;
 
             ret = sim.init(64u, 256u);
@@ -3459,7 +3469,9 @@ int main()
             irt::memory          m(data.size(), irt::open_mode::read);
             irt::simulation      sim;
             irt::external_source srcs;
-            irt::status          ret;
+            sim.source_dispatch = srcs;
+
+            irt::status     ret;
             irt::dearchiver      d_arc;
 
             std::copy_n(data.data(), 200, m.data.data());
