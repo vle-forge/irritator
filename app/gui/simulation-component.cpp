@@ -310,6 +310,40 @@ static status simulation_init_observation(component_editor&  ed,
     return status::success;
 }
 
+template<typename S, typename... Args>
+static void make_copy_error_msg(component_editor& ed,
+                                const S&          fmt,
+                                Args&&... args) noexcept
+{
+    auto* app = container_of(&ed, &application::c_editor);
+    auto& n   = app->notifications.alloc(notification_type::error);
+    n.title   = "Component copy failed";
+
+    auto ret = fmt::vformat_to_n(n.message.begin(),
+                                 static_cast<size_t>(n.message.capacity() - 1),
+                                 fmt,
+                                 fmt::make_format_args(args...));
+
+    app->notifications.enable(n);
+}
+
+template<typename S, typename... Args>
+static void make_init_error_msg(component_editor& ed,
+                                const S&          fmt,
+                                Args&&... args) noexcept
+{
+    auto* app = container_of(&ed, &application::c_editor);
+    auto& n   = app->notifications.alloc(notification_type::error);
+    n.title   = "Simulation initialization fail";
+
+    auto ret = fmt::vformat_to_n(n.message.begin(),
+                                 static_cast<size_t>(n.message.capacity() - 1),
+                                 fmt,
+                                 fmt::make_format_args(args...));
+
+    app->notifications.enable(n);
+}
+
 static void simulation_copy(component_editor&  ed,
                             simulation_editor& sim_ed) noexcept
 {
@@ -321,63 +355,51 @@ static void simulation_copy(component_editor&  ed,
 
     auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
     if (!head) {
+        make_copy_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
     if (auto ret = simulation_copy_tree(ed, sim_ed, *head); is_bad(ret)) {
-        auto* app = container_of(&ed, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
-        n.title   = "Simulation initialization fail";
-        format(n.message, "Copy hierarchy failed: {}", status_string(ret));
-        app->notifications.enable(n);
+        make_copy_error_msg(
+          ed, "Copy hierarchy failed: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
     if (auto ret = simulation_copy_models(ed, sim_ed, *head); is_bad(ret)) {
-        auto* app = container_of(&ed, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
-        n.title   = "Simulation initialization fail";
-        format(n.message, "Copy model failed: {}", status_string(ret));
-        app->notifications.enable(n);
+        make_copy_error_msg(ed, "Copy model failed: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
     if (auto ret = simulation_copy_connections(ed, sim_ed, *head);
         is_bad(ret)) {
-        auto* app = container_of(&ed, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
-        n.title   = "Simulation initialization fail";
-        format(n.message, "Copy connection failed: {}", status_string(ret));
-        app->notifications.enable(n);
+        make_copy_error_msg(
+          ed, "Copy connection failed: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
     if (auto ret = simulation_init_observation(ed, sim_ed, *head);
         is_bad(ret)) {
-        auto* app = container_of(&ed, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
-        n.title   = "Simulation initialization fail";
-        format(n.message,
-               "Initialization of observation failed: {}",
-               status_string(ret));
-        app->notifications.enable(n);
+        make_copy_error_msg(
+          ed, "Initialization of observation failed: {}", status_string(ret));
+        sim_ed.simulation_state = simulation_status::not_started;
+        return;
+    }
+
+    if (auto ret = ed.mod.srcs.prepare(); is_bad(ret)) {
+        make_copy_error_msg(
+          ed, "External sources initialization: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
     if (auto ret = sim_ed.sim.initialize(sim_ed.simulation_begin);
         is_bad(ret)) {
-        auto* app = container_of(&ed, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
-        n.title   = "Simulation initialization fail";
-        format(
-          n.message, "Models initialization models: {}", status_string(ret));
-        app->notifications.enable(n);
-
+        make_copy_error_msg(
+          ed, "Models initialization models: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
@@ -395,25 +417,27 @@ static void simulation_init(component_editor&  ed,
 
     auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
     if (!head) {
+        make_init_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
     simulation_observation* mem = nullptr;
     while (sim_ed.sim_obs.next(mem)) {
-        mem->raw_ring_buffer.clear();
-        mem->linear_ring_buffer.clear();
+        mem->clear();
+    }
+
+    if (auto ret = ed.mod.srcs.prepare(); is_bad(ret)) {
+        make_init_error_msg(
+          ed, "Fail to initalize external sources: {}", status_string(ret));
+        sim_ed.simulation_state = simulation_status::not_started;
+        return;
     }
 
     if (auto ret = sim_ed.sim.initialize(sim_ed.simulation_begin);
         is_bad(ret)) {
-        auto* app = container_of(&ed, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
-        n.title   = "Simulation initialization fail";
-        format(
-          n.message, "Models initialization models: {}", status_string(ret));
-        app->notifications.enable(n);
-
+        make_init_error_msg(
+          ed, "Models initialization models: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
