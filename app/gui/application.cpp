@@ -44,9 +44,8 @@ application::application() noexcept
               tm_params.simple_task_list_number,
               tm_params.multi_task_list_number);
 
-    task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
-    task_mgr.workers[1].task_lists.emplace_back(&task_mgr.task_lists[0]);
-    task_mgr.workers[2].task_lists.emplace_back(&task_mgr.task_lists[0]);
+    for (int i = 0, e = task_mgr.workers.ssize(); i != e; ++i)
+        task_mgr.workers[i].task_lists.emplace_back(&task_mgr.task_lists[0]);
 
     log_w.log(
       7, "Task manager started - %d tasks availables\n", gui_task_number);
@@ -73,7 +72,8 @@ static void modeling_log(int              level,
         auto  type      = enum_cast<notification_type>(level);
         auto& n         = app->notifications.alloc(type);
 
-        app->log_w.log(new_level, "%.*s: ", message.size(), message.data());
+        app->log_w.log(
+          new_level, "%.*s: ", to_int(message.size()), message.data());
 
         n.title   = "Modeling message";
         n.message = message;
@@ -540,7 +540,7 @@ static void show_task_box(application& app, bool* is_open) noexcept
     }
 
     int workers = app.task_mgr.workers.ssize();
-    ImGui::InputInt("workers", &workers, 1, 100, ImGuiSliderFlags_NoInput);
+    ImGui::InputInt("workers", &workers, 1, 100, ImGuiInputTextFlags_ReadOnly);
 
     int lists = app.task_mgr.task_lists.ssize();
     ImGui::InputInt("lists", &lists, 1, 100, ImGuiInputTextFlags_ReadOnly);
@@ -584,9 +584,11 @@ static void show_task_box(application& app, bool* is_open) noexcept
 
     if (ImGui::CollapsingHeader("Worker list",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::BeginTable("Workers", 2)) {
-            ImGui::TableSetupColumn("lists");
-            ImGui::TableSetupColumn("running");
+
+        if (ImGui::BeginTable("Workers", 3)) {
+            ImGui::TableSetupColumn("list number");
+            ImGui::TableSetupColumn("is running");
+            ImGui::TableSetupColumn("list(s)");
             ImGui::TableHeadersRow();
 
             for (const auto& elem : app.task_mgr.workers) {
@@ -596,14 +598,29 @@ static void show_task_box(application& app, bool* is_open) noexcept
                 ImGui::Text("%d", elem.task_lists.ssize());
                 ImGui::TableNextColumn();
                 ImGui::Text("%d", elem.is_running ? 1 : 0);
-            }
+                ImGui::TableNextColumn();
 
-            ImGui::EndTable();
+                small_string<task_manager_list_max + 1> buffer;
+
+                buffer.resize(task_manager_list_max);
+                for (int i = 0, e = buffer.ssize(); i != e; ++i)
+                    buffer[i] = ' ';
+
+                for (int i = 0, e = elem.task_lists.ssize(); i != e; ++i) {
+                    auto diff =
+                      &app.task_mgr.task_lists[0] - elem.task_lists[i];
+
+                    irt_assert(diff >= 0 && diff < task_manager_list_max);
+                    buffer[to_int(diff)] = '1';
+                }
+
+                ImGui::TextUnformatted(buffer.c_str());
+            }
         }
+        ImGui::EndTable();
     }
 
     ImGui::End();
-    return;
 }
 
 void application::show() noexcept
