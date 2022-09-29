@@ -86,11 +86,11 @@ struct task_list
 
     task_list() noexcept;
     ~task_list() noexcept = default;
+    task_list(task_list&& other) noexcept;
 
-    task_list(const task_list& other) = delete;
-    task_list(task_list&& other)      = delete;
+    task_list(const task_list& other)            = delete;
     task_list& operator=(const task_list& other) = delete;
-    task_list& operator=(task_list&& other) = delete;
+    task_list& operator=(task_list&& other)      = delete;
 
     void add(task_function function, void* parameter) noexcept;
     void submit() noexcept;
@@ -98,21 +98,27 @@ struct task_list
     void terminate() noexcept;
 };
 
+constexpr int task_manager_worker_max     = 8;
+constexpr int task_manager_list_max       = 4;
+constexpr int task_manager_list_by_worker = 2;
+
 struct worker
 {
     worker() noexcept = default;
     ~worker() noexcept;
+    worker(worker&& other) noexcept;
 
-    worker(const worker& other) = delete;
+    worker(const worker& other)            = delete;
     worker& operator=(const worker& other) = delete;
+    worker& operator=(worker&& other)      = delete;
 
     void start() noexcept;
     void run() noexcept;
     void join() noexcept;
 
-    std::thread        thread;
-    vector<task_list*> task_lists;
-    bool               is_running = false;
+    std::thread                                           thread;
+    small_vector<task_list*, task_manager_list_by_worker> task_lists;
+    bool                                                  is_running = false;
 };
 
 struct task_manager_parameters
@@ -125,15 +131,15 @@ struct task_manager_parameters
 class task_manager
 {
 public:
-    vector<worker>    workers;
-    vector<task_list> task_lists;
+    small_vector<task_list, task_manager_list_max> task_lists;
+    small_vector<worker, task_manager_worker_max>  workers;
 
     task_manager(const task_manager_parameters& params) noexcept;
 
-    task_manager(task_manager&& params)      = delete;
-    task_manager(const task_manager& params) = delete;
+    task_manager(task_manager&& params)          = delete;
+    task_manager(const task_manager& params)     = delete;
     task_manager& operator=(const task_manager&) = delete;
-    task_manager& operator=(task_manager&&) = delete;
+    task_manager& operator=(task_manager&&)      = delete;
 
     // creating task lists and spawning workers
     status start() noexcept;
@@ -184,7 +190,8 @@ inline scoped_spin_lock::~scoped_spin_lock() noexcept { spin.unlock(); }
 constexpr task::task(task_function function_, void* parameter_) noexcept
   : function(function_)
   , parameter(parameter_)
-{}
+{
+}
 
 /*
     task_list
@@ -193,7 +200,14 @@ constexpr task::task(task_function function_, void* parameter_) noexcept
 inline task_list::task_list() noexcept
   : tasks{ task_buffer.data(), length(task_buffer) }
   , task_number{ 0 }
-{}
+{
+}
+
+inline task_list::task_list(task_list&& other) noexcept
+{
+    priority       = other.priority;
+    is_terminating = other.is_terminating;
+}
 
 inline void task_list::add(task_function function, void* parameter) noexcept
 {
@@ -239,6 +253,16 @@ inline void task_list::terminate() noexcept
 /*
     worker
  */
+
+inline worker::worker(worker&& other) noexcept
+  : thread{ std::move(other.thread) }
+  , task_lists{ other.task_lists }
+  , is_running{ std::move(other.is_running) }
+{
+    other.thread = std::thread();
+    other.task_lists.clear();
+    other.is_running = false;
+}
 
 inline worker::~worker() noexcept
 {
@@ -333,25 +357,29 @@ inline void worker::join() noexcept
 
 inline task_manager::task_manager(
   const task_manager_parameters& params) noexcept
-  : workers(params.thread_number, params.thread_number)
-  , task_lists(params.simple_task_list_number, params.simple_task_list_number)
-{}
+{
+    for (auto i = 0; i < params.thread_number; ++i)
+        workers.emplace_back();
+
+    for (auto i = 0; i < params.simple_task_list_number; ++i)
+        task_lists.emplace_back();
+}
 
 inline status task_manager::start() noexcept
 {
-    for (auto& e : workers)
-        e.start();
+    for (auto i = 0, e = workers.ssize(); i != e; ++i)
+        workers[i].start();
 
     return status::success;
 }
 
 inline void task_manager::finalize() noexcept
 {
-    for (auto& tl : task_lists)
-        tl.terminate();
+    for (auto i = 0, e = task_lists.ssize(); i != e; ++i)
+        task_lists[i].terminate();
 
-    for (auto& e : workers)
-        e.join();
+    for (auto i = 0, e = workers.ssize(); i != e; ++i)
+        workers[i].join();
 
     task_lists.clear();
     workers.clear();
