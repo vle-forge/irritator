@@ -37,15 +37,17 @@ void settings_manager::update() noexcept
 application::application() noexcept
   : task_mgr(tm_params)
 {
-    log_w.log(7,
-              "GUI Irritator start with %d threads shared between %d simple "
-              "task list and %d multi task list\n",
-              tm_params.thread_number,
-              tm_params.simple_task_list_number,
-              tm_params.multi_task_list_number);
-
     for (int i = 0, e = task_mgr.workers.ssize(); i != e; ++i)
         task_mgr.workers[i].task_lists.emplace_back(&task_mgr.task_lists[0]);
+
+    log_w.log(7, "GUI Irritator start\n");
+
+    log_w.log(7, "Start with %d threads\n", tm_params.thread_number);
+
+    log_w.log(7,
+              "%d simple task list and %d multi task list\n",
+              tm_params.simple_task_list_number,
+              tm_params.multi_task_list_number);
 
     log_w.log(
       7, "Task manager started - %d tasks availables\n", gui_task_number);

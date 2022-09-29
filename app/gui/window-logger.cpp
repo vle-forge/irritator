@@ -15,9 +15,9 @@ void window_logger::clear() noexcept
 
 const char* log_string(const log_status s) noexcept
 {
-    static const char* str[] = { "[emergency]", "[alert]",   "[critical]",
-                                 "[error]",     "[warning]", "[notice]",
-                                 "[info]",      "[debug]" };
+    static const char* str[] = { "[emergency] ", "[alert] ",   "[critical] ",
+                                 "[error] ",     "[warning] ", "[notice] ",
+                                 "[info] ",      "[debug] " };
 
     return str[static_cast<int>(s)];
 }
