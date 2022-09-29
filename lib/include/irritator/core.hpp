@@ -717,8 +717,9 @@ public:
     using size_type = small_storage_size_t<length>;
 
 private:
-    std::byte m_buffer[length * sizeof(T)];
-    size_type m_size;
+    std::byte m_buffer[length * sizeof(T)]; // to remove default-constructible
+                                            // requirement on T.
+    size_type m_size; // number of T element in the m_buffer.
 
 public:
     using iterator        = T*;
@@ -7904,9 +7905,10 @@ constexpr small_vector<T, length>::small_vector() noexcept
 template<typename T, int length>
 constexpr small_vector<T, length>::small_vector(
   const small_vector<T, length>& other) noexcept
-  : m_size(other.m_size)
 {
     std::uninitialized_copy_n(other.data(), other.m_size, data());
+
+    m_size = other.m_size;
 }
 
 template<typename T, int length>
@@ -7920,8 +7922,10 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
   const small_vector<T, length>& other) noexcept
 {
     if (&other != this) {
+        std::destroy_n(data(), m_size);
+        std::uninitialized_copy_n(other.data(), other.m_size, data());
+
         m_size = other.m_size;
-        std::copy_n(other.data(), other.m_size, data());
     }
 
     return *this;
@@ -7942,8 +7946,8 @@ constexpr status small_vector<T, length>::resize(int default_size) noexcept
     const auto new_default_size = static_cast<size_type>(default_size);
 
     if (new_default_size > m_size)
-        std::uninitialized_default_construct_n(data() + m_size,
-                                               new_default_size - m_size);
+        std::uninitialized_value_construct_n(data() + m_size,
+                                             new_default_size - m_size);
     else
         std::destroy_n(data() + new_default_size, m_size - new_default_size);
 
@@ -7969,7 +7973,7 @@ constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::front() noexcept
 {
     irt_assert(m_size > 0);
-    return m_buffer[0];
+    return data();
 }
 
 template<typename T, int length>
@@ -7977,7 +7981,7 @@ constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::front() const noexcept
 {
     irt_assert(m_size > 0);
-    return reinterpret_cast<T&>(m_buffer[0]);
+    return data();
 }
 
 template<typename T, int length>
@@ -7985,7 +7989,7 @@ constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::back() noexcept
 {
     irt_assert(m_size > 0);
-    return reinterpret_cast<T&>(m_buffer[m_size - 1]);
+    return data()[m_size - 1];
 }
 
 template<typename T, int length>
@@ -7993,7 +7997,7 @@ constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::back() const noexcept
 {
     irt_assert(m_size > 0);
-    return m_buffer[m_size - 1];
+    return data()[m_size - 1];
 }
 
 template<typename T, int length>
