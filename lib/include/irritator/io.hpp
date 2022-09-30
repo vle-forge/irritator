@@ -107,8 +107,7 @@ inline bool convert(const std::string_view dynamics_name,
                                  const dynamics_type    t) noexcept
           : name(n)
           , type(t)
-        {
-        }
+        {}
 
         const std::string_view name;
         dynamics_type          type;
@@ -406,7 +405,7 @@ static constexpr const char** get_input_port_names(
 
 static inline const char* str_out_1[]     = { "out" };
 static inline const char* str_out_6[]     = { "out-1", "out-2", "out-3",
-                                              "out-4", "out-5", "out-6" };
+                                          "out-4", "out-5", "out-6" };
 static inline const char* str_out_cross[] = { "if-value",
                                               "else-value",
                                               "event" };
@@ -567,10 +566,9 @@ public:
 
     streambuf(std::streambuf* sbuf)
       : m_stream_buffer(sbuf)
-    {
-    }
+    {}
 
-    streambuf(const streambuf&)            = delete;
+    streambuf(const streambuf&) = delete;
     streambuf& operator=(const streambuf&) = delete;
 
 protected:
@@ -663,8 +661,7 @@ private:
         position(const float x_, const float y_) noexcept
           : x(x_)
           , y(y_)
-        {
-        }
+        {}
 
         float x, y;
     };
@@ -794,7 +791,7 @@ private:
             return status::io_file_format_error;
 
         elem.max_clients = max_clients;
-        elem.file_path = file_path;
+        elem.file_path   = file_path;
         binary_file_mapping.data.emplace_back(id, ordinal(elem_id));
 
         return status::success;
@@ -802,7 +799,7 @@ private:
 
     status do_read_text_file_source(external_source& srcs) noexcept
     {
-        u32 id          = 0u;
+        u32 id = 0u;
 
         if (!(is >> id))
             return status::io_file_format_error;
@@ -1741,11 +1738,23 @@ private:
 
     bool read(hierarchical_state_machine::state_action& action) noexcept
     {
-        if (!(is >> action.type >> action.parameter_1 >> action.parameter_2))
+        int type, parameter_1, parameter_2;
+
+        if (!(is >> type >> parameter_1 >> parameter_2))
             return false;
 
         if (action.type > hierarchical_state_machine::action_type_COUNT)
             return false;
+
+        if (!(0 <= parameter_1 && parameter_1 <= UINT8_MAX))
+            return false;
+
+        if (!(0 <= parameter_2 && parameter_2 <= UINT8_MAX))
+            return false;
+
+        action.type        = static_cast<u8>(type);
+        action.parameter_1 = static_cast<u8>(parameter_1);
+        action.parameter_2 = static_cast<u8>(parameter_2);
 
         return true;
     }
@@ -1753,21 +1762,50 @@ private:
     bool read(
       hierarchical_state_machine::conditional_state_action& action) noexcept
     {
-        if (!(is >> action.value_condition_1 >> action.value_mask_1))
+        int value_condition_1;
+        int value_mask_1;
+        int transition_1;
+        int value_condition_2;
+        int value_mask_2;
+        int transition_2;
+
+        if (!(is >> value_condition_1 >> value_mask_1))
             return false;
+
+        if (!(0 <= value_condition_1 && value_condition_1 <= UINT8_MAX))
+            return false;
+        if (!(0 <= value_mask_1 && value_mask_1 <= UINT8_MAX))
+            return false;
+
+        action.value_condition_1 = static_cast<u8>(value_condition_1);
+        action.value_mask_1      = static_cast<u8>(value_mask_1);
 
         if (!read(action.action_1))
             return false;
 
-        if (!(is >> action.transition_1 >> action.value_condition_2 >>
-              action.value_mask_2))
+        if (!(is >> transition_1 >> value_condition_2 >> value_mask_2))
             return false;
+        if (!(0 <= transition_1 && transition_1 <= UINT8_MAX))
+            return false;
+        if (!(0 <= value_condition_2 && value_condition_2 <= UINT8_MAX))
+            return false;
+        if (!(0 <= value_mask_2 && value_mask_2 <= UINT8_MAX))
+            return false;
+
+        action.transition_1      = static_cast<u8>(transition_1);
+        action.value_condition_2 = static_cast<u8>(value_condition_2);
+        action.value_mask_2      = static_cast<u8>(value_mask_2);
 
         if (!read(action.action_2))
             return false;
 
-        if (!(is >> action.transition_2))
+        if (!(is >> transition_2))
             return false;
+
+        if (!(0 <= transition_2 && transition_2 <= UINT8_MAX))
+            return false;
+
+        action.transition_2 = static_cast<u8>(transition_2);
 
         return true;
     }
@@ -1775,17 +1813,7 @@ private:
     bool read(hsm_wrapper& /*dyn*/,
               hierarchical_state_machine& machine) noexcept
     {
-        int machine_state_size;
-
-        if (!(is >> machine_state_size))
-            return false;
-
-        if (machine_state_size < 0 ||
-            machine_state_size >
-              hierarchical_state_machine::max_number_of_state)
-            return false;
-
-        for (int i = 0; i < machine_state_size; ++i) {
+        for (int i = 0; i < length(machine.states); ++i) {
             if (!(read(machine.states[i].enter_action) &&
                   read(machine.states[i].exit_action) &&
                   read(machine.states[i].input_changed_action)))
@@ -1795,13 +1823,20 @@ private:
             if (!(is >> super_id >> sub_id))
                 return false;
 
-            if ((super_id < 0 || super_id > machine_state_size) &&
-                (sub_id < 0 || sub_id > machine_state_size))
+            if ((super_id < 0 || super_id > UINT8_MAX) &&
+                (sub_id < 0 || sub_id > UINT8_MAX))
                 return false;
 
-            machine.set_state(static_cast<u8>(i),
-                              static_cast<u8>(super_id),
-                              static_cast<u8>(sub_id));
+            if (super_id == hierarchical_state_machine::invalid_state_id) {
+                if (machine.m_top_state ==
+                    hierarchical_state_machine::invalid_state_id)
+                    machine.m_top_state = static_cast<u8>(i);
+            }
+
+            machine.states[static_cast<u8>(i)].super_id =
+              static_cast<u8>(super_id);
+            machine.states[static_cast<u8>(i)].sub_id =
+              static_cast<u8>(sub_id);
         }
 
         int machine_output_size;
@@ -1835,8 +1870,7 @@ struct writer
 
     writer(std::ostream& os_) noexcept
       : os(os_)
-    {
-    }
+    {}
 
     void write_constant_sources(
       const data_array<constant_source, constant_source_id>& srcs)
@@ -2557,8 +2591,7 @@ private:
     {
         os << "hsm ";
 
-        os << machine.states.ssize() << ' ';
-        for (int i = 0, e = machine.states.ssize(); i != e; ++i) {
+        for (int i = 0, e = length(machine.states); i != e; ++i) {
             write(machine.states[i].enter_action);
             write(machine.states[i].exit_action);
             write(machine.states[i].input_changed_action);
@@ -2582,8 +2615,7 @@ private:
 public:
     dot_writer(std::ostream& os_)
       : os(os_)
-    {
-    }
+    {}
 
     void operator()(const simulation& sim) noexcept
     {

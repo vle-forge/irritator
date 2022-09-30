@@ -5180,9 +5180,9 @@ public:
         state_id sub_id   = invalid_state_id;
     };
 
-    small_vector<state, max_number_of_state> states;
-    small_vector<u16, 6>                     outputs;
-    u8                                       values = 0;
+    std::array<state, max_number_of_state> states;
+    small_vector<u16, 6>                   outputs;
+    u8                                     values = 0;
     // i32 a, b;
 
     hierarchical_state_machine() noexcept;

@@ -1616,7 +1616,6 @@ int main()
 
     "hsm_automata"_test = [] {
         irt::hierarchical_state_machine hsmw;
-        hsmw.states.resize(3);
 
         hsmw.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u);
@@ -1695,7 +1694,6 @@ int main()
         auto& hsm  = sim.alloc<irt::hsm_wrapper>();
         auto* hsmw = sim.hsms.try_to_get(hsm.id);
         expect((hsmw != nullptr) >> fatal);
-        hsmw->states.resize(3);
 
         hsmw->set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u);
@@ -3445,7 +3443,7 @@ int main()
             irt::external_source srcs;
             sim.source_dispatch = srcs;
 
-            irt::status          ret;
+            irt::status ret;
 
             ret = sim.init(64u, 256u);
             expect(ret == irt::status::success);
@@ -3472,7 +3470,7 @@ int main()
             sim.source_dispatch = srcs;
 
             irt::status     ret;
-            irt::dearchiver      d_arc;
+            irt::dearchiver d_arc;
 
             std::copy_n(data.data(), 200, m.data.data());
             m.pos = 0;

@@ -7,6 +7,19 @@
 
 namespace irt {
 
+template<typename T>
+    requires(std::is_integral_v<T>)
+inline u8 to_u8(T value) noexcept
+{
+    if constexpr (std::is_signed_v<T>) {
+        irt_assert(INT8_MIN <= value && value <= INT8_MAX);
+        return static_cast<u8>(value);
+    }
+
+    irt_assert(value <= INT8_MAX);
+    return static_cast<u8>(value);
+}
+
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
@@ -26,7 +39,8 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss3_integrator& dyn)
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_multiplier& /*dyn*/)
-{}
+{
+}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_2& /*dyn*/) {}
 
@@ -56,7 +70,8 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_4& dyn)
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_multiplier& /*dyn*/)
-{}
+{
+}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_2& /*dyn*/) {}
 
@@ -86,7 +101,8 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_4& dyn)
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_multiplier& /*dyn*/)
-{}
+{
+}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_2& /*dyn*/) {}
 
@@ -594,22 +610,19 @@ static void show_state_id_editor(
 
 static void show_hsm_inputs(hierarchical_state_machine& machine)
 {
-    int machine_state_size = machine.states.ssize();
+    bool start_valid =
+      machine.m_top_state != hierarchical_state_machine::invalid_state_id;
 
-    if (ImGui::SliderInt(
-          "state number", &machine_state_size, 0, machine.states.capacity())) {
-        if (machine_state_size == 0)
-            machine.states.clear();
-        else
-            machine.states.resize(machine_state_size);
-    }
+    if (!start_valid)
+        ImGui::Text("Top step undefined");
 
     static const ImGuiTableFlags flags =
       ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
       ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable;
 
-    if (ImGui::BeginTable("states", 4, flags)) {
-        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 30.f);
+    if (ImGui::BeginTable("states", 5, flags)) {
+        ImGui::TableSetupColumn("id");
+        ImGui::TableSetupColumn("top", ImGuiTableColumnFlags_WidthFixed, 30.f);
         ImGui::TableSetupColumn(
           "super-id", ImGuiTableColumnFlags_WidthFixed, 30.f);
         ImGui::TableSetupColumn(
@@ -617,12 +630,19 @@ static void show_hsm_inputs(hierarchical_state_machine& machine)
         ImGui::TableSetupColumn("state", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
 
-        for (int i = 0; i != machine_state_size; ++i) {
+        for (int i = 0; i != length(machine.states); ++i) {
             ImGui::PushID(i);
             auto& state = machine.states[i];
 
             ImGui::TableNextColumn();
             ImGui::Text("%d", i);
+            ImGui::TableNextColumn();
+            if (machine.m_top_state ==
+                hierarchical_state_machine::invalid_state_id) {
+                if (ImGui::Button("set top")) {
+                    machine.m_top_state = to_u8(i);
+                }
+            }
             ImGui::TableNextColumn();
             show_state_id_editor(&state.super_id);
             ImGui::TableNextColumn();
@@ -711,7 +731,6 @@ void show_dynamics_inputs(external_source& /*srcs*/,
 
     ImGui::Text("current state: %d",
                 static_cast<int>(machine.get_current_state()));
-    ImGui::Text("number states: %d", static_cast<int>(machine.states.ssize()));
 
     if (ImGui::Button("Edit"))
         ImGui::OpenPopup("Edit HSM");

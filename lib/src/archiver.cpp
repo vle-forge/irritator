@@ -797,13 +797,7 @@ static void do_serialize(Archiver& /*s*/,
                          hierarchical_state_machine& hsm) noexcept
 {
     {
-        auto size = hsm.states.size();
-        io(size);
-
-        if constexpr (std::is_same_v<Archiver, dearchiver>)
-            hsm.states.resize(size);
-
-        for (int i = 0, e = size; i != e; ++i) {
+        for (int i = 0, e = length(hsm.states); i != e; ++i) {
             io(hsm.states[i].enter_action.type);
             io(hsm.states[i].enter_action.parameter_1);
             io(hsm.states[i].enter_action.parameter_2);
