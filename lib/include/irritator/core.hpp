@@ -5185,8 +5185,9 @@ public:
     u8                                     values = 0;
     // i32 a, b;
 
-    hierarchical_state_machine() noexcept;
-    hierarchical_state_machine(const hierarchical_state_machine&) noexcept;
+    hierarchical_state_machine() noexcept = default;
+    hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
+      default;
 
     status start() noexcept;
     void   clear() noexcept;
@@ -8529,12 +8530,6 @@ inline status simulation::run(time& t) noexcept
 //
 // class HSM
 //
-
-inline hierarchical_state_machine::hierarchical_state_machine() noexcept =
-  default;
-
-inline hierarchical_state_machine::hierarchical_state_machine(
-  const hierarchical_state_machine&) noexcept = default;
 
 inline bool hierarchical_state_machine::is_dispatching() const noexcept
 {
