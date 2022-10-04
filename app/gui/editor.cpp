@@ -608,6 +608,104 @@ static void show_state_id_editor(
     ImGui::PopID();
 }
 
+static void show_hsm_state(hierarchical_state_machine& machine, int i) noexcept
+{
+    auto& state = machine.states[i];
+
+    ImGui::TableNextColumn();
+    ImGui::Text("%d", i);
+    ImGui::TableNextColumn();
+
+    if (i == 0)
+        ImGui::Text("start");
+
+    ImGui::TableNextColumn();
+
+    if (i != 0)
+        show_state_id_editor(&state.super_id);
+
+    ImGui::TableNextColumn();
+    show_state_id_editor(&state.sub_id);
+    ImGui::TableNextColumn();
+
+    constexpr ImGuiTableFlags flags =
+      ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable;
+
+    if (ImGui::BeginTable("nested", 6, flags)) {
+        ImGui::TableSetupColumn(
+          "event", ImGuiTableColumnFlags_WidthFixed, 55.f);
+        ImGui::TableSetupColumn("input port",
+                                ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("mandatory port",
+                                ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn(
+          "action", ImGuiTableColumnFlags_WidthFixed, 80.f);
+        ImGui::TableSetupColumn(
+          "parameters", ImGuiTableColumnFlags_WidthFixed, 80.f);
+        ImGui::TableSetupColumn(
+          "transition", ImGuiTableColumnFlags_WidthFixed, 80.f);
+        ImGui::TableHeadersRow();
+
+        ImGui::TableNextRow();
+        ImGui::PushID("enter-event");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("enter");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("-");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("-");
+        ImGui::TableNextColumn();
+        show_state_action(state.enter_action);
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("-");
+        ImGui::PopID();
+
+        ImGui::TableNextRow();
+        ImGui::PushID("input-if-event");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("if");
+        ImGui::TableNextColumn();
+        show_ports(&state.input_changed_action.value_condition_1);
+        ImGui::TableNextColumn();
+        show_ports(&state.input_changed_action.value_mask_1);
+        ImGui::TableNextColumn();
+        show_state_action(state.input_changed_action.action_1);
+        ImGui::TableNextColumn();
+        show_state_id_editor(&state.input_changed_action.transition_1);
+        ImGui::PopID();
+
+        ImGui::TableNextRow();
+        ImGui::PushID("else-if");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("else-if");
+        ImGui::TableNextColumn();
+        show_ports(&state.input_changed_action.value_condition_2);
+        ImGui::TableNextColumn();
+        show_ports(&state.input_changed_action.value_mask_2);
+        ImGui::TableNextColumn();
+        show_state_action(state.input_changed_action.action_2);
+        ImGui::TableNextColumn();
+        show_state_id_editor(&state.input_changed_action.transition_2);
+        ImGui::PopID();
+
+        ImGui::TableNextRow();
+        ImGui::PushID("exit-event");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("exit");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("-");
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("-");
+        ImGui::TableNextColumn();
+        show_state_action(state.exit_action);
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("-");
+        ImGui::PopID();
+
+        ImGui::EndTable();
+    }
+}
+
 static void show_hsm_inputs(hierarchical_state_machine& machine)
 {
     bool start_valid =
@@ -616,106 +714,25 @@ static void show_hsm_inputs(hierarchical_state_machine& machine)
     if (!start_valid)
         ImGui::Text("Top step undefined");
 
-    static const ImGuiTableFlags flags =
-      ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-      ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable;
+    constexpr ImGuiTableFlags flags =
+      ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable; /* |
+                                 ImGuiTableFlags_SizingStretchSame*/
+    ;
 
     if (ImGui::BeginTable("states", 5, flags)) {
-        ImGui::TableSetupColumn("id");
-        ImGui::TableSetupColumn("top", ImGuiTableColumnFlags_WidthFixed, 30.f);
+        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 10.f);
         ImGui::TableSetupColumn(
-          "super-id", ImGuiTableColumnFlags_WidthFixed, 30.f);
+          "status", ImGuiTableColumnFlags_WidthFixed, 30.f);
         ImGui::TableSetupColumn(
-          "sub-id", ImGuiTableColumnFlags_WidthFixed, 30.f);
+          "super-id", ImGuiTableColumnFlags_WidthFixed, 40.f);
+        ImGui::TableSetupColumn(
+          "sub-id", ImGuiTableColumnFlags_WidthFixed, 40.f);
         ImGui::TableSetupColumn("state", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
 
         for (int i = 0; i != length(machine.states); ++i) {
             ImGui::PushID(i);
-            auto& state = machine.states[i];
-
-            ImGui::TableNextColumn();
-            ImGui::Text("%d", i);
-            ImGui::TableNextColumn();
-            if (machine.m_top_state ==
-                hierarchical_state_machine::invalid_state_id) {
-                if (ImGui::Button("set top")) {
-                    machine.m_top_state = to_u8(i);
-                }
-            }
-            ImGui::TableNextColumn();
-            show_state_id_editor(&state.super_id);
-            ImGui::TableNextColumn();
-            show_state_id_editor(&state.sub_id);
-            ImGui::TableNextColumn();
-
-            if (ImGui::BeginTable("nested", 6, flags)) {
-                ImGui::TableSetupColumn("event");
-                ImGui::TableSetupColumn("input port");
-                ImGui::TableSetupColumn("mandatory port");
-                ImGui::TableSetupColumn("action");
-                ImGui::TableSetupColumn("parameters");
-                ImGui::TableSetupColumn("transition");
-                ImGui::TableHeadersRow();
-
-                ImGui::TableNextRow();
-                ImGui::PushID("enter-event");
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("enter");
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("-");
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("-");
-                ImGui::TableNextColumn();
-                show_state_action(state.enter_action);
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("-");
-                ImGui::PopID();
-
-                ImGui::TableNextRow();
-                ImGui::PushID("input-if-event");
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("if");
-                ImGui::TableNextColumn();
-                show_ports(&state.input_changed_action.value_condition_1);
-                ImGui::TableNextColumn();
-                show_ports(&state.input_changed_action.value_mask_1);
-                ImGui::TableNextColumn();
-                show_state_action(state.input_changed_action.action_1);
-                ImGui::TableNextColumn();
-                show_state_id_editor(&state.input_changed_action.transition_1);
-                ImGui::PopID();
-
-                ImGui::TableNextRow();
-                ImGui::PushID("else-if");
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("else-if");
-                ImGui::TableNextColumn();
-                show_ports(&state.input_changed_action.value_condition_2);
-                ImGui::TableNextColumn();
-                show_ports(&state.input_changed_action.value_mask_2);
-                ImGui::TableNextColumn();
-                show_state_action(state.input_changed_action.action_2);
-                ImGui::TableNextColumn();
-                show_state_id_editor(&state.input_changed_action.transition_2);
-                ImGui::PopID();
-
-                ImGui::TableNextRow();
-                ImGui::PushID("exit-event");
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("exit");
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("-");
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("-");
-                ImGui::TableNextColumn();
-                show_state_action(state.exit_action);
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("-");
-                ImGui::PopID();
-
-                ImGui::EndTable();
-            }
+            show_hsm_state(machine, i);
             ImGui::PopID();
             ImGui::TableNextRow(ImGuiTableRowFlags_None);
         }
