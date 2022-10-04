@@ -490,27 +490,47 @@ void show_dynamics_inputs(external_source& /*srcs*/, logical_or_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
 
-static void show_ports(u8* value) noexcept
+static void show_ports(u8* value, u8* mask) noexcept
 {
-    bool sub_value_0 = (*value) & 0b0001;
-    bool sub_value_1 = (*value) & 0b0010;
-    bool sub_value_2 = (*value) & 0b0100;
-    bool sub_value_3 = (*value) & 0b1000;
+    const int sub_value_3 = (*value) & 0b0001 ? 1 : 0;
+    const int sub_value_2 = (*value) & 0b0010 ? 1 : 0;
+    const int sub_value_1 = (*value) & 0b0100 ? 1 : 0;
+    const int sub_value_0 = (*value) & 0b1000 ? 1 : 0;
+
+    int value_3 = (*mask) & 0b0001 ? sub_value_3 : -1;
+    int value_2 = (*mask) & 0b0010 ? sub_value_2 : -1;
+    int value_1 = (*mask) & 0b0100 ? sub_value_1 : -1;
+    int value_0 = (*mask) & 0b1000 ? sub_value_0 : -1;
+
+    bool have_changed = false;
 
     ImGui::PushID(static_cast<void*>(value));
-    ImGui::Checkbox("0", &sub_value_0);
+    have_changed = ImGui::CheckBoxTristate("0", &value_0);
     ImGui::SameLine();
-    ImGui::Checkbox("1", &sub_value_1);
+    have_changed = ImGui::CheckBoxTristate("1", &value_1) || have_changed;
     ImGui::SameLine();
-    ImGui::Checkbox("2", &sub_value_2);
+    have_changed = ImGui::CheckBoxTristate("2", &value_2) || have_changed;
     ImGui::SameLine();
-    ImGui::Checkbox("3", &sub_value_3);
+    have_changed = ImGui::CheckBoxTristate("3", &value_3) || have_changed;
     ImGui::PopID();
 
-    *value = static_cast<u8>((static_cast<unsigned>(sub_value_3) << 3) |
-                             (static_cast<unsigned>(sub_value_2) << 2) |
-                             (static_cast<unsigned>(sub_value_1) << 1) |
-                             static_cast<unsigned>(sub_value_0));
+    if (have_changed) {
+        *value = value_0 == 1 ? 1u : 0u;
+        *value <<= 1;
+        *value |= value_1 == 1 ? 1u : 0u;
+        *value <<= 1;
+        *value |= value_2 == 1 ? 1u : 0u;
+        *value <<= 1;
+        *value |= value_3 == 1 ? 1u : 0u;
+
+        *mask = value_0 != -1 ? 1u : 0u;
+        *mask <<= 1;
+        *mask |= value_1 != -1 ? 1u : 0u;
+        *mask <<= 1;
+        *mask |= value_2 != -1 ? 1u : 0u;
+        *mask <<= 1;
+        *mask |= value_3 != -1 ? 1u : 0u;
+    }
 }
 
 static void show_state_action(
@@ -634,10 +654,7 @@ static void show_hsm_state(hierarchical_state_machine& machine, int i) noexcept
     if (ImGui::BeginTable("nested", 6, flags)) {
         ImGui::TableSetupColumn(
           "event", ImGuiTableColumnFlags_WidthFixed, 55.f);
-        ImGui::TableSetupColumn("input port",
-                                ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("mandatory port",
-                                ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("ports", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn(
           "action", ImGuiTableColumnFlags_WidthFixed, 80.f);
         ImGui::TableSetupColumn(
@@ -665,9 +682,8 @@ static void show_hsm_state(hierarchical_state_machine& machine, int i) noexcept
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("if");
         ImGui::TableNextColumn();
-        show_ports(&state.input_changed_action.value_condition_1);
-        ImGui::TableNextColumn();
-        show_ports(&state.input_changed_action.value_mask_1);
+        show_ports(&state.input_changed_action.value_condition_1,
+                   &state.input_changed_action.value_mask_1);
         ImGui::TableNextColumn();
         show_state_action(state.input_changed_action.action_1);
         ImGui::TableNextColumn();
@@ -679,9 +695,8 @@ static void show_hsm_state(hierarchical_state_machine& machine, int i) noexcept
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("else-if");
         ImGui::TableNextColumn();
-        show_ports(&state.input_changed_action.value_condition_2);
-        ImGui::TableNextColumn();
-        show_ports(&state.input_changed_action.value_mask_2);
+        show_ports(&state.input_changed_action.value_condition_2,
+                   &state.input_changed_action.value_mask_2);
         ImGui::TableNextColumn();
         show_state_action(state.input_changed_action.action_2);
         ImGui::TableNextColumn();
