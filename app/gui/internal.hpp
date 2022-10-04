@@ -73,6 +73,12 @@ inline bool is_numeric_castable(Source arg) noexcept
 
 namespace ImGui {
 
+//        static int tristate = -1;
+//        ImGui::CheckBoxTristate("Tristate", &tristate);
+//        if (ImGui::SmallButton("reset to -1"))
+//            tristate = -1;
+bool CheckBoxTristate(const char* label, int* v_tristate) noexcept;
+
 template<typename RealType>
 bool InputReal(const char*         label,
                RealType*           v,

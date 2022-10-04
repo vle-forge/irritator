@@ -4,7 +4,7 @@
 
 #include "internal.hpp"
 
-#include <imgui.h>
+#include <imgui_internal.h>
 
 namespace irt {
 
@@ -94,3 +94,32 @@ const char* status_string(const status s) noexcept
 }
 
 } // namespace irt
+
+namespace ImGui {
+
+bool CheckBoxTristate(const char* label, int* v_tristate) noexcept
+{
+    bool ret;
+    if (*v_tristate == -1) {
+        ImGui::PushItemFlag(ImGuiItemFlags_MixedValue, true);
+        bool b = false;
+        ret    = ImGui::Checkbox(label, &b);
+        if (ret)
+            *v_tristate = 0;
+        ImGui::PopItemFlag();
+    } else {
+        bool b     = (*v_tristate != 0);
+        bool old_b = b;
+
+        ret = ImGui::Checkbox(label, &b);
+        if (ret) {
+            if (old_b == true)
+                *v_tristate = -1;
+            else
+                *v_tristate = 1;
+        }
+    }
+    return ret;
+}
+
+} // namespace ImGui
