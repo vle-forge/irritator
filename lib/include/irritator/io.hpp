@@ -107,7 +107,8 @@ inline bool convert(const std::string_view dynamics_name,
                                  const dynamics_type    t) noexcept
           : name(n)
           , type(t)
-        {}
+        {
+        }
 
         const std::string_view name;
         dynamics_type          type;
@@ -227,8 +228,6 @@ static inline const char* str_in_1[]                  = { "in" };
 static inline const char* str_in_2[]                  = { "in-1", "in-2" };
 static inline const char* str_in_3[] = { "in-1", "in-2", "in-3" };
 static inline const char* str_in_4[] = { "in-1", "in-2", "in-3", "in-4" };
-static inline const char* str_in_6[] = { "in-1", "in-2", "in-3",
-                                         "in-4", "in-5", "in-6" };
 static inline const char* str_value_if_else[] = { "value",
                                                   "if",
                                                   "else",
@@ -277,7 +276,8 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_sum_4> ||
                   std::is_same_v<Dynamics, qss3_wsum_4> ||
                   std::is_same_v<Dynamics, adder_4> ||
-                  std::is_same_v<Dynamics, mult_4>)
+                  std::is_same_v<Dynamics, mult_4> ||
+                  std::is_same_v<Dynamics, hsm_wrapper>)
         return str_in_4;
 
     if constexpr (std::is_same_v<Dynamics, integrator>)
@@ -302,9 +302,6 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func>)
         return str_empty;
-
-    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-        return str_in_6;
 
     if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
                   std::is_same_v<Dynamics, qss2_cross> ||
@@ -362,6 +359,7 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::qss3_wsum_4:
     case dynamics_type::adder_4:
     case dynamics_type::mult_4:
+    case dynamics_type::hsm_wrapper:
         return str_in_4;
 
     case dynamics_type::integrator:
@@ -387,9 +385,6 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::time_func:
         return str_empty;
 
-    case dynamics_type::hsm_wrapper:
-        return str_in_6;
-
     case dynamics_type::qss1_cross:
     case dynamics_type::qss2_cross:
     case dynamics_type::qss3_cross:
@@ -403,9 +398,8 @@ static constexpr const char** get_input_port_names(
     irt_unreachable();
 }
 
-static inline const char* str_out_1[]     = { "out" };
-static inline const char* str_out_6[]     = { "out-1", "out-2", "out-3",
-                                          "out-4", "out-5", "out-6" };
+static inline const char* str_out_1[] = { "out" };
+static inline const char* str_out_4[] = { "out-1", "out-2", "out-3", "out-4" };
 static inline const char* str_out_cross[] = { "if-value",
                                               "else-value",
                                               "event" };
@@ -473,7 +467,7 @@ static constexpr const char** get_output_port_names() noexcept
         return str_out_cross;
 
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-        return str_out_6;
+        return str_out_4;
 
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return str_empty;
@@ -539,7 +533,7 @@ static constexpr const char** get_output_port_names(
         return str_out_1;
 
     case dynamics_type::hsm_wrapper:
-        return str_out_6;
+        return str_out_4;
 
     case dynamics_type::cross:
     case dynamics_type::qss1_cross:
@@ -566,9 +560,10 @@ public:
 
     streambuf(std::streambuf* sbuf)
       : m_stream_buffer(sbuf)
-    {}
+    {
+    }
 
-    streambuf(const streambuf&) = delete;
+    streambuf(const streambuf&)            = delete;
     streambuf& operator=(const streambuf&) = delete;
 
 protected:
@@ -661,7 +656,8 @@ private:
         position(const float x_, const float y_) noexcept
           : x(x_)
           , y(y_)
-        {}
+        {
+        }
 
         float x, y;
     };
@@ -1835,8 +1831,7 @@ private:
 
             machine.states[static_cast<u8>(i)].super_id =
               static_cast<u8>(super_id);
-            machine.states[static_cast<u8>(i)].sub_id =
-              static_cast<u8>(sub_id);
+            machine.states[static_cast<u8>(i)].sub_id = static_cast<u8>(sub_id);
         }
 
         int machine_output_size;
@@ -1870,7 +1865,8 @@ struct writer
 
     writer(std::ostream& os_) noexcept
       : os(os_)
-    {}
+    {
+    }
 
     void write_constant_sources(
       const data_array<constant_source, constant_source_id>& srcs)
@@ -2615,7 +2611,8 @@ private:
 public:
     dot_writer(std::ostream& os_)
       : os(os_)
-    {}
+    {
+    }
 
     void operator()(const simulation& sim) noexcept
     {

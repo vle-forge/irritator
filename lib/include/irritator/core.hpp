@@ -583,7 +583,8 @@ using time = real;
 
 template<typename T>
 struct time_domain
-{};
+{
+};
 
 template<>
 struct time_domain<time>
@@ -2585,17 +2586,20 @@ namespace detail {
 
 template<typename, template<typename...> class, typename...>
 struct is_detected : std::false_type
-{};
+{
+};
 
 template<template<class...> class Operation, typename... Arguments>
 struct is_detected<std::void_t<Operation<Arguments...>>,
                    Operation,
                    Arguments...> : std::true_type
-{};
+{
+};
 
 template<typename T, T>
 struct helper
-{};
+{
+};
 
 } // namespace detail
 
@@ -5252,8 +5256,8 @@ struct hsm_wrapper
     using hsm      = hierarchical_state_machine;
     using state_id = hsm::state_id;
 
-    input_port  x[6];
-    output_port y[6];
+    input_port  x[4];
+    output_port y[4];
 
     hsm_id   id;
     state_id m_previous_state;
