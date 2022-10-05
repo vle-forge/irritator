@@ -792,34 +792,44 @@ static void do_serialize_dynamics(Archiver&       s,
 }
 
 template<typename Archiver, typename IO>
-static void do_serialize(Archiver& /*s*/,
+static void do_serialize(
+  Archiver& /*s*/,
+  IO&                                       io,
+  hierarchical_state_machine::state_action& action) noexcept
+{
+    io(action.parameter);
+    io(action.var1);
+    io(action.var2);
+    io(action.type);
+}
+
+template<typename Archiver, typename IO>
+static void do_serialize(
+  Archiver& /*s*/,
+  IO&                                           io,
+  hierarchical_state_machine::condition_action& action) noexcept
+{
+    io(action.parameter);
+    io(action.type);
+    io(action.port);
+    io(action.mask);
+}
+
+template<typename Archiver, typename IO>
+static void do_serialize(Archiver&                   s,
                          IO&                         io,
                          hierarchical_state_machine& hsm) noexcept
 {
     {
         for (int i = 0, e = length(hsm.states); i != e; ++i) {
-            io(hsm.states[i].enter_action.type);
-            io(hsm.states[i].enter_action.parameter_1);
-            io(hsm.states[i].enter_action.parameter_2);
+            do_serialize(s, io, hsm.states[i].enter_action);
+            do_serialize(s, io, hsm.states[i].exit_action);
+            do_serialize(s, io, hsm.states[i].if_action);
+            do_serialize(s, io, hsm.states[i].else_action);
+            do_serialize(s, io, hsm.states[i].condition);
 
-            io(hsm.states[i].exit_action.type);
-            io(hsm.states[i].exit_action.parameter_1);
-            io(hsm.states[i].exit_action.parameter_2);
-
-            io(hsm.states[i].input_changed_action.value_condition_1);
-            io(hsm.states[i].input_changed_action.value_mask_1);
-            io(hsm.states[i].input_changed_action.action_1.type);
-            io(hsm.states[i].input_changed_action.action_1.parameter_1);
-            io(hsm.states[i].input_changed_action.action_1.parameter_2);
-            io(hsm.states[i].input_changed_action.transition_1);
-
-            io(hsm.states[i].input_changed_action.value_condition_2);
-            io(hsm.states[i].input_changed_action.value_mask_2);
-            io(hsm.states[i].input_changed_action.action_2.type);
-            io(hsm.states[i].input_changed_action.action_2.parameter_1);
-            io(hsm.states[i].input_changed_action.action_2.parameter_2);
-            io(hsm.states[i].input_changed_action.transition_2);
-
+            io(hsm.states[i].if_transition);
+            io(hsm.states[i].else_transition);
             io(hsm.states[i].super_id);
             io(hsm.states[i].sub_id);
         }

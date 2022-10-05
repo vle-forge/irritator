@@ -1732,76 +1732,53 @@ private:
 
     bool read(logical_invert& /*dyn*/) noexcept { return true; }
 
+    bool is_stateid_valid(int id) const noexcept
+    {
+        return 0 <= id && id <= UINT8_MAX;
+    }
+
+    bool is_portidx_valid(int id) const noexcept { return 0 <= id && id <= 3; }
+
     bool read(hierarchical_state_machine::state_action& action) noexcept
     {
-        int type, parameter_1, parameter_2;
+        using hsm = hierarchical_state_machine;
 
-        if (!(is >> type >> parameter_1 >> parameter_2))
+        int parameter, var1, var2, type;
+
+        if (!(is >> parameter >> var1 >> var2 >> type))
             return false;
 
-        if (action.type > hierarchical_state_machine::action_type_COUNT)
+        if ((!(0 <= var1 && var1 < hsm::variable_count)) ||
+            (!(0 <= var2 && var2 < hsm::variable_count)) ||
+            (!(0 <= type && type < hsm::action_type_count)))
             return false;
 
-        if (!(0 <= parameter_1 && parameter_1 <= UINT8_MAX))
-            return false;
-
-        if (!(0 <= parameter_2 && parameter_2 <= UINT8_MAX))
-            return false;
-
-        action.type        = static_cast<u8>(type);
-        action.parameter_1 = static_cast<u8>(parameter_1);
-        action.parameter_2 = static_cast<u8>(parameter_2);
+        action.parameter = static_cast<i32>(parameter);
+        action.var1      = enum_cast<hsm::variable>(var1);
+        action.var2      = enum_cast<hsm::variable>(var2);
+        action.type      = enum_cast<hsm::action_type>(type);
 
         return true;
     }
 
-    bool read(
-      hierarchical_state_machine::conditional_state_action& action) noexcept
+    bool read(hierarchical_state_machine::condition_action& action) noexcept
     {
-        int value_condition_1;
-        int value_mask_1;
-        int transition_1;
-        int value_condition_2;
-        int value_mask_2;
-        int transition_2;
+        using hsm = hierarchical_state_machine;
 
-        if (!(is >> value_condition_1 >> value_mask_1))
+        int parameter, type, port, mask;
+
+        if (!(is >> parameter >> type >> port >> mask))
             return false;
 
-        if (!(0 <= value_condition_1 && value_condition_1 <= UINT8_MAX))
-            return false;
-        if (!(0 <= value_mask_1 && value_mask_1 <= UINT8_MAX))
-            return false;
-
-        action.value_condition_1 = static_cast<u8>(value_condition_1);
-        action.value_mask_1      = static_cast<u8>(value_mask_1);
-
-        if (!read(action.action_1))
+        if ((!(0 <= type && type < hsm::condition_type_count)) ||
+            (!(0 <= port && port < UINT8_MAX)) ||
+            (!(0 <= mask && mask < UINT8_MAX)))
             return false;
 
-        if (!(is >> transition_1 >> value_condition_2 >> value_mask_2))
-            return false;
-        if (!(0 <= transition_1 && transition_1 <= UINT8_MAX))
-            return false;
-        if (!(0 <= value_condition_2 && value_condition_2 <= UINT8_MAX))
-            return false;
-        if (!(0 <= value_mask_2 && value_mask_2 <= UINT8_MAX))
-            return false;
-
-        action.transition_1      = static_cast<u8>(transition_1);
-        action.value_condition_2 = static_cast<u8>(value_condition_2);
-        action.value_mask_2      = static_cast<u8>(value_mask_2);
-
-        if (!read(action.action_2))
-            return false;
-
-        if (!(is >> transition_2))
-            return false;
-
-        if (!(0 <= transition_2 && transition_2 <= UINT8_MAX))
-            return false;
-
-        action.transition_2 = static_cast<u8>(transition_2);
+        action.parameter = static_cast<i32>(parameter);
+        action.type      = enum_cast<hsm::condition_type>(type);
+        action.port      = static_cast<u8>(port);
+        action.mask      = static_cast<u8>(mask);
 
         return true;
     }
@@ -1812,27 +1789,33 @@ private:
         for (int i = 0; i < length(machine.states); ++i) {
             if (!(read(machine.states[i].enter_action) &&
                   read(machine.states[i].exit_action) &&
-                  read(machine.states[i].input_changed_action)))
+                  read(machine.states[i].if_action) &&
+                  read(machine.states[i].else_action) &&
+                  read(machine.states[i].condition)))
                 return false;
 
+            int if_transition, else_transition;
             int super_id, sub_id;
-            if (!(is >> super_id >> sub_id))
+
+            if (!(is >> if_transition >> else_transition >> super_id >> sub_id))
                 return false;
 
-            if ((super_id < 0 || super_id > UINT8_MAX) &&
-                (sub_id < 0 || sub_id > UINT8_MAX))
+            if (!is_stateid_valid(if_transition) ||
+                !is_stateid_valid(else_transition) ||
+                !is_stateid_valid(super_id) || !is_stateid_valid(sub_id))
                 return false;
 
-            if (super_id == hierarchical_state_machine::invalid_state_id) {
-                if (machine.m_top_state ==
-                    hierarchical_state_machine::invalid_state_id)
-                    machine.m_top_state = static_cast<u8>(i);
-            }
+            const auto index = static_cast<u8>(i);
 
-            machine.states[static_cast<u8>(i)].super_id =
-              static_cast<u8>(super_id);
-            machine.states[static_cast<u8>(i)].sub_id = static_cast<u8>(sub_id);
+            machine.states[index].if_transition =
+              static_cast<u8>(if_transition);
+            machine.states[index].else_transition =
+              static_cast<u8>(else_transition);
+            machine.states[index].super_id = static_cast<u8>(super_id);
+            machine.states[index].sub_id   = static_cast<u8>(sub_id);
         }
+
+        machine.m_top_state = 0u;
 
         int machine_output_size;
         if (!(is >> machine_output_size))
@@ -1844,9 +1827,16 @@ private:
 
         machine.outputs.clear();
         for (int i = 0; i < machine_output_size; ++i) {
-            machine.outputs.emplace_back(0);
-            if (!(is >> machine.outputs.back()))
+            i32 port, value;
+
+            if (!(is >> port >> value))
                 return false;
+
+            if (!is_portidx_valid(port))
+                return false;
+
+            machine.outputs.emplace_back(static_cast<u8>(port),
+                                         static_cast<i32>(value));
         }
 
         return true;
@@ -2560,26 +2550,19 @@ private:
 
     void write(const hierarchical_state_machine::state_action& action) noexcept
     {
-        os << static_cast<int>(action.type) << ' '
-           << static_cast<int>(action.parameter_1) << ' '
-           << static_cast<int>(action.parameter_2) << ' ';
+        os << static_cast<int>(action.parameter) << ' '
+           << static_cast<int>(action.var1) << ' '
+           << static_cast<int>(action.var2) << ' '
+           << static_cast<int>(action.type) << ' ';
     }
 
-    void write(const hierarchical_state_machine::conditional_state_action&
-                 action) noexcept
+    void write(
+      const hierarchical_state_machine::condition_action& action) noexcept
     {
-        os << static_cast<int>(action.value_condition_1) << ' '
-           << static_cast<int>(action.value_mask_1) << ' ';
-
-        write(action.action_1);
-
-        os << static_cast<int>(action.transition_1) << ' '
-           << static_cast<int>(action.value_condition_2) << ' '
-           << static_cast<int>(action.value_mask_2) << ' ';
-
-        write(action.action_2);
-
-        os << static_cast<int>(action.transition_2) << ' ';
+        os << static_cast<int>(action.parameter) << ' '
+           << static_cast<int>(action.type) << ' '
+           << static_cast<int>(action.port) << ' '
+           << static_cast<int>(action.mask) << ' ';
     }
 
     void write(const hsm_wrapper& /*dyn*/,
@@ -2590,15 +2573,20 @@ private:
         for (int i = 0, e = length(machine.states); i != e; ++i) {
             write(machine.states[i].enter_action);
             write(machine.states[i].exit_action);
-            write(machine.states[i].input_changed_action);
+            write(machine.states[i].if_action);
+            write(machine.states[i].else_action);
+            write(machine.states[i].condition);
 
-            os << static_cast<int>(machine.states[i].super_id) << ' '
+            os << static_cast<int>(machine.states[i].if_transition) << ' '
+               << static_cast<int>(machine.states[i].else_transition) << ' '
+               << static_cast<int>(machine.states[i].super_id) << ' '
                << static_cast<int>(machine.states[i].sub_id) << ' ';
         }
 
         os << machine.outputs.ssize() << ' ';
         for (int i = 0, e = machine.outputs.ssize(); i != e; ++i) {
-            os << static_cast<int>(machine.outputs[i]) << ' ';
+            os << static_cast<int>(machine.outputs[i].first) << ' '
+               << static_cast<int>(machine.outputs[i].second) << ' ';
         }
     }
 };

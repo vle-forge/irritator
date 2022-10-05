@@ -583,8 +583,7 @@ using time = real;
 
 template<typename T>
 struct time_domain
-{
-};
+{};
 
 template<>
 struct time_domain<time>
@@ -2586,20 +2585,17 @@ namespace detail {
 
 template<typename, template<typename...> class, typename...>
 struct is_detected : std::false_type
-{
-};
+{};
 
 template<template<class...> class Operation, typename... Arguments>
 struct is_detected<std::void_t<Operation<Arguments...>>,
                    Operation,
                    Arguments...> : std::true_type
-{
-};
+{};
 
 template<typename T, T>
 struct helper
-{
-};
+{};
 
 } // namespace detail
 
@@ -5075,8 +5071,8 @@ struct logical_invert
  * Hierarchical state machine.
  *
  * \note This implementation have the standard restriction for HSM:
- * 1. You can not call Transition from HSM::event_type_enter and
- * HSM::event_type_exit! These event are provided to execute your
+ * 1. You can not call Transition from HSM::event_type::enter and
+ * HSM::event_type::exit! These event are provided to execute your
  * construction/destruction. Use custom events for that.
  * 2. You are not allowed to dispatch an event from within an event dispatch.
  * You should queue events if you want such behavior. This restriction is
@@ -5090,37 +5086,72 @@ public:
     static const u8 max_number_of_state = 254;
     static const u8 invalid_state_id    = 255;
 
-    using event_type  = u8;
-    using action_type = u8;
-
-    enum event_type_
+    enum class event_type : u8
     {
-        event_type_enter = 0,
-        event_type_exit,
-        event_type_input_changed
+        enter = 0,
+        exit,
+        input_changed
     };
 
-    enum action_type_
-    {
-        action_type_none = 0, // no param
-        action_type_set,      // [0-7] bit index to set
-        action_type_unset,    // [0-7] bit index to unset
-        action_type_reset,    // Reset value to 0
-        action_type_output,   // [0-7] output port + constant to send
-        action_type_COUNT
+    constexpr static int event_type_count     = 3;
+    constexpr static int variable_count       = 8;
+    constexpr static int action_type_count    = 16;
+    constexpr static int condition_type_count = 20;
 
-        // action_type_affect_constant,
-        // action_type_affect,
-        // action_type_plus,
-        // action_type_minus,
-        // action_type_negate,
-        // action_type_multiplies,
-        // action_type_divides,
-        // action_type_modulus,
-        // action_type_bit_and,
-        // action_type_bit_or,
-        // action_type_bit_not,
-        // action_type_bit_xor,
+    enum class variable : u8
+    {
+        none = 0,
+        port_0,
+        port_1,
+        port_2,
+        port_3,
+        var_a,
+        var_b,
+        constant
+    };
+
+    enum class action_type : u8
+    {
+        none = 0, // no param
+        set,      // port identifer + i32 parameter value
+        unset,    // port identifier to clear
+        reset,    // all port to reset
+        output,   // port identifier + i32 parameter value
+        affect,
+        plus,
+        minus,
+        negate,
+        multiplies,
+        divides,
+        modulus,
+        bit_and,
+        bit_or,
+        bit_not,
+        bit_xor
+    };
+
+    enum class condition_type : u8
+    {
+        none, // No condition (always true)
+        port, // Message on port
+        a_equal_to_cst,
+        a_not_equal_to_cst,
+        a_greater_cst,
+        a_less_cst,
+        a_greater_equal_cst,
+        a_less_equal_cst,
+        b_equal_to_cst,
+        b_not_equal_to_cst,
+        b_greater_cst,
+        b_less_cst,
+        b_greater_equal_cst,
+        b_less_equal_cst,
+        a_equal_to_b,
+        a_not_equal_to_b,
+        a_greater_b,
+        a_less_b,
+        a_greater_equal_b,
+        a_less_equal_b,
     };
 
     //! Action available when state is processed during enter, exit or condition
@@ -5129,9 +5160,10 @@ public:
     //! action. To perform more action, use several states.
     struct state_action
     {
-        action_type type = action_type_none;
-        u8          parameter_1;
-        u8          parameter_2;
+        i32         parameter = 0;
+        variable    var1      = variable::none;
+        variable    var2      = variable::none;
+        action_type type      = action_type::none;
 
         void clear() noexcept;
     };
@@ -5142,33 +5174,16 @@ public:
     //! useful in value_condition. If value_mask equal \c 0x0 then, the
     //! condition is always true. If \c value_mask equals \c 0xff the \c
     //! value_condition bit are mandatory.
-    //! 2. \c condition_state_action stores two conditions. This feature allows
-    //! to develop state like \c if-then-else-if-then and \c if-then-else
-    //!
-    //! 3. Next version two integers are provides to apply action and condition:
-    //! \note
-    //! equal_to
-    //! not_equal_to
-    //! greater
-    //! less
-    //! greater_equal
-    //! equal_to_constant
-    //! not_equal_to_constant
-    //! greater_constant
-    //! less_constant
-    //! greater_equal_constant
-    struct conditional_state_action
+    //! 2. \c condition_state_action stores transition or action conditions.
+    //! Condition can use input port state or condition on integer a or b.
+    struct condition_action
     {
-        u8           value_condition_1 = 0;
-        u8           value_mask_1      = 0;
-        state_action action_1;
-        state_id     transition_1 = invalid_state_id;
+        i32            parameter = 0;
+        condition_type type      = condition_type::none;
+        u8             port      = 0;
+        u8             mask      = 0;
 
-        u8           value_condition_2 = 0;
-        u8           value_mask_2      = 0;
-        state_action action_2;
-        state_id     transition_2 = invalid_state_id;
-
+        bool check(u8 port_values, i32 a, i32 b) noexcept;
         void clear() noexcept;
     };
 
@@ -5176,18 +5191,25 @@ public:
     {
         state() noexcept = default;
 
-        state_action             enter_action;
-        state_action             exit_action;
-        conditional_state_action input_changed_action;
+        state_action enter_action;
+        state_action exit_action;
+
+        state_action     if_action;
+        state_action     else_action;
+        condition_action condition;
+
+        state_id if_transition   = invalid_state_id;
+        state_id else_transition = invalid_state_id;
 
         state_id super_id = invalid_state_id;
         state_id sub_id   = invalid_state_id;
     };
 
     std::array<state, max_number_of_state> states;
-    small_vector<u16, 6>                   outputs;
+    small_vector<std::pair<u8, i32>, 4>    outputs;
     u8                                     values = 0;
-    // i32 a, b;
+    i32                                    a      = 0;
+    i32                                    b      = 0;
 
     hierarchical_state_machine() noexcept = default;
     hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
@@ -5235,7 +5257,6 @@ public:
     status on_enter_sub_state() noexcept;
 
     void affect_action(const state_action& action) noexcept;
-    bool affect_action(const conditional_state_action& action) noexcept;
 
     state_id m_current_state        = invalid_state_id;
     state_id m_next_state           = invalid_state_id;
@@ -8554,21 +8575,18 @@ hierarchical_state_machine::get_source_state() const noexcept
 
 inline void hierarchical_state_machine::state_action::clear() noexcept
 {
-    type        = action_type_none;
-    parameter_1 = 0;
-    parameter_2 = 0;
+    parameter = 0;
+    var1      = variable::none;
+    var2      = variable::none;
+    type      = action_type::none;
 }
 
-inline void
-hierarchical_state_machine::conditional_state_action::clear() noexcept
+inline void hierarchical_state_machine::condition_action::clear() noexcept
 {
-    value_condition_1 = 0;
-    action_1.clear();
-    transition_1 = invalid_state_id;
-
-    value_condition_2 = 0;
-    action_2.clear();
-    transition_2 = invalid_state_id;
+    parameter = 0;
+    type      = condition_type::none;
+    port      = 0;
+    mask      = 0;
 }
 
 inline status hierarchical_state_machine::start() noexcept
@@ -8582,7 +8600,7 @@ inline status hierarchical_state_machine::start() noexcept
     m_current_state = m_top_state;
     m_next_state    = invalid_state_id;
 
-    handle(m_current_state, event_type_enter);
+    handle(m_current_state, event_type::enter);
 
     while ((m_next_state = states[m_current_state].sub_id) !=
            invalid_state_id) {
@@ -8653,7 +8671,7 @@ inline status hierarchical_state_machine::on_enter_sub_state() noexcept
     while (!entry_path.empty()) {
         m_disallow_transition = true;
 
-        handle(entry_path.back(), event_type_enter);
+        handle(entry_path.back(), event_type::enter);
 
         m_disallow_transition = false;
         entry_path.pop_back();
@@ -8680,7 +8698,7 @@ inline void hierarchical_state_machine::transition(state_id target) noexcept
     m_disallow_transition = true;
     state_id sid;
     for (sid = m_current_state; sid != m_source_state;) {
-        handle(sid, event_type_exit);
+        handle(sid, event_type::exit);
         sid = states[sid].super_id;
     }
 
@@ -8688,7 +8706,7 @@ inline void hierarchical_state_machine::transition(state_id target) noexcept
     irt_assert(stepsToCommonRoot >= 0);
 
     while (stepsToCommonRoot--) {
-        handle(sid, event_type_exit);
+        handle(sid, event_type::exit);
         sid = states[sid].super_id;
     }
 
@@ -8722,10 +8740,14 @@ inline void hierarchical_state_machine::clear_state(state_id id) noexcept
 {
     states[id].enter_action.clear();
     states[id].exit_action.clear();
-    states[id].input_changed_action.clear();
+    states[id].if_action.clear();
+    states[id].else_action.clear();
+    states[id].condition.clear();
 
-    states[id].super_id = invalid_state_id;
-    states[id].sub_id   = invalid_state_id;
+    states[id].if_transition   = invalid_state_id;
+    states[id].else_transition = invalid_state_id;
+    states[id].super_id        = invalid_state_id;
+    states[id].sub_id          = invalid_state_id;
 }
 
 inline bool hierarchical_state_machine::is_in_state(state_id id) const noexcept
@@ -8746,14 +8768,28 @@ inline bool hierarchical_state_machine::handle(const state_id   state,
                                                const event_type event) noexcept
 {
     switch (event) {
-    case event_type_enter:
+    case event_type::enter:
         affect_action(states[state].enter_action);
         return true;
-    case event_type_exit:
+
+    case event_type::exit:
         affect_action(states[state].exit_action);
         return true;
-    case event_type_input_changed:
-        return affect_action(states[state].input_changed_action);
+
+    case event_type::input_changed:
+        if (states[state].condition.check(values, a, b)) {
+            affect_action(states[state].if_action);
+            if (states[state].if_transition != invalid_state_id)
+                transition(states[state].if_transition);
+            return true;
+        } else {
+            affect_action(states[state].else_action);
+            if (states[state].else_transition != invalid_state_id)
+                transition(states[state].else_transition);
+            return true;
+        }
+        return false;
+
     default:
         break;
     }
@@ -8764,88 +8800,137 @@ inline bool hierarchical_state_machine::handle(const state_id   state,
 inline void hierarchical_state_machine::affect_action(
   const state_action& action) noexcept
 {
+    i32 param = action.parameter;
+    u8  port  = 255; // @TODO better code need
+
+    if (action.var1 >= variable::port_0 && action.var1 <= variable::port_3)
+        port = ordinal(action.var1) - 1; // @TODO better code need
+
+    i32* var_1 = action.var1 == variable::var_a   ? &a
+                 : action.var1 == variable::var_b ? &b
+                                                  : nullptr;
+
+    i32* var_2 = action.var2 == variable::var_a      ? &a
+                 : action.var2 == variable::var_b    ? &b
+                 : action.var2 == variable::constant ? &param
+                                                     : nullptr;
+
     switch (action.type) {
-    case action_type_none:
+    case action_type::none:
         break;
-    case action_type_set:
-        values |= static_cast<u8>(1u << action.parameter_1);
+    case action_type::set:
+        irt_assert(port >= 0 && port <= 3);
+        values |= static_cast<u8>(1u << port);
         break;
-    case action_type_unset:
-        values &= static_cast<u8>(~(1u << action.parameter_1));
+    case action_type::unset:
+        irt_assert(port >= 0 && port <= 3);
+        values &= static_cast<u8>(~(1u << port));
         break;
-    case action_type_reset:
+    case action_type::reset:
         values = static_cast<u8>(0u);
         break;
-    case action_type_output:
-        outputs.emplace_back(
-          make_halfword(action.parameter_1, action.parameter_2));
+    case action_type::output:
+        irt_assert(port >= 0 && port <= 3);
+        outputs.emplace_back(port, action.parameter);
         break;
+    case action_type::affect:
+        irt_assert(var_1 && var_2);
+        *var_1 = *var_2;
+        break;
+    case action_type::plus:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::plus<>{}(*var_1, *var_2);
+        break;
+    case action_type::minus:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::minus<>{}(*var_1, *var_2);
+        break;
+    case action_type::negate:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::negate<>{}(*var_1);
+        break;
+    case action_type::multiplies:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::multiplies<>{}(*var_1, *var_2);
+        break;
+    case action_type::divides:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::divides<>{}(*var_1, *var_2);
+        break;
+    case action_type::modulus:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::modulus<>{}(*var_1, *var_2);
+        break;
+    case action_type::bit_and:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::bit_and<>{}(*var_1, *var_2);
+        break;
+    case action_type::bit_or:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::bit_or<>{}(*var_1, *var_2);
+        break;
+    case action_type::bit_not:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::bit_not<>{}(*var_1);
+        break;
+    case action_type::bit_xor:
+        irt_assert(var_1 && var_2);
+        *var_1 = std::bit_xor<>{}(*var_1, *var_2);
+        break;
+
     default:
         irt_unreachable();
     }
 }
 
-inline bool hierarchical_state_machine::affect_action(
-  const conditional_state_action& action) noexcept
+inline bool hierarchical_state_machine::condition_action::check(u8  port_values,
+                                                                i32 a,
+                                                                i32 b) noexcept
 {
-    printf("affect_action: values %d\n", values);
-    printf("affect_action: action.value_condition_1 %d\n",
-           action.value_condition_1);
-    printf("affect_action: action.value_mask_1 %d\n", action.value_mask_1);
-
-    if (!((values ^ action.value_condition_1) & action.value_mask_1)) {
-        switch (action.action_1.type) {
-        case action_type_none:
-            break;
-        case action_type_set:
-            values |= static_cast<u8>(1u << action.action_1.parameter_1);
-            break;
-        case action_type_unset:
-            values &= static_cast<u8>(~(1u << action.action_1.parameter_1));
-            break;
-        case action_type_reset:
-            values = static_cast<u8>(0u);
-            break;
-        case action_type_output:
-            outputs.emplace_back(make_halfword(action.action_1.parameter_1,
-                                               action.action_1.parameter_2));
-            break;
-        default:
-            irt_unreachable();
-        }
-
-        if (action.transition_1 != invalid_state_id)
-            transition(action.transition_1);
-
+    switch (type) {
+    case condition_type::none:
         return true;
+    case condition_type::port:
+        return !((port_values ^ port) & mask);
+    case condition_type::a_equal_to_cst:
+        return a == parameter;
+    case condition_type::a_not_equal_to_cst:
+        return a != parameter;
+    case condition_type::a_greater_cst:
+        return a > parameter;
+    case condition_type::a_less_cst:
+        return a < parameter;
+    case condition_type::a_greater_equal_cst:
+        return a >= parameter;
+    case condition_type::a_less_equal_cst:
+        return a <= parameter;
+    case condition_type::b_equal_to_cst:
+        return b == parameter;
+    case condition_type::b_not_equal_to_cst:
+        return b != parameter;
+    case condition_type::b_greater_cst:
+        return b > parameter;
+    case condition_type::b_less_cst:
+        return b < parameter;
+    case condition_type::b_greater_equal_cst:
+        return b >= parameter;
+    case condition_type::b_less_equal_cst:
+        return b <= parameter;
+    case condition_type::a_equal_to_b:
+        return a == b;
+    case condition_type::a_not_equal_to_b:
+        return a != b;
+    case condition_type::a_greater_b:
+        return a > b;
+    case condition_type::a_less_b:
+        return a < b;
+    case condition_type::a_greater_equal_b:
+        return a >= b;
+    case condition_type::a_less_equal_b:
+        return a <= b;
     }
 
-    if (!((values ^ action.value_condition_2) & action.value_mask_2)) {
-        switch (action.action_2.type) {
-        case action_type_none:
-            break;
-        case action_type_set:
-            values |= static_cast<u8>(1u << action.action_2.parameter_1);
-            break;
-        case action_type_unset:
-            values &= static_cast<u8>(~(1u << action.action_2.parameter_1));
-            break;
-        case action_type_reset:
-            values = static_cast<u8>(0u);
-            break;
-        case action_type_output:
-            outputs.emplace_back(make_halfword(action.action_2.parameter_2,
-                                               action.action_2.parameter_2));
-            break;
-        default:
-            irt_unreachable();
-        }
-
-        if (action.transition_2 != invalid_state_id)
-            transition(action.transition_2);
-
-        return true;
-    }
+    irt_unreachable();
 
     return false;
 }
@@ -8930,7 +9015,7 @@ inline status hsm_wrapper::transition(simulation& sim,
         m_previous_state = machine->get_current_state();
 
         auto ret = machine->dispatch(
-          hierarchical_state_machine::event_type_input_changed);
+          hierarchical_state_machine::event_type::input_changed);
 
         if (is_bad(ret.first))
             irt_bad_return(ret.first);
@@ -8950,8 +9035,10 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
     if (m_previous_state != hierarchical_state_machine::invalid_state_id &&
         !machine->outputs.empty()) {
         for (int i = 0, e = machine->outputs.ssize(); i != e; ++i) {
-            u8 port = 0, value = 0;
-            unpack_halfword(machine->outputs[i], &port, &value);
+            const u8  port  = machine->outputs[i].first;
+            const i32 value = machine->outputs[i].second;
+
+            irt_assert(port >= 0 && port < machine->outputs.size());
 
             irt_return_if_bad(send_message(sim, y[port], to_real(value)));
         }

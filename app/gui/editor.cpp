@@ -490,21 +490,101 @@ void show_dynamics_inputs(external_source& /*srcs*/, logical_or_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
 
-static void show_ports(u8* value, u8* mask) noexcept
-{
-    const int sub_value_3 = (*value) & 0b0001 ? 1 : 0;
-    const int sub_value_2 = (*value) & 0b0010 ? 1 : 0;
-    const int sub_value_1 = (*value) & 0b0100 ? 1 : 0;
-    const int sub_value_0 = (*value) & 0b1000 ? 1 : 0;
+static const char* variable_names[] = { "none",       "port_0",  "port_1",
+                                        "port_2",     "port_3",  "variable a",
+                                        "variable b", "constant" };
 
-    int value_3 = (*mask) & 0b0001 ? sub_value_3 : -1;
-    int value_2 = (*mask) & 0b0010 ? sub_value_2 : -1;
-    int value_1 = (*mask) & 0b0100 ? sub_value_1 : -1;
-    int value_0 = (*mask) & 0b1000 ? sub_value_0 : -1;
+static const char* action_names[] = {
+    "none",        "set port",   "unset port", "reset ports",
+    "output port", "x = y",      "x = x + y",  "x = x - y",
+    "x = -x",      "x = x * y",  "x = x / y",  "x = x % y",
+    "x = x and y", "x = x or y", "x = not x",  "x = x xor y"
+};
+
+static const char* condition_names[] = {
+    "none",          "value on port", "a = constant",  "a != constant",
+    "a > constant",  "a < constant",  "a >= constant", "a <= constant",
+    "b = constant",  "b != constant", "b > constant",  "b < constant",
+    "b >= constant", "b <= constant", "a = b",         "a != b",
+    "a > b",         "a < b",         "a >= b",        "a <= b",
+};
+
+static void show_only_variable_widget(
+  hierarchical_state_machine::variable& act) noexcept
+{
+    ImGui::PushID(&act);
+    int var = static_cast<int>(act) - 5;
+    if (!(0 <= var && var < 2))
+        var = 0;
+
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo("##var", &var, variable_names + 5, 2)) {
+        irt_assert(0 <= var && var < 2);
+        act = enum_cast<hierarchical_state_machine::variable>(var + 5);
+    }
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+static void show_variable_widget(hierarchical_state_machine::variable& act,
+                                 i32& parameter) noexcept
+{
+    ImGui::PushID(&act);
+    int var = static_cast<int>(act) - 5;
+    if (!(0 <= var && var < 3))
+        var = 0;
+
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo("##var", &var, variable_names + 5, 3)) {
+        irt_assert(0 <= var && var < 3);
+        act = enum_cast<hierarchical_state_machine::variable>(var + 5);
+    }
+
+    ImGui::TableNextColumn();
+    if (act == hierarchical_state_machine::variable::constant) {
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &parameter);
+        ImGui::PopItemWidth();
+    }
+
+    ImGui::TableNextColumn();
+
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+static void show_port_widget(hierarchical_state_machine::variable& var) noexcept
+{
+    ImGui::PushID(&var);
+    int port = static_cast<int>(var) - 1;
+    if (!(0 <= port && port < 4))
+        port = 0;
+
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo("##port", &port, variable_names + 1, 4)) {
+        irt_assert(0 <= port && port <= 3);
+        var = enum_cast<hierarchical_state_machine::variable>(port + 1);
+    }
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+static void show_ports(u8& value, u8& mask) noexcept
+{
+    ImGui::PushID(static_cast<void*>(&value));
+
+    const int sub_value_3 = value & 0b0001 ? 1 : 0;
+    const int sub_value_2 = value & 0b0010 ? 1 : 0;
+    const int sub_value_1 = value & 0b0100 ? 1 : 0;
+    const int sub_value_0 = value & 0b1000 ? 1 : 0;
+
+    int value_3 = mask & 0b0001 ? sub_value_3 : -1;
+    int value_2 = mask & 0b0010 ? sub_value_2 : -1;
+    int value_1 = mask & 0b0100 ? sub_value_1 : -1;
+    int value_0 = mask & 0b1000 ? sub_value_0 : -1;
 
     bool have_changed = false;
 
-    ImGui::PushID(static_cast<void*>(value));
     have_changed = ImGui::CheckBoxTristate("0", &value_0);
     ImGui::SameLine();
     have_changed = ImGui::CheckBoxTristate("1", &value_1) || have_changed;
@@ -512,114 +592,283 @@ static void show_ports(u8* value, u8* mask) noexcept
     have_changed = ImGui::CheckBoxTristate("2", &value_2) || have_changed;
     ImGui::SameLine();
     have_changed = ImGui::CheckBoxTristate("3", &value_3) || have_changed;
-    ImGui::PopID();
 
     if (have_changed) {
-        *value = value_0 == 1 ? 1u : 0u;
-        *value <<= 1;
-        *value |= value_1 == 1 ? 1u : 0u;
-        *value <<= 1;
-        *value |= value_2 == 1 ? 1u : 0u;
-        *value <<= 1;
-        *value |= value_3 == 1 ? 1u : 0u;
+        value = value_0 == 1 ? 1u : 0u;
+        value <<= 1;
+        value |= value_1 == 1 ? 1u : 0u;
+        value <<= 1;
+        value |= value_2 == 1 ? 1u : 0u;
+        value <<= 1;
+        value |= value_3 == 1 ? 1u : 0u;
 
-        *mask = value_0 != -1 ? 1u : 0u;
-        *mask <<= 1;
-        *mask |= value_1 != -1 ? 1u : 0u;
-        *mask <<= 1;
-        *mask |= value_2 != -1 ? 1u : 0u;
-        *mask <<= 1;
-        *mask |= value_3 != -1 ? 1u : 0u;
+        mask = value_0 != -1 ? 1u : 0u;
+        mask <<= 1;
+        mask |= value_1 != -1 ? 1u : 0u;
+        mask <<= 1;
+        mask |= value_2 != -1 ? 1u : 0u;
+        mask <<= 1;
+        mask |= value_3 != -1 ? 1u : 0u;
     }
+
+    ImGui::PopID();
 }
 
 static void show_state_action(
   hierarchical_state_machine::state_action& action) noexcept
 {
-    static const char* action_names[] = {
-        "none", "set", "unset", "reset", "output"
-    };
+    using hsm = hierarchical_state_machine;
 
-    static const char* action_input_port[] = {
-        "port 0", "port 1", "port 2", "port 3"
-    };
-
-    static const char* action_output_port[] = { "port 0", "port 1" };
+    ImGui::PushID(static_cast<void*>(&action));
 
     int action_type = static_cast<int>(action.type);
 
     ImGui::PushItemWidth(-1);
     if (ImGui::Combo(
           "##event", &action_type, action_names, length(action_names)))
-        action.type = static_cast<u8>(action_type);
+        action.type = enum_cast<hsm::action_type>(action_type);
     ImGui::PopItemWidth();
 
     ImGui::TableNextColumn();
 
-    switch (action_type) {
-    case hierarchical_state_machine::action_type_set: {
-        int value = static_cast<int>(action.parameter_1);
-        ImGui::PushItemWidth(-1);
-        if (ImGui::Combo("##input-set",
-                         &value,
-                         action_input_port,
-                         length(action_input_port)))
-            action.parameter_1 = static_cast<u8>(value);
-        ImGui::PopItemWidth();
-    } break;
-
-    case hierarchical_state_machine::action_type_unset: {
-        int value = static_cast<int>(action.parameter_1);
-        ImGui::PushItemWidth(-1);
-        if (ImGui::Combo("##input-unset",
-                         &value,
-                         action_input_port,
-                         length(action_input_port)))
-            action.parameter_1 = static_cast<u8>(value);
-        ImGui::PopItemWidth();
-    } break;
-
-    case hierarchical_state_machine::action_type_reset:
+    switch (action.type) {
+    case hsm::action_type::none:
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
         break;
-
-    case hierarchical_state_machine::action_type_output: {
-        int value = static_cast<int>(action.parameter_1);
-        if (ImGui::Combo("##output",
-                         &value,
-                         action_output_port,
-                         length(action_output_port)))
-            action.parameter_1 = static_cast<u8>(value);
-        ImGui::SameLine();
-        ImGui::InputScalar("value", ImGuiDataType_U8, &action.parameter_2);
-    } break;
+    case hsm::action_type::set:
+        show_port_widget(action.var1);
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &action.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::action_type::unset:
+        show_port_widget(action.var1);
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::action_type::reset:
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::action_type::output:
+        show_port_widget(action.var1);
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &action.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::action_type::affect:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::plus:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::minus:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::negate:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::multiplies:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::divides:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::modulus:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::bit_and:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::bit_or:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::bit_not:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
+    case hsm::action_type::bit_xor:
+        show_only_variable_widget(action.var1);
+        ImGui::TableNextColumn();
+        show_variable_widget(action.var2, action.parameter);
+        break;
 
     default:
         break;
     }
+
+    ImGui::PopID();
+}
+
+static void show_state_condition(
+  hierarchical_state_machine::condition_action& condition) noexcept
+{
+    using hsm = hierarchical_state_machine;
+
+    ImGui::PushID(&condition);
+
+    int type = static_cast<int>(condition.type);
+
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo(
+          "##event", &type, condition_names, length(condition_names)))
+        irt_assert(0 <= type && type < hsm::condition_type_count);
+    condition.type = enum_cast<hsm::condition_type>(type);
+    ImGui::PopItemWidth();
+
+    ImGui::TableNextColumn();
+
+    switch (condition.type) {
+    case hsm::condition_type::none:
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::port:
+        show_ports(condition.port, condition.mask);
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_equal_to_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_not_equal_to_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_greater_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_less_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_greater_equal_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_less_equal_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::b_equal_to_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::b_not_equal_to_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::b_greater_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::b_less_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::b_greater_equal_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::b_less_equal_cst:
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_equal_to_b:
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_not_equal_to_b:
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_greater_b:
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_less_b:
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_greater_equal_b:
+        ImGui::TableNextColumn();
+        break;
+    case hsm::condition_type::a_less_equal_b:
+        ImGui::TableNextColumn();
+        break;
+    }
+    ImGui::PopID();
 }
 
 static void show_state_id_editor(
-  hierarchical_state_machine::state_id* current) noexcept
+  hierarchical_state_machine::state_id& current) noexcept
 {
-    ImGui::PushID(current);
+    using hsm = hierarchical_state_machine;
+
+    ImGui::PushID(&current);
 
     small_string<7> preview_value("-");
-    if (*current != hierarchical_state_machine::invalid_state_id)
-        format(preview_value, "{}", *current);
+    if (current != hsm::invalid_state_id)
+        format(preview_value, "{}", current);
 
     ImGui::PushItemWidth(-1);
     if (ImGui::BeginCombo("##transition", preview_value.c_str())) {
+        if (ImGui::Selectable("-", current == hsm::invalid_state_id))
+            current = hsm::invalid_state_id;
 
-        if (ImGui::Selectable(
-              "-", *current == hierarchical_state_machine::invalid_state_id))
-            *current = hierarchical_state_machine::invalid_state_id;
-
-        for (u8 i = 0, e = hierarchical_state_machine::max_number_of_state;
-             i < e;
-             ++i) {
+        for (u8 i = 0, e = hsm::max_number_of_state; i < e; ++i) {
             format(preview_value, "{}", i);
-            if (ImGui::Selectable(preview_value.c_str(), i == *current))
-                *current = i;
+            if (ImGui::Selectable(preview_value.c_str(), i == current))
+                current = i;
         }
 
         ImGui::EndCombo();
@@ -636,71 +885,66 @@ static void show_hsm_state(hierarchical_state_machine& machine, int i) noexcept
     ImGui::Text("%d", i);
     ImGui::TableNextColumn();
 
-    if (i == 0)
+    if (i != 0)
+        show_state_id_editor(state.super_id);
+    else
         ImGui::Text("start");
 
     ImGui::TableNextColumn();
-
-    if (i != 0)
-        show_state_id_editor(&state.super_id);
-
-    ImGui::TableNextColumn();
-    show_state_id_editor(&state.sub_id);
+    show_state_id_editor(state.sub_id);
     ImGui::TableNextColumn();
 
     constexpr ImGuiTableFlags flags =
       ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable;
 
-    if (ImGui::BeginTable("nested", 6, flags)) {
+    if (ImGui::BeginTable("nested", 8, flags)) {
         ImGui::TableSetupColumn(
           "event", ImGuiTableColumnFlags_WidthFixed, 55.f);
-        ImGui::TableSetupColumn("ports", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn(
-          "action", ImGuiTableColumnFlags_WidthFixed, 80.f);
+          "condition", ImGuiTableColumnFlags_WidthFixed, 130.f);
         ImGui::TableSetupColumn(
-          "parameters", ImGuiTableColumnFlags_WidthFixed, 80.f);
+          "parameter##1", ImGuiTableColumnFlags_WidthFixed, 140.f);
         ImGui::TableSetupColumn(
-          "transition", ImGuiTableColumnFlags_WidthFixed, 80.f);
+          "action", ImGuiTableColumnFlags_WidthFixed, 105.f);
+        ImGui::TableSetupColumn(
+          "parameter##2", ImGuiTableColumnFlags_WidthFixed, 110.f);
+        ImGui::TableSetupColumn(
+          "parameter##3", ImGuiTableColumnFlags_WidthFixed, 105.f);
+        ImGui::TableSetupColumn(
+          "parameter##4", ImGuiTableColumnFlags_WidthFixed, 90.f);
+        ImGui::TableSetupColumn(
+          "transition", ImGuiTableColumnFlags_WidthFixed, 90.f);
         ImGui::TableHeadersRow();
 
-        ImGui::TableNextRow();
         ImGui::PushID("enter-event");
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("enter");
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("-");
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("-");
         ImGui::TableNextColumn();
         show_state_action(state.enter_action);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("-");
         ImGui::PopID();
 
         ImGui::TableNextRow();
-        ImGui::PushID("input-if-event");
+        ImGui::PushID("if-condition");
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("if");
         ImGui::TableNextColumn();
-        show_ports(&state.input_changed_action.value_condition_1,
-                   &state.input_changed_action.value_mask_1);
-        ImGui::TableNextColumn();
-        show_state_action(state.input_changed_action.action_1);
-        ImGui::TableNextColumn();
-        show_state_id_editor(&state.input_changed_action.transition_1);
+        show_state_condition(state.condition);
+        show_state_action(state.if_action);
+        show_state_id_editor(state.if_transition);
         ImGui::PopID();
 
         ImGui::TableNextRow();
-        ImGui::PushID("else-if");
+        ImGui::PushID("else-condition");
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("else-if");
+        ImGui::TextUnformatted("else");
         ImGui::TableNextColumn();
-        show_ports(&state.input_changed_action.value_condition_2,
-                   &state.input_changed_action.value_mask_2);
         ImGui::TableNextColumn();
-        show_state_action(state.input_changed_action.action_2);
         ImGui::TableNextColumn();
-        show_state_id_editor(&state.input_changed_action.transition_2);
+        show_state_action(state.else_action);
+        show_state_id_editor(state.else_transition);
         ImGui::PopID();
 
         ImGui::TableNextRow();
@@ -708,13 +952,10 @@ static void show_hsm_state(hierarchical_state_machine& machine, int i) noexcept
         ImGui::TableNextColumn();
         ImGui::TextUnformatted("exit");
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("-");
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("-");
         ImGui::TableNextColumn();
         show_state_action(state.exit_action);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted("-");
         ImGui::PopID();
 
         ImGui::EndTable();
@@ -734,15 +975,14 @@ static void show_hsm_inputs(hierarchical_state_machine& machine)
                                  ImGuiTableFlags_SizingStretchSame*/
     ;
 
-    if (ImGui::BeginTable("states", 5, flags)) {
-        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 10.f);
+    if (ImGui::BeginTable("states", 4, flags)) {
+        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 30.f);
         ImGui::TableSetupColumn(
-          "status", ImGuiTableColumnFlags_WidthFixed, 30.f);
+          "super-id", ImGuiTableColumnFlags_WidthFixed, 64.f);
         ImGui::TableSetupColumn(
-          "super-id", ImGuiTableColumnFlags_WidthFixed, 40.f);
+          "sub-id", ImGuiTableColumnFlags_WidthFixed, 64.f);
         ImGui::TableSetupColumn(
-          "sub-id", ImGuiTableColumnFlags_WidthFixed, 40.f);
-        ImGui::TableSetupColumn("state", ImGuiTableColumnFlags_WidthStretch);
+          "state", ImGuiTableColumnFlags_WidthStretch, 850.f);
         ImGui::TableHeadersRow();
 
         for (int i = 0; i != length(machine.states); ++i) {
