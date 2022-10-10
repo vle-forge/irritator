@@ -17,8 +17,13 @@
 #define R123_USE_CXX11 1
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
+
+#pragma GCC diagnostic pop
 
 namespace irt {
 
