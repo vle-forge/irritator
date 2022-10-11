@@ -17,13 +17,17 @@
 #define R123_USE_CXX11 1
 #endif
 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
+#endif
 
 #include <Random123/philox.h>
 #include <Random123/uniform.hpp>
 
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif
 
 namespace irt {
 
@@ -93,8 +97,7 @@ inline const char* distribution_str(const distribution_type type) noexcept
 }
 
 template<typename T>
-    requires(std::is_integral_v<T>)
-inline int to_int(T value) noexcept
+requires(std::is_integral_v<T>) inline int to_int(T value) noexcept
 {
     if constexpr (std::is_signed_v<T>) {
         irt_assert(INT_MIN <= value && value <= INT_MAX);
@@ -106,8 +109,7 @@ inline int to_int(T value) noexcept
 }
 
 template<typename T>
-    requires(std::is_integral_v<T>)
-inline i16 to_i16(T value) noexcept
+requires(std::is_integral_v<T>) inline i16 to_i16(T value) noexcept
 {
     if constexpr (std::is_signed_v<T>) {
         irt_assert(INT16_MIN <= value && value <= INT16_MAX);
