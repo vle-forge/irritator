@@ -462,13 +462,13 @@ auto values_getter = [](void* data, int idx) noexcept {
                         static_cast<double>(obs->linear_outputs[index].x) };
 };
 
-auto zero_getter = [](void* data, int idx) noexcept {
-    auto* obs   = reinterpret_cast<simulation_observation*>(data);
-    auto  index = obs->linear_ring_buffer.index_from_begin(idx);
+// auto zero_getter = [](void* data, int idx) noexcept {
+//     auto* obs   = reinterpret_cast<simulation_observation*>(data);
+//     auto  index = obs->linear_ring_buffer.index_from_begin(idx);
 
-    return ImPlotPoint{ static_cast<double>(obs->linear_outputs[index].y),
-                        0.0 };
-};
+//     return ImPlotPoint{ static_cast<double>(obs->linear_outputs[index].y),
+//                         0.0 };
+// };
 
 void task_remove_simulation_observation(application& app, model_id id) noexcept
 {
