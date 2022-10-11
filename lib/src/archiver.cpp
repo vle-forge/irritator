@@ -1056,31 +1056,30 @@ static status do_serialize(archiver&        arc,
     {
         model* mdl = nullptr;
         while (sim.models.next(mdl)) {
-            dispatch(
-              *mdl, [&arc, &sim, &mdl, &io]<typename Dynamics>(Dynamics& dyn) {
-                  if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-                      i8         i      = 0;
-                      const auto out_id = sim.models.get_id(mdl);
+            dispatch(*mdl, [&sim, &mdl, &io]<typename Dynamics>(Dynamics& dyn) {
+                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                    i8         i      = 0;
+                    const auto out_id = sim.models.get_id(mdl);
 
-                      for (const auto elem : dyn.y) {
-                          auto list = get_node(sim, elem);
-                          for (const auto& cnt : list) {
-                              auto* dst = sim.models.try_to_get(cnt.model);
-                              if (dst) {
-                                  u32 out = get_index(out_id);
-                                  u32 in  = get_index(cnt.model);
+                    for (const auto elem : dyn.y) {
+                        auto list = get_node(sim, elem);
+                        for (const auto& cnt : list) {
+                            auto* dst = sim.models.try_to_get(cnt.model);
+                            if (dst) {
+                                u32 out = get_index(out_id);
+                                u32 in  = get_index(cnt.model);
 
-                                  io(out);
-                                  io(i);
-                                  io(in);
-                                  io(cnt.port_index);
-                              }
-                          }
+                                io(out);
+                                io(i);
+                                io(in);
+                                io(cnt.port_index);
+                            }
+                        }
 
-                          ++i;
-                      }
-                  }
-              });
+                        ++i;
+                    }
+                }
+            });
         }
     }
 
