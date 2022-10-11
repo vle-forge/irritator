@@ -5205,15 +5205,10 @@ public:
         state_id sub_id   = invalid_state_id;
     };
 
-    std::array<state, max_number_of_state> states;
-    small_vector<std::pair<u8, i32>, 4>    outputs;
-    u8                                     values = 0;
-    i32                                    a      = 0;
-    i32                                    b      = 0;
-
     hierarchical_state_machine() noexcept = default;
-    hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
-      default;
+    hierarchical_state_machine(const hierarchical_state_machine&) noexcept;
+    hierarchical_state_machine& operator=(
+      const hierarchical_state_machine&) noexcept;
 
     status start() noexcept;
     void   clear() noexcept;
@@ -5257,6 +5252,13 @@ public:
     status on_enter_sub_state() noexcept;
 
     void affect_action(const state_action& action) noexcept;
+
+    std::array<state, max_number_of_state> states;
+    small_vector<std::pair<u8, i32>, 4>    outputs;
+
+    i32 a      = 0;
+    i32 b      = 0;
+    u8  values = 0;
 
     state_id m_current_state        = invalid_state_id;
     state_id m_next_state           = invalid_state_id;
@@ -8552,6 +8554,42 @@ inline status simulation::run(time& t) noexcept
 //
 // class HSM
 //
+
+inline hierarchical_state_machine::hierarchical_state_machine(
+  const hierarchical_state_machine& other) noexcept
+  : states(other.states)
+  , outputs(other.outputs)
+  , a(other.a)
+  , b(other.b)
+  , values(other.values)
+  , m_current_state(other.m_current_state)
+  , m_next_state(other.m_next_state)
+  , m_source_state(other.m_source_state)
+  , m_current_source_state(other.m_current_source_state)
+  , m_top_state(other.m_top_state)
+  , m_disallow_transition(other.m_disallow_transition)
+{
+}
+
+inline hierarchical_state_machine& hierarchical_state_machine::operator=(
+  const hierarchical_state_machine& other) noexcept
+{
+    if (this != &other) {
+        states                 = other.states;
+        outputs                = other.outputs;
+        a                      = other.a;
+        b                      = other.b;
+        values                 = other.values;
+        m_current_state        = other.m_current_state;
+        m_next_state           = other.m_next_state;
+        m_source_state         = other.m_source_state;
+        m_current_source_state = other.m_current_source_state;
+        m_top_state            = other.m_top_state;
+        m_disallow_transition  = other.m_disallow_transition;
+    }
+
+    return *this;
+}
 
 inline bool hierarchical_state_machine::is_dispatching() const noexcept
 {
