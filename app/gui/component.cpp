@@ -9,50 +9,50 @@
 
 namespace irt {
 
-static void print_tree(const data_array<component, component_id>& components,
-                       tree_node* top_id) noexcept
-{
-    struct node
-    {
-        node(tree_node* tree_) noexcept
-          : tree(tree_)
-          , i(0)
-        {
-        }
+// static void print_tree(const data_array<component, component_id>& components,
+//                        tree_node* top_id) noexcept
+// {
+//     struct node
+//     {
+//         node(tree_node* tree_) noexcept
+//           : tree(tree_)
+//           , i(0)
+//         {
+//         }
 
-        node(tree_node* tree_, int i_) noexcept
-          : tree(tree_)
-          , i(i_)
-        {
-        }
+//         node(tree_node* tree_, int i_) noexcept
+//           : tree(tree_)
+//           , i(i_)
+//         {
+//         }
 
-        tree_node* tree;
-        int        i = 0;
-    };
+//         tree_node* tree;
+//         int        i = 0;
+//     };
 
-    vector<node> stack;
-    stack.emplace_back(top_id);
+//     vector<node> stack;
+//     stack.emplace_back(top_id);
 
-    while (!stack.empty()) {
-        auto cur = stack.back();
-        stack.pop_back();
+//     while (!stack.empty()) {
+//         auto cur = stack.back();
+//         stack.pop_back();
 
-        auto  compo_id = cur.tree->id;
-        auto* compo    = components.try_to_get(compo_id);
+//         auto  compo_id = cur.tree->id;
+//         auto* compo    = components.try_to_get(compo_id);
 
-        if (compo) {
-            fmt::print("{:{}} {}\n", " ", cur.i, fmt::ptr(compo));
-        }
+//         if (compo) {
+//             fmt::print("{:{}} {}\n", " ", cur.i, fmt::ptr(compo));
+//         }
 
-        if (auto* sibling = cur.tree->tree.get_sibling(); sibling) {
-            stack.emplace_back(sibling, cur.i);
-        }
+//         if (auto* sibling = cur.tree->tree.get_sibling(); sibling) {
+//             stack.emplace_back(sibling, cur.i);
+//         }
 
-        if (auto* child = cur.tree->tree.get_child(); child) {
-            stack.emplace_back(child, cur.i + 1);
-        }
-    }
-}
+//         if (auto* child = cur.tree->tree.get_child(); child) {
+//             stack.emplace_back(child, cur.i + 1);
+//         }
+//     }
+// }
 
 void settings_manager::show(bool* is_open) noexcept
 {
