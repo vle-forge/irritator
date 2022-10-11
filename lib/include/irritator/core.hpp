@@ -7048,102 +7048,13 @@ public:
 
     //! @brief This function allocates dynamics and models.
     template<typename Dynamics>
-    Dynamics& alloc() noexcept
-    {
-        irt_assert(!models.full());
-
-        auto& mdl  = models.alloc();
-        mdl.type   = dynamics_typeof<Dynamics>();
-        mdl.handle = nullptr;
-
-        std::construct_at(reinterpret_cast<Dynamics*>(&mdl.dyn));
-        auto& dyn = get_dyn<Dynamics>(mdl);
-
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-            for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = static_cast<u64>(-1);
-
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-            for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i] = static_cast<u64>(-1);
-
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            auto& hsm = hsms.alloc();
-            auto  id  = hsms.get_id(hsm);
-            dyn.id    = id;
-        }
-
-        return dyn;
-    }
+    Dynamics& alloc() noexcept;
 
     //! @brief This function allocates dynamics and models.
-    model& clone(const model& mdl) noexcept
-    {
-        /* Use can_alloc before using this function. */
-        irt_assert(!models.full());
-
-        auto& new_mdl  = models.alloc();
-        new_mdl.type   = mdl.type;
-        new_mdl.handle = nullptr;
-
-        dispatch(
-          new_mdl, [this, &mdl]<typename Dynamics>(Dynamics& dyn) -> void {
-              const auto& src_dyn = get_dyn<Dynamics>(mdl);
-              std::construct_at(&dyn, src_dyn);
-
-              if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                  for (int i = 0, e = length(dyn.x); i != e; ++i)
-                      dyn.x[i] = static_cast<u64>(-1);
-
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                  for (int i = 0, e = length(dyn.y); i != e; ++i)
-                      dyn.y[i] = static_cast<u64>(-1);
-
-              if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                  if (auto* hsm_src = hsms.try_to_get(src_dyn.id); hsm_src) {
-                      auto& hsm = hsms.alloc(*hsm_src);
-                      auto  id  = hsms.get_id(hsm);
-                      dyn.id    = id;
-                  } else {
-                      auto& hsm = hsms.alloc();
-                      auto  id  = hsms.get_id(hsm);
-                      dyn.id    = id;
-                  }
-              }
-          });
-
-        return new_mdl;
-    }
+    model& clone(const model& mdl) noexcept;
 
     //! @brief This function allocates dynamics and models.
-    model& alloc(dynamics_type type) noexcept
-    {
-        irt_assert(!models.full());
-
-        auto& mdl  = models.alloc();
-        mdl.type   = type;
-        mdl.handle = nullptr;
-
-        dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
-            std::construct_at(&dyn);
-
-            if constexpr (is_detected_v<has_input_port_t, Dynamics>)
-                for (int i = 0, e = length(dyn.x); i != e; ++i)
-                    dyn.x[i] = static_cast<u64>(-1);
-
-            if constexpr (is_detected_v<has_output_port_t, Dynamics>)
-                for (int i = 0, e = length(dyn.y); i != e; ++i)
-                    dyn.y[i] = static_cast<u64>(-1);
-
-            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                auto& hsm = hsms.alloc();
-                auto  id  = hsms.get_id(hsm);
-                dyn.id    = id;
-            }
-        });
-
-        return mdl;
-    }
+    model& alloc(dynamics_type type) noexcept;
 
     void observe(model& mdl, observer& obs) noexcept
     {
@@ -9097,6 +9008,103 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
     }
 
     return status::success;
+}
+
+template<typename Dynamics>
+Dynamics& simulation::alloc() noexcept
+{
+    irt_assert(!models.full());
+
+    auto& mdl  = models.alloc();
+    mdl.type   = dynamics_typeof<Dynamics>();
+    mdl.handle = nullptr;
+
+    std::construct_at(reinterpret_cast<Dynamics*>(&mdl.dyn));
+    auto& dyn = get_dyn<Dynamics>(mdl);
+
+    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+        for (int i = 0, e = length(dyn.x); i != e; ++i)
+            dyn.x[i] = static_cast<u64>(-1);
+
+    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+        for (int i = 0, e = length(dyn.y); i != e; ++i)
+            dyn.y[i] = static_cast<u64>(-1);
+
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+        auto& hsm = hsms.alloc();
+        auto  id  = hsms.get_id(hsm);
+        dyn.id    = id;
+    }
+
+    return dyn;
+}
+
+//! @brief This function allocates dynamics and models.
+inline model& simulation::clone(const model& mdl) noexcept
+{
+    /* Use can_alloc before using this function. */
+    irt_assert(!models.full());
+
+    auto& new_mdl  = models.alloc();
+    new_mdl.type   = mdl.type;
+    new_mdl.handle = nullptr;
+
+    dispatch(new_mdl, [this, &mdl]<typename Dynamics>(Dynamics& dyn) -> void {
+        const auto& src_dyn = get_dyn<Dynamics>(mdl);
+        std::construct_at(&dyn, src_dyn);
+
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+            for (int i = 0, e = length(dyn.x); i != e; ++i)
+                dyn.x[i] = static_cast<u64>(-1);
+
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+            for (int i = 0, e = length(dyn.y); i != e; ++i)
+                dyn.y[i] = static_cast<u64>(-1);
+
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            if (auto* hsm_src = hsms.try_to_get(src_dyn.id); hsm_src) {
+                auto& hsm = hsms.alloc(*hsm_src);
+                auto  id  = hsms.get_id(hsm);
+                dyn.id    = id;
+            } else {
+                auto& hsm = hsms.alloc();
+                auto  id  = hsms.get_id(hsm);
+                dyn.id    = id;
+            }
+        }
+    });
+
+    return new_mdl;
+}
+
+//! @brief This function allocates dynamics and models.
+inline model& simulation::alloc(dynamics_type type) noexcept
+{
+    irt_assert(!models.full());
+
+    auto& mdl  = models.alloc();
+    mdl.type   = type;
+    mdl.handle = nullptr;
+
+    dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
+        std::construct_at(&dyn);
+
+        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+            for (int i = 0, e = length(dyn.x); i != e; ++i)
+                dyn.x[i] = static_cast<u64>(-1);
+
+        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+            for (int i = 0, e = length(dyn.y); i != e; ++i)
+                dyn.y[i] = static_cast<u64>(-1);
+
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            auto& hsm = hsms.alloc();
+            auto  id  = hsms.get_id(hsm);
+            dyn.id    = id;
+        }
+    });
+
+    return mdl;
 }
 
 } // namespace irt
