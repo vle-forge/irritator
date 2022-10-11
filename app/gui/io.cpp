@@ -1345,7 +1345,8 @@ bool load(dynamic_queue&           dyn,
           const int                value) noexcept
 {
     if (type == stack_element_type::parameter_source_ta_type) {
-        dyn.default_source_ta.type = value;
+        irt_assert(INT16_MIN <= value && value < INT16_MAX);
+        dyn.default_source_ta.type = static_cast<i16>(value);
         return true;
     }
 
@@ -1401,7 +1402,8 @@ bool load(priority_queue&          dyn,
           const int                value) noexcept
 {
     if (type == stack_element_type::parameter_source_ta_type) {
-        dyn.default_source_ta.type = value;
+        irt_assert(INT16_MIN <= value && value < INT16_MAX);
+        dyn.default_source_ta.type = static_cast<i16>(value);
         return true;
     }
 
@@ -1458,7 +1460,8 @@ bool load(generator&               dyn,
           const int                value) noexcept
 {
     if (type == stack_element_type::parameter_source_ta_type) {
-        dyn.default_source_ta.type = value;
+        irt_assert(INT16_MIN <= value && value < INT16_MAX);
+        dyn.default_source_ta.type = static_cast<i16>(value);
         return true;
     }
 
@@ -1472,7 +1475,8 @@ bool load(generator&               dyn,
     }
 
     if (type == stack_element_type::parameter_source_value_type) {
-        dyn.default_source_value.type = value;
+        irt_assert(INT16_MIN <= value && value < INT16_MAX);
+        dyn.default_source_value.type = static_cast<i16>(value);
         return true;
     }
 
