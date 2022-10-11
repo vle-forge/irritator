@@ -66,7 +66,8 @@ struct component_setting_handler
       , read_name(false)
       , read_path(false)
       , priority(0)
-    {}
+    {
+    }
 
     bool Null() { return false; }
 
@@ -1926,7 +1927,8 @@ inline bool convert_parameter_key(const std::string_view str,
                            stack_element_type     type_) noexcept
           : str{ str_ }
           , type{ type_ }
-        {}
+        {
+        }
 
         const std::string_view str;
         stack_element_type     type;
@@ -1990,28 +1992,20 @@ inline bool convert_parameter_key(const std::string_view str,
  ****************************************************************************/
 
 template<typename T>
-concept has_load_bool_function = requires(const T& t)
-{
-    load(t, stack_element_type{}, bool{});
-};
+concept has_load_bool_function =
+  requires(const T& t) { load(t, stack_element_type{}, bool{}); };
 
 template<typename T>
-concept has_load_double_function = requires(const T& t)
-{
-    load(t, stack_element_type{}, double{});
-};
+concept has_load_double_function =
+  requires(const T& t) { load(t, stack_element_type{}, double{}); };
 
 template<typename T>
-concept has_load_int_function = requires(const T& t)
-{
-    load(t, stack_element_type{}, int{});
-};
+concept has_load_int_function =
+  requires(const T& t) { load(t, stack_element_type{}, int{}); };
 
 template<typename T>
-concept has_load_string_function = requires(const T& t)
-{
-    load(t, stack_element_type{}, std::string_view{});
-};
+concept has_load_string_function =
+  requires(const T& t) { load(t, stack_element_type{}, std::string_view{}); };
 
 struct project_loader_handler
 {
@@ -2502,7 +2496,8 @@ struct project_writer
     project_writer(FILE* fp_)
       : os(fp_, buffer, sizeof(buffer))
       , writer(os)
-    {}
+    {
+    }
 
     char            buffer[4096];
     json_out_stream os;
