@@ -7960,9 +7960,8 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 template<typename T, int length>
 constexpr status small_vector<T, length>::resize(int default_size) noexcept
 {
-    static_assert(std::is_nothrow_default_constructible_v<T> ||
-                    std::is_trivially_default_constructible_v<T>,
-                  "T must be nothrow or trivially default constructible to use "
+    static_assert(std::is_nothrow_default_constructible_v<T>,
+                  "T must be nothrow default constructible to use "
                   "init() function");
 
     irt_return_if_fail(std::cmp_greater(default_size, 0) &&
@@ -8124,9 +8123,8 @@ template<typename... Args>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::emplace_back(Args&&... args) noexcept
 {
-    static_assert(std::is_trivially_constructible_v<T, Args...> ||
-                    std::is_nothrow_constructible_v<T, Args...>,
-                  "T must but trivially or nothrow constructible from this "
+    static_assert(std::is_nothrow_constructible_v<T, Args...>,
+                  "T must but trivially constructible from this "
                   "argument(s)");
 
     assert(can_alloc(1) && "check alloc() with full() before using use.");
@@ -8140,9 +8138,8 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
 template<typename T, int length>
 constexpr void small_vector<T, length>::pop_back() noexcept
 {
-    static_assert(std::is_nothrow_destructible_v<T> ||
-                    std::is_trivially_destructible_v<T>,
-                  "T must be nothrow or trivially destructible to use "
+    static_assert(std::is_nothrow_destructible_v<T>,
+                  "T must be nothrow destructible to use "
                   "pop_back() function");
 
     if (m_size) {
