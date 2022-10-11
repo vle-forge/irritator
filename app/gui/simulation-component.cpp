@@ -323,6 +323,7 @@ static void make_copy_error_msg(component_editor& ed,
                                  static_cast<size_t>(n.message.capacity() - 1),
                                  fmt,
                                  fmt::make_format_args(args...));
+    n.message.resize(static_cast<unsigned>(ret.size));
 
     app->notifications.enable(n);
 }
@@ -340,6 +341,7 @@ static void make_init_error_msg(component_editor& ed,
                                  static_cast<size_t>(n.message.capacity() - 1),
                                  fmt,
                                  fmt::make_format_args(args...));
+    n.message.resize(static_cast<unsigned>(ret.size));
 
     app->notifications.enable(n);
 }
