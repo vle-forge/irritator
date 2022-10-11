@@ -201,10 +201,8 @@ void application::show_components_window() noexcept
 {
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
-    component* selected = nullptr;
 
-    auto*        tree = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
-    component_id head_id = tree ? tree->id : undefined<component_id>();
+    auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
 
     if (ImGui::CollapsingHeader("Component library", flags)) {
         if (ImGui::TreeNodeEx("Internal")) {
