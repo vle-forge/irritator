@@ -1882,8 +1882,6 @@ void write(json_writer& writer, const logical_or_2& dyn) noexcept
     writer.Bool(dyn.default_values[0]);
     writer.Key("value1");
     writer.Bool(dyn.default_values[1]);
-    writer.Key("value2");
-    writer.Bool(dyn.default_values[2]);
     writer.EndObject();
 }
 
