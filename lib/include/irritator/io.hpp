@@ -2585,8 +2585,8 @@ private:
 
         os << machine.outputs.ssize() << ' ';
         for (int i = 0, e = machine.outputs.ssize(); i != e; ++i) {
-            os << static_cast<int>(machine.outputs[i].first) << ' '
-               << static_cast<int>(machine.outputs[i].second) << ' ';
+            os << static_cast<int>(machine.outputs[i].port) << ' '
+               << static_cast<int>(machine.outputs[i].value) << ' ';
         }
     }
 };

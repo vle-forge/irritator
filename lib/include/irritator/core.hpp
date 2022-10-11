@@ -5205,6 +5205,15 @@ public:
         state_id sub_id   = invalid_state_id;
     };
 
+    struct output_message
+    {
+        output_message() noexcept = default;
+        output_message(u8 port_, i32 values_) noexcept;
+
+        u8  port;
+        i32 value;
+    };
+
     hierarchical_state_machine() noexcept = default;
     hierarchical_state_machine(const hierarchical_state_machine&) noexcept;
     hierarchical_state_machine& operator=(
@@ -5254,7 +5263,7 @@ public:
     void affect_action(const state_action& action) noexcept;
 
     std::array<state, max_number_of_state> states;
-    small_vector<std::pair<u8, i32>, 4>    outputs;
+    small_vector<output_message, 4>        outputs;
 
     i32 a      = 0;
     i32 b      = 0;
@@ -8591,6 +8600,14 @@ inline hierarchical_state_machine& hierarchical_state_machine::operator=(
     return *this;
 }
 
+inline hierarchical_state_machine::output_message::output_message(
+  u8  port_,
+  i32 value_) noexcept
+  : port(port_)
+  , value(value_)
+{
+}
+
 inline bool hierarchical_state_machine::is_dispatching() const noexcept
 {
     return m_current_source_state != invalid_state_id;
@@ -9070,8 +9087,8 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
     if (m_previous_state != hierarchical_state_machine::invalid_state_id &&
         !machine->outputs.empty()) {
         for (int i = 0, e = machine->outputs.ssize(); i != e; ++i) {
-            const u8  port  = machine->outputs[i].first;
-            const i32 value = machine->outputs[i].second;
+            const u8  port  = machine->outputs[i].port;
+            const i32 value = machine->outputs[i].value;
 
             irt_assert(port >= 0 && port < machine->outputs.size());
 
