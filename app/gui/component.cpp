@@ -162,6 +162,26 @@ void settings_manager::show(bool* is_open) noexcept
 
     ImGui::Separator();
     ImGui::Text("Graphics");
+
+    {
+        if (ImGui::Combo("Style selector", &style_selector, "Dark\0Light\0Classic\0")) {
+            switch (style_selector) {
+            case 0:
+                ImGui::StyleColorsDark();
+                ImNodes::StyleColorsDark();
+                break;
+            case 1:
+                ImGui::StyleColorsLight();
+                ImNodes::StyleColorsLight();
+                break;
+            case 2:
+                ImGui::StyleColorsClassic();
+                ImNodes::StyleColorsClassic();
+                break;
+            }
+        }
+    }
+
     if (ImGui::ColorEdit3(
           "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
         update();

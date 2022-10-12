@@ -426,6 +426,7 @@ struct settings_manager
     //! gui_component_color.
     void update() noexcept;
 
+    int   style_selector                   = 0;
     int   automatic_layout_iteration_limit = 200;
     float automatic_layout_x_distance      = 350.f;
     float automatic_layout_y_distance      = 350.f;
