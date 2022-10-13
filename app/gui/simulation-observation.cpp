@@ -419,7 +419,15 @@ void simulation_observation_update(const irt::observer&        obs,
         output->linear_ring_buffer.clear();
     }
 
-    simulation_observation_run(*output, obs, type, tl, t);
+    const auto max_container_time =
+      output->time_step * output->linear_ring_buffer.capacity();
+    const auto max_time = t - tl;
+
+    // auto max_time = t - tl;
+    // max_time = (max_time < max_container_time) ? t : tl + max_container_time;
+
+    if (max_time < max_container_time)
+        simulation_observation_run(*output, obs, type, tl, t);
 }
 
 static void task_remove_simulation_observation_impl(void* param) noexcept
