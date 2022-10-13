@@ -695,7 +695,7 @@ void simulation_editor::add_simulation_observation_for(std::string_view name,
 {
     if (auto* mdl = sim.models.try_to_get(mdl_id); mdl) {
         if (sim.observers.can_alloc(1) && sim_obs.can_alloc(1)) {
-            auto& obs    = sim_obs.alloc(mdl_id, mdl->type, 4096, 4096 * 4096);
+            auto& obs    = sim_obs.alloc(mdl_id, mdl->type, 4096, 32768);
             auto  obs_id = sim_obs.get_id(obs);
 
             obs.name = name;
