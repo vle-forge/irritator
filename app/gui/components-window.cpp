@@ -9,36 +9,12 @@
 
 namespace irt {
 
-static component_id add_empty_component(component_editor& ed) noexcept
-{
-    auto ret = undefined<component_id>();
-
-    if (ed.mod.components.can_alloc()) {
-        auto& new_compo = ed.mod.components.alloc();
-        new_compo.name.assign("New component");
-        new_compo.type  = component_type::memory;
-        new_compo.state = component_status::modified;
-
-        ret = ed.mod.components.get_id(new_compo);
-    } else {
-        auto* app   = container_of(&ed, &application::c_editor);
-        auto& notif = app->notifications.alloc(notification_type::error);
-        notif.title = "Can not allocate new container";
-        format(notif.message,
-               "Components allocated: {}\nTree nodes allocated: {}",
-               ed.mod.components.size(),
-               ed.mod.tree_nodes.size());
-    }
-
-    return ret;
-}
-
 static void show_component_popup_menu(irt::component_editor& ed,
                                       component*             compo) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New")) {
-            auto id = add_empty_component(ed);
+            auto id = ed.add_empty_component();
             ed.open_as_main(id);
         }
 
@@ -85,7 +61,7 @@ static bool show_component(component_editor& ed,
 
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New")) {
-            auto id = add_empty_component(ed);
+            auto id = ed.add_empty_component();
             ed.open_as_main(id);
         }
 

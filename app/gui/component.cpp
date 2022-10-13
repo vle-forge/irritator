@@ -164,7 +164,8 @@ void settings_manager::show(bool* is_open) noexcept
     ImGui::Text("Graphics");
 
     {
-        if (ImGui::Combo("Style selector", &style_selector, "Dark\0Light\0Classic\0")) {
+        if (ImGui::Combo(
+              "Style selector", &style_selector, "Dark\0Light\0Classic\0")) {
             switch (style_selector) {
             case 0:
                 ImGui::StyleColorsDark();
@@ -362,6 +363,30 @@ static void unselect_editor_component_ref(component_editor& ed) noexcept
     ed.selected_nodes.clear();
 }
 
+component_id component_editor::add_empty_component() noexcept
+{
+    auto ret = undefined<component_id>();
+
+    if (mod.components.can_alloc()) {
+        auto& new_compo = mod.components.alloc();
+        new_compo.name.assign("New component");
+        new_compo.type  = component_type::memory;
+        new_compo.state = component_status::modified;
+
+        ret = mod.components.get_id(new_compo);
+    } else {
+        auto* app   = container_of(this, &application::c_editor);
+        auto& notif = app->notifications.alloc(notification_type::error);
+        notif.title = "Can not allocate new container";
+        format(notif.message,
+               "Components allocated: {}\nTree nodes allocated: {}",
+               mod.components.size(),
+               mod.tree_nodes.size());
+    }
+
+    return ret;
+}
+
 void component_editor::unselect() noexcept
 {
     mod.clear_project();
@@ -379,8 +404,6 @@ void component_editor::select(tree_node_id id) noexcept
         }
     }
 }
-
-void component_editor::new_project() noexcept { unselect(); }
 
 void component_editor::open_as_main(component_id id) noexcept
 {

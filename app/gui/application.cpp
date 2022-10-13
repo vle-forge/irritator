@@ -182,6 +182,9 @@ bool application::init() noexcept
     c_editor.mod.head           = undefined<tree_node_id>();
     c_editor.selected_component = undefined<tree_node_id>();
 
+    auto id = c_editor.add_empty_component();
+    c_editor.open_as_main(id);
+
     return true;
 }
 
@@ -290,7 +293,7 @@ static void application_show_menu(application& app) noexcept
 static void application_manage_menu_action(application& app) noexcept
 {
     if (app.new_project_file) {
-        app.c_editor.new_project();
+        app.c_editor.unselect();
         app.new_project_file = false;
     }
 

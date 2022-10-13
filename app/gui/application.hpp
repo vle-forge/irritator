@@ -402,10 +402,10 @@ struct component_editor
     ImVector<int> selected_links;
     ImVector<int> selected_nodes;
 
-    void select(tree_node_id id) noexcept;
-    void new_project() noexcept;
-    void open_as_main(component_id id) noexcept;
-    void unselect() noexcept;
+    component_id add_empty_component() noexcept;
+    void         select(tree_node_id id) noexcept;
+    void         open_as_main(component_id id) noexcept;
+    void         unselect() noexcept;
 
     void save_project(const char* filename) noexcept;
     void load_project(const char* filename) noexcept;
