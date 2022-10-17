@@ -955,8 +955,7 @@ int main()
     };
 
     "ring-buffer"_test = [] {
-        int                   buffer[10];
-        irt::ring_buffer<int> ring{ buffer, irt::length(buffer) };
+        irt::ring_buffer<int> ring{ 10 };
 
         for (int i = 0; i < 9; ++i) {
             auto is_success = ring.emplace_enqueue(i);
@@ -968,35 +967,34 @@ int main()
             expect(is_success == false);
         }
 
-        expect(buffer[0] == 0);
-        expect(buffer[1] == 1);
-        expect(buffer[2] == 2);
-        expect(buffer[3] == 3);
-        expect(buffer[4] == 4);
-        expect(buffer[5] == 5);
-        expect(buffer[6] == 6);
-        expect(buffer[7] == 7);
-        expect(buffer[8] == 8);
-        expect(buffer[0] == 0);
+        expect(ring.buffer[0] == 0);
+        expect(ring.buffer[1] == 1);
+        expect(ring.buffer[2] == 2);
+        expect(ring.buffer[3] == 3);
+        expect(ring.buffer[4] == 4);
+        expect(ring.buffer[5] == 5);
+        expect(ring.buffer[6] == 6);
+        expect(ring.buffer[7] == 7);
+        expect(ring.buffer[8] == 8);
+        expect(ring.buffer[0] == 0);
 
         for (int i = 10; i < 15; ++i)
             ring.force_emplace_enqueue(i);
 
-        expect(buffer[0] == 11);
-        expect(buffer[1] == 12);
-        expect(buffer[2] == 13);
-        expect(buffer[3] == 14);
-        expect(buffer[4] == 4);
-        expect(buffer[5] == 5);
-        expect(buffer[6] == 6);
-        expect(buffer[7] == 7);
-        expect(buffer[8] == 8);
-        expect(buffer[9] == 10);
+        expect(ring.buffer[0] == 11);
+        expect(ring.buffer[1] == 12);
+        expect(ring.buffer[2] == 13);
+        expect(ring.buffer[3] == 14);
+        expect(ring.buffer[4] == 4);
+        expect(ring.buffer[5] == 5);
+        expect(ring.buffer[6] == 6);
+        expect(ring.buffer[7] == 7);
+        expect(ring.buffer[8] == 8);
+        expect(ring.buffer[9] == 10);
     };
 
     "ring-buffer-front-back-access"_test = [] {
-        int                   buffer[4];
-        irt::ring_buffer<int> ring(buffer, irt::length(buffer));
+        irt::ring_buffer<int> ring(4);
 
         expect(ring.push_front(0) == true);
         expect(ring.push_front(-1) == true);

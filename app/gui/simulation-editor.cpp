@@ -643,7 +643,9 @@ static status add_popup_menuitem(simulation_editor& ed,
     return status::success;
 }
 
+// @todo DEBUG MODE: Prefer user settings or better timeline constructor
 simulation_editor::simulation_editor() noexcept
+  : tl(32768, 4096, 65536, 65536, 32768, 32768)
 {
     output_context = ImPlot::CreateContext();
     context        = ImNodes::EditorContextCreate();

@@ -74,7 +74,8 @@ struct timeline_point
       : index(index_)
       , bag(bag_)
       , type(type_)
-    {}
+    {
+    }
 
     i32                 index;
     i32                 bag;
@@ -91,12 +92,12 @@ struct timeline
     model_point&      alloc_model_point() noexcept;
     connection_point& alloc_connection_point() noexcept;
 
-    status init(i32 simulation_points,
-                i32 model_points,
-                i32 connection_points,
-                i32 timeline_points,
-                i32 model_number,
-                i32 message_number) noexcept;
+    timeline(i32 simulation_points,
+             i32 model_points,
+             i32 connection_points,
+             i32 timeline_points,
+             i32 model_number,
+             i32 message_number) noexcept;
 
     void reset() noexcept;
     void cleanup_after_current_bag() noexcept;
@@ -104,7 +105,6 @@ struct timeline
     vector<simulation_point>    sim_points;
     vector<model_point>         model_points;
     vector<connection_point>    connection_points;
-    vector<timeline_point>      points_buffer;
     ring_buffer<timeline_point> points;
 
     i32 max_models_number       = 0;

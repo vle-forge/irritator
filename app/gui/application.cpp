@@ -88,9 +88,6 @@ bool application::init() noexcept
     c_editor.mod.register_log_callback(modeling_log,
                                        reinterpret_cast<void*>(this));
 
-    // @todo DEBUG MODE: Prefer user settings or better timeline constructor
-    s_editor.tl.init(32768, 4096, 65536, 65536, 32768, 32768);
-
     if (auto ret = c_editor.mod.registred_paths.init(max_component_dirs);
         is_bad(ret)) {
         log_w.log(2, "Fail to initialize registred dir paths");

@@ -31,31 +31,23 @@ bool timeline::can_alloc(timeline_point_type type,
     return ret;
 }
 
-status timeline::init(i32 simulation_point_number,
-                      i32 model_point_number,
-                      i32 connection_point_number,
-                      i32 timeline_point_number,
-                      i32 model_number,
-                      i32 message_number) noexcept
+timeline::timeline(i32 simulation_point_number,
+                   i32 model_point_number,
+                   i32 connection_point_number,
+                   i32 timeline_point_number,
+                   i32 model_number,
+                   i32 message_number) noexcept
+  : sim_points(simulation_point_number)
+  , model_points(model_point_number)
+  , connection_points(connection_point_number)
+  , points(timeline_point_number)
 {
-    irt_return_if_fail(
-      simulation_point_number >= 0 && model_point_number >= 0 &&
-        connection_point_number >= 0 && timeline_point_number >= 0 &&
-        model_number >= 0 && message_number >= 0,
-      status::gui_not_enough_memory);
-
-    reset();
-
-    sim_points.reserve(simulation_point_number);
-    model_points.reserve(model_point_number);
-    connection_points.reserve(connection_point_number);
-    points_buffer.resize(timeline_point_number);
-    points.reset(points_buffer.data(), points_buffer.size());
+    irt_assert(simulation_point_number >= 0 && model_point_number >= 0 &&
+               connection_point_number >= 0 && timeline_point_number >= 0 &&
+               model_number >= 0 && message_number >= 0);
 
     max_models_number   = model_number;
     max_messages_number = message_number;
-
-    return status::success;
 }
 
 simulation_point& timeline::alloc_simulation_point() noexcept

@@ -109,10 +109,11 @@ static float get_fade_percent(const notification& n) noexcept
 notification::notification(notification_type type_) noexcept
   : type(type_)
   , creation_time(get_tick_count_in_milliseconds())
-{}
+{
+}
 
 notification_manager::notification_manager() noexcept
-  : r_buffer(buffer.data(), length(buffer))
+  : r_buffer(notification_number)
 {
     data.init(notification_number);
 }

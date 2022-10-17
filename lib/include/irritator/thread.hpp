@@ -198,7 +198,7 @@ constexpr task::task(task_function function_, void* parameter_) noexcept
  */
 
 inline task_list::task_list() noexcept
-  : tasks{ task_buffer.data(), length(task_buffer) }
+  : tasks{ 256 }
   , task_number{ 0 }
 {
 }
@@ -287,9 +287,8 @@ inline void worker::run() noexcept
                   return left->priority < right->priority;
               });
 
-    bool                running = true;
-    std::array<task, 8> task_buffer;
-    ring_buffer<task>   tasks(task_buffer.data(), length(task_buffer));
+    bool              running = true;
+    ring_buffer<task> tasks(8);
 
     while (running) {
         while (!tasks.empty()) {

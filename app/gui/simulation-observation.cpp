@@ -198,16 +198,10 @@ simulation_observation::simulation_observation(
   i32           default_linear_length) noexcept
   : model{ mdl_ }
   , type{ type_ }
+  , raw_ring_buffer{ default_raw_length }
+  , linear_ring_buffer{ default_linear_length }
 {
     irt_assert(default_raw_length > 0);
-
-    raw_outputs.resize(default_raw_length);
-    raw_ring_buffer.reset(raw_outputs.data(), raw_outputs.ssize());
-
-    if (default_linear_length > 0) {
-        linear_outputs.resize(default_linear_length);
-        linear_ring_buffer.reset(linear_outputs.data(), linear_outputs.ssize());
-    }
 }
 
 void simulation_observation::clear() noexcept
