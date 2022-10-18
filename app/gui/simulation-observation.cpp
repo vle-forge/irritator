@@ -11,417 +11,63 @@
 
 namespace irt {
 
-using interpolate_type = i32;
-enum interpolate_type_
-{
-    interpolate_type_none,
-    interpolate_type_qss1,
-    interpolate_type_qss2,
-    interpolate_type_qss3
-};
-
-static interpolate_type get_interpolate_type(const dynamics_type type) noexcept
-{
-    switch (type) {
-    case dynamics_type::qss1_integrator:
-    case dynamics_type::qss1_multiplier:
-    case dynamics_type::qss1_cross:
-    case dynamics_type::qss1_power:
-    case dynamics_type::qss1_square:
-    case dynamics_type::qss1_sum_2:
-    case dynamics_type::qss1_sum_3:
-    case dynamics_type::qss1_sum_4:
-    case dynamics_type::qss1_wsum_2:
-    case dynamics_type::qss1_wsum_3:
-    case dynamics_type::qss1_wsum_4:
-        return interpolate_type_qss1;
-
-    case dynamics_type::qss2_integrator:
-    case dynamics_type::qss2_multiplier:
-    case dynamics_type::qss2_cross:
-    case dynamics_type::qss2_power:
-    case dynamics_type::qss2_square:
-    case dynamics_type::qss2_sum_2:
-    case dynamics_type::qss2_sum_3:
-    case dynamics_type::qss2_sum_4:
-    case dynamics_type::qss2_wsum_2:
-    case dynamics_type::qss2_wsum_3:
-    case dynamics_type::qss2_wsum_4:
-        return interpolate_type_qss2;
-
-    case dynamics_type::qss3_integrator:
-    case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_cross:
-    case dynamics_type::qss3_power:
-    case dynamics_type::qss3_square:
-    case dynamics_type::qss3_sum_2:
-    case dynamics_type::qss3_sum_3:
-    case dynamics_type::qss3_sum_4:
-    case dynamics_type::qss3_wsum_2:
-    case dynamics_type::qss3_wsum_3:
-    case dynamics_type::qss3_wsum_4:
-        return interpolate_type_qss3;
-
-    case dynamics_type::integrator:
-    case dynamics_type::quantifier:
-    case dynamics_type::adder_2:
-    case dynamics_type::adder_3:
-    case dynamics_type::adder_4:
-    case dynamics_type::mult_2:
-    case dynamics_type::mult_3:
-    case dynamics_type::mult_4:
-        return interpolate_type_qss1;
-
-    default:
-        return interpolate_type_none;
-    }
-
-    irt_unreachable();
-}
-
-static real compute_value_0(const observation_message& msg,
-                            const time /*elapsed*/) noexcept
-{
-    return msg[0];
-}
-
-static real compute_value_1(const observation_message& msg,
-                            const time                 elapsed) noexcept
-{
-    return msg[0] + msg[1] * elapsed;
-}
-
-static real compute_value_2(const observation_message& msg,
-                            const time                 elapsed) noexcept
-{
-    return msg[0] + (msg[1] * elapsed) + (msg[2] * elapsed * elapsed / two);
-}
-
-static real compute_value_3(const observation_message& msg,
-                            const time                 elapsed) noexcept
-{
-    return msg[0] + (msg[1] * elapsed) + (msg[2] * elapsed * elapsed / two) +
-           (msg[3] * elapsed * elapsed * elapsed / three);
-}
-
-static void compute_interpolate_step(
-  const raw_observation&                               prev,
-  const real                                           next,
-  const real                                           time_step,
-  function_ref<real(const observation_message&, time)> compute_f,
-  function_ref<void(real, time)>                       output_f) noexcept
-
-{
-    for (auto td = prev.t; td < next; td += time_step) {
-        const auto e     = td - prev.t;
-        const auto value = compute_f(prev.msg, e);
-        output_f(value, td);
-    }
-
-    const auto e     = next - prev.t - std::numeric_limits<real>::epsilon();
-    const auto value = compute_f(prev.msg, e);
-    output_f(value, next - -std::numeric_limits<real>::epsilon());
-}
-
-static void compute_and_store_interpolate(
-  const simulation_observation&                        obs,
-  const real                                           until,
-  function_ref<real(const observation_message&, time)> f,
-  ring_buffer<ImVec2>&                                 out) noexcept
-{
-    auto prev = obs.raw_ring_buffer.head();
-    auto et   = obs.raw_ring_buffer.end();
-    auto it   = prev;
-    ++it;
-
-    auto out_cb = [&out](real value, time t) {
-        out.force_emplace_enqueue(static_cast<float>(t),
-                                  static_cast<float>(value));
-    };
-
-    for (; it != et; ++it, ++prev)
-        compute_interpolate_step(*prev, it->t, obs.time_step, f, out_cb);
-
-    if (!time_domain<real>::is_infinity(until) && prev->t < until)
-        compute_interpolate_step(*prev, until, obs.time_step, f, out_cb);
-}
-
-static void compute_and_store_interpolate(
-  const simulation_observation&                        obs,
-  const real                                           until,
-  function_ref<real(const observation_message&, time)> f,
-  ImVector<ImVec2>&                                    out) noexcept
-{
-    auto prev = obs.raw_ring_buffer.head();
-    auto et   = obs.raw_ring_buffer.end();
-    auto it   = prev;
-    ++it;
-
-    auto out_cb = [&out](real value, time t) {
-        while (!out.empty() && out.back().x == static_cast<float>(t))
-            out.pop_back();
-
-        out.push_back(ImVec2(static_cast<float>(t), static_cast<float>(value)));
-    };
-
-    for (; it != et; ++it, ++prev)
-        compute_interpolate_step(*prev, it->t, obs.time_step, f, out_cb);
-
-    if (!time_domain<real>::is_infinity(until) && prev->t < until)
-        compute_interpolate_step(*prev, until, obs.time_step, f, out_cb);
-}
-
-static void compute_and_stream_interpolate(
-  const simulation_observation&                        obs,
-  const real                                           until,
-  std::ofstream&                                       ofs,
-  function_ref<real(const observation_message&, time)> f) noexcept
-{
-    auto prev = obs.raw_ring_buffer.head();
-    auto et   = obs.raw_ring_buffer.end();
-    auto it   = prev;
-    ++it;
-
-    auto out = [&ofs](real value, time t) { ofs << t << ',' << value << '\n'; };
-
-    for (; it != et; ++it, ++prev)
-        compute_interpolate_step(*prev, it->t, obs.time_step, f, out);
-
-    if (!time_domain<real>::is_infinity(until) && prev->t < until)
-        compute_interpolate_step(*prev, until, obs.time_step, f, out);
-}
-
-simulation_observation::simulation_observation(
-  model_id      mdl_,
-  dynamics_type type_,
-  i32           default_raw_length,
-  i32           default_linear_length) noexcept
+simulation_observation::simulation_observation(model_id mdl_,
+                                               i32 buffer_capacity) noexcept
   : model{ mdl_ }
-  , type{ type_ }
-  , raw_ring_buffer{ default_raw_length }
-  , linear_ring_buffer{ default_linear_length }
+  , linear_outputs{ buffer_capacity }
 {
-    irt_assert(default_raw_length > 0);
+    irt_assert(buffer_capacity > 0);
 }
 
-void simulation_observation::clear() noexcept
-{
-    raw_ring_buffer.clear();
-    linear_ring_buffer.clear();
-}
+void simulation_observation::clear() noexcept { linear_outputs.clear(); }
 
-void simulation_observation::save_raw(
+void simulation_observation::write(
   const std::filesystem::path& file_path) noexcept
 {
     try {
         if (auto ofs = std::ofstream{ file_path }; ofs.is_open()) {
-            const auto i_type = get_interpolate_type(type);
-            auto       it     = raw_ring_buffer.head();
-            auto       et     = raw_ring_buffer.end();
+            auto it = linear_outputs.head();
+            auto et = linear_outputs.end();
 
-            switch (i_type) {
-            case interpolate_type_qss1:
-                ofs << "t,value\n";
-                for (; it != et; ++it)
-                    ofs << it->t << ',' << it->msg[0] << '\n';
-                break;
-
-            case interpolate_type_qss2:
-                ofs << "t,value,value2\n";
-                for (; it != et; ++it)
-                    ofs << it->t << ',' << it->msg[0] << ',' << it->msg[1]
-                        << '\n';
-                break;
-
-            case interpolate_type_qss3:
-                ofs << "t,value,value2,value3\n";
-                for (; it != et; ++it)
-                    ofs << it->t << ',' << it->msg[0] << ',' << it->msg[1]
-                        << ',' << it->msg[2] << '\n';
-                break;
-
-            default:
-                ofs << "t,value\n";
-                for (; it != et; ++it)
-                    ofs << it->t << ',' << it->msg[0] << '\n';
-                break;
-            }
+            for (; it != et; ++it)
+                ofs << it->x << ',' << it->y << '\n';
         }
     } catch (const std::exception& /*e*/) {
     }
 }
 
-void simulation_observation::save_interpolate(
-  const std::filesystem::path& file_path) noexcept
+void simulation_observation::update(observer& obs) noexcept
 {
-    try {
-        if (auto ofs = std::ofstream{ file_path }; ofs.is_open()) {
-            const auto i_type = get_interpolate_type(type);
-            ofs << "t,value\n";
+    while (obs.buffer.size() > 2) {
+        auto it = std::back_insert_iterator<simulation_observation>(*this);
 
-            if (!raw_ring_buffer.empty()) {
-                switch (i_type) {
-                case interpolate_type_qss1:
-                    compute_and_stream_interpolate(
-                      *this, raw_ring_buffer.back().t, ofs, compute_value_1);
-                    break;
-
-                case interpolate_type_qss2:
-                    compute_and_stream_interpolate(
-                      *this, raw_ring_buffer.back().t, ofs, compute_value_2);
-                    break;
-
-                case interpolate_type_qss3:
-                    compute_and_stream_interpolate(
-                      *this, raw_ring_buffer.back().t, ofs, compute_value_3);
-                    break;
-
-                default:
-                    compute_and_stream_interpolate(
-                      *this, raw_ring_buffer.back().t, ofs, compute_value_0);
-                    break;
-                }
-            }
+        if (interpolate) {
+            write_interpolate_data(obs, it, time_step);
+        } else {
+            write_raw_data(obs, it);
         }
-    } catch (const std::exception& /*e*/) {
     }
 }
 
-void simulation_observation::compute_interpolate(
-  const real           until,
-  ring_buffer<ImVec2>& out) const noexcept
+void simulation_observation::flush(observer& obs) noexcept
 {
-    const auto i_type = get_interpolate_type(type);
+    auto it = std::back_insert_iterator<simulation_observation>(*this);
 
-    switch (i_type) {
-    case interpolate_type_qss1:
-        compute_and_store_interpolate(*this, until, compute_value_1, out);
-        break;
-
-    case interpolate_type_qss2:
-        compute_and_store_interpolate(*this, until, compute_value_2, out);
-        break;
-
-    case interpolate_type_qss3:
-        compute_and_store_interpolate(*this, until, compute_value_3, out);
-        break;
-
-    default:
-        compute_and_store_interpolate(*this, until, compute_value_0, out);
-        break;
-    }
-}
-
-void simulation_observation::compute_interpolate(
-  const real        until,
-  ImVector<ImVec2>& out) const noexcept
-{
-    const auto i_type = get_interpolate_type(type);
-
-    switch (i_type) {
-    case interpolate_type_qss1:
-        compute_and_store_interpolate(*this, until, compute_value_1, out);
-        break;
-
-    case interpolate_type_qss2:
-        compute_and_store_interpolate(*this, until, compute_value_2, out);
-        break;
-
-    case interpolate_type_qss3:
-        compute_and_store_interpolate(*this, until, compute_value_3, out);
-        break;
-
-    default:
-        compute_and_store_interpolate(*this, until, compute_value_0, out);
-        break;
-    }
-}
-
-static inline void simulation_observation_run(simulation_observation&  output,
-                                              const irt::observer&     obs,
-                                              const irt::dynamics_type type,
-                                              const irt::time /*tl*/,
-                                              const irt::time t) noexcept
-{
-    // Store only one raw value for a time.
-    while (!output.raw_ring_buffer.empty() &&
-           output.raw_ring_buffer.back().t == t)
-        output.raw_ring_buffer.pop_back();
-
-    if (output.raw_ring_buffer.empty()) {
-        output.raw_ring_buffer.force_emplace_enqueue(obs.msg, t);
-        output.limits.x = static_cast<float>(t);
-        output.limits.y = static_cast<float>(obs.msg[0]);
-        output.limits.z = static_cast<float>(t);
-        output.limits.w = static_cast<float>(obs.msg[0]);
-
+    if (interpolate) {
+        flush_interpolate_data(obs, it, time_step);
     } else {
-        const auto i_type   = get_interpolate_type(type);
-        auto       old_tail = output.raw_ring_buffer.tail();
-        output.raw_ring_buffer.force_emplace_enqueue(obs.msg, t);
-
-        output.limits.z = static_cast<float>(t);
-        output.limits.y = output.limits.y < static_cast<float>(obs.msg[0])
-                            ? output.limits.y
-                            : static_cast<float>(obs.msg[0]);
-        output.limits.w = output.limits.w > static_cast<float>(obs.msg[0])
-                            ? output.limits.w
-                            : static_cast<float>(obs.msg[0]);
-
-        auto out = [&output](real value, time t) {
-            output.linear_ring_buffer.force_emplace_enqueue(
-              static_cast<float>(value), static_cast<float>(t));
-        };
-
-        switch (i_type) {
-        case interpolate_type_qss1:
-            compute_interpolate_step(
-              *old_tail, t, output.time_step, compute_value_1, out);
-            break;
-
-        case interpolate_type_qss2:
-            compute_interpolate_step(
-              *old_tail, t, output.time_step, compute_value_2, out);
-            break;
-
-        case interpolate_type_qss3:
-            compute_interpolate_step(
-              *old_tail, t, output.time_step, compute_value_3, out);
-            break;
-
-        default:
-            compute_interpolate_step(
-              *old_tail, t, output.time_step, compute_value_0, out);
-            break;
-        }
+        flush_raw_data(obs, it);
     }
 }
 
-void simulation_observation_update(const irt::observer&        obs,
-                                   const irt::dynamics_type    type,
-                                   const irt::time             tl,
-                                   const irt::time             t,
-                                   const irt::observer::status s) noexcept
+void simulation_observation::push_back(real r) noexcept
 {
-    auto* s_ed   = reinterpret_cast<simulation_editor*>(obs.user_data);
-    auto  id     = enum_cast<simulation_observation_id>(obs.user_id);
-    auto* output = s_ed->sim_obs.try_to_get(id);
-    irt_assert(output);
-
-    if (s == observer::status::initialize) {
-        output->raw_ring_buffer.clear();
-        output->linear_ring_buffer.clear();
+    if (output_vec.size() >= 2) {
+        linear_outputs.push_back(ImPlotPoint{ output_vec[0], output_vec[1] });
+        output_vec.clear();
     }
 
-    const auto max_container_time =
-      output->time_step * output->linear_ring_buffer.capacity();
-    const auto max_time = t - tl;
-
-    // auto max_time = t - tl;
-    // max_time = (max_time < max_container_time) ? t : tl + max_container_time;
-
-    if (max_time < max_container_time)
-        simulation_observation_run(*output, obs, type, tl, t);
+    output_vec.emplace_back(r);
 }
 
 static void task_remove_simulation_observation_impl(void* param) noexcept
@@ -456,22 +102,6 @@ static void task_add_simulation_observation_impl(void* param) noexcept
     g_task->state = gui_task_status::finished;
 }
 
-auto values_getter = [](void* data, int idx) noexcept {
-    auto* obs   = reinterpret_cast<simulation_observation*>(data);
-    auto  index = obs->linear_ring_buffer.index_from_begin(idx);
-
-    return ImPlotPoint{ static_cast<double>(obs->linear_outputs[index].y),
-                        static_cast<double>(obs->linear_outputs[index].x) };
-};
-
-// auto zero_getter = [](void* data, int idx) noexcept {
-//     auto* obs   = reinterpret_cast<simulation_observation*>(data);
-//     auto  index = obs->linear_ring_buffer.index_from_begin(idx);
-
-//     return ImPlotPoint{ static_cast<double>(obs->linear_outputs[index].y),
-//                         0.0 };
-// };
-
 void task_remove_simulation_observation(application& app, model_id id) noexcept
 {
     auto& task   = app.gui_tasks.alloc();
@@ -489,6 +119,58 @@ void task_add_simulation_observation(application& app, model_id id) noexcept
     task.app     = &app;
     app.task_mgr.task_lists[0].add(task_add_simulation_observation_impl, &task);
     app.task_mgr.task_lists[0].submit();
+}
+
+void task_build_observation_output(void* param) noexcept
+{
+    auto* g_task = reinterpret_cast<gui_task*>(param);
+
+    g_task->state = gui_task_status::started;
+    g_task->app->state |= application_status_read_only_simulating |
+                          application_status_read_only_modeling;
+
+    for (auto obs_id : g_task->app->s_editor.sim.immediate_observers) {
+        if (auto* obs =
+              g_task->app->s_editor.sim.observers.try_to_get(obs_id)) {
+            auto sim_obs_id =
+              enum_cast<simulation_observation_id>(obs->user_id);
+            if (auto* sobs =
+                  g_task->app->s_editor.sim_obs.try_to_get(sim_obs_id);
+                sobs)
+                sobs->update(*obs);
+        }
+    }
+
+    // auto obs_id = enum_cast<observer_id>(g_task->param_1);
+    // if (auto* obs =
+    //       g_task->app->s_editor.sim.observers.try_to_get(obs_id)) {
+    //     auto sim_obs_id =
+    //       enum_cast<simulation_observation_id>(obs->user_id);
+    //     if (auto* sobs =
+    //           g_task->app->s_editor.sim_obs.try_to_get(sim_obs_id);
+    //         sobs)
+    //         sobs->update(*obs);
+    // }
+
+    g_task->state = gui_task_status::finished;
+}
+
+void simulation_editor::build_observation_output() noexcept
+{
+    fmt::print("Add task_build_observation_output\n");
+    auto* app = container_of(this, &application::s_editor);
+
+    fmt::print("simulation_editor gui_task: {} / {}\n",
+               app->gui_tasks.size(),
+               app->gui_tasks.capacity());
+
+    // for (auto elem : sim.immediate_observers) {
+    auto& task = app->gui_tasks.alloc();
+    task.app   = app;
+    // task.param_1 = ordinal(elem);
+    app->task_mgr.task_lists[0].add(task_build_observation_output, &task);
+    app->task_mgr.task_lists[0].submit();
+    // }
 }
 
 void application::show_simulation_observation_window() noexcept
@@ -514,7 +196,7 @@ void application::show_simulation_observation_window() noexcept
         int                     row = -1;
         while (s_editor.sim_obs.next(obs)) {
             ++row;
-            if (obs->linear_ring_buffer.empty())
+            if (obs->linear_outputs.empty())
                 continue;
 
             ImGui::TableNextRow();
@@ -535,25 +217,25 @@ void application::show_simulation_observation_window() noexcept
 
                 float start_t = obs->limits.x;
 
-                if (s_editor.scrolling) {
-                    start_t = obs->limits.z - s_editor.history;
-                    if (start_t < obs->limits.x)
-                        start_t = obs->limits.x;
-                }
+                // if (s_editor.scrolling) {
+                //     start_t = obs->limits.z - s_editor.history;
+                //     if (start_t < obs->limits.x)
+                //         start_t = obs->limits.x;
+                // }
 
-                ImPlot::SetupAxesLimits(start_t,
-                                        obs->limits.z,
-                                        obs->limits.y,
-                                        obs->limits.w,
-                                        ImGuiCond_Always);
+                // ImPlot::SetupAxesLimits(start_t,
+                //                         obs->limits.z,
+                //                         obs->limits.y,
+                //                         obs->limits.w,
+                //                         ImGuiCond_Always);
 
                 ImPlot::PushStyleColor(ImPlotCol_Line,
                                        ImPlot::GetColormapColor(row));
 
                 ImPlot::PlotLineG(obs->name.c_str(),
-                                  values_getter,
-                                  obs,
-                                  obs->linear_ring_buffer.ssize());
+                                  ring_buffer_getter,
+                                  &obs->linear_outputs,
+                                  obs->linear_outputs.ssize());
 
                 ImPlot::PopStyleColor();
                 ImPlot::EndPlot();

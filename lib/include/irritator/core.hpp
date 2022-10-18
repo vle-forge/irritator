@@ -1109,8 +1109,8 @@ public:
     constexpr ring_buffer(int capacity) noexcept;
     constexpr ~ring_buffer() noexcept;
 
-    constexpr ring_buffer(const ring_buffer& rhs) noexcept            = delete;
-    constexpr ring_buffer& operator=(const ring_buffer& rhs) noexcept = delete;
+    constexpr ring_buffer(const ring_buffer& rhs) noexcept;
+    constexpr ring_buffer& operator=(const ring_buffer& rhs) noexcept;
     constexpr ring_buffer(ring_buffer&& rhs) noexcept;
     constexpr ring_buffer& operator=(ring_buffer&& rhs) noexcept;
 
@@ -1140,6 +1140,11 @@ public:
     constexpr bool enqueue(const T& item) noexcept;
     constexpr void dequeue() noexcept;
 
+    constexpr T*       data() noexcept;
+    constexpr const T* data() const noexcept;
+    constexpr T&       operator[](int index) noexcept;
+    constexpr const T& operator[](int index) const noexcept;
+
     constexpr T&       front() noexcept;
     constexpr const T& front() const noexcept;
     constexpr T&       back() noexcept;
@@ -1149,6 +1154,9 @@ public:
     constexpr const_iterator head() const noexcept;
     constexpr iterator       tail() noexcept;
     constexpr const_iterator tail() const noexcept;
+
+    constexpr iterator       begin() noexcept;
+    constexpr const_iterator begin() const noexcept;
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
 
@@ -1235,7 +1243,7 @@ struct fixed_real_array
 
 using message             = fixed_real_array<3>;
 using dated_message       = fixed_real_array<4>;
-using observation_message = fixed_real_array<4>;
+using observation_message = fixed_real_array<5>;
 
 /*****************************************************************************
  *
@@ -2820,32 +2828,30 @@ constexpr sz dynamics_type_size() noexcept
 
 struct observer
 {
-    enum class status
-    {
-        initialize,
-        run,
-        finalize
-    };
+    static constexpr u8 flags_none           = 0;
+    static constexpr u8 flags_data_available = 1 << 0;
+    static constexpr u8 flags_buffer_full    = 1 << 1;
+    static constexpr u8 flags_data_lost      = 1 << 2;
 
-    using update_fn = void (*)(const observer&,
-                               const dynamics_type,
-                               const time,
-                               const time,
-                               const observer::status);
+    observer(std::string_view name_,
+             u64              user_id_   = 0,
+             i32              user_type_ = 0) noexcept;
 
-    observer(const char* name_,
-             update_fn   cb_,
-             void*       user_data_ = nullptr,
-             u64         user_id_   = 0,
-             i32         user_type_ = 0) noexcept;
+    void reset() noexcept;
+    void clear() noexcept;
+    void update(observation_message msg) noexcept;
 
-    update_fn           cb;
-    small_string<8>     name;
-    model_id            model = static_cast<model_id>(0);
-    observation_message msg;
-    void*               user_data = nullptr;
-    u64                 user_id   = 0;
-    i32                 user_type = 0;
+    bool full() const noexcept;
+
+    ring_buffer<observation_message> buffer;
+
+    model_id      model     = undefined<model_id>();
+    u64           user_id   = 0;
+    i32           user_type = 0;
+    dynamics_type type      = dynamics_type::qss1_integrator;
+
+    small_string<15> name;
+    u8               flags;
 };
 
 struct node
@@ -3139,9 +3145,9 @@ struct integrator
         return status::success;
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { last_output_value };
+        return { t, last_output_value };
     }
 
     status ta(simulation& sim) noexcept
@@ -3338,9 +3344,9 @@ struct abstract_integrator<1>
         return send_message(sim, y[0], X + u * sigma);
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { X, u };
+        return { t, X, u };
     }
 };
 
@@ -3504,9 +3510,9 @@ struct abstract_integrator<2>
           sim, y[0], X + u * sigma + mu * sigma * sigma / two, u + mu * sigma);
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { X, u, mu };
+        return { t, X, u, mu };
     }
 };
 
@@ -3847,9 +3853,9 @@ struct abstract_integrator<3>
                             mu / two + pu * sigma);
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { X, u, mu, pu };
+        return { t, X, u, mu, pu };
     }
 };
 
@@ -3942,9 +3948,19 @@ struct abstract_power
         return status::success;
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { value[0] };
+        if constexpr (QssLevel == 1) {
+            return { t, value[0] };
+        }
+
+        if constexpr (QssLevel == 2) {
+            return { t, value[0], value[1] };
+        }
+
+        if constexpr (QssLevel == 3) {
+            return { t, value[0], value[1], value[2] };
+        }
     }
 };
 
@@ -4030,9 +4046,19 @@ struct abstract_square
         return status::success;
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { value[0] };
+        if constexpr (QssLevel == 1) {
+            return { t, value[0] };
+        }
+
+        if constexpr (QssLevel == 2) {
+            return { t, value[0], value[1] };
+        }
+
+        if constexpr (QssLevel == 3) {
+            return { t, value[0], value[1], value[2] };
+        }
     }
 };
 
@@ -4163,27 +4189,39 @@ struct abstract_sum
         return status::success;
     }
 
-    observation_message observation(
-      [[maybe_unused]] const time e) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        real value = 0.;
-
         if constexpr (QssLevel == 1) {
+            real value = zero;
+
             for (size_t i = 0; i != PortNumber; ++i)
                 value += values[i];
+
+            return { t, value };
         }
 
         if constexpr (QssLevel >= 2) {
-            for (size_t i = 0; i != PortNumber; ++i)
-                value += values[i + PortNumber] * e;
+            real value_0 = zero, value_1 = zero;
+
+            for (size_t i = 0; i != PortNumber; ++i) {
+                value_0 += values[i];
+                value_1 += values[i + PortNumber];
+            }
+
+            return { t, value_0, value_1 };
         }
 
         if constexpr (QssLevel >= 3) {
-            for (size_t i = 0; i != PortNumber; ++i)
-                value += values[i + PortNumber + PortNumber] * e * e;
-        }
+            real value_0 = zero, value_1 = zero, value_2 = zero;
 
-        return { value };
+            for (size_t i = 0; i != PortNumber; ++i) {
+                value_0 += values[i];
+                value_1 += values[i + PortNumber];
+                value_2 += values[i + PortNumber + PortNumber];
+            }
+
+            return { t, value_0, value_1, value_2 };
+        }
     }
 };
 
@@ -4325,28 +4363,43 @@ struct abstract_wsum
         return status::success;
     }
 
-    observation_message observation(
-      [[maybe_unused]] const time e) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        real value = zero;
+        if constexpr (QssLevel == 1) {
+            real value = zero;
 
-        if constexpr (QssLevel >= 1) {
             for (int i = 0; i != PortNumber; ++i)
                 value += default_input_coeffs[i] * values[i];
+
+            return { t, value };
         }
 
-        if constexpr (QssLevel >= 2) {
-            for (int i = 0; i != PortNumber; ++i)
-                value += default_input_coeffs[i] * values[i + PortNumber] * e;
+        if constexpr (QssLevel == 2) {
+            real value = zero;
+            real slope = zero;
+
+            for (int i = 0; i != PortNumber; ++i) {
+                value += default_input_coeffs[i] * values[i];
+                slope += default_input_coeffs[i] * values[i + PortNumber];
+            }
+
+            return { t, value, slope };
         }
 
-        if constexpr (QssLevel >= 3) {
-            for (size_t i = 0; i != PortNumber; ++i)
-                value += default_input_coeffs[i] *
-                         values[i + PortNumber + PortNumber] * e * e;
-        }
+        if constexpr (QssLevel == 3) {
+            real value      = zero;
+            real slope      = zero;
+            real derivative = zero;
 
-        return { value };
+            for (int i = 0; i != PortNumber; ++i) {
+                value += default_input_coeffs[i] * values[i];
+                slope += default_input_coeffs[i] * values[i + PortNumber];
+                derivative +=
+                  default_input_coeffs[i] * values[i + PortNumber + PortNumber];
+            }
+
+            return { t, value, slope, derivative };
+        }
     }
 };
 
@@ -4470,21 +4523,26 @@ struct abstract_multiplier
         return status::success;
     }
 
-    observation_message observation(
-      [[maybe_unused]] const time e) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        if constexpr (QssLevel == 1)
-            return { values[0] * values[1] };
+        if constexpr (QssLevel == 1) {
+            return { t, values[0] * values[1] };
+        }
 
-        if constexpr (QssLevel == 2)
-            return { (values[0] + e * values[2 + 0]) *
-                     (values[1] + e * values[2 + 1]) };
+        if constexpr (QssLevel == 2) {
+            return { t,
+                     values[0] * values[1],
+                     values[2 + 0] * values[1] + values[2 + 1] * values[0] };
+        }
 
-        if constexpr (QssLevel == 3)
-            return {
-                (values[0] + e * values[2 + 0] + e * e * values[2 + 2 + 0]) *
-                (values[1] + e * values[2 + 1] + e * e * values[2 + 2 + 1])
-            };
+        if constexpr (QssLevel == 3) {
+            return { t,
+                     values[0] * values[1],
+                     values[2 + 0] * values[1] + values[2 + 1] * values[0],
+                     values[0] * values[2 + 2 + 1] +
+                       values[2 + 0] * values[2 + 1] +
+                       values[2 + 2 + 0] * values[1] };
+        }
     }
 };
 
@@ -4680,9 +4738,9 @@ struct quantifier
         return send_message(sim, y[0], m_upthreshold, m_downthreshold);
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { m_upthreshold, m_downthreshold };
+        return { t, m_upthreshold, m_downthreshold };
     }
 
 private:
@@ -4905,14 +4963,14 @@ struct adder
         return status::success;
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
         real ret = zero;
 
         for (size_t i = 0; i != PortNumber; ++i)
             ret += input_coeffs[i] * values[i];
 
-        return { ret };
+        return { t, ret };
     }
 };
 
@@ -4993,14 +5051,14 @@ struct mult
         return status::success;
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
         real ret = 1.0;
 
         for (size_t i = 0; i != PortNumber; ++i)
             ret *= std::pow(values[i], input_coeffs[i]);
 
-        return { ret };
+        return { t, ret };
     }
 };
 
@@ -5041,9 +5099,9 @@ struct counter
         return status::success;
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { static_cast<real>(number) };
+        return { t, static_cast<real>(number) };
     }
 };
 
@@ -5128,9 +5186,9 @@ struct generator
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { value };
+        return { t, value };
     }
 };
 
@@ -5178,9 +5236,9 @@ struct constant
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { value };
+        return { t, value };
     }
 };
 
@@ -5241,7 +5299,10 @@ struct filter
         return status::success;
     }
 
-    message observation(const time) const noexcept { return inValue[0]; }
+    observation_message observation(const time t) const noexcept
+    {
+        return { t, inValue[0] };
+    }
 };
 
 struct abstract_and_check
@@ -5336,9 +5397,9 @@ struct abstract_logical
         return status::success;
     }
 
-    message observation(const time) const noexcept
+    message observation(const time t) const noexcept
     {
-        return is_valid ? one : zero;
+        return { t, is_valid ? one : zero };
     }
 };
 
@@ -5393,9 +5454,9 @@ struct logical_invert
         return status::success;
     }
 
-    message observation(const time) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return value ? zero : one;
+        return { t, value ? zero : one };
     }
 };
 
@@ -5795,9 +5856,9 @@ struct cross
         return status::success;
     }
 
-    observation_message observation(const time /*e*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { value, if_value, else_value };
+        return { t, value, if_value, else_value };
     }
 };
 
@@ -6076,9 +6137,9 @@ struct abstract_cross
         return status::success;
     }
 
-    observation_message observation(const time /*t*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { value[0], if_value[0], else_value[0] };
+        return { t, value[0], if_value[0], else_value[0] };
     }
 };
 
@@ -6150,9 +6211,9 @@ struct time_func
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(const time /*t*/) const noexcept
+    observation_message observation(const time t) const noexcept
     {
-        return { value };
+        return { t, value };
     }
 };
 
@@ -7290,6 +7351,7 @@ struct simulation
     block_allocator<list_view_node<dated_message>> dated_message_alloc;
     vector<output_message>                         emitting_output_ports;
     vector<model_id>                               immediate_models;
+    vector<observer_id>                            immediate_observers;
     data_array<model, model_id>                    models;
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<observer, observer_id>              observers;
@@ -7326,6 +7388,7 @@ public:
 
         emitting_output_ports.reserve(model_capacity);
         immediate_models.reserve(model_capacity);
+        immediate_observers.reserve(model_capacity);
 
         return status::success;
     }
@@ -7365,6 +7428,7 @@ public:
 
         emitting_output_ports.clear();
         immediate_models.clear();
+        immediate_observers.clear();
     }
 
     //! @brief cleanup simulation and destroy all models and connections
@@ -7392,6 +7456,7 @@ public:
     {
         mdl.obs_id = observers.get_id(obs);
         obs.model  = models.get_id(mdl);
+        obs.type   = mdl.type;
     }
 
     void unobserve(model& mdl) noexcept
@@ -7494,10 +7559,15 @@ public:
 
         irt::observer* obs = nullptr;
         while (observers.next(obs)) {
+            obs->reset();
+
             if (auto* mdl = models.try_to_get(obs->model); mdl) {
-                obs->msg.reset();
-                obs->cb(
-                  *obs, mdl->type, mdl->tl, t, observer::status::initialize);
+                dispatch(*mdl, [&obs, t]<typename Dynamics>(Dynamics& dyn) {
+                    if constexpr (is_detected_v<observation_function_t,
+                                                Dynamics>) {
+                        obs->update(dyn.observation(t));
+                    }
+                });
             }
         }
 
@@ -7527,7 +7597,7 @@ public:
     //     for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
     //         auto* mdl =
     //         models.try_to_get(emitting_output_ports[i].model); if (!mdl)
-    //             continue;
+    //             continue
 
     //         sched.update(*mdl, t);
 
@@ -7582,13 +7652,15 @@ public:
     status make_transition(model& mdl, Dynamics& dyn, time t) noexcept
     {
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
-            if (mdl.obs_id != static_cast<observer_id>(0)) {
+            if (mdl.obs_id != undefined<observer_id>()) {
                 if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
-                    obs->msg = dyn.observation(t - mdl.tl);
-                    obs->cb(*obs, mdl.type, mdl.tl, t, observer::status::run);
-                } else {
-                    mdl.obs_id = static_cast<observer_id>(0);
+                    obs->update(dyn.observation(t));
+
+                    if (obs->full())
+                        immediate_observers.emplace_back(mdl.obs_id);
                 }
+            } else {
+                mdl.obs_id = static_cast<observer_id>(0);
             }
         }
 
@@ -7626,15 +7698,11 @@ public:
     }
 
     template<typename Dynamics>
-    status make_finalize(model&    mdl,
-                         Dynamics& dyn,
-                         observer* obs,
-                         time      t) noexcept
+    status make_finalize(Dynamics& dyn, observer* obs, time t) noexcept
     {
         if constexpr (is_detected_v<observation_function_t, Dynamics>) {
             if (obs) {
-                obs->msg = dyn.observation(t - mdl.tl);
-                obs->cb(*obs, mdl.type, mdl.tl, t, observer::status::finalize);
+                obs->update(dyn.observation(t));
             }
         }
 
@@ -7663,9 +7731,9 @@ public:
             if (is_defined(mdl->obs_id))
                 obs = observers.try_to_get(mdl->obs_id);
 
-            auto ret = dispatch(
-              *mdl, [this, mdl, obs, t]<typename Dynamics>(Dynamics& dyn) {
-                  return this->make_finalize(*mdl, dyn, obs, t);
+            auto ret =
+              dispatch(*mdl, [this, obs, t]<typename Dynamics>(Dynamics& dyn) {
+                  return this->make_finalize(dyn, obs, t);
               });
 
             irt_return_if_bad(ret);
@@ -8458,6 +8526,51 @@ constexpr ring_buffer<T>::ring_buffer(int capacity) noexcept
 }
 
 template<class T>
+constexpr ring_buffer<T>::ring_buffer(const ring_buffer& rhs) noexcept
+{
+    if (this != &rhs) {
+        clear();
+
+        if (m_capacity != rhs.m_capacity) {
+            g_free_fn(buffer);
+
+            if (rhs.m_capacity) {
+                buffer =
+                  reinterpret_cast<T*>(g_alloc_fn(rhs.m_capacity * sizeof(T)));
+                m_capacity = rhs.capacity;
+            }
+        }
+
+        for (auto it = rhs.begin(), et = rhs.end(); it != et; ++it)
+            push_back(*it);
+    }
+}
+
+template<class T>
+constexpr ring_buffer<T>& ring_buffer<T>::operator=(
+  const ring_buffer& rhs) noexcept
+{
+    if (this != &rhs) {
+        clear();
+
+        if (m_capacity != rhs.m_capacity) {
+            g_free_fn(buffer);
+
+            if (rhs.m_capacity > 0) {
+                buffer =
+                  reinterpret_cast<T*>(g_alloc_fn(rhs.m_capacity * sizeof(T)));
+                m_capacity = rhs.m_capacity;
+            }
+        }
+
+        for (auto it = rhs.begin(), et = rhs.end(); it != et; ++it)
+            push_back(*it);
+    }
+
+    return *this;
+}
+
+template<class T>
 constexpr ring_buffer<T>::ring_buffer(ring_buffer&& rhs) noexcept
 {
     buffer     = rhs.buffer;
@@ -8697,6 +8810,20 @@ constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::tail()
 }
 
 template<class T>
+constexpr typename ring_buffer<T>::iterator ring_buffer<T>::begin() noexcept
+{
+    return empty() ? iterator{ nullptr, 0 } : iterator{ this, m_head };
+}
+
+template<class T>
+constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::begin()
+  const noexcept
+{
+    return empty() ? const_iterator{ nullptr, 0 }
+                   : const_iterator{ this, m_head };
+}
+
+template<class T>
 constexpr typename ring_buffer<T>::iterator ring_buffer<T>::end() noexcept
 {
     return iterator{ nullptr, 0 };
@@ -8707,6 +8834,34 @@ constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::end()
   const noexcept
 {
     return const_iterator{ nullptr, 0 };
+}
+
+template<class T>
+constexpr T* ring_buffer<T>::data() noexcept
+{
+    return &buffer[0];
+}
+
+template<class T>
+constexpr const T* ring_buffer<T>::data() const noexcept
+{
+    return &buffer[0];
+}
+
+template<class T>
+constexpr T& ring_buffer<T>::operator[](int index) noexcept
+{
+    irt_assert(0 <= index && index < m_capacity);
+
+    return buffer[index];
+}
+
+template<class T>
+constexpr const T& ring_buffer<T>::operator[](int index) const noexcept
+{
+    irt_assert(0 <= index && index < m_capacity);
+
+    return buffer[index];
 }
 
 template<class T>
@@ -9062,18 +9217,55 @@ inline constexpr bool small_string<length>::operator<(
     return std::strncmp(m_buffer, rhs, length) < 0;
 }
 
-inline observer::observer(const char* name_,
-                          update_fn   cb_,
-                          void*       user_data_,
-                          u64         user_id_,
-                          i32         user_type_) noexcept
-  : cb(cb_)
-  , name(name_)
-  , user_data(user_data_)
-  , user_id(user_id_)
-  , user_type(user_type_)
+//! observer
+
+inline observer::observer(std::string_view name_,
+                          u64              user_id_,
+                          i32              user_type_) noexcept
+  : buffer{ 64 }
+  , user_id{ user_id_ }
+  , user_type{ user_type_ }
+  , name{ name_ }
+  , flags{ flags_none }
 {
 }
+
+inline void observer::reset() noexcept
+{
+    buffer.clear();
+    flags = flags_none;
+}
+
+inline void observer::clear() noexcept
+{
+    buffer.clear();
+    flags = (flags & flags_data_lost) ? flags_data_lost : flags_none;
+}
+
+inline void observer::update(observation_message msg) noexcept
+{
+    u8 new_flags = flags_data_available | (flags & flags_data_lost);
+
+    if (flags & flags_buffer_full)
+        new_flags |= flags_data_lost;
+
+    if (!buffer.empty() && buffer.tail()->data[0] == msg[0])
+        *(buffer.tail()) = msg;
+    else
+        buffer.force_enqueue(msg);
+
+    if (buffer.full())
+        new_flags |= flags_buffer_full;
+
+    flags = new_flags;
+}
+
+inline bool observer::full() const noexcept
+{
+    return flags & flags_buffer_full;
+}
+
+//! scheduller
 
 inline void scheduller::pop(vector<model_id>& out) noexcept
 {
@@ -9130,6 +9322,9 @@ inline status get_hierarchical_state_machine(simulation&                  sim,
 
 inline status simulation::run(time& t) noexcept
 {
+    immediate_models.clear();
+    immediate_observers.clear();
+
     if (sched.empty()) {
         t = time_domain<time>::infinity;
         return status::success;
@@ -9138,7 +9333,6 @@ inline status simulation::run(time& t) noexcept
     if (t = sched.tn(); time_domain<time>::is_infinity(t))
         return status::success;
 
-    immediate_models.clear();
     sched.pop(immediate_models);
 
     emitting_output_ports.clear();

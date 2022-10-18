@@ -9,7 +9,7 @@
 namespace irt {
 
 static constexpr const task_manager_parameters tm_params = {
-    .thread_number           = 3,
+    .thread_number           = 1,
     .simple_task_list_number = 1,
     .multi_task_list_number  = 0,
 };
@@ -377,7 +377,7 @@ static void application_manage_menu_action(application& app) noexcept
         }
     }
 
-    if (app.s_editor.output_ed.save_raw_file) {
+    if (app.s_editor.output_ed.write_output) {
         auto* obs =
           app.s_editor.sim_obs.try_to_get(app.s_editor.selected_sim_obs);
 
@@ -390,36 +390,12 @@ static void application_manage_menu_action(application& app) noexcept
             if (app.f_dialog.show_save_file(title, default_filename, filters)) {
                 if (app.f_dialog.state == file_dialog::status::ok) {
                     obs->file = app.f_dialog.result;
-                    obs->save_raw(obs->file);
+                    obs->write(obs->file);
                 }
 
                 app.s_editor.selected_sim_obs =
                   undefined<simulation_observation_id>();
-                app.s_editor.output_ed.save_raw_file = false;
-                app.f_dialog.clear();
-            }
-        }
-    }
-
-    if (app.s_editor.output_ed.save_int_file) {
-        auto* obs =
-          app.s_editor.sim_obs.try_to_get(app.s_editor.selected_sim_obs);
-
-        if (obs) {
-            const char*              title = "Select int. file path to save";
-            const std::u8string_view default_filename = u8"filename.txt";
-            const char8_t*           filters[]        = { u8".txt", nullptr };
-
-            ImGui::OpenPopup(title);
-            if (app.f_dialog.show_save_file(title, default_filename, filters)) {
-                if (app.f_dialog.state == file_dialog::status::ok) {
-                    obs->file = app.f_dialog.result;
-                    obs->save_interpolate(obs->file);
-                }
-
-                app.s_editor.selected_sim_obs =
-                  undefined<simulation_observation_id>();
-                app.s_editor.output_ed.save_int_file = false;
+                app.s_editor.output_ed.write_output = false;
                 app.f_dialog.clear();
             }
         }

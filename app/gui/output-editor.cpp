@@ -12,65 +12,18 @@
 namespace irt {
 
 static const char* simulation_plot_type_string[] = { "None",
-                                                     "Plot raw dot",
                                                      "Plot interpolate line",
                                                      "Plot interpolate dot" };
 
 output_editor::output_editor() noexcept
   : implot_context{ ImPlot::CreateContext() }
-{}
+{
+}
 
 output_editor::~output_editor() noexcept
 {
     if (implot_context)
         ImPlot::DestroyContext(implot_context);
-}
-
-static void compute_plot_outputs(simulation_editor&      sim_ed,
-                                 simulation_observation& obs) noexcept
-{
-    auto until = obs.raw_ring_buffer.size() > 0 ? obs.raw_ring_buffer.back().t
-                                                : sim_ed.simulation_current;
-
-    switch (obs.plot_type) {
-    case simulation_plot_type_raw:
-        obs.plot_outputs.clear();
-        for (auto it = obs.raw_ring_buffer.head();
-             it != obs.raw_ring_buffer.end();
-             ++it)
-            obs.plot_outputs.push_back(ImVec2(static_cast<float>(it->t),
-                                              static_cast<float>(it->msg[0])));
-        break;
-
-    case simulation_plot_type_plotlines:
-        obs.plot_outputs.clear();
-        obs.compute_interpolate(until, obs.plot_outputs);
-        break;
-
-    case simulation_plot_type_plotscatters:
-        obs.plot_outputs.clear();
-        obs.compute_interpolate(until, obs.plot_outputs);
-        break;
-
-    default:
-        obs.plot_outputs.clear();
-        break;
-    }
-}
-
-static void copy_simulation_observation(
-  const simulation_editor&      sim_ed,
-  const simulation_observation& obs,
-  simulation_observation_copy&  out) noexcept
-{
-    out.data.clear();
-    format(out.name, "{}-copy", obs.name.c_str());
-
-    const auto until = obs.raw_ring_buffer.size() > 0
-                         ? obs.raw_ring_buffer.back().t
-                         : sim_ed.simulation_current;
-
-    obs.compute_interpolate(until, out.data);
 }
 
 static void show_observation_table(simulation_editor& sim_ed) noexcept
@@ -115,47 +68,32 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->raw_ring_buffer.size());
+            ImGui::TextFormat("{}", out->linear_outputs.size());
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->raw_outputs.capacity());
+            ImGui::TextFormat("{}", out->linear_outputs.capacity());
 
             ImGui::TableNextColumn();
-            if (ImGui::Combo("##plot",
-                             &out->plot_type,
-                             simulation_plot_type_string,
-                             IM_ARRAYSIZE(simulation_plot_type_string))) {
-                compute_plot_outputs(sim_ed, *out);
-            }
-
-            ImGui::SameLine();
-            if (ImGui::Button("refresh")) {
-                compute_plot_outputs(sim_ed, *out);
-            }
+            ImGui::Combo("##plot",
+                         &out->plot_type,
+                         simulation_plot_type_string,
+                         IM_ARRAYSIZE(simulation_plot_type_string));
 
             ImGui::TableNextColumn();
             if (ImGui::Button("copy")) {
                 if (sim_ed.copy_obs.can_alloc(1)) {
-                    auto& new_obs = sim_ed.copy_obs.alloc();
-                    copy_simulation_observation(sim_ed, *out, new_obs);
+                    auto& new_obs          = sim_ed.copy_obs.alloc();
+                    new_obs.name           = out->name;
+                    new_obs.linear_outputs = out->linear_outputs;
                 }
             }
 
             ImGui::SameLine();
-            if (ImGui::Button("raw")) {
-                sim_ed.selected_sim_obs        = id;
-                sim_ed.output_ed.save_raw_file = true;
-                auto err                       = std::error_code{};
+            if (ImGui::Button("write")) {
+                sim_ed.selected_sim_obs       = id;
+                sim_ed.output_ed.write_output = true;
+                auto err                      = std::error_code{};
                 auto file_path = std::filesystem::current_path(err);
-                out->save_raw(file_path);
-            }
-
-            ImGui::SameLine();
-            if (ImGui::Button("int.")) {
-                sim_ed.selected_sim_obs        = id;
-                sim_ed.output_ed.save_int_file = true;
-                auto err                       = std::error_code{};
-                auto file_path = std::filesystem::current_path(err);
-                out->save_interpolate(file_path);
+                out->write(file_path);
             }
 
             ImGui::SameLine();
@@ -186,7 +124,7 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
             ImGui::TextUnformatted("-");
             ;
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", copy->data.size());
+            ImGui::TextFormat("{}", copy->linear_outputs.size());
 
             ImGui::TableNextColumn();
             ImGui::Combo("##plot",
@@ -247,33 +185,20 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
 
         simulation_observation* obs = nullptr;
         while (sim_ed.sim_obs.next(obs)) {
-            if (obs->plot_outputs.size() > 0) {
+            if (obs->linear_outputs.size() > 0) {
                 switch (obs->plot_type) {
-                case simulation_plot_type_raw:
-                    ImPlot::PlotScatter(obs->name.c_str(),
-                                        &obs->plot_outputs[0].x,
-                                        &obs->plot_outputs[0].y,
-                                        obs->plot_outputs.size(),
-                                        0,
-                                        sizeof(ImVec2));
-                    break;
-
                 case simulation_plot_type_plotlines:
-                    ImPlot::PlotLine(obs->name.c_str(),
-                                     &obs->plot_outputs[0].x,
-                                     &obs->plot_outputs[0].y,
-                                     obs->plot_outputs.size(),
-                                     0,
-                                     sizeof(ImVec2));
+                    ImPlot::PlotLineG(obs->name.c_str(),
+                                      ring_buffer_getter,
+                                      &obs->linear_outputs,
+                                      obs->linear_outputs.ssize());
                     break;
 
                 case simulation_plot_type_plotscatters:
-                    ImPlot::PlotScatter(obs->name.c_str(),
-                                        &obs->plot_outputs[0].x,
-                                        &obs->plot_outputs[0].y,
-                                        obs->plot_outputs.size(),
-                                        0,
-                                        sizeof(ImVec2));
+                    ImPlot::PlotScatterG(obs->name.c_str(),
+                                         ring_buffer_getter,
+                                         &obs->linear_outputs,
+                                         obs->linear_outputs.ssize());
                     break;
 
                 default:
@@ -284,33 +209,20 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
 
         simulation_observation_copy* copy = nullptr;
         while (sim_ed.copy_obs.next(copy)) {
-            if (copy->data.size() > 0) {
+            if (copy->linear_outputs.size() > 0) {
                 switch (copy->plot_type) {
-                case simulation_plot_type_raw:
-                    ImPlot::PlotScatter(copy->name.c_str(),
-                                        &copy->data[0].x,
-                                        &copy->data[0].y,
-                                        copy->data.size(),
-                                        0,
-                                        sizeof(ImVec2));
-                    break;
-
                 case simulation_plot_type_plotlines:
-                    ImPlot::PlotLine(copy->name.c_str(),
-                                     &copy->data[0].x,
-                                     &copy->data[0].y,
-                                     copy->data.size(),
-                                     0,
-                                     sizeof(ImVec2));
+                    ImPlot::PlotLineG(copy->name.c_str(),
+                                      ring_buffer_getter,
+                                      &copy->linear_outputs,
+                                      copy->linear_outputs.ssize());
                     break;
 
                 case simulation_plot_type_plotscatters:
-                    ImPlot::PlotScatter(copy->name.c_str(),
-                                        &copy->data[0].x,
-                                        &copy->data[0].y,
-                                        copy->data.size(),
-                                        0,
-                                        sizeof(ImVec2));
+                    ImPlot::PlotScatterG(copy->name.c_str(),
+                                         ring_buffer_getter,
+                                         &copy->linear_outputs,
+                                         copy->linear_outputs.ssize());
                     break;
 
                 default:

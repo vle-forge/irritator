@@ -8,6 +8,7 @@
 #include <irritator/external_source.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
+#include <irritator/observation.hpp>
 
 #include <fmt/format.h>
 
@@ -23,44 +24,67 @@
 
 struct file_output
 {
-    std::FILE*  os = nullptr;
-    std::string filename;
+    using value_type = irt::real;
 
-    file_output(const std::string_view name)
-      : filename(name)
+    std::FILE*            os = nullptr;
+    irt::observer&        obs;
+    irt::interpolate_type type        = irt::interpolate_type::none;
+    irt::real             time_step   = 1e-3;
+    bool                  interpolate = true;
+
+    irt::small_vector<irt::real, 2> vec;
+
+    file_output(irt::observer& obs_, const char* filename) noexcept
+      : os{ nullptr }
+      , obs{ obs_ }
+      , type{ get_interpolate_type(obs.type) }
     {
-        os = std::fopen(filename.c_str(), "w");
+        if (os = std::fopen(filename, "w"); os)
+            fmt::print(os, "t,{}\n", obs_.name.c_str());
     }
 
-    ~file_output()
+    void push_back(irt::real r) noexcept
+    {
+        if (vec.size() >= 2) {
+            fmt::print(os, "{},{}\n", vec[0], vec[1]);
+            vec.clear();
+        }
+
+        vec.emplace_back(r);
+    }
+
+    void write() noexcept
+    {
+        if (obs.buffer.size() > 2) {
+            auto it = std::back_insert_iterator<file_output>(*this);
+
+            if (interpolate) {
+                write_interpolate_data(obs, it, time_step);
+            } else {
+                write_raw_data(obs, it);
+            }
+        }
+    }
+
+    void flush() noexcept
+    {
+        auto it = std::back_insert_iterator<file_output>(*this);
+
+        if (interpolate) {
+            flush_interpolate_data(obs, it, time_step);
+        } else {
+            flush_raw_data(obs, it);
+        }
+
+        std::fflush(os);
+    }
+
+    ~file_output() noexcept
     {
         if (os)
             std::fclose(os);
     }
 };
-
-void file_output_callback(const irt::observer& obs,
-                          const irt::dynamics_type /*type*/,
-                          const irt::time /*tl*/,
-                          const irt::time             t,
-                          const irt::observer::status s) noexcept
-{
-    auto* fo = reinterpret_cast<file_output*>(obs.user_data);
-
-    switch (s) {
-    case irt::observer::status::initialize:
-        fmt::print(fo->os, "t,{}\n", obs.name.c_str());
-        break;
-
-    case irt::observer::status::run:
-        fmt::print(fo->os, "{},{}\n", t, obs.msg.data[0]);
-        break;
-
-    case irt::observer::status::finalize:
-        fmt::print(fo->os, "{},{}\n", t, obs.msg.data[0]);
-        break;
-    }
-}
 
 bool function_ref_called = false;
 
@@ -1905,13 +1929,13 @@ int main()
         expect(sim.connect(integrator_b, 0, quantifier_b, 0) ==
                irt::status::success);
 
-        file_output fo_a("lotka-volterra_a.csv");
-        file_output fo_b("lotka-volterra_b.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_a(obs_a, "lotka-volterra_a.csv");
+        file_output fo_b(obs_b, "lotka-volterra_b.csv");
+
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -1924,7 +1948,13 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::real(15));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "izhikevitch_simulation"_test = [] {
@@ -2029,14 +2059,13 @@ int main()
         expect(sim.connect(integrator_b, 0, sum_d, 0) == irt::status::success);
         expect(sim.connect(constant, 0, sum_d, 1) == irt::status::success);
 
-        file_output fo_a("izhikevitch_a.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "izhikevitch_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-
-        file_output fo_b("izhikevitch_b.csv");
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "izhikevitch_b.csv");
         expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2049,7 +2078,13 @@ int main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::real(120));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "lotka_volterra_simulation_qss1"_test = [] {
@@ -2092,13 +2127,12 @@ int main()
         expect(sim.connect(product, 0, sum_a, 1) == irt::status::success);
         expect(sim.connect(product, 0, sum_b, 1) == irt::status::success);
 
-        file_output fo_a("lotka-volterra-qss1_a.csv");
-        file_output fo_b("lotka-volterra-qss1_b.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "lotka-volterra-qss1_a.csv");
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "lotka-volterra-qss1_b.csv");
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2111,7 +2145,13 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::real(15));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "lotka_volterra_simulation_qss2"_test = [] {
@@ -2154,13 +2194,12 @@ int main()
         expect(sim.connect(product, 0, sum_a, 1) == irt::status::success);
         expect(sim.connect(product, 0, sum_b, 1) == irt::status::success);
 
-        file_output fo_a("lotka-volterra-qss2_a.csv");
-        file_output fo_b("lotka-volterra-qss2_b.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "lotka-volterra-qss2_a.csv");
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "lotka-volterra-qss2_b.csv");
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2173,7 +2212,13 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::real(15));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "lif_simulation_qss"_test = [] {
@@ -2225,10 +2270,9 @@ int main()
                irt::status::success);
         expect(sim.connect(I, 0, sum, 1) == irt::status::success);
 
-        file_output fo_a("lif-qss.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "lif-qss.csv");
         expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
 
         sim.observe(irt::get_model(integrator), obs_a);
 
@@ -2240,7 +2284,10 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+            fo_a.write();
         } while (t < irt::time(100));
+
+        fo_a.flush();
     };
 
     "lif_simulation_qss1"_test = [] {
@@ -2285,10 +2332,9 @@ int main()
         expect(sim.connect(constant, 0, sum, 1) == irt::status::success);
         expect(sim.connect(sum, 0, integrator, 0) == irt::status::success);
 
-        file_output fo_a("lif-qss1.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "lif-qss1.csv");
         expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
 
         sim.observe(irt::get_model(integrator), obs_a);
 
@@ -2300,7 +2346,11 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
         } while (t < irt::time{ 100.0 });
+
+        fo_a.flush();
     };
 
     "lif_simulation_qss2"_test = [] {
@@ -2348,10 +2398,9 @@ int main()
         expect(sim.connect(constant, 0, sum, 1) == irt::status::success);
         expect(sim.connect(sum, 0, integrator, 0) == irt::status::success);
 
-        file_output fo_a("lif-qss2.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "lif-qss2.csv");
         expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
 
         sim.observe(irt::get_model(integrator), obs_a);
 
@@ -2364,7 +2413,11 @@ int main()
             // printf("--------------------------------------------\n");
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
         } while (t < irt::time(100));
+
+        fo_a.flush();
     };
 
     "izhikevich_simulation_qss1"_test = [] {
@@ -2450,14 +2503,13 @@ int main()
         expect(sim.connect(integrator_b, 0, sum_d, 0) == irt::status::success);
         expect(sim.connect(constant, 0, sum_d, 1) == irt::status::success);
 
-        file_output fo_a("izhikevitch-qss1_a.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "izhikevitch-qss1_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-
-        file_output fo_b("izhikevitch-qss1_b.csv");
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "izhikevitch-qss1_b.csv");
         expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2470,7 +2522,13 @@ int main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::time(140));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "izhikevich_simulation_qss2"_test = [] {
@@ -2556,14 +2614,13 @@ int main()
         expect(sim.connect(integrator_b, 0, sum_d, 0) == irt::status::success);
         expect(sim.connect(constant, 0, sum_d, 1) == irt::status::success);
 
-        file_output fo_a("izhikevitch-qss2_a.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "izhikevitch-qss2_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-
-        file_output fo_b("izhikevitch-qss2_b.csv");
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "izhikevitch-qss2_b.csv");
         expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2576,7 +2633,13 @@ int main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::time(140));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "lotka_volterra_simulation_qss3"_test = [] {
@@ -2619,13 +2682,12 @@ int main()
         expect(sim.connect(product, 0, sum_a, 1) == irt::status::success);
         expect(sim.connect(product, 0, sum_b, 1) == irt::status::success);
 
-        file_output fo_a("lotka-volterra-qss3_a.csv");
-        file_output fo_b("lotka-volterra-qss3_b.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "lotka-volterra-qss3_a.csv");
         expect(fo_a.os != nullptr);
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "lotka-volterra-qss3_b.csv");
         expect(fo_b.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2638,7 +2700,13 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::time(15));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "lif_simulation_qss3"_test = [] {
@@ -2686,10 +2754,9 @@ int main()
         expect(sim.connect(constant, 0, sum, 1) == irt::status::success);
         expect(sim.connect(sum, 0, integrator, 0) == irt::status::success);
 
-        file_output fo_a("lif-qss3.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "lif-qss3.csv");
         expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
 
         sim.observe(irt::get_model(integrator), obs_a);
 
@@ -2702,7 +2769,10 @@ int main()
             // printf("--------------------------------------------\n");
             auto st = sim.run(t);
             expect(st == irt::status::success);
+            fo_a.write();
         } while (t < irt::time(100));
+
+        fo_a.flush();
     };
 
     "izhikevich_simulation_qss3"_test = [] {
@@ -2788,14 +2858,13 @@ int main()
         expect(sim.connect(integrator_b, 0, sum_d, 0) == irt::status::success);
         expect(sim.connect(constant, 0, sum_d, 1) == irt::status::success);
 
-        file_output fo_a("izhikevitch-qss3_a.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "izhikevitch-qss3_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-
-        file_output fo_b("izhikevitch-qss3_b.csv");
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "izhikevitch-qss3_b.csv");
         expect(fo_b.os != nullptr);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2808,7 +2877,13 @@ int main()
         do {
             irt::status st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::time(140));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "van_der_pol_simulation"_test = [] {
@@ -2876,13 +2951,13 @@ int main()
         expect(sim.connect(integrator_b, 0, quantifier_b, 0) ==
                irt::status::success);
 
-        file_output fo_a("van_der_pol_a.csv");
-        file_output fo_b("van_der_pol_b.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "van_der_pol_a.csv");
         expect(fo_a.os != nullptr);
-        expect(fo_b.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "van_der_pol_b.csv");
+        expect(fo_b.os != nullptr);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2895,7 +2970,13 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::time(150));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "van_der_pol_simulation_qss3"_test = [] {
@@ -2940,13 +3021,13 @@ int main()
         expect(sim.connect(integrator_a, 0, product2, 1) ==
                irt::status::success);
 
-        file_output fo_a("van_der_pol_qss3_a.csv");
-        file_output fo_b("van_der_pol_qss3_b.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "van_der_pol_qss3_a.csv");
         expect(fo_a.os != nullptr);
-        expect(fo_b.os != nullptr);
 
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
-        auto& obs_b = sim.observers.alloc("B", file_output_callback, &fo_b);
+        auto&       obs_b = sim.observers.alloc("B", 0, 0);
+        file_output fo_b(obs_b, "van_der_pol_qss3_b.csv");
+        expect(fo_b.os != nullptr);
 
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
@@ -2959,7 +3040,13 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
+            fo_b.write();
         } while (t < irt::time(1500.0));
+
+        fo_a.flush();
+        fo_b.flush();
     };
 
     "neg_lif_simulation_qss1"_test = [] {
@@ -3007,10 +3094,9 @@ int main()
         expect(sim.connect(constant, 0, sum, 1) == irt::status::success);
         expect(sim.connect(sum, 0, integrator, 0) == irt::status::success);
 
-        file_output fo_a("neg-lif-qss1.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "neg-lif-qss1.csv");
         expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
 
         sim.observe(irt::get_model(integrator), obs_a);
 
@@ -3022,7 +3108,10 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+            fo_a.write();
         } while (t < irt::time(100));
+
+        fo_a.flush();
     };
 
     "neg_lif_simulation_qss2"_test = [] {
@@ -3070,10 +3159,9 @@ int main()
         expect(sim.connect(constant, 0, sum, 1) == irt::status::success);
         expect(sim.connect(sum, 0, integrator, 0) == irt::status::success);
 
-        file_output fo_a("neg-lif-qss2.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "neg-lif-qss2.csv");
         expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
 
         sim.observe(irt::get_model(integrator), obs_a);
 
@@ -3085,7 +3173,11 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+
+            fo_a.write();
         } while (t < irt::time(100.0));
+
+        fo_a.flush();
     };
 
     "neg_lif_simulation_qss3"_test = [] {
@@ -3133,10 +3225,9 @@ int main()
         expect(sim.connect(constant, 0, sum, 1) == irt::status::success);
         expect(sim.connect(sum, 0, integrator, 0) == irt::status::success);
 
-        file_output fo_a("neg-lif-qss3.csv");
+        auto&       obs_a = sim.observers.alloc("A", 0, 0);
+        file_output fo_a(obs_a, "neg-lif-qss3.csv");
         expect(fo_a.os != nullptr);
-
-        auto& obs_a = sim.observers.alloc("A", file_output_callback, &fo_a);
 
         sim.observe(irt::get_model(integrator), obs_a);
 
@@ -3148,7 +3239,10 @@ int main()
         do {
             auto st = sim.run(t);
             expect(st == irt::status::success);
+            fo_a.write();
         } while (t < irt::time(100.0));
+
+        fo_a.flush();
     };
 
     "all"_test = [] {

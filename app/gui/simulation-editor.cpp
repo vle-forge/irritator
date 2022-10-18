@@ -697,17 +697,12 @@ void simulation_editor::add_simulation_observation_for(std::string_view name,
 {
     if (auto* mdl = sim.models.try_to_get(mdl_id); mdl) {
         if (sim.observers.can_alloc(1) && sim_obs.can_alloc(1)) {
-            auto& obs    = sim_obs.alloc(mdl_id, mdl->type, 4096, 32768);
-            auto  obs_id = sim_obs.get_id(obs);
+            auto& sobs    = sim_obs.alloc(mdl_id, 32768);
+            auto  sobs_id = sim_obs.get_id(sobs);
+            sobs.name     = name;
 
-            obs.name = name;
-
-            auto& output = sim.observers.alloc(obs.name.c_str(),
-                                               simulation_observation_update,
-                                               this,
-                                               ordinal(obs_id),
-                                               0);
-            sim.observe(*mdl, output);
+            auto& obs = sim.observers.alloc(name, ordinal(sobs_id), 0);
+            sim.observe(*mdl, obs);
         } else {
             if (!sim.observers.can_alloc(1)) {
                 auto* app = container_of(this, &application::s_editor);
@@ -876,14 +871,6 @@ static void free_children(simulation_editor&   ed,
 
         const auto child_id = ed.sim.models.get_id(mdl);
         ed.sim.deallocate(child_id);
-
-        // TODO observation
-        // observation_dispatch(get_index(child_id),
-        //                     [](auto& outs, const auto id) {
-        //                     outs.free(id);
-        //                     });
-
-        // observation_outputs[get_index(child_id)] = std::monostate{};
     }
 }
 

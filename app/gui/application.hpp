@@ -8,6 +8,7 @@
 #include <irritator/core.hpp>
 #include <irritator/external_source.hpp>
 #include <irritator/modeling.hpp>
+#include <irritator/observation.hpp>
 #include <irritator/thread.hpp>
 #include <irritator/timeline.hpp>
 
@@ -109,7 +110,6 @@ enum application_status_
 enum simulation_plot_
 {
     simulation_plot_type_none,
-    simulation_plot_type_raw,
     simulation_plot_type_plotlines,
     simulation_plot_type_plotscatters
 };
@@ -148,10 +148,9 @@ public:
     void show() noexcept;
 
 private:
-    data_array<notification, notification_id>        data;
-    std::array<notification_id, notification_number> buffer;
-    ring_buffer<notification_id>                     r_buffer;
-    std::mutex                                       mutex;
+    data_array<notification, notification_id> data;
+    ring_buffer<notification_id>              r_buffer;
+    std::mutex                                mutex;
 };
 
 struct window_logger
@@ -183,16 +182,19 @@ struct raw_observation
 
 struct simulation_observation
 {
-    model_id                     model = undefined<model_id>();
-    dynamics_type                type  = dynamics_type::constant;
-    u64                          plot_id;
-    small_string<16u>            name;
-    vector<raw_observation>      raw_outputs;
-    vector<ImVec2>               linear_outputs;
-    ImVector<ImVec2>             plot_outputs;
-    ring_buffer<raw_observation> raw_ring_buffer;
-    ring_buffer<ImVec2>          linear_ring_buffer;
-    ImVec4                       limits;
+    using value_type = irt::real;
+
+    model_id         model  = undefined<model_id>();
+    interpolate_type i_type = interpolate_type::none;
+
+    irt::small_vector<double, 2> output_vec;
+    bool                         interpolate = false;
+
+    u64               plot_id;
+    small_string<16u> name;
+
+    ring_buffer<ImPlotPoint> linear_outputs;
+    ImVec4                   limits;
 
     std::filesystem::path file;
 
@@ -202,34 +204,33 @@ struct simulation_observation
 
     simulation_plot_type plot_type = simulation_plot_type_none;
 
-    simulation_observation(model_id      mdl,
-                           dynamics_type type,
-                           i32           default_raw_length,
-                           i32           default_linear_length) noexcept;
+    simulation_observation(model_id mdl, i32 buffer_capacity) noexcept;
 
     void clear() noexcept;
 
-    void save_raw(const std::filesystem::path& file_path) noexcept;
-    void save_interpolate(const std::filesystem::path& file_path) noexcept;
+    void update(observer& obs) noexcept;
+    void flush(observer& obs) noexcept;
+    void push_back(real r) noexcept;
 
-    void compute_interpolate(const real           until,
-                             ring_buffer<ImVec2>& out) const noexcept;
-    void compute_interpolate(const real        until,
-                             ImVector<ImVec2>& out) const noexcept;
+    void write(const std::filesystem::path& file_path) noexcept;
+};
+
+// Callback function use into ImPlot::Plot like functions that use ring_buffer
+// to read a large buffer instead of a vector.
+inline ImPlotPoint ring_buffer_getter(void* data, int idx) noexcept
+{
+    auto* ring  = reinterpret_cast<ring_buffer<ImPlotPoint>*>(data);
+    auto  index = ring->index_from_begin(idx);
+
+    return ImPlotPoint{ (*ring)[index].x, (*ring)[index].y };
 };
 
 struct simulation_observation_copy
 {
-    small_string<16u>    name;
-    ImVector<ImVec2>     data;
-    simulation_plot_type plot_type = simulation_plot_type_none;
+    small_string<16u>        name;
+    ring_buffer<ImPlotPoint> linear_outputs;
+    simulation_plot_type     plot_type = simulation_plot_type_none;
 };
-
-void simulation_observation_update(const observer&        obs,
-                                   const dynamics_type    type,
-                                   const time             tl,
-                                   const time             t,
-                                   const observer::status s) noexcept;
 
 void save_component(void* param) noexcept;
 void save_description(void* param) noexcept;
@@ -237,6 +238,7 @@ void load_project(void* param) noexcept;
 void save_project(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
+void task_build_observation_output(void* param) noexcept;
 
 struct gui_task
 {
@@ -257,8 +259,7 @@ struct output_editor
 
     ImPlotContext* implot_context = nullptr;
 
-    bool save_raw_file = false;
-    bool save_int_file = false;
+    bool write_output = false;
 };
 
 struct simulation_editor
@@ -295,6 +296,10 @@ struct simulation_editor
     void remove_simulation_observation_from(model_id id) noexcept;
     void add_simulation_observation_for(std::string_view name,
                                         model_id         id) noexcept;
+
+    // Used to add GUI task @c task_build_observation_output, one per
+    // observer_id, from the simulation immediate observers.
+    void build_observation_output() noexcept;
 
     bool can_edit() const noexcept;
 
