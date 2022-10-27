@@ -8,12 +8,6 @@
 
 namespace irt {
 
-static constexpr const task_manager_parameters tm_params = {
-    .thread_number           = 3,
-    .simple_task_list_number = 1,
-    .multi_task_list_number  = 0,
-};
-
 static constexpr const i32 gui_task_number = 64;
 
 static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
@@ -35,29 +29,27 @@ void settings_manager::update() noexcept
 }
 
 application::application() noexcept
-  : task_mgr(tm_params)
+  : task_mgr{ 4, 1 }
 {
     irt_assert(task_mgr.workers.size() >= 1);
     irt_assert(task_mgr.task_lists.size() >= 1);
 
+    gui_tasks.init(gui_task_number);
+
     task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
-    //for (int i = 0, e = task_mgr.workers.ssize(); i != e; ++i)
-    //    task_mgr.workers[i].task_lists.emplace_back(&task_mgr.task_lists[0]);
+    // for (int i = 0, e = task_mgr.workers.ssize(); i != e; ++i)
+    //     task_mgr.workers[i].task_lists.emplace_back(&task_mgr.task_lists[0]);
 
     log_w.log(7, "GUI Irritator start\n");
 
-    log_w.log(7, "Start with %d threads\n", tm_params.thread_number);
-
     log_w.log(7,
-              "%d simple task list and %d multi task list\n",
-              tm_params.simple_task_list_number,
-              tm_params.multi_task_list_number);
+              "Start with %d threads and %d task lists\n",
+              task_mgr.workers.ssize(),
+              task_mgr.task_lists.ssize());
 
-    log_w.log(
-      7, "Task manager started - %d tasks availables\n", gui_task_number);
+    log_w.log(7, "Initialization successfull");
 
     task_mgr.start();
-    gui_tasks.init(gui_task_number);
 
     settings.update();
 }

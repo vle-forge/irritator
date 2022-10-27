@@ -87,9 +87,7 @@ static_assert((sizeof(void*) == 8 && sizeof(task) == 8 + 8 + 6 + 1 + 1) ||
 struct task_list
 {
     small_vector<task, 256> submit_task;
-
-    std::array<task, 256> task_buffer;
-    ring_buffer<task>     tasks;
+    ring_buffer<task>       tasks;
 
     std::mutex              mutex;
     std::condition_variable cond;
@@ -138,20 +136,13 @@ struct worker
     bool                                                  is_running = false;
 };
 
-struct task_manager_parameters
-{
-    i32 thread_number           = 3;
-    i32 simple_task_list_number = 1;
-    i32 multi_task_list_number  = 1;
-};
-
 class task_manager
 {
 public:
     small_vector<task_list, task_manager_list_max> task_lists;
     small_vector<worker, task_manager_worker_max>  workers;
 
-    task_manager(const task_manager_parameters& params) noexcept;
+    task_manager(int thread_number, int task_list_number) noexcept;
 
     task_manager(task_manager&& params)          = delete;
     task_manager(const task_manager& params)     = delete;
@@ -374,13 +365,18 @@ inline void worker::join() noexcept
     task_manager
  */
 
-inline task_manager::task_manager(
-  const task_manager_parameters& params) noexcept
+inline task_manager::task_manager(int thread_number,
+                                  int task_list_number) noexcept
 {
-    for (auto i = 0; i < params.thread_number; ++i)
+    irt_assert(1 <= thread_number);
+    irt_assert(thread_number < workers.capacity());
+    irt_assert(1 <= task_list_number);
+    irt_assert(task_list_number < task_lists.capacity());
+
+    for (auto i = 0; i < thread_number; ++i)
         workers.emplace_back();
 
-    for (auto i = 0; i < params.simple_task_list_number; ++i)
+    for (auto i = 0; i < task_list_number; ++i)
         task_lists.emplace_back();
 }
 
