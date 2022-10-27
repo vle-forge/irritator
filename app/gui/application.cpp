@@ -9,7 +9,7 @@
 namespace irt {
 
 static constexpr const task_manager_parameters tm_params = {
-    .thread_number           = 1,
+    .thread_number           = 3,
     .simple_task_list_number = 1,
     .multi_task_list_number  = 0,
 };
@@ -37,8 +37,12 @@ void settings_manager::update() noexcept
 application::application() noexcept
   : task_mgr(tm_params)
 {
-    for (int i = 0, e = task_mgr.workers.ssize(); i != e; ++i)
-        task_mgr.workers[i].task_lists.emplace_back(&task_mgr.task_lists[0]);
+    irt_assert(task_mgr.workers.size() >= 1);
+    irt_assert(task_mgr.task_lists.size() >= 1);
+
+    task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
+    //for (int i = 0, e = task_mgr.workers.ssize(); i != e; ++i)
+    //    task_mgr.workers[i].task_lists.emplace_back(&task_mgr.task_lists[0]);
 
     log_w.log(7, "GUI Irritator start\n");
 
