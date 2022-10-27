@@ -59,12 +59,29 @@ using task_function = void (*)(void*) noexcept;
 
 struct task
 {
-    constexpr task() noexcept = default;
-    constexpr task(task_function function_, void* parameter_) noexcept;
+    // Any worker can run this job without constraint.
+    static constexpr u8 normal_task = 0;
 
-    task_function function  = nullptr;
-    void*         parameter = nullptr;
+    // ?
+    static constexpr u8 signal_task = 1 << 0;
+
+    // All workers attached to the task-list are blocked until
+    // the current job is done.
+    static constexpr u8 synchronize_task = 1 << 1;
+
+    constexpr task() noexcept = default;
+    constexpr task(task_function function_,
+                   void*         parameter_,
+                   u8            flags = normal_task) noexcept;
+
+    task_function   function  = nullptr;
+    void*           parameter = nullptr;
+    small_string<6> name;
+    u8              flags = normal_task;
 };
+
+static_assert((sizeof(void*) == 8 && sizeof(task) == 8 + 8 + 6 + 1 + 1) ||
+              (sizeof(void*) == 4 && sizeof(task) == 4 + 4 + 6 + 1 + 1));
 
 //! @brief Simple task list access by only one thread
 struct task_list
@@ -187,9 +204,12 @@ inline scoped_spin_lock::~scoped_spin_lock() noexcept { spin.unlock(); }
     task
  */
 
-constexpr task::task(task_function function_, void* parameter_) noexcept
+constexpr task::task(task_function function_,
+                     void*         parameter_,
+                     u8            flags_) noexcept
   : function(function_)
   , parameter(parameter_)
+  , flags(flags_)
 {
 }
 
