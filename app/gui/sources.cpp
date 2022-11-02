@@ -243,9 +243,10 @@ void task_try_init_source(application& app, u64 id, i32 type) noexcept
     task.param_1 = id;
     task.param_2 = static_cast<u64>(type);
 
-    app.task_mgr.task_lists[0].add(task_try_init_source, &task);
-    app.task_mgr.task_lists[0].submit();
+    app.task_mgr.main_task_lists[0].add(task_try_init_source, &task);
+    app.task_mgr.main_task_lists[0].submit();
 }
+
 data_window::data_window() noexcept
   : context{ ImPlot::CreateContext() }
 {

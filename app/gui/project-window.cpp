@@ -378,8 +378,9 @@ static void show_hierarchy_settings(component_editor& ed,
                             task.app   = app;
                             task.param_1 =
                               ordinal(ed.mod.components.get_id(*compo));
-                            app->task_mgr.task_lists[0].add(save_component,
-                                                            &task);
+                            app->task_mgr.main_task_lists[1].add(save_component,
+                                                                 &task);
+                            app->task_mgr.main_task_lists[1].submit();
                         }
 
                         {
@@ -387,11 +388,10 @@ static void show_hierarchy_settings(component_editor& ed,
                             task.app   = app;
                             task.param_1 =
                               ordinal(ed.mod.components.get_id(*compo));
-                            app->task_mgr.task_lists[0].add(save_description,
-                                                            &task);
+                            app->task_mgr.main_task_lists[1].add(
+                              save_description, &task);
+                                app->task_mgr.main_task_lists[1].submit();
                         }
-
-                        app->task_mgr.task_lists[0].submit();
                     }
                 }
             }

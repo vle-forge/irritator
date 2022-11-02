@@ -107,9 +107,10 @@ void task_remove_simulation_observation(application& app, model_id id) noexcept
     auto& task   = app.gui_tasks.alloc();
     task.param_1 = ordinal(id);
     task.app     = &app;
-    app.task_mgr.task_lists[0].add(task_remove_simulation_observation_impl,
-                                   &task);
-    app.task_mgr.task_lists[0].submit();
+
+    app.task_mgr.main_task_lists[0].add(task_remove_simulation_observation_impl,
+                                        &task);
+    app.task_mgr.main_task_lists[0].submit();
 }
 
 void task_add_simulation_observation(application& app, model_id id) noexcept
@@ -117,8 +118,10 @@ void task_add_simulation_observation(application& app, model_id id) noexcept
     auto& task   = app.gui_tasks.alloc();
     task.param_1 = ordinal(id);
     task.app     = &app;
-    app.task_mgr.task_lists[0].add(task_add_simulation_observation_impl, &task);
-    app.task_mgr.task_lists[0].submit();
+
+    app.task_mgr.main_task_lists[0].add(task_add_simulation_observation_impl,
+                                        &task);
+    app.task_mgr.main_task_lists[0].submit();
 }
 
 void task_build_observation_output(void* param) noexcept
@@ -168,8 +171,8 @@ void simulation_editor::build_observation_output() noexcept
     auto& task = app->gui_tasks.alloc();
     task.app   = app;
     // task.param_1 = ordinal(elem);
-    app->task_mgr.task_lists[0].add(task_build_observation_output, &task);
-    app->task_mgr.task_lists[0].submit();
+    app->task_mgr.main_task_lists[1].add(task_build_observation_output, &task);
+    app->task_mgr.main_task_lists[1].submit();
     // }
 }
 

@@ -11,13 +11,13 @@
 
 void function_1(void* param) noexcept
 {
-    auto* counter = reinterpret_cast<int*>(param);
+    auto* counter = reinterpret_cast<std::atomic_int*>(param);
     (*counter) += 1;
 }
 
 void function_100(void* param) noexcept
 {
-    auto* counter = reinterpret_cast<int*>(param);
+    auto* counter = reinterpret_cast<std::atomic_int*>(param);
     (*counter) += 100;
 }
 
@@ -54,145 +54,208 @@ int main()
         expect(counter == 0);
     };
 
+    // use-case-test: checks a classic use of task and task_list.
     "task-lists"_test = [] {
-        irt::task_manager_parameters init{ .thread_number           = 1,
-                                           .simple_task_list_number = 1,
-                                           .multi_task_list_number  = 0 };
-
-        irt::task_manager tm(init);
-
-        assert(tm.task_lists.ssize() == 1);
-        assert(tm.workers.ssize() == 1);
-
-        tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
+        irt::task_manager tm;
 
         tm.start();
-        int counter = 0;
 
-        tm.task_lists[0].add(&function_1, &counter);
-        tm.task_lists[0].add(&function_100, &counter);
-        tm.task_lists[0].add(&function_1, &counter);
-        tm.task_lists[0].add(&function_100, &counter);
-        tm.task_lists[0].submit();
-        tm.task_lists[0].wait();
+        for (int i = 0; i < 100; ++i) {
+            std::atomic_int counter = 0;
+
+            tm.main_task_lists[0].add(&function_1, &counter);
+            tm.main_task_lists[0].add(&function_100, &counter);
+            tm.main_task_lists[0].add(&function_1, &counter);
+            tm.main_task_lists[0].add(&function_100, &counter);
+            tm.main_task_lists[0].submit();
+            tm.main_task_lists[0].wait();
+
+            expect(counter == 202);
+        }
 
         tm.finalize();
-
-        assert(counter == 202);
     };
 
+    // use-case-test: checks a classic use of task and task_list and do not use
+    // wait.
+    "task-lists-without-wait"_test = [] {
+        irt::task_manager tm;
+
+        tm.start();
+
+        std::atomic_int counter = 0;
+        for (int i = 0; i < 100; ++i) {
+            tm.main_task_lists[0].add(&function_1, &counter);
+            tm.main_task_lists[0].add(&function_100, &counter);
+            tm.main_task_lists[0].add(&function_1, &counter);
+            tm.main_task_lists[0].add(&function_100, &counter);
+            tm.main_task_lists[0].submit();
+        }
+        tm.main_task_lists[0].wait();
+        expect(counter == 202 * 100);
+
+        tm.finalize();
+    };
+
+    // stress-test: checks to add 200 tasks for a task_list vector < 200.
+    // task_list::add must wakeup the worker without the call to the submit
+    // function to avoid dead lock.
     "large-task-lists"_test = [] {
-        irt::task_manager_parameters init{ .thread_number           = 1,
-                                           .simple_task_list_number = 1,
-                                           .multi_task_list_number  = 0 };
+        irt::task_manager tm;
 
-        irt::task_manager tm(init);
+        constexpr int loop = 100;
 
-        assert(tm.task_lists.ssize() == 1);
-        assert(tm.workers.ssize() == 1);
-
-        tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
+        expect(tm.main_task_lists[0].tasks.capacity() < loop * 2);
 
         tm.start();
-        int counter = 0;
 
-        for (int i = 0; i < 100; ++i) {
-            tm.task_lists[0].add(&function_1, &counter);
-            tm.task_lists[0].add(&function_100, &counter);
-        }
-        tm.task_lists[0].submit();
-        tm.task_lists[0].wait();
+        for (int x = 0; x < 100; ++x) {
+            std::atomic_int counter = 0;
 
-        for (int i = 0; i < 100; ++i) {
-            tm.task_lists[0].add(&function_1, &counter);
-            tm.task_lists[0].add(&function_100, &counter);
-        }
-        tm.task_lists[0].submit();
-        tm.task_lists[0].wait();
+            for (int i = 0; i < loop; ++i) {
+                tm.main_task_lists[0].add(&function_1, &counter);
+                tm.main_task_lists[0].add(&function_100, &counter);
+            }
+            tm.main_task_lists[0].submit();
+            tm.main_task_lists[0].wait();
 
-        for (int i = 0; i < 100; ++i) {
-            tm.task_lists[0].add(&function_1, &counter);
-            tm.task_lists[0].add(&function_100, &counter);
-        }
-        tm.task_lists[0].submit();
-        tm.task_lists[0].wait();
+            for (int i = 0; i < loop; ++i) {
+                tm.main_task_lists[0].add(&function_1, &counter);
+                tm.main_task_lists[0].add(&function_100, &counter);
+            }
+            tm.main_task_lists[0].submit();
+            tm.main_task_lists[0].wait();
 
-        for (int i = 0; i < 100; ++i) {
-            tm.task_lists[0].add(&function_1, &counter);
-            tm.task_lists[0].add(&function_100, &counter);
+            for (int i = 0; i < loop; ++i) {
+                tm.main_task_lists[0].add(&function_1, &counter);
+                tm.main_task_lists[0].add(&function_100, &counter);
+            }
+            tm.main_task_lists[0].submit();
+            tm.main_task_lists[0].wait();
+
+            for (int i = 0; i < loop; ++i) {
+                tm.main_task_lists[0].add(&function_1, &counter);
+                tm.main_task_lists[0].add(&function_100, &counter);
+            }
+            tm.main_task_lists[0].submit();
+            tm.main_task_lists[0].wait();
+
+            expect(counter == 101 * 100 * 4);
         }
-        tm.task_lists[0].submit();
-        tm.task_lists[0].wait();
+
         tm.finalize();
-
-        assert(counter == 101 * 100 * 4);
     };
 
-    "1-worker-2-task-lists"_test = [] {
-        irt::task_manager_parameters init{ .thread_number           = 1,
-                                           .simple_task_list_number = 2,
-                                           .multi_task_list_number  = 0 };
-
-        irt::task_manager tm(init);
-
-        assert(tm.task_lists.ssize() == 2);
-        assert(tm.workers.ssize() == 1);
-
-        tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
-        tm.workers[0].task_lists.emplace_back(&tm.task_lists[1]);
+    "n-worker-1-temp-task-lists-simple"_test = [] {
+        irt::task_manager tm;
 
         tm.start();
-        int counter_1 = 0;
-        int counter_2 = 0;
 
-        tm.task_lists[0].add(&function_1, &counter_1);
-        tm.task_lists[1].add(&function_100, &counter_2);
-        tm.task_lists[0].add(&function_1, &counter_1);
-        tm.task_lists[1].add(&function_100, &counter_2);
-        tm.task_lists[0].add(&function_1, &counter_1);
-        tm.task_lists[1].add(&function_100, &counter_2);
-        tm.task_lists[0].add(&function_1, &counter_1);
-        tm.task_lists[1].add(&function_100, &counter_2);
-        tm.task_lists[0].submit();
-        tm.task_lists[1].submit();
+        for (int x = 0; x < 100; ++x) {
+            std::atomic_int counter_1 = 0;
+            std::atomic_int counter_2 = 0;
+
+            tm.temp_task_lists[0].add(&function_1, &counter_1);
+            tm.temp_task_lists[0].add(&function_100, &counter_2);
+            tm.temp_task_lists[0].add(&function_1, &counter_1);
+            tm.temp_task_lists[0].add(&function_100, &counter_2);
+            tm.temp_task_lists[0].add(&function_1, &counter_1);
+            tm.temp_task_lists[0].add(&function_100, &counter_2);
+            tm.temp_task_lists[0].add(&function_1, &counter_1);
+            tm.temp_task_lists[0].add(&function_100, &counter_2);
+            tm.temp_task_lists[0].submit();
+            tm.temp_task_lists[0].wait();
+            expect(counter_1 == 4);
+            expect(counter_2 == 400);
+        }
 
         tm.finalize();
-
-        assert(counter_1 == 4);
-        assert(counter_2 == 400);
     };
 
-    "2-worker-2-task-lists"_test = [] {
-        irt::task_manager_parameters init{ .thread_number           = 2,
-                                           .simple_task_list_number = 2,
-                                           .multi_task_list_number  = 0 };
+    "n-worker-1-temp-task-lists"_test = [] {
+        auto start = std::chrono::steady_clock::now();
 
-        irt::task_manager tm(init);
-
-        assert(tm.task_lists.ssize() == 2);
-        assert(tm.workers.ssize() == 2);
-
-        tm.workers[0].task_lists.emplace_back(&tm.task_lists[0]);
-        tm.workers[1].task_lists.emplace_back(&tm.task_lists[1]);
-
+        irt::task_manager tm;
         tm.start();
-        int counter_1 = 0;
-        int counter_2 = 0;
+        for (int i = 0; i < 40; ++i) {
+            std::atomic_int counter = 0;
 
-        tm.task_lists[0].add(&function_1, &counter_1);
-        tm.task_lists[1].add(&function_100, &counter_2);
-        tm.task_lists[0].add(&function_1, &counter_1);
-        tm.task_lists[1].add(&function_100, &counter_2);
-        tm.task_lists[0].add(&function_1, &counter_1);
-        tm.task_lists[1].add(&function_100, &counter_2);
-        tm.task_lists[0].add(&function_1, &counter_1);
-        tm.task_lists[1].add(&function_100, &counter_2);
-        tm.task_lists[0].submit();
-        tm.task_lists[1].submit();
+            for (int i = 0; i < 100; ++i) {
+                tm.temp_task_lists[0].add(&function_1, &counter);
+                tm.temp_task_lists[0].add(&function_100, &counter);
+            }
+            tm.temp_task_lists[0].submit();
+            tm.temp_task_lists[0].wait();
+            expect(counter == 101 * 100);
 
+            for (int i = 0; i < 100; ++i) {
+                tm.temp_task_lists[0].add(&function_1, &counter);
+                tm.temp_task_lists[0].add(&function_100, &counter);
+            }
+            tm.temp_task_lists[0].submit();
+            tm.temp_task_lists[0].wait();
+            expect(counter == 101 * 100 * 2);
+
+            for (int i = 0; i < 100; ++i) {
+                tm.temp_task_lists[0].add(&function_1, &counter);
+                tm.temp_task_lists[0].add(&function_100, &counter);
+            }
+            tm.temp_task_lists[0].submit();
+            tm.temp_task_lists[0].wait();
+            expect(counter == 101 * 100 * 3);
+
+            for (int i = 0; i < 100; ++i) {
+                tm.temp_task_lists[0].add(&function_1, &counter);
+                tm.temp_task_lists[0].add(&function_100, &counter);
+            }
+            tm.temp_task_lists[0].submit();
+            tm.temp_task_lists[0].wait();
+
+            expect(counter == 101 * 100 * 4);
+        }
         tm.finalize();
 
-        assert(counter_1 == 4);
-        assert(counter_2 == 400);
+        auto end = std::chrono::steady_clock::now();
+        auto dif =
+          std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        fmt::print("shared: {}\n", dif.count());
+    };
+
+    "n-worker-1-temp-task-lists"_test = [] {
+        auto start = std::chrono::steady_clock::now();
+
+        for (int i = 0; i < 40; ++i) {
+            irt::task_manager tm;
+
+            tm.start();
+            std::atomic_int counter = 0;
+
+            for (int i = 0; i < 100; ++i) {
+                function_1(&counter);
+                function_100(&counter);
+            }
+
+            for (int i = 0; i < 100; ++i) {
+                function_1(&counter);
+                function_100(&counter);
+            }
+
+            for (int i = 0; i < 100; ++i) {
+                function_1(&counter);
+                function_100(&counter);
+            }
+
+            for (int i = 0; i < 100; ++i) {
+                function_1(&counter);
+                function_100(&counter);
+            }
+
+            expect(counter == 101 * 100 * 4);
+        }
+
+        auto end = std::chrono::steady_clock::now();
+        auto dif =
+          std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        fmt::print("linear: {}\n", dif.count());
     };
 }

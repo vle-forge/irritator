@@ -29,23 +29,17 @@ void settings_manager::update() noexcept
 }
 
 application::application() noexcept
-  : task_mgr{ 4, 1 }
+  : task_mgr{}
 {
-    irt_assert(task_mgr.workers.size() >= 1);
-    irt_assert(task_mgr.task_lists.size() >= 1);
-
+    sim_tasks.init(gui_task_number);
     gui_tasks.init(gui_task_number);
-
-    task_mgr.workers[0].task_lists.emplace_back(&task_mgr.task_lists[0]);
-    // for (int i = 0, e = task_mgr.workers.ssize(); i != e; ++i)
-    //     task_mgr.workers[i].task_lists.emplace_back(&task_mgr.task_lists[0]);
 
     log_w.log(7, "GUI Irritator start\n");
 
     log_w.log(7,
-              "Start with %d threads and %d task lists\n",
-              task_mgr.workers.ssize(),
-              task_mgr.task_lists.ssize());
+              "Start with %d main threads and %d generic workers\n",
+              task_mgr.main_workers.ssize(),
+              task_mgr.temp_workers.ssize());
 
     log_w.log(7, "Initialization successfull");
 
@@ -306,11 +300,7 @@ static void application_manage_menu_action(application& app) noexcept
                     auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    auto& task   = app.gui_tasks.alloc();
-                    task.app     = &app;
-                    task.param_1 = ordinal(id);
-                    app.task_mgr.task_lists[0].add(load_project, &task);
-                    app.task_mgr.task_lists[0].submit();
+                    app.add_load_project_task(id);
                 }
             }
 
@@ -331,11 +321,7 @@ static void application_manage_menu_action(application& app) noexcept
                 auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                 path.path  = str;
 
-                auto& task   = app.gui_tasks.alloc();
-                task.app     = &app;
-                task.param_1 = ordinal(id);
-                app.task_mgr.task_lists[0].add(save_project, &task);
-                app.task_mgr.task_lists[0].submit();
+                app.add_save_project_task(id);
             }
         } else {
             app.save_project_file    = false;
@@ -360,11 +346,7 @@ static void application_manage_menu_action(application& app) noexcept
                     auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    auto& task   = app.gui_tasks.alloc();
-                    task.app     = &app;
-                    task.param_1 = ordinal(id);
-                    app.task_mgr.task_lists[0].add(save_project, &task);
-                    app.task_mgr.task_lists[0].submit();
+                    app.add_save_project_task(id);
                 }
             }
 
@@ -513,45 +495,53 @@ static void show_task_box(application& app, bool* is_open) noexcept
         return;
     }
 
-    int workers = app.task_mgr.workers.ssize();
+    int workers = app.task_mgr.temp_workers.ssize();
     ImGui::InputInt("workers", &workers, 1, 100, ImGuiInputTextFlags_ReadOnly);
 
-    int lists = app.task_mgr.task_lists.ssize();
+    int lists = app.task_mgr.temp_task_lists.ssize();
     ImGui::InputInt("lists", &lists, 1, 100, ImGuiInputTextFlags_ReadOnly);
 
     if (ImGui::CollapsingHeader("Tasks list", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::BeginTable("Tasks", 7)) {
-            ImGui::TableSetupColumn("submit");
-            ImGui::TableSetupColumn("tasks");
-            ImGui::TableSetupColumn("tasks-start");
-            ImGui::TableSetupColumn("tasks-end");
-            ImGui::TableSetupColumn("tasks");
-            ImGui::TableSetupColumn("priority");
-            ImGui::TableSetupColumn("terminate");
+        if (ImGui::BeginTable("Main Tasks", 3)) {
+            ImGui::TableSetupColumn("id");
+            ImGui::TableSetupColumn("Submitted tasks");
+            ImGui::TableSetupColumn("finished tasks");
             ImGui::TableHeadersRow();
 
-            for (const auto& elem : app.task_mgr.task_lists) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("simulation");
+            ImGui::TableNextColumn();
+            ImGui::TextFormat(
+              "{}", app.task_mgr.main_task_lists_stats[0].num_submitted_tasks);
+            ImGui::TableNextColumn();
+            ImGui::TextFormat(
+              "{}", app.task_mgr.main_task_lists_stats[0].num_executed_tasks);
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("gui");
+            ImGui::TableNextColumn();
+            ImGui::TextFormat(
+              "{}", app.task_mgr.main_task_lists_stats[1].num_submitted_tasks);
+            ImGui::TableNextColumn();
+            ImGui::TextFormat(
+              "{}", app.task_mgr.main_task_lists_stats[1].num_executed_tasks);
+
+            for (int i = 0, e = app.task_mgr.temp_task_lists.ssize(); i != e;
+                 ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGui::Text("%d", elem.submit_task.ssize());
+                ImGui::TextFormat("generic-{}", i);
                 ImGui::TableNextColumn();
-                ImGui::Text("%d", elem.tasks.ssize());
-
+                ImGui::TextFormat(
+                  "{}",
+                  app.task_mgr.temp_task_lists_stats[i].num_submitted_tasks);
                 ImGui::TableNextColumn();
-                ImGui::Text("%d", elem.tasks.head_index());
-                ImGui::TableNextColumn();
-                ImGui::Text("%d", elem.tasks.tail_index());
-
-                ImGui::TableNextColumn();
-                ImGui::Text("%d", elem.task_number.load());
-
-                ImGui::TableNextColumn();
-                ImGui::Text("%d", elem.priority);
-
-                ImGui::TableNextColumn();
-                ImGui::Text("%d", elem.is_terminating ? 1 : 0);
+                ImGui::TextFormat(
+                  "{}",
+                  app.task_mgr.temp_task_lists_stats[i].num_executed_tasks);
             }
-
             ImGui::EndTable();
         }
     }
@@ -560,38 +550,36 @@ static void show_task_box(application& app, bool* is_open) noexcept
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
 
         if (ImGui::BeginTable("Workers", 3)) {
-            ImGui::TableSetupColumn("list number");
-            ImGui::TableSetupColumn("is running");
-            ImGui::TableSetupColumn("list(s)");
+            ImGui::TableSetupColumn("id");
+            ImGui::TableSetupColumn("execution duration");
             ImGui::TableHeadersRow();
 
-            for (const auto& elem : app.task_mgr.workers) {
+            int i = 0;
+            for (int e = app.task_mgr.main_workers.ssize(); i != e; ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-
-                ImGui::Text("%d", elem.task_lists.ssize());
+                ImGui::TextFormat("main-{}", i);
                 ImGui::TableNextColumn();
-                ImGui::Text("%d", elem.is_running ? 1 : 0);
+                ImGui::TextFormat(
+                  "{} ms",
+                  app.task_mgr.main_workers[i].exec_time.count() / 1000);
                 ImGui::TableNextColumn();
-
-                small_string<task_manager_list_max + 1> buffer;
-
-                buffer.resize(task_manager_list_max);
-                for (int i = 0, e = buffer.ssize(); i != e; ++i)
-                    buffer[i] = ' ';
-
-                for (int i = 0, e = elem.task_lists.ssize(); i != e; ++i) {
-                    auto diff =
-                      &app.task_mgr.task_lists[0] - elem.task_lists[i];
-
-                    irt_assert(diff >= 0 && diff < task_manager_list_max);
-                    buffer[to_int(diff)] = '1';
-                }
-
-                ImGui::TextUnformatted(buffer.c_str());
             }
+
+            int j = 0;
+            for (int e = app.task_mgr.temp_workers.ssize(); j != e; ++j, ++i) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("generic-{}", i);
+                ImGui::TableNextColumn();
+                ImGui::TextFormat(
+                  "{} ms",
+                  app.task_mgr.temp_workers[j].exec_time.count() / 1000);
+                ImGui::TableNextColumn();
+            }
+
+            ImGui::EndTable();
         }
-        ImGui::EndTable();
     }
 
     ImGui::End();
@@ -856,6 +844,30 @@ void task_simulation_advance(void* param) noexcept
     }
 
     g_task->state = gui_task_status::finished;
+}
+
+void application::add_load_project_task(registred_path_id id) noexcept
+{
+    if (gui_tasks.can_alloc()) {
+        auto& task = gui_tasks.alloc();
+        task.app   = this;
+
+        task.param_1 = ordinal(id);
+        task_mgr.main_task_lists[1].add(load_project, &task);
+        task_mgr.main_task_lists[1].submit();
+    }
+}
+
+void application::add_save_project_task(registred_path_id id) noexcept
+{
+    if (gui_tasks.can_alloc()) {
+        auto& task   = gui_tasks.alloc();
+        task.app     = this;
+        task.param_1 = ordinal(id);
+
+        task_mgr.main_task_lists[1].add(save_project, &task);
+        task_mgr.main_task_lists[1].submit();
+    }
 }
 
 } // namespace irt

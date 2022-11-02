@@ -52,6 +52,7 @@ enum class notification_id : u64;
 enum class simulation_observation_id : u64;
 enum class simulation_observation_copy_id : u64;
 enum class gui_task_id : u64;
+enum class simulation_task_id : u64;
 
 using application_status   = u32;
 using simulation_plot_type = i32;
@@ -241,6 +242,16 @@ void task_simulation_advance(void* param) noexcept;
 void task_build_observation_output(void* param) noexcept;
 
 struct gui_task
+{
+    u64                param_1      = 0;
+    u64                param_2      = 0;
+    void*              param_3      = nullptr;
+    application*       app          = nullptr;
+    application_status editor_state = 0;
+    gui_task_status    state        = gui_task_status::not_started;
+};
+
+struct simulation_task
 {
     u64                param_1      = 0;
     u64                param_2      = 0;
@@ -457,6 +468,7 @@ struct application
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
+    data_array<simulation_task, simulation_task_id> sim_tasks;
     data_array<gui_task, gui_task_id> gui_tasks;
     task_manager                      task_mgr;
 
@@ -520,6 +532,9 @@ struct application
 
     status save_settings() noexcept;
     status load_settings() noexcept;
+
+    void add_load_project_task(registred_path_id id) noexcept;
+    void add_save_project_task(registred_path_id id) noexcept;
 
     window_logger log_w;
 };
