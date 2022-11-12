@@ -592,7 +592,7 @@ inline void worker_generic::run() noexcept
 inline task_manager::task_manager() noexcept
 {
     const auto hc         = std::thread::hardware_concurrency();
-    const auto max_thread = hc <= 1u               ? 2u
+    const auto max_thread = hc <= 2u               ? 2u
                             : max_temp_worker < hc ? max_temp_worker
                                                    : hc - 2u;
 
