@@ -189,7 +189,6 @@ struct simulation_observation
     interpolate_type i_type = interpolate_type::none;
 
     irt::small_vector<double, 2> output_vec;
-    bool                         interpolate = false;
 
     u64               plot_id;
     small_string<16u> name;
@@ -469,8 +468,8 @@ struct application
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
     data_array<simulation_task, simulation_task_id> sim_tasks;
-    data_array<gui_task, gui_task_id> gui_tasks;
-    task_manager                      task_mgr;
+    data_array<gui_task, gui_task_id>               gui_tasks;
+    task_manager                                    task_mgr;
 
     std::filesystem::path project_file;
     std::filesystem::path select_directory;

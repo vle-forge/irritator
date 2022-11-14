@@ -40,24 +40,14 @@ void simulation_observation::update(observer& obs) noexcept
 {
     while (obs.buffer.size() > 2) {
         auto it = std::back_insert_iterator<simulation_observation>(*this);
-
-        if (interpolate) {
-            write_interpolate_data(obs, it, time_step);
-        } else {
-            write_raw_data(obs, it);
-        }
+        write_interpolate_data(obs, it, time_step);
     }
 }
 
 void simulation_observation::flush(observer& obs) noexcept
 {
     auto it = std::back_insert_iterator<simulation_observation>(*this);
-
-    if (interpolate) {
-        flush_interpolate_data(obs, it, time_step);
-    } else {
-        flush_raw_data(obs, it);
-    }
+    flush_interpolate_data(obs, it, time_step);
 }
 
 void simulation_observation::push_back(real r) noexcept
@@ -124,56 +114,101 @@ void task_add_simulation_observation(application& app, model_id id) noexcept
     app.task_mgr.main_task_lists[0].submit();
 }
 
-void task_build_observation_output(void* param) noexcept
+struct simulation_observation_job
 {
-    auto* g_task = reinterpret_cast<gui_task*>(param);
+    application* app = nullptr;
+    observer_id  id  = undefined<observer_id>();
+};
 
-    g_task->state = gui_task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
+/* This job retrieves observation data from observer to interpolate data a fill
+   simulation_observation structure.  */
+static void simulation_observation_job_update(void* param) noexcept
+{
+    auto* job = reinterpret_cast<simulation_observation_job*>(param);
 
-    for (auto obs_id : g_task->app->s_editor.sim.immediate_observers) {
-        if (auto* obs =
-              g_task->app->s_editor.sim.observers.try_to_get(obs_id)) {
-            auto sim_obs_id =
-              enum_cast<simulation_observation_id>(obs->user_id);
-            if (auto* sobs =
-                  g_task->app->s_editor.sim_obs.try_to_get(sim_obs_id);
-                sobs)
-                sobs->update(*obs);
-        }
+    if (auto* obs = job->app->s_editor.sim.observers.try_to_get(job->id)) {
+        auto sim_obs_id = enum_cast<simulation_observation_id>(obs->user_id);
+        if (auto* sobs = job->app->s_editor.sim_obs.try_to_get(sim_obs_id);
+            sobs)
+            sobs->update(*obs);
     }
-
-    // auto obs_id = enum_cast<observer_id>(g_task->param_1);
-    // if (auto* obs =
-    //       g_task->app->s_editor.sim.observers.try_to_get(obs_id)) {
-    //     auto sim_obs_id =
-    //       enum_cast<simulation_observation_id>(obs->user_id);
-    //     if (auto* sobs =
-    //           g_task->app->s_editor.sim_obs.try_to_get(sim_obs_id);
-    //         sobs)
-    //         sobs->update(*obs);
-    // }
-
-    g_task->state = gui_task_status::finished;
 }
 
+/* This job retrieves observation data from observer to interpolate data a fill
+   simulation_observation structure.  */
+static void simulation_observation_job_finish(void* param) noexcept
+{
+    auto* job = reinterpret_cast<simulation_observation_job*>(param);
+
+    if (auto* obs = job->app->s_editor.sim.observers.try_to_get(job->id)) {
+        auto sim_obs_id = enum_cast<simulation_observation_id>(obs->user_id);
+        if (auto* sobs = job->app->s_editor.sim_obs.try_to_get(sim_obs_id);
+            sobs)
+            sobs->flush(*obs);
+    }
+}
+
+/* This task performs output interpolation Internally, it uses the
+   unordered_task_list to compute observations, one job by observers. If the
+   immediate_observers is empty then all observers are update. */
 void simulation_editor::build_observation_output() noexcept
 {
-    fmt::print("Add task_build_observation_output\n");
     auto* app = container_of(this, &application::s_editor);
 
-    fmt::print("simulation_editor gui_task: {} / {}\n",
-               app->gui_tasks.size(),
-               app->gui_tasks.capacity());
+    constexpr int              capacity = 255;
+    simulation_observation_job jobs[capacity];
 
-    // for (auto elem : sim.immediate_observers) {
-    auto& task = app->gui_tasks.alloc();
-    task.app   = app;
-    // task.param_1 = ordinal(elem);
-    app->task_mgr.main_task_lists[1].add(task_build_observation_output, &task);
-    app->task_mgr.main_task_lists[1].submit();
-    // }
+    if (sim.immediate_observers.empty()) {
+        int       obs_max = sim.observers.size();
+        int       current = 0;
+        observer* obs     = nullptr;
+
+        while (sim.observers.next(obs)) {
+            int loop = std::min(obs_max, capacity);
+
+            for (int i = 0; i != loop; ++i) {
+                auto obs_id = sim.observers.get_id(*obs);
+                sim.observers.next(obs);
+
+                jobs[i] = { .app = app, .id = obs_id };
+                app->task_mgr.temp_task_lists[1].add(
+                  simulation_observation_job_update, &jobs[i]);
+            }
+
+            app->task_mgr.temp_task_lists[1].submit();
+            app->task_mgr.temp_task_lists[1].wait();
+
+            current += loop;
+            if (obs_max >= capacity)
+                obs_max -= capacity;
+            else
+                obs_max = 0;
+        }
+    } else {
+        int obs_max = sim.immediate_observers.ssize();
+        int current = 0;
+
+        while (obs_max > 0) {
+            int loop = std::min(obs_max, capacity);
+
+            for (int i = 0; i != loop; ++i) {
+                auto obs_id = sim.immediate_observers[i + current];
+
+                jobs[i] = { .app = app, .id = obs_id };
+                app->task_mgr.temp_task_lists[1].add(
+                  simulation_observation_job_finish, &jobs[i]);
+            }
+
+            app->task_mgr.temp_task_lists[1].submit();
+            app->task_mgr.temp_task_lists[1].wait();
+
+            current += loop;
+            if (obs_max > capacity)
+                obs_max -= capacity;
+            else
+                obs_max = 0;
+        }
+    }
 }
 
 void application::show_simulation_observation_window() noexcept

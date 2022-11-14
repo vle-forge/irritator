@@ -546,19 +546,8 @@ static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
             }
         }
 
-        if (!sim_ed.sim.immediate_observers.empty()) {
-            for (auto obs_id : sim_ed.sim.immediate_observers) {
-                if (auto* obs = sim_ed.sim.observers.try_to_get(obs_id)) {
-                    auto sim_obs_id =
-                      enum_cast<simulation_observation_id>(obs->user_id);
-                    if (auto* sobs = sim_ed.sim_obs.try_to_get(sim_obs_id);
-                        sobs)
-                        sobs->update(*obs);
-                }
-            }
-
-            // sim_ed.build_observation_output();
-        }
+        if (!sim_ed.sim.immediate_observers.empty())
+            sim_ed.build_observation_output();
 
         if (!sim_ed.infinity_simulation &&
             sim_ed.simulation_current >= sim_ed.simulation_end) {
@@ -621,19 +610,8 @@ static void task_simulation_live_run(simulation_editor& sim_ed) noexcept
             }
         }
 
-        if (!sim_ed.sim.immediate_observers.empty()) {
-            for (auto obs_id : sim_ed.sim.immediate_observers) {
-                if (auto* obs = sim_ed.sim.observers.try_to_get(obs_id)) {
-                    auto sim_obs_id =
-                      enum_cast<simulation_observation_id>(obs->user_id);
-                    if (auto* sobs = sim_ed.sim_obs.try_to_get(sim_obs_id);
-                        sobs)
-                        sobs->update(*obs);
-                }
-            }
-
-            // sim_ed.build_observation_output();
-        }
+        if (!sim_ed.sim.immediate_observers.empty())
+            sim_ed.build_observation_output();
 
         const auto sim_end_at   = sim_ed.simulation_current;
         const auto sim_duration = sim_end_at - sim_start_at;
@@ -713,6 +691,9 @@ static void task_simulation_finish(component_editor& /*ed*/,
                                    simulation_editor& sim_ed) noexcept
 {
     sim_ed.simulation_state = simulation_status::finishing;
+
+    sim_ed.sim.immediate_observers.clear();
+    sim_ed.build_observation_output();
 
     if (sim_ed.store_all_changes)
         finalize(sim_ed.tl, sim_ed.sim, sim_ed.simulation_current);
