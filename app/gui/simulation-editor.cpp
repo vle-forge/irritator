@@ -750,7 +750,7 @@ void simulation_editor::clear() noexcept
     force_pause           = false;
     force_stop            = false;
     show_minimap          = true;
-    allow_user_changes    = false;
+    allow_user_changes    = true;
     store_all_changes     = false;
     infinity_simulation   = false;
     real_time             = false;

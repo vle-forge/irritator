@@ -316,7 +316,7 @@ struct simulation_editor
     bool force_pause           = false;
     bool force_stop            = false;
     bool show_minimap          = true;
-    bool allow_user_changes    = false;
+    bool allow_user_changes    = true;
     bool store_all_changes     = false;
     bool infinity_simulation   = false;
     bool real_time             = false;
