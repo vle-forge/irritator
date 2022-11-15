@@ -462,13 +462,15 @@ static void application_show_windows(application& app) noexcept
                     obs_flags   = ImGuiTabItemFlags_None;
                 }
 
-                if (ImGui::BeginTabItem(
-                      "Component store", nullptr, compo_flags)) {
+                if (app.show_modeling_editor &&
+                    ImGui::BeginTabItem(
+                      "component store", nullptr, compo_flags)) {
                     app.show_components_window();
                     ImGui::EndTabItem();
                 }
 
-                if (ImGui::BeginTabItem("Observations", nullptr, obs_flags)) {
+                if (app.show_simulation_editor &&
+                    ImGui::BeginTabItem("observations", nullptr, obs_flags)) {
                     app.show_simulation_observation_window();
                     ImGui::EndTabItem();
                 }
