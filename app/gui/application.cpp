@@ -452,13 +452,23 @@ static void application_show_windows(application& app) noexcept
         ImGui::SetNextWindowSize(components_size, window_size_flags);
 
         if (ImGui::Begin("Tools", 0, window_flags)) {
+
             if (ImGui::BeginTabBar("##Obs-Compo")) {
-                if (ImGui::BeginTabItem("Component store")) {
+                auto compo_flags = ImGuiTabItemFlags_None;
+                auto obs_flags   = ImGuiTabItemFlags_SetSelected;
+
+                if (app.show_modeling_editor) {
+                    compo_flags = ImGuiTabItemFlags_SetSelected;
+                    obs_flags   = ImGuiTabItemFlags_None;
+                }
+
+                if (ImGui::BeginTabItem(
+                      "Component store", nullptr, compo_flags)) {
                     app.show_components_window();
                     ImGui::EndTabItem();
                 }
 
-                if (ImGui::BeginTabItem("Observations")) {
+                if (ImGui::BeginTabItem("Observations", nullptr, obs_flags)) {
                     app.show_simulation_observation_window();
                     ImGui::EndTabItem();
                 }
@@ -722,11 +732,15 @@ void application::show_main_as_tabbar(ImVec2           position,
 
         if (ImGui::BeginTabBar("##ModelingTabBar")) {
             if (ImGui::BeginTabItem("modeling")) {
+                show_modeling_editor   = true;
+                show_simulation_editor = false;
                 show_modeling_editor_widget();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("simulation")) {
+                show_modeling_editor   = false;
+                show_simulation_editor = true;
                 show_simulation_editor_widget();
                 ImGui::EndTabItem();
             }
