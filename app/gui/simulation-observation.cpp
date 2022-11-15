@@ -87,7 +87,9 @@ static void task_add_simulation_observation_impl(void* param) noexcept
     auto& sim_ed = app.s_editor;
     auto  mdl_id = enum_cast<model_id>(g_task->param_1);
 
-    sim_ed.add_simulation_observation_for(std::string_view{}, mdl_id);
+    small_string<15> name;
+    format(name, "{}", g_task->param_1);
+    sim_ed.add_simulation_observation_for(name.sv(), mdl_id);
 
     g_task->state = gui_task_status::finished;
 }
