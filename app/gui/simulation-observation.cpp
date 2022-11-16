@@ -215,10 +215,10 @@ void simulation_editor::build_observation_output() noexcept
 
 void application::show_simulation_observation_window() noexcept
 {
-    ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter |
-                            ImGuiTableFlags_BordersV | ImGuiTableFlags_RowBg |
-                            ImGuiTableFlags_Resizable |
-                            ImGuiTableFlags_Reorderable;
+    const ImGuiTableFlags flags =
+      ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
+      ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
+      ImGuiTableFlags_Reorderable;
 
     ImGui::Checkbox("Enable history", &s_editor.scrolling);
 
@@ -290,12 +290,12 @@ void application::show_simulation_observation_window() noexcept
 
     ImGui::EndTable();
 
-    if (ImGui::CollapsingHeader("Selected", flags)) {
         for (int i = 0, e = s_editor.selected_nodes.size(); i != e; ++i) {
             const auto index = s_editor.selected_nodes[i];
             auto* mdl = s_editor.sim.models.try_to_get(static_cast<u32>(index));
             if (!mdl)
                 continue;
+    if (ImGui::CollapsingHeader("Selected")) {
 
             const auto mdl_id = s_editor.sim.models.get_id(*mdl);
             ImGui::PushID(mdl);
