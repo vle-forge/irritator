@@ -290,47 +290,61 @@ void application::show_simulation_observation_window() noexcept
 
     ImGui::EndTable();
 
-        for (int i = 0, e = s_editor.selected_nodes.size(); i != e; ++i) {
-            const auto index = s_editor.selected_nodes[i];
-            auto* mdl = s_editor.sim.models.try_to_get(static_cast<u32>(index));
-            if (!mdl)
-                continue;
     if (ImGui::CollapsingHeader("Selected")) {
+        if (s_editor.selected_nodes.empty())
+            return;
 
-            const auto mdl_id = s_editor.sim.models.get_id(*mdl);
-            ImGui::PushID(mdl);
+        if (ImGui::BeginTable("models", 3)) {
+            ImGui::TableSetupColumn("type");
+            ImGui::TableSetupColumn("name");
+            ImGui::TableSetupColumn("action");
+            ImGui::TableHeadersRow();
 
-            bool                    already_observed = false;
-            simulation_observation* obs              = nullptr;
-            while (s_editor.sim_obs.next(obs)) {
-                if (obs->model == mdl_id) {
-                    already_observed = true;
-                    break;
+            for (int i = 0, e = s_editor.selected_nodes.size(); i != e; ++i) {
+                const auto index = s_editor.selected_nodes[i];
+                auto*      mdl =
+                  s_editor.sim.models.try_to_get(static_cast<u32>(index));
+                if (!mdl)
+                    continue;
+
+                ImGui::TableNextRow();
+
+                const auto mdl_id = s_editor.sim.models.get_id(*mdl);
+                ImGui::PushID(i);
+
+                bool                    already_observed = false;
+                simulation_observation* obs              = nullptr;
+                while (s_editor.sim_obs.next(obs)) {
+                    if (obs->model == mdl_id) {
+                        already_observed = true;
+                        break;
+                    }
                 }
+
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl->type)]);
+                ImGui::TableNextColumn();
+
+                if (already_observed) {
+                    ImGui::PushItemWidth(-1);
+                    ImGui::InputSmallString("##name", obs->name);
+                    ImGui::PopItemWidth();
+                }
+
+                ImGui::TableNextColumn();
+
+                if (already_observed) {
+                    if (ImGui::Button("remove"))
+                        task_remove_simulation_observation(*this, mdl_id);
+                } else {
+                    if (ImGui::Button("observe"))
+                        task_add_simulation_observation(*this, mdl_id);
+                }
+
+                ImGui::PopID();
             }
-
-            ImGui::TextFormat("Type...: {}",
-                              dynamics_type_names[ordinal(mdl->type)]);
-
-            if (obs)
-                ImGui::InputSmallString("Name", obs->name);
-
-            ImGui::TextFormat(
-              "ID.....: {}",
-              static_cast<u64>(s_editor.sim.models.get_id(*mdl)));
-
-            if (already_observed) {
-                if (ImGui::Button("remove"))
-                    task_remove_simulation_observation(*this, mdl_id);
-            } else {
-                if (ImGui::Button("observe"))
-                    task_add_simulation_observation(*this, mdl_id);
-            }
-
-            ImGui::PopID();
+            ImGui::EndTable();
         }
-
-        ImGui::Separator();
     }
 }
 
