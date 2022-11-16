@@ -19,7 +19,14 @@ simulation_observation::simulation_observation(model_id mdl_,
     irt_assert(buffer_capacity > 0);
 }
 
-void simulation_observation::clear() noexcept { linear_outputs.clear(); }
+void simulation_observation::clear() noexcept
+{
+    output_vec.clear();
+    linear_outputs.clear();
+
+    limits.x = -INFINITY;
+    limits.y = +INFINITY;
+}
 
 void simulation_observation::write(
   const std::filesystem::path& file_path) noexcept
@@ -42,12 +49,22 @@ void simulation_observation::update(observer& obs) noexcept
         auto it = std::back_insert_iterator<simulation_observation>(*this);
         write_interpolate_data(obs, it, time_step);
     }
+
+    if (linear_outputs.ssize() >= 1) {
+        limits.x = linear_outputs.head()->x;
+        limits.y = linear_outputs.tail()->x;
+    }
 }
 
 void simulation_observation::flush(observer& obs) noexcept
 {
     auto it = std::back_insert_iterator<simulation_observation>(*this);
     flush_interpolate_data(obs, it, time_step);
+
+    if (linear_outputs.ssize() >= 1) {
+        limits.x = linear_outputs.head()->x;
+        limits.y = linear_outputs.tail()->x;
+    }
 }
 
 void simulation_observation::push_back(real r) noexcept
@@ -257,17 +274,14 @@ void application::show_simulation_observation_window() noexcept
 
                 float start_t = obs->limits.x;
 
-                // if (s_editor.scrolling) {
-                //     start_t = obs->limits.z - s_editor.history;
-                //     if (start_t < obs->limits.x)
-                //         start_t = obs->limits.x;
-                // }
+                if (s_editor.scrolling) {
+                    start_t = obs->limits.y - s_editor.history;
+                    if (start_t < obs->limits.x)
+                        start_t = obs->limits.x;
+                }
 
-                // ImPlot::SetupAxesLimits(start_t,
-                //                         obs->limits.z,
-                //                         obs->limits.y,
-                //                         obs->limits.w,
-                //                         ImGuiCond_Always);
+                ImPlot::SetupAxisLimits(
+                  ImAxis_X1, start_t, obs->limits.y, ImPlotCond_Always);
 
                 ImPlot::PushStyleColor(ImPlotCol_Line,
                                        ImPlot::GetColormapColor(row));

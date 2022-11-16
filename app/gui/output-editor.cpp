@@ -146,29 +146,6 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
     }
 }
 
-static ImVec4 compute_plot_limits(simulation_editor& sim_ed) noexcept
-{
-    simulation_observation* obs = nullptr;
-    ImVec4                  limits;
-    bool                    engaged = false;
-
-    while (sim_ed.sim_obs.next(obs)) {
-        if (obs->plot_type != simulation_plot_type_none) {
-            if (engaged) {
-                limits.x = std::min(limits.x, obs->limits.x);
-                limits.y = std::min(limits.y, obs->limits.y);
-                limits.z = std::max(limits.z, obs->limits.z);
-                limits.w = std::max(limits.w, obs->limits.w);
-            } else {
-                limits  = obs->limits;
-                engaged = true;
-            }
-        }
-    }
-
-    return limits;
-}
-
 static void show_observation_plot(simulation_editor& sim_ed) noexcept
 {
     ImPlot::SetCurrentContext(sim_ed.output_ed.implot_context);
@@ -178,10 +155,6 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
 
         ImPlot::SetupAxes(
           nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
-
-        const auto limits = compute_plot_limits(sim_ed);
-        ImPlot::SetupAxesLimits(
-          limits.x, limits.z, limits.y, limits.w, ImPlotCond_None);
 
         simulation_observation* obs = nullptr;
         while (sim_ed.sim_obs.next(obs)) {

@@ -194,7 +194,7 @@ struct simulation_observation
     small_string<16u> name;
 
     ring_buffer<ImPlotPoint> linear_outputs;
-    ImVec4                   limits;
+    ImVec2 limits; //! use in preview output simulation observation.
 
     std::filesystem::path file;
 
