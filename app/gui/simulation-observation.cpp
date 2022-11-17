@@ -304,7 +304,7 @@ void application::show_simulation_observation_window() noexcept
 
     ImGui::EndTable();
 
-    if (ImGui::CollapsingHeader("Selected")) {
+    if (ImGui::CollapsingHeader("Selected", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (s_editor.selected_nodes.empty())
             return;
 
