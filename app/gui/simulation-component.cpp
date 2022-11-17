@@ -819,6 +819,14 @@ void simulation_editor::simulation_update_state() noexcept
         app->task_mgr.main_task_lists[0].add(task_simulation_finish, &task);
         app->task_mgr.main_task_lists[0].submit();
     }
+
+    {
+        std::tuple<model_id, ImVec2> new_position;
+        while (models_to_move.pop(new_position)) {
+            const auto index = get_index(std::get<0>(new_position));
+            ImNodes::SetNodeScreenSpacePos(index, std::get<1>(new_position));
+        }
+    }
 }
 
 void simulation_editor::simulation_copy_modeling() noexcept

@@ -622,25 +622,16 @@ static void show_top(simulation_editor& ed) noexcept
     }
 }
 
-static status add_popup_menuitem(simulation_editor& ed,
-                                 bool               enable_menu_item,
-                                 dynamics_type      type,
-                                 model_id*          new_model) noexcept
+static void add_popup_menuitem(simulation_editor& ed,
+                               bool               enable_menu_item,
+                               dynamics_type      type,
+                               ImVec2             click_pos) noexcept
 {
-    if (!ed.sim.models.can_alloc(1))
-        return status::data_array_not_enough_memory;
-
     if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)],
                         nullptr,
                         nullptr,
-                        enable_menu_item)) {
-        auto& mdl  = ed.sim.alloc(type);
-        *new_model = ed.sim.models.get_id(mdl);
-
-        return ed.sim.make_initialize(mdl, ed.simulation_current);
-    }
-
-    return status::success;
+                        enable_menu_item))
+        ed.simulation_model_add(type, click_pos);
 }
 
 // @todo DEBUG MODE: Prefer user settings or better timeline constructor
@@ -864,13 +855,18 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
 static void free_children(simulation_editor&   ed,
                           const ImVector<int>& nodes) noexcept
 {
-    for (int i = 0, e = nodes.size(); i != e; ++i) {
+    auto* app = container_of(&ed, &application::s_editor);
+
+    auto task_available = app->sim_tasks.capacity() - app->sim_tasks.ssize();
+    auto task_max       = std::min(task_available, nodes.size());
+
+    for (int i = 0; i < task_max; ++i) {
         const auto* mdl = ed.sim.models.try_to_get(nodes[i]);
         if (!mdl)
             continue;
 
-        const auto child_id = ed.sim.models.get_id(mdl);
-        ed.sim.deallocate(child_id);
+        const auto mdl_id = ed.sim.models.get_id(mdl);
+        ed.simulation_model_del(mdl_id);
     }
 }
 
@@ -1098,7 +1094,7 @@ static void compute_grid_layout(settings_manager&  settings,
 }
 
 static void show_simulation_graph_editor_edit_menu(application& app,
-                                                   model_id* new_model) noexcept
+                                                   ImVec2 click_pos) noexcept
 {
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
@@ -1135,7 +1131,7 @@ static void show_simulation_graph_editor_edit_menu(application& app,
                 add_popup_menuitem(app.s_editor,
                                    can_edit,
                                    static_cast<dynamics_type>(i),
-                                   new_model);
+                                   click_pos);
             ImGui::EndMenu();
         }
 
@@ -1147,7 +1143,7 @@ static void show_simulation_graph_editor_edit_menu(application& app,
                 add_popup_menuitem(app.s_editor,
                                    can_edit,
                                    static_cast<dynamics_type>(i),
-                                   new_model);
+                                   click_pos);
             ImGui::EndMenu();
         }
 
@@ -1159,66 +1155,66 @@ static void show_simulation_graph_editor_edit_menu(application& app,
                 add_popup_menuitem(app.s_editor,
                                    can_edit,
                                    static_cast<dynamics_type>(i),
-                                   new_model);
+                                   click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("AQSS (experimental)")) {
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::integrator, new_model);
+              app.s_editor, can_edit, dynamics_type::integrator, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::quantifier, new_model);
+              app.s_editor, can_edit, dynamics_type::quantifier, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::adder_2, new_model);
+              app.s_editor, can_edit, dynamics_type::adder_2, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::adder_3, new_model);
+              app.s_editor, can_edit, dynamics_type::adder_3, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::adder_4, new_model);
+              app.s_editor, can_edit, dynamics_type::adder_4, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::mult_2, new_model);
+              app.s_editor, can_edit, dynamics_type::mult_2, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::mult_3, new_model);
+              app.s_editor, can_edit, dynamics_type::mult_3, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::mult_4, new_model);
+              app.s_editor, can_edit, dynamics_type::mult_4, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::cross, new_model);
+              app.s_editor, can_edit, dynamics_type::cross, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Logical")) {
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_and_2, new_model);
+              app.s_editor, can_edit, dynamics_type::logical_and_2, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_or_2, new_model);
+              app.s_editor, can_edit, dynamics_type::logical_or_2, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_and_3, new_model);
+              app.s_editor, can_edit, dynamics_type::logical_and_3, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_or_3, new_model);
+              app.s_editor, can_edit, dynamics_type::logical_or_3, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_invert, new_model);
+              app.s_editor, can_edit, dynamics_type::logical_invert, click_pos);
             ImGui::EndMenu();
         }
 
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::counter, new_model);
+          app.s_editor, can_edit, dynamics_type::counter, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::queue, new_model);
+          app.s_editor, can_edit, dynamics_type::queue, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::dynamic_queue, new_model);
+          app.s_editor, can_edit, dynamics_type::dynamic_queue, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::priority_queue, new_model);
+          app.s_editor, can_edit, dynamics_type::priority_queue, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::generator, new_model);
+          app.s_editor, can_edit, dynamics_type::generator, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::constant, new_model);
+          app.s_editor, can_edit, dynamics_type::constant, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::time_func, new_model);
+          app.s_editor, can_edit, dynamics_type::time_func, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::accumulator_2, new_model);
+          app.s_editor, can_edit, dynamics_type::accumulator_2, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::filter, new_model);
+          app.s_editor, can_edit, dynamics_type::filter, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::hsm_wrapper, new_model);
+          app.s_editor, can_edit, dynamics_type::hsm_wrapper, click_pos);
 
         ImGui::EndPopup();
     }
@@ -1240,20 +1236,13 @@ static void show_simulation_graph_editor(application& app) noexcept
     show_top(app.s_editor);
     show_connections(app.s_editor);
 
-    ImVec2   click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
-    model_id new_model = undefined<model_id>();
-
-    show_simulation_graph_editor_edit_menu(app, &new_model);
+    ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+    show_simulation_graph_editor_edit_menu(app, click_pos);
 
     if (app.s_editor.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
 
     ImNodes::EndNodeEditor();
-
-    if (new_model != undefined<model_id>()) {
-        const auto mdl_index = get_index(new_model);
-        ImNodes::SetNodeScreenSpacePos(mdl_index, click_pos);
-    }
 
     {
         auto& sim   = app.s_editor.sim;
@@ -1547,10 +1536,10 @@ static void simulation_model_add_impl(void* param) noexcept
         return;
     }
 
-    const auto index = get_index(mdl_id);
-    const auto x     = static_cast<float>(task->param_2);
-    const auto y     = static_cast<float>(task->param_3);
-    task->app->s_editor.displacements[index] = ImVec2(x, y);
+    const auto x = static_cast<float>(task->param_2);
+    const auto y = static_cast<float>(task->param_3);
+    task->app->s_editor.models_to_move.push(
+      std::make_tuple(mdl_id, ImVec2(x, y)));
 
     task->state = gui_task_status::finished;
 }

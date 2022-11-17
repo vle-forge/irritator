@@ -366,6 +366,8 @@ struct simulation_editor
     //! Position of each node
     int              automatic_layout_iteration = 0;
     ImVector<ImVec2> displacements;
+
+    thread_safe_ring_buffer<std::tuple<model_id, ImVec2>, 8> models_to_move;
 };
 
 struct project_hierarchy_selection
