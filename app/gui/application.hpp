@@ -254,7 +254,7 @@ struct simulation_task
 {
     u64                param_1      = 0;
     u64                param_2      = 0;
-    void*              param_3      = nullptr;
+    i64                param_3      = 0;
     application*       app          = nullptr;
     application_status editor_state = 0;
     gui_task_status    state        = gui_task_status::not_started;
