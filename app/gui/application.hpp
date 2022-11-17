@@ -537,6 +537,22 @@ struct application
     void add_load_project_task(registred_path_id id) noexcept;
     void add_save_project_task(registred_path_id id) noexcept;
 
+    /* Helpers function to add a @c simulation_task into the @c
+     * main_task_lists[simulation]. Task is added at tail of the @c ring_buffer
+     * and ensure linear operation. */
+    void add_simulation_task(task_function fn,
+                             u64           param_1 = 0,
+                             u64           param_2 = 0,
+                             u64           param_3 = 0) noexcept;
+
+    /* Helpers function to add a @c gui_task into the @c main_task_lists[gui].
+     * Task is added at tail of the @c ring_buffer and ensure linear operation.
+     */
+    void add_gui_task(task_function fn,
+                      u64           param_1 = 0,
+                      u64           param_2 = 0,
+                      void*         param_3 = 0) noexcept;
+
     window_logger log_w;
 };
 

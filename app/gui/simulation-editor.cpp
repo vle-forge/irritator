@@ -1579,4 +1579,44 @@ void simulation_editor::simulation_model_del(model_id id) noexcept
     app->task_mgr.main_task_lists[0].submit();
 }
 
+void application::add_simulation_task(task_function fn,
+                                      u64           param_1,
+                                      u64           param_2,
+                                      u64           param_3) noexcept
+{
+    irt_assert(fn);
+
+    while (!sim_tasks.can_alloc())
+        task_mgr.main_task_lists[ordinal(main_task::simulation)].wait();
+
+    auto& task   = sim_tasks.alloc();
+    task.app     = this;
+    task.param_1 = param_1;
+    task.param_2 = param_2;
+    task.param_3 = param_3;
+
+    task_mgr.main_task_lists[ordinal(main_task::simulation)].add(fn, &task);
+    task_mgr.main_task_lists[ordinal(main_task::simulation)].submit();
+}
+
+void application::add_gui_task(task_function fn,
+                               u64           param_1,
+                               u64           param_2,
+                               void*         param_3) noexcept
+{
+    irt_assert(fn);
+
+    while (!sim_tasks.can_alloc())
+        task_mgr.main_task_lists[ordinal(main_task::gui)].wait();
+
+    auto& task   = gui_tasks.alloc();
+    task.app     = this;
+    task.param_1 = param_1;
+    task.param_2 = param_2;
+    task.param_3 = param_3;
+
+    task_mgr.main_task_lists[ordinal(main_task::gui)].add(fn, &task);
+    task_mgr.main_task_lists[ordinal(main_task::gui)].submit();
+}
+
 } // namesapce irt
