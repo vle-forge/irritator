@@ -307,6 +307,9 @@ struct simulation_editor
     void add_simulation_observation_for(std::string_view name,
                                         model_id         id) noexcept;
 
+    void simulation_model_add(dynamics_type type, ImVec2 position) noexcept;
+    void simulation_model_del(model_id id) noexcept;
+
     // Used to add GUI task @c task_build_observation_output, one per
     // observer_id, from the simulation immediate observers.
     void build_observation_output() noexcept;

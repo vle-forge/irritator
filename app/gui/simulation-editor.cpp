@@ -1517,4 +1517,77 @@ void application::show_simulation_editor_widget() noexcept
     show_simulation_graph_editor(*this);
 }
 
+/* Task: add a model into current simulation (running, started etc.). */
+static void simulation_model_add_impl(void* param) noexcept
+{
+    auto* task  = reinterpret_cast<simulation_task*>(param);
+    task->state = gui_task_status::started;
+
+    auto& sim = task->app->s_editor.sim;
+
+    if (!sim.can_alloc()) {
+        auto& n = task->app->notifications.alloc(notification_type::error);
+        n.title = "To many model in simulation editor";
+        task->app->notifications.enable(n);
+        task->state = gui_task_status::finished;
+        return;
+    }
+
+    auto& mdl    = sim.alloc(enum_cast<dynamics_type>(task->param_1));
+    auto  mdl_id = sim.models.get_id(mdl);
+
+    auto ret = sim.make_initialize(mdl, task->app->s_editor.simulation_current);
+    if (is_bad(ret)) {
+        sim.deallocate(mdl_id);
+
+        auto& n = task->app->notifications.alloc(notification_type::error);
+        n.title = "Fail to initialize model";
+        task->app->notifications.enable(n);
+        task->state = gui_task_status::finished;
+        return;
+    }
+
+    const auto index = get_index(mdl_id);
+    const auto x     = static_cast<float>(task->param_2);
+    const auto y     = static_cast<float>(task->param_3);
+    task->app->s_editor.displacements[index] = ImVec2(x, y);
+
+    task->state = gui_task_status::finished;
+}
+
+static void simulation_model_del_impl(void* param) noexcept
+{
+    auto* task  = reinterpret_cast<simulation_task*>(param);
+    task->state = gui_task_status::started;
+
+    auto& sim    = task->app->s_editor.sim;
+    auto  mdl_id = enum_cast<model_id>(task->param_1);
+    sim.deallocate(mdl_id);
+
+    task->state = gui_task_status::finished;
+}
+
+void simulation_editor::simulation_model_add(dynamics_type type,
+                                             ImVec2        position) noexcept
+{
+    auto* app    = container_of(this, &application::s_editor);
+    auto& task   = app->sim_tasks.alloc();
+    task.app     = app;
+    task.param_1 = ordinal(type);
+    task.param_2 = static_cast<u64>(position.x);
+    task.param_3 = static_cast<u64>(position.y);
+    app->task_mgr.main_task_lists[0].add(simulation_model_add_impl, &task);
+    app->task_mgr.main_task_lists[0].submit();
+}
+
+void simulation_editor::simulation_model_del(model_id id) noexcept
+{
+    auto* app    = container_of(this, &application::s_editor);
+    auto& task   = app->sim_tasks.alloc();
+    task.app     = app;
+    task.param_1 = ordinal(id);
+    app->task_mgr.main_task_lists[0].add(simulation_model_del_impl, &task);
+    app->task_mgr.main_task_lists[0].submit();
+}
+
 } // namesapce irt
