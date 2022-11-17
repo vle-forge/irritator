@@ -194,7 +194,7 @@ struct simulation_observation
     small_string<16u> name;
 
     ring_buffer<ImPlotPoint> linear_outputs;
-    ImVec2 limits; //! use in preview output simulation observation.
+    ImPlotRange limits; //! use in preview output simulation observation.
 
     std::filesystem::path file;
 
@@ -349,8 +349,8 @@ struct simulation_editor
       copy_obs;
 
     simulation_observation_id selected_sim_obs;
-    float                     history   = 10.f;
-    bool                      scrolling = true;
+    double                    preview_history   = 10.;
+    bool                      preview_scrolling = true;
 
     output_editor output_ed;
 

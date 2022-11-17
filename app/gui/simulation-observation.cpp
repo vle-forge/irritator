@@ -24,8 +24,8 @@ void simulation_observation::clear() noexcept
     output_vec.clear();
     linear_outputs.clear();
 
-    limits.x = -INFINITY;
-    limits.y = +INFINITY;
+    limits.Min = -INFINITY;
+    limits.Max = +INFINITY;
 }
 
 void simulation_observation::write(
@@ -51,8 +51,8 @@ void simulation_observation::update(observer& obs) noexcept
     }
 
     if (linear_outputs.ssize() >= 1) {
-        limits.x = linear_outputs.head()->x;
-        limits.y = linear_outputs.tail()->x;
+        limits.Min = linear_outputs.head()->x;
+        limits.Max = linear_outputs.tail()->x;
     }
 }
 
@@ -62,8 +62,8 @@ void simulation_observation::flush(observer& obs) noexcept
     flush_interpolate_data(obs, it, time_step);
 
     if (linear_outputs.ssize() >= 1) {
-        limits.x = linear_outputs.head()->x;
-        limits.y = linear_outputs.tail()->x;
+        limits.Min = linear_outputs.head()->x;
+        limits.Max = linear_outputs.tail()->x;
     }
 }
 
@@ -109,28 +109,6 @@ static void task_add_simulation_observation_impl(void* param) noexcept
     sim_ed.add_simulation_observation_for(name.sv(), mdl_id);
 
     g_task->state = gui_task_status::finished;
-}
-
-void task_remove_simulation_observation(application& app, model_id id) noexcept
-{
-    auto& task   = app.gui_tasks.alloc();
-    task.param_1 = ordinal(id);
-    task.app     = &app;
-
-    app.task_mgr.main_task_lists[0].add(task_remove_simulation_observation_impl,
-                                        &task);
-    app.task_mgr.main_task_lists[0].submit();
-}
-
-void task_add_simulation_observation(application& app, model_id id) noexcept
-{
-    auto& task   = app.gui_tasks.alloc();
-    task.param_1 = ordinal(id);
-    task.app     = &app;
-
-    app.task_mgr.main_task_lists[0].add(task_add_simulation_observation_impl,
-                                        &task);
-    app.task_mgr.main_task_lists[0].submit();
 }
 
 struct simulation_observation_job
@@ -230,6 +208,34 @@ void simulation_editor::build_observation_output() noexcept
     }
 }
 
+void task_remove_simulation_observation(application& app, model_id id) noexcept
+{
+    while (!app.gui_tasks.can_alloc())
+        app.task_mgr.main_task_lists[0].wait();
+
+    auto& task   = app.gui_tasks.alloc();
+    task.param_1 = ordinal(id);
+    task.app     = &app;
+
+    app.task_mgr.main_task_lists[0].add(task_remove_simulation_observation_impl,
+                                        &task);
+    app.task_mgr.main_task_lists[0].submit();
+}
+
+void task_add_simulation_observation(application& app, model_id id) noexcept
+{
+    while (!app.gui_tasks.can_alloc())
+        app.task_mgr.main_task_lists[0].wait();
+
+    auto& task   = app.gui_tasks.alloc();
+    task.param_1 = ordinal(id);
+    task.app     = &app;
+
+    app.task_mgr.main_task_lists[0].add(task_add_simulation_observation_impl,
+                                        &task);
+    app.task_mgr.main_task_lists[0].submit();
+}
+
 void application::show_simulation_observation_window() noexcept
 {
     const ImGuiTableFlags flags =
@@ -237,15 +243,16 @@ void application::show_simulation_observation_window() noexcept
       ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
       ImGuiTableFlags_Reorderable;
 
-    ImGui::Checkbox("Enable history", &s_editor.scrolling);
+    ImGui::Checkbox("Enable history", &s_editor.preview_scrolling);
 
-    ImGui::BeginDisabled(!s_editor.scrolling);
-    if (ImGui::InputFloat("History", &s_editor.history))
-        s_editor.history = s_editor.history <= 0 ? 1 : s_editor.history;
+    ImGui::BeginDisabled(!s_editor.preview_scrolling);
+    if (ImGui::InputDouble("History", &s_editor.preview_history))
+        s_editor.preview_history =
+          s_editor.preview_history <= 0.0 ? 1.0 : s_editor.preview_history;
     ImGui::EndDisabled();
 
     if (ImGui::BeginTable("##table", 1, flags, ImVec2(-1, 0))) {
-        ImGui::TableSetupColumn("Signal");
+        ImGui::TableSetupColumn("preview");
         ImGui::TableHeadersRow();
         ImPlot::PushColormap(ImPlotColormap_Pastel);
 
@@ -272,16 +279,16 @@ void application::show_simulation_observation_window() noexcept
                                   ImPlotAxisFlags_NoDecorations,
                                   ImPlotAxisFlags_NoDecorations);
 
-                float start_t = obs->limits.x;
+                auto start_t = obs->limits.Min;
 
-                if (s_editor.scrolling) {
-                    start_t = obs->limits.y - s_editor.history;
-                    if (start_t < obs->limits.x)
-                        start_t = obs->limits.x;
+                if (s_editor.preview_scrolling) {
+                    start_t = obs->limits.Max - s_editor.preview_history;
+                    if (start_t < obs->limits.Min)
+                        start_t = obs->limits.Min;
                 }
 
                 ImPlot::SetupAxisLimits(
-                  ImAxis_X1, start_t, obs->limits.y, ImPlotCond_Always);
+                  ImAxis_X1, start_t, obs->limits.Max, ImPlotCond_Always);
 
                 ImPlot::PushStyleColor(ImPlotCol_Line,
                                        ImPlot::GetColormapColor(row));
