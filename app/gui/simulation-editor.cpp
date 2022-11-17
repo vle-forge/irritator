@@ -566,7 +566,7 @@ static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
             ImGui::PopItemWidth();
         }
 
-        if (ed.show_internal_inputs) {
+        if (ed.allow_user_changes) {
             auto* app = container_of(&ed, &application::s_editor);
             ImGui::PushItemWidth(120.0f);
 
