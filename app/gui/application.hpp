@@ -66,7 +66,7 @@ enum class notification_type
     information
 };
 
-enum class gui_task_status
+enum class task_status
 {
     not_started,
     started,
@@ -247,7 +247,7 @@ struct gui_task
     void*              param_3      = nullptr;
     application*       app          = nullptr;
     application_status editor_state = 0;
-    gui_task_status    state        = gui_task_status::not_started;
+    task_status        state        = task_status::not_started;
 };
 
 struct simulation_task
@@ -257,7 +257,7 @@ struct simulation_task
     i64                param_3      = 0;
     application*       app          = nullptr;
     application_status editor_state = 0;
-    gui_task_status    state        = gui_task_status::not_started;
+    task_status        state        = task_status::not_started;
 };
 
 struct output_editor

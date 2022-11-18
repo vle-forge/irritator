@@ -223,7 +223,7 @@ static void task_try_finalize_source(application& app,
 static void task_try_init_source(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = gui_task_status::started;
+    g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
 
@@ -233,7 +233,7 @@ static void task_try_init_source(void* param) noexcept
 
     try_init_source(g_task->app->c_editor.data, src);
 
-    g_task->state = gui_task_status::finished;
+    g_task->state = task_status::finished;
 }
 
 void task_try_init_source(application& app, u64 id, i32 type) noexcept
@@ -617,8 +617,8 @@ void data_window::show() noexcept
                 if (app->f_dialog.state == file_dialog::status::ok) {
                     binary_file_ptr->file_path = app->f_dialog.result;
 
-                    task_try_init_source(
-                      *app,
+                    app->add_simulation_task(
+                      task_try_init_source,
                       ordinal(c_editor->mod.srcs.binary_file_sources.get_id(
                         binary_file_ptr)),
                       ordinal(external_source_type::binary_file));

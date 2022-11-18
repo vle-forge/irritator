@@ -2631,7 +2631,7 @@ void component_editor::save_project(const char* filename) noexcept
 void load_project(void* param) noexcept
 {
     auto* g_task       = reinterpret_cast<gui_task*>(param);
-    g_task->state      = gui_task_status::started;
+    g_task->state      = task_status::started;
     g_task->app->state = application_status_read_only_modeling;
 
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
@@ -2641,13 +2641,13 @@ void load_project(void* param) noexcept
         g_task->app->c_editor.mod.registred_paths.free(*file);
     }
 
-    g_task->state = gui_task_status::finished;
+    g_task->state = task_status::finished;
 }
 
 void save_project(void* param) noexcept
 {
     auto* g_task       = reinterpret_cast<gui_task*>(param);
-    g_task->state      = gui_task_status::started;
+    g_task->state      = task_status::started;
     g_task->app->state = application_status_read_only_modeling;
 
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
@@ -2657,7 +2657,7 @@ void save_project(void* param) noexcept
         g_task->app->c_editor.mod.registred_paths.free(*file);
     }
 
-    g_task->state = gui_task_status::finished;
+    g_task->state = task_status::finished;
 }
 
 } // irt

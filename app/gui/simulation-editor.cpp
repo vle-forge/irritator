@@ -1510,7 +1510,7 @@ void application::show_simulation_editor_widget() noexcept
 static void simulation_model_add_impl(void* param) noexcept
 {
     auto* task  = reinterpret_cast<simulation_task*>(param);
-    task->state = gui_task_status::started;
+    task->state = task_status::started;
 
     auto& sim = task->app->s_editor.sim;
 
@@ -1518,7 +1518,7 @@ static void simulation_model_add_impl(void* param) noexcept
         auto& n = task->app->notifications.alloc(notification_type::error);
         n.title = "To many model in simulation editor";
         task->app->notifications.enable(n);
-        task->state = gui_task_status::finished;
+        task->state = task_status::finished;
         return;
     }
 
@@ -1532,7 +1532,7 @@ static void simulation_model_add_impl(void* param) noexcept
         auto& n = task->app->notifications.alloc(notification_type::error);
         n.title = "Fail to initialize model";
         task->app->notifications.enable(n);
-        task->state = gui_task_status::finished;
+        task->state = task_status::finished;
         return;
     }
 
@@ -1541,19 +1541,19 @@ static void simulation_model_add_impl(void* param) noexcept
     task->app->s_editor.models_to_move.push(
       std::make_tuple(mdl_id, ImVec2(x, y)));
 
-    task->state = gui_task_status::finished;
+    task->state = task_status::finished;
 }
 
 static void simulation_model_del_impl(void* param) noexcept
 {
     auto* task  = reinterpret_cast<simulation_task*>(param);
-    task->state = gui_task_status::started;
+    task->state = task_status::started;
 
     auto& sim    = task->app->s_editor.sim;
     auto  mdl_id = enum_cast<model_id>(task->param_1);
     sim.deallocate(mdl_id);
 
-    task->state = gui_task_status::finished;
+    task->state = task_status::finished;
 }
 
 void simulation_editor::simulation_model_add(dynamics_type type,

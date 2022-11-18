@@ -187,7 +187,7 @@ static application_status gui_task_clean_up(application& app) noexcept
             to_del = nullptr;
         }
 
-        if (task->state == gui_task_status::finished) {
+        if (task->state == task_status::finished) {
             to_del = task;
         } else {
             ret |= task->editor_state;
@@ -817,7 +817,7 @@ void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
 void task_simulation_back(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = gui_task_status::started;
+    g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
 
@@ -835,13 +835,13 @@ void task_simulation_back(void* param) noexcept
         }
     }
 
-    g_task->state = gui_task_status::finished;
+    g_task->state = task_status::finished;
 }
 
 void task_simulation_advance(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = gui_task_status::started;
+    g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
 
@@ -859,7 +859,7 @@ void task_simulation_advance(void* param) noexcept
         }
     }
 
-    g_task->state = gui_task_status::finished;
+    g_task->state = task_status::finished;
 }
 
 void application::add_load_project_task(registred_path_id id) noexcept
