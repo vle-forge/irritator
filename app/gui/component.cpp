@@ -467,7 +467,7 @@ static status save_component_impl(const modeling&       mod,
 
 void save_component(void* param) noexcept
 {
-    auto* g_task       = reinterpret_cast<gui_task*>(param);
+    auto* g_task       = reinterpret_cast<simulation_task*>(param);
     g_task->state      = task_status::started;
     g_task->app->state = application_status_read_only_modeling;
 
@@ -535,7 +535,7 @@ static status save_component_description_impl(const registred_path& reg_dir,
 
 void save_description(void* param) noexcept
 {
-    auto* g_task       = reinterpret_cast<gui_task*>(param);
+    auto* g_task       = reinterpret_cast<simulation_task*>(param);
     g_task->state      = task_status::started;
     g_task->app->state = application_status_read_only_modeling;
 

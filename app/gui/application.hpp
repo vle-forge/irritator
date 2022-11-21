@@ -51,8 +51,8 @@ struct simulation_editor;
 enum class notification_id : u64;
 enum class simulation_observation_id : u64;
 enum class simulation_observation_copy_id : u64;
-enum class gui_task_id : u64;
 enum class simulation_task_id : u64;
+enum class gui_task_id : u64;
 
 using application_status   = u32;
 using simulation_plot_type = i32;
@@ -545,7 +545,7 @@ struct application
                              u64           param_2 = 0,
                              u64           param_3 = 0) noexcept;
 
-    /* Helpers function to add a @c gui_task into the @c main_task_lists[gui].
+    /* Helpers function to add a @c simulation_task into the @c main_task_lists[gui].
      * Task is added at tail of the @c ring_buffer and ensure linear operation.
      */
     void add_gui_task(task_function fn,

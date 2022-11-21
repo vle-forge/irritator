@@ -222,7 +222,7 @@ static void task_try_finalize_source(application& app,
 
 static void task_try_init_source(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -234,17 +234,6 @@ static void task_try_init_source(void* param) noexcept
     try_init_source(g_task->app->c_editor.data, src);
 
     g_task->state = task_status::finished;
-}
-
-void task_try_init_source(application& app, u64 id, i32 type) noexcept
-{
-    auto& task   = app.gui_tasks.alloc();
-    task.app     = &app;
-    task.param_1 = id;
-    task.param_2 = static_cast<u64>(type);
-
-    app.task_mgr.main_task_lists[0].add(task_try_init_source, &task);
-    app.task_mgr.main_task_lists[0].submit();
 }
 
 data_window::data_window() noexcept
@@ -694,8 +683,10 @@ void data_window::show() noexcept
             type = ordinal(external_source_type::constant);
         }
 
-        if (id && type)
-            task_try_init_source(*app, id, type);
+        if (id && type) {
+            app->add_simulation_task(
+              task_try_init_source, id, static_cast<u64>(type));
+        }
     }
 
     const bool show_source =

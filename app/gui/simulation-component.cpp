@@ -449,7 +449,7 @@ static void simulation_init(component_editor&  ed,
 
 static void task_simulation_clear(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -461,7 +461,7 @@ static void task_simulation_clear(void* param) noexcept
 
 static void task_simulation_copy(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -475,7 +475,7 @@ static void task_simulation_copy(void* param) noexcept
 
 static void task_simulation_init(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -705,7 +705,7 @@ static void task_simulation_finish(component_editor& /*ed*/,
 
 static void task_simulation_run(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -717,7 +717,7 @@ static void task_simulation_run(void* param) noexcept
 
 static void task_simulation_run_1(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -729,7 +729,7 @@ static void task_simulation_run_1(void* param) noexcept
 
 static void task_simulation_pause(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
 
     g_task->app->s_editor.force_pause = true;
@@ -739,7 +739,7 @@ static void task_simulation_pause(void* param) noexcept
 
 static void task_simulation_stop(void* param) noexcept
 {
-    auto* g_task = reinterpret_cast<gui_task*>(param);
+    auto* g_task = reinterpret_cast<simulation_task*>(param);
 
     g_task->app->s_editor.force_stop = true;
 
@@ -748,7 +748,7 @@ static void task_simulation_stop(void* param) noexcept
 
 static void task_simulation_finish(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -760,7 +760,7 @@ static void task_simulation_finish(void* param) noexcept
 
 static void task_enable_or_disable_debug(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -868,13 +868,8 @@ void simulation_editor::simulation_start() noexcept
     irt_assert(state);
 
     if (state) {
-        // fmt::print("Add task_simulation_run\n");
-
         auto* app  = container_of(this, &application::s_editor);
-        auto& task = app->gui_tasks.alloc();
-        task.app   = app;
-        app->task_mgr.main_task_lists[0].add(task_simulation_run, &task);
-        app->task_mgr.main_task_lists[0].submit();
+        app->add_simulation_task(task_simulation_run);
     }
 }
 

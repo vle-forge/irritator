@@ -8,7 +8,7 @@
 
 namespace irt {
 
-static constexpr const i32 gui_task_number = 64;
+static constexpr const i32 simulation_task_number = 64;
 
 static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
 {
@@ -31,8 +31,8 @@ void settings_manager::update() noexcept
 application::application() noexcept
   : task_mgr{}
 {
-    sim_tasks.init(gui_task_number);
-    gui_tasks.init(gui_task_number);
+    sim_tasks.init(simulation_task_number);
+    gui_tasks.init(simulation_task_number);
 
     log_w.log(7, "GUI Irritator start\n");
 
@@ -175,30 +175,25 @@ bool application::init() noexcept
     return true;
 }
 
-static application_status gui_task_clean_up(application& app) noexcept
+template<typename DataArray>
+static void cleanup_sim_or_gui_task(DataArray& d_array) noexcept
 {
-    application_status ret    = 0;
-    gui_task*          task   = nullptr;
-    gui_task*          to_del = nullptr;
+    typename DataArray::value_type* task   = nullptr;
+    typename DataArray::value_type* to_del = nullptr;
 
-    while (app.gui_tasks.next(task)) {
+    while (d_array.next(task)) {
         if (to_del) {
-            app.gui_tasks.free(*to_del);
+            d_array.free(*to_del);
             to_del = nullptr;
         }
 
         if (task->state == task_status::finished) {
             to_del = task;
-        } else {
-            ret |= task->editor_state;
         }
     }
 
-    if (to_del) {
-        app.gui_tasks.free(*to_del);
-    }
-
-    return ret;
+    if (to_del)
+        d_array.free(*to_del);
 }
 
 static void application_show_menu(application& app) noexcept
@@ -599,7 +594,8 @@ static void show_task_box(application& app, bool* is_open) noexcept
 
 void application::show() noexcept
 {
-    state = gui_task_clean_up(*this);
+    cleanup_sim_or_gui_task(sim_tasks);
+    cleanup_sim_or_gui_task(gui_tasks);
 
     application_show_menu(*this);
     application_manage_menu_action(*this);
@@ -816,7 +812,7 @@ void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
 
 void task_simulation_back(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -840,7 +836,7 @@ void task_simulation_back(void* param) noexcept
 
 void task_simulation_advance(void* param) noexcept
 {
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
     g_task->app->state |= application_status_read_only_simulating |
                           application_status_read_only_modeling;
@@ -864,8 +860,8 @@ void task_simulation_advance(void* param) noexcept
 
 void application::add_load_project_task(registred_path_id id) noexcept
 {
-    if (gui_tasks.can_alloc()) {
-        auto& task = gui_tasks.alloc();
+    if (sim_tasks.can_alloc()) {
+        auto& task = sim_tasks.alloc();
         task.app   = this;
 
         task.param_1 = ordinal(id);
@@ -876,8 +872,8 @@ void application::add_load_project_task(registred_path_id id) noexcept
 
 void application::add_save_project_task(registred_path_id id) noexcept
 {
-    if (gui_tasks.can_alloc()) {
-        auto& task   = gui_tasks.alloc();
+    if (sim_tasks.can_alloc()) {
+        auto& task   = sim_tasks.alloc();
         task.app     = this;
         task.param_1 = ordinal(id);
 

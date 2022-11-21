@@ -1600,13 +1600,13 @@ void application::add_simulation_task(task_function fn,
 }
 
 void application::add_gui_task(task_function fn,
-                               u64           param_1,
-                               u64           param_2,
-                               void*         param_3) noexcept
+                                u64           param_1,
+                                u64           param_2,
+                                void*         param_3) noexcept
 {
     irt_assert(fn);
 
-    while (!sim_tasks.can_alloc())
+    while (!gui_tasks.can_alloc())
         task_mgr.main_task_lists[ordinal(main_task::gui)].wait();
 
     auto& task   = gui_tasks.alloc();
