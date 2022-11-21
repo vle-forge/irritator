@@ -70,7 +70,8 @@ void simulation_observation::flush(observer& obs) noexcept
 void simulation_observation::push_back(real r) noexcept
 {
     if (output_vec.size() >= 2) {
-        linear_outputs.push_back(ImPlotPoint{ output_vec[0], output_vec[1] });
+        linear_outputs.force_enqueue(
+          ImPlotPoint{ output_vec[0], output_vec[1] });
         output_vec.clear();
     }
 
