@@ -406,12 +406,13 @@ void show_drives(const std::filesystem::path& current,
     ImGui::SameLine();
 }
 #else
-void show_drives(const std::filesystem::path& /*current*/,
-                 std::filesystem::path&       /*selected*/,
-                 const uint32_t               /*drives*/,
-                 bool*                        /*path_click*/,
-                 std::filesystem::path*       /*next*/)
-{}
+void     show_drives(const std::filesystem::path& /*current*/,
+                     std::filesystem::path& /*selected*/,
+                     const uint32_t /*drives*/,
+                     bool* /*path_click*/,
+                     std::filesystem::path* /*next*/)
+{
+}
 #endif
 
 static void show_path(const std::filesystem::path& current,

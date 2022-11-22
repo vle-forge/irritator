@@ -228,6 +228,8 @@ void task_simulation_model_del(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
 void task_build_observation_output(void* param) noexcept;
+void task_remove_simulation_observation(application& app, model_id id) noexcept;
+void task_add_simulation_observation(application& app, model_id id) noexcept;
 
 struct gui_task
 {
@@ -426,10 +428,6 @@ struct settings_manager
     ImU32  gui_hovered_component_color;
     ImU32  gui_selected_component_color;
 
-    //! @brief Compute selected and hovered colors from gui_model_color and
-    //! gui_component_color.
-    void update() noexcept;
-
     int   style_selector                   = 0;
     int   automatic_layout_iteration_limit = 200;
     float automatic_layout_x_distance      = 350.f;
@@ -438,6 +436,10 @@ struct settings_manager
     float grid_layout_y_distance           = 200.f;
 
     bool show_dynamics_inputs_in_editor = false;
+
+    //! @brief Compute selected and hovered colours from gui_model_color and
+    //! gui_component_color.
+    void update() noexcept;
 
     void show(bool* is_open) noexcept;
 };
@@ -453,6 +455,8 @@ struct application
     project_hierarchy_selection project_selection;
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
+
+    window_logger log_w;
 
 private:
     data_array<simulation_task, simulation_task_id> sim_tasks;
@@ -520,35 +524,32 @@ public:
     status save_settings() noexcept;
     status load_settings() noexcept;
 
-    /* Helpers function to add a @c simulation_task into the @c
-     * main_task_lists[simulation]. Task is added at tail of the @c ring_buffer
-     * and ensure linear operation.
-     */
+    //! Helpers function to add a @c simulation_task into the @c
+    //! main_task_lists[simulation]. Task is added at tail of the @c
+    //! ring_buffer and ensure linear operation.
     void add_simulation_task(task_function fn,
                              u64           param_1 = 0,
                              u64           param_2 = 0,
                              u64           param_3 = 0) noexcept;
 
-    /* Helpers function to add a @c simulation_task into the @c
-     * main_task_lists[gui]. Task is added at tail of the @c ring_buffer and
-     * ensure linear operation.
-     */
+    //! Helpers function to add a @c simulation_task into the @c
+    //! main_task_lists[gui]. Task is added at tail of the @c ring_buffer and
+    //! ensure linear operation.
     void add_gui_task(task_function fn,
                       u64           param_1 = 0,
                       u64           param_2 = 0,
                       void*         param_3 = 0) noexcept;
 
-    /* Helpers function to get a @c unordered_task_list. Wait until the  task
-     * list is available. */
+    //! Helpers function to get a @c unordered_task_list. Wait until the  task
+    //! list is available.
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
-
-    window_logger log_w;
 };
 
-void task_remove_simulation_observation(application& app, model_id id) noexcept;
-void task_add_simulation_observation(application& app, model_id id) noexcept;
-
+//! @brief Get the file path of the @c imgui.ini file saved in $HOME.
+//! @return A pointer to a newly allocated memory.
 char* get_imgui_filename() noexcept;
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 inline raw_observation::raw_observation(const observation_message& msg_,
                                         const real                 t_) noexcept
