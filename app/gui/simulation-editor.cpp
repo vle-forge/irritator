@@ -630,8 +630,14 @@ static void add_popup_menuitem(simulation_editor& ed,
     if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)],
                         nullptr,
                         nullptr,
-                        enable_menu_item))
-        ed.simulation_model_add(type, click_pos);
+                        enable_menu_item)) {
+        auto* app = container_of(&ed, &application::s_editor);
+
+        app->add_simulation_task(task_simulation_model_add,
+                                 ordinal(type),
+                                 static_cast<u64>(click_pos.x),
+                                 static_cast<u64>(click_pos.y));
+    }
 }
 
 // @todo DEBUG MODE: Prefer user settings or better timeline constructor
@@ -857,16 +863,14 @@ static void free_children(simulation_editor&   ed,
 {
     auto* app = container_of(&ed, &application::s_editor);
 
-    auto task_available = app->sim_tasks.capacity() - app->sim_tasks.ssize();
-    auto task_max       = std::min(task_available, nodes.size());
+    const auto tasks = std::min(nodes.size(), task_list_tasks_number);
 
-    for (int i = 0; i < task_max; ++i) {
-        const auto* mdl = ed.sim.models.try_to_get(nodes[i]);
-        if (!mdl)
-            continue;
-
-        const auto mdl_id = ed.sim.models.get_id(mdl);
-        ed.simulation_model_del(mdl_id);
+    for (int i = 0; i < tasks; ++i) {
+        if (const auto* mdl = ed.sim.models.try_to_get(nodes[i]); mdl) {
+            const auto mdl_id  = ed.sim.models.get_id(mdl);
+            const auto mdl_idx = ordinal(mdl_id);
+            app->add_simulation_task(task_simulation_model_del, mdl_idx);
+        }
     }
 }
 
@@ -1507,7 +1511,7 @@ void application::show_simulation_editor_widget() noexcept
 }
 
 /* Task: add a model into current simulation (running, started etc.). */
-static void simulation_model_add_impl(void* param) noexcept
+void task_simulation_model_add(void* param) noexcept
 {
     auto* task  = reinterpret_cast<simulation_task*>(param);
     task->state = task_status::started;
@@ -1544,7 +1548,7 @@ static void simulation_model_add_impl(void* param) noexcept
     task->state = task_status::finished;
 }
 
-static void simulation_model_del_impl(void* param) noexcept
+void task_simulation_model_del(void* param) noexcept
 {
     auto* task  = reinterpret_cast<simulation_task*>(param);
     task->state = task_status::started;
@@ -1554,29 +1558,6 @@ static void simulation_model_del_impl(void* param) noexcept
     sim.deallocate(mdl_id);
 
     task->state = task_status::finished;
-}
-
-void simulation_editor::simulation_model_add(dynamics_type type,
-                                             ImVec2        position) noexcept
-{
-    auto* app    = container_of(this, &application::s_editor);
-    auto& task   = app->sim_tasks.alloc();
-    task.app     = app;
-    task.param_1 = ordinal(type);
-    task.param_2 = static_cast<u64>(position.x);
-    task.param_3 = static_cast<u64>(position.y);
-    app->task_mgr.main_task_lists[0].add(simulation_model_add_impl, &task);
-    app->task_mgr.main_task_lists[0].submit();
-}
-
-void simulation_editor::simulation_model_del(model_id id) noexcept
-{
-    auto* app    = container_of(this, &application::s_editor);
-    auto& task   = app->sim_tasks.alloc();
-    task.app     = app;
-    task.param_1 = ordinal(id);
-    app->task_mgr.main_task_lists[0].add(simulation_model_del_impl, &task);
-    app->task_mgr.main_task_lists[0].submit();
 }
 
 } // namesapce irt

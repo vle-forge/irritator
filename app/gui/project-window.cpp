@@ -375,8 +375,8 @@ static void show_hierarchy_settings(component_editor& ed,
                         auto  compo_id = ed.mod.components.get_id(*compo);
                         auto  compo    = ordinal(compo_id);
 
-                        app->add_simulation_task(save_component, compo);
-                        app->add_simulation_task(save_description, compo);
+                        app->add_simulation_task(task_save_component, compo);
+                        app->add_simulation_task(task_save_description, compo);
                     }
                 }
             }

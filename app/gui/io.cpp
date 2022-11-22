@@ -2628,7 +2628,7 @@ void component_editor::save_project(const char* filename) noexcept
     }
 }
 
-void load_project(void* param) noexcept
+void task_load_project(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
@@ -2643,7 +2643,7 @@ void load_project(void* param) noexcept
     g_task->state = task_status::finished;
 }
 
-void save_project(void* param) noexcept
+void task_save_project(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;

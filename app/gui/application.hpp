@@ -41,8 +41,6 @@ constexpr T* container_of(M* ptr, const M T::*member)
                                 offset_of(member));
 }
 
-static inline constexpr int not_found = -1;
-
 struct application;
 struct window_logger;
 struct component_editor;
@@ -221,10 +219,12 @@ struct simulation_observation_copy
     simulation_plot_type     plot_type = simulation_plot_type::none;
 };
 
-void save_component(void* param) noexcept;
-void save_description(void* param) noexcept;
-void load_project(void* param) noexcept;
-void save_project(void* param) noexcept;
+void task_save_component(void* param) noexcept;
+void task_save_description(void* param) noexcept;
+void task_load_project(void* param) noexcept;
+void task_save_project(void* param) noexcept;
+void task_simulation_model_add(void* param) noexcept;
+void task_simulation_model_del(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
 void task_build_observation_output(void* param) noexcept;
@@ -242,7 +242,7 @@ struct simulation_task
 {
     u64          param_1 = 0;
     u64          param_2 = 0;
-    i64          param_3 = 0;
+    u64          param_3 = 0;
     application* app     = nullptr;
     task_status  state   = task_status::not_started;
 };
@@ -293,9 +293,6 @@ struct simulation_editor
     void remove_simulation_observation_from(model_id id) noexcept;
     void add_simulation_observation_for(std::string_view name,
                                         model_id         id) noexcept;
-
-    void simulation_model_add(dynamics_type type, ImVec2 position) noexcept;
-    void simulation_model_del(model_id id) noexcept;
 
     // Used to add GUI task @c task_build_observation_output, one per
     // observer_id, from the simulation immediate observers.
@@ -457,10 +454,12 @@ struct application
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
+private:
     data_array<simulation_task, simulation_task_id> sim_tasks;
     data_array<gui_task, gui_task_id>               gui_tasks;
     task_manager                                    task_mgr;
 
+public:
     std::filesystem::path project_file;
     std::filesystem::path select_directory;
 
@@ -489,7 +488,7 @@ struct application
     bool show_modeling_editor        = true;
     bool show_observation_window     = true;
     bool show_component_store_window = true;
-    bool show_task_window            = false;
+    bool show_tasks_window           = false;
 
     bool new_project_file     = false; // rename menu_*
     bool load_project_file    = false; // rename menu_*
@@ -500,6 +499,7 @@ struct application
     bool init() noexcept;
     void show() noexcept;
 
+    void show_tasks_widgets() noexcept;
     void show_external_sources() noexcept;
     void show_log_window() noexcept;
     void show_simulation_observation_window() noexcept;
@@ -520,12 +520,10 @@ struct application
     status save_settings() noexcept;
     status load_settings() noexcept;
 
-    void add_load_project_task(registred_path_id id) noexcept;
-    void add_save_project_task(registred_path_id id) noexcept;
-
     /* Helpers function to add a @c simulation_task into the @c
      * main_task_lists[simulation]. Task is added at tail of the @c ring_buffer
-     * and ensure linear operation. */
+     * and ensure linear operation.
+     */
     void add_simulation_task(task_function fn,
                              u64           param_1 = 0,
                              u64           param_2 = 0,

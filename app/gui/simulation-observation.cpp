@@ -122,6 +122,8 @@ void simulation_editor::build_observation_output() noexcept
     constexpr int              capacity = 255;
     simulation_observation_job jobs[capacity];
 
+    auto& task_list = app->get_unordered_task_list(0);
+
     if (sim.immediate_observers.empty()) {
         int       obs_max = sim.observers.size();
         int       current = 0;
@@ -135,12 +137,11 @@ void simulation_editor::build_observation_output() noexcept
                 sim.observers.next(obs);
 
                 jobs[i] = { .app = app, .id = obs_id };
-                app->task_mgr.temp_task_lists[1].add(
-                  simulation_observation_job_update, &jobs[i]);
+                task_list.add(simulation_observation_job_update, &jobs[i]);
             }
 
-            app->task_mgr.temp_task_lists[1].submit();
-            app->task_mgr.temp_task_lists[1].wait();
+            task_list.submit();
+            task_list.wait();
 
             current += loop;
             if (obs_max >= capacity)
@@ -159,12 +160,11 @@ void simulation_editor::build_observation_output() noexcept
                 auto obs_id = sim.immediate_observers[i + current];
 
                 jobs[i] = { .app = app, .id = obs_id };
-                app->task_mgr.temp_task_lists[1].add(
-                  simulation_observation_job_finish, &jobs[i]);
+                task_list.add(simulation_observation_job_finish, &jobs[i]);
             }
 
-            app->task_mgr.temp_task_lists[1].submit();
-            app->task_mgr.temp_task_lists[1].wait();
+            task_list.submit();
+            task_list.wait();
 
             current += loop;
             if (obs_max > capacity)

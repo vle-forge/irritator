@@ -248,7 +248,7 @@ static void application_show_menu(application& app) noexcept
             }
 
             ImGui::MenuItem("Show memory usage", nullptr, &app.show_memory);
-            ImGui::MenuItem("Show task usage", nullptr, &app.show_task_window);
+            ImGui::MenuItem("Show task usage", nullptr, &app.show_tasks_window);
             ImGui::EndMenu();
         }
 
@@ -295,7 +295,7 @@ static void application_manage_menu_action(application& app) noexcept
                     auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    app.add_load_project_task(id);
+                    app.add_simulation_task(task_load_project, ordinal(id));
                 }
             }
 
@@ -316,7 +316,7 @@ static void application_manage_menu_action(application& app) noexcept
                 auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                 path.path  = str;
 
-                app.add_save_project_task(id);
+                app.add_simulation_task(task_save_project, ordinal(id));
             }
         } else {
             app.save_project_file    = false;
@@ -341,7 +341,7 @@ static void application_manage_menu_action(application& app) noexcept
                     auto  id   = app.c_editor.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    app.add_save_project_task(id);
+                    app.add_simulation_task(task_save_project, ordinal(id));
                 }
             }
 
@@ -493,19 +493,12 @@ static void application_show_windows(application& app) noexcept
     }
 }
 
-static void show_task_box(application& app, bool* is_open) noexcept
+void application::show_tasks_widgets() noexcept
 {
-    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
-    if (!ImGui::Begin("Task usage", is_open)) {
-        ImGui::End();
-        return;
-    }
-
-    int workers = app.task_mgr.temp_workers.ssize();
+    int workers = task_mgr.temp_workers.ssize();
     ImGui::InputInt("workers", &workers, 1, 100, ImGuiInputTextFlags_ReadOnly);
 
-    int lists = app.task_mgr.temp_task_lists.ssize();
+    int lists = task_mgr.temp_task_lists.ssize();
     ImGui::InputInt("lists", &lists, 1, 100, ImGuiInputTextFlags_ReadOnly);
 
     if (ImGui::CollapsingHeader("Tasks list", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -520,34 +513,31 @@ static void show_task_box(application& app, bool* is_open) noexcept
             ImGui::Text("simulation");
             ImGui::TableNextColumn();
             ImGui::TextFormat(
-              "{}", app.task_mgr.main_task_lists_stats[0].num_submitted_tasks);
+              "{}", task_mgr.main_task_lists_stats[0].num_submitted_tasks);
             ImGui::TableNextColumn();
             ImGui::TextFormat(
-              "{}", app.task_mgr.main_task_lists_stats[0].num_executed_tasks);
+              "{}", task_mgr.main_task_lists_stats[0].num_executed_tasks);
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::Text("gui");
             ImGui::TableNextColumn();
             ImGui::TextFormat(
-              "{}", app.task_mgr.main_task_lists_stats[1].num_submitted_tasks);
+              "{}", task_mgr.main_task_lists_stats[1].num_submitted_tasks);
             ImGui::TableNextColumn();
             ImGui::TextFormat(
-              "{}", app.task_mgr.main_task_lists_stats[1].num_executed_tasks);
+              "{}", task_mgr.main_task_lists_stats[1].num_executed_tasks);
 
-            for (int i = 0, e = app.task_mgr.temp_task_lists.ssize(); i != e;
-                 ++i) {
+            for (int i = 0, e = task_mgr.temp_task_lists.ssize(); i != e; ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("generic-{}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{}",
-                  app.task_mgr.temp_task_lists_stats[i].num_submitted_tasks);
+                  "{}", task_mgr.temp_task_lists_stats[i].num_submitted_tasks);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{}",
-                  app.task_mgr.temp_task_lists_stats[i].num_executed_tasks);
+                  "{}", task_mgr.temp_task_lists_stats[i].num_executed_tasks);
             }
             ImGui::EndTable();
         }
@@ -562,26 +552,24 @@ static void show_task_box(application& app, bool* is_open) noexcept
             ImGui::TableHeadersRow();
 
             int i = 0;
-            for (int e = app.task_mgr.main_workers.ssize(); i != e; ++i) {
+            for (int e = task_mgr.main_workers.ssize(); i != e; ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("main-{}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{} ms",
-                  app.task_mgr.main_workers[i].exec_time.count() / 1000);
+                  "{} ms", task_mgr.main_workers[i].exec_time.count() / 1000);
                 ImGui::TableNextColumn();
             }
 
             int j = 0;
-            for (int e = app.task_mgr.temp_workers.ssize(); j != e; ++j, ++i) {
+            for (int e = task_mgr.temp_workers.ssize(); j != e; ++j, ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("generic-{}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{} ms",
-                  app.task_mgr.temp_workers[j].exec_time.count() / 1000);
+                  "{} ms", task_mgr.temp_workers[j].exec_time.count() / 1000);
                 ImGui::TableNextColumn();
             }
 
@@ -613,8 +601,16 @@ void application::show() noexcept
     if (show_memory)
         show_memory_box(&show_memory);
 
-    if (show_task_window)
-        show_task_box(*this, &show_task_window);
+    if (show_tasks_window) {
+        ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
+        if (!ImGui::Begin("Task usage", &show_tasks_window)) {
+            ImGui::End();
+        } else {
+            show_tasks_widgets();
+            ImGui::End();
+        }
+    }
 
     if (show_settings)
         settings.show(&show_settings);
@@ -644,67 +640,6 @@ void application::show() noexcept
 
     notifications.show();
 }
-
-// editor* application::alloc_editor()
-//{
-//     if (!editors.can_alloc(1u)) {
-//         auto& notif = notifications.alloc(notification_type::error);
-//         notif.title = "Too many open editor";
-//         notifications.enable(notif);
-//         return nullptr;
-//     }
-//
-//     auto& ed = editors.alloc();
-//     if (auto ret = ed.initialize(get_index(editors.get_id(ed))); is_bad(ret))
-//     {
-//         auto& notif = notifications.alloc(notification_type::error);
-//         notif.title = "Editor allocation error";
-//         format(notif.message, "Error: {}", status_string(ret));
-//         notifications.enable(notif);
-//         editors.free(ed);
-//         return nullptr;
-//     }
-//
-//     log_w.log(5, "Open editor %s\n", ed.name.c_str());
-//     return &ed;
-// }
-
-// void application::free_editor(editor& ed)
-//{
-//     log_w.log(5, "Close editor %s\n", ed.name.c_str());
-//     editors.free(ed);
-// }
-
-// void application::show_plot_window()
-//{
-//     ImGui::SetNextWindowPos(ImVec2(50, 400), ImGuiCond_FirstUseEver);
-//     ImGui::SetNextWindowSize(ImVec2(600, 350), ImGuiCond_Once);
-//     if (!ImGui::Begin("Plot", &show_plot)) {
-//         ImGui::End();
-//         return;
-//     }
-//
-//     static editor_id current = undefined<editor_id>();
-//     if (auto* ed = make_combo_editor_name(current); ed) {
-//         if (ImPlot::BeginPlot("simulation", "t", "s")) {
-//             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-//
-//             plot_output* out = nullptr;
-//             while (ed->plot_outs.next(out)) {
-//                 if (!out->xs.empty() && !out->ys.empty())
-//                     ImPlot::PlotLine(out->name.c_str(),
-//                                      out->xs.data(),
-//                                      out->ys.data(),
-//                                      static_cast<int>(out->xs.size()));
-//             }
-//
-//             ImPlot::PopStyleVar(1);
-//             ImPlot::EndPlot();
-//         }
-//     }
-//
-//     ImGui::End();
-// }
 
 void application::show_main_as_tabbar(ImVec2           position,
                                       ImVec2           size,
@@ -902,30 +837,6 @@ void task_simulation_advance(void* param) noexcept
     }
 
     g_task->state = task_status::finished;
-}
-
-void application::add_load_project_task(registred_path_id id) noexcept
-{
-    if (sim_tasks.can_alloc()) {
-        auto& task = sim_tasks.alloc();
-        task.app   = this;
-
-        task.param_1 = ordinal(id);
-        task_mgr.main_task_lists[1].add(load_project, &task);
-        task_mgr.main_task_lists[1].submit();
-    }
-}
-
-void application::add_save_project_task(registred_path_id id) noexcept
-{
-    if (sim_tasks.can_alloc()) {
-        auto& task   = sim_tasks.alloc();
-        task.app     = this;
-        task.param_1 = ordinal(id);
-
-        task_mgr.main_task_lists[1].add(save_project, &task);
-        task_mgr.main_task_lists[1].submit();
-    }
 }
 
 } // namespace irt
