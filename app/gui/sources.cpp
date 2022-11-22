@@ -224,8 +224,6 @@ static void task_try_init_source(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     source src;
     src.id   = g_task->param_1;

@@ -451,8 +451,6 @@ static void task_simulation_clear(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     simulation_clear(g_task->app->c_editor, g_task->app->s_editor);
 
@@ -463,8 +461,6 @@ static void task_simulation_copy(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     g_task->app->s_editor.force_pause = false;
     g_task->app->s_editor.force_stop  = false;
@@ -477,8 +473,6 @@ static void task_simulation_init(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     g_task->app->s_editor.force_pause = false;
     g_task->app->s_editor.force_stop  = false;
@@ -707,8 +701,6 @@ static void task_simulation_run(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     task_simulation_run(g_task->app->s_editor);
 
@@ -719,8 +711,6 @@ static void task_simulation_run_1(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     task_simulation_run_1(g_task->app->s_editor);
 
@@ -750,8 +740,6 @@ static void task_simulation_finish(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     task_simulation_finish(g_task->app->c_editor, g_task->app->s_editor);
 
@@ -762,8 +750,6 @@ static void task_enable_or_disable_debug(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     g_task->app->s_editor.tl.reset();
 
@@ -868,7 +854,7 @@ void simulation_editor::simulation_start() noexcept
     irt_assert(state);
 
     if (state) {
-        auto* app  = container_of(this, &application::s_editor);
+        auto* app = container_of(this, &application::s_editor);
         app->add_simulation_task(task_simulation_run);
     }
 }

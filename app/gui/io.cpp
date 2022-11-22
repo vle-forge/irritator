@@ -2630,9 +2630,8 @@ void component_editor::save_project(const char* filename) noexcept
 
 void load_project(void* param) noexcept
 {
-    auto* g_task       = reinterpret_cast<simulation_task*>(param);
-    g_task->state      = task_status::started;
-    g_task->app->state = application_status_read_only_modeling;
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
+    g_task->state = task_status::started;
 
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->c_editor.mod.registred_paths.try_to_get(id);
@@ -2646,9 +2645,8 @@ void load_project(void* param) noexcept
 
 void save_project(void* param) noexcept
 {
-    auto* g_task       = reinterpret_cast<simulation_task*>(param);
-    g_task->state      = task_status::started;
-    g_task->app->state = application_status_read_only_modeling;
+    auto* g_task  = reinterpret_cast<simulation_task*>(param);
+    g_task->state = task_status::started;
 
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->c_editor.mod.registred_paths.try_to_get(id);

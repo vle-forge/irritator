@@ -179,8 +179,6 @@ void task_remove_simulation_observation(void* param) noexcept
 {
     auto* task  = reinterpret_cast<simulation_task*>(param);
     task->state = task_status::started;
-    task->app->state |= application_status_read_only_simulating |
-                        application_status_read_only_modeling;
 
     auto& app    = *task->app;
     auto& sim_ed = app.s_editor;
@@ -195,8 +193,6 @@ void task_add_simulation_observation(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     auto& app    = *g_task->app;
     auto& sim_ed = app.s_editor;

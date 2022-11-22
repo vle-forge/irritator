@@ -54,7 +54,6 @@ enum class simulation_observation_copy_id : u64;
 enum class simulation_task_id : u64;
 enum class gui_task_id : u64;
 
-using application_status   = u32;
 using simulation_plot_type = i32;
 
 enum class notification_type
@@ -100,14 +99,7 @@ enum class simulation_status
     debugged,
 };
 
-enum application_status_
 {
-    application_status_modeling             = 0,
-    application_status_simulating           = 1 << 1,
-    application_status_read_only_modeling   = 1 << 2,
-    application_status_read_only_simulating = 1 << 3,
-};
-
 enum simulation_plot_
 {
     simulation_plot_type_none,
@@ -242,22 +234,20 @@ void task_build_observation_output(void* param) noexcept;
 
 struct gui_task
 {
-    u64                param_1      = 0;
-    u64                param_2      = 0;
-    void*              param_3      = nullptr;
-    application*       app          = nullptr;
-    application_status editor_state = 0;
-    task_status        state        = task_status::not_started;
+    u64          param_1 = 0;
+    u64          param_2 = 0;
+    void*        param_3 = nullptr;
+    application* app     = nullptr;
+    task_status  state   = task_status::not_started;
 };
 
 struct simulation_task
 {
-    u64                param_1      = 0;
-    u64                param_2      = 0;
-    i64                param_3      = 0;
-    application*       app          = nullptr;
-    application_status editor_state = 0;
-    task_status        state        = task_status::not_started;
+    u64          param_1 = 0;
+    u64          param_2 = 0;
+    i64          param_3 = 0;
+    application* app     = nullptr;
+    task_status  state   = task_status::not_started;
 };
 
 struct output_editor
@@ -485,7 +475,6 @@ struct application
     modeling_initializer mod_init;
 
     notification_manager notifications;
-    application_status   state = application_status_modeling;
 
     file_dialog f_dialog;
 

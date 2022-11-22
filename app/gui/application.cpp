@@ -814,8 +814,6 @@ void task_simulation_back(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     if (g_task->app->s_editor.tl.can_back()) {
         auto ret = back(g_task->app->s_editor.tl,
@@ -838,8 +836,6 @@ void task_simulation_advance(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
-    g_task->app->state |= application_status_read_only_simulating |
-                          application_status_read_only_modeling;
 
     if (g_task->app->s_editor.tl.can_advance()) {
         auto ret = advance(g_task->app->s_editor.tl,
