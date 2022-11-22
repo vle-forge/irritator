@@ -455,8 +455,6 @@ struct application
     settings_manager            settings;
     project_hierarchy_selection project_selection;
 
-    bool show_select_directory_dialog = false;
-
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
     data_array<simulation_task, simulation_task_id> sim_tasks;
@@ -477,6 +475,8 @@ struct application
 
     bool is_fixed_window_placement = true;
     bool is_fixed_main_window      = true;
+
+    bool show_select_directory_dialog = false;
 
     bool show_imgui_demo  = false;
     bool show_implot_demo = false;
@@ -531,8 +531,9 @@ struct application
                              u64           param_2 = 0,
                              u64           param_3 = 0) noexcept;
 
-    /* Helpers function to add a @c simulation_task into the @c main_task_lists[gui].
-     * Task is added at tail of the @c ring_buffer and ensure linear operation.
+    /* Helpers function to add a @c simulation_task into the @c
+     * main_task_lists[gui]. Task is added at tail of the @c ring_buffer and
+     * ensure linear operation.
      */
     void add_gui_task(task_function fn,
                       u64           param_1 = 0,
