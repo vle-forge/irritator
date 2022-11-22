@@ -540,6 +540,10 @@ struct application
                       u64           param_2 = 0,
                       void*         param_3 = 0) noexcept;
 
+    /* Helpers function to get a @c unordered_task_list. Wait until the  task
+     * list is available. */
+    unordered_task_list& get_unordered_task_list(int idx) noexcept;
+
     window_logger log_w;
 };
 

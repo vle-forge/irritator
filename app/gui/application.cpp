@@ -850,6 +850,16 @@ void application::add_gui_task(task_function fn,
     task_mgr.main_task_lists[ordinal(main_task::gui)].submit();
 }
 
+unordered_task_list& application::get_unordered_task_list(int idx) noexcept
+{
+    idx = idx < 0 ? 0
+          : idx >= length(task_mgr.temp_task_lists)
+            ? length(task_mgr.temp_task_lists) - 1
+            : idx;
+
+    return task_mgr.temp_task_lists[idx];
+}
+
 void task_simulation_back(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
