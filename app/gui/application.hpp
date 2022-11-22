@@ -54,8 +54,6 @@ enum class simulation_observation_copy_id : u64;
 enum class simulation_task_id : u64;
 enum class gui_task_id : u64;
 
-using simulation_plot_type = i32;
-
 enum class notification_type
 {
     none,
@@ -99,12 +97,11 @@ enum class simulation_status
     debugged,
 };
 
+enum class simulation_plot_type
 {
-enum simulation_plot_
-{
-    simulation_plot_type_none,
-    simulation_plot_type_plotlines,
-    simulation_plot_type_plotscatters
+    none,
+    plotlines,
+    plotscatters
 };
 
 void show_menu_external_sources(external_source& srcs,
@@ -194,7 +191,7 @@ struct simulation_observation
     real max_time_step = to_real(1);
     real time_step     = to_real(0.01);
 
-    simulation_plot_type plot_type = simulation_plot_type_none;
+    simulation_plot_type plot_type = simulation_plot_type::none;
 
     simulation_observation(model_id mdl, i32 buffer_capacity) noexcept;
 
@@ -221,7 +218,7 @@ struct simulation_observation_copy
 {
     small_string<16u>        name;
     ring_buffer<ImPlotPoint> linear_outputs;
-    simulation_plot_type     plot_type = simulation_plot_type_none;
+    simulation_plot_type     plot_type = simulation_plot_type::none;
 };
 
 void save_component(void* param) noexcept;

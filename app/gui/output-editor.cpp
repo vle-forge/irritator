@@ -12,8 +12,8 @@
 namespace irt {
 
 static const char* simulation_plot_type_string[] = { "None",
-                                                     "Plot interpolate line",
-                                                     "Plot interpolate dot" };
+                                                     "Plot line",
+                                                     "Plot dot" };
 
 output_editor::output_editor() noexcept
   : implot_context{ ImPlot::CreateContext() }
@@ -73,10 +73,13 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
             ImGui::TextFormat("{}", out->linear_outputs.capacity());
 
             ImGui::TableNextColumn();
-            ImGui::Combo("##plot",
-                         &out->plot_type,
-                         simulation_plot_type_string,
-                         IM_ARRAYSIZE(simulation_plot_type_string));
+
+            int plot_type = ordinal(out->plot_type);
+            if (ImGui::Combo("##plot",
+                             &plot_type,
+                             simulation_plot_type_string,
+                             IM_ARRAYSIZE(simulation_plot_type_string)))
+                out->plot_type = enum_cast<simulation_plot_type>(plot_type);
 
             ImGui::TableNextColumn();
             if (ImGui::Button("copy")) {
@@ -127,10 +130,12 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
             ImGui::TextFormat("{}", copy->linear_outputs.size());
 
             ImGui::TableNextColumn();
-            ImGui::Combo("##plot",
-                         &copy->plot_type,
-                         simulation_plot_type_string,
-                         IM_ARRAYSIZE(simulation_plot_type_string));
+            int plot_type = ordinal(copy->plot_type);
+            if (ImGui::Combo("##plot",
+                             &plot_type,
+                             simulation_plot_type_string,
+                             IM_ARRAYSIZE(simulation_plot_type_string)))
+                copy->plot_type = enum_cast<simulation_plot_type>(plot_type);
 
             ImGui::TableNextColumn();
             if (ImGui::Button("del")) {
@@ -160,14 +165,14 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
         while (sim_ed.sim_obs.next(obs)) {
             if (obs->linear_outputs.size() > 0) {
                 switch (obs->plot_type) {
-                case simulation_plot_type_plotlines:
+                case simulation_plot_type::plotlines:
                     ImPlot::PlotLineG(obs->name.c_str(),
                                       ring_buffer_getter,
                                       &obs->linear_outputs,
                                       obs->linear_outputs.ssize());
                     break;
 
-                case simulation_plot_type_plotscatters:
+                case simulation_plot_type::plotscatters:
                     ImPlot::PlotScatterG(obs->name.c_str(),
                                          ring_buffer_getter,
                                          &obs->linear_outputs,
@@ -184,14 +189,14 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
         while (sim_ed.copy_obs.next(copy)) {
             if (copy->linear_outputs.size() > 0) {
                 switch (copy->plot_type) {
-                case simulation_plot_type_plotlines:
+                case simulation_plot_type::plotlines:
                     ImPlot::PlotLineG(copy->name.c_str(),
                                       ring_buffer_getter,
                                       &copy->linear_outputs,
                                       copy->linear_outputs.ssize());
                     break;
 
-                case simulation_plot_type_plotscatters:
+                case simulation_plot_type::plotscatters:
                     ImPlot::PlotScatterG(copy->name.c_str(),
                                          ring_buffer_getter,
                                          &copy->linear_outputs,
