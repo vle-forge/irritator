@@ -30,9 +30,11 @@ enum class main_task : i8
     gui
 };
 
-static constexpr auto main_task_size  = 2;
-static constexpr auto max_temp_worker = 8;
-static constexpr auto max_threads     = main_task_size + max_temp_worker;
+static inline constexpr int  unordered_task_list_tasks_number = 256;
+static inline constexpr int  task_list_tasks_number           = 16;
+static inline constexpr auto main_task_size                   = 2;
+static inline constexpr auto max_temp_worker                  = 8;
+static inline constexpr auto max_threads = main_task_size + max_temp_worker;
 
 class spin_lock
 {
@@ -140,8 +142,8 @@ struct job
 //! @brief Simple task list access by only one thread
 struct task_list
 {
-    worker_stats&                     stats;
-    thread_safe_ring_buffer<task, 16> tasks;
+    worker_stats&                                         stats;
+    thread_safe_ring_buffer<task, task_list_tasks_number> tasks;
 
     worker_main* worker = nullptr;
 
@@ -175,8 +177,8 @@ struct unordered_task_list
         stop
     };
 
-    worker_stats&           stats;
-    small_vector<task, 256> tasks;
+    worker_stats&                                        stats;
+    small_vector<task, unordered_task_list_tasks_number> tasks;
 
     vector<worker_generic*> workers;
     std::atomic_int         current_task = 0;
