@@ -5285,6 +5285,9 @@ struct filter
 
     status transition(simulation& sim, time, time, time) noexcept
     {
+        // @TODO fix transition: take ino account Qss1, Qss2 and Qss3 messages
+        //  to build a correct sigma.
+
         sigma = time_domain<time>::infinity;
 
         auto span = get_message(sim, x[0]);
