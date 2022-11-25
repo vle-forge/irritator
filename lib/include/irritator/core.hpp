@@ -583,8 +583,7 @@ using time = real;
 
 template<typename T>
 struct time_domain
-{
-};
+{};
 
 template<>
 struct time_domain<time>
@@ -2924,20 +2923,17 @@ namespace detail {
 
 template<typename, template<typename...> class, typename...>
 struct is_detected : std::false_type
-{
-};
+{};
 
 template<template<class...> class Operation, typename... Arguments>
 struct is_detected<std::void_t<Operation<Arguments...>>,
                    Operation,
                    Arguments...> : std::true_type
-{
-};
+{};
 
 template<typename T, T>
 struct helper
-{
-};
+{};
 
 } // namespace detail
 
@@ -9256,10 +9252,10 @@ inline void observer::update(observation_message msg) noexcept
     if (flags & flags_buffer_full)
         new_flags |= flags_data_lost;
 
-     if (!buffer.empty() && buffer.tail()->data[0] == msg[0])
-         *(buffer.tail()) = msg;
-     else
-         buffer.force_enqueue(msg);
+    if (!buffer.empty() && buffer.tail()->data[0] == msg[0])
+        *(buffer.tail()) = msg;
+    else
+        buffer.force_enqueue(msg);
 
     if (buffer.full())
         new_flags |= flags_buffer_full;
