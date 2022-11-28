@@ -1911,9 +1911,63 @@ bool load(hsm_wrapper& /*dyn*/,
     return false;
 }
 
-void write(json_writer& writer, const hsm_wrapper& /*dyn*/) noexcept
+void write(json_writer&                                    writer,
+           const hierarchical_state_machine::state_action& state) noexcept
 {
-    writer.Key("hsm");
+    writer.Int(state.parameter);
+    writer.Int(static_cast<int>(state.var1));
+    writer.Int(static_cast<int>(state.var2));
+    writer.Int(static_cast<int>(state.type));
+}
+
+void write(json_writer&                                        writer,
+           const hierarchical_state_machine::condition_action& state) noexcept
+{
+    writer.Int(state.parameter);
+    writer.Int(static_cast<int>(state.type));
+    writer.Int(static_cast<int>(state.port));
+    writer.Int(static_cast<int>(state.mask));
+}
+
+void write(component&         compo,
+           json_writer&       writer,
+           const hsm_wrapper& dyn) noexcept
+{
+    if (auto* machine = compo.hsms.try_to_get(dyn.id); machine) {
+        writer.Key("hsm");
+        writer.StartObject();
+        writer.Key("states");
+        writer.StartArray();
+        for (int i = 0, e = length(machine->states); i != e; ++i) {
+            write(writer, machine->states[i].enter_action);
+            write(writer, machine->states[i].exit_action);
+            write(writer, machine->states[i].if_action);
+            write(writer, machine->states[i].else_action);
+            write(writer, machine->states[i].condition);
+
+            writer.Int(machine->states[i].if_transition);
+            writer.Int(machine->states[i].else_transition);
+            writer.Int(machine->states[i].super_id);
+            writer.Int(machine->states[i].sub_id);
+        }
+        writer.EndArray();
+
+        writer.Key("outputs-number");
+        writer.Int(machine->outputs.ssize());
+        writer.Key("outputs");
+        writer.StartArray();
+        for (int i = 0, e = machine->outputs.ssize(); i != e; ++i) {
+            writer.StartObject();
+            writer.Key("port");
+            writer.Int(machine->outputs[i].port);
+            writer.Key("value");
+            writer.Int(machine->outputs[i].value);
+            writer.EndObject();
+        }
+
+        writer.EndArray();
+        writer.EndObject();
+    }
 }
 
 inline bool convert_parameter_key(const std::string_view str,
@@ -2478,10 +2532,17 @@ void write_node(json_writer& writer, modeling& mod, tree_node& parent) noexcept
 
                 writer.EndArray();
 
-                dispatch(*dst,
-                         [&writer]<typename Dynamics>(Dynamics& dyn) -> void {
-                             write(writer, dyn);
-                         });
+                dispatch(
+                  *dst,
+                  [&compo, &writer]<typename Dynamics>(Dynamics& dyn) -> void {
+                      if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                          auto* machine = compo.hsms.try_to_get(dyn.id);
+                          if (machine)
+                              write(compo, writer, dyn);
+                      } else {
+                          write(writer, dyn);
+                      }
+                  });
 
                 writer.EndObject();
             }
@@ -2491,12 +2552,14 @@ void write_node(json_writer& writer, modeling& mod, tree_node& parent) noexcept
 
 struct project_writer
 {
-    project_writer(FILE* fp_)
-      : os(fp_, buffer, sizeof(buffer))
+    project_writer(component& compo_, FILE* fp_) noexcept
+      : compo(compo_)
+      , os(fp_, buffer, sizeof(buffer))
       , writer(os)
     {
     }
 
+    component&      compo;
     char            buffer[4096];
     json_out_stream os;
     json_writer     writer;
@@ -2521,7 +2584,7 @@ status modeling::save_project(const char* filename) noexcept
                 ret = status::io_file_format_error;
             } else {
                 try {
-                    project_writer pw(fp);
+                    project_writer pw(compo, fp);
 
                     pw.writer.StartObject();
                     pw.writer.Key("component-path");
@@ -2572,7 +2635,7 @@ void component_editor::save_project(const char* filename) noexcept
             auto* file  = mod.file_paths.try_to_get(compo.file);
 
             if (reg && dir && file) {
-                project_writer pw(fp);
+                project_writer pw(compo, fp);
                 try {
                     pw.writer.StartObject();
                     pw.writer.Key("component-path");
