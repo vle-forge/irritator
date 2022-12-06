@@ -1441,8 +1441,8 @@ int main()
     };
 
     "input-output"_test = [] {
-        std::string str;
-        str.reserve(4096u);
+        irt::vector<char> out;
+        irt::json_cache   cache;
 
         {
             irt::simulation      sim;
@@ -1504,73 +1504,31 @@ int main()
             sim.alloc<irt::accumulator_2>();
             sim.alloc<irt::hsm_wrapper>();
 
-            std::ostringstream os;
-            irt::writer        w(os);
+            auto is_saved = irt::simulation_save(
+              sim,
+              srcs,
+              cache,
+              out,
+              irt::json_pretty_print::indent_2_one_line_array);
 
-            expect(irt::is_success(w(sim, srcs)));
-            str = os.str();
+            expect(is_success(is_saved));
+            expect(out.size() > 0);
         }
 
-        expect(!str.empty());
-        fmt::print("[\n{}\n]\n", str);
+        fmt::print("\n[{}]\n", std::string_view(out.data(), out.size()));
 
         {
-            std::istringstream is(str);
-
             irt::simulation      sim;
             irt::external_source srcs;
             sim.source_dispatch = srcs;
 
             expect(irt::is_success(sim.init(64lu, 32lu)));
-            // expect(irt::is_success(srcs.init(64u)));
 
-            irt::reader r(is);
-            expect(irt::is_success(r(sim, srcs)));
+            auto in        = std::span(out.data(), out.size());
+            auto is_loaded = irt::simulation_load(sim, srcs, cache, in);
 
+            expect(is_success(is_loaded));
             expect(sim.models.size() == 51);
-        }
-
-        {
-            std::istringstream is(str);
-            int                i = 0;
-
-            irt::simulation      sim;
-            irt::external_source srcs;
-            sim.source_dispatch = srcs;
-            expect(irt::is_success(sim.init(64lu, 32lu)));
-
-            irt::reader r(is);
-            expect(irt::is_success(
-              r(sim, srcs, [&i](irt::model_id /*id*/) { ++i; })));
-            expect(i == 51);
-
-            expect(sim.models.size() == 51);
-        }
-
-        {
-            std::string string_error{
-                "0 0 0 0\n1\n0 5 6 qss1_integrator A B C\n"
-            };
-            std::istringstream   is{ string_error };
-            irt::simulation      sim;
-            irt::external_source srcs;
-            sim.source_dispatch = srcs;
-
-            expect(irt::is_success(sim.init(64lu, 32lu)));
-
-            irt::is_fatal_breakpoint = false;
-
-            irt::reader r(is);
-            expect(irt::is_bad(r(sim, srcs)));
-            expect(r.line_error() == 3);
-            expect(r.column_error() <= 23); /* linux/win: 22 macos: 23 */
-            expect(r.model_error == 0);
-            expect(r.connection_error == 0);
-
-            expect(r.get_position(0).x == 5.f);
-            expect(r.get_position(0).y == 6.f);
-
-            irt::is_fatal_breakpoint = true;
         }
     };
 

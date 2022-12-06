@@ -451,13 +451,9 @@ static status save_component_impl(const modeling&       mod,
         p /= file.path.sv();
         p.replace_extension(".irt");
 
-        std::ofstream ofs{ p };
-        if (ofs.is_open()) {
-            writer w{ ofs };
-            ret = w(mod, compo, mod.srcs);
-        } else {
-            ret = status::io_file_format_error;
-        }
+        json_cache cache;
+        irt_return_if_bad(
+          component_save(mod, compo, cache, p.string().c_str()));
     } catch (...) {
         ret = status::io_not_enough_memory;
     }

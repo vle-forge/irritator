@@ -1,4 +1,12 @@
-add_executable(app src/main.cpp)
+cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+project(irritator-cli VERSION 0.1.0.0 LANGUAGES CXX)
+
+add_executable(app src/main.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/archiver.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/json.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/file.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/modeling.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/timeline.cpp)
 
 target_link_libraries(app
     PRIVATE
@@ -33,6 +41,17 @@ target_compile_definitions(app
   VERSION_MINOR=${PROJECT_VERSION_MINOR}
   VERSION_PATCH=${PROJECT_VERSION_PATCH}
   VERSION_TWEAK=${PROJECT_VERSION_TWEAK})
+
+target_include_directories(app
+  PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib/include>
+  $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/lib/include>
+  $<INSTALL_INTERFACE:include>
+  PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/../../external/imgui/backends
+  ${PROJECT_SOURCE_DIR}/../../external/imgui
+  ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w)
 
 install(TARGETS app
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

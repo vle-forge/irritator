@@ -12,57 +12,6 @@
 
 #include <cstdio>
 
-static inline std::string_view status_str[] = {
-    "success",
-    "unknown_dynamics",
-    "block_allocator_bad_capacity",
-    "block_allocator_not_enough_memory",
-    "head_allocator_bad_capacity",
-    "head_allocator_not_enough_memory",
-    "simulation_not_enough_model",
-    "simulation_not_enough_message",
-    "simulation_not_enough_connection",
-    "vector_init_capacity_error",
-    "vector_not_enough_memory",
-    "data_array_init_capacity_error",
-    "data_array_not_enough_memory",
-    "source_unknown",
-    "source_empty",
-    "model_connect_output_port_unknown",
-    "model_connect_already_exist",
-    "model_connect_bad_dynamics",
-    "model_queue_bad_ta",
-    "model_queue_full",
-    "model_dynamic_queue_source_is_null",
-    "model_dynamic_queue_full",
-    "model_priority_queue_source_is_null",
-    "model_priority_queue_full",
-    "model_integrator_dq_error",
-    "model_integrator_X_error",
-    "model_integrator_internal_error",
-    "model_integrator_output_error",
-    "model_integrator_running_without_x_dot",
-    "model_integrator_ta_with_bad_x_dot",
-    "model_quantifier_bad_quantum_parameter",
-    "model_quantifier_bad_archive_length_parameter",
-    "model_quantifier_shifting_value_neg",
-    "model_quantifier_shifting_value_less_1",
-    "model_time_func_bad_init_message",
-    "model_flow_bad_samplerate",
-    "model_flow_bad_data",
-    "gui_not_enough_memory",
-    "io_not_enough_memory",
-    "io_file_format_error",
-    "io_file_format_source_number_error",
-    "io_file_source_full",
-    "io_file_format_model_error",
-    "io_file_format_model_number_error",
-    "io_file_format_model_unknown",
-    "io_file_format_dynamics_unknown",
-    "io_file_format_dynamics_limit_reach",
-    "io_file_format_dynamics_init_error",
-};
-
 enum action_type
 {
     action_nothing,
@@ -307,8 +256,16 @@ void run_simulation(irt::real   begin,
                duration,
                file_name);
 
-    irt::simulation      sim;
-    irt::external_source srcs;
+    irt::modeling_initializer init;
+    irt::modeling             mod;
+    irt::simulation           sim;
+    irt::external_source      srcs;
+    irt::json_cache           cache;
+
+    if (irt::is_bad(mod.init(init))) {
+        fmt::print(stderr, "Fail to allocate modeling structure\n");
+        return;
+    }
 
     if (irt::is_bad(sim.init(static_cast<unsigned>(models),
                              static_cast<unsigned>(messages)))) {
@@ -321,18 +278,11 @@ void run_simulation(irt::real   begin,
         return;
     }
 
-    std::ifstream ifs(file_name);
-    if (ifs.bad()) {
-        fmt::print(stderr, "Fail to open file `{}'\n", file_name);
-        return;
-    }
-
-    irt::reader reader(ifs);
-    if (auto ret = reader(sim, srcs); irt::is_bad(ret)) {
+    if (auto ret = irt::project_load(mod, cache, file_name); is_bad(ret)) {
         fmt::print(stderr,
-                   "Fail to read file `{}' ({})\n",
+                   "Fail to read file `{}: {}'\n",
                    file_name,
-                   status_str[irt::ordinal(ret)]);
+                   status_string(ret));
         return;
     }
 
@@ -343,22 +293,20 @@ void run_simulation(irt::real   begin,
     if (ret = srcs.prepare(); is_bad(ret)) {
         fmt::print(stderr,
                    "Fail to initialize external sources: {}\n",
-                   status_str[irt::ordinal(ret)]);
+                   status_string(ret));
         return;
     }
 
     if (ret = sim.initialize(t); is_bad(ret)) {
-        fmt::print(stderr,
-                   "Fail in initialize simulation: {}\n",
-                   status_str[irt::ordinal(ret)]);
+        fmt::print(
+          stderr, "Fail in initialize simulation: {}\n", status_string(ret));
         return;
     }
 
     do {
         if (ret = sim.run(t); is_bad(ret)) {
-            fmt::print(stderr,
-                       "Fail in during simulation: {}\n",
-                       status_str[irt::ordinal(ret)]);
+            fmt::print(
+              stderr, "Fail in during simulation: {}\n", status_string(ret));
             break;
         }
 
@@ -367,7 +315,7 @@ void run_simulation(irt::real   begin,
     if (ret = sim.finalize(t); is_bad(ret)) {
         fmt::print(stderr,
                    "Fail in finalizing simulation operation: {}\n",
-                   status_str[irt::ordinal(ret)]);
+                   status_string(ret));
     }
 
     fmt::print("\n\n");

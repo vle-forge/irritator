@@ -85,6 +85,32 @@ struct component;
 struct modeling;
 struct description;
 
+static constexpr inline const char* component_type_names[] = {
+    "qss1_izhikevich",
+    "qss1_lif",
+    "qss1_lotka_volterra",
+    "qss1_negative_lif",
+    "qss1_seir_lineaire",
+    "qss1_seir_nonlineaire",
+    "qss1_van_der_pol",
+    "qss2_izhikevich",
+    "qss2_lif",
+    "qss2_lotka_volterra",
+    "qss2_negative_lif",
+    "qss2_seir_lineaire",
+    "qss2_seir_nonlineaire",
+    "qss2_van_der_pol",
+    "qss3_izhikevich",
+    "qss3_lif",
+    "qss3_lotka_volterra",
+    "qss3_negative_lif",
+    "qss3_seir_lineaire",
+    "qss3_seir_nonlineaire",
+    "qss3_van_der_pol",
+    "file",
+    "memory"
+};
+
 status add_cpp_component_ref(const char* buffer,
                              modeling&   mod,
                              component&  parent) noexcept;
@@ -143,7 +169,7 @@ struct component
 {
     component() noexcept;
 
-    component(const component&) = delete;
+    component(const component&)            = delete;
     component& operator=(const component&) = delete;
 
     bool can_alloc(int place = 1) const noexcept;
@@ -372,27 +398,32 @@ inline connection::connection(child_id src_,
   , dst(dst_)
   , index_src(index_src_)
   , index_dst(index_dst_)
-{}
+{
+}
 
 inline child::child(model_id model) noexcept
   : id{ ordinal(model) }
   , type{ child_type::model }
-{}
+{
+}
 
 inline child::child(component_id component) noexcept
   : id{ ordinal(component) }
   , type{ child_type::component }
-{}
+{
+}
 
 inline port::port(child_id id_, i8 port_) noexcept
   : id{ id_ }
   , index{ port_ }
-{}
+{
+}
 
 inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
   : id(id_)
   , id_in_parent(id_in_parent_)
-{}
+{
+}
 
 inline component::component() noexcept
 {

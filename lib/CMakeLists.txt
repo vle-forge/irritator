@@ -64,7 +64,7 @@ install(DIRECTORY include/irritator
   ${CMAKE_INSTALL_INCLUDEDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 function(irritator_add_test test_name)
-  add_executable(${test_name} ${ARGN} "include/irritator/external_source.hpp;src/file.cpp")
+  add_executable(${test_name} ${ARGN} "include/irritator/external_source.hpp;src/file.cpp" "src/json.cpp")
 
   set_target_properties(${test_name} PROPERTIES
     COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"
@@ -144,9 +144,9 @@ function(irritator_add_benchmark test_name)
   target_link_libraries(${test_name} libirritator threads)
 endfunction()
 
-irritator_add_test(test-thread test/threading.cpp)
-irritator_add_test(test-api test/public-api.cpp src/archiver.cpp src/file.cpp)
-irritator_add_test(test-simulations test/simulations.cpp)
+irritator_add_test(test-thread test/threading.cpp src/archiver.cpp src/file.cpp src/json.cpp src/modeling.cpp src/timeline.cpp)
+irritator_add_test(test-api test/public-api.cpp src/archiver.cpp src/file.cpp src/json.cpp src/modeling.cpp src/timeline.cpp)
+irritator_add_test(test-simulations test/simulations.cpp src/archiver.cpp src/file.cpp src/json.cpp src/modeling.cpp src/timeline.cpp)
 # irritator_add_test(auditory test/auditory.cpp)
 
 # irritator_add_benchmark(benchmark_exactitude_aqss benchmark/benchmark_exactitude_aqss.cpp)

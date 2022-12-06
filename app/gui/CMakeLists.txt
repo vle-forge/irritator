@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
-project(irritator-gui VERSION 0.1.0 LANGUAGES CXX)
+project(irritator-gui VERSION 0.1.0.0 LANGUAGES CXX)
 
 set(gui_sources
     application.cpp application.hpp component.cpp components-window.cpp
@@ -10,6 +10,7 @@ set(gui_sources
     project-window.cpp simulation-editor.cpp simulation-component.cpp
     simulation-observation.cpp sources.cpp window-logger.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/archiver.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/json.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/file.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/modeling.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/timeline.cpp

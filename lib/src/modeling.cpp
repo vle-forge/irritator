@@ -2,10 +2,9 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
-
-#include "internal.hpp"
 
 #include <filesystem>
 
@@ -992,16 +991,18 @@ static status load_component(modeling& mod, component& compo) noexcept
 
             bool read_description = false;
 
-            {
-                std::ifstream ifs(file_path);
-                if (ifs.is_open()) {
-                    reader r(ifs);
-                    if (auto ret = r(mod, compo, mod.srcs); is_success(ret)) {
-                        read_description = true;
-                        compo.state      = component_status::unmodified;
-                    } else {
-                        return ret;
-                    }
+            if (mod.components.can_alloc()) {
+                auto&      compo = mod.components.alloc();
+                json_cache cache; // TODO move into modeling or parameter
+                auto       ret =
+                  component_load(mod, compo, cache, file_path.string().c_str());
+
+                if (is_success(ret)) {
+                    read_description = true;
+                    compo.state      = component_status::unmodified;
+                } else {
+                    mod.components.free(compo);
+                    irt_bad_return(ret);
                 }
             }
 
@@ -1478,12 +1479,10 @@ status modeling::save(component& c) noexcept
         p /= file->path.c_str();
         p.replace_extension(".irt");
 
-        std::ofstream ofs{ p };
-        irt_return_if_fail(ofs.is_open(),
-                           status::modeling_component_save_error);
+        json_cache cache;
+        irt_return_if_bad(component_save(*this, c, cache, p.string().c_str()));
 
-        writer w{ ofs };
-        irt_return_if_bad(w(*this, c, srcs));
+        return status::success;
     }
 
     if (auto* desc = descriptions.try_to_get(c.desc); desc) {

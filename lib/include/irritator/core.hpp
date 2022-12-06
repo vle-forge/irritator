@@ -316,6 +316,38 @@ constexpr Enum enum_cast(Integer i) noexcept
     return static_cast<Enum>(i);
 }
 
+template<typename Target, typename Source>
+constexpr inline bool is_numeric_castable(Source arg) noexcept
+{
+    static_assert(std::is_integral<Source>::value, "Integer required.");
+    static_assert(std::is_integral<Target>::value, "Integer required.");
+
+    using arg_traits    = std::numeric_limits<Source>;
+    using result_traits = std::numeric_limits<Target>;
+
+    if constexpr (result_traits::digits == arg_traits::digits &&
+                  result_traits::is_signed == arg_traits::is_signed)
+        return true;
+
+    if constexpr (result_traits::digits > arg_traits::digits)
+        return result_traits::is_signed || arg >= 0;
+
+    if (arg_traits::is_signed &&
+        arg < static_cast<Source>(result_traits::min()))
+        return false;
+
+    return arg <= static_cast<Source>(result_traits::max());
+}
+
+template<typename Target, typename Source>
+constexpr inline Target numeric_cast(Source arg) noexcept
+{
+    bool is_castable = is_numeric_castable<Target, Source>(arg);
+    irt_assert(is_castable);
+
+    return static_cast<Target>(arg);
+}
+
 //! @brief returns an iterator to the result or end if not found
 //!
 //! Binary search function which returns an iterator to the result or end if
@@ -400,6 +432,16 @@ enum class status
     io_filesystem_error,
     io_filesystem_make_directory_error,
     io_filesystem_not_directory_error,
+
+    io_project_file_error,
+    io_project_file_component_path_error,
+    io_project_file_component_directory_error,
+    io_project_file_component_file_error,
+    io_project_file_parameters_error,
+    io_project_file_parameters_access_error,
+    io_project_file_parameters_type_error,
+    io_project_file_parameters_init_error,
+
     io_file_format_error,
     io_file_format_source_number_error,
     io_file_source_full,
@@ -409,6 +451,7 @@ enum class status
     io_file_format_dynamics_unknown,
     io_file_format_dynamics_limit_reach,
     io_file_format_dynamics_init_error,
+
     filter_threshold_condition_not_satisfied
 };
 

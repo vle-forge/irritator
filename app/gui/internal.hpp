@@ -14,15 +14,7 @@
 
 namespace irt {
 
-/// Helper to display a little (?) mark which shows a tooltip when hovered. In
-/// your own code you may want to display an actual icon if you are using a
-/// merged icon fonts (see docs/FONTS.md)
-void HelpMarker(const char* desc) noexcept;
-
-/// Return the description string for each status.
-const char* status_string(const status s) noexcept;
-
-/// Helper to assign fmtlib format string to a small_string.
+//! Helper to assign fmtlib format string to a small_string.
 template<int N, typename S, typename... Args>
 constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 {
@@ -35,6 +27,11 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
     str.resize(static_cast<size_type>(ret.size));
 }
 
+/// Helper to display a little (?) mark which shows a tooltip when hovered. In
+/// your own code you may want to display an actual icon if you are using a
+/// merged icon fonts (see docs/FONTS.md)
+void HelpMarker(const char* desc) noexcept;
+
 inline int portable_filename_dirname_callback(
   ImGuiInputTextCallbackData* data) noexcept
 {
@@ -44,29 +41,6 @@ inline int portable_filename_dirname_callback(
             (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.')
              ? 0
              : 1;
-}
-
-template<typename Target, typename Source>
-inline bool is_numeric_castable(Source arg) noexcept
-{
-    static_assert(std::is_integral<Source>::value, "Integer required.");
-    static_assert(std::is_integral<Target>::value, "Integer required.");
-
-    using arg_traits    = std::numeric_limits<Source>;
-    using result_traits = std::numeric_limits<Target>;
-
-    if (result_traits::digits == arg_traits::digits &&
-        result_traits::is_signed == arg_traits::is_signed)
-        return true;
-
-    if (result_traits::digits > arg_traits::digits)
-        return result_traits::is_signed || arg >= 0;
-
-    if (arg_traits::is_signed &&
-        arg < static_cast<Source>(result_traits::min()))
-        return false;
-
-    return arg <= static_cast<Source>(result_traits::max());
 }
 
 } // namespace irt
