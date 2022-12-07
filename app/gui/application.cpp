@@ -576,8 +576,6 @@ void application::show_tasks_widgets() noexcept
             ImGui::EndTable();
         }
     }
-
-    ImGui::End();
 }
 
 void application::show() noexcept
