@@ -112,6 +112,15 @@ static inline bool is_fatal_breakpoint = false;
         }                                                                      \
     } while (0)
 
+#define irt_return_if_bad_map(expr__, new_status__)                            \
+    do {                                                                       \
+        auto status__ = (expr__);                                              \
+        if (status__ != status::success) {                                     \
+            irt_breakpoint();                                                  \
+            return new_status__;                                               \
+        }                                                                      \
+    } while (0)
+
 #define irt_return_if_fail(expr__, status__)                                   \
     do {                                                                       \
         if (!(expr__)) {                                                       \
