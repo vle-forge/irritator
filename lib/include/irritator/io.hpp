@@ -11,10 +11,7 @@
 #include <irritator/modeling.hpp>
 
 #include <algorithm>
-#include <istream>
-#include <ostream>
-#include <streambuf>
-#include <vector>
+#include <optional>
 
 namespace irt {
 
