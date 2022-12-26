@@ -32,21 +32,6 @@ struct file_header
     mode_type type    = mode_type::all;
 };
 
-struct memory_requirement
-{
-    i32 constant_external_source = 0;
-    i32 binary_external_source   = 0;
-    i32 text_external_source     = 0;
-    i32 random_external_source   = 0;
-    i32 models                   = 0;
-    i32 hsms                     = 0;
-};
-
-//! Callbacks call after read the number of models, hsms, observer and
-//! messages to allocate. Use this function to preallocate the simulation @c
-//! data_array.
-using memory_callback = function_ref<bool(const memory_requirement&)>;
-
 //! A structure use to cache data when read or write json component.
 //! - @c buffer is used to store the full file content or output buffer.
 //! - @c string_buffer is used when reading string.
@@ -132,34 +117,35 @@ status project_save(
   const char*       filename,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
-struct archiver
+struct binary_cache
 {
-    status perform(simulation& sim, external_source& srcs, file& io) noexcept;
-    status perform(simulation& sim, external_source& srcs, memory& io) noexcept;
+    table<u32, model_id>              to_models;
+    table<u32, hsm_id>                to_hsms;
+    table<u32, constant_source_id>    to_constant;
+    table<u32, binary_file_source_id> to_binary;
+    table<u32, text_file_source_id>   to_text;
+    table<u32, random_source_id>      to_random;
+
+    void clear() noexcept;
 };
 
-struct dearchiver
-{
-    table<u32, model_id>              u32_to_models;
-    table<u32, hsm_id>                u32_to_hsms;
-    table<u32, constant_source_id>    u32_to_constant;
-    table<u32, binary_file_source_id> u32_to_binary;
-    table<u32, text_file_source_id>   u32_to_text;
-    table<u32, random_source_id>      u32_to_random;
+status simulation_save(simulation&      sim,
+                       external_source& srcs,
+                       file&            io) noexcept;
 
-    data_array<model, model_id>*                    models = nullptr;
-    data_array<hierarchical_state_machine, hsm_id>* hsms   = nullptr;
+status simulation_save(simulation&      sim,
+                       external_source& srcs,
+                       memory&          io) noexcept;
 
-    status perform(simulation&      sim,
-                   external_source& srcs,
-                   file&            io,
-                   memory_callback  callback) noexcept;
+status simulation_load(simulation&      sim,
+                       external_source& srcs,
+                       file&            io,
+                       binary_cache&    cache) noexcept;
 
-    status perform(simulation&      sim,
-                   external_source& srcs,
-                   memory&          io,
-                   memory_callback  callback) noexcept;
-};
+status simulation_load(simulation&      sim,
+                       external_source& srcs,
+                       memory&          io,
+                       binary_cache&    cache) noexcept;
 
 //! Return the description string for each status.
 const char* status_string(const status s) noexcept;

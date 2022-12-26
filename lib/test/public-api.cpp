@@ -3502,9 +3502,7 @@ int main()
             (void)sim.alloc<irt::qss1_integrator>();
             (void)sim.alloc<irt::qss1_multiplier>();
 
-            irt::archiver arc;
-
-            ret = arc.perform(sim, srcs, m);
+            ret = simulation_save(sim, srcs, m);
             expect(ret == irt::status::success);
 
             data.resize(static_cast<int>(m.pos));
@@ -3519,22 +3517,14 @@ int main()
             irt::external_source srcs;
             sim.source_dispatch = srcs;
 
-            irt::status     ret;
-            irt::dearchiver d_arc;
+            irt::status ret;
+
+            irt::binary_cache cache;
 
             std::copy_n(data.data(), 200, m.data.data());
             m.pos = 0;
 
-            ret = d_arc.perform(
-              sim,
-              srcs,
-              m,
-              [&sim](const irt::memory_requirement& mem) noexcept -> bool {
-                  auto b1 = sim.models.init(mem.models);
-                  auto b2 = sim.hsms.init(mem.hsms);
-
-                  return irt::is_success(b1) && irt::is_success(b2);
-              });
+            ret = irt::simulation_load(sim, srcs, m, cache);
 
             expect(ret == irt::status::success);
 
