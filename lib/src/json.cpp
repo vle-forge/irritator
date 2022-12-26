@@ -1555,8 +1555,8 @@ static status read_children(json_cache&             cache,
             auto& child = compo.children.alloc(compo_id);
             last        = &child;
         } else {
-            dynamics_type type;
-            irt_return_if_fail(convert(cache.string_buffer, &type),
+            auto opt_type = convert(cache.string_buffer);
+            irt_return_if_fail(opt_type.has_value(),
                                status::io_file_format_error);
 
             auto dynamics_it = elem.FindMember("dynamics");
@@ -1565,7 +1565,7 @@ static status read_children(json_cache&             cache,
             irt_return_if_fail(dynamics_it->value.IsObject(),
                                status::io_file_format_error);
 
-            auto& child = mod.alloc(compo, type);
+            auto& child = mod.alloc(compo, opt_type.value());
             last        = &child;
 
             irt_assert(compo.models.try_to_get(enum_cast<model_id>(child.id)) !=
@@ -2213,14 +2213,14 @@ static status read_model(json_cache&             cache,
         irt_return_if_bad(get_string(elem, "type", cache.string_buffer));
         irt_return_if_bad(get_u64(elem, "id", id));
 
-        dynamics_type type;
-        irt_return_if_fail(convert(cache.string_buffer, &type),
+        auto opt_type = convert(cache.string_buffer);
+        irt_return_if_fail(opt_type.has_value(),
                            status::io_file_format_model_unknown);
 
         irt_return_if_fail(sim.models.can_alloc(),
                            status::io_not_enough_memory);
 
-        auto& mdl    = sim.alloc(type);
+        auto& mdl    = sim.alloc(opt_type.value());
         auto  mdl_id = sim.models.get_id(mdl);
 
         auto dynamics_it = elem.FindMember("dynamics");
@@ -2547,15 +2547,15 @@ static status load_project(json_cache              cache,
               get_string(elm, "type", cache.string_buffer),
               status::io_project_file_parameters_type_error);
 
-            dynamics_type type;
-            irt_return_if_fail(convert(cache.string_buffer, &type),
+            auto opt_type = convert(cache.string_buffer);
+            irt_return_if_fail(opt_type.has_value(),
                                status::io_project_file_parameters_init_error);
 
             auto parameter_it = elm.FindMember("parameter");
             irt_return_if_fail(parameter_it != elm.MemberEnd(),
                                status::io_project_file_parameters_init_error);
             irt_return_if_bad_map(
-              load_parameter(mod, type, parameter_it->value, *mdl),
+              load_parameter(mod, opt_type.value(), parameter_it->value, *mdl),
               status::io_project_file_parameters_init_error);
         }
     }

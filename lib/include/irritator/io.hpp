@@ -169,8 +169,8 @@ static constexpr inline const char* dynamics_type_names[] = {
     "logical_or_2",    "logical_or_3",    "hsm"
 };
 
-inline bool convert(const std::string_view dynamics_name,
-                    dynamics_type*         type) noexcept
+inline auto convert(std::string_view dynamics_name) noexcept
+  -> std::optional<dynamics_type>
 {
     struct string_to_type
     {
@@ -181,8 +181,8 @@ inline bool convert(const std::string_view dynamics_name,
         {
         }
 
-        const std::string_view name;
-        dynamics_type          type;
+        std::string_view name;
+        dynamics_type    type;
     };
 
     static constexpr string_to_type table[] = {
@@ -255,12 +255,9 @@ inline bool convert(const std::string_view dynamics_name,
                            return l.name < r;
                        });
 
-    if (it != std::end(table) && it->name == dynamics_name) {
-        *type = it->type;
-        return true;
-    }
-
-    return false;
+    return (it != std::end(table) && it->name == dynamics_name)
+             ? std::make_optional(it->type)
+             : std::nullopt;
 }
 
 static_assert(std::size(dynamics_type_names) ==
