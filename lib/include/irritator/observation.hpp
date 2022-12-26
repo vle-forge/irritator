@@ -106,7 +106,7 @@ constexpr auto compute_interpolate_size(const time t,
 template<typename OutputIterator>
 auto write_raw_data(observer& obs, OutputIterator it) noexcept -> void
 {
-    irt_assert(obs.buffer.size() >= 2);
+    irt_assert(obs.buffer.ssize() >= 2);
 
     auto head = obs.buffer.head();
     auto tail = obs.buffer.tail();
@@ -123,7 +123,7 @@ auto write_raw_data(observer& obs, OutputIterator it) noexcept -> void
 template<typename OutputIterator>
 auto flush_raw_data(observer& obs, OutputIterator it) noexcept -> void
 {
-    while (obs.buffer.size() >= 2)
+    while (obs.buffer.ssize() >= 2)
         write_raw_data(obs, it);
 
     if (!obs.buffer.empty()) {
@@ -167,7 +167,7 @@ auto write_interpolate_data(observer&      obs,
                             OutputIterator it,
                             real           time_step) noexcept -> void
 {
-    irt_assert(obs.buffer.size() >= 2);
+    irt_assert(obs.buffer.ssize() >= 2);
 
     auto head = obs.buffer.head();
     auto tail = obs.buffer.tail();
@@ -216,7 +216,7 @@ constexpr auto flush_interpolate_data(observer&      obs,
                                       OutputIterator it,
                                       real           time_step) noexcept -> void
 {
-    while (obs.buffer.size() >= 2)
+    while (obs.buffer.ssize() >= 2)
         write_interpolate_data(obs, it, time_step);
 
     if (!obs.buffer.empty())
