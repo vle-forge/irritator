@@ -12,7 +12,10 @@
 
 namespace irt {
 
-//! Helper to assign fmtlib format string to a small_string.
+//! Helper function to assign fmtlib format string to an irt::small_string
+//! object. This function ensure to put a null string characters (i.e. '\0') in
+//! the last buffer space after the string. The string can be truncate if the
+//! buffer is too small to store the formatted string.
 template<int N, typename S, typename... Args>
 constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 {
