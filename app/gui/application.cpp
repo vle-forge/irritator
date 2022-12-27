@@ -66,8 +66,11 @@ static void modeling_log(int              level,
         auto  type      = enum_cast<notification_type>(level);
         auto& n         = app->notifications.alloc(type);
 
-        app->log_w.log(
-          new_level, "%.*s: ", to_int(message.size()), message.data());
+        if (is_numeric_castable<int>(message.size()))
+            app->log_w.log(new_level,
+                           "%.*s: ",
+                           static_cast<int>(message.size()),
+                           message.data());
 
         n.title   = "Modeling message";
         n.message = message;

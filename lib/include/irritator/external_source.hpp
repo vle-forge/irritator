@@ -96,30 +96,6 @@ inline const char* distribution_str(const distribution_type type) noexcept
     return distribution_type_string[static_cast<int>(type)];
 }
 
-template<typename T>
-requires(std::is_integral_v<T>) inline int to_int(T value) noexcept
-{
-    if constexpr (std::is_signed_v<T>) {
-        irt_assert(INT_MIN <= value && value <= INT_MAX);
-        return static_cast<int>(value);
-    }
-
-    irt_assert(value <= INT_MAX);
-    return static_cast<int>(value);
-}
-
-template<typename T>
-requires(std::is_integral_v<T>) inline i16 to_i16(T value) noexcept
-{
-    if constexpr (std::is_signed_v<T>) {
-        irt_assert(INT16_MIN <= value && value <= INT16_MAX);
-        return static_cast<i16>(value);
-    }
-
-    irt_assert(value <= INT16_MAX);
-    return static_cast<i16>(value);
-}
-
 //! Use a buffer with a set of double real to produce external data. This
 //! external source can be shared between @c undefined number of  @c source.
 struct constant_source
@@ -236,11 +212,11 @@ struct binary_file_source
 
     status init(source& src) noexcept
     {
-        src.buffer                       = std::span(buffers[next_client]);
-        src.index                        = 0;
-        src.chunk_id[0]                  = to_unsigned(next_client);
-        src.chunk_id[1]                  = to_unsigned(next_offset);
-        offsets[to_int(src.chunk_id[0])] = next_offset;
+        src.buffer      = std::span(buffers[next_client]);
+        src.index       = 0;
+        src.chunk_id[0] = to_unsigned(next_client);
+        src.chunk_id[1] = to_unsigned(next_offset);
+        offsets[numeric_cast<int>(src.chunk_id[0])] = next_offset;
 
         next_client += 1;
         next_offset += external_source_chunk_size;
@@ -265,7 +241,7 @@ struct binary_file_source
 
     status restore(source& src) noexcept
     {
-        if (offsets[to_int(src.chunk_id[0])] != src.chunk_id[1])
+        if (offsets[numeric_cast<int>(src.chunk_id[0])] != src.chunk_id[1])
             return fill_buffer(src);
 
         return status::success;
@@ -304,9 +280,9 @@ private:
         if (!ifs.read(s, external_source_chunk_size))
             return status::source_empty;
 
-        const auto current_position      = ifs.tellg() / sizeof(double);
-        src.chunk_id[1]                  = current_position;
-        offsets[to_int(src.chunk_id[0])] = current_position;
+        const auto current_position = ifs.tellg() / sizeof(double);
+        src.chunk_id[1]             = current_position;
+        offsets[numeric_cast<int>(src.chunk_id[0])] = current_position;
 
         return status::success;
     }
@@ -504,7 +480,7 @@ struct random_source
         src.chunk_id[2] = ctr[2];
         src.chunk_id[3] = ctr[3];
 
-        const auto client = to_int(src.chunk_id[3] - start_counter);
+        const auto client = numeric_cast<int>(src.chunk_id[3] - start_counter);
 
         counters[client][0] = ctr[0];
         counters[client][1] = ctr[1];
@@ -520,7 +496,7 @@ struct random_source
         start_source(src);
         local_rng gen(ctr, key);
 
-        const auto client = to_int(src.chunk_id[3] - start_counter);
+        const auto client = numeric_cast<int>(src.chunk_id[3] - start_counter);
 
         for (sz i = 0, e = buffers[client].size(); i < e; ++i)
             src.buffer[i] = dist(gen);
@@ -573,7 +549,7 @@ struct random_source
     {
         irt_assert(src.chunk_id[3] >= start_counter);
 
-        const auto client = to_int(src.chunk_id[3] - start_counter);
+        const auto client = numeric_cast<int>(src.chunk_id[3] - start_counter);
 
         if (!(counters[client][0] == src.chunk_id[0] &&
               counters[client][1] == src.chunk_id[1] &&
