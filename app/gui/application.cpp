@@ -138,12 +138,6 @@ bool application::init() noexcept
 
     s_editor.displacements.resize(mod_init.model_capacity);
 
-    if (auto ret = s_editor.tree_nodes.init(1024); is_bad(ret)) {
-        log_w.log(
-          2, "Fail to initialize simuliation tree: %s\n", status_string(ret));
-        return false;
-    }
-
     if (auto ret = s_editor.sim_obs.init(16); is_bad(ret)) {
         log_w.log(2,
                   "Fail to initialize simulation observation: %s\n",

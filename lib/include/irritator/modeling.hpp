@@ -80,7 +80,6 @@ enum class modeling_status
 
 struct connection;
 struct child;
-struct port;
 struct component;
 struct modeling;
 struct description;
@@ -135,34 +134,51 @@ struct child
 
     float x            = 0.f;
     float y            = 0.f;
-    bool  in           = false; // true: public input port (influencable)
-    bool  out          = false; // bit mask: public output port
     bool  configurable = false; // true: is public initialization
     bool  observable   = false; // true: is public observable
-};
-
-struct port
-{
-    port() noexcept = default;
-    port(child_id id_, i8 port_) noexcept;
-
-    child_id id;
-    i8       index;
 };
 
 struct connection
 {
     connection() noexcept = default;
 
-    connection(child_id src_,
-               i8       index_src_,
-               child_id dst_,
-               i8       index_dst_) noexcept;
+    enum class connection_type : i8
+    {
+        internal,
+        input,
+        output
+    };
 
-    child_id src;
-    child_id dst;
-    i8       index_src;
-    i8       index_dst;
+    struct internal_t
+    {
+        child_id src;
+        child_id dst;
+        i8       index_src;
+        i8       index_dst;
+    };
+
+    struct input_t
+    {
+        child_id dst;
+        i8       index;
+        i8       index_dst;
+    };
+
+    struct output_t
+    {
+        child_id src;
+        i8       index;
+        i8       index_src;
+    };
+
+    connection_type type;
+
+    union
+    {
+        internal_t internal;
+        input_t    input;
+        output_t   output;
+    };
 };
 
 struct component
@@ -172,20 +188,25 @@ struct component
     component(const component&)            = delete;
     component& operator=(const component&) = delete;
 
+    void clear() noexcept;
+
     bool can_alloc(int place = 1) const noexcept;
     bool can_alloc(dynamics_type type, int place = 1) const noexcept;
 
     template<typename Dynamics>
     bool can_alloc_dynamics(int place = 1) const noexcept;
 
+    status connect(child_id src,
+                   i8       port_src,
+                   child_id dst,
+                   i8       port_dst) noexcept;
+    status connect(i8 port_src, child_id dst, i8 port_dst) noexcept;
+    status connect(child_id src, i8 port_src, i8 port_dst) noexcept;
+
     data_array<model, model_id>                    models;
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<child, child_id>                    children;
     data_array<connection, connection_id>          connections;
-
-    // One port is currently connected to only one child.
-    small_vector<port, 8> x;
-    small_vector<port, 8> y;
 
     table<i32, child_id> child_mapping_io;
 
@@ -289,16 +310,32 @@ struct tree_node
     tree_node(component_id id_, child_id id_in_parent_) noexcept;
 
     component_id            id;
-    simulation_tree_node_id sim_tree_node =
-      undefined<simulation_tree_node_id>();
+    simulation_tree_node_id sim_tree_node;
+    child_id                id_in_parent;
 
-    child_id             id_in_parent;
     hierarchy<tree_node> tree;
 
     table<model_id, model_id>        parameters;
     table<model_id, observable_type> observables;
 
     table<model_id, model_id> sim;
+};
+
+//! Used to cache memory allocation when user import a model into simulation.
+//! The memory cached can be reused using clear but memory cached can be
+//! completely free using the destroy function.
+struct modeling_to_simulation
+{
+    vector<tree_node*>              stack;
+    vector<std::pair<model_id, i8>> inputs;
+    vector<std::pair<model_id, i8>> outputs;
+
+    data_array<simulation_tree_node, simulation_tree_node_id> sim_tree_nodes;
+
+    simulation_tree_node_id head = undefined<simulation_tree_node_id>();
+
+    void clear() noexcept;
+    void destroy() noexcept;
 };
 
 struct modeling
@@ -369,12 +406,15 @@ struct modeling
     /// Build the @c hierarchy<component_ref> of from the component @c id
     status make_tree_from(component& id, tree_node_id* out) noexcept;
 
-    status clean(component& c) noexcept; // clean empty vectors
-    status save(component& c) noexcept;  // will call clean(component&) first.
+    status save(component& c) noexcept; // will call clean(component&) first.
 
     status load_project(const char* filename) noexcept;
     status save_project(const char* filename) noexcept;
     void   clear_project() noexcept;
+
+    bool   can_export_to(modeling_to_simulation& cache,
+                         const simulation&       sim) const noexcept;
+    status export_to(modeling_to_simulation& cache, simulation& sim) noexcept;
 
     typedef void (*log_callback)(int, std::string_view, void*);
 
@@ -390,17 +430,6 @@ struct modeling
  * Implementation
  */
 
-inline connection::connection(child_id src_,
-                              i8       index_src_,
-                              child_id dst_,
-                              i8       index_dst_) noexcept
-  : src(src_)
-  , dst(dst_)
-  , index_src(index_src_)
-  , index_dst(index_dst_)
-{
-}
-
 inline child::child(model_id model) noexcept
   : id{ ordinal(model) }
   , type{ child_type::model }
@@ -410,12 +439,6 @@ inline child::child(model_id model) noexcept
 inline child::child(component_id component) noexcept
   : id{ ordinal(component) }
   , type{ child_type::component }
-{
-}
-
-inline port::port(child_id id_, i8 port_) noexcept
-  : id{ id_ }
-  , index{ port_ }
 {
 }
 

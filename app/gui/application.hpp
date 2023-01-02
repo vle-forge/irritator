@@ -332,6 +332,7 @@ struct simulation_editor
 
     simulation_status simulation_state = simulation_status::not_started;
 
+    modeling_to_simulation                                        cache;
     data_array<simulation_tree_node, simulation_tree_node_id>     tree_nodes;
     data_array<simulation_observation, simulation_observation_id> sim_obs;
     data_array<simulation_observation_copy, simulation_observation_copy_id>

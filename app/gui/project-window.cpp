@@ -73,15 +73,6 @@ static void show_project_hierarchy_child_observable(
     }
 }
 
-static i32 find_id(const small_vector<port, 8>& vec, const child_id id) noexcept
-{
-    for (i32 i = 0, e = vec.ssize(); i != e; ++i)
-        if (vec[i].id == id)
-            return i;
-
-    return -1;
-}
-
 static void show_project_hierarchy_child_configuration(component_editor& ed,
                                                        tree_node&        parent,
                                                        component&        compo,
@@ -105,37 +96,37 @@ static void show_project_hierarchy_child_configuration(component_editor& ed,
             }
         }
 
-        const bool is_integrator = match(mdl->type,
-                                         dynamics_type::qss1_integrator,
-                                         dynamics_type::qss2_integrator,
-                                         dynamics_type::qss3_integrator,
-                                         dynamics_type::integrator);
+        // const bool is_integrator = match(mdl->type,
+        //                                  dynamics_type::qss1_integrator,
+        //                                  dynamics_type::qss2_integrator,
+        //                                  dynamics_type::qss3_integrator,
+        //                                  dynamics_type::integrator);
 
-        if (is_integrator) {
-            if (ImGui::Checkbox("Input##param", &ch.in)) {
-                const auto elem = find_id(compo.x, compo.children.get_id(ch));
-                if (ch.in) {
-                    if (elem < 0)
-                        compo.x.emplace_back(compo.children.get_id(ch),
-                                             static_cast<i8>(1));
-                } else {
-                    if (elem >= 0)
-                        compo.x.swap_pop_back(elem);
-                }
-            }
+        // if (is_integrator) {
+        //     if (ImGui::Checkbox("Input##param", &ch.in)) {
+        //         const auto elem = find_id(compo.x,
+        //         compo.children.get_id(ch)); if (ch.in) {
+        //             if (elem < 0)
+        //                 compo.x.emplace_back(compo.children.get_id(ch),
+        //                                      static_cast<i8>(1));
+        //         } else {
+        //             if (elem >= 0)
+        //                 compo.x.swap_pop_back(elem);
+        //         }
+        //     }
 
-            if (ImGui::Checkbox("Output##param", &ch.out)) {
-                const auto elem = find_id(compo.y, compo.children.get_id(ch));
-                if (ch.out) {
-                    if (elem < 0)
-                        compo.y.emplace_back(compo.children.get_id(ch),
-                                             static_cast<i8>(0));
-                } else {
-                    if (elem >= 0)
-                        compo.y.swap_pop_back(elem);
-                }
-            }
-        }
+        //    if (ImGui::Checkbox("Output##param", &ch.out)) {
+        //        const auto elem = find_id(compo.y, compo.children.get_id(ch));
+        //        if (ch.out) {
+        //            if (elem < 0)
+        //                compo.y.emplace_back(compo.children.get_id(ch),
+        //                                     static_cast<i8>(0));
+        //        } else {
+        //            if (elem >= 0)
+        //                compo.y.swap_pop_back(elem);
+        //        }
+        //    }
+        //}
 
         if (ImGui::Checkbox("Configuration##param", &is_configured)) {
             if (is_configured) {

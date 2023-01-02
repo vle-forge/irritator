@@ -6,243 +6,10 @@
 
 #include "application.hpp"
 #include "internal.hpp"
+#include "irritator/core.hpp"
+#include "irritator/modeling.hpp"
 
 namespace irt {
-
-static status simulation_copy_model(simulation&           sim,
-                                    tree_node&            tree,
-                                    simulation_tree_node& sim_tree,
-                                    const component&      src)
-{
-    sim_tree.children.clear();
-
-    child* c = nullptr;
-    while (src.children.next(c)) {
-        if (c->type == child_type::model) {
-            auto  mdl_id = enum_cast<model_id>(c->id);
-            auto* mdl    = src.models.try_to_get(mdl_id);
-
-            if (mdl) {
-                irt_return_if_fail(sim.models.can_alloc(),
-                                   status::simulation_not_enough_model);
-
-                auto& new_mdl    = sim.clone(*mdl);
-                auto  new_mdl_id = sim.models.get_id(new_mdl);
-
-                sim_tree.children.emplace_back(new_mdl_id);
-                tree.sim.data.emplace_back(mdl_id, new_mdl_id);
-            }
-        }
-    }
-
-    return status::success;
-}
-
-static status simulation_copy_models(component_editor&  ed,
-                                     simulation_editor& sim_ed,
-                                     tree_node&         head) noexcept
-{
-    vector<tree_node*> stack;
-    stack.emplace_back(&head);
-
-    while (!stack.empty()) {
-        auto cur = stack.back();
-        stack.pop_back();
-
-        auto  compo_id = cur->id;
-        auto* compo    = ed.mod.components.try_to_get(compo_id);
-
-        if (compo) {
-            auto* sim_tree = sim_ed.tree_nodes.try_to_get(cur->sim_tree_node);
-            irt_assert(sim_tree);
-
-            irt_return_if_bad(
-              simulation_copy_model(sim_ed.sim, *cur, *sim_tree, *compo));
-        }
-
-        if (auto* sibling = cur->tree.get_sibling(); sibling)
-            stack.emplace_back(sibling);
-
-        if (auto* child = cur->tree.get_child(); child)
-            stack.emplace_back(child);
-    }
-
-    tree_node* tree = nullptr;
-    while (ed.mod.tree_nodes.next(tree))
-        tree->sim.sort();
-
-    return status::success;
-}
-
-static status simulation_copy_connections(component_editor&  ed,
-                                          simulation_editor& sim_ed,
-                                          tree_node&         tree,
-                                          const component&   compo)
-{
-    connection* con = nullptr;
-    while (compo.connections.next(con)) {
-        auto* src = compo.children.try_to_get(con->src);
-        auto* dst = compo.children.try_to_get(con->dst);
-
-        if (!src || !dst)
-            continue;
-
-        model* mdl_src   = nullptr;
-        model* mdl_dst   = nullptr;
-        i8     index_src = -1;
-        i8     index_dst = -1;
-
-        if (src->type == child_type::model) {
-            auto  orig_mdl_src = enum_cast<model_id>(src->id);
-            auto* real_mdl_src = tree.sim.get(orig_mdl_src);
-            if (real_mdl_src) {
-                mdl_src   = sim_ed.sim.models.try_to_get(*real_mdl_src);
-                index_src = con->index_src;
-            }
-        } else {
-            auto  cp_src_id = enum_cast<component_id>(src->id);
-            auto* cp_src    = ed.mod.components.try_to_get(cp_src_id);
-
-            if (cp_src) {
-                if (0 <= con->index_src && con->index_src < cp_src->y.ssize()) {
-                    tree_node* child = tree.tree.get_child();
-                    while (child) {
-                        if (child->id_in_parent == con->src)
-                            break;
-                        child = child->tree.get_sibling();
-                    }
-
-                    if (child) {
-                        auto  orig_src = cp_src->y[con->index_src].id;
-                        auto* child_orig_src =
-                          compo.children.try_to_get(orig_src);
-
-                        irt_assert(child_orig_src);
-                        irt_assert(child_orig_src->type == child_type::model);
-
-                        i8        port_src = cp_src->y[con->index_src].index;
-                        model_id* real_src = child->sim.get(
-                          enum_cast<model_id>(child_orig_src->id));
-
-                        if (real_src) {
-                            mdl_src   = sim_ed.sim.models.try_to_get(*real_src);
-                            index_src = port_src;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (dst->type == child_type::model) {
-            auto  orig_mdl_dst = enum_cast<model_id>(dst->id);
-            auto* real_mdl_dst = tree.sim.get(orig_mdl_dst);
-            if (real_mdl_dst) {
-                mdl_dst   = sim_ed.sim.models.try_to_get(*real_mdl_dst);
-                index_dst = con->index_dst;
-            }
-        } else {
-            auto  cp_dst_id = enum_cast<component_id>(dst->id);
-            auto* cp_dst    = ed.mod.components.try_to_get(cp_dst_id);
-
-            if (cp_dst) {
-                if (0 <= con->index_dst && con->index_dst < cp_dst->x.ssize()) {
-                    tree_node* child = tree.tree.get_child();
-                    while (child) {
-                        if (child->id_in_parent == con->dst)
-                            break;
-                        child = child->tree.get_sibling();
-                    }
-
-                    if (child) {
-                        child_id child_orig_dst = cp_dst->x[con->index_dst].id;
-                        auto*    orig_dst =
-                          compo.children.try_to_get(child_orig_dst);
-
-                        irt_assert(orig_dst);
-                        irt_assert(orig_dst->type == child_type::model);
-
-                        i8        port_dst = cp_dst->x[con->index_dst].index;
-                        model_id* real_dst =
-                          child->sim.get(enum_cast<model_id>(orig_dst->id));
-
-                        if (real_dst) {
-                            mdl_dst   = sim_ed.sim.models.try_to_get(*real_dst);
-                            index_dst = port_dst;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (mdl_src && mdl_dst) {
-            irt_return_if_bad(
-              sim_ed.sim.connect(*mdl_src, index_src, *mdl_dst, index_dst));
-        }
-    }
-
-    return status::success;
-}
-
-static status simulation_copy_connections(component_editor&  ed,
-                                          simulation_editor& sim_ed,
-                                          tree_node&         head) noexcept
-{
-    vector<tree_node*> stack;
-    stack.emplace_back(&head);
-
-    while (!stack.empty()) {
-        auto cur = stack.back();
-        stack.pop_back();
-
-        auto  compo_id = cur->id;
-        auto* compo    = ed.mod.components.try_to_get(compo_id);
-
-        if (compo) {
-            irt_return_if_bad(
-              simulation_copy_connections(ed, sim_ed, *cur, *compo));
-        }
-
-        if (auto* sibling = cur->tree.get_sibling(); sibling)
-            stack.emplace_back(sibling);
-
-        if (auto* child = cur->tree.get_child(); child)
-            stack.emplace_back(child);
-    }
-
-    return status::success;
-}
-
-static status simulation_copy_tree(component_editor&  ed,
-                                   simulation_editor& sim_ed,
-                                   tree_node&         head) noexcept
-{
-    tree_node* tree = nullptr;
-    while (ed.mod.tree_nodes.next(tree)) {
-        auto& sim_tree      = sim_ed.tree_nodes.alloc();
-        tree->sim_tree_node = sim_ed.tree_nodes.get_id(sim_tree);
-        tree->sim.data.clear();
-    }
-
-    tree = nullptr;
-    while (ed.mod.tree_nodes.next(tree)) {
-        auto* sim_tree = sim_ed.tree_nodes.try_to_get(tree->sim_tree_node);
-        irt_assert(sim_tree);
-
-        if (auto* parent = tree->tree.get_parent(); parent) {
-            const auto parent_sim_tree_id = parent->sim_tree_node;
-            auto*      parent_sim_tree =
-              sim_ed.tree_nodes.try_to_get(parent_sim_tree_id);
-
-            irt_assert(parent_sim_tree);
-
-            sim_tree->tree.parent_to(parent_sim_tree->tree);
-        }
-    }
-
-    sim_ed.head = head.sim_tree_node;
-
-    return status::success;
-}
 
 static void simulation_clear(component_editor&  ed,
                              simulation_editor& sim_ed) noexcept
@@ -325,7 +92,7 @@ static void make_copy_error_msg(component_editor& ed,
                                  static_cast<size_t>(n.message.capacity() - 1),
                                  fmt,
                                  fmt::make_format_args(args...));
-    n.message.resize(static_cast<unsigned>(ret.size));
+    n.message.resize(static_cast<int>(ret.size));
 
     app->notifications.enable(n);
 }
@@ -343,7 +110,7 @@ static void make_init_error_msg(component_editor& ed,
                                  static_cast<size_t>(n.message.capacity() - 1),
                                  fmt,
                                  fmt::make_format_args(args...));
-    n.message.resize(static_cast<unsigned>(ret.size));
+    n.message.resize(static_cast<int>(ret.size));
 
     app->notifications.enable(n);
 }
@@ -364,23 +131,9 @@ static void simulation_copy(component_editor&  ed,
         return;
     }
 
-    if (auto ret = simulation_copy_tree(ed, sim_ed, *head); is_bad(ret)) {
+    if (auto ret = ed.mod.export_to(sim_ed.cache, sim_ed.sim); is_bad(ret)) {
         make_copy_error_msg(
           ed, "Copy hierarchy failed: {}", status_string(ret));
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
-
-    if (auto ret = simulation_copy_models(ed, sim_ed, *head); is_bad(ret)) {
-        make_copy_error_msg(ed, "Copy model failed: {}", status_string(ret));
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
-
-    if (auto ret = simulation_copy_connections(ed, sim_ed, *head);
-        is_bad(ret)) {
-        make_copy_error_msg(
-          ed, "Copy connection failed: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
@@ -796,8 +549,10 @@ void simulation_editor::simulation_update_state() noexcept
 
     std::tuple<model_id, ImVec2> new_position;
     while (models_to_move.pop(new_position)) {
-        const auto index = get_index(std::get<0>(new_position));
-        ImNodes::SetNodeScreenSpacePos(index, std::get<1>(new_position));
+        const auto index   = get_index(std::get<0>(new_position));
+        const auto index_i = static_cast<int>(index);
+
+        ImNodes::SetNodeScreenSpacePos(index_i, std::get<1>(new_position));
     }
 }
 

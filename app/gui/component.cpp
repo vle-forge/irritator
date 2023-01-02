@@ -272,8 +272,24 @@ void application::show_memory_box(bool* is_open) noexcept
                                   component_type_names[ordinal(compo->type)]);
 
                 ImGui::Separator();
-                ImGui::TextFormat("X: {}", compo->x.ssize());
-                ImGui::TextFormat("Y: {}", compo->y.ssize());
+
+                int         x = 0, y = 0;
+                connection* con = nullptr;
+                while (compo->connections.next(con)) {
+                    switch (con->type) {
+                    case connection::connection_type::input:
+                        ++x;
+                        break;
+                    case connection::connection_type::output:
+                        ++y;
+                        break;
+                    default:
+                        break;
+                    }
+                }
+
+                ImGui::TextFormat("X: {}", x);
+                ImGui::TextFormat("Y: {}", y);
 
                 ImGui::TreePop();
             }

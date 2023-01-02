@@ -1995,14 +1995,41 @@ static status write_connections(json_cache& /*cache*/,
     connection* c = nullptr;
     while (compo.connections.next(c)) {
         w.StartObject();
-        w.Key("source");
-        w.Uint64(get_index(c->src));
-        w.Key("port-source");
-        w.Uint64(c->index_src);
-        w.Key("destination");
-        w.Uint64(get_index(c->dst));
-        w.Key("port-destination");
-        w.Uint64(c->index_dst);
+
+        w.Key("type");
+
+        switch (c->type) {
+        case connection::connection_type::input:
+            w.String("input");
+            w.Key("port");
+            w.Uint64(c->input.index);
+            w.Key("destination");
+            w.Uint64(get_index(c->input.dst));
+            w.Key("port-destination");
+            w.Uint64(c->input.index_dst);
+            break;
+        case connection::connection_type::internal:
+            w.String("internal");
+            w.Key("source");
+            w.Uint64(get_index(c->internal.src));
+            w.Key("port-source");
+            w.Uint64(c->internal.index_src);
+            w.Key("destination");
+            w.Uint64(get_index(c->internal.dst));
+            w.Key("port-destination");
+            w.Uint64(c->internal.index_dst);
+            break;
+        case connection::connection_type::output:
+            w.String("output");
+            w.Key("source");
+            w.Uint64(get_index(c->output.src));
+            w.Key("port-source");
+            w.Uint64(c->output.index_src);
+            w.Key("port");
+            w.Uint64(c->output.index);
+            break;
+        }
+
         w.EndObject();
     }
 
