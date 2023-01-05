@@ -1714,10 +1714,14 @@ status component_load(modeling&   mod,
 
     std::fseek(fp, 0, SEEK_END);
     auto filesize = std::ftell(fp);
+    if (filesize <= 0)
+        return status::io_filesystem_error;
+
     std::fseek(fp, 0, SEEK_SET);
 
     cache.buffer.resize(static_cast<int>(filesize + 1));
-    auto read_length = std::fread(cache.buffer.data(), 1, filesize, fp);
+    auto read_length =
+      std::fread(cache.buffer.data(), 1, static_cast<size_t>(filesize), fp);
     cache.buffer[static_cast<int>(read_length)] = '\0';
     std::fclose(fp);
 
