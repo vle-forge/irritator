@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include <concepts>
 #include <functional>
 #include <memory>
 #include <span>
@@ -709,8 +710,8 @@ public:
     constexpr vector(vector&& other) noexcept;
     constexpr vector& operator=(vector&& other) noexcept;
 
-    void resize(int size) noexcept;
-    void reserve(int new_capacity) noexcept;
+    void resize(std::integral auto size) noexcept;
+    void reserve(std::integral auto new_capacity) noexcept;
 
     void destroy() noexcept; // clear all elements and free memory (size = 0,
                              // capacity = 0 after).
@@ -725,15 +726,16 @@ public:
     constexpr reference       back() noexcept;
     constexpr const_reference back() const noexcept;
 
-    constexpr reference       operator[](int index) noexcept;
-    constexpr const_reference operator[](int index) const noexcept;
+    constexpr reference       operator[](std::integral auto index) noexcept;
+    constexpr const_reference operator[](
+      std::integral auto index) const noexcept;
 
     constexpr iterator       begin() noexcept;
     constexpr const_iterator begin() const noexcept;
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
 
-    constexpr bool     can_alloc(int number = 1) const noexcept;
+    constexpr bool     can_alloc(std::integral auto number = 1) const noexcept;
     constexpr unsigned size() const noexcept;
     constexpr int      ssize() const noexcept;
     constexpr int      capacity() const noexcept;
@@ -746,7 +748,7 @@ public:
     constexpr int find(const T& t) const noexcept;
 
     constexpr void pop_back() noexcept;
-    constexpr void swap_pop_back(int index) noexcept;
+    constexpr void swap_pop_back(std::integral auto index) noexcept;
 
     constexpr void erase(iterator it) noexcept;
     constexpr void erase(iterator begin, iterator end) noexcept;
@@ -789,7 +791,7 @@ public:
     constexpr small_vector(small_vector&& other) noexcept            = delete;
     constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
 
-    constexpr status resize(int capacity) noexcept;
+    constexpr status resize(std::integral auto capacity) noexcept;
     constexpr void   clear() noexcept;
 
     constexpr reference       front() noexcept;
@@ -800,15 +802,16 @@ public:
     constexpr T*       data() noexcept;
     constexpr const T* data() const noexcept;
 
-    constexpr reference       operator[](int index) noexcept;
-    constexpr const_reference operator[](int index) const noexcept;
+    constexpr reference       operator[](std::integral auto index) noexcept;
+    constexpr const_reference operator[](
+      std::integral auto index) const noexcept;
 
     constexpr iterator       begin() noexcept;
     constexpr const_iterator begin() const noexcept;
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
 
-    constexpr bool     can_alloc(int number = 1) noexcept;
+    constexpr bool     can_alloc(std::integral auto number = 1) noexcept;
     constexpr int      available() const noexcept;
     constexpr unsigned size() const noexcept;
     constexpr int      ssize() const noexcept;
@@ -819,7 +822,7 @@ public:
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
     constexpr void      pop_back() noexcept;
-    constexpr void      swap_pop_back(int index) noexcept;
+    constexpr void      swap_pop_back(std::integral auto index) noexcept;
 };
 
 //! @brief A small_string without heap allocation.
@@ -854,15 +857,16 @@ public:
 
     constexpr void assign(const std::string_view str) noexcept;
     constexpr void clear() noexcept;
-    void           resize(int size) noexcept;
+    void           resize(std::integral auto size) noexcept;
     constexpr bool empty() const noexcept;
 
     constexpr unsigned size() const noexcept;
     constexpr int      ssize() const noexcept;
     constexpr int      capacity() const noexcept;
 
-    constexpr reference       operator[](int index) noexcept;
-    constexpr const_reference operator[](int index) const noexcept;
+    constexpr reference       operator[](std::integral auto index) noexcept;
+    constexpr const_reference operator[](
+      std::integral auto index) const noexcept;
 
     constexpr std::string_view   sv() const noexcept;
     constexpr std::u8string_view u8sv() const noexcept;
@@ -1158,7 +1162,7 @@ public:
     friend class const_iterator;
 
     constexpr ring_buffer() noexcept = default;
-    constexpr ring_buffer(int capacity) noexcept;
+    constexpr ring_buffer(std::integral auto capacity) noexcept;
     constexpr ~ring_buffer() noexcept;
 
     constexpr ring_buffer(const ring_buffer& rhs) noexcept;
@@ -1168,7 +1172,7 @@ public:
 
     constexpr void swap(ring_buffer& rhs) noexcept;
     constexpr void clear() noexcept;
-    constexpr void reset(int capacity) noexcept;
+    constexpr void reset(std::integral auto capacity) noexcept;
 
     template<typename... Args>
     constexpr bool emplace_front(Args&&... args) noexcept;
@@ -1194,8 +1198,8 @@ public:
 
     constexpr T*       data() noexcept;
     constexpr const T* data() const noexcept;
-    constexpr T&       operator[](int index) noexcept;
-    constexpr const T& operator[](int index) const noexcept;
+    constexpr T&       operator[](std::integral auto index) noexcept;
+    constexpr const T& operator[](std::integral auto index) const noexcept;
 
     constexpr T&       front() noexcept;
     constexpr const T& front() const noexcept;
@@ -1230,9 +1234,7 @@ public:
 template<int length>
 struct fixed_real_array
 {
-    using value_type      = real;
-    using size_type       = std::size_t;
-    using difference_type = std::ptrdiff_t;
+    using value_type = real;
 
     static_assert(length >= 1, "fixed_real_array length must be >= 1");
 
@@ -1240,7 +1242,7 @@ struct fixed_real_array
 
     constexpr unsigned size() const noexcept
     {
-        for (int i = length; i != 0u; --i)
+        for (unsigned i = length; i != 0u; --i)
             if (data[i - 1u])
                 return i;
 
@@ -1280,12 +1282,12 @@ struct fixed_real_array
         }
     }
 
-    constexpr real operator[](const difference_type i) const noexcept
+    constexpr real operator[](std::integral auto i) const noexcept
     {
         return data[i];
     }
 
-    constexpr real& operator[](const difference_type i) noexcept
+    constexpr real& operator[](std::integral auto i) noexcept
     {
         return data[i];
     }
@@ -1368,24 +1370,28 @@ public:
             g_free_fn(m_blocks);
     }
 
-    status init(int new_capacity) noexcept
+    status init(std::integral auto new_capacity) noexcept
     {
-        if (new_capacity <= 0)
+        if (std::cmp_less_equal(new_capacity, 0))
             return status::block_allocator_bad_capacity;
 
-        if (new_capacity != m_capacity) {
+        if (std::cmp_greater_equal(
+              new_capacity, std::numeric_limits<decltype(m_capacity)>::max()))
+            return status::block_allocator_bad_capacity;
+
+        if (std::cmp_not_equal(new_capacity, m_capacity)) {
             if (m_blocks)
                 g_free_fn(m_blocks);
 
-            m_blocks =
-              static_cast<block*>(g_alloc_fn(new_capacity * sizeof(block)));
+            const auto new_size = static_cast<sz>(new_capacity) * sizeof(block);
+            m_blocks            = static_cast<block*>(g_alloc_fn(new_size));
             if (m_blocks == nullptr)
                 return status::block_allocator_not_enough_memory;
         }
 
         m_size      = 0;
         m_max_size  = 0;
-        m_capacity  = new_capacity;
+        m_capacity  = static_cast<decltype(m_capacity)>(new_capacity);
         m_free_head = nullptr;
 
         return status::success;
@@ -1504,29 +1510,33 @@ public:
         }
     }
 
-    void free(int index) noexcept
+    void free(std::integral auto index) noexcept
     {
-        irt_assert(index >= 0 && index < m_max_size);
+        irt_assert(std::cmp_greater_equal(index, 0));
+        irt_assert(std::cmp_less_equal(index, m_max_size));
 
         auto* to_free = reinterpret_cast<T*>(&(m_blocks[index]));
         free(to_free);
     }
 
-    bool can_alloc(int number) const noexcept
+    bool can_alloc(std::integral auto number) const noexcept
     {
-        return number + m_size < m_capacity;
+        return std::cmp_less(static_cast<decltype(m_size)>(number) + m_size,
+                             m_capacity);
     }
 
-    value_type& operator[](int index) noexcept
+    value_type& operator[](std::integral auto index) noexcept
     {
-        irt_assert(index >= 0 && index < m_max_size);
+        irt_assert(std::cmp_greater_equal(index, 0));
+        irt_assert(std::cmp_less_equal(index, m_max_size));
 
         return *reinterpret_cast<T*>(&(m_blocks[index]));
     }
 
-    const value_type& operator[](int index) const noexcept
+    const value_type& operator[](std::integral auto index) const noexcept
     {
-        irt_assert(index >= 0 && index < m_max_size);
+        irt_assert(std::cmp_greater_equal(index, 0));
+        irt_assert(std::cmp_less_equal(index, m_max_size));
 
         return *reinterpret_cast<T*>(&(m_blocks[index]));
     }
@@ -2124,14 +2134,15 @@ public:
     //! @brief Initialize the underlying byffer of T.
     //!
     //! @return @c is_success(status) or is_bad(status).
-    status init(std::size_t capacity) noexcept
+    status init(std::integral auto capacity) noexcept
     {
         clear();
 
-        if (capacity > get_max_size<Identifier>())
+        if (std::cmp_greater_equal(capacity, get_max_size<Identifier>()))
             return status::data_array_init_capacity_error;
 
-        m_items = static_cast<item*>(g_alloc_fn(capacity * sizeof(item)));
+        m_items = static_cast<item*>(
+          g_alloc_fn(static_cast<u32>(capacity) * sizeof(item)));
         if (!m_items)
             return status::data_array_not_enough_memory;
 
@@ -2489,26 +2500,28 @@ public:
             g_free_fn(nodes);
     }
 
-    status init(size_t new_capacity) noexcept
+    status init(std::integral auto new_capacity) noexcept
     {
-        if (new_capacity == 0)
+        if (std::cmp_equal(new_capacity, 0))
             return status::head_allocator_bad_capacity;
 
-        if (new_capacity > std::numeric_limits<unsigned>::max())
+        if (std::cmp_greater(new_capacity,
+                             std::numeric_limits<decltype(capacity)>::max()))
             return status::head_allocator_bad_capacity;
 
-        if (new_capacity != capacity) {
+        if (std::cmp_not_equal(new_capacity, capacity)) {
             if (nodes)
                 g_free_fn(nodes);
 
-            nodes = static_cast<node*>(g_alloc_fn(new_capacity * sizeof(node)));
+            nodes = static_cast<node*>(
+              g_alloc_fn(static_cast<sz>(new_capacity) * sizeof(node)));
             if (nodes == nullptr)
                 return status::head_allocator_not_enough_memory;
         }
 
         m_size    = 0;
         max_size  = 0;
-        capacity  = static_cast<unsigned>(new_capacity);
+        capacity  = static_cast<decltype(capacity)>(new_capacity);
         root      = nullptr;
         free_list = nullptr;
 
@@ -8013,30 +8026,33 @@ inline constexpr void vector<T>::clear() noexcept
 }
 
 template<typename T>
-void vector<T>::resize(int size) noexcept
+void vector<T>::resize(std::integral auto size) noexcept
 {
     static_assert(std::is_default_constructible_v<T> ||
                     std::is_trivially_default_constructible_v<T>,
                   "T must be default or trivially default constructible to use "
                   "resize() function");
 
-    if (size > m_capacity)
-        reserve(compute_new_capacity(size));
+    irt_assert(size < std::numeric_limits<decltype(m_capacity)>::max());
+
+    if (std::cmp_greater(size, m_capacity))
+        reserve(compute_new_capacity(static_cast<decltype(m_capacity)>(size)));
 
     std::uninitialized_value_construct_n(data() + m_size, size - m_size);
     // std::uninitialized_default_construct_n(data() + m_size, size);
 
-    m_size = size;
+    m_size = static_cast<decltype(m_size)>(size);
 }
 
 template<typename T>
-void vector<T>::reserve(int new_capacity) noexcept
+void vector<T>::reserve(std::integral auto new_capacity) noexcept
 {
     irt_assert(new_capacity > 0);
+    irt_assert(new_capacity < std::numeric_limits<decltype(m_capacity)>::max());
 
-    if (new_capacity > m_capacity) {
-        T* new_data =
-          reinterpret_cast<T*>(g_alloc_fn(new_capacity * sizeof(T)));
+    if (std::cmp_greater(new_capacity, m_capacity)) {
+        T* new_data = reinterpret_cast<T*>(
+          g_alloc_fn(static_cast<sz>(new_capacity) * sizeof(T)));
 
         if (m_data) {
             if constexpr (std::is_move_constructible_v<T>)
@@ -8048,7 +8064,7 @@ void vector<T>::reserve(int new_capacity) noexcept
         }
 
         m_data     = new_data;
-        m_capacity = new_capacity;
+        m_capacity = static_cast<decltype(m_capacity)>(new_capacity);
     }
 }
 
@@ -8096,18 +8112,20 @@ inline constexpr typename vector<T>::const_reference vector<T>::back()
 
 template<typename T>
 inline constexpr typename vector<T>::reference vector<T>::operator[](
-  int index) noexcept
+  std::integral auto index) noexcept
 {
-    irt_assert(index >= 0 && index < m_size);
+    irt_assert(std::cmp_greater_equal(index, 0));
+    irt_assert(std::cmp_less(index, m_size));
 
     return data()[index];
 }
 
 template<typename T>
 inline constexpr typename vector<T>::const_reference vector<T>::operator[](
-  int index) const noexcept
+  std::integral auto index) const noexcept
 {
-    irt_assert(index >= 0 && index < m_size);
+    irt_assert(std::cmp_greater_equal(index, 0));
+    irt_assert(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -8169,9 +8187,10 @@ inline constexpr bool vector<T>::full() const noexcept
 }
 
 template<typename T>
-inline constexpr bool vector<T>::can_alloc(int number) const noexcept
+inline constexpr bool vector<T>::can_alloc(
+  std::integral auto number) const noexcept
 {
-    return m_capacity - m_size >= number;
+    return std::cmp_greater_equal(m_capacity - m_size, number);
 }
 
 template<typename T>
@@ -8221,9 +8240,10 @@ inline constexpr void vector<T>::pop_back() noexcept
 }
 
 template<typename T>
-inline constexpr void vector<T>::swap_pop_back(int index) noexcept
+inline constexpr void vector<T>::swap_pop_back(
+  std::integral auto index) noexcept
 {
-    irt_assert(index < m_size);
+    irt_assert(std::cmp_less(index, m_size));
 
     if (index == m_size - 1) {
         pop_back();
@@ -8335,7 +8355,8 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 }
 
 template<typename T, int length>
-constexpr status small_vector<T, length>::resize(int default_size) noexcept
+constexpr status small_vector<T, length>::resize(
+  std::integral auto default_size) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<T>,
                   "T must be nothrow default constructible to use "
@@ -8404,7 +8425,7 @@ small_vector<T, length>::back() const noexcept
 
 template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
-small_vector<T, length>::operator[](int index) noexcept
+small_vector<T, length>::operator[](std::integral auto index) noexcept
 {
     irt_assert(std::cmp_greater_equal(index, 0));
     irt_assert(std::cmp_less(index, m_size));
@@ -8414,7 +8435,7 @@ small_vector<T, length>::operator[](int index) noexcept
 
 template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
-small_vector<T, length>::operator[](int index) const noexcept
+small_vector<T, length>::operator[](std::integral auto index) const noexcept
 {
     irt_assert(std::cmp_greater_equal(index, 0));
     irt_assert(std::cmp_less(index, m_size));
@@ -8488,11 +8509,12 @@ constexpr void small_vector<T, length>::clear() noexcept
 }
 
 template<typename T, int length>
-constexpr bool small_vector<T, length>::can_alloc(int number) noexcept
+constexpr bool small_vector<T, length>::can_alloc(
+  std::integral auto number) noexcept
 {
-    return static_cast<std::ptrdiff_t>(length) -
-             static_cast<std::ptrdiff_t>(m_size) >=
-           static_cast<std::ptrdiff_t>(number);
+    const auto remaining = length - static_cast<int>(m_size);
+
+    return std::cmp_greater_equal(remaining, number);
 }
 
 template<typename T, int length>
@@ -8526,7 +8548,8 @@ constexpr void small_vector<T, length>::pop_back() noexcept
 }
 
 template<typename T, int length>
-constexpr void small_vector<T, length>::swap_pop_back(int index) noexcept
+constexpr void small_vector<T, length>::swap_pop_back(
+  std::integral auto index) noexcept
 {
     irt_assert(std::cmp_greater_equal(index, 0) &&
                std::cmp_less(index, m_size));
@@ -8568,16 +8591,16 @@ constexpr i32 ring_buffer<T>::back(i32 position) const noexcept
 }
 
 template<class T>
-constexpr ring_buffer<T>::ring_buffer(int capacity) noexcept
+constexpr ring_buffer<T>::ring_buffer(std::integral auto capacity) noexcept
 {
-    if (capacity > 0) {
-        buffer     = reinterpret_cast<T*>(g_alloc_fn(capacity * sizeof(T)));
-        m_capacity = capacity;
-    }
+    irt_assert(std::cmp_less(capacity,
+                             std::numeric_limits<decltype(m_capacity)>::max()));
 
-    irt_assert(buffer);
-    irt_assert(m_capacity > 0);
-    irt_assert(capacity < INT32_MAX);
+    if (std::cmp_greater(capacity, 0)) {
+        const auto size = static_cast<sz>(capacity) * sizeof(T);
+        buffer          = reinterpret_cast<T*>(g_alloc_fn(size));
+        m_capacity      = static_cast<decltype(m_capacity)>(capacity);
+    }
 }
 
 template<class T>
@@ -8904,17 +8927,20 @@ constexpr const T* ring_buffer<T>::data() const noexcept
 }
 
 template<class T>
-constexpr T& ring_buffer<T>::operator[](int index) noexcept
+constexpr T& ring_buffer<T>::operator[](std::integral auto index) noexcept
 {
-    irt_assert(0 <= index && index < m_capacity);
+    irt_assert(std::cmp_greater_equal(index, 0));
+    irt_assert(std::cmp_less(index, m_capacity));
 
     return buffer[index];
 }
 
 template<class T>
-constexpr const T& ring_buffer<T>::operator[](int index) const noexcept
+constexpr const T& ring_buffer<T>::operator[](
+  std::integral auto index) const noexcept
 {
-    irt_assert(0 <= index && index < m_capacity);
+    irt_assert(std::cmp_greater_equal(index, 0));
+    irt_assert(std::cmp_less(index, m_capacity));
 
     return buffer[index];
 }
@@ -9097,13 +9123,14 @@ inline constexpr small_string<length>::small_string(
 }
 
 template<int length>
-void small_string<length>::resize(int size) noexcept
+void small_string<length>::resize(std::integral auto size) noexcept
 {
-    size_type real_size = size > std::numeric_limits<size_type>::max()
-                            ? std::numeric_limits<size_type>::max()
-                            : static_cast<size_type>(size);
+    irt_assert(std::cmp_greater_equal(size, 0));
 
-    m_size           = real_size > length ? length : real_size;
+    m_size = std::cmp_greater_equal(size, length)
+               ? static_cast<size_type>(length)
+               : static_cast<size_type>(size);
+
     m_buffer[m_size] = '\0';
 }
 
@@ -9135,14 +9162,12 @@ template<int length>
 inline constexpr void small_string<length>::assign(
   const std::string_view str) noexcept
 {
-    irt_assert(str.size() < std::numeric_limits<int>::max());
+    m_size = std::cmp_less(str.size(), length - 1)
+               ? static_cast<size_type>(str.size())
+               : static_cast<size_type>(length - 1);
 
-    const auto orig_length = static_cast<int>(str.size());
-    const auto copy_length = std::min(orig_length, length - 1);
-
-    std::memcpy(&m_buffer[0], str.data(), copy_length);
-    m_buffer[copy_length] = '\0';
-    m_size                = static_cast<size_type>(copy_length);
+    std::memcpy(&m_buffer[0], str.data(), m_size);
+    m_buffer[m_size] = '\0';
 }
 
 template<int length>
@@ -9166,18 +9191,18 @@ inline constexpr void small_string<length>::clear() noexcept
 
 template<int length>
 inline constexpr typename small_string<length>::reference
-small_string<length>::operator[](int index) noexcept
+small_string<length>::operator[](std::integral auto index) noexcept
 {
-    irt_assert(index < m_size);
+    irt_assert(std::cmp_less(index, m_size));
 
     return m_buffer[index];
 }
 
 template<int length>
 inline constexpr typename small_string<length>::const_reference
-small_string<length>::operator[](int index) const noexcept
+small_string<length>::operator[](std::integral auto index) const noexcept
 {
-    irt_assert(index < m_size);
+    irt_assert(std::cmp_less(index, m_size));
 
     return m_buffer[index];
 }
