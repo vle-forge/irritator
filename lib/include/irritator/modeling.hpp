@@ -183,6 +183,8 @@ struct connection
 
 struct component
 {
+    static inline constexpr int port_number = 8;
+
     component() noexcept;
 
     component(const component&)            = delete;
@@ -207,6 +209,9 @@ struct component
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<child, child_id>                    children;
     data_array<connection, connection_id>          connections;
+
+    std::array<small_string<7>, port_number> x_names;
+    std::array<small_string<7>, port_number> y_names;
 
     table<i32, child_id> child_mapping_io;
 

@@ -1609,6 +1609,43 @@ static status read_children(json_cache&             cache,
     return status::success;
 }
 
+static status read_ports(component& compo, const rapidjson::Value& val) noexcept
+{
+    {
+        auto it = val.FindMember("x");
+        irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
+        irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
+        irt_return_if_fail(it->value.GetArray().Size() !=
+                             component::port_number,
+                           status::io_file_format_error);
+
+        unsigned i = 0;
+        for (auto& elem : it->value.GetArray()) {
+            irt_return_if_fail(elem.IsString(), status::io_file_format_error);
+            compo.x_names[i] = elem.GetString();
+            ++i;
+        }
+    }
+
+    {
+        auto it = val.FindMember("y");
+        irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
+        irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
+        irt_return_if_fail(it->value.GetArray().Size() !=
+                             component::port_number,
+                           status::io_file_format_error);
+
+        unsigned i = 0;
+        for (auto& elem : it->value.GetArray()) {
+            irt_return_if_fail(elem.IsString(), status::io_file_format_error);
+            compo.y_names[i] = elem.GetString();
+            ++i;
+        }
+    }
+
+    return status::success;
+}
+
 static status read_connections(json_cache&             cache,
                                modeling&               mod,
                                component&              compo,
@@ -1658,6 +1695,7 @@ static status do_read(json_cache&             cache,
     irt_return_if_bad(read_text_file_sources(cache, mod.srcs, val));
     irt_return_if_bad(read_random_sources(cache, mod.srcs, val));
     irt_return_if_bad(read_children(cache, mod, compo, val));
+    irt_return_if_bad(read_ports(compo, val));
     irt_return_if_bad(read_connections(cache, mod, compo, val));
 
     return status::success;
@@ -1984,6 +2022,31 @@ static status write_children(json_cache& /*cache*/,
 }
 
 template<typename Writer>
+static status write_ports(json_cache& /*cache*/,
+                          const modeling& /*mod*/,
+                          const component& compo,
+                          Writer&          w) noexcept
+{
+    w.Key("x");
+    w.StartArray();
+
+    for (int i = 0; i != component::port_number; ++i)
+        w.String(compo.x_names[static_cast<unsigned>(i)].c_str());
+
+    w.EndArray();
+
+    w.Key("y");
+    w.StartArray();
+
+    for (int i = 0; i != component::port_number; ++i)
+        w.String(compo.y_names[static_cast<unsigned>(i)].c_str());
+
+    w.EndArray();
+
+    return status::success;
+}
+
+template<typename Writer>
 static status write_connections(json_cache& /*cache*/,
                                 const modeling& /*mod*/,
                                 const component& compo,
@@ -2062,6 +2125,7 @@ status component_save(const modeling&  mod,
     irt_return_if_bad(write_text_file_sources(cache, mod.srcs, w));
     irt_return_if_bad(write_random_sources(cache, mod.srcs, w));
     irt_return_if_bad(write_children(cache, mod, compo, w));
+    irt_return_if_bad(write_ports(cache, mod, compo, w));
     irt_return_if_bad(write_connections(cache, mod, compo, w));
 
     w.EndObject();
