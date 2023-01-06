@@ -19,13 +19,11 @@ namespace irt {
 template<int N, typename S, typename... Args>
 constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 {
-    using size_type = typename small_string<N>::size_type;
-
     auto ret = fmt::vformat_to_n(str.begin(),
                                  static_cast<size_t>(N - 1),
                                  fmt,
                                  fmt::make_format_args(args...));
-    str.resize(static_cast<size_type>(ret.size));
+    str.resize(ret.size);
 }
 
 } //  irt
