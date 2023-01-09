@@ -271,8 +271,10 @@ static void show_opened_component_ref(const settings_manager& settings,
                 to_del = nullptr;
             }
 
-            if (!show_connection(parent, *con)) {
-                to_del = con;
+            if (con->type == connection::connection_type::internal) {
+                if (!show_connection(parent, *con)) {
+                    to_del = con;
+                }
             }
         }
 
