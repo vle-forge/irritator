@@ -971,7 +971,7 @@ static void show_modeling_widget(const settings_manager& settings,
         ed.selected_links.clear();
     }
 
-    if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased(ImGuiKey_X)) {
+    if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
         if (num_selected_nodes > 0)
             remove_nodes(ed, tree, compo);
         else if (num_selected_links > 0)

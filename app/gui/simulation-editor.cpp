@@ -1289,12 +1289,12 @@ static void show_simulation_graph_editor(application& app) noexcept
         app.s_editor.selected_nodes.resize(num_selected_nodes, -1);
         ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
 
-        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased(ImGuiKey_X)) {
+        if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
             free_children(app.s_editor, app.s_editor.selected_nodes);
             app.s_editor.selected_nodes.clear();
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();
-        } else if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased(ImGuiKey_D)) {
+        } else if (ImGui::IsKeyReleased(ImGuiKey_D)) {
             copy(app.s_editor, app.s_editor.selected_nodes);
             app.s_editor.selected_nodes.clear();
             num_selected_nodes = 0;
@@ -1303,7 +1303,7 @@ static void show_simulation_graph_editor(application& app) noexcept
     } else if (app.s_editor.can_edit() && num_selected_links > 0) {
         app.s_editor.selected_links.resize(num_selected_links);
 
-        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyReleased(ImGuiKey_X)) {
+        if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
             std::fill_n(app.s_editor.selected_links.begin(),
                         app.s_editor.selected_links.size(),
                         -1);
