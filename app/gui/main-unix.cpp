@@ -8,6 +8,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "irritator/core.hpp"
 
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
@@ -16,6 +17,9 @@
 
 #include <cstdio>
 #include <cstring>
+
+#include <sys/types.h>
+#include <sys/ptrace.h>
 
 // [Win32] Our example includes a copy of glfw3.lib pre-compiled with VS2010 to
 // maximize ease of testing and compatibility with old VS compilers.
@@ -39,8 +43,23 @@ static void glfw_error_callback(int error, const char* description)
       description);
 }
 
+//! Detect if a process is being run under a debugger.
+static bool is_running_under_debugger() noexcept
+{
+    bool under_debugger = false;
+
+    if (ptrace(PTRACE_TRACEME, 0, 1, 0) < 0) {
+        std::printf("Debugger detected. Enabling breakpoint\n");
+        under_debugger = true;
+    } 
+
+    return under_debugger;
+}
+
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
+    irt::is_fatal_breakpoint = is_running_under_debugger();
+
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())

@@ -15,6 +15,7 @@
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
 #include "imgui_impl_win32.h"
+#include <debugapi.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <tchar.h>
@@ -64,9 +65,17 @@ FrameContext*  WaitForNextFrameResources();
 void           ResizeSwapChain(HWND hWnd, int width, int height);
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+//! Detect if a process is being run under a debugger.
+static bool is_running_under_debugger() noexcept
+{
+    return ::IsDebuggerPresent() == TRUE;
+}
+
 // Main code
 int main(int, char**)
 {
+    irt::is_fatal_breakpoint = is_running_under_debugger();
+
     // Create application window
     // ImGui_ImplWin32_EnableDpiAwareness();
     WNDCLASSEX wc = { sizeof(WNDCLASSEX),    CS_CLASSDC, WndProc, 0L,   0L,
