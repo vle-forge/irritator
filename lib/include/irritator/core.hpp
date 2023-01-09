@@ -8033,7 +8033,7 @@ void vector<T>::resize(std::integral auto size) noexcept
                   "T must be default or trivially default constructible to use "
                   "resize() function");
 
-    irt_assert(size < std::numeric_limits<decltype(m_capacity)>::max());
+    irt_assert(std::cmp_less(size, std::numeric_limits<decltype(m_capacity)>::max()));
 
     if (std::cmp_greater(size, m_capacity))
         reserve(compute_new_capacity(static_cast<decltype(m_capacity)>(size)));
