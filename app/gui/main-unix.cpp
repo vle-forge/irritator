@@ -18,8 +18,13 @@
 #include <cstdio>
 #include <cstring>
 
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/ptrace.h>
+
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#endif
 
 // [Win32] Our example includes a copy of glfw3.lib pre-compiled with VS2010 to
 // maximize ease of testing and compatibility with old VS compilers.
@@ -44,6 +49,26 @@ static void glfw_error_callback(int error, const char* description)
 }
 
 //! Detect if a process is being run under a debugger.
+#if defined(__APPLE__)
+static bool is_running_under_debugger() noexcept
+{
+    int                 junk;
+    int                 mib[4];
+    struct kinfo_proc   info;
+    size_t              size;
+
+    info.kp_proc.p_flag = 0;
+    mib[0] = CTL_KERN;
+    mib[1] = KERN_PROC;
+    mib[2] = KERN_PROC_PID;
+    mib[3] = getpid();
+
+    size = sizeof(info);
+    junk = sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0);
+
+    return junk == 0 ? false : (info.kp_proc.p_flag & P_TRACED) != 0;
+}
+#else
 static bool is_running_under_debugger() noexcept
 {
     bool under_debugger = false;
@@ -55,6 +80,7 @@ static bool is_running_under_debugger() noexcept
 
     return under_debugger;
 }
+#endif
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
