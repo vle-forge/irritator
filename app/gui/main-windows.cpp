@@ -15,10 +15,12 @@
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
 #include "imgui_impl_win32.h"
-#include <debugapi.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <tchar.h>
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 #ifdef _DEBUG
 #define DX12_ENABLE_DEBUG_LAYER
