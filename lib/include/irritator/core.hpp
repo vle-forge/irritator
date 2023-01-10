@@ -3032,10 +3032,55 @@ using finalize_function_t =
   decltype(detail::helper<status (T::*)(simulation&), &T::finalize>{});
 
 template<typename T>
-using has_input_port_t = decltype(&T::x);
+concept has_lambda_function = requires(T t, simulation& sim) {
+                                  {
+                                      t.lambda(sim)
+                                      } -> std::convertible_to<status>;
+                              };
 
 template<typename T>
-using has_output_port_t = decltype(&T::y);
+concept has_transition_function =
+  requires(T t, simulation& sim, time s, time e, time r) {
+      {
+          t.transition(sim, s, e, r)
+          } -> std::convertible_to<status>;
+  };
+
+template<typename T>
+concept has_observation_function =
+  requires(T t, simulation& sim, time s, time e, time r) {
+      {
+          t.observation(sim, s, e, r)
+          } -> std::convertible_to<observation_message>;
+  };
+
+template<typename T>
+concept has_initialize_function = requires(T t, simulation& sim) {
+                                      {
+                                          t.initialize(sim)
+                                          } -> std::convertible_to<status>;
+                                  };
+
+template<typename T>
+concept has_finalize_function = requires(T t, simulation& sim) {
+                                    {
+                                        t.finalize(sim)
+                                        } -> std::convertible_to<status>;
+                                };
+
+template<typename T>
+concept has_input_port = requires(T t) {
+                             {
+                                 t.x
+                             };
+                         };
+
+template<typename T>
+concept has_output_port = requires(T t) {
+                              {
+                                  t.y
+                              };
+                          };
 
 struct integrator
 {
