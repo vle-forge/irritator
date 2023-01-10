@@ -371,106 +371,65 @@ int main()
     };
 
     "model_constepxr"_test = [] {
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::counter> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::counter> ==
-               false);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::counter> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::counter> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::counter> ==
-               false);
+        expect(irt::has_initialize_function<irt::counter> == true);
+        expect(irt::has_lambda_function<irt::counter> == false);
+        expect(irt::has_transition_function<irt::counter> == true);
+        expect(irt::has_input_port<irt::counter> == true);
+        expect(irt::has_output_port<irt::counter> == false);
 
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::generator> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::generator> ==
-               true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::generator> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::generator> ==
-               false);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::generator> ==
-               true);
+        expect(irt::has_initialize_function<irt::generator> == true);
+        expect(irt::has_lambda_function<irt::generator> == true);
+        expect(irt::has_transition_function<irt::generator> == true);
+        expect(irt::has_input_port<irt::generator> == false);
+        expect(irt::has_output_port<irt::generator> == true);
 
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_2> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_2> ==
-               true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::adder_2> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_2> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_2> ==
-               true);
+        expect(irt::has_initialize_function<irt::adder_2> == true);
+        expect(irt::has_lambda_function<irt::adder_2> == true);
+        expect(irt::has_transition_function<irt::adder_2> == true);
+        expect(irt::has_input_port<irt::adder_2> == true);
+        expect(irt::has_output_port<irt::adder_2> == true);
 
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_3> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_3> ==
-               true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::adder_3> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_3> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_3> ==
-               true);
+        expect(irt::has_initialize_function<irt::adder_3> == true);
+        expect(irt::has_lambda_function<irt::adder_3> == true);
+        expect(irt::has_transition_function<irt::adder_3> == true);
+        expect(irt::has_input_port<irt::adder_3> == true);
+        expect(irt::has_output_port<irt::adder_3> == true);
 
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::adder_4> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::adder_4> ==
-               true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::adder_4> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::adder_4> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::adder_4> ==
-               true);
+        expect(irt::has_initialize_function<irt::adder_4> == true);
+        expect(irt::has_lambda_function<irt::adder_4> == true);
+        expect(irt::has_transition_function<irt::adder_4> == true);
+        expect(irt::has_input_port<irt::adder_4> == true);
+        expect(irt::has_output_port<irt::adder_4> == true);
 
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_2> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_2> == true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::mult_2> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_2> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_2> == true);
+        expect(irt::has_initialize_function<irt::mult_2> == true);
+        expect(irt::has_lambda_function<irt::mult_2> == true);
+        expect(irt::has_transition_function<irt::mult_2> == true);
+        expect(irt::has_input_port<irt::mult_2> == true);
+        expect(irt::has_output_port<irt::mult_2> == true);
 
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_3> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_3> == true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::mult_3> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_3> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_3> == true);
+        expect(irt::has_initialize_function<irt::mult_3> == true);
+        expect(irt::has_lambda_function<irt::mult_3> == true);
+        expect(irt::has_transition_function<irt::mult_3> == true);
+        expect(irt::has_input_port<irt::mult_3> == true);
+        expect(irt::has_output_port<irt::mult_3> == true);
 
-        expect(irt::is_detected_v<irt::initialize_function_t, irt::mult_4> ==
-               true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::mult_4> == true);
-        expect(irt::is_detected_v<irt::transition_function_t, irt::mult_4> ==
-               true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::mult_4> == true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::mult_4> == true);
+        expect(irt::has_initialize_function<irt::mult_4> == true);
+        expect(irt::has_lambda_function<irt::mult_4> == true);
+        expect(irt::has_transition_function<irt::mult_4> == true);
+        expect(irt::has_input_port<irt::mult_4> == true);
+        expect(irt::has_output_port<irt::mult_4> == true);
 
-        expect(
-          irt::is_detected_v<irt::initialize_function_t, irt::integrator> ==
-          true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::integrator> ==
-               true);
-        expect(
-          irt::is_detected_v<irt::transition_function_t, irt::integrator> ==
-          true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::integrator> ==
-               true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::integrator> ==
-               true);
+        expect(irt::has_initialize_function<irt::integrator> == true);
+        expect(irt::has_lambda_function<irt::integrator> == true);
+        expect(irt::has_transition_function<irt::integrator> == true);
+        expect(irt::has_input_port<irt::integrator> == true);
+        expect(irt::has_output_port<irt::integrator> == true);
 
-        expect(
-          irt::is_detected_v<irt::initialize_function_t, irt::quantifier> ==
-          true);
-        expect(irt::is_detected_v<irt::lambda_function_t, irt::quantifier> ==
-               true);
-        expect(
-          irt::is_detected_v<irt::transition_function_t, irt::quantifier> ==
-          true);
-        expect(irt::is_detected_v<irt::has_input_port_t, irt::quantifier> ==
-               true);
-        expect(irt::is_detected_v<irt::has_output_port_t, irt::quantifier> ==
-               true);
+        expect(irt::has_initialize_function<irt::quantifier> == true);
+        expect(irt::has_lambda_function<irt::quantifier> == true);
+        expect(irt::has_transition_function<irt::quantifier> == true);
+        expect(irt::has_input_port<irt::quantifier> == true);
+        expect(irt::has_output_port<irt::quantifier> == true);
     };
 
     "status"_test = [] {

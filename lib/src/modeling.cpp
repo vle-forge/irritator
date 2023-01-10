@@ -33,11 +33,11 @@ std::pair<Dynamics*, child_id> alloc(
     new (&mdl.dyn) Dynamics{};
     auto& dyn = get_dyn<Dynamics>(mdl);
 
-    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+    if constexpr (has_input_port<Dynamics>)
         for (int i = 0, e = length(dyn.x); i != e; ++i)
             dyn.x[i] = static_cast<u64>(-1);
 
-    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+    if constexpr (has_output_port<Dynamics>)
         for (int i = 0, e = length(dyn.y); i != e; ++i)
             dyn.y[i] = static_cast<u64>(-1);
 

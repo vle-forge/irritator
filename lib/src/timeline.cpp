@@ -456,7 +456,7 @@ status run(timeline& tl, simulation& sim, time& t) noexcept
         auto& msg  = sim.emitting_output_ports[i].msg;
 
         dispatch(*mdl, [&sim, port, &msg]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+            if constexpr (has_input_port<Dynamics>) {
                 auto list = append_message(sim, dyn.x[port]);
                 list.push_back(msg);
             }

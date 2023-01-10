@@ -88,7 +88,7 @@ template<typename Dynamics>
 static void add_input_attribute(simulation_editor& ed,
                                 const Dynamics&    dyn) noexcept
 {
-    if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+    if constexpr (has_input_port<Dynamics>) {
         const auto** names  = get_input_port_names<Dynamics>();
         const auto&  mdl    = get_model(dyn);
         const auto   mdl_id = ed.sim.models.get_id(mdl);
@@ -111,7 +111,7 @@ template<typename Dynamics>
 static void add_output_attribute(simulation_editor& ed,
                                  const Dynamics&    dyn) noexcept
 {
-    if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+    if constexpr (has_output_port<Dynamics>) {
         const auto** names  = get_output_port_names<Dynamics>();
         const auto&  mdl    = get_model(dyn);
         const auto   mdl_id = ed.sim.models.get_id(mdl);
@@ -844,7 +844,7 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
 
         dispatch(
           src_mdl, [&ed, &mapping, &dst_mdl]<typename Dynamics>(Dynamics& dyn) {
-              if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+              if constexpr (has_output_port<Dynamics>) {
                   for (int i = 0, e = length(dyn.y); i != e; ++i) {
                       auto& dst_dyn = get_dyn<Dynamics>(dst_mdl);
                       irt_return_if_bad(
@@ -878,7 +878,7 @@ static int show_connection(simulation_editor& ed, model& mdl, int connection_id)
 {
     dispatch(
       mdl, [&ed, &connection_id]<typename Dynamics>(Dynamics& dyn) -> void {
-          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+          if constexpr (has_output_port<Dynamics>) {
               for (int i = 0, e = length(dyn.y); i != e; ++i) {
                   auto list = append_node(ed.sim, dyn.y[i]);
                   auto it   = list.begin();
@@ -939,7 +939,7 @@ static void compute_connection_distance(const model&       mdl,
                                         const float        k) noexcept
 {
     dispatch(mdl, [&mdl, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+        if constexpr (has_output_port<Dynamics>) {
             for (const auto elem : dyn.y) {
                 auto list = get_node(ed.sim, elem);
 
@@ -1330,8 +1330,7 @@ static void show_simulation_graph_editor(application& app) noexcept
                    selected_links_ptr,
                    selected_links_size,
                    &link_id_to_delete]<typename Dynamics>(Dynamics& dyn) {
-                      if constexpr (is_detected_v<has_output_port_t,
-                                                  Dynamics>) {
+                      if constexpr (has_output_port<Dynamics>) {
                           const int e = length(dyn.y);
                           int       j = 0;
 

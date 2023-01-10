@@ -1090,7 +1090,7 @@ static status do_serialize(const Archiver   arc,
         model* mdl = nullptr;
         while (sim.models.next(mdl)) {
             dispatch(*mdl, [&sim, &mdl, &io]<typename Dynamics>(Dynamics& dyn) {
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+                if constexpr (has_output_port<Dynamics>) {
                     i8         i      = 0;
                     const auto out_id = sim.models.get_id(mdl);
 

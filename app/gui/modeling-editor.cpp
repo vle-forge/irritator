@@ -63,7 +63,7 @@ inline child* unpack_node(const int                          node_id,
 template<typename Dynamics>
 static void add_input_attribute(const Dynamics& dyn, child_id id) noexcept
 {
-    if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+    if constexpr (has_input_port<Dynamics>) {
         const auto** names = get_input_port_names<Dynamics>();
 
         irt_assert(length(dyn.x) < 8);
@@ -80,7 +80,7 @@ static void add_input_attribute(const Dynamics& dyn, child_id id) noexcept
 template<typename Dynamics>
 static void add_output_attribute(const Dynamics& dyn, child_id id) noexcept
 {
-    if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+    if constexpr (has_output_port<Dynamics>) {
         const auto** names = get_output_port_names<Dynamics>();
         const auto   e     = length(dyn.y);
 

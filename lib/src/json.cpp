@@ -2187,7 +2187,7 @@ static status write_connections(const simulation& sim, Writer& w) noexcept
     model* mdl = nullptr;
     while (sim.models.next(mdl)) {
         dispatch(*mdl, [&sim, &mdl, &w]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+            if constexpr (has_output_port<Dynamics>) {
                 for (auto i = 0, e = length(dyn.y); i != e; ++i) {
                     auto list = get_node(sim, dyn.y[i]);
                     for (const auto& cnt : list) {

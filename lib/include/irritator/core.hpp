@@ -156,7 +156,7 @@ using f64 = double;
 #ifndef IRRITATOR_REAL_TYPE_F32
 using real = f64;
 #else
-using real                             = f32;
+using real                                  = f32;
 #endif //  IRRITATOR_REAL_TYPE
 
 //! @brief An helper function to initialize floating point number and disable
@@ -2983,53 +2983,6 @@ status send_message(simulation&  sim,
 // Some template type-trait to detect function and attribute in DEVS model.
 //
 /////////////////////////////////////////////////////////////////////////////
-
-namespace detail {
-
-template<typename, template<typename...> class, typename...>
-struct is_detected : std::false_type
-{};
-
-template<template<class...> class Operation, typename... Arguments>
-struct is_detected<std::void_t<Operation<Arguments...>>,
-                   Operation,
-                   Arguments...> : std::true_type
-{};
-
-template<typename T, T>
-struct helper
-{};
-
-} // namespace detail
-
-template<template<class...> class Operation, typename... Arguments>
-using is_detected = detail::is_detected<std::void_t<>, Operation, Arguments...>;
-
-template<template<class...> class Operation, typename... Arguments>
-constexpr bool is_detected_v =
-  detail::is_detected<std::void_t<>, Operation, Arguments...>::value;
-
-template<class T>
-using lambda_function_t =
-  decltype(detail::helper<status (T::*)(simulation&), &T::lambda>{});
-
-template<class T>
-using transition_function_t =
-  decltype(detail::helper<status (T::*)(simulation&, time, time, time),
-                          &T::transition>{});
-
-template<class T>
-using observation_function_t =
-  decltype(detail::helper<observation_message (T::*)(const time) const,
-                          &T::observation>{});
-
-template<class T>
-using initialize_function_t =
-  decltype(detail::helper<status (T::*)(simulation&), &T::initialize>{});
-
-template<class T>
-using finalize_function_t =
-  decltype(detail::helper<status (T::*)(simulation&), &T::finalize>{});
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
@@ -7132,34 +7085,34 @@ constexpr model& get_model(Dynamics& d) noexcept
 
 inline status get_input_port(model& src, int port_src, input_port*& p) noexcept
 {
-    return dispatch(
-      src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-          if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
-              if (port_src >= 0 && port_src < length(dyn.x)) {
-                  p = &dyn.x[port_src];
-                  return status::success;
-              }
-          }
+    return dispatch(src,
+                    [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+                        if constexpr (has_input_port<Dynamics>) {
+                            if (port_src >= 0 && port_src < length(dyn.x)) {
+                                p = &dyn.x[port_src];
+                                return status::success;
+                            }
+                        }
 
-          return status::model_connect_output_port_unknown;
-      });
+                        return status::model_connect_output_port_unknown;
+                    });
 }
 
 inline status get_output_port(model&        dst,
                               int           port_dst,
                               output_port*& p) noexcept
 {
-    return dispatch(
-      dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
-              if (port_dst >= 0 && port_dst < length(dyn.y)) {
-                  p = &dyn.y[port_dst];
-                  return status::success;
-              }
-          }
+    return dispatch(dst,
+                    [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+                        if constexpr (has_output_port<Dynamics>) {
+                            if (port_dst >= 0 && port_dst < length(dyn.y)) {
+                                p = &dyn.y[port_dst];
+                                return status::success;
+                            }
+                        }
 
-          return status::model_connect_output_port_unknown;
-      });
+                        return status::model_connect_output_port_unknown;
+                    });
 }
 
 inline bool is_ports_compatible(const dynamics_type mdl_src,
@@ -7301,7 +7254,7 @@ inline status global_connect(simulation& sim,
       src,
       [&sim, port_src, dst, port_dst]<typename Dynamics>(
         Dynamics& dyn) -> status {
-          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+          if constexpr (has_output_port<Dynamics>) {
               auto list = append_node(sim, dyn.y[static_cast<u8>(port_src)]);
               for (const auto& elem : list) {
                   irt_return_if_fail(
@@ -7331,7 +7284,7 @@ inline status global_disconnect(simulation& sim,
       src,
       [&sim, port_src, dst, port_dst]<typename Dynamics>(
         Dynamics& dyn) -> status {
-          if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+          if constexpr (has_output_port<Dynamics>) {
               auto list = append_node(sim, dyn.y[port_src]);
               for (auto it = list.begin(), end = list.end(); it != end; ++it) {
                   if (it->model == dst && it->port_index == port_dst) {
@@ -7446,11 +7399,11 @@ inline void copy(const model& src, model& dst) noexcept
         const auto& src_dyn = get_dyn<Dynamics>(src);
         std::construct_at(&dst_dyn, src_dyn);
 
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+        if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dst_dyn.x); i != e; ++i)
                 dst_dyn.x[i] = static_cast<u64>(-1);
 
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+        if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dst_dyn.y); i != e; ++i)
                 dst_dyn.y[i] = static_cast<u64>(-1);
     });
@@ -7603,12 +7556,12 @@ public:
     template<typename Dynamics>
     void do_deallocate(Dynamics& dyn) noexcept
     {
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>) {
+        if constexpr (has_output_port<Dynamics>) {
             for (auto& elem : dyn.y)
                 append_node(*this, elem).clear();
         }
 
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+        if constexpr (has_input_port<Dynamics>) {
             for (auto& elem : dyn.x)
                 append_message(*this, elem).clear();
         }
@@ -7676,8 +7629,7 @@ public:
 
             if (auto* mdl = models.try_to_get(obs->model); mdl) {
                 dispatch(*mdl, [&obs, t]<typename Dynamics>(Dynamics& dyn) {
-                    if constexpr (is_detected_v<observation_function_t,
-                                                Dynamics>) {
+                    if constexpr (has_observation_function<Dynamics>) {
                         obs->update(dyn.observation(t));
                     }
                 });
@@ -7737,12 +7689,12 @@ public:
     template<typename Dynamics>
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     {
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+        if constexpr (has_input_port<Dynamics>) {
             for (int i = 0, e = length(dyn.x); i != e; ++i)
                 dyn.x[i] = static_cast<u64>(-1);
         }
 
-        if constexpr (is_detected_v<initialize_function_t, Dynamics>)
+        if constexpr (has_initialize_function<Dynamics>)
             irt_return_if_bad(dyn.initialize(*this));
 
         mdl.tl     = t;
@@ -7764,7 +7716,7 @@ public:
     template<typename Dynamics>
     status make_transition(model& mdl, Dynamics& dyn, time t) noexcept
     {
-        if constexpr (is_detected_v<observation_function_t, Dynamics>) {
+        if constexpr (has_observation_function<Dynamics>) {
             if (mdl.obs_id != undefined<observer_id>()) {
                 if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
                     obs->update(dyn.observation(t));
@@ -7778,15 +7730,15 @@ public:
         }
 
         if (mdl.tn == mdl.handle->tn) {
-            if constexpr (is_detected_v<lambda_function_t, Dynamics>)
-                if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+            if constexpr (has_lambda_function<Dynamics>)
+                if constexpr (has_output_port<Dynamics>)
                     irt_return_if_bad(dyn.lambda(*this));
         }
 
-        if constexpr (is_detected_v<transition_function_t, Dynamics>)
+        if constexpr (has_transition_function<Dynamics>)
             irt_return_if_bad(dyn.transition(*this, t, t - mdl.tl, mdl.tn - t));
 
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+        if constexpr (has_input_port<Dynamics>) {
             for (auto& elem : dyn.x)
                 append_message(*this, elem).clear();
         }
@@ -7813,13 +7765,13 @@ public:
     template<typename Dynamics>
     status make_finalize(Dynamics& dyn, observer* obs, time t) noexcept
     {
-        if constexpr (is_detected_v<observation_function_t, Dynamics>) {
+        if constexpr (has_observation_function<Dynamics>) {
             if (obs) {
                 obs->update(dyn.observation(t));
             }
         }
 
-        if constexpr (is_detected_v<finalize_function_t, Dynamics>) {
+        if constexpr (has_finalize_function<Dynamics>) {
             irt_return_if_bad(dyn.finalize(*this));
         }
 
@@ -8078,7 +8030,8 @@ void vector<T>::resize(std::integral auto size) noexcept
                   "T must be default or trivially default constructible to use "
                   "resize() function");
 
-    irt_assert(std::cmp_less(size, std::numeric_limits<decltype(m_capacity)>::max()));
+    irt_assert(
+      std::cmp_less(size, std::numeric_limits<decltype(m_capacity)>::max()));
 
     if (std::cmp_greater(size, m_capacity))
         reserve(compute_new_capacity(static_cast<decltype(m_capacity)>(size)));
@@ -9479,7 +9432,7 @@ inline status simulation::run(time& t) noexcept
         auto& msg  = emitting_output_ports[i].msg;
 
         dispatch(*mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (is_detected_v<has_input_port_t, Dynamics>) {
+            if constexpr (has_input_port<Dynamics>) {
                 auto list = append_message(*this, dyn.x[port]);
                 list.push_back(msg);
             }
@@ -10040,11 +9993,11 @@ Dynamics& simulation::alloc() noexcept
     std::construct_at(reinterpret_cast<Dynamics*>(&mdl.dyn));
     auto& dyn = get_dyn<Dynamics>(mdl);
 
-    if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+    if constexpr (has_input_port<Dynamics>)
         for (int i = 0, e = length(dyn.x); i != e; ++i)
             dyn.x[i] = static_cast<u64>(-1);
 
-    if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+    if constexpr (has_output_port<Dynamics>)
         for (int i = 0, e = length(dyn.y); i != e; ++i)
             dyn.y[i] = static_cast<u64>(-1);
 
@@ -10071,11 +10024,11 @@ inline model& simulation::clone(const model& mdl) noexcept
         const auto& src_dyn = get_dyn<Dynamics>(mdl);
         std::construct_at(&dyn, src_dyn);
 
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+        if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dyn.x); i != e; ++i)
                 dyn.x[i] = static_cast<u64>(-1);
 
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+        if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
                 dyn.y[i] = static_cast<u64>(-1);
 
@@ -10107,11 +10060,11 @@ inline model& simulation::alloc(dynamics_type type) noexcept
     dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
         std::construct_at(&dyn);
 
-        if constexpr (is_detected_v<has_input_port_t, Dynamics>)
+        if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dyn.x); i != e; ++i)
                 dyn.x[i] = static_cast<u64>(-1);
 
-        if constexpr (is_detected_v<has_output_port_t, Dynamics>)
+        if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
                 dyn.y[i] = static_cast<u64>(-1);
 
