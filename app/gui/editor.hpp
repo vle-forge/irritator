@@ -12,6 +12,8 @@
 
 namespace irt {
 
+struct application;
+
 void show_dynamics_inputs(external_source& srcs, qss1_integrator& dyn);
 void show_dynamics_inputs(external_source& srcs, qss2_integrator& dyn);
 void show_dynamics_inputs(external_source& srcs, qss3_integrator& dyn);
@@ -70,7 +72,8 @@ void show_dynamics_inputs(external_source& srcs, logical_or_2& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_and_3& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_or_3& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_invert& dyn);
-void show_dynamics_inputs(external_source&            srcs,
+void show_dynamics_inputs(application&                app,
+                          external_source&            srcs,
                           hsm_wrapper&                dyn,
                           hierarchical_state_machine& machine);
 void show_dynamics_inputs(external_source& srcs, time_func& dyn);

@@ -595,6 +595,17 @@ void application::show() noexcept
 
     application_show_windows(*this);
 
+    if (show_hsm_editor) {
+        ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(700, 600), ImGuiCond_Once);
+        if (!ImGui::Begin("HSM editor", &show_hsm_editor)) {
+            ImGui::End();
+        } else {
+            h_editor.show();
+            ImGui::End();
+        }
+    }
+
     if (show_memory)
         show_memory_box(&show_memory);
 

@@ -261,6 +261,35 @@ struct output_editor
     bool write_output = false;
 };
 
+//! An ImNodes editor for HSM.
+//! Default, node 0 is the top state.
+class hsm_editor
+{
+public:
+    constexpr static inline auto max_number_of_state =
+      hierarchical_state_machine::max_number_of_state;
+
+    hsm_editor() noexcept;
+    ~hsm_editor() noexcept;
+
+    void clear() noexcept;
+    void copy_to(hierarchical_state_machine& other) noexcept;
+    void import_from(const hierarchical_state_machine& other) noexcept;
+
+    void show() noexcept;
+
+private:
+    hierarchical_state_machine m_hsm;
+    ImNodesEditorContext*      m_context = nullptr;
+
+    ImVector<int>                                  m_selected_links;
+    ImVector<int>                                  m_selected_nodes;
+    ImVector<hierarchical_state_machine::state_id> m_stack;
+
+    std::array<ImVec2, max_number_of_state> m_position;
+    std::array<bool, max_number_of_state>   m_enabled;
+};
+
 struct simulation_editor
 {
     enum class visualization_mode
@@ -452,6 +481,7 @@ struct application
 
     component_editor            c_editor;
     simulation_editor           s_editor;
+    hsm_editor                  h_editor;
     settings_manager            settings;
     project_hierarchy_selection project_selection;
 
@@ -491,6 +521,7 @@ public:
     bool show_output_editor          = true;
     bool show_simulation_editor      = true;
     bool show_modeling_editor        = true;
+    bool show_hsm_editor             = false;
     bool show_observation_window     = true;
     bool show_component_store_window = true;
     bool show_tasks_window           = false;

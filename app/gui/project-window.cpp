@@ -152,7 +152,8 @@ static void show_project_hierarchy_child_configuration(component_editor& ed,
                 if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
                     if (auto* machine = compo.hsms.try_to_get(dyn.id);
                         machine) {
-                        show_dynamics_inputs(ed.mod.srcs, dyn, *machine);
+                        auto* app = container_of(&ed, &application::c_editor);
+                        show_dynamics_inputs(*app, ed.mod.srcs, dyn, *machine);
                     }
                 } else
                     show_dynamics_inputs(ed.mod.srcs, dyn);

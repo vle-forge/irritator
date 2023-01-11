@@ -144,7 +144,9 @@ static void show(const settings_manager& settings,
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
             if (auto* machine = parent.hsms.try_to_get(dyn.id); machine) {
-                show_dynamics_inputs(ed.mod.srcs, dyn, *machine);
+                auto* app = container_of(&ed, &application::c_editor);
+                show_dynamics_inputs(*app, ed.mod.srcs, dyn, *machine);
+                ImNodes::EditorContextSet(ed.context);
             }
         } else {
             show_dynamics_inputs(ed.mod.srcs, dyn);

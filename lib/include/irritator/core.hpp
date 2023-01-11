@@ -9857,6 +9857,7 @@ inline void hierarchical_state_machine::clear() noexcept
     values = 0u;
     outputs.clear();
 
+    m_top_state            = invalid_state_id;
     m_current_state        = invalid_state_id;
     m_next_state           = invalid_state_id;
     m_source_state         = invalid_state_id;

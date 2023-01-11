@@ -3,8 +3,8 @@ project(irritator-gui VERSION 0.1.0.0 LANGUAGES CXX)
 
 set(gui_sources
     application.cpp application.hpp component.cpp components-window.cpp
-    dialog.cpp dialog.hpp editor.cpp editor.hpp imnodes.cpp imnodes.h
-    imnodes_internal.h implot.cpp implot.h implot_internal.h
+    dialog.cpp dialog.hpp editor.cpp editor.hpp hsm-editor.cpp imnodes.cpp
+    imnodes.h imnodes_internal.h implot.cpp implot.h implot_internal.h
     implot_items.cpp implot_demo.cpp internal.hpp internal.cpp io.cpp
     modeling-editor.cpp notification.cpp output-editor.cpp 
     project-window.cpp simulation-editor.cpp simulation-component.cpp
