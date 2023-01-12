@@ -135,7 +135,7 @@ static void show(const settings_manager& settings,
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat(
-      "{}\n{}", c.name.c_str(), get_dynamics_type_name(mdl.type));
+      "{}\n{}", c.name.c_str(), dynamics_type_names[ordinal(mdl.type)]);
     ImNodes::EndNodeTitleBar();
 
     dispatch(mdl, [&ed, &parent, id]<typename Dynamics>(Dynamics& dyn) {
@@ -294,7 +294,7 @@ static void add_popup_menuitem(component_editor& ed,
         return;
     }
 
-    if (ImGui::MenuItem(get_dynamics_type_name(type))) {
+    if (ImGui::MenuItem(dynamics_type_names[ordinal(type)])) {
         auto& child  = ed.mod.alloc(parent, type);
         *new_model   = parent.children.get_id(child);
         parent.state = component_status::modified;
@@ -854,12 +854,12 @@ static void is_link_created(const component_editor& ed,
                                  port_dst_index))
             return;
 
-        auto& con = parent.connections.alloc();
-        con.internal.src = child_src_id;
+        auto& con              = parent.connections.alloc();
+        con.internal.src       = child_src_id;
         con.internal.index_src = port_src_index;
-        con.internal.dst = child_dst_id;
+        con.internal.dst       = child_dst_id;
         con.internal.index_dst = port_dst_index;
-        parent.state = component_status::modified;
+        parent.state           = component_status::modified;
     }
 }
 
@@ -913,7 +913,7 @@ static void remove_links(component_editor& ed, component& parent) noexcept
 
     for (i32 i = 0, e = ed.selected_links.size(); i != e; ++i) {
         const auto link_id = static_cast<u32>(ed.selected_links[i]);
-        auto* con = parent.connections.try_to_get(link_id);
+        auto*      con     = parent.connections.try_to_get(link_id);
         if (con) {
             parent.connections.free(*con);
             parent.state = component_status::modified;

@@ -3002,12 +3002,11 @@ concept has_transition_function =
   };
 
 template<typename T>
-concept has_observation_function =
-  requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.observation(sim, s, e, r)
-      } -> std::convertible_to<observation_message>;
-  };
+concept has_observation_function = requires(T t, time s, time e) {
+    {
+        t.observation(s, e)
+    } -> std::convertible_to<observation_message>;
+};
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
@@ -3036,6 +3035,36 @@ concept has_output_port = requires(T t) {
         t.y
     };
 };
+
+constexpr observation_message qss_observation(real X,
+                                              real u,
+                                              time t,
+                                              time e) noexcept
+{
+    return { t, X + u * e };
+}
+
+constexpr observation_message qss_observation(real X,
+                                              real u,
+                                              real mu,
+                                              time t,
+                                              time e) noexcept
+{
+    return { t, X + u * e + mu * e * e / two, u + mu * e };
+}
+
+constexpr observation_message qss_observation(real X,
+                                              real u,
+                                              real mu,
+                                              real pu,
+                                              time t,
+                                              time e) noexcept
+{
+    return { t,
+             X + u * e + (mu * e * e) / two + (pu * e * e * e) / three,
+             u + mu * e + pu * e * e,
+             mu / two + pu * e };
+}
 
 struct integrator
 {
@@ -3210,7 +3239,7 @@ struct integrator
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, last_output_value };
     }
@@ -3409,9 +3438,9 @@ struct abstract_integrator<1>
         return send_message(sim, y[0], X + u * sigma);
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
-        return { t, X, u };
+        return qss_observation(X, u, t, e);
     }
 };
 
@@ -3575,9 +3604,9 @@ struct abstract_integrator<2>
           sim, y[0], X + u * sigma + mu * sigma * sigma / two, u + mu * sigma);
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
-        return { t, X, u, mu };
+        return qss_observation(X, u, mu, t, e);
     }
 };
 
@@ -3918,9 +3947,9 @@ struct abstract_integrator<3>
                             mu / two + pu * sigma);
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
-        return { t, X, u, mu, pu };
+        return qss_observation(X, u, mu, pu, t, e);
     }
 };
 
@@ -4013,18 +4042,29 @@ struct abstract_power
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
-            return { t, value[0] };
+            auto X = std::pow(value[0], default_n);
+            return { t, X };
         }
 
         if constexpr (QssLevel == 2) {
-            return { t, value[0], value[1] };
+            auto X = std::pow(value[0], default_n);
+            auto u = default_n * std::pow(value[0], default_n - 1) * value[1];
+
+            return qss_observation(X, u, t, e);
         }
 
         if constexpr (QssLevel == 3) {
-            return { t, value[0], value[1], value[2] };
+            auto X  = std::pow(value[0], default_n);
+            auto u  = default_n * std::pow(value[0], default_n - 1) * value[1];
+            auto mu = default_n * (default_n - 1) *
+                        std::pow(value[0], default_n - 2) *
+                        (value[1] * value[1] / two) +
+                      default_n * std::pow(value[0], default_n - 1) * value[2];
+
+            return qss_observation(X, u, mu, t, e);
         }
     }
 };
@@ -4111,19 +4151,22 @@ struct abstract_square
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
-        if constexpr (QssLevel == 1) {
-            return { t, value[0] };
-        }
+        if constexpr (QssLevel == 1)
+            return { t, value[0] * value[0] };
 
-        if constexpr (QssLevel == 2) {
-            return { t, value[0], value[1] };
-        }
+        if constexpr (QssLevel == 2)
+            return qss_observation(
+              value[0] * value[0], two * value[0] * value[1], t, e);
 
-        if constexpr (QssLevel == 3) {
-            return { t, value[0], value[1], value[2] };
-        }
+        if constexpr (QssLevel == 3)
+            return qss_observation(value[0] * value[0],
+                                   two * value[0] * value[1],
+                                   (two * value[0] * value[2]) +
+                                     (value[1] * value[1]),
+                                   t,
+                                   e);
     }
 };
 
@@ -4254,7 +4297,7 @@ struct abstract_sum
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             real value = zero;
@@ -4273,7 +4316,7 @@ struct abstract_sum
                 value_1 += values[i + PortNumber];
             }
 
-            return { t, value_0, value_1 };
+            return qss_observation(value_0, value_1, t, e);
         }
 
         if constexpr (QssLevel >= 3) {
@@ -4285,7 +4328,7 @@ struct abstract_sum
                 value_2 += values[i + PortNumber + PortNumber];
             }
 
-            return { t, value_0, value_1, value_2 };
+            return qss_observation(value_0, value_1, value_2, t, e);
         }
     }
 };
@@ -4428,7 +4471,7 @@ struct abstract_wsum
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             real value = zero;
@@ -4448,7 +4491,7 @@ struct abstract_wsum
                 slope += default_input_coeffs[i] * values[i + PortNumber];
             }
 
-            return { t, value, slope };
+            return qss_observation(value, slope, t, e);
         }
 
         if constexpr (QssLevel == 3) {
@@ -4463,7 +4506,7 @@ struct abstract_wsum
                   default_input_coeffs[i] * values[i + PortNumber + PortNumber];
             }
 
-            return { t, value, slope, derivative };
+            return qss_observation(value, slope, derivative, t, e);
         }
     }
 };
@@ -4588,25 +4631,28 @@ struct abstract_multiplier
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             return { t, values[0] * values[1] };
         }
 
         if constexpr (QssLevel == 2) {
-            return { t,
-                     values[0] * values[1],
-                     values[2 + 0] * values[1] + values[2 + 1] * values[0] };
+            return qss_observation(values[0] * values[1],
+                                   values[2 + 0] * values[1] +
+                                     values[2 + 1] * values[0],
+                                   t,
+                                   e);
         }
 
         if constexpr (QssLevel == 3) {
-            return { t,
-                     values[0] * values[1],
-                     values[2 + 0] * values[1] + values[2 + 1] * values[0],
-                     values[0] * values[2 + 2 + 1] +
-                       values[2 + 0] * values[2 + 1] +
-                       values[2 + 2 + 0] * values[1] };
+            return qss_observation(
+              values[0] * values[1],
+              values[2 + 0] * values[1] + values[2 + 1] * values[0],
+              values[0] * values[2 + 2 + 1] + values[2 + 0] * values[2 + 1] +
+                values[2 + 2 + 0] * values[1],
+              t,
+              e);
         }
     }
 };
@@ -4803,7 +4849,7 @@ struct quantifier
         return send_message(sim, y[0], m_upthreshold, m_downthreshold);
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, m_upthreshold, m_downthreshold };
     }
@@ -5028,7 +5074,7 @@ struct adder
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         real ret = zero;
 
@@ -5116,7 +5162,7 @@ struct mult
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         real ret = 1.0;
 
@@ -5164,7 +5210,7 @@ struct counter
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, static_cast<real>(number) };
     }
@@ -5251,7 +5297,7 @@ struct generator
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, value };
     }
@@ -5301,7 +5347,7 @@ struct constant
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, value };
     }
@@ -5526,7 +5572,7 @@ struct abstract_filter
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             if (reach_upper_threshold) {
@@ -5546,13 +5592,13 @@ struct abstract_filter
             if (reach_upper_threshold) {
                 return { t, upper_threshold };
             } else {
-                return { t, value[0], value[1] };
+                return qss_observation(value[0], value[1], t, e);
             }
 
             if (reach_lower_threshold) {
                 return { t, lower_threshold };
             } else {
-                return { t, value[0], value[1] };
+                return qss_observation(value[0], value[1], t, e);
             }
         }
 
@@ -5560,13 +5606,13 @@ struct abstract_filter
             if (reach_upper_threshold) {
                 return { t, upper_threshold };
             } else {
-                return { t, value[0], value[1], value[2] };
+                return qss_observation(value[0], value[1], value[2], t, e);
             }
 
             if (reach_lower_threshold) {
                 return { t, lower_threshold };
             } else {
-                return { t, value[0], value[1], value[2] };
+                return qss_observation(value[0], value[1], value[2], t, e);
             }
         }
     }
@@ -5637,7 +5683,7 @@ struct filter
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, inValue[0] };
     }
@@ -5735,7 +5781,7 @@ struct abstract_logical
         return status::success;
     }
 
-    message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, is_valid ? one : zero };
     }
@@ -5792,7 +5838,7 @@ struct logical_invert
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, value ? zero : one };
     }
@@ -6194,7 +6240,7 @@ struct cross
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, value, if_value, else_value };
     }
@@ -6422,7 +6468,7 @@ struct abstract_cross
         return status::success;
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, value[0], if_value[0], else_value[0] };
     }
@@ -6496,7 +6542,7 @@ struct time_func
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(const time t) const noexcept
+    observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, value };
     }
@@ -7889,11 +7935,12 @@ public:
             obs->reset();
 
             if (auto* mdl = models.try_to_get(obs->model); mdl) {
-                dispatch(*mdl, [&obs, t]<typename Dynamics>(Dynamics& dyn) {
-                    if constexpr (has_observation_function<Dynamics>) {
-                        obs->update(dyn.observation(t));
-                    }
-                });
+                dispatch(*mdl,
+                         [mdl, &obs, t]<typename Dynamics>(Dynamics& dyn) {
+                             if constexpr (has_observation_function<Dynamics>) {
+                                 obs->update(dyn.observation(t, t - mdl->tl));
+                             }
+                         });
             }
         }
 
@@ -7980,7 +8027,7 @@ public:
         if constexpr (has_observation_function<Dynamics>) {
             if (mdl.obs_id != undefined<observer_id>()) {
                 if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
-                    obs->update(dyn.observation(t));
+                    obs->update(dyn.observation(t, t - mdl.tl));
 
                     if (obs->full())
                         immediate_observers.emplace_back(mdl.obs_id);
@@ -8028,7 +8075,7 @@ public:
     {
         if constexpr (has_observation_function<Dynamics>) {
             if (obs) {
-                obs->update(dyn.observation(t));
+                obs->update(dyn.observation(t, t - get_model(dyn).tl));
             }
         }
 
