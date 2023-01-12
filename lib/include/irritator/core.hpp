@@ -419,6 +419,7 @@ enum class status
     model_time_func_bad_init_message,
     model_hsm_bad_top_state,
     model_hsm_bad_next_state,
+    model_filter_threshold_condition_not_satisfied,
 
     modeling_too_many_description_open,
     modeling_too_many_file_open,
@@ -452,8 +453,6 @@ enum class status
     io_file_format_dynamics_unknown,
     io_file_format_dynamics_limit_reach,
     io_file_format_dynamics_init_error,
-
-    filter_threshold_condition_not_satisfied
 };
 
 constexpr i8 status_last() noexcept
