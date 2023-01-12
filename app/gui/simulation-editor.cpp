@@ -460,6 +460,15 @@ static void show_dynamics_values(simulation& /*sim*/,
         ImGui::TextFormat("down detection");
 }
 
+template<int QssLevel>
+static void show_dynamics_values(simulation& /*sim*/,
+                                 const abstract_filter<QssLevel>& dyn)
+{
+    ImGui::TextFormat("value: {}", dyn.value[0]);
+    ImGui::TextFormat("lower-threshold: {}", dyn.lower_threshold);
+    ImGui::TextFormat("upper-threshold: {}", dyn.upper_threshold);
+}
+
 static void show_dynamics_values(simulation& /*sim*/, const qss1_power& dyn)
 {
     ImGui::TextFormat("{}", dyn.value[0]);

@@ -2816,6 +2816,7 @@ enum class dynamics_type : i32
     qss1_integrator,
     qss1_multiplier,
     qss1_cross,
+    qss1_filter,
     qss1_power,
     qss1_square,
     qss1_sum_2,
@@ -2828,6 +2829,7 @@ enum class dynamics_type : i32
     qss2_integrator,
     qss2_multiplier,
     qss2_cross,
+    qss2_filter,
     qss2_power,
     qss2_square,
     qss2_sum_2,
@@ -2840,6 +2842,7 @@ enum class dynamics_type : i32
     qss3_integrator,
     qss3_multiplier,
     qss3_cross,
+    qss3_filter,
     qss3_power,
     qss3_square,
     qss3_sum_2,
@@ -6822,6 +6825,7 @@ constexpr sz max_size_in_bytes() noexcept
     return max(sizeof(qss1_integrator),
                sizeof(qss1_multiplier),
                sizeof(qss1_cross),
+               sizeof(qss1_filter),
                sizeof(qss1_power),
                sizeof(qss1_square),
                sizeof(qss1_sum_2),
@@ -6833,6 +6837,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss2_integrator),
                sizeof(qss2_multiplier),
                sizeof(qss2_cross),
+               sizeof(qss2_filter),
                sizeof(qss2_power),
                sizeof(qss2_square),
                sizeof(qss2_sum_2),
@@ -6844,6 +6849,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss3_integrator),
                sizeof(qss3_multiplier),
                sizeof(qss3_cross),
+               sizeof(qss3_filter),
                sizeof(qss3_power),
                sizeof(qss3_square),
                sizeof(qss3_sum_2),
@@ -6899,6 +6905,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss1_multiplier;
     if constexpr (std::is_same_v<Dynamics, qss1_cross>)
         return dynamics_type::qss1_cross;
+    if constexpr (std::is_same_v<Dynamics, qss1_filter>)
+        return dynamics_type::qss1_filter;
     if constexpr (std::is_same_v<Dynamics, qss1_power>)
         return dynamics_type::qss1_power;
     if constexpr (std::is_same_v<Dynamics, qss1_square>)
@@ -6922,6 +6930,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss2_multiplier;
     if constexpr (std::is_same_v<Dynamics, qss2_cross>)
         return dynamics_type::qss2_cross;
+    if constexpr (std::is_same_v<Dynamics, qss2_filter>)
+        return dynamics_type::qss2_filter;
     if constexpr (std::is_same_v<Dynamics, qss2_power>)
         return dynamics_type::qss2_power;
     if constexpr (std::is_same_v<Dynamics, qss2_square>)
@@ -6945,6 +6955,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss3_multiplier;
     if constexpr (std::is_same_v<Dynamics, qss3_cross>)
         return dynamics_type::qss3_cross;
+    if constexpr (std::is_same_v<Dynamics, qss3_filter>)
+        return dynamics_type::qss3_filter;
     if constexpr (std::is_same_v<Dynamics, qss3_power>)
         return dynamics_type::qss3_power;
     if constexpr (std::is_same_v<Dynamics, qss3_square>)
@@ -7025,6 +7037,8 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<const qss1_multiplier*>(&mdl.dyn), args...);
     case dynamics_type::qss1_cross:
         return f(*reinterpret_cast<const qss1_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_filter:
+        return f(*reinterpret_cast<const qss1_filter*>(&mdl.dyn), args...);
     case dynamics_type::qss1_power:
         return f(*reinterpret_cast<const qss1_power*>(&mdl.dyn), args...);
     case dynamics_type::qss1_square:
@@ -7048,6 +7062,8 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<const qss2_multiplier*>(&mdl.dyn), args...);
     case dynamics_type::qss2_cross:
         return f(*reinterpret_cast<const qss2_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_filter:
+        return f(*reinterpret_cast<const qss2_filter*>(&mdl.dyn), args...);
     case dynamics_type::qss2_power:
         return f(*reinterpret_cast<const qss2_power*>(&mdl.dyn), args...);
     case dynamics_type::qss2_square:
@@ -7071,6 +7087,8 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<const qss3_multiplier*>(&mdl.dyn), args...);
     case dynamics_type::qss3_cross:
         return f(*reinterpret_cast<const qss3_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_filter:
+        return f(*reinterpret_cast<const qss3_filter*>(&mdl.dyn), args...);
     case dynamics_type::qss3_power:
         return f(*reinterpret_cast<const qss3_power*>(&mdl.dyn), args...);
     case dynamics_type::qss3_square:
@@ -7153,6 +7171,8 @@ constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<qss1_multiplier*>(&mdl.dyn), args...);
     case dynamics_type::qss1_cross:
         return f(*reinterpret_cast<qss1_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss1_filter:
+        return f(*reinterpret_cast<qss1_filter*>(&mdl.dyn), args...);
     case dynamics_type::qss1_power:
         return f(*reinterpret_cast<qss1_power*>(&mdl.dyn), args...);
     case dynamics_type::qss1_square:
@@ -7176,6 +7196,8 @@ constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<qss2_multiplier*>(&mdl.dyn), args...);
     case dynamics_type::qss2_cross:
         return f(*reinterpret_cast<qss2_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss2_filter:
+        return f(*reinterpret_cast<qss2_filter*>(&mdl.dyn), args...);
     case dynamics_type::qss2_power:
         return f(*reinterpret_cast<qss2_power*>(&mdl.dyn), args...);
     case dynamics_type::qss2_square:
@@ -7199,6 +7221,8 @@ constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
         return f(*reinterpret_cast<qss3_multiplier*>(&mdl.dyn), args...);
     case dynamics_type::qss3_cross:
         return f(*reinterpret_cast<qss3_cross*>(&mdl.dyn), args...);
+    case dynamics_type::qss3_filter:
+        return f(*reinterpret_cast<qss3_filter*>(&mdl.dyn), args...);
     case dynamics_type::qss3_power:
         return f(*reinterpret_cast<qss3_power*>(&mdl.dyn), args...);
     case dynamics_type::qss3_square:
@@ -7413,6 +7437,27 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_cross:
     case dynamics_type::qss1_cross:
         if (o_port_index == 2) {
+            return match(mdl_dst,
+                         dynamics_type::counter,
+                         dynamics_type::logical_and_2,
+                         dynamics_type::logical_and_3,
+                         dynamics_type::logical_or_2,
+                         dynamics_type::logical_or_3,
+                         dynamics_type::logical_invert);
+        } else {
+            return !match(mdl_dst,
+                          dynamics_type::logical_and_2,
+                          dynamics_type::logical_and_3,
+                          dynamics_type::logical_or_2,
+                          dynamics_type::logical_or_3,
+                          dynamics_type::logical_invert);
+        }
+        return true;
+
+    case dynamics_type::qss2_filter:
+    case dynamics_type::qss3_filter:
+    case dynamics_type::qss1_filter:
+        if (match(o_port_index, 1, 2)) {
             return match(mdl_dst,
                          dynamics_type::counter,
                          dynamics_type::logical_and_2,

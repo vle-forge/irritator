@@ -755,6 +755,51 @@ static void do_serialize_dynamics(const Archiver /*s*/, IO& io, qss3_cross& dyn)
 
 template<typename Archiver, typename IO>
 static void do_serialize_dynamics(const Archiver /*s*/,
+                                  IO&          io,
+                                  qss1_filter& dyn)
+{
+    io(dyn.sigma);
+    io(dyn.default_lower_threshold);
+    io(dyn.default_upper_threshold);
+    io(dyn.lower_threshold);
+    io(dyn.upper_threshold);
+    io(dyn.value);
+    io(dyn.reach_lower_threshold);
+    io(dyn.reach_upper_threshold);
+}
+
+template<typename Archiver, typename IO>
+static void do_serialize_dynamics(const Archiver /*s*/,
+                                  IO&          io,
+                                  qss2_filter& dyn)
+{
+    io(dyn.sigma);
+    io(dyn.default_lower_threshold);
+    io(dyn.default_upper_threshold);
+    io(dyn.lower_threshold);
+    io(dyn.upper_threshold);
+    io(dyn.value);
+    io(dyn.reach_lower_threshold);
+    io(dyn.reach_upper_threshold);
+}
+
+template<typename Archiver, typename IO>
+static void do_serialize_dynamics(const Archiver /*s*/,
+                                  IO&          io,
+                                  qss3_filter& dyn)
+{
+    io(dyn.sigma);
+    io(dyn.default_lower_threshold);
+    io(dyn.default_upper_threshold);
+    io(dyn.lower_threshold);
+    io(dyn.upper_threshold);
+    io(dyn.value);
+    io(dyn.reach_lower_threshold);
+    io(dyn.reach_upper_threshold);
+}
+
+template<typename Archiver, typename IO>
+static void do_serialize_dynamics(const Archiver /*s*/,
                                   IO&        io,
                                   time_func& dyn) noexcept
 {
@@ -1160,11 +1205,10 @@ static status do_deserialize(Dearchiver&      arc,
         sim.models.clear();
         sim.hsms.clear();
 
-
-        irt_return_if_bad(srcs.constant_sources.init(
-                             to_unsigned(constant_external_source)));
-        irt_return_if_bad(srcs.binary_file_sources.init(
-                             to_unsigned(binary_external_source)));
+        irt_return_if_bad(
+          srcs.constant_sources.init(to_unsigned(constant_external_source)));
+        irt_return_if_bad(
+          srcs.binary_file_sources.init(to_unsigned(binary_external_source)));
         irt_return_if_bad(
           srcs.text_file_sources.init(to_unsigned(text_external_source)));
         irt_return_if_bad(
@@ -1190,7 +1234,6 @@ static status do_deserialize(Dearchiver&      arc,
                            status::io_not_enough_memory);
         irt_return_if_fail(sim.hsms.can_alloc(to_unsigned(hsms)),
                            status::io_not_enough_memory);
-
     }
 
     cache.clear();

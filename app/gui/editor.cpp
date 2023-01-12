@@ -428,6 +428,24 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss3_cross& dyn)
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
+void show_dynamics_inputs(external_source& /*srcs*/, qss1_filter& dyn)
+{
+    ImGui::InputReal("lowe threshold", &dyn.default_lower_threshold);
+    ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
+}
+
+void show_dynamics_inputs(external_source& /*srcs*/, qss2_filter& dyn)
+{
+    ImGui::InputReal("lower threshold", &dyn.default_lower_threshold);
+    ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
+}
+
+void show_dynamics_inputs(external_source& /*srcs*/, qss3_filter& dyn)
+{
+    ImGui::InputReal("lower threshold", &dyn.default_lower_threshold);
+    ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
+}
+
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_power& dyn)
 {
     ImGui::InputReal("n", &dyn.default_n);

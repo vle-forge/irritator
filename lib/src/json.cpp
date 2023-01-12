@@ -873,6 +873,51 @@ void write(Writer& writer, const qss3_cross& dyn) noexcept
     writer.EndObject();
 }
 
+template<typename Writer>
+void write(Writer& writer, const qss1_filter& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("lower-threshold");
+    writer.Double(dyn.default_lower_threshold);
+    writer.Key("upper-threshold");
+    writer.Bool(dyn.default_upper_threshold);
+    writer.EndObject();
+}
+
+template<typename Writer>
+void write(Writer& writer, const qss2_filter& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("lower-threshold");
+    writer.Double(dyn.default_lower_threshold);
+    writer.Key("upper-threshold");
+    writer.Bool(dyn.default_upper_threshold);
+    writer.EndObject();
+}
+
+template<typename Writer>
+void write(Writer& writer, const qss3_filter& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("lower-threshold");
+    writer.Double(dyn.default_lower_threshold);
+    writer.Key("upper-threshold");
+    writer.Bool(dyn.default_upper_threshold);
+    writer.EndObject();
+}
+
+template<int QssLevel>
+status load(const rapidjson::Value&    val,
+            abstract_filter<QssLevel>& dyn) noexcept
+{
+    irt_return_if_bad(
+      get_double(val, "lower-threshold", dyn.default_lower_threshold));
+    irt_return_if_bad(
+      get_double(val, "upper-threshold", dyn.default_upper_threshold));
+
+    return status::success;
+}
+
 template<int QssLevel>
 status load(const rapidjson::Value& val, abstract_power<QssLevel>& dyn) noexcept
 {
