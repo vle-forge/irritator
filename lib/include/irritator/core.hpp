@@ -5305,6 +5305,275 @@ struct constant
     }
 };
 
+inline time compute_wake_up(real threshold, real value_0, real value_1) noexcept
+{
+    time ret = time_domain<time>::infinity;
+
+    if (value_1 != 0) {
+        const auto a = value_1;
+        const auto b = value_0 - threshold;
+        const auto d = -b * a;
+
+        ret = (d > zero) ? d : time_domain<time>::infinity;
+    }
+
+    return ret;
+}
+
+inline time compute_wake_up(real threshold,
+                            real value_0,
+                            real value_1,
+                            real value_2) noexcept
+{
+    time ret = time_domain<time>::infinity;
+
+    if (value_1 != 0) {
+        if (value_2 != 0) {
+            const auto a = value_2;
+            const auto b = value_1;
+            const auto c = value_0 - threshold;
+            const auto d = b * b - four * a * c;
+
+            if (d > zero) {
+                const auto x1 = (-b + std::sqrt(d)) / (two * a);
+                const auto x2 = (-b - std::sqrt(d)) / (two * a);
+
+                if (x1 > zero) {
+                    if (x2 > zero) {
+                        ret = std::min(x1, x2);
+                    } else {
+                        ret = x1;
+                    }
+                } else {
+                    if (x2 > 0)
+                        ret = x2;
+                }
+            } else if (d == zero) {
+                const auto x = -b / (two * a);
+                if (x > zero)
+                    ret = x;
+            }
+        } else {
+            const auto a = value_1;
+            const auto b = value_0 - threshold;
+            const auto d = -b * a;
+
+            if (d > zero)
+                ret = d;
+        }
+    }
+
+    return ret;
+}
+
+template<int QssLevel>
+struct abstract_filter
+{
+    input_port  x[1];
+    output_port y[3];
+
+    time sigma;
+    real default_lower_threshold = -std::numeric_limits<real>::infinity();
+    real default_upper_threshold = +std::numeric_limits<real>::infinity();
+    real lower_threshold;
+    real upper_threshold;
+    real value[QssLevel];
+    bool reach_lower_threshold = false;
+    bool reach_upper_threshold = false;
+
+    abstract_filter() noexcept = default;
+
+    abstract_filter(const abstract_filter& other) noexcept
+      : sigma(other.sigma)
+      , default_lower_threshold(other.default_lower_threshold)
+      , default_upper_threshold(other.default_upper_threshold)
+      , lower_threshold(other.lower_threshold)
+      , upper_threshold(other.upper_threshold)
+      , reach_lower_threshold(other.reach_lower_threshold)
+      , reach_upper_threshold(other.reach_upper_threshold)
+    {
+        std::copy_n(other.value, QssLevel, value);
+    }
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        irt_return_if_fail(
+          default_lower_threshold < default_upper_threshold,
+          status::model_filter_threshold_condition_not_satisfied);
+
+        lower_threshold       = default_lower_threshold;
+        upper_threshold       = default_upper_threshold;
+        reach_lower_threshold = false;
+        reach_upper_threshold = false;
+        std::fill_n(value, QssLevel, zero);
+
+        sigma = time_domain<time>::infinity;
+
+        return status::success;
+    }
+
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    {
+        if (!have_message(x[0])) {
+            if constexpr (QssLevel == 2)
+                value[0] += value[1] * e;
+            if constexpr (QssLevel == 3) {
+                value[0] += value[1] * e + value[2] * e * e;
+                value[1] += two * value[2] * e;
+            }
+        } else {
+            auto span = get_message(sim, x[0]);
+            for (const auto& msg : span) {
+                value[0] = msg[0];
+                if constexpr (QssLevel >= 2)
+                    value[1] = msg[1];
+                if constexpr (QssLevel == 3)
+                    value[2] = msg[2];
+            }
+        }
+
+        reach_lower_threshold = false;
+        reach_upper_threshold = false;
+
+        if (value[0] >= upper_threshold) {
+            reach_upper_threshold = true;
+            sigma                 = time_domain<time>::zero;
+        } else if (value[0] <= lower_threshold) {
+            reach_lower_threshold = true;
+            sigma                 = time_domain<time>::zero;
+        } else {
+            if constexpr (QssLevel == 1)
+                sigma = time_domain<time>::infinity;
+            if constexpr (QssLevel == 2)
+                sigma = std::min(
+                  compute_wake_up(upper_threshold, value[0], value[1]),
+                  compute_wake_up(lower_threshold, value[0], value[1]));
+            if constexpr (QssLevel == 3)
+                sigma =
+                  std::min(compute_wake_up(
+                             upper_threshold, value[0], value[1], value[2]),
+                           compute_wake_up(
+                             lower_threshold, value[0], value[1], value[2]));
+        }
+
+        return status::success;
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            if (reach_upper_threshold) {
+                irt_return_if_bad(send_message(sim, y[0], upper_threshold));
+                irt_return_if_bad(send_message(sim, y[1], one));
+            } else {
+                irt_return_if_bad(send_message(sim, y[0], value[0]));
+                irt_return_if_bad(send_message(sim, y[1], zero));
+            }
+
+            if (reach_lower_threshold) {
+                irt_return_if_bad(send_message(sim, y[0], lower_threshold));
+                irt_return_if_bad(send_message(sim, y[2], one));
+            } else {
+                irt_return_if_bad(send_message(sim, y[0], value[0]));
+                irt_return_if_bad(send_message(sim, y[2], zero));
+            }
+        }
+
+        if constexpr (QssLevel == 2) {
+            if (reach_upper_threshold) {
+                irt_return_if_bad(send_message(sim, y[0], upper_threshold));
+                irt_return_if_bad(send_message(sim, y[1], one));
+            } else {
+                irt_return_if_bad(send_message(sim, y[0], value[0], value[1]));
+                irt_return_if_bad(send_message(sim, y[1], zero));
+            }
+
+            if (reach_lower_threshold) {
+                irt_return_if_bad(send_message(sim, y[0], lower_threshold));
+                irt_return_if_bad(send_message(sim, y[2], one));
+            } else {
+                irt_return_if_bad(send_message(sim, y[0], value[0], value[1]));
+                irt_return_if_bad(send_message(sim, y[2], zero));
+            }
+
+            return status::success;
+        }
+
+        if constexpr (QssLevel == 3) {
+            if (reach_upper_threshold) {
+                irt_return_if_bad(send_message(sim, y[0], upper_threshold));
+                irt_return_if_bad(send_message(sim, y[1], one));
+            } else {
+                irt_return_if_bad(
+                  send_message(sim, y[0], value[0], value[1], value[2]));
+                irt_return_if_bad(send_message(sim, y[1], zero));
+            }
+
+            if (reach_lower_threshold) {
+                irt_return_if_bad(send_message(sim, y[0], lower_threshold));
+                irt_return_if_bad(send_message(sim, y[2], one));
+            } else {
+                irt_return_if_bad(
+                  send_message(sim, y[0], value[0], value[1], value[2]));
+                irt_return_if_bad(send_message(sim, y[2], zero));
+            }
+
+            return status::success;
+        }
+
+        return status::success;
+    }
+
+    observation_message observation(const time t) const noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            if (reach_upper_threshold) {
+                return { t, upper_threshold };
+            } else {
+                return { t, value[0] };
+            }
+
+            if (reach_lower_threshold) {
+                return { t, lower_threshold };
+            } else {
+                return { t, value[0] };
+            }
+        }
+
+        if constexpr (QssLevel == 2) {
+            if (reach_upper_threshold) {
+                return { t, upper_threshold };
+            } else {
+                return { t, value[0], value[1] };
+            }
+
+            if (reach_lower_threshold) {
+                return { t, lower_threshold };
+            } else {
+                return { t, value[0], value[1] };
+            }
+        }
+
+        if constexpr (QssLevel == 3) {
+            if (reach_upper_threshold) {
+                return { t, upper_threshold };
+            } else {
+                return { t, value[0], value[1], value[2] };
+            }
+
+            if (reach_lower_threshold) {
+                return { t, lower_threshold };
+            } else {
+                return { t, value[0], value[1], value[2] };
+            }
+        }
+    }
+};
+
+using qss1_filter = abstract_filter<1>;
+using qss2_filter = abstract_filter<2>;
+using qss3_filter = abstract_filter<3>;
+
 struct filter
 {
     input_port  x[1];
@@ -5331,8 +5600,9 @@ struct filter
         lower_threshold = default_lower_threshold;
         upper_threshold = default_upper_threshold;
 
-        irt_return_if_fail(default_lower_threshold < default_upper_threshold,
-                           status::filter_threshold_condition_not_satisfied);
+        irt_return_if_fail(
+          default_lower_threshold < default_upper_threshold,
+          status::model_filter_threshold_condition_not_satisfied);
 
         return status::success;
     }
@@ -5996,65 +6266,6 @@ struct abstract_cross
         return status::success;
     }
 
-    void compute_wake_up() noexcept
-    {
-        if constexpr (QssLevel == 1) {
-            sigma = time_domain<time>::infinity;
-        }
-
-        if constexpr (QssLevel == 2) {
-            sigma = time_domain<time>::infinity;
-            if (value[1]) {
-                const auto a = value[1];
-                const auto b = value[0] - threshold;
-                const auto d = -b * a;
-
-                if (d > zero)
-                    sigma = d;
-            }
-        }
-
-        if constexpr (QssLevel == 3) {
-            sigma = time_domain<time>::infinity;
-            if (value[1]) {
-                if (value[2]) {
-                    const auto a = value[2];
-                    const auto b = value[1];
-                    const auto c = value[0] - threshold;
-                    const auto d = b * b - four * a * c;
-
-                    if (d > zero) {
-                        const auto x1 = (-b + std::sqrt(d)) / (two * a);
-                        const auto x2 = (-b - std::sqrt(d)) / (two * a);
-
-                        if (x1 > zero) {
-                            if (x2 > zero) {
-                                sigma = std::min(x1, x2);
-                            } else {
-                                sigma = x1;
-                            }
-                        } else {
-                            if (x2 > 0)
-                                sigma = x2;
-                        }
-                    }
-                    if (d == zero) {
-                        const auto x = -b / (two * a);
-                        if (x > zero)
-                            sigma = x;
-                    }
-                } else {
-                    const auto a = value[1];
-                    const auto b = value[0] - threshold;
-                    const auto d = -b * a;
-
-                    if (d > zero)
-                        sigma = d;
-                }
-            }
-        }
-    }
-
     status transition(simulation&           sim,
                       time                  t,
                       [[maybe_unused]] time e,
@@ -6135,7 +6346,13 @@ struct abstract_cross
         } else if (old_else_value != else_value[0]) {
             sigma = time_domain<time>::zero;
         } else {
-            compute_wake_up();
+            if constexpr (QssLevel == 1)
+                sigma = time_domain<time>::infinity;
+            if constexpr (QssLevel == 2)
+                sigma = compute_wake_up(threshold, value[0], value[1]);
+            if constexpr (QssLevel == 3)
+                sigma =
+                  compute_wake_up(threshold, value[0], value[1], value[2]);
         }
 
         return status::success;
