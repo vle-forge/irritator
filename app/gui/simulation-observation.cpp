@@ -8,6 +8,7 @@
 #include <irritator/io.hpp>
 
 #include <cmath>
+#include <limits>
 
 namespace irt {
 
@@ -24,8 +25,8 @@ void simulation_observation::clear() noexcept
     output_vec.clear();
     linear_outputs.clear();
 
-    limits.Min = -INFINITY;
-    limits.Max = +INFINITY;
+    limits.Min = -std::numeric_limits<double>::infinity();
+    limits.Max = +std::numeric_limits<double>::infinity();
 }
 
 void simulation_observation::write(
