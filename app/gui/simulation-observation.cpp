@@ -46,7 +46,7 @@ void simulation_observation::write(
 
 void simulation_observation::update(observer& obs) noexcept
 {
-    while (obs.buffer.size() > 2) {
+    while (obs.buffer.ssize() > 2) {
         auto it = std::back_insert_iterator<simulation_observation>(*this);
         write_interpolate_data(obs, it, time_step);
     }
@@ -126,8 +126,7 @@ void simulation_editor::build_observation_output() noexcept
     auto& task_list = app->get_unordered_task_list(0);
 
     if (sim.immediate_observers.empty()) {
-        int       obs_max = sim.observers.size();
-        int       current = 0;
+        int       obs_max = sim.observers.ssize();
         observer* obs     = nullptr;
 
         while (sim.observers.next(obs)) {
@@ -144,7 +143,6 @@ void simulation_editor::build_observation_output() noexcept
             task_list.submit();
             task_list.wait();
 
-            current += loop;
             if (obs_max >= capacity)
                 obs_max -= capacity;
             else
