@@ -76,7 +76,9 @@ static bool is_running_under_debugger() noexcept
     if (ptrace(PTRACE_TRACEME, 0, 1, 0) < 0) {
         std::printf("Debugger detected. Enabling breakpoint\n");
         under_debugger = true;
-    } 
+    } else {
+        ptrace(PTRACE_DETACH, 0, 1, 0);
+    }
 
     return under_debugger;
 }
