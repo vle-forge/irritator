@@ -248,25 +248,27 @@ void application::show_simulation_observation_window() noexcept
                                   ImPlotAxisFlags_NoDecorations);
 
                 auto start_t = obs->limits.Min;
-
                 if (s_editor.preview_scrolling) {
                     start_t = obs->limits.Max - s_editor.preview_history;
                     if (start_t < obs->limits.Min)
                         start_t = obs->limits.Min;
                 }
 
-                ImPlot::SetupAxisLimits(
-                  ImAxis_X1, start_t, obs->limits.Max, ImPlotCond_Always);
+                if (std::isfinite(start_t)) {
+                    ImPlot::SetupAxisLimits(
+                      ImAxis_X1, start_t, obs->limits.Max, ImPlotCond_Always);
 
-                ImPlot::PushStyleColor(ImPlotCol_Line,
-                                       ImPlot::GetColormapColor(row));
+                    ImPlot::PushStyleColor(ImPlotCol_Line,
+                                           ImPlot::GetColormapColor(row));
 
-                ImPlot::PlotLineG(obs->name.c_str(),
-                                  ring_buffer_getter,
-                                  &obs->linear_outputs,
-                                  obs->linear_outputs.ssize());
+                    ImPlot::PlotLineG(obs->name.c_str(),
+                                      ring_buffer_getter,
+                                      &obs->linear_outputs,
+                                      obs->linear_outputs.ssize());
 
-                ImPlot::PopStyleColor();
+                    ImPlot::PopStyleColor();
+                }
+
                 ImPlot::EndPlot();
             }
 
