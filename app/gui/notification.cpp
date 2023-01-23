@@ -106,6 +106,12 @@ static float get_fade_percent(const notification& n) noexcept
     irt_unreachable();
 }
 
+notification::notification() noexcept
+  : type(notification_type::information)
+  , creation_time(get_tick_count_in_milliseconds())
+{
+}
+
 notification::notification(notification_type type_) noexcept
   : type(type_)
   , creation_time(get_tick_count_in_milliseconds())
@@ -118,18 +124,26 @@ notification_manager::notification_manager() noexcept
     data.init(notification_number);
 }
 
-notification& notification_manager::alloc(notification_type type) noexcept
+notification& notification_manager::alloc() noexcept
 {
     for (;;) {
         {
             std::lock_guard<std::mutex> lock{ mutex };
 
             if (data.can_alloc())
-                return data.alloc(type);
+                return data.alloc();
         }
 
         std::this_thread::yield();
     }
+}
+
+notification& notification_manager::alloc(notification_type type) noexcept
+{
+    auto& n = alloc();
+    n.type  = type;
+
+    return n;
 }
 
 void notification_manager::enable(const notification& n) noexcept

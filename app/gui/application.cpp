@@ -36,14 +36,15 @@ application::application() noexcept
     sim_tasks.init(simulation_task_number);
     gui_tasks.init(simulation_task_number);
 
-    log_w.log(7, "GUI Irritator start\n");
+    log_w(*this, 7, "GUI Irritator start\n");
 
-    log_w.log(7,
-              "Start with %d main threads and %d generic workers\n",
-              task_mgr.main_workers.ssize(),
-              task_mgr.temp_workers.ssize());
+    log_w(*this,
+          7,
+          "Start with %d main threads and %d generic workers\n",
+          task_mgr.main_workers.ssize(),
+          task_mgr.temp_workers.ssize());
 
-    log_w.log(7, "Initialization successfull");
+    log_w(*this, 7, "Initialization successfull");
 
     task_mgr.start();
 
@@ -52,9 +53,9 @@ application::application() noexcept
 
 application::~application() noexcept
 {
-    log_w.log(7, "Task manager shutdown\n");
+    log_w(*this, 7, "Task manager shutdown\n");
     task_mgr.finalize();
-    log_w.log(7, "Application shutdown\n");
+    log_w(*this, 7, "Application shutdown\n");
 }
 
 static void modeling_log(int              level,
@@ -67,10 +68,11 @@ static void modeling_log(int              level,
         auto& n         = app->notifications.alloc(type);
 
         if (is_numeric_castable<int>(message.size()))
-            app->log_w.log(new_level,
-                           "%.*s: ",
-                           static_cast<int>(message.size()),
-                           message.data());
+            log_w(*app,
+                  new_level,
+                  "%.*s: ",
+                  static_cast<int>(message.size()),
+                  message.data());
 
         n.title   = "Modeling message";
         n.message = message;
@@ -85,16 +87,18 @@ bool application::init() noexcept
 
     if (auto ret = c_editor.mod.registred_paths.init(max_component_dirs);
         is_bad(ret)) {
-        log_w.log(2, "Fail to initialize registred dir paths");
+        log_w(*this, 2, "Fail to initialize registred dir paths");
     }
 
     if (auto ret = load_settings(); is_bad(ret))
-        log_w.log(2, "Fail to read settings files. Default parameters used\n");
+        log_w(
+          *this, 2, "Fail to read settings files. Default parameters used\n");
 
     if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
-        log_w.log(2,
-                  "Fail to initialize modeling components: %s\n",
-                  status_string(ret));
+        log_w(*this,
+              2,
+              "Fail to initialize modeling components: %s\n",
+              status_string(ret));
         std::fprintf(stderr,
                      "Fail to initialize modeling components: %s\n",
                      status_string(ret));
@@ -107,7 +111,7 @@ bool application::init() noexcept
             auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
             new_dir.name     = "System directory";
             new_dir.path     = path.value().string().c_str();
-            log_w.log(7, "Add system directory: %s\n", new_dir.path.c_str());
+            log_w(*this, 7, "Add system directory: %s\n", new_dir.path.c_str());
 
             c_editor.mod.component_repertories.emplace_back(new_dir_id);
         }
@@ -117,51 +121,57 @@ bool application::init() noexcept
             auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
             new_dir.name     = "User directory";
             new_dir.path     = path.value().string().c_str();
-            log_w.log(7, "Add user directory: %s\n", new_dir.path.c_str());
+            log_w(*this, 7, "Add user directory: %s\n", new_dir.path.c_str());
 
             c_editor.mod.component_repertories.emplace_back(new_dir_id);
         }
     }
 
     if (auto ret = save_settings(); is_bad(ret)) {
-        log_w.log(2, "Fail to save settings files.\n");
+        log_w(*this, 2, "Fail to save settings files.\n");
     }
 
     if (auto ret = s_editor.sim.init(mod_init.model_capacity,
                                      mod_init.model_capacity * 256);
         is_bad(ret)) {
-        log_w.log(2,
-                  "Fail to initialize simulation components: %s\n",
-                  status_string(ret));
+        log_w(*this,
+              2,
+              "Fail to initialize simulation components: %s\n",
+              status_string(ret));
         return false;
     }
 
     s_editor.displacements.resize(mod_init.model_capacity);
 
     if (auto ret = s_editor.sim_obs.init(16); is_bad(ret)) {
-        log_w.log(2,
-                  "Fail to initialize simulation observation: %s\n",
-                  status_string(ret));
+        log_w(*this,
+              2,
+              "Fail to initialize simulation observation: %s\n",
+              status_string(ret));
         return false;
     }
 
     if (auto ret = s_editor.copy_obs.init(16); is_bad(ret)) {
-        log_w.log(2,
-                  "Fail to initialize copy simulation observation: %s\n",
-                  status_string(ret));
+        log_w(*this,
+              2,
+              "Fail to initialize copy simulation observation: %s\n",
+              status_string(ret));
         return false;
     }
 
     if (auto ret = c_editor.mod.srcs.init(50); is_bad(ret)) {
-        log_w.log(
-          2, "Fail to initialize external sources: %s\n", status_string(ret));
+        log_w(*this,
+              2,
+              "Fail to initialize external sources: %s\n",
+              status_string(ret));
         return false;
     } else {
         s_editor.sim.source_dispatch = c_editor.mod.srcs;
     }
 
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
-        log_w.log(2, "Fail to fill component list: %s\n", status_string(ret));
+        log_w(
+          *this, 2, "Fail to fill component list: %s\n", status_string(ret));
     }
 
     c_editor.mod.fill_components();

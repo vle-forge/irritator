@@ -292,7 +292,9 @@ static void add_popup_menuitem(component_editor& ed,
 {
     if (!parent.models.can_alloc(1)) {
         auto* app = container_of(&ed, &application::c_editor);
-        app->log_w.log(2, "can not allocate a new model");
+        auto& n   = app->notifications.alloc();
+        n.type    = notification_type::error;
+        n.title   = "can not allocate a new model";
         return;
     }
 
@@ -302,10 +304,11 @@ static void add_popup_menuitem(component_editor& ed,
         parent.state = component_status::modified;
 
         auto* app = container_of(&ed, &application::c_editor);
-        app->log_w.log(7,
-                       "new model %llu\n",
-                       static_cast<unsigned long long>(
-                         ordinal(parent.children.get_id(child))));
+        auto& n   = app->notifications.alloc();
+        n.type    = notification_type::success;
+        format(n.title,
+               "new model {} added",
+               ordinal(parent.children.get_id(child)));
     }
 }
 

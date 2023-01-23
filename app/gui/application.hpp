@@ -42,7 +42,7 @@ constexpr T* container_of(M* ptr, const M T::*member)
 }
 
 struct application;
-struct window_logger;
+class window_logger;
 struct component_editor;
 struct simulation_editor;
 
@@ -108,17 +108,25 @@ void show_menu_external_sources(external_source& srcs,
 
 struct notification
 {
+    static inline constexpr int title_length   = 128;
+    static inline constexpr int message_length = 510;
+
+    using title_t   = small_string<title_length>;
+    using message_t = small_string<message_length>;
+
+    notification() noexcept;
     notification(notification_type type_) noexcept;
 
-    small_string<128>  title;
-    small_string<1022> message;
-    notification_type  type;
-    u64                creation_time;
+    title_t           title;
+    message_t         message;
+    notification_type type;
+    u64               creation_time;
 };
 
-//! @brief Show notification windows in bottom right.
+//! @brief Show notification into small auto destructible windows in bottom
+//!  right/right.
 //!
-//! @c notification_manager is thread-safe to permit reporting of @c
+//! @details @c notification_manager is thread-safe to permit reporting of @c
 //! notification from gui-task. All function are thread-safe. The caller is
 //! blocked until a task releases the lock.
 class notification_manager
@@ -129,8 +137,8 @@ public:
 
     notification_manager() noexcept;
 
-    notification& alloc(
-      notification_type type = notification_type::none) noexcept;
+    notification& alloc() noexcept;
+    notification& alloc(notification_type type) noexcept;
 
     void enable(const notification& n) noexcept;
     void show() noexcept;
@@ -141,20 +149,29 @@ private:
     std::mutex                                mutex;
 };
 
-struct window_logger
+//! @brief Show notification into a classical window in botton.
+//!
+//! @details It uses the same @c notification structure and copy it into a
+//!  large ring-buffer of strings.
+class window_logger
 {
-    ImGuiTextBuffer buffer;
-    ImGuiTextFilter filter;
-    ImVector<int>   line_offsets;
+public:
+    static inline constexpr int string_length      = 510;
+    static inline constexpr int ring_buffer_length = 64;
 
-    bool auto_scroll      = true;
-    bool scroll_to_bottom = false;
-    window_logger()       = default;
-    void clear() noexcept;
+    using string_t = small_string<string_length>;
+    using ring_t   = ring_buffer<string_t>;
 
-    void log(const int level, const char* fmt, ...) IM_FMTARGS(3);
-    void log(const int level, const char* fmt, va_list args) IM_FMTLIST(3);
-    void show() noexcept;
+    window_logger() = default;
+
+    void      clear() noexcept;
+    string_t& enqueue() noexcept;
+    void      show() noexcept;
+
+private:
+    ring_t entries;
+    bool   auto_scroll      = true;
+    bool   scroll_to_bottom = false;
 };
 
 const char* log_string(const log_status s) noexcept;
@@ -487,7 +504,7 @@ struct application
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
-    window_logger log_w;
+    window_logger log_window;
 
 private:
     data_array<simulation_task, simulation_task_id> sim_tasks;

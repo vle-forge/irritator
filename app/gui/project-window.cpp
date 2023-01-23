@@ -311,10 +311,11 @@ static void show_hierarchy_settings(component_editor& ed,
                         if (!new_dir.make()) {
                             auto* app =
                               container_of(&ed, &application::c_editor);
-                            app->log_w.log(4,
-                                           "Fail to create directory `%.*s'",
-                                           new_dir.path.ssize(),
-                                           new_dir.path.begin());
+                            log_w(*app,
+                                  4,
+                                  "Fail to create directory `%.*s'",
+                                  new_dir.path.ssize(),
+                                  new_dir.path.begin());
                         }
                     }
                 }

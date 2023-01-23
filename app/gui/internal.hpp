@@ -7,6 +7,8 @@
 
 #include <irritator/core.hpp>
 
+#include "application.hpp"
+
 #include <fmt/compile.h>
 #include <fmt/format.h>
 
@@ -15,6 +17,9 @@
 namespace irt {
 
 //! Helper to assign fmtlib format string to a small_string.
+//! \param str Output buffer.
+//! \param fmt A format string for the fmtlib library.
+//! \param args Arguments for the fmtlib library.
 template<int N, typename S, typename... Args>
 constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 {
@@ -27,9 +32,9 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
     str.resize(static_cast<size_type>(ret.size));
 }
 
-/// Helper to display a little (?) mark which shows a tooltip when hovered. In
-/// your own code you may want to display an actual icon if you are using a
-/// merged icon fonts (see docs/FONTS.md)
+//! Helper to display a little (?) mark which shows a tooltip when hovered.
+//! In your own code you may want to display an actual icon if you are using
+//! a merged icon fonts (see docs/FONTS.md)
 void HelpMarker(const char* desc) noexcept;
 
 inline int portable_filename_dirname_callback(
@@ -41,6 +46,28 @@ inline int portable_filename_dirname_callback(
             (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.')
              ? 0
              : 1;
+}
+
+//! Copy a formatted string into the \c logger window.
+//!
+//! The formatted string in take from the \c logger-window \c ring-buffer.
+//! \param app A reference to the global application.
+//! \param level A level between 0 and 7.
+//! \param fmt A format string for the fmtlib library.
+//! \param args Arguments for the fmtlib library.
+template<typename S, typename... Args>
+constexpr void log_w(application&         app,
+                     [[maybe_unused]] int level,
+                     const S&             fmt,
+                     Args&&... args) noexcept
+{
+    using size_type = typename window_logger::string_t::size_type;
+
+    auto& str = app.log_window.enqueue();
+    auto  ret = fmt::vformat_to_n(
+      str.begin(), str.capacity() - 1, fmt, fmt::make_format_args(args...));
+
+    str.resize(static_cast<size_type>(ret.size));
 }
 
 } // namespace irt
