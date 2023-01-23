@@ -108,7 +108,7 @@ void show_menu_external_sources(external_source& srcs,
 
 struct notification
 {
-    static inline constexpr int title_length   = 128;
+    static inline constexpr int title_length   = 127;
     static inline constexpr int message_length = 510;
 
     using title_t   = small_string<title_length>;
@@ -119,8 +119,8 @@ struct notification
 
     title_t           title;
     message_t         message;
-    notification_type type;
     u64               creation_time;
+    notification_type type;
 };
 
 //! @brief Show notification into small auto destructible windows in bottom
@@ -162,16 +162,17 @@ public:
     using string_t = small_string<string_length>;
     using ring_t   = ring_buffer<string_t>;
 
-    window_logger() = default;
+    window_logger() noexcept;
 
     void      clear() noexcept;
     string_t& enqueue() noexcept;
     void      show() noexcept;
 
-private:
     ring_t entries;
-    bool   auto_scroll      = true;
-    bool   scroll_to_bottom = false;
+
+private:
+    bool auto_scroll      = true;
+    bool scroll_to_bottom = false;
 };
 
 const char* log_string(const log_status s) noexcept;

@@ -107,14 +107,14 @@ static float get_fade_percent(const notification& n) noexcept
 }
 
 notification::notification() noexcept
-  : type(notification_type::information)
-  , creation_time(get_tick_count_in_milliseconds())
+  : creation_time(get_tick_count_in_milliseconds())
+  , type(notification_type::information)
 {
 }
 
 notification::notification(notification_type type_) noexcept
-  : type(type_)
-  , creation_time(get_tick_count_in_milliseconds())
+  : creation_time(get_tick_count_in_milliseconds())
+  , type(type_)
 {
 }
 
@@ -181,6 +181,14 @@ void notification_manager::show() noexcept
         }
 
         if (get_state(*notif) == notification_state::expired) {
+            auto* app = container_of(this, &application::notifications);
+            auto& msg = app->log_window.enqueue();
+
+            if (notif->message.empty())
+                msg.assign(notif->title.sv());
+            else
+                format(msg, "{}: {}", notif->title.sv(), notif->message.sv());
+
             data.free(*it);
             *it = undefined<notification_id>();
             continue;
