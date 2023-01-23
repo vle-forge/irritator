@@ -2816,6 +2816,12 @@ status project_save(modeling&   mod,
         file f{ filename, open_mode::write };
         irt_return_if_fail(f.is_open(), status::io_filesystem_error);
 
+        auto& compo = mod.components.get(parent->id);
+        auto* reg   = mod.registred_paths.try_to_get(compo.reg_path);
+        auto* dir   = mod.dir_paths.try_to_get(compo.dir);
+        auto* file  = mod.file_paths.try_to_get(compo.file);
+        irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
+
         auto* fp = reinterpret_cast<FILE*>(f.get_handle());
         cache.clear();
         cache.buffer.resize(4096);
@@ -2823,13 +2829,6 @@ status project_save(modeling&   mod,
         rapidjson::FileWriteStream os(
           fp, cache.buffer.data(), cache.buffer.size());
         rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
-
-        auto& compo = mod.components.get(parent->id);
-        auto* reg   = mod.registred_paths.try_to_get(compo.reg_path);
-        auto* dir   = mod.dir_paths.try_to_get(compo.dir);
-        auto* file  = mod.file_paths.try_to_get(compo.file);
-
-        irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
 
         w.StartObject();
         w.Key("component-path");
