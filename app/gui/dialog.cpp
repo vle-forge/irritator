@@ -513,11 +513,10 @@ bool file_dialog::show_load_file(const char*     title,
             for (auto it = paths.begin(), et = paths.end(); it != et; ++it) {
                 temp.clear();
                 std::error_code ec;
-                if (std::filesystem::is_directory(*it, ec)) {
+                if (std::filesystem::is_directory(*it, ec))
                     temp = u8"[Dir] ";
-                    temp += it->filename().u8string();
-                } else
-                    temp = it->filename().u8string();
+
+                temp += it->filename().u8string();
 
                 auto* u8c_str = temp.c_str();
                 auto* c_str   = reinterpret_cast<const char*>(u8c_str);
@@ -532,6 +531,17 @@ bool file_dialog::show_load_file(const char*     title,
                             next /= it->filename();
                             path_click = true;
                         }
+                    }
+
+                    if (std::filesystem::is_regular_file(*it, ec)) {
+                        const size_t max_size =
+                          std::min(std::size(it->filename().u8string()),
+                                   std::size(buffer) - 1);
+
+                        std::copy_n(std::begin(it->filename().u8string()),
+                                    max_size,
+                                    buffer);
+                        buffer[max_size] = u8'\0';
                     }
                     break;
                 }

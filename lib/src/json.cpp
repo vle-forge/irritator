@@ -1662,7 +1662,7 @@ static status read_ports(component& compo, const rapidjson::Value& val) noexcept
         auto it = val.FindMember("x");
         irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
         irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-        irt_return_if_fail(it->value.GetArray().Size() !=
+        irt_return_if_fail(it->value.GetArray().Size() ==
                              component::port_number,
                            status::io_file_format_error);
 
@@ -1678,7 +1678,7 @@ static status read_ports(component& compo, const rapidjson::Value& val) noexcept
         auto it = val.FindMember("y");
         irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
         irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-        irt_return_if_fail(it->value.GetArray().Size() !=
+        irt_return_if_fail(it->value.GetArray().Size() ==
                              component::port_number,
                            status::io_file_format_error);
 
@@ -1694,7 +1694,6 @@ static status read_ports(component& compo, const rapidjson::Value& val) noexcept
 }
 
 static status read_connections(json_cache&             cache,
-                               modeling&               mod,
                                component&              compo,
                                const rapidjson::Value& val) noexcept
 {
@@ -1703,30 +1702,77 @@ static status read_connections(json_cache&             cache,
     irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
 
     for (auto& elem : it->value.GetArray()) {
-        u64 source, destination;
-        i32 port_source, port_destination;
+        irt_return_if_bad(get_string(elem, "type", cache.string_buffer));
 
-        irt_return_if_bad(get_u64(elem, "source", source));
-        irt_return_if_bad(get_i32(elem, "port-source", port_source));
-        irt_return_if_bad(get_u64(elem, "destination", destination));
-        irt_return_if_bad(get_i32(elem, "port-destination", port_destination));
+        if (cache.string_buffer == "internal") {
+            u64 source, destination;
+            i32 port_source, port_destination;
 
-        auto* src_id = cache.model_mapping.get(source);
-        auto* dst_id = cache.model_mapping.get(destination);
+            irt_return_if_bad(get_u64(elem, "source", source));
+            irt_return_if_bad(get_i32(elem, "port-source", port_source));
+            irt_return_if_bad(get_u64(elem, "destination", destination));
+            irt_return_if_bad(
+              get_i32(elem, "port-destination", port_destination));
 
-        irt_return_if_fail(src_id, status::io_file_format_model_unknown);
-        irt_return_if_fail(dst_id, status::io_file_format_model_unknown);
+            auto* src_id = cache.model_mapping.get(source);
+            auto* dst_id = cache.model_mapping.get(destination);
 
-        irt_return_if_fail(is_numeric_castable<i8>(port_source),
-                           status::io_file_format_model_unknown);
-        irt_return_if_fail(is_numeric_castable<i8>(port_destination),
-                           status::io_file_format_model_unknown);
+            irt_return_if_fail(src_id, status::io_file_format_model_unknown);
+            irt_return_if_fail(dst_id, status::io_file_format_model_unknown);
 
-        irt_return_if_bad(mod.connect(compo,
-                                      enum_cast<child_id>(*src_id),
-                                      numeric_cast<i8>(port_source),
-                                      enum_cast<child_id>(*dst_id),
-                                      numeric_cast<i8>(port_destination)));
+            irt_return_if_fail(is_numeric_castable<i8>(port_source),
+                               status::io_file_format_model_unknown);
+            irt_return_if_fail(is_numeric_castable<i8>(port_destination),
+                               status::io_file_format_model_unknown);
+
+            irt_return_if_bad(
+              compo.connect(enum_cast<child_id>(*src_id),
+                            numeric_cast<i8>(port_source),
+                            enum_cast<child_id>(*dst_id),
+                            numeric_cast<i8>(port_destination)));
+        } else if (cache.string_buffer == "input") {
+            u64 destination;
+            i32 port, port_destination;
+
+            irt_return_if_bad(get_i32(elem, "port", port));
+            irt_return_if_bad(get_u64(elem, "destination", destination));
+            irt_return_if_bad(
+              get_i32(elem, "port-destination", port_destination));
+
+            auto* dst_id = cache.model_mapping.get(destination);
+            irt_return_if_fail(dst_id, status::io_file_format_model_unknown);
+
+            irt_return_if_fail(is_numeric_castable<i8>(port),
+                               status::io_file_format_model_unknown);
+            irt_return_if_fail(is_numeric_castable<i8>(port_destination),
+                               status::io_file_format_model_unknown);
+
+            irt_return_if_bad(
+              compo.connect_input(static_cast<i8>(port),
+                                  enum_cast<child_id>(*dst_id),
+                                  static_cast<i8>(port_destination)));
+        } else if (cache.string_buffer == "output") {
+            u64 source;
+            i32 port_source, port_destination;
+
+            irt_return_if_bad(get_u64(elem, "source", source));
+            irt_return_if_bad(get_i32(elem, "port-source", port_source));
+            irt_return_if_bad(get_i32(elem, "port", port_destination));
+
+            auto* src_id = cache.model_mapping.get(source);
+            irt_return_if_fail(src_id, status::io_file_format_model_unknown);
+
+            irt_return_if_fail(is_numeric_castable<i8>(port_source),
+                               status::io_file_format_model_unknown);
+            irt_return_if_fail(is_numeric_castable<i8>(port_destination),
+                               status::io_file_format_model_unknown);
+
+            irt_return_if_bad(
+              compo.connect_output(enum_cast<child_id>(*src_id),
+                                   numeric_cast<i8>(port_source),
+                                   numeric_cast<i8>(port_destination)));
+        } else
+            irt_bad_return(status::io_file_format_error);
     }
 
     return status::success;
@@ -1743,7 +1789,10 @@ static status do_read(json_cache&             cache,
     irt_return_if_bad(read_random_sources(cache, mod.srcs, val));
     irt_return_if_bad(read_children(cache, mod, compo, val));
     irt_return_if_bad(read_ports(compo, val));
-    irt_return_if_bad(read_connections(cache, mod, compo, val));
+    irt_return_if_bad(read_connections(cache, compo, val));
+
+    compo.type  = component_type::file;
+    compo.state = component_status::unmodified;
 
     return status::success;
 }
@@ -1753,7 +1802,7 @@ status component_load(modeling&   mod,
                       json_cache& cache,
                       const char* filename) noexcept
 {
-    file f{ filename, open_mode::write };
+    file f{ filename, open_mode::read };
 
     irt_return_if_fail(f.is_open(), status::io_filesystem_error);
     auto* fp = reinterpret_cast<FILE*>(f.get_handle());
@@ -1768,9 +1817,9 @@ status component_load(modeling&   mod,
 
     cache.buffer.resize(static_cast<int>(filesize + 1));
     auto read_length =
-      std::fread(cache.buffer.data(), 1, static_cast<size_t>(filesize), fp);
+      std::fread(cache.buffer.data(), 1, static_cast<sz>(filesize), fp);
     cache.buffer[static_cast<int>(read_length)] = '\0';
-    std::fclose(fp);
+    f.close();
 
     rapidjson::Document    d;
     rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());
@@ -2049,9 +2098,9 @@ static status write_children(json_cache& /*cache*/,
             irt_assert(mdl && "cleanup all component vectors before save");
 
             w.Key("type");
-            w.String(dynamics_type_names[ordinal(c->type)]);
-            w.Key("dynamics");
+            w.String(dynamics_type_names[ordinal(mdl->type)]);
 
+            w.Key("dynamics");
             dispatch(*mdl,
                      [&compo, &w]<typename Dynamics>(Dynamics& dyn) -> void {
                          if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
@@ -2457,7 +2506,7 @@ status simulation_load(simulation&      sim,
                        json_cache&      cache,
                        const char*      filename) noexcept
 {
-    file f{ filename, open_mode::write };
+    file f{ filename, open_mode::read };
     irt_return_if_fail(f.is_open(), status::io_file_format_error);
 
     auto* fp = reinterpret_cast<FILE*>(f.get_handle());
@@ -2465,12 +2514,14 @@ status simulation_load(simulation&      sim,
 
     std::fseek(fp, 0, SEEK_END);
     auto filesize = std::ftell(fp);
+    irt_return_if_fail(filesize >= 0, status::io_file_format_error);
     std::fseek(fp, 0, SEEK_SET);
 
     cache.buffer.resize(static_cast<int>(filesize + 1));
-    auto read_length = std::fread(cache.buffer.data(), 1, filesize, fp);
+    auto read_length =
+      std::fread(cache.buffer.data(), 1, static_cast<sz>(filesize), fp);
     cache.buffer[static_cast<int>(read_length)] = '\0';
-    std::fclose(fp);
+    f.close();
 
     rapidjson::Document    d;
     rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());
@@ -2768,9 +2819,10 @@ status project_load(modeling&   mod,
     std::fseek(fp, 0, SEEK_SET);
 
     cache.buffer.resize(static_cast<int>(filesize + 1));
-    auto read_length = std::fread(cache.buffer.data(), 1, filesize, fp);
+    auto read_length =
+      std::fread(cache.buffer.data(), 1, static_cast<sz>(filesize), fp);
     cache.buffer[static_cast<int>(read_length)] = '\0';
-    std::fclose(fp);
+    f.close();
 
     rapidjson::Document    d;
     rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());

@@ -88,8 +88,8 @@ status add_integrator_component_port(component& com, child_id id) noexcept
     irt_assert(child);
     irt_assert(child->type == child_type::model);
 
-    irt_return_if_bad(com.connect(0, id, 1));
-    irt_return_if_bad(com.connect(id, 0, 0));
+    irt_return_if_bad(com.connect_input(0, id, 1));
+    irt_return_if_bad(com.connect_output(id, 0, 0));
 
     return status::success;
 }
@@ -628,7 +628,7 @@ status component::connect(child_id src,
     return status::success;
 }
 
-status component::connect(i8 port_src, child_id dst, i8 port_dst) noexcept
+status component::connect_input(i8 port_src, child_id dst, i8 port_dst) noexcept
 {
     irt_return_if_fail(connections.can_alloc(),
                        status::simulation_not_enough_connection);
@@ -642,7 +642,9 @@ status component::connect(i8 port_src, child_id dst, i8 port_dst) noexcept
     return status::success;
 }
 
-status component::connect(child_id src, i8 port_src, i8 port_dst) noexcept
+status component::connect_output(child_id src,
+                                 i8       port_src,
+                                 i8       port_dst) noexcept
 {
     irt_return_if_fail(connections.can_alloc(),
                        status::simulation_not_enough_connection);
@@ -919,6 +921,11 @@ static void prepare_component_loading(modeling&             mod,
 
         while (it != et) {
             if (it->is_regular_file() && it->path().extension() == ".irt") {
+#ifndef NDEBUG
+                fmt::print("\t\tcheck file `{}'\n",
+                           it->path().filename().string());
+#endif
+
                 if (mod.file_paths.can_alloc() && mod.components.can_alloc()) {
                     auto  u8str = it->path().filename().u8string();
                     auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
@@ -964,6 +971,11 @@ static void prepare_component_loading(modeling&              mod,
 
             while (it != et) {
                 if (it->is_directory()) {
+#ifndef NDEBUG
+                    fmt::print("\tcheck dir_path `{}'\n",
+                               it->path().filename().string());
+#endif
+
                     if (mod.dir_paths.can_alloc()) {
                         auto u8str = it->path().filename().u8string();
                         auto cstr =
@@ -1009,6 +1021,12 @@ static void prepare_component_loading(modeling&       mod,
         fs::path        p(reg_dir.path.c_str());
         std::error_code ec;
 
+#ifndef NDEBUG
+        fmt::print("check registred_path `{}' in path `{}'\n",
+                   reg_dir.name.sv(),
+                   reg_dir.path.sv());
+#endif
+
         if (std::filesystem::exists(p, ec)) {
             prepare_component_loading(mod, reg_dir, p);
             reg_dir.status = registred_path::status_option::read;
@@ -1039,6 +1057,10 @@ static status load_component(modeling& mod, component& compo) noexcept
             file_path /= dir->path.u8sv();
             file_path /= file->path.u8sv();
 
+#ifndef NDEBUG
+            fmt::print("- load-component: {}", file_path.string());
+#endif
+
             bool read_description = false;
 
             if (mod.components.can_alloc()) {
@@ -1048,9 +1070,11 @@ static status load_component(modeling& mod, component& compo) noexcept
                   component_load(mod, compo, cache, file_path.string().c_str());
 
                 if (is_success(ret)) {
+                    fmt::print(" success\n");
                     read_description = true;
                     compo.state      = component_status::unmodified;
                 } else {
+                    fmt::print(" failure\n");
                     mod.components.free(compo);
                     irt_bad_return(ret);
                 }

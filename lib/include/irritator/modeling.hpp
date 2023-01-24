@@ -205,8 +205,8 @@ struct component
                    i8       port_src,
                    child_id dst,
                    i8       port_dst) noexcept;
-    status connect(i8 port_src, child_id dst, i8 port_dst) noexcept;
-    status connect(child_id src, i8 port_src, i8 port_dst) noexcept;
+    status connect_input(i8 port_src, child_id dst, i8 port_dst) noexcept;
+    status connect_output(child_id src, i8 port_src, i8 port_dst) noexcept;
 
     data_array<model, model_id>                    models;
     data_array<hierarchical_state_machine, hsm_id> hsms;
