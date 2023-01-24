@@ -10,6 +10,7 @@
 #include <irritator/external_source.hpp>
 
 #include <array>
+#include <optional>
 
 namespace irt {
 
@@ -89,26 +90,28 @@ static constexpr inline const char* component_type_names[] = {
     "qss1_lif",
     "qss1_lotka_volterra",
     "qss1_negative_lif",
-    "qss1_seir_lineaire",
-    "qss1_seir_nonlineaire",
+    "qss1_seirs",
     "qss1_van_der_pol",
     "qss2_izhikevich",
     "qss2_lif",
     "qss2_lotka_volterra",
     "qss2_negative_lif",
-    "qss2_seir_lineaire",
-    "qss2_seir_nonlineaire",
+    "qss2_seirs",
     "qss2_van_der_pol",
     "qss3_izhikevich",
     "qss3_lif",
     "qss3_lotka_volterra",
     "qss3_negative_lif",
-    "qss3_seir_lineaire",
-    "qss3_seir_nonlineaire",
+    "qss3_seirs",
     "qss3_van_der_pol",
     "file",
-    "memory"
+    "memory",
 };
+
+//! Try to get the component type from a string. If the string is unknown,
+//! optional returns \c std::nullopt.
+auto get_component_type(std::string_view name) noexcept
+  -> std::optional<component_type>;
 
 status add_cpp_component_ref(const char* buffer,
                              modeling&   mod,
@@ -366,6 +369,8 @@ struct modeling
     component_id search_component(const char* directory,
                                   const char* filename) noexcept;
 
+    component_id search_internal_component(component_type type) noexcept;
+
     status fill_internal_components() noexcept;
     status fill_components() noexcept;
     status fill_components(registred_path& path) noexcept;
@@ -408,7 +413,13 @@ struct modeling
                    child_id   dst,
                    i8         port_dst) noexcept;
 
-    /// Build the @c hierarchy<component_ref> of from the component @c id
+    //! Initialize a project with the specified \c component as head.
+    //!
+    //! Before initializing, the current project is cleared: all tree_nodes and
+    //! component tree are cleared.
+    void init_project(component& compo) noexcept;
+
+    //! Build the @c hierarchy<component_ref> of from the component @c id
     status make_tree_from(component& id, tree_node_id* out) noexcept;
 
     status save(component& c) noexcept; // will call clean(component&) first.

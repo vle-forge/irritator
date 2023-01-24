@@ -320,8 +320,8 @@ status application::load_settings() noexcept
         auto filename = reinterpret_cast<const char*>(u8str.c_str());
 
         if (file f{ filename, open_mode::read }; f.is_open()) {
-            auto*          fp = reinterpret_cast<FILE*>(f.get_handle());
-            char           buffer[4096];
+            auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+            char  buffer[4096];
             rapidjson::FileReadStream is(fp, buffer, sizeof(buffer));
             rapidjson::Reader         reader;
 
@@ -370,8 +370,8 @@ status application::save_settings() noexcept
         auto* filename = reinterpret_cast<const char*>(u8str.c_str());
 
         if (file f{ filename, open_mode::write }; f.is_open()) {
-            auto*           fp = reinterpret_cast<FILE*>(f.get_handle());
-            char            buffer[4096];
+            auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+            char  buffer[4096];
             rapidjson::FileWriteStream os(fp, buffer, sizeof(buffer));
             rapidjson::PrettyWriter<rapidjson::FileWriteStream> writer(os);
 

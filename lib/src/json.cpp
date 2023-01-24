@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/modeling.hpp"
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
@@ -13,6 +14,7 @@
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
+#include <string_view>
 
 namespace irt {
 
@@ -2635,39 +2637,10 @@ static status load_parameter(modeling&               mod,
                     });
 }
 
-static status load_project(json_cache              cache,
-                           modeling&               mod,
-                           const rapidjson::Value& value) noexcept
+static status load_project_parameters(json_cache              cache,
+                                      modeling&               mod,
+                                      const rapidjson::Value& top)
 {
-    irt_return_if_fail(value.IsObject(), status::io_file_format_error);
-
-    const auto&       top     = value.GetObject();
-    registred_path_id reg_id  = undefined<registred_path_id>();
-    dir_path_id       dir_id  = undefined<dir_path_id>();
-    file_path_id      file_id = undefined<file_path_id>();
-
-    irt_return_if_bad_map(
-      get_string(top, "component-path", cache.string_buffer),
-      status::io_project_file_component_path_error);
-    irt_return_if_fail(load_component_path(mod, cache.string_buffer, reg_id),
-                       status::io_project_file_component_path_error);
-
-    irt_return_if_bad_map(
-      get_string(top, "component-directory", cache.string_buffer),
-      status::io_project_file_component_directory_error);
-    irt_return_if_fail(
-      load_component_directory(
-        mod, cache.string_buffer, mod.registred_paths.get(reg_id), dir_id),
-      status::io_project_file_component_directory_error);
-
-    irt_return_if_bad_map(
-      get_string(top, "component-file", cache.string_buffer),
-      status::io_project_file_component_file_error);
-    irt_return_if_fail(
-      load_component_file(
-        mod, cache.string_buffer, mod.dir_paths.get(dir_id), file_id),
-      status::io_project_file_component_file_error);
-
     auto param_it = top.FindMember("component-parameters");
     irt_return_if_fail(param_it != top.MemberEnd() && param_it->value.IsArray(),
                        status::io_project_file_parameters_error);
@@ -2703,6 +2676,83 @@ static status load_project(json_cache              cache,
     return status::success;
 }
 
+static status load_file_project(json_cache              cache,
+                                modeling&               mod,
+                                const rapidjson::Value& top) noexcept
+{
+    registred_path_id reg_id  = undefined<registred_path_id>();
+    dir_path_id       dir_id  = undefined<dir_path_id>();
+    file_path_id      file_id = undefined<file_path_id>();
+
+    irt_return_if_bad_map(
+      get_string(top, "component-path", cache.string_buffer),
+      status::io_project_file_component_path_error);
+    irt_return_if_fail(load_component_path(mod, cache.string_buffer, reg_id),
+                       status::io_project_file_component_path_error);
+
+    irt_return_if_bad_map(
+      get_string(top, "component-directory", cache.string_buffer),
+      status::io_project_file_component_directory_error);
+    irt_return_if_fail(
+      load_component_directory(
+        mod, cache.string_buffer, mod.registred_paths.get(reg_id), dir_id),
+      status::io_project_file_component_directory_error);
+
+    irt_return_if_bad_map(
+      get_string(top, "component-file", cache.string_buffer),
+      status::io_project_file_component_file_error);
+    irt_return_if_fail(
+      load_component_file(
+        mod, cache.string_buffer, mod.dir_paths.get(dir_id), file_id),
+      status::io_project_file_component_file_error);
+
+    auto* fp    = mod.file_paths.try_to_get(file_id);
+    auto& compo = mod.components.get(fp->component);
+    mod.init_project(compo);
+
+    auto param_it = top.FindMember("component-parameters");
+    irt_return_if_fail(param_it != top.MemberEnd() && param_it->value.IsArray(),
+                       status::io_project_file_parameters_error);
+
+    return load_project_parameters(cache, mod, top);
+}
+
+static status load_internal_project(json_cache              cache,
+                                    modeling&               mod,
+                                    const rapidjson::Value& top,
+                                    std::string_view        name) noexcept
+{
+    auto type_opt = get_component_type(name);
+    irt_return_if_fail(type_opt.has_value(),
+                       status::io_project_component_type_error);
+
+    auto  compo_id = mod.search_internal_component(type_opt.value());
+    auto& compo    = mod.components.get(compo_id);
+    mod.init_project(compo);
+
+    auto param_it = top.FindMember("component-parameters");
+    irt_return_if_fail(param_it != top.MemberEnd() && param_it->value.IsArray(),
+                       status::io_project_file_parameters_error);
+
+    return load_project_parameters(cache, mod, top);
+}
+
+static status load_project(json_cache              cache,
+                           modeling&               mod,
+                           const rapidjson::Value& value) noexcept
+{
+    irt_return_if_fail(value.IsObject(), status::io_project_file_error);
+    const auto& top = value.GetObject();
+
+    irt_return_if_bad_map(
+      get_string(top, "component-type", cache.string_buffer),
+      status::io_project_file_component_path_error);
+
+    return cache.string_buffer == "file"
+             ? load_file_project(cache, mod, top)
+             : load_internal_project(cache, mod, top, cache.string_buffer);
+}
+
 status project_load(modeling&   mod,
                     json_cache& cache,
                     const char* filename) noexcept
@@ -2724,9 +2774,9 @@ status project_load(modeling&   mod,
 
     rapidjson::Document    d;
     rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());
-
     irt_return_if_fail(s, status::io_file_format_error);
 
+    mod.clear_project();
     return load_project(cache, mod, d.GetObject());
 }
 
@@ -2807,48 +2857,90 @@ status modeling::save_project(const char* filename) noexcept
     return ret;
 }
 
+static status project_save_file_component(modeling&   mod,
+                                          json_cache& cache,
+                                          tree_node&  parent,
+                                          component&  compo,
+                                          file&       f) noexcept
+{
+    auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
+    auto* dir  = mod.dir_paths.try_to_get(compo.dir);
+    auto* file = mod.file_paths.try_to_get(compo.file);
+    irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
+
+    auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+    cache.clear();
+    cache.buffer.resize(4096);
+
+    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+
+    w.StartObject();
+    w.Key("component-type");
+    w.String("file", 4);
+
+    w.Key("component-path");
+    w.String(reg->name.c_str(), static_cast<u32>(reg->name.size()), false);
+
+    w.Key("component-directory");
+    w.String(dir->path.begin(), static_cast<u32>(dir->path.size()), false);
+
+    w.Key("component-file");
+    w.String(file->path.begin(), static_cast<u32>(file->path.size()), false);
+
+    w.Key("component-parameters");
+    w.StartArray();
+    write_node(w, mod, parent);
+    w.EndArray();
+    w.EndObject();
+
+    return status::success;
+}
+
+static status project_save_internal_component(modeling&   mod,
+                                              json_cache& cache,
+                                              tree_node&  parent,
+                                              component&  compo,
+                                              file&       f) noexcept
+{
+    auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+    cache.clear();
+    cache.buffer.resize(4096);
+
+    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+
+    w.StartObject();
+    w.Key("component-type");
+    w.String(component_type_names[ordinal(compo.type)]);
+
+    w.Key("component-parameters");
+    w.StartArray();
+    write_node(w, mod, parent);
+    w.EndArray();
+    w.EndObject();
+
+    return status::success;
+}
+
 status project_save(modeling&   mod,
                     json_cache& cache,
                     const char* filename,
                     json_pretty_print /*print_options*/) noexcept
 {
-    if (auto* parent = mod.tree_nodes.try_to_get(mod.head); parent) {
-        file f{ filename, open_mode::write };
-        irt_return_if_fail(f.is_open(), status::io_filesystem_error);
+    auto* parent = mod.tree_nodes.try_to_get(mod.head);
+    irt_return_if_fail(parent, status::io_project_component_empty);
 
-        auto& compo = mod.components.get(parent->id);
-        auto* reg   = mod.registred_paths.try_to_get(compo.reg_path);
-        auto* dir   = mod.dir_paths.try_to_get(compo.dir);
-        auto* file  = mod.file_paths.try_to_get(compo.file);
-        irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
+    file f{ filename, open_mode::write };
+    irt_return_if_fail(f.is_open(), status::io_project_file_error);
 
-        auto* fp = reinterpret_cast<FILE*>(f.get_handle());
-        cache.clear();
-        cache.buffer.resize(4096);
+    auto& compo = mod.components.get(parent->id);
+    irt_return_if_fail(compo.type != component_type::memory,
+                       status::io_project_component_type_error);
 
-        rapidjson::FileWriteStream os(
-          fp, cache.buffer.data(), cache.buffer.size());
-        rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
-
-        w.StartObject();
-        w.Key("component-path");
-        w.String(reg->name.c_str(), static_cast<u32>(reg->name.size()), false);
-
-        w.Key("component-directory");
-        w.String(dir->path.begin(), static_cast<u32>(dir->path.size()), false);
-
-        w.Key("component-file");
-        w.String(
-          file->path.begin(), static_cast<u32>(file->path.size()), false);
-
-        w.Key("component-parameters");
-        w.StartArray();
-        write_node(w, mod, *parent);
-        w.EndArray();
-        w.EndObject();
-    }
-
-    return status::success;
+    return compo.type == component_type::file
+             ? project_save_file_component(mod, cache, *parent, compo, f)
+             : project_save_internal_component(mod, cache, *parent, compo, f);
 }
 
 } //  irt

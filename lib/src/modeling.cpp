@@ -2,11 +2,13 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/core.hpp"
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
 #include <filesystem>
+#include <optional>
 
 namespace irt {
 
@@ -452,57 +454,52 @@ status add_seirs(modeling& mod, component& com) noexcept
     return status::success;
 }
 
-#if 0
-static bool get_component_type(const char*     type_string,
-                               component_type* type_found) noexcept
+auto get_component_type(std::string_view name) noexcept
+  -> std::optional<component_type>
 {
-    struct cpp_component_entry
+    struct entry
     {
-        const char*    name;
-        component_type type;
+        std::string_view name;
+        component_type   type;
     };
 
-    static const cpp_component_entry tab[] = {
+    static const entry entries[] = {
+        { "file", component_type::file },
+        { "memory", component_type::memory },
         { "qss1_izhikevich", component_type::qss1_izhikevich },
         { "qss1_lif", component_type::qss1_lif },
         { "qss1_lotka_volterra", component_type::qss1_lotka_volterra },
         { "qss1_negative_lif", component_type::qss1_negative_lif },
-        { "qss1_seir_linear", component_type::qss1_seir_linear },
-        { "qss1_seir_nonlinear", component_type::qss1_seir_nonlinear },
+        { "qss1_seirs", component_type::qss1_seirs },
         { "qss1_van_der_pol", component_type::qss1_van_der_pol },
         { "qss2_izhikevich", component_type::qss2_izhikevich },
         { "qss2_lif", component_type::qss2_lif },
         { "qss2_lotka_volterra", component_type::qss2_lotka_volterra },
         { "qss2_negative_lif", component_type::qss2_negative_lif },
-        { "qss2_seir_linear", component_type::qss2_seir_linear },
-        { "qss2_seir_nonlinear", component_type::qss2_seir_nonlinear },
+        { "qss2_seirs", component_type::qss2_seirs },
         { "qss2_van_der_pol", component_type::qss2_van_der_pol },
         { "qss3_izhikevich", component_type::qss3_izhikevich },
         { "qss3_lif", component_type::qss3_lif },
         { "qss3_lotka_volterra", component_type::qss3_lotka_volterra },
         { "qss3_negative_lif", component_type::qss3_negative_lif },
-        { "qss3_seir_linear", component_type::qss3_seir_linear },
-        { "qss3_seir_nonlinear", component_type::qss3_seir_nonlinear },
+        { "qss3_seirs", component_type::qss3_seirs },
         { "qss3_van_der_pol", component_type::qss3_van_der_pol },
-        { "file", component_type::file },
-        { "memory", component_type::memory }
     };
 
-    auto it = std::lower_bound(std::begin(tab),
-                               std::end(tab),
-                               type_string,
-                               [](const auto& entry, const char* buffer) {
-                                   return 0 == std::strcmp(entry.name, buffer);
+    auto it = std::lower_bound(std::begin(entries),
+                               std::end(entries),
+                               name,
+                               [](const auto& entry, std::string_view name) {
+                                   return entry.name == name;
                                });
 
-    if (it == std::end(tab) || std::strcmp(it->name, type_string))
-        return false;
+    if (it == std::end(entries) || it->name != name)
+        return std::nullopt;
 
-    *type_found = it->type;
-
-    return true;
+    return std::make_optional(it->type);
 }
 
+#if 0
 static component* find_file_component(modeling&  mod,
                                       dir_path&  dir,
                                       file_path& file) noexcept
@@ -681,6 +678,16 @@ status modeling::init(modeling_initializer& p) noexcept
       srcs.binary_file_sources.init(p.binary_file_source_capacity));
 
     return status::success;
+}
+
+component_id modeling::search_internal_component(component_type type) noexcept
+{
+    component* compo = nullptr;
+    while (components.next(compo))
+        if (compo->type == type)
+            return components.get_id(compo);
+
+    return undefined<component_id>();
 }
 
 component_id modeling::search_component(const char* directory_name,
@@ -1382,6 +1389,15 @@ void modeling::free(registred_path& reg_dir) noexcept
             free(*dir);
 
     registred_paths.free(reg_dir);
+}
+
+void modeling::init_project(component& compo) noexcept
+{
+    clear_project();
+
+    tree_node_id tn = undefined<tree_node_id>();
+    if (is_success(make_tree_from(compo, &tn)))
+        head = tn;
 }
 
 status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
