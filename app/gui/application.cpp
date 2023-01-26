@@ -40,7 +40,7 @@ application::application() noexcept
 
     log_w(*this,
           7,
-          "Start with %d main threads and %d generic workers\n",
+          "Start with {} main threads and {} generic workers\n",
           task_mgr.main_workers.ssize(),
           task_mgr.temp_workers.ssize());
 
@@ -97,11 +97,8 @@ bool application::init() noexcept
     if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
         log_w(*this,
               2,
-              "Fail to initialize modeling components: %s\n",
+              "Fail to initialize modeling components: {}\n",
               status_string(ret));
-        std::fprintf(stderr,
-                     "Fail to initialize modeling components: %s\n",
-                     status_string(ret));
         return false;
     }
 
@@ -111,7 +108,7 @@ bool application::init() noexcept
             auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
             new_dir.name     = "System directory";
             new_dir.path     = path.value().string().c_str();
-            log_w(*this, 7, "Add system directory: %s\n", new_dir.path.c_str());
+            log_w(*this, 7, "Add system directory: {}\n", new_dir.path.c_str());
 
             c_editor.mod.component_repertories.emplace_back(new_dir_id);
         }
@@ -121,7 +118,7 @@ bool application::init() noexcept
             auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
             new_dir.name     = "User directory";
             new_dir.path     = path.value().string().c_str();
-            log_w(*this, 7, "Add user directory: %s\n", new_dir.path.c_str());
+            log_w(*this, 7, "Add user directory: {}\n", new_dir.path.c_str());
 
             c_editor.mod.component_repertories.emplace_back(new_dir_id);
         }
@@ -136,7 +133,7 @@ bool application::init() noexcept
         is_bad(ret)) {
         log_w(*this,
               2,
-              "Fail to initialize simulation components: %s\n",
+              "Fail to initialize simulation components: {}\n",
               status_string(ret));
         return false;
     }
@@ -146,7 +143,7 @@ bool application::init() noexcept
     if (auto ret = s_editor.sim_obs.init(16); is_bad(ret)) {
         log_w(*this,
               2,
-              "Fail to initialize simulation observation: %s\n",
+              "Fail to initialize simulation observation: {}\n",
               status_string(ret));
         return false;
     }
@@ -154,7 +151,7 @@ bool application::init() noexcept
     if (auto ret = s_editor.copy_obs.init(16); is_bad(ret)) {
         log_w(*this,
               2,
-              "Fail to initialize copy simulation observation: %s\n",
+              "Fail to initialize copy simulation observation: {}\n",
               status_string(ret));
         return false;
     }
@@ -162,7 +159,7 @@ bool application::init() noexcept
     if (auto ret = c_editor.mod.srcs.init(50); is_bad(ret)) {
         log_w(*this,
               2,
-              "Fail to initialize external sources: %s\n",
+              "Fail to initialize external sources: {}\n",
               status_string(ret));
         return false;
     } else {
@@ -171,7 +168,7 @@ bool application::init() noexcept
 
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
         log_w(
-          *this, 2, "Fail to fill component list: %s\n", status_string(ret));
+          *this, 2, "Fail to fill component list: {}\n", status_string(ret));
     }
 
     c_editor.mod.fill_components();
