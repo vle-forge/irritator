@@ -346,6 +346,16 @@ struct modeling_to_simulation
     void destroy() noexcept;
 };
 
+struct modeling_warning
+{
+    constexpr static int buffer_size = 254;
+
+    using string_t = small_string<buffer_size>;
+
+    string_t buffer;
+    status   st;
+};
+
 struct modeling
 {
     data_array<tree_node, tree_node_id>           tree_nodes;
@@ -432,14 +442,7 @@ struct modeling
                          const simulation&       sim) const noexcept;
     status export_to(modeling_to_simulation& cache, simulation& sim) noexcept;
 
-    typedef void (*log_callback)(int, std::string_view, void*);
-
-    void log(int level, std::string_view message) noexcept;
-    void log(int level, status s, std::string_view message) noexcept;
-    void register_log_callback(log_callback cb, void* user_data) noexcept;
-
-    void*        log_user_data = nullptr;
-    log_callback log_cb        = nullptr;
+    ring_buffer<modeling_warning> warnings;
 };
 
 /*

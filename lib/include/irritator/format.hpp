@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_2022_LIB_FORMAT_HPP
 
 #include <irritator/core.hpp>
+#include <irritator/modeling.hpp>
 
 #include <fmt/compile.h>
 #include <fmt/format.h>
@@ -27,6 +28,51 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
                                  fmt,
                                  fmt::make_format_args(args...));
     str.resize(ret.size);
+}
+
+//! Copy a formatted string into the \c modeling warnings.
+//!
+//! The formatted string in take from the \c modeling \c ring-buffer.
+//! \param mode A reference to a modeling object.
+//! \param status The \c irt::status attached to the error.
+//! \param fmt A format string for the fmtlib library.
+//! \param args Arguments for the fmtlib library.
+template<typename S, typename... Args>
+constexpr void log_warning(modeling& mod,
+                           status    st,
+                           const S&  fmt,
+                           Args&&... args) noexcept
+{
+    using size_type = typename modeling_warning::string_t::size_type;
+
+    if (mod.warnings.full())
+        mod.warnings.pop_front();
+
+    mod.warnings.push_back({ .buffer = "", .st = status::success });
+    auto& warning = mod.warnings.back();
+
+    auto ret = fmt::vformat_to_n(warning.buffer.begin(),
+                                 warning.buffer.capacity() - 1,
+                                 fmt,
+                                 fmt::make_format_args(args...));
+
+    warning.buffer.resize(static_cast<size_type>(ret.size));
+    warning.st = st;
+}
+
+//! Copy a formatted string into the \c modeling warnings.
+//!
+//! The formatted string in take from the \c modeling \c ring-buffer.
+//! \param mode A reference to a modeling object.
+//! \param status The \c irt::status attached to the error.
+constexpr void log_warning(modeling& mod, status st) noexcept
+{
+    if (mod.warnings.full())
+        mod.warnings.pop_front();
+
+    mod.warnings.push_back({ .buffer = "", .st = status::success });
+    auto& warning = mod.warnings.back();
+    warning.st    = st;
 }
 
 } //  irt

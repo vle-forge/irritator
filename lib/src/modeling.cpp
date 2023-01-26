@@ -2,7 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/core.hpp"
+#include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
@@ -663,7 +663,10 @@ bool registred_path::exists() const noexcept { return exists_path(path.sv()); }
 bool dir_path::make() const noexcept { return exists_path(path.sv()); }
 bool dir_path::exists() const noexcept { return exists_path(path.sv()); }
 
-modeling::modeling() noexcept {}
+modeling::modeling() noexcept
+  : warnings(16)
+{
+}
 
 status modeling::init(modeling_initializer& p) noexcept
 {
@@ -896,13 +899,11 @@ static void prepare_component_loading(modeling&             mod,
                 desc.status = description_status::unread;
                 compo.desc  = mod.descriptions.get_id(desc);
             } else {
-                mod.log(4,
-                        status::modeling_too_many_description_open,
-                        desc_file.generic_string());
+                log_warning(mod, status::modeling_too_many_description_open);
             }
         }
     } catch (const std::exception& /*e*/) {
-        mod.log(4, status::io_filesystem_error, reg_dir.path.c_str());
+        log_warning(mod, status::io_filesystem_error, reg_dir.path.c_str());
     }
 }
 
@@ -921,10 +922,10 @@ static void prepare_component_loading(modeling&             mod,
 
         while (it != et) {
             if (it->is_regular_file() && it->path().extension() == ".irt") {
-#ifndef NDEBUG
-                fmt::print("\t\tcheck file `{}'\n",
-                           it->path().filename().string());
-#endif
+                log_warning(mod,
+                            status::success,
+                            "check file `{}'",
+                            it->path().filename().string());
 
                 if (mod.file_paths.can_alloc() && mod.components.can_alloc()) {
                     auto  u8str = it->path().filename().u8string();
@@ -948,10 +949,17 @@ static void prepare_component_loading(modeling&             mod,
         }
 
         if (too_many_file) {
-            mod.log(4, status::modeling_too_many_file_open, reg_dir.path.sv());
+            log_warning(mod,
+                        status::modeling_too_many_file_open,
+                        "registred path {}, directory {}",
+                        reg_dir.path.sv(),
+                        dir.path.sv());
         }
     } catch (...) {
-        mod.log(4, status::modeling_file_access_error, reg_dir.path.sv());
+        log_warning(mod,
+                    status::modeling_file_access_error,
+                    "registred path {}",
+                    reg_dir.path.sv());
     }
 }
 
@@ -971,10 +979,10 @@ static void prepare_component_loading(modeling&              mod,
 
             while (it != et) {
                 if (it->is_directory()) {
-#ifndef NDEBUG
-                    fmt::print("\tcheck dir_path `{}'\n",
-                               it->path().filename().string());
-#endif
+                    log_warning(mod,
+                                status::success,
+                                "check dir_path `{}'\n",
+                                it->path().filename().string());
 
                     if (mod.dir_paths.can_alloc()) {
                         auto u8str = it->path().filename().u8string();
@@ -999,16 +1007,21 @@ static void prepare_component_loading(modeling&              mod,
             }
 
             if (too_many_directory)
-                mod.log(4,
-                        status::modeling_too_many_directory_open,
-                        reg_dir.path.sv());
+                log_warning(mod,
+                            status::modeling_too_many_directory_open,
+                            "registred path {}",
+                            reg_dir.path.sv());
         } else {
-            mod.log(4,
-                    status::modeling_registred_path_access_error,
-                    reg_dir.path.sv());
+            log_warning(mod,
+                        status::modeling_file_access_error,
+                        "registred path {}",
+                        reg_dir.path.sv());
         }
     } catch (...) {
-        mod.log(4, status::modeling_file_access_error, reg_dir.path.sv());
+        log_warning(mod,
+                    status::modeling_file_access_error,
+                    "registred path {}",
+                    reg_dir.path.sv());
     }
 }
 
@@ -1021,18 +1034,21 @@ static void prepare_component_loading(modeling&       mod,
         fs::path        p(reg_dir.path.c_str());
         std::error_code ec;
 
-#ifndef NDEBUG
-        fmt::print("check registred_path `{}' in path `{}'\n",
-                   reg_dir.name.sv(),
-                   reg_dir.path.sv());
-#endif
+        log_warning(mod,
+                    status::success,
+                    "check registred_path `{}' in path `{}'\n",
+                    reg_dir.name.sv(),
+                    reg_dir.path.sv());
 
         if (std::filesystem::exists(p, ec)) {
             prepare_component_loading(mod, reg_dir, p);
             reg_dir.status = registred_path::status_option::read;
         }
     } catch (...) {
-        mod.log(4, status::modeling_file_access_error, reg_dir.path.sv());
+        log_warning(mod,
+                    status::modeling_file_access_error,
+                    "registred path: {} ",
+                    reg_dir.path.sv());
     }
 }
 
@@ -1057,10 +1073,6 @@ static status load_component(modeling& mod, component& compo) noexcept
             file_path /= dir->path.u8sv();
             file_path /= file->path.u8sv();
 
-#ifndef NDEBUG
-            fmt::print("- load-component: {}", file_path.string());
-#endif
-
             bool read_description = false;
 
             if (mod.components.can_alloc()) {
@@ -1070,11 +1082,17 @@ static status load_component(modeling& mod, component& compo) noexcept
                   component_load(mod, compo, cache, file_path.string().c_str());
 
                 if (is_success(ret)) {
-                    fmt::print(" success\n");
+                    log_warning(mod,
+                                status::success,
+                                "- load-component: {} success",
+                                file_path.string());
                     read_description = true;
                     compo.state      = component_status::unmodified;
                 } else {
-                    fmt::print(" failure\n");
+                    log_warning(mod,
+                                ret,
+                                "- load-component: {} fail",
+                                file_path.string());
                     mod.components.free(compo);
                     irt_bad_return(ret);
                 }
@@ -2062,34 +2080,6 @@ status modeling::export_to(modeling_to_simulation& cache,
     irt_return_if_bad(simulation_copy_connections(cache, *this, sim, *top));
 
     return status::success;
-}
-
-void modeling::log(int level, std::string_view message) noexcept
-{
-    if (log_cb)
-        log_cb(level, message, log_user_data);
-}
-
-void modeling::log(int level, status s, std::string_view message) noexcept
-{
-    if (log_cb) {
-        small_string<256> buffer;
-        format(buffer, "{}: {}", status_string(s), message);
-        log(level, buffer.sv());
-    }
-}
-
-void modeling::register_log_callback(log_callback cb, void* user_data) noexcept
-{
-    small_string<256> buffer;
-
-    format(buffer, "unregistring modeling log callback: {}", (void*)log_cb);
-    log(1, buffer.sv());
-
-    log_cb        = cb;
-    log_user_data = user_data;
-    format(buffer, "registring modeling log callback: {}", (void*)log_cb);
-    log(1, buffer.sv());
 }
 
 } // namespace irt

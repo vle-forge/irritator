@@ -7,6 +7,7 @@
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
+#include "irritator/core.hpp"
 
 namespace irt {
 
@@ -58,33 +59,8 @@ application::~application() noexcept
     log_w(*this, 7, "Application shutdown\n");
 }
 
-static void modeling_log(int              level,
-                         std::string_view message,
-                         void*            user_data) noexcept
-{
-    if (auto* app = reinterpret_cast<application*>(user_data); app) {
-        auto  new_level = std::clamp(level, 0, 5);
-        auto  type      = enum_cast<notification_type>(level);
-        auto& n         = app->notifications.alloc(type);
-
-        if (is_numeric_castable<int>(message.size()))
-            log_w(*app,
-                  new_level,
-                  "%.*s: ",
-                  static_cast<int>(message.size()),
-                  message.data());
-
-        n.title   = "Modeling message";
-        n.message = message;
-        app->notifications.enable(n);
-    }
-}
-
 bool application::init() noexcept
 {
-    c_editor.mod.register_log_callback(modeling_log,
-                                       reinterpret_cast<void*>(this));
-
     if (auto ret = c_editor.mod.registred_paths.init(max_component_dirs);
         is_bad(ret)) {
         log_w(*this, 2, "Fail to initialize registred dir paths");
@@ -588,6 +564,25 @@ void application::show() noexcept
 {
     cleanup_sim_or_gui_task(sim_tasks);
     cleanup_sim_or_gui_task(gui_tasks);
+
+    if (!c_editor.mod.warnings.empty()) {
+        while (!c_editor.mod.warnings.empty()) {
+            auto& warning = c_editor.mod.warnings.front();
+            c_editor.mod.warnings.pop_front();
+
+            auto& n = notifications.alloc();
+            if (warning.st != status::success) {
+                n.type  = notification_type::information;
+                n.title = warning.buffer.sv();
+            } else {
+                n.type = notification_type::warning;
+                format(n.title, "{}", status_string(warning.st));
+                n.message = warning.buffer.sv();
+            }
+
+            notifications.enable(n);
+        }
+    }
 
     application_show_menu(*this);
     application_manage_menu_action(*this);
