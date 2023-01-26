@@ -54,7 +54,7 @@ static void show_project_hierarchy_child_observable(
         bool  is_observed = false;
 
         if (value) {
-            if (*value == observable_type_none) {
+            if (*value == observable_type::none) {
                 parent.observables.erase(id);
                 value = nullptr;
             } else {
@@ -64,7 +64,7 @@ static void show_project_hierarchy_child_observable(
 
         if (ImGui::Checkbox("Observation##obs", &is_observed)) {
             if (is_observed) {
-                parent.observables.set(id, observable_type_single);
+                parent.observables.set(id, observable_type::single);
             } else {
                 parent.observables.erase(id);
                 is_observed = false;

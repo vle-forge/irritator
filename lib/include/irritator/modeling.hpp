@@ -79,6 +79,14 @@ enum class modeling_status
     unmodified
 };
 
+enum class observable_type
+{
+    none,
+    single,
+    multiple,
+    space,
+};
+
 struct connection;
 struct child;
 struct component;
@@ -301,16 +309,6 @@ struct simulation_tree_node
     vector<model_id> children;
 
     hierarchy<simulation_tree_node> tree;
-};
-
-using observable_type = i32;
-
-enum observable_type_
-{
-    observable_type_none,
-    observable_type_single,
-    observable_type_multiple,
-    observable_type_space,
 };
 
 struct tree_node
