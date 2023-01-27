@@ -2123,59 +2123,33 @@ public:
 
     static constexpr u32 none = std::numeric_limits<u32>::max();
 
-    data_array() = default;
+    data_array() noexcept = default;
+    ~data_array() noexcept;
 
-    ~data_array() noexcept
-    {
-        clear();
-
-        if (m_items)
-            g_free_fn(m_items);
-    }
-
-    //! @brief Initialize the underlying byffer of T.
+    //! @brief Allocate the underlying buffer of T.
+    //!
+    //! @details If a buffer is already allocated it will be deallocated
+    //!  before a new allocation.
     //!
     //! @return @c is_success(status) or is_bad(status).
-    status init(std::integral auto capacity) noexcept
-    {
-        clear();
+    status init(std::integral auto capacity) noexcept;
 
-        if (std::cmp_greater_equal(capacity, get_max_size<Identifier>()))
-            return status::data_array_init_capacity_error;
-
-        m_items = static_cast<item*>(
-          g_alloc_fn(static_cast<u32>(capacity) * sizeof(item)));
-        if (!m_items)
-            return status::data_array_not_enough_memory;
-
-        m_max_size  = 0;
-        m_max_used  = 0;
-        m_capacity  = static_cast<u32>(capacity);
-        m_next_key  = 1;
-        m_free_head = none;
-
-        return status::success;
-    }
-
-    //! @brief Resets data members
+    //! @brief Reallocate the underlying buffer.
     //!
-    //! Run destructor on outstanding items and re-initialize of size.
-    void clear() noexcept
-    {
-        if constexpr (!std::is_trivial_v<T>) {
-            for (u32 i = 0; i != m_max_used; ++i) {
-                if (is_valid(m_items[i].id)) {
-                    std::destroy_at(&m_items[i].item);
-                    m_items[i].id = static_cast<identifier_type>(0);
-                }
-            }
-        }
+    //! @details If the new capacity is smaller than the current capacity then
+    //!  do nothing otherwise, a new buffer is allocated and all data is
+    //!  copied. Be careful, as for vector, resize operation makes all
+    //!  iterators and pointers unusable.
+    //!
+    //! @return @c is_success(status) or is_bad(status).
+    status resize(std::integral auto capacity) noexcept;
 
-        m_max_size  = 0;
-        m_max_used  = 0;
-        m_next_key  = 1;
-        m_free_head = none;
-    }
+    //! @brief Destroy all items in the data_array but keep memory
+    //!  allocation.
+    //!
+    //! @details Run the destructor if @c T is not trivial on outstanding
+    //!  items and re-initialize the size.
+    void clear() noexcept;
 
     //! @brief Alloc a new element.
     //!
@@ -2189,32 +2163,7 @@ public:
     //!
     //! @return A reference to the newly allocated element.
     template<typename... Args>
-    T& alloc(Args&&... args) noexcept
-    {
-        assert(can_alloc(1) && "check alloc() with full() before using use.");
-
-        u32 new_index;
-
-        if (m_free_head != none) {
-            new_index = m_free_head;
-            if (is_valid(m_items[m_free_head].id))
-                m_free_head = none;
-            else
-                m_free_head = get_index(m_items[m_free_head].id);
-        } else {
-            new_index = m_max_used++;
-        }
-
-        std::construct_at(&m_items[new_index].item,
-                          std::forward<Args>(args)...);
-
-        m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
-        m_next_key            = make_next_key<Identifier>(m_next_key);
-
-        ++m_max_size;
-
-        return m_items[new_index].item;
-    }
+    T& alloc(Args&&... args) noexcept;
 
     //! @brief Alloc a new element.
     //!
@@ -2225,106 +2174,39 @@ public:
     //! @return A pair with a boolean if the allocation success and a pointer
     //! to the newly element.
     template<typename... Args>
-    std::pair<bool, T*> try_alloc(Args&&... args) noexcept
-    {
-        if (!can_alloc(1))
-            return { false, nullptr };
-
-        u32 new_index;
-
-        if (m_free_head != none) {
-            new_index = m_free_head;
-            if (is_valid(m_items[m_free_head].id))
-                m_free_head = none;
-            else
-                m_free_head = get_index(m_items[m_free_head].id);
-        } else {
-            new_index = m_max_used++;
-        }
-
-        std::construct_at(&m_items[new_index].item,
-                          std::forward<Args>(args)...);
-
-        m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
-        m_next_key            = make_next_key<Identifier>(m_next_key);
-
-        ++m_max_size;
-
-        return { true, &m_items[new_index].item };
-    }
+    std::pair<bool, T*> try_alloc(Args&&... args) noexcept;
 
     //! @brief Free the element @c t.
     //!
     //! Internally, puts the elelent @c t entry on free list and use id to
     //! store next.
-    void free(T& t) noexcept
-    {
-        auto id    = get_id(t);
-        auto index = get_index(id);
-
-        irt_assert(&m_items[index] == static_cast<void*>(&t));
-        irt_assert(m_items[index].id == id);
-        irt_assert(is_valid(id));
-
-        std::destroy_at(&m_items[index].item);
-
-        m_items[index].id = static_cast<Identifier>(m_free_head);
-        m_free_head       = index;
-
-        --m_max_size;
-    }
+    void free(T& t) noexcept;
 
     //! @brief Free the element pointer by @c id.
     //!
     //! Internally, puts the element @c id entry on free list and use id to
     //! store next.
-    void free(Identifier id) noexcept
-    {
-        auto index = get_index(id);
-
-        irt_assert(m_items[index].id == id);
-        irt_assert(is_valid(id));
-
-        std::destroy_at(&m_items[index].item);
-
-        m_items[index].id = static_cast<Identifier>(m_free_head);
-        m_free_head       = index;
-
-        --m_max_size;
-    }
+    void free(Identifier id) noexcept;
 
     //! @brief Accessor to the id part of the item
     //!
     //! @return @c Identifier.
-    Identifier get_id(const T* t) const noexcept
-    {
-        irt_assert(t != nullptr);
-
-        auto* ptr = reinterpret_cast<const item*>(t);
-        return ptr->id;
-    }
+    Identifier get_id(const T* t) const noexcept;
 
     //! @brief Accessor to the id part of the item
     //!
     //! @return @c Identifier.
-    Identifier get_id(const T& t) const noexcept
-    {
-        auto* ptr = reinterpret_cast<const item*>(&t);
-        return ptr->id;
-    }
+    Identifier get_id(const T& t) const noexcept;
 
     //! @brief Accessor to the item part of the id.
     //!
     //! @return @c T
-    T& get(Identifier id) noexcept { return m_items[get_index(id)].item; }
+    T& get(Identifier id) noexcept;
 
     //! @brief Accessor to the item part of the id.
     //!
     //! @return @c T
-    const T& get(Identifier id) const noexcept
-    {
-        return m_items[get_index(id)].item;
-    }
+    const T& get(Identifier id) const noexcept;
 
     //! @brief Get a T from an ID.
     //!
@@ -2334,30 +2216,13 @@ public:
     //!
     //! @param id Identifier to get.
     //! @return T or nullptr
-    T* try_to_get(Identifier id) const noexcept
-    {
-        if (get_key(id)) {
-            auto index = get_index(id);
-            if (m_items[index].id == id)
-                return &m_items[index].item;
-        }
-
-        return nullptr;
-    }
+    T* try_to_get(Identifier id) const noexcept;
 
     //! @brief Get a T directly from the index in the array.
     //!
     //! @param index The array.
     //! @return T or nullptr.
-    T* try_to_get(u32 index) const noexcept
-    {
-        irt_assert(index < m_max_used);
-
-        if (is_valid(m_items[index].id))
-            return &m_items[index].item;
-
-        return nullptr;
-    }
+    T* try_to_get(u32 index) const noexcept;
 
     //! @brief Return next valid item.
     //! @code
@@ -2373,80 +2238,18 @@ public:
     //! free list).
     //!
     //! @return true if the paramter @c t is valid false otherwise.
-    bool next(T*& t) const noexcept
-    {
-        u32 index;
+    bool next(T*& t) const noexcept;
 
-        if (t) {
-            auto id = get_id(*t);
-            index   = get_index(id);
-            ++index;
-
-            for (; index < m_max_used; ++index) {
-                if (is_valid(m_items[index].id)) {
-                    t = &m_items[index].item;
-                    return true;
-                }
-            }
-        } else {
-            for (index = 0; index < m_max_used; ++index) {
-                if (is_valid(m_items[index].id)) {
-                    t = &m_items[index].item;
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    constexpr bool full() const noexcept
-    {
-        return m_free_head == none && m_max_used == m_capacity;
-    }
-
-    constexpr unsigned size() const noexcept
-    {
-        return static_cast<unsigned>(m_max_size);
-    }
-
-    constexpr int ssize() const noexcept
-    {
-        return static_cast<int>(m_max_size);
-    }
-
-    constexpr bool can_alloc(const sz nb) const noexcept
-    {
-        const u64 capacity = m_capacity;
-        const u64 max_size = m_max_size;
-
-        return capacity - max_size >= nb;
-    }
-
-    constexpr bool can_alloc() const noexcept
-    {
-        return m_capacity - m_max_size >= 1u;
-    }
-
-    constexpr int max_size() const noexcept
-    {
-        return static_cast<int>(m_max_size);
-    }
-    constexpr int max_used() const noexcept
-    {
-        return static_cast<int>(m_max_used);
-    }
-    constexpr int capacity() const noexcept
-    {
-        return static_cast<int>(m_capacity);
-    }
-
-    constexpr u32 next_key() const noexcept { return m_next_key; }
-
-    constexpr bool is_free_list_empty() const noexcept
-    {
-        return m_free_head == none;
-    }
+    constexpr bool     full() const noexcept;
+    constexpr unsigned size() const noexcept;
+    constexpr int      ssize() const noexcept;
+    constexpr bool     can_alloc(std::integral auto nb) const noexcept;
+    constexpr bool     can_alloc() const noexcept;
+    constexpr int      max_size() const noexcept;
+    constexpr int      max_used() const noexcept;
+    constexpr int      capacity() const noexcept;
+    constexpr u32      next_key() const noexcept;
+    constexpr bool     is_free_list_empty() const noexcept;
 };
 
 struct record
@@ -7770,27 +7573,11 @@ public:
         return status::success;
     }
 
-    bool can_alloc(int place = 1) const noexcept
-    {
-        return models.can_alloc(place);
-    }
-
-    bool can_alloc(dynamics_type type, int place = 1) const noexcept
-    {
-        if (type == dynamics_type::hsm_wrapper)
-            return models.can_alloc(place) && hsms.can_alloc(place);
-        else
-            return models.can_alloc(place);
-    }
+    bool can_alloc(std::integral auto place) const noexcept;
+    bool can_alloc(dynamics_type type, std::integral auto place) const noexcept;
 
     template<typename Dynamics>
-    bool can_alloc_dynamics(int place = 1) const noexcept
-    {
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-            return models.can_alloc(place) && hsms.can_alloc(place);
-        else
-            return models.can_alloc(place);
-    }
+    bool can_alloc_dynamics(std::integral auto place) const noexcept;
 
     //! @brief cleanup simulation object
     //!
@@ -8209,6 +7996,316 @@ inline list_view_const<dated_message> get_dated_message(const simulation& sim,
  * Containers implementation
  *
  ****************************************************************************/
+
+// template<typeanem T, typename Identifier>
+// class data_array;
+
+template<typename T, typename Identifier>
+data_array<T, Identifier>::~data_array() noexcept
+{
+    clear();
+
+    if (m_items)
+        g_free_fn(m_items);
+}
+
+template<typename T, typename Identifier>
+status data_array<T, Identifier>::init(std::integral auto capacity) noexcept
+{
+    clear();
+
+    if (std::cmp_greater_equal(capacity, get_max_size<Identifier>()))
+        return status::data_array_init_capacity_error;
+
+    m_items =
+      static_cast<item*>(g_alloc_fn(static_cast<u32>(capacity) * sizeof(item)));
+    if (!m_items)
+        return status::data_array_not_enough_memory;
+
+    m_max_size  = 0;
+    m_max_used  = 0;
+    m_capacity  = static_cast<u32>(capacity);
+    m_next_key  = 1;
+    m_free_head = none;
+
+    return status::success;
+}
+
+template<typename T, typename Identifier>
+status data_array<T, Identifier>::resize(std::integral auto capacity) noexcept
+{
+    if (m_capacity >= capacity)
+        return status::success;
+
+    auto* buffer = g_alloc_fn(static_cast<sz>(capacity) * sizeof(item));
+    irt_return_if_fail(buffer, status::data_array_not_enough_memory);
+
+    auto* new_items = static_cast<item*>(buffer);
+    std::copy_n(m_items, static_cast<sz>(m_max_used), new_items);
+
+    g_free_fn(m_items);
+    m_items = new_items;
+
+    return status::success;
+}
+
+template<typename T, typename Identifier>
+void data_array<T, Identifier>::clear() noexcept
+{
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+        for (u32 i = 0; i != m_max_used; ++i) {
+            if (is_valid(m_items[i].id)) {
+                std::destroy_at(&m_items[i].item);
+                m_items[i].id = static_cast<identifier_type>(0);
+            }
+        }
+    } else {
+        auto* void_ptr = reinterpret_cast<std::byte*>(m_items);
+        auto  size     = m_max_used * sizeof(item);
+        std::uninitialized_fill_n(void_ptr, size, std::byte{});
+    }
+
+    m_max_size  = 0;
+    m_max_used  = 0;
+    m_next_key  = 1;
+    m_free_head = none;
+}
+
+template<typename T, typename Identifier>
+template<typename... Args>
+typename data_array<T, Identifier>::value_type&
+data_array<T, Identifier>::alloc(Args&&... args) noexcept
+{
+    irt_assert(can_alloc(1) && "check alloc() with full() before using use.");
+
+    u32 new_index;
+
+    if (m_free_head != none) {
+        new_index = m_free_head;
+        if (is_valid(m_items[m_free_head].id))
+            m_free_head = none;
+        else
+            m_free_head = get_index(m_items[m_free_head].id);
+    } else {
+        new_index = m_max_used++;
+    }
+
+    std::construct_at(&m_items[new_index].item, std::forward<Args>(args)...);
+
+    m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
+    m_next_key            = make_next_key<Identifier>(m_next_key);
+
+    ++m_max_size;
+
+    return m_items[new_index].item;
+}
+
+template<typename T, typename Identifier>
+template<typename... Args>
+std::pair<bool, T*> data_array<T, Identifier>::try_alloc(
+  Args&&... args) noexcept
+{
+    if (!can_alloc(1))
+        return { false, nullptr };
+
+    u32 new_index;
+
+    if (m_free_head != none) {
+        new_index = m_free_head;
+        if (is_valid(m_items[m_free_head].id))
+            m_free_head = none;
+        else
+            m_free_head = get_index(m_items[m_free_head].id);
+    } else {
+        new_index = m_max_used++;
+    }
+
+    std::construct_at(&m_items[new_index].item, std::forward<Args>(args)...);
+
+    m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
+    m_next_key            = make_next_key<Identifier>(m_next_key);
+
+    ++m_max_size;
+
+    return { true, &m_items[new_index].item };
+}
+
+template<typename T, typename Identifier>
+void data_array<T, Identifier>::free(T& t) noexcept
+{
+    auto id    = get_id(t);
+    auto index = get_index(id);
+
+    irt_assert(&m_items[index] == static_cast<void*>(&t));
+    irt_assert(m_items[index].id == id);
+    irt_assert(is_valid(id));
+
+    std::destroy_at(&m_items[index].item);
+
+    m_items[index].id = static_cast<Identifier>(m_free_head);
+    m_free_head       = index;
+
+    --m_max_size;
+}
+
+template<typename T, typename Identifier>
+void data_array<T, Identifier>::free(Identifier id) noexcept
+{
+    auto index = get_index(id);
+
+    irt_assert(m_items[index].id == id);
+    irt_assert(is_valid(id));
+
+    std::destroy_at(&m_items[index].item);
+
+    m_items[index].id = static_cast<Identifier>(m_free_head);
+    m_free_head       = index;
+
+    --m_max_size;
+}
+
+template<typename T, typename Identifier>
+Identifier data_array<T, Identifier>::get_id(const T* t) const noexcept
+{
+    irt_assert(t != nullptr);
+
+    auto* ptr = reinterpret_cast<const item*>(t);
+    return ptr->id;
+}
+
+template<typename T, typename Identifier>
+Identifier data_array<T, Identifier>::get_id(const T& t) const noexcept
+{
+    auto* ptr = reinterpret_cast<const item*>(&t);
+    return ptr->id;
+}
+
+template<typename T, typename Identifier>
+T& data_array<T, Identifier>::get(Identifier id) noexcept
+{
+    return m_items[get_index(id)].item;
+}
+
+template<typename T, typename Identifier>
+const T& data_array<T, Identifier>::get(Identifier id) const noexcept
+{
+    return m_items[get_index(id)].item;
+}
+
+template<typename T, typename Identifier>
+T* data_array<T, Identifier>::try_to_get(Identifier id) const noexcept
+{
+    if (get_key(id)) {
+        auto index = get_index(id);
+        if (m_items[index].id == id)
+            return &m_items[index].item;
+    }
+
+    return nullptr;
+}
+
+template<typename T, typename Identifier>
+T* data_array<T, Identifier>::try_to_get(u32 index) const noexcept
+{
+    irt_assert(index < m_max_used);
+
+    if (is_valid(m_items[index].id))
+        return &m_items[index].item;
+
+    return nullptr;
+}
+
+template<typename T, typename Identifier>
+bool data_array<T, Identifier>::next(T*& t) const noexcept
+{
+    u32 index;
+
+    if (t) {
+        auto id = get_id(*t);
+        index   = get_index(id);
+        ++index;
+
+        for (; index < m_max_used; ++index) {
+            if (is_valid(m_items[index].id)) {
+                t = &m_items[index].item;
+                return true;
+            }
+        }
+    } else {
+        for (index = 0; index < m_max_used; ++index) {
+            if (is_valid(m_items[index].id)) {
+                t = &m_items[index].item;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+template<typename T, typename Identifier>
+constexpr bool data_array<T, Identifier>::full() const noexcept
+{
+    return m_free_head == none && m_max_used == m_capacity;
+}
+
+template<typename T, typename Identifier>
+constexpr unsigned data_array<T, Identifier>::size() const noexcept
+{
+    return static_cast<unsigned>(m_max_size);
+}
+
+template<typename T, typename Identifier>
+constexpr int data_array<T, Identifier>::ssize() const noexcept
+{
+    return static_cast<int>(m_max_size);
+}
+
+template<typename T, typename Identifier>
+constexpr bool data_array<T, Identifier>::can_alloc(
+  std::integral auto nb) const noexcept
+{
+    const u64 capacity = m_capacity;
+    const u64 max_size = m_max_size;
+
+    return std::cmp_greater_equal(capacity - max_size, nb);
+}
+
+template<typename T, typename Identifier>
+constexpr bool data_array<T, Identifier>::can_alloc() const noexcept
+{
+    return m_capacity - m_max_size >= 1u;
+}
+
+template<typename T, typename Identifier>
+constexpr int data_array<T, Identifier>::max_size() const noexcept
+{
+    return static_cast<int>(m_max_size);
+}
+
+template<typename T, typename Identifier>
+constexpr int data_array<T, Identifier>::max_used() const noexcept
+{
+    return static_cast<int>(m_max_used);
+}
+
+template<typename T, typename Identifier>
+constexpr int data_array<T, Identifier>::capacity() const noexcept
+{
+    return static_cast<int>(m_capacity);
+}
+
+template<typename T, typename Identifier>
+constexpr u32 data_array<T, Identifier>::next_key() const noexcept
+{
+    return m_next_key;
+}
+
+template<typename T, typename Identifier>
+constexpr bool data_array<T, Identifier>::is_free_list_empty() const noexcept
+{
+    return m_free_head == none;
+}
 
 // template<typename T>
 // class vector;
@@ -10292,6 +10389,30 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
     }
 
     return status::success;
+}
+
+inline bool simulation::can_alloc(std::integral auto place) const noexcept
+{
+    return models.can_alloc(place);
+}
+
+inline bool simulation::can_alloc(dynamics_type      type,
+                                  std::integral auto place) const noexcept
+{
+    if (type == dynamics_type::hsm_wrapper)
+        return models.can_alloc(place) && hsms.can_alloc(place);
+    else
+        return models.can_alloc(place);
+}
+
+template<typename Dynamics>
+inline bool simulation::can_alloc_dynamics(
+  std::integral auto place) const noexcept
+{
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        return models.can_alloc(place) && hsms.can_alloc(place);
+    else
+        return models.can_alloc(place);
 }
 
 template<typename Dynamics>

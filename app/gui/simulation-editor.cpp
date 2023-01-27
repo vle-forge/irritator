@@ -1527,7 +1527,7 @@ void task_simulation_model_add(void* param) noexcept
 
     auto& sim = task->app->s_editor.sim;
 
-    if (!sim.can_alloc()) {
+    if (!sim.can_alloc(1)) {
         auto& n = task->app->notifications.alloc(notification_type::error);
         n.title = "To many model in simulation editor";
         task->app->notifications.enable(n);
