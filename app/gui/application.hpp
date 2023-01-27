@@ -203,9 +203,9 @@ struct simulation_observation
 
     std::filesystem::path file;
 
-    real min_time_step = to_real(0.0001);
-    real max_time_step = to_real(1);
-    real time_step     = to_real(0.01);
+    real min_time_step = to_real(0.0001L);
+    real max_time_step = to_real(1.L);
+    real time_step     = to_real(0.01L);
 
     simulation_plot_type plot_type = simulation_plot_type::none;
 

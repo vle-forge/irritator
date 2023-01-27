@@ -191,11 +191,11 @@ inline constexpr real operator"" _r(long double v) noexcept
  *
  ****************************************************************************/
 
-constexpr static inline real one   = to_real(1.);
-constexpr static inline real two   = to_real(2.);
-constexpr static inline real three = to_real(3.);
-constexpr static inline real four  = to_real(4.);
-constexpr static inline real zero  = to_real(0.);
+constexpr static inline real one   = to_real(1.L);
+constexpr static inline real two   = to_real(2.L);
+constexpr static inline real three = to_real(3.L);
+constexpr static inline real four  = to_real(4.L);
+constexpr static inline real zero  = to_real(0.L);
 
 inline u16 make_halfword(u8 a, u8 b) noexcept
 {
@@ -2791,7 +2791,8 @@ struct source
         if (std::cmp_greater_equal(index, buffer.size()))
             return false;
 
-        value = buffer[index++];
+        value = buffer[static_cast<sz>(index)];
+        index++;
         return true;
     }
 };
@@ -5764,7 +5765,7 @@ struct abstract_logical
                     }
                 } else {
                     if (values[i] == true) {
-                        values[i] = zero;
+                        values[i] = false;
                     }
                 }
             }
@@ -6483,7 +6484,7 @@ using qss3_cross = abstract_cross<3>;
 
 inline real sin_time_function(real t) noexcept
 {
-    constexpr real f0 = to_real(0.1);
+    constexpr real f0 = to_real(0.1L);
 
 #if irt_have_numbers == 1
     constexpr real pi = std::numbers::pi_v<real>;
@@ -6506,7 +6507,7 @@ struct time_func
     output_port y[1];
     time        sigma;
 
-    real default_sigma      = to_real(0.01);
+    real default_sigma      = to_real(0.01L);
     real (*default_f)(real) = &time_function;
 
     real value;
@@ -8058,7 +8059,7 @@ public:
 
         mdl.tl = t;
         mdl.tn = t + dyn.sigma;
-        if (dyn.sigma && mdl.tn == t)
+        if (dyn.sigma != 0 && mdl.tn == t)
             mdl.tn = std::nextafter(t, t + irt::one);
 
         sched.reintegrate(mdl, mdl.tn);
