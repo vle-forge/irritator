@@ -458,33 +458,15 @@ enum class status
     io_file_format_dynamics_init_error,
 };
 
-constexpr i8 status_last() noexcept
+constexpr unsigned status_size() noexcept
 {
-    return static_cast<i8>(status::io_file_format_dynamics_init_error);
-}
-
-constexpr sz status_size() noexcept
-{
-    return static_cast<sz>(status_last() + static_cast<i8>(1));
+    const auto id = ordinal(status::io_file_format_dynamics_init_error);
+    return static_cast<unsigned>(id + 1);
 }
 
 constexpr bool is_success(status s) noexcept { return s == status::success; }
 
 constexpr bool is_bad(status s) noexcept { return s != status::success; }
-
-template<typename... Args>
-constexpr bool is_status_equal(status s, Args... args) noexcept
-{
-    return ((s == args) || ... || false);
-}
-
-inline status check_return(status s) noexcept
-{
-    if (s != status::success)
-        irt_breakpoint();
-
-    return s;
-}
 
 template<typename T, typename... Args>
 constexpr bool match(const T& s, Args... args) noexcept
