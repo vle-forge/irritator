@@ -5,6 +5,7 @@
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
+#include "irritator/core.hpp"
 #include "irritator/external_source.hpp"
 
 #include <future>
@@ -487,7 +488,7 @@ void data_window::show() noexcept
               c_editor->mod.srcs.constant_sources.get_id(constant_ptr);
             auto index = get_index(id);
 
-            i32 new_size = constant_ptr->length;
+            unsigned new_size = constant_ptr->length;
 
             ImGui::InputScalar("id",
                                ImGuiDataType_U32,
@@ -499,7 +500,7 @@ void data_window::show() noexcept
 
             ImGui::InputText("name",
                              constant_ptr->name.begin(),
-                             constant_ptr->name.capacity());
+                             to_unsigned(constant_ptr->name.capacity()));
 
             if (ImGui::InputScalar("length", ImGuiDataType_U32, &new_size) &&
                 new_size != constant_ptr->length &&
@@ -507,7 +508,7 @@ void data_window::show() noexcept
                 constant_ptr->length = new_size;
             }
 
-            for (i32 i = 0; i < constant_ptr->length; ++i) {
+            for (u32 i = 0; i < constant_ptr->length; ++i) {
                 ImGui::PushID(static_cast<int>(i));
                 ImGui::InputDouble("##name", &constant_ptr->buffer[i]);
                 ImGui::PopID();
@@ -529,7 +530,7 @@ void data_window::show() noexcept
 
             ImGui::InputText("name",
                              text_file_ptr->name.begin(),
-                             text_file_ptr->name.capacity());
+                             to_unsigned(text_file_ptr->name.capacity()));
 
             ImGui::Text("%s", text_file_ptr->file_path.string().c_str());
             if (ImGui::Button("...")) {
@@ -552,7 +553,7 @@ void data_window::show() noexcept
 
             ImGui::InputText("name",
                              binary_file_ptr->name.begin(),
-                             binary_file_ptr->name.capacity());
+                             to_unsigned(binary_file_ptr->name.capacity()));
 
             if (ImGui::InputScalar(
                   "max source",
@@ -582,7 +583,7 @@ void data_window::show() noexcept
 
             ImGui::InputText("name",
                              random_source_ptr->name.begin(),
-                             random_source_ptr->name.capacity());
+                             to_unsigned(random_source_ptr->name.capacity()));
 
             if (ImGui::InputScalar(
                   "max source",

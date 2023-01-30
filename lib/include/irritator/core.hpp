@@ -4399,7 +4399,7 @@ struct quantifier
     int         default_past_length      = 3;
     adapt_state default_adapt_state      = adapt_state::possible;
     bool        default_zero_init_offset = false;
-    u64         archive                  = -1;
+    u64         archive                  = static_cast<u64>(-1);
     int         archive_length           = 0;
 
     real        m_upthreshold      = zero;
@@ -4419,7 +4419,7 @@ struct quantifier
       , default_past_length(other.default_past_length)
       , default_adapt_state(other.default_adapt_state)
       , default_zero_init_offset(other.default_zero_init_offset)
-      , archive(-1)
+      , archive(static_cast<u64>(-1))
       , archive_length(0)
       , m_upthreshold(other.m_upthreshold)
       , m_downthreshold(other.m_downthreshold)
@@ -4443,7 +4443,7 @@ struct quantifier
         m_downthreshold    = zero;
         m_offset           = zero;
         m_step_number      = 0;
-        archive            = -1;
+        archive            = static_cast<u64>(-1);
         archive_length     = 0;
         m_state            = state::init;
 
@@ -7327,9 +7327,12 @@ private:
 public:
     scheduller() = default;
 
-    status init(size_t capacity) noexcept
+    status init(std::integral auto new_capacity) noexcept
     {
-        irt_return_if_bad(m_heap.init(capacity));
+        irt_return_if_fail(is_numeric_castable<u32>(new_capacity),
+                           status::head_allocator_bad_capacity);
+
+        irt_return_if_bad(m_heap.init(new_capacity));
 
         return status::success;
     }
@@ -7396,7 +7399,7 @@ public:
     bool empty() const noexcept { return m_heap.empty(); }
 
     unsigned size() const noexcept { return m_heap.size(); }
-    int      ssize() const noexcept { return m_heap.size(); }
+    int      ssize() const noexcept { return static_cast<int>(m_heap.size()); }
 };
 
 /*****************************************************************************
@@ -7459,10 +7462,20 @@ struct simulation
     }
 
 public:
-    status init(int model_capacity, int messages_capacity)
+    status init(std::integral auto model_capacity,
+                std::integral auto messages_capacity)
     {
-        constexpr size_t ten{ 10 };
-        size_t max_hsms = (model_capacity / 10) <= 0 ? 1 : model_capacity / 10;
+        constexpr size_t ten = 10u;
+
+        irt_return_if_fail(is_numeric_castable<u32>(model_capacity),
+                           status::simulation_not_enough_model);
+
+        irt_return_if_fail(is_numeric_castable<u32>(messages_capacity),
+                           status::simulation_not_enough_model);
+
+        size_t max_hsms = (model_capacity / 10) <= 0
+                            ? 1u
+                            : static_cast<unsigned>(model_capacity) / 10u;
 
         irt_return_if_bad(message_alloc.init(messages_capacity));
         irt_return_if_bad(node_alloc.init(model_capacity * ten));

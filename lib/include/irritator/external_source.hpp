@@ -84,7 +84,7 @@ struct constant_source
 {
     small_string<23> name;
     chunk_type       buffer;
-    i32              length = 0;
+    u32 length = 0u;
 
     constant_source() noexcept = default;
 
@@ -255,14 +255,20 @@ struct binary_file_source
 private:
     status fill_buffer(source& src) noexcept
     {
-        if (!ifs.seekg(src.chunk_id[1] * sizeof(double)))
+        const auto to_seek = src.chunk_id[1] * sizeof(double);
+
+        if (!ifs.seekg(static_cast<long>(to_seek)))
             return status::source_empty;
 
         auto* s = reinterpret_cast<char*>(src.buffer.data());
         if (!ifs.read(s, external_source_chunk_size))
             return status::source_empty;
 
-        const auto current_position = ifs.tellg() / sizeof(double);
+        const auto tellg = ifs.tellg();
+        if (tellg < 0)
+            return status::source_empty;
+
+        const auto current_position = static_cast<u64>(tellg) / sizeof(double);
         src.chunk_id[1]             = current_position;
         offsets[numeric_cast<int>(src.chunk_id[0])] = current_position;
 
@@ -302,19 +308,27 @@ struct text_file_source
 
     status init(source& src) noexcept
     {
-        src.buffer      = std::span(buffer);
-        src.index       = 0;
-        src.chunk_id[0] = ifs.tellg();
-        offset          = ifs.tellg();
+        src.buffer = std::span(buffer);
+        src.index  = 0;
+
+        const auto tellg = ifs.tellg();
+        irt_return_if_fail(tellg != -1, status::source_empty);
+
+        src.chunk_id[0] = static_cast<u64>(tellg);
+        offset          = static_cast<u64>(tellg);
 
         return fill_buffer(src);
     }
 
     status update(source& src) noexcept
     {
-        src.index       = 0;
-        src.chunk_id[0] = ifs.tellg();
-        offset          = ifs.tellg();
+        src.index = 0;
+
+        const auto tellg = ifs.tellg();
+        irt_return_if_fail(tellg != -1, status::source_empty);
+
+        src.chunk_id[0] = static_cast<u64>(tellg);
+        offset          = static_cast<u64>(tellg);
 
         return fill_buffer(src);
     }
@@ -324,10 +338,18 @@ struct text_file_source
         src.buffer = std::span(buffer);
 
         if (offset != src.chunk_id[0]) {
-            if (!ifs.seekg(src.chunk_id[0]))
+            irt_return_if_fail(
+              is_numeric_castable<std::ifstream::off_type>(src.chunk_id[0]),
+              status::source_empty);
+
+            if (!ifs.seekg(
+                  numeric_cast<std::ifstream::off_type>(src.chunk_id[0])))
                 return status::source_empty;
 
-            offset = ifs.tellg();
+            const auto tellg = ifs.tellg();
+            irt_return_if_fail(tellg < 0, status::source_empty);
+
+            offset = static_cast<u64>(tellg);
         }
 
         return fill_buffer(src);
