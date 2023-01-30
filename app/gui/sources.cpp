@@ -207,13 +207,13 @@ static void try_init_source(data_window& data, source& src) noexcept
     c_editor->mod.srcs.prepare();
 }
 
-static void task_try_finalize_source(application& app,
-                                     u64          id,
-                                     i32          type) noexcept
+static void task_try_finalize_source(application&        app,
+                                     u64                 id,
+                                     source::source_type type) noexcept
 {
     source src;
     src.id   = id;
-    src.type = numeric_cast<i16>(type);
+    src.type = type;
     auto ret = external_source_dispatch(
       src, source::operation_type::finalize, &app.c_editor.mod.srcs);
 
@@ -231,7 +231,7 @@ static void task_try_init_source(void* param) noexcept
 
     source src;
     src.id   = g_task->param_1;
-    src.type = numeric_cast<i16>(g_task->param_2);
+    src.type = enum_cast<source::source_type>(g_task->param_2);
 
     try_init_source(g_task->app->c_editor.data, src);
 
@@ -279,7 +279,7 @@ void data_window::show() noexcept
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             format(
-              label, "{}-{}", ordinal(external_source_type::constant), index);
+              label, "{}-{}", ordinal(source::source_type::constant), index);
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
@@ -293,7 +293,7 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(cst_src->name.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
-              external_source_str(external_source_type::constant));
+              external_source_str(source::source_type::constant));
             ImGui::TableNextColumn();
             if (cst_src->buffer.empty()) {
                 ImGui::TextUnformatted("-");
@@ -322,7 +322,7 @@ void data_window::show() noexcept
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             format(
-              label, "{}-{}", ordinal(external_source_type::text_file), index);
+              label, "{}-{}", ordinal(source::source_type::text_file), index);
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
@@ -336,7 +336,7 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(txt_src->name.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
-              external_source_str(external_source_type::text_file));
+              external_source_str(source::source_type::text_file));
             ImGui::TableNextColumn();
             ImGui::Text("%s", txt_src->file_path.string().c_str());
         }
@@ -350,10 +350,8 @@ void data_window::show() noexcept
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            format(label,
-                   "{}-{}",
-                   ordinal(external_source_type::binary_file),
-                   index);
+            format(
+              label, "{}-{}", ordinal(source::source_type::binary_file), index);
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
@@ -367,7 +365,7 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(bin_src->name.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
-              external_source_str(external_source_type::binary_file));
+              external_source_str(source::source_type::binary_file));
             ImGui::TableNextColumn();
             ImGui::Text("%s", bin_src->file_path.string().c_str());
         }
@@ -380,8 +378,7 @@ void data_window::show() noexcept
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            format(
-              label, "{}-{}", ordinal(external_source_type::random), index);
+            format(label, "{}-{}", ordinal(source::source_type::random), index);
             if (ImGui::Selectable(label.c_str(),
                                   item_is_selected,
                                   ImGuiSelectableFlags_SpanAllColumns)) {
@@ -395,7 +392,7 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(rnd_src->name.c_str());
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(
-              external_source_str(external_source_type::random));
+              external_source_str(source::source_type::random));
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(distribution_str(rnd_src->distribution));
         }
@@ -612,7 +609,7 @@ void data_window::show() noexcept
                       task_try_init_source,
                       ordinal(c_editor->mod.srcs.binary_file_sources.get_id(
                         binary_file_ptr)),
-                      ordinal(external_source_type::binary_file));
+                      ordinal(source::source_type::binary_file));
                 }
                 app->f_dialog.clear();
                 binary_file_ptr  = nullptr;
@@ -642,50 +639,50 @@ void data_window::show() noexcept
       old_random_source_ptr != random_source_ptr;
 
     if (user_select_other_source) {
-        plot_available = false;
-        u64 id         = 0;
-        i32 type       = 0;
+        plot_available           = false;
+        u64                 id   = 0;
+        source::source_type type = source::source_type::none;
 
         if (old_text_file_ptr) {
             id = ordinal(
               c_editor->mod.srcs.text_file_sources.get_id(*old_text_file_ptr));
-            type = ordinal(external_source_type::text_file);
+            type = source::source_type::text_file;
         } else if (old_random_source_ptr) {
             id = ordinal(
               c_editor->mod.srcs.random_sources.get_id(*old_random_source_ptr));
-            type = ordinal(external_source_type::random);
+            type = source::source_type::random;
         } else if (old_binary_file_ptr) {
             id   = ordinal(c_editor->mod.srcs.binary_file_sources.get_id(
               *old_binary_file_ptr));
-            type = ordinal(external_source_type::binary_file);
+            type = source::source_type::binary_file;
         } else if (old_constant_ptr) {
             id = ordinal(
               c_editor->mod.srcs.constant_sources.get_id(*old_constant_ptr));
-            type = ordinal(external_source_type::constant);
+            type = source::source_type::constant;
         }
 
-        if (id && type)
+        if (id != 0 && type != source::source_type::none)
             task_try_finalize_source(*app, id, type);
 
         if (text_file_ptr) {
             id = ordinal(
               c_editor->mod.srcs.text_file_sources.get_id(*text_file_ptr));
-            type = ordinal(external_source_type::text_file);
+            type = source::source_type::text_file;
         } else if (random_source_ptr) {
             id = ordinal(
               c_editor->mod.srcs.random_sources.get_id(*random_source_ptr));
-            type = ordinal(external_source_type::random);
+            type = source::source_type::random;
         } else if (binary_file_ptr) {
             id = ordinal(
               c_editor->mod.srcs.binary_file_sources.get_id(*binary_file_ptr));
-            type = ordinal(external_source_type::binary_file);
+            type = source::source_type::binary_file;
         } else if (constant_ptr) {
             id = ordinal(
               c_editor->mod.srcs.constant_sources.get_id(*constant_ptr));
-            type = ordinal(external_source_type::constant);
+            type = source::source_type::constant;
         }
 
-        if (id && type) {
+        if (id && type != source::source_type::none) {
             app->add_simulation_task(
               task_try_init_source, id, static_cast<u64>(type));
         }
@@ -735,7 +732,7 @@ void show_menu_external_sources(external_source& srcs,
 
                 format(tmp,
                        "{}-{}-{}",
-                       ordinal(external_source_type::constant),
+                       external_source_str(source::source_type::constant),
                        index,
                        s->name.c_str());
                 if (ImGui::MenuItem(tmp.c_str())) {
@@ -754,7 +751,7 @@ void show_menu_external_sources(external_source& srcs,
 
                 format(tmp,
                        "{}-{}-{}",
-                       ordinal(external_source_type::binary_file),
+                       external_source_str(source::source_type::binary_file),
                        index,
                        s->name.c_str());
                 if (ImGui::MenuItem(tmp.c_str())) {
@@ -773,7 +770,7 @@ void show_menu_external_sources(external_source& srcs,
 
                 format(tmp,
                        "{}-{}-{}",
-                       ordinal(external_source_type::text_file),
+                       external_source_str(source::source_type::text_file),
                        index,
                        s->name.c_str());
                 if (ImGui::MenuItem(tmp.c_str())) {
@@ -792,7 +789,7 @@ void show_menu_external_sources(external_source& srcs,
 
                 format(tmp,
                        "{}-{}-{}",
-                       ordinal(external_source_type::binary_file),
+                       external_source_str(source::source_type::binary_file),
                        index,
                        s->name.c_str());
                 if (ImGui::MenuItem(tmp.c_str())) {

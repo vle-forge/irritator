@@ -1583,12 +1583,10 @@ int main()
         auto& gen = sim.alloc<irt::generator>();
         gen.default_source_value.id =
           irt::ordinal(srcs.constant_sources.get_id(cst_value));
-        gen.default_source_value.type =
-          irt::ordinal(irt::external_source_type::constant);
+        gen.default_source_value.type = irt::source::source_type::constant;
         gen.default_source_ta.id =
           irt::ordinal(srcs.constant_sources.get_id(cst_ta));
-        gen.default_source_ta.type =
-          irt::ordinal(irt::external_source_type::constant);
+        gen.default_source_ta.type = irt::source::source_type::constant;
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -1657,12 +1655,10 @@ int main()
 
         gen.default_source_value.id =
           irt::ordinal(srcs.constant_sources.get_id(cst_value));
-        gen.default_source_value.type =
-          irt::ordinal(irt::external_source_type::constant);
+        gen.default_source_value.type = irt::source::source_type::constant;
         gen.default_source_ta.id =
           irt::ordinal(srcs.constant_sources.get_id(cst_ta));
-        gen.default_source_ta.type =
-          irt::ordinal(irt::external_source_type::constant);
+        gen.default_source_ta.type = irt::source::source_type::constant;
 
         expect(sim.connect(gen, 0, cnt, 0) == irt::status::success);
 

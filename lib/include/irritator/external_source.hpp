@@ -31,34 +31,16 @@
 
 namespace irt {
 
-enum class external_source_type : i16
-{
-    binary_file, /* Best solution to reproductible simulation. Each client take
-                    a part of the stream (substream). */
-    constant,    /* Just an easy source to use mode. */
-    random,      /* How to retrieve old position in debug mode? */
-    text_file    /* How to retreive old position in debug mode? */
-};
-
 static constexpr int default_max_client_number = 32;
+
 using chunk_type = std::array<double, external_source_chunk_size>;
-
-inline bool external_source_type_cast(int                   value,
-                                      external_source_type* type) noexcept
-{
-    if (value < 0 || value > 3)
-        return false;
-
-    *type = enum_cast<external_source_type>(value);
-    return true;
-}
 
 static inline const char* external_source_type_string[] = { "binary_file",
                                                             "constant",
                                                             "random",
                                                             "text_file" };
 
-inline const char* external_source_str(const external_source_type type) noexcept
+inline const char* external_source_str(const source::source_type type) noexcept
 {
     return external_source_type_string[ordinal(type)];
 }
@@ -726,33 +708,33 @@ inline status external_source_dispatch(source&                      src,
     irt_return_if_fail(user_data, status::source_empty);
     external_source& srcs = *(reinterpret_cast<external_source*>(user_data));
 
-    external_source_type type;
-    if (!external_source_type_cast(src.type, &type))
-        return status::source_unknown;
+    switch (src.type) {
+    case source::source_type::none:
+        return status::success;
 
-    switch (type) {
-    case external_source_type::binary_file: {
+    case source::source_type::binary_file: {
         const auto src_id = enum_cast<binary_file_source_id>(src.id);
         if (auto* bin_src = srcs.binary_file_sources.try_to_get(src_id);
             bin_src) {
             return (*bin_src)(src, op);
         }
     } break;
-    case external_source_type::constant: {
+
+    case source::source_type::constant: {
         const auto src_id = enum_cast<constant_source_id>(src.id);
         if (auto* cst_src = srcs.constant_sources.try_to_get(src_id); cst_src) {
             return (*cst_src)(src, op);
         }
     } break;
 
-    case external_source_type::random: {
+    case source::source_type::random: {
         const auto src_id = enum_cast<random_source_id>(src.id);
         if (auto* rnd_src = srcs.random_sources.try_to_get(src_id); rnd_src) {
             return (*rnd_src)(src, op);
         }
     } break;
 
-    case external_source_type::text_file: {
+    case source::source_type::text_file: {
         const auto src_id = enum_cast<text_file_source_id>(src.id);
         if (auto* txt_src = srcs.text_file_sources.try_to_get(src_id);
             txt_src) {

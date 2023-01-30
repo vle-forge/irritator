@@ -733,10 +733,16 @@ void write(Writer& writer, const queue& dyn) noexcept
 
 status load(const rapidjson::Value& val, dynamic_queue& dyn) noexcept
 {
-    irt_return_if_bad(
-      get_i16(val, "source-ta-type", dyn.default_source_ta.type));
+    i16 type{};
+
+    irt_return_if_bad(get_i16(val, "source-ta-type", type));
     irt_return_if_bad(get_u64(val, "source-ta-id", dyn.default_source_ta.id));
     irt_return_if_bad(get_bool(val, "stop-on-error", dyn.stop_on_error));
+
+    irt_return_if_fail(0 <= type && type < source::source_type_count,
+                       status::io_file_format_error);
+
+    dyn.default_source_ta.type = enum_cast<source::source_type>(type);
 
     return status::success;
 }
@@ -746,7 +752,7 @@ void write(Writer& writer, const dynamic_queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("source-ta-type");
-    writer.Int(dyn.default_source_ta.type);
+    writer.Int(ordinal(dyn.default_source_ta.type));
     writer.Key("source-ta-id");
     writer.Uint64(dyn.default_source_ta.id);
     writer.Key("stop-on-error");
@@ -756,11 +762,17 @@ void write(Writer& writer, const dynamic_queue& dyn) noexcept
 
 status load(const rapidjson::Value& val, priority_queue& dyn) noexcept
 {
+    i16 type{};
+
     irt_return_if_bad(get_double(val, "ta", dyn.default_ta));
-    irt_return_if_bad(
-      get_i16(val, "source-ta-type", dyn.default_source_ta.type));
+    irt_return_if_bad(get_i16(val, "source-ta-type", type));
     irt_return_if_bad(get_u64(val, "source-ta-id", dyn.default_source_ta.id));
     irt_return_if_bad(get_bool(val, "stop-on-error", dyn.stop_on_error));
+
+    irt_return_if_fail(0 <= type && type < source::source_type_count,
+                       status::io_file_format_error);
+
+    dyn.default_source_ta.type = enum_cast<source::source_type>(type);
 
     return status::success;
 }
@@ -772,7 +784,7 @@ void write(Writer& writer, const priority_queue& dyn) noexcept
     writer.Key("ta");
     writer.Double(dyn.default_ta);
     writer.Key("source-ta-type");
-    writer.Int(dyn.default_source_ta.type);
+    writer.Int(ordinal(dyn.default_source_ta.type));
     writer.Key("source-ta-id");
     writer.Uint64(dyn.default_source_ta.id);
     writer.Key("stop-on-error");
@@ -782,15 +794,25 @@ void write(Writer& writer, const priority_queue& dyn) noexcept
 
 status load(const rapidjson::Value& val, generator& dyn) noexcept
 {
+    i16 type_ta{}, type_value{};
+
     irt_return_if_bad(get_double(val, "offset", dyn.default_offset));
-    irt_return_if_bad(
-      get_i16(val, "source-ta-type", dyn.default_source_ta.type));
+    irt_return_if_bad(get_i16(val, "source-ta-type", type_ta));
     irt_return_if_bad(get_u64(val, "source-ta-id", dyn.default_source_ta.id));
-    irt_return_if_bad(
-      get_i16(val, "source-value-type", dyn.default_source_value.type));
+    irt_return_if_bad(get_i16(val, "source-value-type", type_value));
     irt_return_if_bad(
       get_u64(val, "source-value-id", dyn.default_source_value.id));
     irt_return_if_bad(get_bool(val, "stop-on-error", dyn.stop_on_error));
+
+    irt_return_if_fail(0 <= type_ta && type_ta < source::source_type_count,
+                       status::io_file_format_error);
+
+    irt_return_if_fail(0 <= type_value &&
+                         type_value < source::source_type_count,
+                       status::io_file_format_error);
+
+    dyn.default_source_ta.type    = enum_cast<source::source_type>(type_ta);
+    dyn.default_source_value.type = enum_cast<source::source_type>(type_value);
 
     return status::success;
 }
@@ -802,11 +824,11 @@ void write(Writer& writer, const generator& dyn) noexcept
     writer.Key("offset");
     writer.Double(dyn.default_offset);
     writer.Key("source-ta-type");
-    writer.Int(dyn.default_source_ta.type);
+    writer.Int(ordinal(dyn.default_source_ta.type));
     writer.Key("source-ta-id");
     writer.Uint64(dyn.default_source_ta.id);
     writer.Key("source-value-type");
-    writer.Int(dyn.default_source_value.type);
+    writer.Int(ordinal(dyn.default_source_value.type));
     writer.Key("source-value-id");
     writer.Uint64(dyn.default_source_value.id);
     writer.Key("stop-on-error");

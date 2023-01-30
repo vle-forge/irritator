@@ -2446,6 +2446,18 @@ static constexpr int external_source_chunk_size = 512;
 
 struct source
 {
+    enum class source_type : i16
+    {
+        none,
+        binary_file, /* Best solution to reproductible simulation. Each client
+                        take a part of the stream (substream). */
+        constant,    /* Just an easy source to use mode. */
+        random,      /* How to retrieve old position in debug mode? */
+        text_file    /* How to retreive old position in debug mode? */
+    };
+
+    static inline constexpr int source_type_count = 5;
+
     enum class operation_type
     {
         initialize, // Use to initialize the buffer at simulation init step.
@@ -2454,9 +2466,9 @@ struct source
         finalize    // Use to clear the buffer at simulation finalize step.
     };
 
-    std::span<double> buffer;    // The buffer
-    u64               id   = 0;  // The identifier of the external source.
-    i16               type = -1; // The type of the external source.
+    std::span<double> buffer;
+    u64               id   = 0;
+    source_type       type = source_type::none;
     i16 index = 0; // The index of the next double to read in current chunk.
     std::array<u64, 4> chunk_id; // Current chunk. Use when restore is apply.
 
@@ -2468,7 +2480,7 @@ struct source
     {
         buffer = std::span<double>();
         id     = 0u;
-        type   = 0;
+        type   = source_type::none;
         index  = 0;
         std::fill_n(chunk_id.data(), chunk_id.size(), 0);
     }
@@ -2489,6 +2501,7 @@ struct source
 };
 
 /**
+ *
  * @brief Call in the initialize function of the models.
  * @param sim The simulation.
  * @param src The sources.
