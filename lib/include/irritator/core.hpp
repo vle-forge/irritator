@@ -491,120 +491,26 @@ almost_equal(T x, T y, int ulp)
 
 /*****************************************************************************
  *
- * Definition of a lightweight std::function
- *
- ****************************************************************************/
-
-template<class F>
-class function_ref;
-
-template<class R, class... Args>
-class function_ref<R(Args...)>
-{
-public:
-    constexpr function_ref() noexcept = default;
-
-    //! Creates a `function_ref` which refers to the same callable as `rhs`.
-    constexpr function_ref(const function_ref<R(Args...)>& rhs) noexcept =
-      default;
-
-    //! Constructs a `function_ref` referring to `f`.
-    //!
-    //! \synopsis template <typename F> constexpr function_ref(F &&f) noexcept
-    template<
-      typename F,
-      std::enable_if_t<!std::is_same<std::decay_t<F>, function_ref>::value &&
-                       std::is_invocable_r<R, F&&, Args...>::value>* = nullptr>
-    constexpr function_ref(F&& f) noexcept
-      : obj(const_cast<void*>(reinterpret_cast<const void*>(std::addressof(f))))
-    {
-        cb = [](void* obj, Args... args) -> R {
-            return std::invoke(
-              *reinterpret_cast<typename std::add_pointer<F>::type>(obj),
-              std::forward<Args>(args)...);
-        };
-    }
-
-    //! Makes `*this` refer to the same callable as `rhs`.
-    constexpr function_ref<R(Args...)>& operator=(
-      const function_ref<R(Args...)>& rhs) noexcept = default;
-
-    //! Makes `*this` refer to `f`.
-    //!
-    //! \synopsis template <typename F> constexpr function_ref &operator=(F &&f)
-    //! noexcept;
-    template<
-      typename F,
-      std::enable_if_t<std::is_invocable_r<R, F&&, Args...>::value>* = nullptr>
-    constexpr function_ref<R(Args...)>& operator=(F&& f) noexcept
-    {
-        obj = reinterpret_cast<void*>(std::addressof(f));
-        cb  = [](void* obj, Args... args) {
-            return std::invoke(
-              *reinterpret_cast<typename std::add_pointer<F>::type>(obj),
-              std::forward<Args>(args)...);
-        };
-
-        return *this;
-    }
-
-    constexpr void swap(function_ref<R(Args...)>& rhs) noexcept
-    {
-        std::swap(obj, rhs.obj);
-        std::swap(cb, rhs.cb);
-    }
-
-    R operator()(Args... args) const
-    {
-        return cb(obj, std::forward<Args>(args)...);
-    }
-
-    constexpr bool empty() const noexcept { return obj == nullptr; }
-
-    constexpr void reset() noexcept
-    {
-        obj = nullptr;
-        cb  = nullptr;
-    }
-
-private:
-    void* obj               = nullptr;
-    R (*cb)(void*, Args...) = nullptr;
-};
-
-//! Swaps the referred callables of `lhs` and `rhs`.
-template<typename R, typename... Args>
-constexpr void swap(function_ref<R(Args...)>& lhs,
-                    function_ref<R(Args...)>& rhs) noexcept
-{
-    lhs.swap(rhs);
-}
-
-template<typename R, typename... Args>
-function_ref(R (*)(Args...)) -> function_ref<R(Args...)>;
-
-template<typename R, typename... Args>
-function_ref(R (*)(Args...) noexcept) -> function_ref<R(Args...) noexcept>;
-
-/*****************************************************************************
- *
  * Allocator
  *
  ****************************************************************************/
 
-using global_alloc_function_type = function_ref<void*(sz size)>;
-using global_free_function_type  = function_ref<void(void* ptr)>;
+using global_alloc_function_type = void*(size_t size) noexcept;
+using global_free_function_type  = void(void* ptr) noexcept;
 
-static inline void* malloc_wrapper(sz size) { return std::malloc(size); }
+static inline void* malloc_wrapper(size_t size) noexcept
+{
+    return std::malloc(size);
+}
 
-static inline void free_wrapper(void* ptr)
+static inline void free_wrapper(void* ptr) noexcept
 {
     if (ptr)
         std::free(ptr);
 }
 
-static inline global_alloc_function_type g_alloc_fn{ malloc_wrapper };
-static inline global_free_function_type  g_free_fn{ free_wrapper };
+static inline global_alloc_function_type* g_alloc_fn{ malloc_wrapper };
+static inline global_free_function_type*  g_free_fn{ free_wrapper };
 
 /*****************************************************************************
  *
@@ -7505,6 +7411,10 @@ inline void copy(const model& src, model& dst) noexcept
     });
 }
 
+using source_dispatcher = status(source&,
+                                 const source::operation_type,
+                                 void* user_data) noexcept;
+
 struct simulation
 {
     block_allocator<list_view_node<message>>       message_alloc;
@@ -7523,7 +7433,9 @@ struct simulation
     //! @brief Use initialize, generate or finalize data from a source.
     //!
     //! See the @c external_source class for an implementation.
-    function_ref<status(source&, const source::operation_type)> source_dispatch;
+
+    source_dispatcher* source_dispatch{};
+    void*              source_dispatch_user_data{};
 
     model_id get_id(const model& mdl) const { return models.get_id(mdl); }
 
@@ -7891,7 +7803,8 @@ public:
 
 inline status initialize_source(simulation& sim, source& src) noexcept
 {
-    return sim.source_dispatch(src, source::operation_type::initialize);
+    return sim.source_dispatch(
+      src, source::operation_type::initialize, sim.source_dispatch_user_data);
 }
 
 inline status update_source(simulation& sim, source& src, double& val) noexcept
@@ -7899,7 +7812,8 @@ inline status update_source(simulation& sim, source& src, double& val) noexcept
     if (src.next(val))
         return status::success;
 
-    if (auto ret = sim.source_dispatch(src, source::operation_type::update);
+    if (auto ret = sim.source_dispatch(
+          src, source::operation_type::update, sim.source_dispatch_user_data);
         is_bad(ret))
         return ret;
 
@@ -7908,7 +7822,8 @@ inline status update_source(simulation& sim, source& src, double& val) noexcept
 
 inline status finalize_source(simulation& sim, source& src) noexcept
 {
-    return sim.source_dispatch(src, source::operation_type::finalize);
+    return sim.source_dispatch(
+      src, source::operation_type::finalize, sim.source_dispatch_user_data);
 }
 
 inline bool can_alloc_message(const simulation& sim, int alloc_number) noexcept

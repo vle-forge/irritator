@@ -130,42 +130,43 @@ static irt::status run_simulation(irt::simulation& sim, const double duration_p)
     return irt::status::success;
 }
 
-struct global_allocator
+struct global_allocator_t
 {
     size_t allocation_size   = 0;
     int    allocation_number = 0;
+} global_allocator;
 
-    void* operator()(size_t size)
-    {
-        allocation_size += size;
-        allocation_number++;
-
-        fmt::print("global_alloc {} (global size: {}, number: {})\n",
-                   size,
-                   allocation_size,
-                   allocation_number);
-
-        return std::malloc(size);
-    }
-} global_alloc;
-
-struct global_deallocator
+struct global_deallocator_t
 {
     int free_number = 0;
+} global_deallocator;
 
-    void operator()(void* ptr)
-    {
-        if (ptr) {
-            free_number++;
-            fmt::print("global_free {} (number: {})\n", ptr, free_number);
-            std::free(ptr);
-        }
+void* global_alloc(size_t size) noexcept
+{
+    global_allocator.allocation_size += size;
+    global_allocator.allocation_number++;
+
+    fmt::print("global_alloc {} (global size: {}, number: {})\n",
+               size,
+               global_allocator.allocation_size,
+               global_allocator.allocation_number);
+
+    return std::malloc(size);
+}
+
+void global_free(void* ptr) noexcept
+{
+    if (ptr) {
+        global_deallocator.free_number++;
+        fmt::print(
+          "global_free {} (number: {})\n", ptr, global_deallocator.free_number);
+        std::free(ptr);
     }
-} global_free;
+}
 
-static void* null_alloc(size_t /*sz*/) { return nullptr; }
+static void* null_alloc(size_t /*sz*/) noexcept { return nullptr; }
 
-static void null_free(void*) {}
+static void null_free(void*) noexcept {}
 
 struct struct_with_static_member
 {
@@ -446,52 +447,6 @@ int main()
         irt::status s2 = irt::status::block_allocator_not_enough_memory;
         expect(irt::is_success(s2) == false);
         expect(irt::is_bad(s2) == true);
-    };
-
-    "function_ref"_test = [] {
-        {
-            irt::function_ref<void(void)> fr = function_ref_f;
-            fr();
-            expect(function_ref_called == true);
-        }
-
-        {
-            function_ref_class o;
-            auto               x = &function_ref_class::baz;
-            irt::function_ref<void(function_ref_class&)> fr = x;
-            fr(o);
-            expect(o.baz_called);
-            x  = &function_ref_class::qux;
-            fr = x;
-            fr(o);
-            expect(o.qux_called);
-        }
-
-        {
-            auto                     x  = [] { return 42; };
-            irt::function_ref<int()> fr = x;
-            expect(fr() == 42);
-        }
-
-        {
-            int                       i  = 0;
-            auto                      x  = [&i] { i = 42; };
-            irt::function_ref<void()> fr = x;
-            fr();
-            expect(i == 42);
-        }
-
-        {
-            function_ref_multiple_operator ops;
-            ops.i = 0;
-            irt::function_ref<void(bool)>   b1(ops);
-            irt::function_ref<void(double)> b2(ops);
-
-            b1(true);
-            b2(0.0);
-
-            expect(ops.i == 2);
-        }
     };
 
     "time"_test = [] {
@@ -1414,7 +1369,8 @@ int main()
         {
             irt::simulation      sim;
             irt::external_source srcs;
-            sim.source_dispatch = srcs;
+            sim.source_dispatch_user_data = static_cast<void*>(&srcs);
+            sim.source_dispatch           = irt::external_source_dispatch;
 
             expect(irt::is_success(sim.init(64lu, 4096lu)));
             expect(irt::is_success(srcs.init(64lu)));
@@ -1487,7 +1443,8 @@ int main()
         {
             irt::simulation      sim;
             irt::external_source srcs;
-            sim.source_dispatch = srcs;
+            sim.source_dispatch_user_data = &srcs;
+            sim.source_dispatch           = irt::external_source_dispatch;
 
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
@@ -1601,7 +1558,8 @@ int main()
     "hsm_simulation"_test = [] {
         irt::simulation      sim;
         irt::external_source srcs;
-        sim.source_dispatch = srcs;
+        sim.source_dispatch_user_data = &srcs;
+        sim.source_dispatch           = irt::external_source_dispatch;
 
         expect((irt::is_success(sim.init(16lu, 256lu))) >> fatal);
         expect((irt::is_success(srcs.init(4lu))) >> fatal);
@@ -1678,7 +1636,8 @@ int main()
         fmt::print("generator_counter_simluation\n");
         irt::simulation      sim;
         irt::external_source srcs;
-        sim.source_dispatch = srcs;
+        sim.source_dispatch_user_data = &srcs;
+        sim.source_dispatch           = irt::external_source_dispatch;
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
         expect(irt::is_success(srcs.init(4lu)));
@@ -3291,14 +3250,15 @@ int main()
         }
 
         fmt::print("memory: {}/{}\n",
-                   global_alloc.allocation_number,
-                   global_free.free_number);
+                   global_allocator.allocation_number,
+                   global_deallocator.free_number);
 
-        expect(global_alloc.allocation_size > 0);
-        expect(global_alloc.allocation_number == global_free.free_number);
+        expect(global_allocator.allocation_size > 0);
+        expect(global_allocator.allocation_number ==
+               global_deallocator.free_number);
 
-        irt::g_alloc_fn.reset();
-        irt::g_free_fn.reset();
+        irt::g_alloc_fn = nullptr;
+        irt::g_free_fn  = nullptr;
 
         irt::g_alloc_fn = irt::malloc_wrapper;
         irt::g_free_fn  = irt::free_wrapper;
@@ -3502,7 +3462,8 @@ int main()
             irt::memory          m(2040, irt::open_mode::write);
             irt::simulation      sim;
             irt::external_source srcs;
-            sim.source_dispatch = srcs;
+            sim.source_dispatch_user_data = static_cast<void*>(&srcs);
+            sim.source_dispatch           = irt::external_source_dispatch;
 
             irt::status ret;
 
@@ -3526,7 +3487,8 @@ int main()
             irt::memory          m(data.size(), irt::open_mode::read);
             irt::simulation      sim;
             irt::external_source srcs;
-            sim.source_dispatch = srcs;
+            sim.source_dispatch_user_data = static_cast<void*>(&srcs);
+            sim.source_dispatch           = irt::external_source_dispatch;
 
             irt::status ret;
 

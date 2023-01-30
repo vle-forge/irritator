@@ -8,6 +8,7 @@
 #include "dialog.hpp"
 #include "internal.hpp"
 #include "irritator/core.hpp"
+#include "irritator/external_source.hpp"
 
 namespace irt {
 
@@ -139,7 +140,8 @@ bool application::init() noexcept
               status_string(ret));
         return false;
     } else {
-        s_editor.sim.source_dispatch = c_editor.mod.srcs;
+        s_editor.sim.source_dispatch_user_data = &c_editor.mod.srcs;
+        s_editor.sim.source_dispatch           = external_source_dispatch;
     }
 
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {

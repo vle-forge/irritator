@@ -5,6 +5,7 @@
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
+#include "irritator/external_source.hpp"
 
 #include <future>
 #include <random>
@@ -182,9 +183,11 @@ static void show_random_distribution_input(random_source& src) noexcept
 
 static void try_init_source(data_window& data, source& src) noexcept
 {
-    auto*  c_editor = container_of(&data, &component_editor::data);
-    auto*  app      = container_of(c_editor, &application::c_editor);
-    status ret = c_editor->mod.srcs(src, source::operation_type::initialize);
+    auto* c_editor = container_of(&data, &component_editor::data);
+    auto* app      = container_of(c_editor, &application::c_editor);
+
+    status ret = external_source_dispatch(
+      src, source::operation_type::initialize, &c_editor->mod.srcs);
 
     if (is_bad(ret)) {
         auto& n = app->notifications.alloc(notification_type::error);
@@ -211,7 +214,8 @@ static void task_try_finalize_source(application& app,
     source src;
     src.id   = id;
     src.type = numeric_cast<i16>(type);
-    auto ret = app.c_editor.mod.srcs(src, source::operation_type::finalize);
+    auto ret = external_source_dispatch(
+      src, source::operation_type::finalize, &app.c_editor.mod.srcs);
 
     if (is_bad(ret)) {
         auto& n = app.notifications.alloc(notification_type::error);

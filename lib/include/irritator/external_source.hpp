@@ -717,46 +717,52 @@ struct external_source
 
         return status::success;
     }
-
-    status operator()(source& src, const source::operation_type op) noexcept
-    {
-        external_source_type type;
-        if (!external_source_type_cast(src.type, &type))
-            return status::source_unknown;
-
-        switch (type) {
-        case external_source_type::binary_file: {
-            const auto src_id = enum_cast<binary_file_source_id>(src.id);
-            if (auto* bin_src = binary_file_sources.try_to_get(src_id);
-                bin_src) {
-                return (*bin_src)(src, op);
-            }
-        } break;
-        case external_source_type::constant: {
-            const auto src_id = enum_cast<constant_source_id>(src.id);
-            if (auto* cst_src = constant_sources.try_to_get(src_id); cst_src) {
-                return (*cst_src)(src, op);
-            }
-        } break;
-
-        case external_source_type::random: {
-            const auto src_id = enum_cast<random_source_id>(src.id);
-            if (auto* rnd_src = random_sources.try_to_get(src_id); rnd_src) {
-                return (*rnd_src)(src, op);
-            }
-        } break;
-
-        case external_source_type::text_file: {
-            const auto src_id = enum_cast<text_file_source_id>(src.id);
-            if (auto* txt_src = text_file_sources.try_to_get(src_id); txt_src) {
-                return (*txt_src)(src, op);
-            }
-        } break;
-        }
-
-        irt_unreachable();
-    }
 };
+
+inline status external_source_dispatch(source&                      src,
+                                       const source::operation_type op,
+                                       void* user_data) noexcept
+{
+    irt_return_if_fail(user_data, status::source_empty);
+    external_source& srcs = *(reinterpret_cast<external_source*>(user_data));
+
+    external_source_type type;
+    if (!external_source_type_cast(src.type, &type))
+        return status::source_unknown;
+
+    switch (type) {
+    case external_source_type::binary_file: {
+        const auto src_id = enum_cast<binary_file_source_id>(src.id);
+        if (auto* bin_src = srcs.binary_file_sources.try_to_get(src_id);
+            bin_src) {
+            return (*bin_src)(src, op);
+        }
+    } break;
+    case external_source_type::constant: {
+        const auto src_id = enum_cast<constant_source_id>(src.id);
+        if (auto* cst_src = srcs.constant_sources.try_to_get(src_id); cst_src) {
+            return (*cst_src)(src, op);
+        }
+    } break;
+
+    case external_source_type::random: {
+        const auto src_id = enum_cast<random_source_id>(src.id);
+        if (auto* rnd_src = srcs.random_sources.try_to_get(src_id); rnd_src) {
+            return (*rnd_src)(src, op);
+        }
+    } break;
+
+    case external_source_type::text_file: {
+        const auto src_id = enum_cast<text_file_source_id>(src.id);
+        if (auto* txt_src = srcs.text_file_sources.try_to_get(src_id);
+            txt_src) {
+            return (*txt_src)(src, op);
+        }
+    } break;
+    }
+
+    irt_unreachable();
+}
 
 enum class random_file_type
 {
