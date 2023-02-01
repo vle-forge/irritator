@@ -6,7 +6,6 @@
 #define ORG_VLEPROJECT_IRRITATOR_IO_2020
 
 #include <irritator/core.hpp>
-#include <irritator/external_source.hpp>
 #include <irritator/file.hpp>
 #include <irritator/modeling.hpp>
 
@@ -60,14 +59,12 @@ enum class json_pretty_print
 
 //! Load a simulation structure from a json file.
 status simulation_load(simulation&      sim,
-                       external_source& srcs,
                        json_cache&      cache,
                        const char*      filename) noexcept;
 
 //! Load a simulation structure from a json memory buffer. This function is
 //! mainly used in unit-test to check i/o functions.
 status simulation_load(simulation&      sim,
-                       external_source& srcs,
                        json_cache&      cache,
                        std::span<char>  in) noexcept;
 
@@ -75,7 +72,6 @@ status simulation_load(simulation&      sim,
 //! mainly used in unit-test to check i/o functions.
 status simulation_save(
   const simulation&      sim,
-  const external_source& srcs,
   json_cache&            cache,
   vector<char>&          out,
   json_pretty_print      print_options = json_pretty_print::off) noexcept;
@@ -83,7 +79,6 @@ status simulation_save(
 //! Save a component structure into a json file.
 status simulation_save(
   const simulation&      sim,
-  const external_source& srcs,
   json_cache&            cache,
   const char*            filename,
   json_pretty_print      print_options = json_pretty_print::off) noexcept;
@@ -127,20 +122,16 @@ struct binary_cache
 };
 
 status simulation_save(simulation&      sim,
-                       external_source& srcs,
                        file&            io) noexcept;
 
 status simulation_save(simulation&      sim,
-                       external_source& srcs,
                        memory&          io) noexcept;
 
 status simulation_load(simulation&      sim,
-                       external_source& srcs,
                        file&            io,
                        binary_cache&    cache) noexcept;
 
 status simulation_load(simulation&      sim,
-                       external_source& srcs,
                        memory&          io,
                        binary_cache&    cache) noexcept;
 

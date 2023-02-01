@@ -2335,15 +2335,14 @@ static status write_connections(const simulation& sim, Writer& w) noexcept
 template<typename Writer>
 status do_simulation_save(Writer&                w,
                           const simulation&      sim,
-                          const external_source& srcs,
                           json_cache&            cache) noexcept
 {
     w.StartObject();
 
-    irt_return_if_bad(write_constant_sources(cache, srcs, w));
-    irt_return_if_bad(write_binary_file_sources(cache, srcs, w));
-    irt_return_if_bad(write_text_file_sources(cache, srcs, w));
-    irt_return_if_bad(write_random_sources(cache, srcs, w));
+    irt_return_if_bad(write_constant_sources(cache, sim.srcs, w));
+    irt_return_if_bad(write_binary_file_sources(cache, sim.srcs, w));
+    irt_return_if_bad(write_text_file_sources(cache, sim.srcs, w));
+    irt_return_if_bad(write_random_sources(cache, sim.srcs, w));
     irt_return_if_bad(write_model(sim, w));
     irt_return_if_bad(write_connections(sim, w));
 
@@ -2353,7 +2352,6 @@ status do_simulation_save(Writer&                w,
 }
 
 status simulation_save(const simulation&      sim,
-                       const external_source& srcs,
                        json_cache&            cache,
                        const char*            filename,
                        json_pretty_print /*print_option*/) noexcept
@@ -2368,13 +2366,12 @@ status simulation_save(const simulation&      sim,
     rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
 
-    irt_return_if_bad(do_simulation_save(w, sim, srcs, cache));
+    irt_return_if_bad(do_simulation_save(w, sim, cache));
 
     return status::success;
 }
 
 status simulation_save(const simulation&      sim,
-                       const external_source& srcs,
                        json_cache&            cache,
                        vector<char>&          out,
                        json_pretty_print      print_option) noexcept
@@ -2384,7 +2381,7 @@ status simulation_save(const simulation&      sim,
     switch (print_option) {
     case json_pretty_print::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
-        irt_return_if_bad(do_simulation_save(w, sim, srcs, cache));
+        irt_return_if_bad(do_simulation_save(w, sim, cache));
         break;
     }
 
@@ -2392,13 +2389,13 @@ status simulation_save(const simulation&      sim,
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_return_if_bad(do_simulation_save(w, sim, srcs, cache));
+        irt_return_if_bad(do_simulation_save(w, sim, cache));
         break;
     }
 
     default: {
         rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
-        irt_return_if_bad(do_simulation_save(w, sim, srcs, cache));
+        irt_return_if_bad(do_simulation_save(w, sim, cache));
         break;
     }
     }
@@ -2510,13 +2507,12 @@ static status read_connections(json_cache&             cache,
 
 static status do_read(json_cache&             cache,
                       simulation&             sim,
-                      external_source&        srcs,
                       const rapidjson::Value& val) noexcept
 {
-    irt_return_if_bad(read_constant_sources(cache, srcs, val));
-    irt_return_if_bad(read_binary_file_sources(cache, srcs, val));
-    irt_return_if_bad(read_text_file_sources(cache, srcs, val));
-    irt_return_if_bad(read_random_sources(cache, srcs, val));
+    irt_return_if_bad(read_constant_sources(cache, sim.srcs, val));
+    irt_return_if_bad(read_binary_file_sources(cache, sim.srcs, val));
+    irt_return_if_bad(read_text_file_sources(cache, sim.srcs, val));
+    irt_return_if_bad(read_random_sources(cache, sim.srcs, val));
     irt_return_if_bad(read_model(cache, sim, val));
     irt_return_if_bad(read_connections(cache, sim, val));
 
@@ -2524,7 +2520,6 @@ static status do_read(json_cache&             cache,
 }
 
 status simulation_load(simulation&      sim,
-                       external_source& srcs,
                        json_cache&      cache,
                        const char*      filename) noexcept
 {
@@ -2551,11 +2546,10 @@ status simulation_load(simulation&      sim,
     irt_return_if_fail(s, status::io_file_format_error);
     irt_return_if_fail(d.IsObject(), status::io_file_format_error);
 
-    return do_read(cache, sim, srcs, d.GetObject());
+    return do_read(cache, sim, d.GetObject());
 }
 
 status simulation_load(simulation&      sim,
-                       external_source& srcs,
                        json_cache&      cache,
                        std::span<char>  in) noexcept
 {
@@ -2567,7 +2561,7 @@ status simulation_load(simulation&      sim,
     irt_return_if_fail(s, status::io_file_format_error);
     irt_return_if_fail(d.IsObject(), status::io_file_format_error);
 
-    return do_read(cache, sim, srcs, d.GetObject());
+    return do_read(cache, sim, d.GetObject());
 }
 
 /*****************************************************************************

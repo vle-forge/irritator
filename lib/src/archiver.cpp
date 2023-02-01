@@ -1044,14 +1044,13 @@ static void do_serialize_external_source(const Archiver /*s*/,
 template<typename Archiver, typename IO>
 static status do_serialize(const Archiver   arc,
                            simulation&      sim,
-                           external_source& srcs,
                            IO&              io) noexcept
 {
     {
-        auto constant_external_source = srcs.constant_sources.ssize();
-        auto binary_external_source   = srcs.binary_file_sources.ssize();
-        auto text_external_source     = srcs.text_file_sources.ssize();
-        auto random_external_source   = srcs.random_sources.ssize();
+        auto constant_external_source = sim.srcs.constant_sources.ssize();
+        auto binary_external_source   = sim.srcs.binary_file_sources.ssize();
+        auto text_external_source     = sim.srcs.text_file_sources.ssize();
+        auto random_external_source   = sim.srcs.random_sources.ssize();
         auto models                   = sim.models.ssize();
         auto hsms                     = sim.hsms.ssize();
 
@@ -1065,8 +1064,8 @@ static status do_serialize(const Archiver   arc,
 
     {
         constant_source* src = nullptr;
-        while (srcs.constant_sources.next(src)) {
-            auto id    = srcs.constant_sources.get_id(src);
+        while (sim.srcs.constant_sources.next(src)) {
+            auto id    = sim.srcs.constant_sources.get_id(src);
             auto index = get_index(id);
 
             io(index);
@@ -1077,8 +1076,8 @@ static status do_serialize(const Archiver   arc,
 
     {
         binary_file_source* src = nullptr;
-        while (srcs.binary_file_sources.next(src)) {
-            auto id    = srcs.binary_file_sources.get_id(src);
+        while (sim.srcs.binary_file_sources.next(src)) {
+            auto id    = sim.srcs.binary_file_sources.get_id(src);
             auto index = get_index(id);
 
             io(index);
@@ -1089,8 +1088,8 @@ static status do_serialize(const Archiver   arc,
 
     {
         text_file_source* src = nullptr;
-        while (srcs.text_file_sources.next(src)) {
-            auto id    = srcs.text_file_sources.get_id(src);
+        while (sim.srcs.text_file_sources.next(src)) {
+            auto id    = sim.srcs.text_file_sources.get_id(src);
             auto index = get_index(id);
 
             io(index);
@@ -1100,8 +1099,8 @@ static status do_serialize(const Archiver   arc,
 
     {
         random_source* src = nullptr;
-        while (srcs.random_sources.next(src)) {
-            auto id    = srcs.random_sources.get_id(src);
+        while (sim.srcs.random_sources.next(src)) {
+            auto id    = sim.srcs.random_sources.get_id(src);
             auto index = get_index(id);
 
             io(index);
@@ -1167,7 +1166,6 @@ static status do_serialize(const Archiver   arc,
 template<typename Dearchiver, typename IO>
 static status do_deserialize(Dearchiver&      arc,
                              simulation&      sim,
-                             external_source& srcs,
                              IO&              io,
                              binary_cache&    cache) noexcept
 {
@@ -1198,36 +1196,36 @@ static status do_deserialize(Dearchiver&      arc,
         irt_return_if_fail(hsms >= 0, status::io_file_format_error);
         irt_return_if_fail(io.success, status::io_file_format_error);
 
-        srcs.constant_sources.clear();
-        srcs.binary_file_sources.clear();
-        srcs.text_file_sources.clear();
-        srcs.random_sources.clear();
+        sim.srcs.constant_sources.clear();
+        sim.srcs.binary_file_sources.clear();
+        sim.srcs.text_file_sources.clear();
+        sim.srcs.random_sources.clear();
         sim.models.clear();
         sim.hsms.clear();
 
         irt_return_if_bad(
-          srcs.constant_sources.init(to_unsigned(constant_external_source)));
+          sim.srcs.constant_sources.init(to_unsigned(constant_external_source)));
         irt_return_if_bad(
-          srcs.binary_file_sources.init(to_unsigned(binary_external_source)));
+          sim.srcs.binary_file_sources.init(to_unsigned(binary_external_source)));
         irt_return_if_bad(
-          srcs.text_file_sources.init(to_unsigned(text_external_source)));
+          sim.srcs.text_file_sources.init(to_unsigned(text_external_source)));
         irt_return_if_bad(
-          srcs.random_sources.init(to_unsigned(random_external_source)));
+          sim.srcs.random_sources.init(to_unsigned(random_external_source)));
 
         irt_return_if_bad(sim.models.init(to_unsigned(models)));
         irt_return_if_bad(sim.hsms.init(to_unsigned(hsms)));
-        irt_return_if_fail(srcs.constant_sources.can_alloc(
+        irt_return_if_fail(sim.srcs.constant_sources.can_alloc(
                              to_unsigned(constant_external_source)),
                            status::io_not_enough_memory);
-        irt_return_if_fail(srcs.binary_file_sources.can_alloc(
+        irt_return_if_fail(sim.srcs.binary_file_sources.can_alloc(
                              to_unsigned(binary_external_source)),
                            status::io_not_enough_memory);
 
         irt_return_if_fail(
-          srcs.text_file_sources.can_alloc(to_unsigned(text_external_source)),
+          sim.srcs.text_file_sources.can_alloc(to_unsigned(text_external_source)),
           status::io_not_enough_memory);
         irt_return_if_fail(
-          srcs.random_sources.can_alloc(to_unsigned(random_external_source)),
+          sim.srcs.random_sources.can_alloc(to_unsigned(random_external_source)),
           status::io_not_enough_memory);
 
         irt_return_if_fail(sim.models.can_alloc(to_unsigned(models)),
@@ -1244,8 +1242,8 @@ static status do_deserialize(Dearchiver&      arc,
             u32 index = 0u;
             io(index);
 
-            auto& src = srcs.constant_sources.alloc();
-            auto  id  = srcs.constant_sources.get_id(src);
+            auto& src = sim.srcs.constant_sources.alloc();
+            auto  id  = sim.srcs.constant_sources.get_id(src);
             cache.to_constant.data.emplace_back(index, id);
 
             do_serialize_external_source(arc, io, src);
@@ -1262,8 +1260,8 @@ static status do_deserialize(Dearchiver&      arc,
             u32 max_clients = 0;
             io(max_clients);
 
-            auto& src = srcs.binary_file_sources.alloc();
-            auto  id  = srcs.binary_file_sources.get_id(src);
+            auto& src = sim.srcs.binary_file_sources.alloc();
+            auto  id  = sim.srcs.binary_file_sources.get_id(src);
             cache.to_binary.data.emplace_back(index, id);
             src.max_clients = max_clients;
 
@@ -1278,8 +1276,8 @@ static status do_deserialize(Dearchiver&      arc,
             u32 index = 0u;
             io(index);
 
-            auto& src = srcs.text_file_sources.alloc();
-            auto  id  = srcs.text_file_sources.get_id(src);
+            auto& src = sim.srcs.text_file_sources.alloc();
+            auto  id  = sim.srcs.text_file_sources.get_id(src);
             cache.to_text.data.emplace_back(index, id);
 
             do_serialize_external_source(cache, io, src);
@@ -1293,8 +1291,8 @@ static status do_deserialize(Dearchiver&      arc,
             u32 index = 0u;
             io(index);
 
-            auto& src = srcs.random_sources.alloc();
-            auto  id  = srcs.random_sources.get_id(src);
+            auto& src = sim.srcs.random_sources.alloc();
+            auto  id  = sim.srcs.random_sources.get_id(src);
             cache.to_random.data.emplace_back(index, id);
 
             do_serialize_external_source(arc, io, src);
@@ -1367,7 +1365,7 @@ static status do_deserialize(Dearchiver&      arc,
     return status::success;
 }
 
-status simulation_save(simulation& sim, external_source& srcs, file& f) noexcept
+status simulation_save(simulation& sim, file& f) noexcept
 {
     bool is_open     = f.is_open();
     bool is_readable = f.get_mode() == open_mode::read;
@@ -1385,20 +1383,18 @@ status simulation_save(simulation& sim, external_source& srcs, file& f) noexcept
 
     irt_return_if_fail(writer.success, status::io_file_format_model_error);
 
-    return do_serialize(archiver, sim, srcs, writer);
+    return do_serialize(archiver, sim, writer);
 }
 
 status simulation_save(simulation&      sim,
-                       external_source& srcs,
                        memory&          m) noexcept
 {
     write_binary_simulation<memory> writer{ m };
 
-    return do_serialize(archiver, sim, srcs, writer);
+    return do_serialize(archiver, sim, writer);
 }
 
 status simulation_load(simulation&      sim,
-                       external_source& srcs,
                        file&            f,
                        binary_cache&    cache) noexcept
 {
@@ -1426,17 +1422,16 @@ status simulation_load(simulation&      sim,
     irt_return_if_fail(fh.type == file_header::mode_type::all,
                        status::io_file_format_model_error);
 
-    return do_deserialize(dearchiver, sim, srcs, reader, cache);
+    return do_deserialize(dearchiver, sim, reader, cache);
 }
 
 status simulation_load(simulation&      sim,
-                       external_source& srcs,
                        memory&          m,
                        binary_cache&    cache) noexcept
 {
     read_binary_simulation<memory> reader{ m };
 
-    return do_deserialize(dearchiver, sim, srcs, reader, cache);
+    return do_deserialize(dearchiver, sim, reader, cache);
 }
 
 } //  irt

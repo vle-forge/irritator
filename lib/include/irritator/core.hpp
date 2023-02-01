@@ -25,6 +25,8 @@
 
 #include <concepts>
 #include <functional>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -2443,7 +2445,135 @@ struct simulation;
  ****************************************************************************/
 
 static constexpr int external_source_chunk_size = 512;
+static constexpr int default_max_client_number = 32;
 
+using chunk_type = std::array<double, external_source_chunk_size>;
+
+struct source;
+
+enum class distribution_type
+{
+    bernouilli,
+    binomial,
+    cauchy,
+    chi_squared,
+    exponential,
+    exterme_value,
+    fisher_f,
+    gamma,
+    geometric,
+    lognormal,
+    negative_binomial,
+    normal,
+    poisson,
+    student_t,
+    uniform_int,
+    uniform_real,
+    weibull,
+};
+
+//! Use a buffer with a set of double real to produce external data. This
+//! external source can be shared between @c undefined number of  @c source.
+struct constant_source
+{
+    small_string<23> name;
+    chunk_type       buffer;
+    u32 length = 0u;
+
+    status init() noexcept;
+    status init(source& src) noexcept;
+    status update(source& src) noexcept;
+    status restore(source& src) noexcept;
+    status finalize(source& src) noexcept;
+};
+
+//! Use a file with a set of double real in binary mode (little endian) to
+//! produce external data. This external source can be shared between @c
+//! max_clients sources. Each client read a @c external_source_chunk_size real
+//! of the set.
+//!
+//! source::chunk_id[0] is used to store the client identifier.
+//! source::chunk_id[1] is used to store the current position in the file.
+struct binary_file_source
+{
+    small_string<23>   name;
+    vector<chunk_type> buffers; // buffer, size is defined by max_clients
+    vector<u64>        offsets; // offset, size is defined by max_clients
+    u32                max_clients = 1; // number of source max (must be >= 1).
+    u64                max_reals   = 0; // number of real in the file.
+
+    std::filesystem::path file_path;
+    std::ifstream         ifs;
+    u32                   next_client = 0;
+    u64                   next_offset = 0;
+
+    status init() noexcept;
+    status init(source& src) noexcept;
+    status update(source& src) noexcept;
+    status restore(source& src) noexcept;
+    status finalize(source& src) noexcept;
+};
+
+//! Use a file with a set of double real in ascii text file to produce
+//! external data. This external source can not be shared between @c source.
+//!
+//! source::chunk_id[0] is used to store the current position in the file to
+//! simplify restore operation.
+struct text_file_source
+{
+    small_string<23> name;
+    chunk_type       buffer;
+    u64              offset;
+
+    std::filesystem::path file_path;
+    std::ifstream         ifs;
+
+    status init() noexcept;
+    status init(source& src) noexcept;
+    status update(source& src) noexcept;
+    status restore(source& src) noexcept;
+    status finalize(source& src) noexcept;
+};
+
+//! Use a prng to produce set of double real. This external source can be
+//! shared between @c max_clients sources. Each client read a @c
+//  external_source_chunk_size real of the set.
+//!
+//! The source::chunk_id[0-5] array is used to store the prng state.
+struct random_source
+{
+    using counter_type = std::array<u64, 4>;
+    using key_type     = std::array<u64, 4>;
+    using result_type  = std::array<u64, 4>;
+
+    small_string<23>           name;
+    vector<chunk_type>         buffers;
+    vector<std::array<u64, 4>> counters;
+    u32          max_clients   = 1; // number of source max (must be >= 1).
+    u32          start_counter = 0; // provided by @c external_source class.
+    u32          next_client   = 0;
+    counter_type ctr;
+    key_type     key; // provided by @c external_source class.
+
+    distribution_type distribution = distribution_type::uniform_int;
+    double a = 0, b = 1, p, mean, lambda, alpha, beta, stddev, m, s, n;
+    int    a32, b32, t32, k32;
+
+    status init() noexcept;
+    status init(source& src) noexcept;
+    status update(source& src) noexcept;
+    status restore(source& src) noexcept;
+    status finalize(source& src) noexcept;
+};
+
+enum class constant_source_id : u64;
+enum class binary_file_source_id : u64;
+enum class text_file_source_id : u64;
+enum class random_source_id : u64;
+
+//! @brief Reference external source from a model.
+//!
+//! @details A @c source references a external source (file, PRNG, etc.). Model auses the source to get data external to the simulation. 
 struct source
 {
     enum class source_type : i16
@@ -2498,6 +2628,31 @@ struct source
         index++;
         return true;
     }
+};
+
+struct external_source
+{
+    data_array<constant_source, constant_source_id>       constant_sources;
+    data_array<binary_file_source, binary_file_source_id> binary_file_sources;
+    data_array<text_file_source, text_file_source_id>     text_file_sources;
+    data_array<random_source, random_source_id>           random_sources;
+
+    u64 seed[2] = { 0xdeadbeef12345678U, 0xdeadbeef12345678U };
+
+    status init(std::integral auto size) noexcept
+    {
+        irt_return_if_fail(is_numeric_castable<u32>(size),
+            status::data_array_init_capacity_error);
+
+        irt_return_if_bad(constant_sources.init(size));
+        irt_return_if_bad(binary_file_sources.init(size));
+        irt_return_if_bad(text_file_sources.init(size));
+        irt_return_if_bad(random_sources.init(size));
+        return status::success;
+    }
+
+    status prepare() noexcept;
+    status dispatch(source& src, const source::operation_type op) noexcept;
 };
 
 /**
@@ -7427,10 +7582,6 @@ inline void copy(const model& src, model& dst) noexcept
     });
 }
 
-using source_dispatcher = status(source&,
-                                 const source::operation_type,
-                                 void* user_data) noexcept;
-
 struct simulation
 {
     block_allocator<list_view_node<message>>       message_alloc;
@@ -7444,14 +7595,12 @@ struct simulation
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<observer, observer_id>              observers;
 
+    external_source srcs;
     scheduller sched;
 
     //! @brief Use initialize, generate or finalize data from a source.
     //!
     //! See the @c external_source class for an implementation.
-
-    source_dispatcher* source_dispatch{};
-    void*              source_dispatch_user_data{};
 
     model_id get_id(const model& mdl) const { return models.get_id(mdl); }
 
@@ -7477,6 +7626,10 @@ public:
                             ? 1u
                             : static_cast<unsigned>(model_capacity) / 10u;
 
+        size_t max_srcs = (model_capacity / 10) <= 10
+                ? 10u
+        : static_cast<unsigned>(model_capacity) / 10u;
+
         irt_return_if_bad(message_alloc.init(messages_capacity));
         irt_return_if_bad(node_alloc.init(model_capacity * ten));
         irt_return_if_bad(record_alloc.init(model_capacity * ten));
@@ -7485,6 +7638,7 @@ public:
         irt_return_if_bad(hsms.init(max_hsms));
         irt_return_if_bad(observers.init(model_capacity));
         irt_return_if_bad(sched.init(model_capacity));
+        irt_return_if_bad(srcs.init(max_srcs));
 
         emitting_output_ports.reserve(model_capacity);
         immediate_models.reserve(model_capacity);
@@ -7829,8 +7983,8 @@ public:
 
 inline status initialize_source(simulation& sim, source& src) noexcept
 {
-    return sim.source_dispatch(
-      src, source::operation_type::initialize, sim.source_dispatch_user_data);
+    return sim.srcs.dispatch(
+      src, source::operation_type::initialize);
 }
 
 inline status update_source(simulation& sim, source& src, double& val) noexcept
@@ -7838,8 +7992,8 @@ inline status update_source(simulation& sim, source& src, double& val) noexcept
     if (src.next(val))
         return status::success;
 
-    if (auto ret = sim.source_dispatch(
-          src, source::operation_type::update, sim.source_dispatch_user_data);
+    if (auto ret = sim.srcs.dispatch(
+          src, source::operation_type::update);
         is_bad(ret))
         return ret;
 
@@ -7848,8 +8002,8 @@ inline status update_source(simulation& sim, source& src, double& val) noexcept
 
 inline status finalize_source(simulation& sim, source& src) noexcept
 {
-    return sim.source_dispatch(
-      src, source::operation_type::finalize, sim.source_dispatch_user_data);
+    return sim.srcs.dispatch(
+      src, source::operation_type::finalize);
 }
 
 inline bool can_alloc_message(const simulation& sim, int alloc_number) noexcept

@@ -1368,12 +1368,8 @@ int main()
 
         {
             irt::simulation      sim;
-            irt::external_source srcs;
-            sim.source_dispatch_user_data = static_cast<void*>(&srcs);
-            sim.source_dispatch           = irt::external_source_dispatch;
 
             expect(irt::is_success(sim.init(64lu, 4096lu)));
-            expect(irt::is_success(srcs.init(64lu)));
 
             sim.alloc<irt::qss1_integrator>();
             sim.alloc<irt::qss1_multiplier>();
@@ -1429,7 +1425,6 @@ int main()
 
             auto is_saved = irt::simulation_save(
               sim,
-              srcs,
               cache,
               out,
               irt::json_pretty_print::indent_2_one_line_array);
@@ -1442,14 +1437,11 @@ int main()
 
         {
             irt::simulation      sim;
-            irt::external_source srcs;
-            sim.source_dispatch_user_data = &srcs;
-            sim.source_dispatch           = irt::external_source_dispatch;
 
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
             auto in        = std::span(out.data(), out.size());
-            auto is_loaded = irt::simulation_load(sim, srcs, cache, in);
+            auto is_loaded = irt::simulation_load(sim, cache, in);
 
             expect(is_success(is_loaded));
             expect(sim.models.size() == 51);
@@ -1557,21 +1549,17 @@ int main()
 
     "hsm_simulation"_test = [] {
         irt::simulation      sim;
-        irt::external_source srcs;
-        sim.source_dispatch_user_data = &srcs;
-        sim.source_dispatch           = irt::external_source_dispatch;
 
         expect((irt::is_success(sim.init(16lu, 256lu))) >> fatal);
-        expect((irt::is_success(srcs.init(4lu))) >> fatal);
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
 
-        expect(srcs.constant_sources.can_alloc(2u));
-        auto& cst_value  = srcs.constant_sources.alloc();
+        expect(sim.srcs.constant_sources.can_alloc(2u));
+        auto& cst_value  = sim.srcs.constant_sources.alloc();
         cst_value.length = 10;
         cst_value.buffer = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0 };
 
-        auto& cst_ta  = srcs.constant_sources.alloc();
+        auto& cst_ta  = sim.srcs.constant_sources.alloc();
         cst_ta.length = 10;
         cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
 
@@ -1582,10 +1570,10 @@ int main()
 
         auto& gen = sim.alloc<irt::generator>();
         gen.default_source_value.id =
-          irt::ordinal(srcs.constant_sources.get_id(cst_value));
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
         gen.default_source_value.type = irt::source::source_type::constant;
         gen.default_source_ta.id =
-          irt::ordinal(srcs.constant_sources.get_id(cst_ta));
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
         gen.default_source_ta.type = irt::source::source_type::constant;
 
         expect(sim.hsms.can_alloc());
@@ -1617,7 +1605,7 @@ int main()
         expect(sim.connect(hsm, 0, cnt, 0) == irt::status::success);
 
         irt::time t = 0.0;
-        expect(srcs.prepare() == irt::status::success);
+        expect(sim.srcs.prepare() == irt::status::success);
         expect(sim.initialize(t) == irt::status::success);
 
         irt::status st;
@@ -1633,20 +1621,16 @@ int main()
     "generator_counter_simluation"_test = [] {
         fmt::print("generator_counter_simluation\n");
         irt::simulation      sim;
-        irt::external_source srcs;
-        sim.source_dispatch_user_data = &srcs;
-        sim.source_dispatch           = irt::external_source_dispatch;
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
-        expect(irt::is_success(srcs.init(4lu)));
         expect(sim.can_alloc(2));
 
-        expect(srcs.constant_sources.can_alloc(2u));
-        auto& cst_value  = srcs.constant_sources.alloc();
+        expect(sim.srcs.constant_sources.can_alloc(2u));
+        auto& cst_value  = sim.srcs.constant_sources.alloc();
         cst_value.buffer = { 1., 2., 3., 4., 5., 6., 7., 8., 9., 10. };
         cst_value.length = 10;
 
-        auto& cst_ta  = srcs.constant_sources.alloc();
+        auto& cst_ta  = sim.srcs.constant_sources.alloc();
         cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
         cst_ta.length = 10;
 
@@ -1654,16 +1638,16 @@ int main()
         auto& cnt = sim.alloc<irt::counter>();
 
         gen.default_source_value.id =
-          irt::ordinal(srcs.constant_sources.get_id(cst_value));
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
         gen.default_source_value.type = irt::source::source_type::constant;
         gen.default_source_ta.id =
-          irt::ordinal(srcs.constant_sources.get_id(cst_ta));
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
         gen.default_source_ta.type = irt::source::source_type::constant;
 
         expect(sim.connect(gen, 0, cnt, 0) == irt::status::success);
 
         irt::time t = 0.0;
-        expect(srcs.prepare() == irt::status::success);
+        expect(sim.srcs.prepare() == irt::status::success);
         expect(sim.initialize(t) == irt::status::success);
 
         irt::status st;
@@ -3457,9 +3441,6 @@ int main()
         {
             irt::memory          m(2040, irt::open_mode::write);
             irt::simulation      sim;
-            irt::external_source srcs;
-            sim.source_dispatch_user_data = static_cast<void*>(&srcs);
-            sim.source_dispatch           = irt::external_source_dispatch;
 
             irt::status ret;
 
@@ -3470,7 +3451,7 @@ int main()
             (void)sim.alloc<irt::qss1_integrator>();
             (void)sim.alloc<irt::qss1_multiplier>();
 
-            ret = simulation_save(sim, srcs, m);
+            ret = simulation_save(sim, m);
             expect(ret == irt::status::success);
 
             data.resize(static_cast<int>(m.pos));
@@ -3482,9 +3463,6 @@ int main()
         {
             irt::memory          m(data.size(), irt::open_mode::read);
             irt::simulation      sim;
-            irt::external_source srcs;
-            sim.source_dispatch_user_data = static_cast<void*>(&srcs);
-            sim.source_dispatch           = irt::external_source_dispatch;
 
             irt::status ret;
 
@@ -3493,7 +3471,7 @@ int main()
             std::copy_n(data.data(), 200, m.data.data());
             m.pos = 0;
 
-            ret = irt::simulation_load(sim, srcs, m, cache);
+            ret = irt::simulation_load(sim, m, cache);
 
             expect(ret == irt::status::success);
 

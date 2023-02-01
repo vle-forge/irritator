@@ -187,8 +187,8 @@ static void try_init_source(data_window& data, source& src) noexcept
     auto* c_editor = container_of(&data, &component_editor::data);
     auto* app      = container_of(c_editor, &application::c_editor);
 
-    status ret = external_source_dispatch(
-      src, source::operation_type::initialize, &c_editor->mod.srcs);
+    status ret =
+      app->s_editor.sim.srcs.dispatch(src, source::operation_type::initialize);
 
     if (is_bad(ret)) {
         auto& n = app->notifications.alloc(notification_type::error);
@@ -215,8 +215,8 @@ static void task_try_finalize_source(application&        app,
     source src;
     src.id   = id;
     src.type = type;
-    auto ret = external_source_dispatch(
-      src, source::operation_type::finalize, &app.c_editor.mod.srcs);
+    auto ret = app.s_editor.sim.srcs.dispatch(
+      src, source::operation_type::finalize);
 
     if (is_bad(ret)) {
         auto& n = app.notifications.alloc(notification_type::error);
@@ -805,22 +805,22 @@ void show_menu_external_sources(external_source& srcs,
 
     if (constant_ptr) {
         src.reset();
-        (*constant_ptr)(src, source::operation_type::initialize);
+        constant_ptr->init(src);
     }
 
     if (binary_file_ptr) {
         src.reset();
-        (*binary_file_ptr)(src, source::operation_type::initialize);
+        binary_file_ptr->init(src);
     }
 
     if (text_file_ptr) {
         src.reset();
-        (*text_file_ptr)(src, source::operation_type::initialize);
+        text_file_ptr->init(src);
     }
 
     if (random_ptr) {
         src.reset();
-        (*random_ptr)(src, source::operation_type::initialize);
+        random_ptr->init(src);
     }
 }
 

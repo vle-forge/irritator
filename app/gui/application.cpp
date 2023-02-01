@@ -139,9 +139,6 @@ bool application::init() noexcept
               "Fail to initialize external sources: {}\n",
               status_string(ret));
         return false;
-    } else {
-        s_editor.sim.source_dispatch_user_data = &c_editor.mod.srcs;
-        s_editor.sim.source_dispatch           = external_source_dispatch;
     }
 
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
