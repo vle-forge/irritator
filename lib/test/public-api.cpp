@@ -6,7 +6,6 @@
 #include <irritator/core.hpp>
 #include <irritator/examples.hpp>
 #include <irritator/ext.hpp>
-#include <irritator/external_source.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
 #include <irritator/observation.hpp>

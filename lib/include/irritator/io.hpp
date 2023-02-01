@@ -58,30 +58,30 @@ enum class json_pretty_print
 };
 
 //! Load a simulation structure from a json file.
-status simulation_load(simulation&      sim,
-                       json_cache&      cache,
-                       const char*      filename) noexcept;
+status simulation_load(simulation& sim,
+                       json_cache& cache,
+                       const char* filename) noexcept;
 
 //! Load a simulation structure from a json memory buffer. This function is
 //! mainly used in unit-test to check i/o functions.
-status simulation_load(simulation&      sim,
-                       json_cache&      cache,
-                       std::span<char>  in) noexcept;
+status simulation_load(simulation&     sim,
+                       json_cache&     cache,
+                       std::span<char> in) noexcept;
 
 //! Save a component structure into a json memory buffer. This function is
 //! mainly used in unit-test to check i/o functions.
 status simulation_save(
-  const simulation&      sim,
-  json_cache&            cache,
-  vector<char>&          out,
-  json_pretty_print      print_options = json_pretty_print::off) noexcept;
+  const simulation& sim,
+  json_cache&       cache,
+  vector<char>&     out,
+  json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Save a component structure into a json file.
 status simulation_save(
-  const simulation&      sim,
-  json_cache&            cache,
-  const char*            filename,
-  json_pretty_print      print_options = json_pretty_print::off) noexcept;
+  const simulation& sim,
+  json_cache&       cache,
+  const char*       filename,
+  json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Load a component structure from a json file.
 status component_load(modeling&   mod,
@@ -121,19 +121,15 @@ struct binary_cache
     void clear() noexcept;
 };
 
-status simulation_save(simulation&      sim,
-                       file&            io) noexcept;
+status simulation_save(simulation& sim, file& io) noexcept;
 
-status simulation_save(simulation&      sim,
-                       memory&          io) noexcept;
+status simulation_save(simulation& sim, memory& io) noexcept;
 
-status simulation_load(simulation&      sim,
-                       file&            io,
-                       binary_cache&    cache) noexcept;
+status simulation_load(simulation& sim, file& io, binary_cache& cache) noexcept;
 
-status simulation_load(simulation&      sim,
-                       memory&          io,
-                       binary_cache&    cache) noexcept;
+status simulation_load(simulation&   sim,
+                       memory&       io,
+                       binary_cache& cache) noexcept;
 
 //! Return the description string for each status.
 const char* status_string(const status s) noexcept;
@@ -677,6 +673,65 @@ inline const char* status_string(const status s) noexcept
     static_assert(std::size(status_string_names) == status_size());
 
     return status_string_names[ordinal(s)];
+}
+
+static inline const char* external_source_type_string[] = { "binary_file",
+                                                            "constant",
+                                                            "random",
+                                                            "text_file" };
+
+inline const char* external_source_str(const source::source_type type) noexcept
+{
+    return external_source_type_string[ordinal(type)];
+}
+
+static const char* distribution_type_string[] = {
+    "bernouilli",        "binomial", "cauchy",  "chi_squared", "exponential",
+    "exterme_value",     "fisher_f", "gamma",   "geometric",   "lognormal",
+    "negative_binomial", "normal",   "poisson", "student_t",   "uniform_int",
+    "uniform_real",      "weibull"
+};
+
+inline const char* distribution_str(const distribution_type type) noexcept
+{
+    return distribution_type_string[static_cast<int>(type)];
+}
+
+enum class random_file_type
+{
+    binary,
+    text,
+};
+
+template<typename RandomGenerator, typename Distribution>
+inline int generate_random_file(std::ostream&          os,
+                                RandomGenerator&       gen,
+                                Distribution&          dist,
+                                const std::size_t      size,
+                                const random_file_type type) noexcept
+{
+    switch (type) {
+    case random_file_type::text: {
+        if (!os)
+            return -1;
+
+        for (std::size_t sz = 0; sz < size; ++sz)
+            if (!(os << dist(gen) << '\n'))
+                return -2;
+    } break;
+
+    case random_file_type::binary: {
+        if (!os)
+            return -1;
+
+        for (std::size_t sz = 0; sz < size; ++sz) {
+            const double value = dist(gen);
+            os.write(reinterpret_cast<const char*>(&value), sizeof(value));
+        }
+    } break;
+    }
+
+    return 0;
 }
 
 } // namespace irt

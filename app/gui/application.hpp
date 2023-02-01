@@ -6,7 +6,6 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_APPLICATION_2021
 
 #include <irritator/core.hpp>
-#include <irritator/external_source.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/observation.hpp>
 #include <irritator/thread.hpp>

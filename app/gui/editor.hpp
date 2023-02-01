@@ -7,7 +7,6 @@
 
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
-#include <irritator/external_source.hpp>
 #include <irritator/io.hpp>
 
 namespace irt {

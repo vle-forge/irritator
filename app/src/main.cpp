@@ -3,7 +3,6 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
-#include <irritator/external_source.hpp>
 #include <irritator/io.hpp>
 
 #include <fstream>

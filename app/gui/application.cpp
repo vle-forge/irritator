@@ -8,7 +8,6 @@
 #include "dialog.hpp"
 #include "internal.hpp"
 #include "irritator/core.hpp"
-#include "irritator/external_source.hpp"
 
 namespace irt {
 

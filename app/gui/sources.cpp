@@ -2,11 +2,12 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/core.hpp>
+#include <irritator/io.hpp>
+
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
-#include "irritator/core.hpp"
-#include "irritator/external_source.hpp"
 
 #include <future>
 #include <random>

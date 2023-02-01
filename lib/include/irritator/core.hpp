@@ -24,9 +24,9 @@
 #include <cstring>
 
 #include <concepts>
-#include <functional>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -2445,7 +2445,7 @@ struct simulation;
  ****************************************************************************/
 
 static constexpr int external_source_chunk_size = 512;
-static constexpr int default_max_client_number = 32;
+static constexpr int default_max_client_number  = 32;
 
 using chunk_type = std::array<double, external_source_chunk_size>;
 
@@ -2478,7 +2478,7 @@ struct constant_source
 {
     small_string<23> name;
     chunk_type       buffer;
-    u32 length = 0u;
+    u32              length = 0u;
 
     status init() noexcept;
     status init(source& src) noexcept;
@@ -2573,7 +2573,8 @@ enum class random_source_id : u64;
 
 //! @brief Reference external source from a model.
 //!
-//! @details A @c source references a external source (file, PRNG, etc.). Model auses the source to get data external to the simulation. 
+//! @details A @c source references a external source (file, PRNG, etc.). Model
+//! auses the source to get data external to the simulation.
 struct source
 {
     enum class source_type : i16
@@ -2642,7 +2643,7 @@ struct external_source
     status init(std::integral auto size) noexcept
     {
         irt_return_if_fail(is_numeric_castable<u32>(size),
-            status::data_array_init_capacity_error);
+                           status::data_array_init_capacity_error);
 
         irt_return_if_bad(constant_sources.init(size));
         irt_return_if_bad(binary_file_sources.init(size));
@@ -2851,53 +2852,54 @@ status send_message(simulation&  sim,
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::convertible_to<status>;
-};
+                                  {
+                                      t.lambda(sim)
+                                      } -> std::convertible_to<status>;
+                              };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-      } -> std::convertible_to<status>;
+          } -> std::convertible_to<status>;
   };
 
 template<typename T>
-concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::convertible_to<observation_message>;
-};
+concept has_observation_function =
+  requires(T t, time s, time e) {
+      {
+          t.observation(s, e)
+          } -> std::convertible_to<observation_message>;
+  };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::convertible_to<status>;
-};
+                                      {
+                                          t.initialize(sim)
+                                          } -> std::convertible_to<status>;
+                                  };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::convertible_to<status>;
-};
+                                    {
+                                        t.finalize(sim)
+                                        } -> std::convertible_to<status>;
+                                };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
-};
+                             {
+                                 t.x
+                             };
+                         };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
-};
+                              {
+                                  t.y
+                              };
+                          };
 
 constexpr observation_message qss_observation(real X,
                                               real u,
@@ -7596,7 +7598,7 @@ struct simulation
     data_array<observer, observer_id>              observers;
 
     external_source srcs;
-    scheduller sched;
+    scheduller      sched;
 
     //! @brief Use initialize, generate or finalize data from a source.
     //!
@@ -7627,8 +7629,8 @@ public:
                             : static_cast<unsigned>(model_capacity) / 10u;
 
         size_t max_srcs = (model_capacity / 10) <= 10
-                ? 10u
-        : static_cast<unsigned>(model_capacity) / 10u;
+                            ? 10u
+                            : static_cast<unsigned>(model_capacity) / 10u;
 
         irt_return_if_bad(message_alloc.init(messages_capacity));
         irt_return_if_bad(node_alloc.init(model_capacity * ten));
@@ -7983,8 +7985,7 @@ public:
 
 inline status initialize_source(simulation& sim, source& src) noexcept
 {
-    return sim.srcs.dispatch(
-      src, source::operation_type::initialize);
+    return sim.srcs.dispatch(src, source::operation_type::initialize);
 }
 
 inline status update_source(simulation& sim, source& src, double& val) noexcept
@@ -7992,8 +7993,7 @@ inline status update_source(simulation& sim, source& src, double& val) noexcept
     if (src.next(val))
         return status::success;
 
-    if (auto ret = sim.srcs.dispatch(
-          src, source::operation_type::update);
+    if (auto ret = sim.srcs.dispatch(src, source::operation_type::update);
         is_bad(ret))
         return ret;
 
@@ -8002,8 +8002,7 @@ inline status update_source(simulation& sim, source& src, double& val) noexcept
 
 inline status finalize_source(simulation& sim, source& src) noexcept
 {
-    return sim.srcs.dispatch(
-      src, source::operation_type::finalize);
+    return sim.srcs.dispatch(src, source::operation_type::finalize);
 }
 
 inline bool can_alloc_message(const simulation& sim, int alloc_number) noexcept
@@ -8531,8 +8530,7 @@ void vector<T>::resize(std::integral auto size) noexcept
 template<typename T>
 void vector<T>::reserve(std::integral auto new_capacity) noexcept
 {
-    irt_assert(new_capacity > 0);
-    irt_assert(new_capacity < std::numeric_limits<decltype(m_capacity)>::max());
+    irt_assert(is_numeric_castable<u32>(new_capacity));
 
     if (std::cmp_greater(new_capacity, m_capacity)) {
         T* new_data = reinterpret_cast<T*>(
