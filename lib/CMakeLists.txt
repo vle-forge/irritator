@@ -107,53 +107,6 @@ function(irritator_add_test test_name)
   add_test(${test_name} ${test_name})
 endfunction()
 
-function(irritator_add_benchmark test_name)
-  add_executable(${test_name} ${ARGN} "src/archiver.cpp src/external_source.cpp
-    src/file.cpp src/json.cpp src/modeling.cpp src/timeline.cpp")
-
-  set_target_properties(${test_name} PROPERTIES
-    COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"
-    CXX_STANDARD 20)
-
-  target_compile_options(${test_name} BEFORE
-    PRIVATE
-    $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
-        -pipe -march=native
-        $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
-    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
-        /EHsc /bigobj /Zc:__cplusplus /std:c++latest
-        $<$<CONFIG:Debug>:/Od /W3 /Zi>>
-    $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
-        /EHsc /bigobj /Zc:__cplusplus /std:c++20
-        $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
-
-  target_compile_definitions(${test_name}
-    PRIVATE
-    $<$<BOOL:${WITH_DEBUG}>:IRRITATOR_ENABLE_DEBUG>
-    $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
-    $<$<CXX_COMPILER_ID:MSVC>:_SCL_SECURE_NO_WARNINGS>
-    $<$<CXX_COMPILER_ID:MSVC>:BOOST_UT_DISABLE_MODULE>)
-
-  target_include_directories(${test_name} PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    ${CMAKE_SOURCE_DIR}/external/hayai/src
-    $<INSTALL_INTERFACE:include>
-    PRIVATE
-    src
-    ${CMAKE_CURRENT_BINARY_DIR})
-
-  target_link_libraries(${test_name} libirritator threads)
-endfunction()
-
 irritator_add_test(test-thread test/threading.cpp)
 irritator_add_test(test-api test/public-api.cpp)
 irritator_add_test(test-simulations test/simulations.cpp)
-# irritator_add_test(auditory test/auditory.cpp)
-
-# irritator_add_benchmark(benchmark_exactitude_aqss benchmark/benchmark_exactitude_aqss.cpp)
-# irritator_add_benchmark(benchmark_exactitude_qss1 benchmark/benchmark_exactitude_qss1.cpp)
-# irritator_add_benchmark(benchmark_exactitude_qss2 benchmark/benchmark_exactitude_qss2.cpp)
-
-# irritator_add_benchmark(benchmark_timing_qss1 benchmark/benchmark_timing_qss1.cpp)
-# irritator_add_benchmark(benchmark_timing_qss2 benchmark/benchmark_timing_qss2.cpp)
-# irritator_add_benchmark(benchmark_timing_aqss benchmark/benchmark_timing_aqss.cpp)
