@@ -123,34 +123,43 @@ constexpr void table<Identifier, T>::set(Identifier id, const T& value) noexcept
 template<typename Identifier, typename T>
 constexpr T* table<Identifier, T>::get(Identifier id) noexcept
 {
-    auto it = std::lower_bound(
-      data.begin(), data.end(), id, [](auto& m, Identifier id) {
-          return m.id < id;
+    auto it = binary_find(
+      data.begin(), data.end(), id, [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), Identifier>)
+              return left < right.id;
+          else
+              return left.id < right;
       });
 
-    return (!(it == data.end()) && (id == it->id)) ? &it->value : nullptr;
+    return it == data.end() ? nullptr : &it->value;
 }
 
 template<typename Identifier, typename T>
 constexpr const T* table<Identifier, T>::get(Identifier id) const noexcept
 {
-    auto it = std::lower_bound(
-      data.begin(), data.end(), id, [](const auto& m, Identifier id) {
-          return m.id < id;
+    auto it = binary_find(
+      data.begin(), data.end(), id, [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), Identifier>)
+              return left < right.id;
+          else
+              return left.id < right;
       });
 
-    return (!(it == data.end()) && (id == it->id)) ? &it->value : nullptr;
+    return it == data.end() ? nullptr : &it->value;
 }
 
 template<typename Identifier, typename T>
 constexpr void table<Identifier, T>::erase(Identifier id) noexcept
 {
-    auto it = std::lower_bound(
-      data.begin(), data.end(), id, [](const auto& m, Identifier id) {
-          return m.id < id;
+    auto it = binary_find(
+      data.begin(), data.end(), id, [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), Identifier>)
+              return left < right.id;
+          else
+              return left.id < right;
       });
 
-    if (!(it == data.end()) && (id == it->id)) {
+    if (it != data.end()) {
         data.erase(it);
         sort();
     }

@@ -359,13 +359,27 @@ template<typename Iterator, typename T>
 constexpr Iterator binary_find(Iterator begin, Iterator end, const T& value)
 {
     begin = std::lower_bound(begin, end, value);
-    return (!(begin == end) && (value == *begin)) ? begin : end;
+    return ((begin != end) && !(value < *begin));
 }
 
 //! @brief returns an iterator to the result or end if not found
 //!
 //! Binary search function which returns an iterator to the result or end if
-//! not found using the lower_bound standard function.
+//! not found using the lower_bound standard function. Compare functor must
+//! use interoperable *begin type as first argument and T as second argument.
+//! @code
+//! struct my_int { int x };
+//! vector<my_int> buffer;
+//! binary_find(std::begin(buffer), std::end(buffer),
+//!     5,
+//!     [](auto left, auto right) noexcept -> bool
+//!     {
+//!         if constexpr(std::is_same_v<decltype(left), int)
+//!             return left < right->x;
+//!         else
+//!             return left->x < right;
+//!     });
+//! @endcode
 template<typename Iterator, typename T, typename Compare>
 constexpr Iterator binary_find(Iterator begin,
                                Iterator end,
@@ -373,7 +387,7 @@ constexpr Iterator binary_find(Iterator begin,
                                Compare  comp)
 {
     begin = std::lower_bound(begin, end, value, comp);
-    return (!(begin == end) && (value == *begin)) ? begin : end;
+    return (begin != end && !comp(value, *begin)) ? begin : end;
 }
 
 /*****************************************************************************

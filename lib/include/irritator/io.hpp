@@ -11,6 +11,8 @@
 
 #include <algorithm>
 #include <optional>
+#include <string_view>
+#include <type_traits>
 
 namespace irt {
 
@@ -233,17 +235,18 @@ inline auto convert(std::string_view dynamics_name) noexcept
 
     static_assert(std::size(table) == static_cast<sz>(dynamics_type_size()));
 
-    const auto it =
-      std::lower_bound(std::begin(table),
-                       std::end(table),
-                       dynamics_name,
-                       [](const string_to_type& l, const std::string_view r) {
-                           return l.name < r;
-                       });
+    auto it = binary_find(
+      std::begin(table),
+      std::end(table),
+      dynamics_name,
+      [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), std::string_view>)
+              return left < right.name;
+          else
+              return left.name < right;
+      });
 
-    return (it != std::end(table) && it->name == dynamics_name)
-             ? std::make_optional(it->type)
-             : std::nullopt;
+    return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
 }
 
 static_assert(std::size(dynamics_type_names) ==

@@ -486,17 +486,19 @@ auto get_component_type(std::string_view name) noexcept
         { "qss3_van_der_pol", component_type::qss3_van_der_pol },
     };
 
-    auto it = std::lower_bound(std::begin(entries),
-                               std::end(entries),
-                               name,
-                               [](const auto& entry, std::string_view name) {
-                                   return entry.name == name;
-                               });
+    auto it = binary_find(
+      std::begin(entries),
+      std::end(entries),
+      name,
+      [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), std::string_view>)
+              return left < right.name;
+          else
+              return left.name < right;
+      });
 
-    if (it == std::end(entries) || it->name != name)
-        return std::nullopt;
-
-    return std::make_optional(it->type);
+    return it == std::end(entries) ? std::nullopt
+                                   : std::make_optional(it->type);
 }
 
 #if 0

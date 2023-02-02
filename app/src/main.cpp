@@ -10,6 +10,7 @@
 #include <fmt/format.h>
 
 #include <cstdio>
+#include <string_view>
 
 enum action_type
 {
@@ -173,8 +174,18 @@ bool main_parameters::parse(int argc, char* argv[]) noexcept
     if (argc <= 1)
         return true;
 
-    auto str = argv[1];
-    auto it  = irt::binary_find(std::begin(actions), std::end(actions), str);
+    std::string_view str{ argv[1] };
+
+    auto it = irt::binary_find(
+      std::begin(actions),
+      std::end(actions),
+      str,
+      [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), std::string_view>)
+              return left < right.long_string;
+          else
+              return left.long_string < right;
+      });
 
     if (it == std::end(actions)) {
         status = status_unknown_action;
