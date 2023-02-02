@@ -25,7 +25,7 @@ target_compile_options(app
   PRIVATE
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
         -pipe -march=native
-        $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
+        $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
         /EHsc /bigobj /Zc:__cplusplus /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>

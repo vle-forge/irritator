@@ -20,7 +20,7 @@ target_include_directories(libirritator SYSTEM INTERFACE
 target_compile_options(libirritator INTERFACE
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
         -pipe -march=native
-        $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
+        $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
         /EHsc /bigobj /Zc:__cplusplus /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>
@@ -74,7 +74,7 @@ function(irritator_add_test test_name)
     PRIVATE
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
         -pipe -march=native
-        $<$<CONFIG:Debug>:-Og -Wall -Wextra>>
+        $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
         /EHsc /bigobj /Zc:__cplusplus /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>
