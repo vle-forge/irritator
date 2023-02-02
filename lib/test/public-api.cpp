@@ -1366,7 +1366,7 @@ int main()
         irt::json_cache   cache;
 
         {
-            irt::simulation      sim;
+            irt::simulation sim;
 
             expect(irt::is_success(sim.init(64lu, 4096lu)));
 
@@ -1423,10 +1423,7 @@ int main()
             sim.alloc<irt::hsm_wrapper>();
 
             auto is_saved = irt::simulation_save(
-              sim,
-              cache,
-              out,
-              irt::json_pretty_print::indent_2_one_line_array);
+              sim, cache, out, irt::json_pretty_print::indent_2_one_line_array);
 
             expect(is_success(is_saved));
             expect(out.size() > 0);
@@ -1435,7 +1432,7 @@ int main()
         fmt::print("\n[{}]\n", std::string_view(out.data(), out.size()));
 
         {
-            irt::simulation      sim;
+            irt::simulation sim;
 
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
@@ -1547,7 +1544,7 @@ int main()
     };
 
     "hsm_simulation"_test = [] {
-        irt::simulation      sim;
+        irt::simulation sim;
 
         expect((irt::is_success(sim.init(16lu, 256lu))) >> fatal);
         expect((sim.can_alloc(3)) >> fatal);
@@ -1619,7 +1616,7 @@ int main()
 
     "generator_counter_simluation"_test = [] {
         fmt::print("generator_counter_simluation\n");
-        irt::simulation      sim;
+        irt::simulation sim;
 
         expect(irt::is_success(sim.init(16lu, 256lu)));
         expect(sim.can_alloc(2));
@@ -3438,8 +3435,8 @@ int main()
         irt::vector<irt::u8> data;
 
         {
-            irt::memory          m(2040, irt::open_mode::write);
-            irt::simulation      sim;
+            irt::memory     m(2040, irt::open_mode::write);
+            irt::simulation sim;
 
             irt::status ret;
 
@@ -3460,8 +3457,8 @@ int main()
         expect(data.size() > 0);
 
         {
-            irt::memory          m(data.size(), irt::open_mode::read);
-            irt::simulation      sim;
+            irt::memory     m(data.size(), irt::open_mode::read);
+            irt::simulation sim;
 
             irt::status ret;
 

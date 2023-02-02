@@ -2333,9 +2333,9 @@ static status write_connections(const simulation& sim, Writer& w) noexcept
 }
 
 template<typename Writer>
-status do_simulation_save(Writer&                w,
-                          const simulation&      sim,
-                          json_cache&            cache) noexcept
+status do_simulation_save(Writer&           w,
+                          const simulation& sim,
+                          json_cache&       cache) noexcept
 {
     w.StartObject();
 
@@ -2351,9 +2351,9 @@ status do_simulation_save(Writer&                w,
     return status::success;
 }
 
-status simulation_save(const simulation&      sim,
-                       json_cache&            cache,
-                       const char*            filename,
+status simulation_save(const simulation& sim,
+                       json_cache&       cache,
+                       const char*       filename,
                        json_pretty_print /*print_option*/) noexcept
 {
     file f{ filename, open_mode::write };
@@ -2371,10 +2371,10 @@ status simulation_save(const simulation&      sim,
     return status::success;
 }
 
-status simulation_save(const simulation&      sim,
-                       json_cache&            cache,
-                       vector<char>&          out,
-                       json_pretty_print      print_option) noexcept
+status simulation_save(const simulation& sim,
+                       json_cache&       cache,
+                       vector<char>&     out,
+                       json_pretty_print print_option) noexcept
 {
     rapidjson::StringBuffer buffer;
 
@@ -2519,9 +2519,9 @@ static status do_read(json_cache&             cache,
     return status::success;
 }
 
-status simulation_load(simulation&      sim,
-                       json_cache&      cache,
-                       const char*      filename) noexcept
+status simulation_load(simulation& sim,
+                       json_cache& cache,
+                       const char* filename) noexcept
 {
     file f{ filename, open_mode::read };
     irt_return_if_fail(f.is_open(), status::io_file_format_error);
@@ -2549,9 +2549,9 @@ status simulation_load(simulation&      sim,
     return do_read(cache, sim, d.GetObject());
 }
 
-status simulation_load(simulation&      sim,
-                       json_cache&      cache,
-                       std::span<char>  in) noexcept
+status simulation_load(simulation&     sim,
+                       json_cache&     cache,
+                       std::span<char> in) noexcept
 {
     cache.clear();
 
