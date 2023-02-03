@@ -18,9 +18,9 @@
 #include <cstdio>
 #include <cstring>
 
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/ptrace.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #if defined(__APPLE__)
 #include <sys/sysctl.h>
@@ -48,20 +48,21 @@ static void glfw_error_callback(int error, const char* description)
       description);
 }
 
+#if defined(IRRITATOR_ENABLE_DEBUG)
 //! Detect if a process is being run under a debugger.
 #if defined(__APPLE__)
 static bool is_running_under_debugger() noexcept
 {
-    int                 junk;
-    int                 mib[4];
-    struct kinfo_proc   info;
-    size_t              size;
+    int               junk;
+    int               mib[4];
+    struct kinfo_proc info;
+    size_t            size;
 
     info.kp_proc.p_flag = 0;
-    mib[0] = CTL_KERN;
-    mib[1] = KERN_PROC;
-    mib[2] = KERN_PROC_PID;
-    mib[3] = getpid();
+    mib[0]              = CTL_KERN;
+    mib[1]              = KERN_PROC;
+    mib[2]              = KERN_PROC_PID;
+    mib[3]              = getpid();
 
     size = sizeof(info);
     junk = sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0);
@@ -83,10 +84,13 @@ static bool is_running_under_debugger() noexcept
     return under_debugger;
 }
 #endif
+#endif
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
+#if defined(IRRITATOR_ENABLE_DEBUG)
     irt::is_fatal_breakpoint = is_running_under_debugger();
+#endif
 
     // Setup window
     glfwSetErrorCallback(glfw_error_callback);

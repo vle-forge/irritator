@@ -49,7 +49,7 @@ namespace irt {
 #if defined(IRRITATOR_ENABLE_DEBUG)
 inline volatile bool is_fatal_breakpoint = false;
 #else
-constexpr static inline is_fatal_breakpoint = false;
+constexpr static inline bool is_fatal_breakpoint = false;
 #endif
 
 } // namespace irt
