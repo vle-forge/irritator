@@ -67,16 +67,20 @@ FrameContext*  WaitForNextFrameResources();
 void           ResizeSwapChain(HWND hWnd, int width, int height);
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+#if defined(IRRITATOR_ENABLE_DEBUG)
 //! Detect if a process is being run under a debugger.
 static bool is_running_under_debugger() noexcept
 {
     return ::IsDebuggerPresent() == TRUE;
 }
+#endif
 
 // Main code
 int main(int, char**)
 {
+#if defined(IRRITATOR_ENABLE_DEBUG)
     irt::is_fatal_breakpoint = is_running_under_debugger();
+#endif
 
     // Create application window
     // ImGui_ImplWin32_EnableDpiAwareness();
