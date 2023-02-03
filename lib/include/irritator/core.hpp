@@ -9656,7 +9656,7 @@ inline constexpr void small_string<length>::assign(
                ? static_cast<size_type>(str.size())
                : static_cast<size_type>(length - 1);
 
-    std::memcpy(&m_buffer[0], str.data(), m_size);
+    std::copy_n(str.data(), m_size, &m_buffer[0]);
     m_buffer[m_size] = '\0';
 }
 
