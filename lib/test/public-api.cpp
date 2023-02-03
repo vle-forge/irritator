@@ -3241,14 +3241,11 @@ int main()
     };
 
     "null_memory"_test = [] {
-        irt::is_fatal_breakpoint = false;
-        irt::g_alloc_fn          = null_alloc;
-        irt::g_free_fn           = null_free;
+        irt::g_alloc_fn = null_alloc;
+        irt::g_free_fn  = null_free;
 
         irt::simulation sim;
         expect(sim.init(30u, 30u) != irt::status::success);
-
-        irt::is_fatal_breakpoint = true;
 
         irt::g_alloc_fn = irt::malloc_wrapper;
         irt::g_free_fn  = irt::free_wrapper;

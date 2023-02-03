@@ -158,7 +158,7 @@ using f64 = double;
 #ifndef IRRITATOR_REAL_TYPE_F32
 using real = f64;
 #else
-using real                                  = f32;
+using real                                       = f32;
 #endif //  IRRITATOR_REAL_TYPE
 
 //! @brief An helper function to initialize floating point number and disable
@@ -7218,6 +7218,7 @@ template<typename Dynamics>
 Dynamics& get_dyn(model& mdl) noexcept
 {
     irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
+
     return *reinterpret_cast<Dynamics*>(&mdl.dyn);
 }
 
@@ -7225,6 +7226,7 @@ template<typename Dynamics>
 const Dynamics& get_dyn(const model& mdl) noexcept
 {
     irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
+
     return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
 }
 
