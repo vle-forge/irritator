@@ -677,8 +677,7 @@ public:
     using size_type = small_storage_size_t<length>;
 
 private:
-    std::byte m_buffer[length * sizeof(T)]; // to remove default-constructible
-                                            // requirement on T.
+    alignas(8) std::byte m_buffer[length * sizeof(T)];
     size_type m_size; // number of T element in the m_buffer.
 
 public:
@@ -6813,7 +6812,7 @@ struct model
     observer_id   obs_id = observer_id{ 0 };
     dynamics_type type;
 
-    std::byte dyn[max_size_in_bytes()];
+    alignas(8) std::byte dyn[max_size_in_bytes()];
 };
 
 template<typename Dynamics>
