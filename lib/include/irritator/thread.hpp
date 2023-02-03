@@ -11,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <type_traits>
 
 namespace irt {
 
@@ -60,6 +61,12 @@ template<typename T, int Size>
 class thread_safe_ring_buffer
 {
 public:
+    static_assert(Size >= 1);
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                  std::is_trivially_destructible_v<T>);
+    static_assert(std::is_nothrow_copy_assignable_v<T> ||
+                  std::is_trivially_copy_assignable_v<T>);
+
     constexpr thread_safe_ring_buffer() noexcept = default;
 
     thread_safe_ring_buffer(const thread_safe_ring_buffer&) noexcept = delete;
@@ -113,9 +120,6 @@ using task_function = void (*)(void*) noexcept;
 //! – Task fully independent
 struct task
 {
-    constexpr task() noexcept = default;
-    constexpr task(task_function function_, void* parameter_) noexcept;
-
     task_function function  = nullptr;
     void*         parameter = nullptr;
 };
@@ -128,12 +132,6 @@ struct task
 //! – Task fully independent
 struct job
 {
-    job() noexcept = default;
-
-    job(task_function     function_,
-        void*             parameter_,
-        std::atomic<int>* counter_) noexcept;
-
     task_function    function  = nullptr;
     void*            parameter = nullptr;
     std::atomic_int* counter   = nullptr;
@@ -320,25 +318,6 @@ inline scoped_spin_lock::scoped_spin_lock(spin_lock& spin_) noexcept
 inline scoped_spin_lock::~scoped_spin_lock() noexcept { spin.unlock(); }
 
 /*
-    task
- */
-
-constexpr task::task(task_function function_, void* parameter_) noexcept
-  : function(function_)
-  , parameter(parameter_)
-{
-}
-
-inline job::job(task_function     function_,
-                void*             parameter_,
-                std::atomic<int>* counter_) noexcept
-  : function(function_)
-  , parameter(parameter_)
-  , counter(counter_)
-{
-}
-
-/*
     task_list
  */
 
@@ -356,7 +335,7 @@ inline task_list::task_list(task_list&& other) noexcept
 
 inline void task_list::add(task_function function, void* parameter) noexcept
 {
-    while (!tasks.push(task{ function, parameter })) {
+    while (!tasks.push(task{ .function = function, .parameter = parameter })) {
         wakeup.test_and_set();
         wakeup.notify_all();
 
@@ -412,7 +391,7 @@ inline bool unordered_task_list::add(task_function function,
 
     ++stats.num_submitted_tasks;
 
-    tasks.emplace_back(function, parameter);
+    tasks.emplace_back(task{ .function = function, .parameter = parameter });
     return true;
 }
 

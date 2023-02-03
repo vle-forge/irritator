@@ -547,12 +547,12 @@ void simulation_editor::simulation_update_state() noexcept
         app->add_simulation_task(task_simulation_finish);
     }
 
-    std::tuple<model_id, ImVec2> new_position;
+    simulation_editor::model_to_move new_position;
     while (models_to_move.pop(new_position)) {
-        const auto index   = get_index(std::get<0>(new_position));
+        const auto index   = get_index(new_position.id);
         const auto index_i = static_cast<int>(index);
 
-        ImNodes::SetNodeScreenSpacePos(index_i, std::get<1>(new_position));
+        ImNodes::SetNodeScreenSpacePos(index_i, new_position.position);
     }
 }
 

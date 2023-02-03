@@ -1549,10 +1549,11 @@ void task_simulation_model_add(void* param) noexcept
         return;
     }
 
-    const auto x = static_cast<float>(task->param_2);
-    const auto y = static_cast<float>(task->param_3);
+    const auto   x = static_cast<float>(task->param_2);
+    const auto   y = static_cast<float>(task->param_3);
+    const ImVec2 pos{ x, y };
     task->app->s_editor.models_to_move.push(
-      std::make_tuple(mdl_id, ImVec2(x, y)));
+      simulation_editor::model_to_move{ .id = mdl_id, .position = pos });
 
     task->state = task_status::finished;
 }
