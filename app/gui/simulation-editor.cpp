@@ -583,8 +583,7 @@ static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
                 auto* machine = ed.sim.hsms.try_to_get(dyn.id);
                 irt_assert(machine != nullptr);
 
-                show_dynamics_inputs(
-                  *app, app->c_editor.mod.srcs, dyn, *machine);
+                show_dynamics_inputs(*app, ed.sim.models.get_id(mdl), *machine);
             } else {
                 show_dynamics_inputs(app->c_editor.mod.srcs, dyn);
             }

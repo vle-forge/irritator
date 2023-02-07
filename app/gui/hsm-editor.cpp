@@ -3,8 +3,10 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
+#include "imgui.h"
 #include "internal.hpp"
 #include "irritator/core.hpp"
+#include "irritator/modeling.hpp"
 
 namespace irt {
 
@@ -28,6 +30,11 @@ static const char* condition_names[] = {
     "b >= constant", "b <= constant", "a = b",         "a != b",
     "a > b",         "a < b",         "a >= b",        "a <= b",
 };
+
+static const std::string_view test_status_string[] = { "none",
+                                                       "being_processed",
+                                                       "done",
+                                                       "failed" };
 
 static void show_only_variable_widget(hsm_t::variable& act) noexcept
 {
@@ -520,39 +527,6 @@ void hsm_editor::clear() noexcept
     m_selected_nodes.clear();
 }
 
-void hsm_editor::copy_to(hsm_t& other) noexcept { other = m_hsm; }
-
-void hsm_editor::import_from(const hsm_t& other) noexcept
-{
-    clear();
-
-    m_stack.push_back(0);
-
-    while (!m_stack.empty()) {
-        const auto idx = m_stack.back();
-        m_enabled[idx] = true;
-        m_stack.pop_back();
-
-        if (other.states[idx].super_id != hsm_t::invalid_state_id)
-            if (m_enabled[other.states[idx].super_id] == false)
-                m_stack.push_back(other.states[idx].super_id);
-
-        if (other.states[idx].sub_id != hsm_t::invalid_state_id)
-            if (m_enabled[other.states[idx].sub_id] == false)
-                m_stack.push_back(other.states[idx].sub_id);
-
-        if (other.states[idx].if_transition != hsm_t::invalid_state_id)
-            if (m_enabled[other.states[idx].if_transition] == false)
-                m_stack.push_back(other.states[idx].if_transition);
-
-        if (other.states[idx].else_transition != hsm_t::invalid_state_id)
-            if (m_enabled[other.states[idx].else_transition] == false)
-                m_stack.push_back(other.states[idx].else_transition);
-
-        m_hsm.states[idx] = other.states[idx];
-    }
-}
-
 static void show_hsm(
   hsm_t&                                              hsm,
   const std::array<bool, hsm_t::max_number_of_state>& enabled) noexcept
@@ -737,57 +711,288 @@ static void show_panel(hsm_t&                                        hsm,
                        std::array<bool, hsm_t::max_number_of_state>& enabled,
                        const ImVector<int>& selected_nodes) noexcept
 {
-    for (int i = 0, e = selected_nodes.Size; i != e; ++i) {
-        const auto id    = get_state(selected_nodes[i]);
-        auto&      state = hsm.states[id];
+    if (ImGui::CollapsingHeader("selected states",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        for (int i = 0, e = selected_nodes.Size; i != e; ++i) {
+            const auto id    = get_state(selected_nodes[i]);
+            auto&      state = hsm.states[id];
 
-        ImGui::PushID(i);
-        ImGui::TextFormat("State {}", selected_nodes[i]);
+            ImGui::PushID(i);
+            ImGui::TextFormat("State {}", selected_nodes[i]);
 
-        ImGui::TextUnformatted("condition");
-        show_state_condition(state.condition);
+            ImGui::TextUnformatted("condition");
+            show_state_condition(state.condition);
 
-        ImGui::TextUnformatted("success");
-        show_state_action(state.if_action);
-        show_state_id_editor(enabled, state.if_transition);
+            ImGui::TextUnformatted("success");
+            show_state_action(state.if_action);
+            show_state_id_editor(enabled, state.if_transition);
 
-        ImGui::TextUnformatted("else");
-        show_state_action(state.else_action);
-        show_state_id_editor(enabled, state.else_transition);
+            ImGui::TextUnformatted("else");
+            show_state_action(state.else_action);
+            show_state_id_editor(enabled, state.else_transition);
 
-        ImGui::TextUnformatted("enter-action");
-        show_state_action(state.enter_action);
+            ImGui::TextUnformatted("enter-action");
+            show_state_action(state.enter_action);
 
-        ImGui::TextUnformatted("exit-action");
-        show_state_action(state.exit_action);
+            ImGui::TextUnformatted("exit-action");
+            show_state_action(state.exit_action);
 
-        ImGui::PopID();
-        ImGui::Separator();
+            ImGui::PopID();
+            ImGui::Separator();
+        }
     }
 }
 
-void hsm_editor::show() noexcept
+static void task_hsm_test_start(void* param) noexcept
 {
-    if (ImGui::BeginTable("HSM Editor",
-                          2,
-                          ImGuiTableFlags_Resizable |
-                            ImGuiTableFlags_NoSavedSettings |
-                            ImGuiTableFlags_Borders)) {
-        ImGui::TableSetupColumn("Editor", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn(
-          "Parameter", ImGuiTableColumnFlags_WidthFixed, 128.f);
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = task_status::started;
 
-        ImGui::TableNextColumn();
-        show_hsm_editor(m_context,
-                        m_hsm,
-                        m_selected_nodes,
-                        m_selected_links,
-                        m_position,
-                        m_enabled);
-        ImGui::TableNextColumn();
-        show_panel(m_hsm, m_enabled, m_selected_nodes);
-        ImGui::EndTable();
+    auto ret = g_task->app->h_editor.valid();
+    if (!ret) {
+        auto& n = g_task->app->notifications.alloc(notification_type::error);
+        n.title = "HSM badly define";
+        g_task->app->notifications.enable(n);
     }
+
+    g_task->state = task_status::finished;
+}
+
+bool hsm_editor::valid() noexcept
+{
+    if (match(
+          m_test, test_status::none, test_status::done, test_status::failed)) {
+        m_test = test_status::being_processed;
+
+        small_string<127> msg;
+        while (m_messages.pop(msg))
+            ;
+
+        small_vector<hsm_t::state_id, max_number_of_state> stack;
+        std::array<bool, max_number_of_state>              read;
+        read.fill(false);
+        read[0] = true;
+
+        if (m_hsm.states[0].if_transition != hsm_t::invalid_state_id)
+            stack.emplace_back(m_hsm.states[0].if_transition);
+        if (m_hsm.states[0].else_transition != hsm_t::invalid_state_id)
+            stack.emplace_back(m_hsm.states[0].else_transition);
+
+        while (!stack.empty()) {
+            auto top = stack.back();
+            stack.pop_back();
+
+            read[top] = true;
+
+            if (m_hsm.states[top].if_transition != hsm_t::invalid_state_id &&
+                read[m_hsm.states[top].if_transition] == false)
+                stack.emplace_back(m_hsm.states[top].if_transition);
+            if (m_hsm.states[top].else_transition != hsm_t::invalid_state_id &&
+                read[m_hsm.states[top].else_transition] == false)
+                stack.emplace_back(m_hsm.states[top].else_transition);
+        }
+
+        if (read != m_enabled) {
+            format(msg, "All state are not connected to the network");
+            m_messages.push(msg);
+            m_test = test_status::failed;
+        }
+
+        m_test = test_status::done;
+    }
+
+    return true;
+}
+
+static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
+  -> hierarchical_state_machine*
+{
+    auto* app = container_of(&ed, &application::h_editor);
+
+    if (is_defined(cid)) {
+        auto& mod = app->c_editor.mod;
+
+        if (auto* compo = mod.components.try_to_get(cid); compo) {
+            if (auto* mdl = compo->models.try_to_get(mid); mdl) {
+                if (mdl->type == dynamics_type::hsm_wrapper) {
+                    auto& hsmw = get_dyn<hsm_wrapper>(*mdl);
+                    if (auto* machine = compo->hsms.try_to_get(hsmw.id);
+                        machine)
+                        return machine;
+                }
+            }
+        }
+    } else {
+        auto& sim = app->s_editor.sim;
+
+        if (auto* mdl = sim.models.try_to_get(mid); mdl) {
+            if (mdl->type == dynamics_type::hsm_wrapper) {
+                auto& hsmw = get_dyn<hsm_wrapper>(*mdl);
+                if (auto* machine = sim.hsms.try_to_get(hsmw.id); machine)
+                    return machine;
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+void hsm_editor::load(component_id c_id, model_id m_id) noexcept
+{
+    clear();
+
+    m_compo_id = c_id;
+    m_model_id = m_id;
+
+    if (auto* machine = get(*this, m_compo_id, m_model_id); machine) {
+        m_stack.push_back(0);
+
+        while (!m_stack.empty()) {
+            const auto idx = m_stack.back();
+            m_enabled[idx] = true;
+            m_stack.pop_back();
+
+            if (machine->states[idx].super_id != hsm_t::invalid_state_id)
+                if (m_enabled[machine->states[idx].super_id] == false)
+                    m_stack.push_back(machine->states[idx].super_id);
+
+            if (machine->states[idx].sub_id != hsm_t::invalid_state_id)
+                if (m_enabled[machine->states[idx].sub_id] == false)
+                    m_stack.push_back(machine->states[idx].sub_id);
+
+            if (machine->states[idx].if_transition != hsm_t::invalid_state_id)
+                if (m_enabled[machine->states[idx].if_transition] == false)
+                    m_stack.push_back(machine->states[idx].if_transition);
+
+            if (machine->states[idx].else_transition != hsm_t::invalid_state_id)
+                if (m_enabled[machine->states[idx].else_transition] == false)
+                    m_stack.push_back(machine->states[idx].else_transition);
+
+            m_hsm.states[idx] = machine->states[idx];
+        }
+    }
+}
+
+void hsm_editor::load(model_id m_id) noexcept
+{
+    m_compo_id = undefined<component_id>();
+    m_model_id = m_id;
+
+    if (auto* machine = get(*this, m_compo_id, m_model_id); machine) {
+        m_stack.push_back(0);
+
+        while (!m_stack.empty()) {
+            const auto idx = m_stack.back();
+            m_enabled[idx] = true;
+            m_stack.pop_back();
+
+            if (machine->states[idx].super_id != hsm_t::invalid_state_id)
+                if (m_enabled[machine->states[idx].super_id] == false)
+                    m_stack.push_back(machine->states[idx].super_id);
+
+            if (machine->states[idx].sub_id != hsm_t::invalid_state_id)
+                if (m_enabled[machine->states[idx].sub_id] == false)
+                    m_stack.push_back(machine->states[idx].sub_id);
+
+            if (machine->states[idx].if_transition != hsm_t::invalid_state_id)
+                if (m_enabled[machine->states[idx].if_transition] == false)
+                    m_stack.push_back(machine->states[idx].if_transition);
+
+            if (machine->states[idx].else_transition != hsm_t::invalid_state_id)
+                if (m_enabled[machine->states[idx].else_transition] == false)
+                    m_stack.push_back(machine->states[idx].else_transition);
+
+            m_hsm.states[idx] = machine->states[idx];
+        }
+    }
+}
+
+void hsm_editor::save() noexcept
+{
+    if (auto* machine = get(*this, m_compo_id, m_model_id); machine)
+        *machine = m_hsm;
+}
+
+bool hsm_editor::show(const char* title) noexcept
+{
+    if (m_state == state::hide)
+        m_state = state::show;
+
+    ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_FirstUseEver);
+    bool ret = false;
+
+    if (ImGui::BeginPopupModal(title)) {
+        const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;
+        const auto region_width  = ImGui::GetContentRegionAvail().x;
+        const auto region_height = ImGui::GetContentRegionAvail().y;
+        const auto button_size =
+          ImVec2{ (region_width - 2.f * item_spacing) / 3.f, 0 };
+        const auto table_heigth =
+          region_height - 3.f * ImGui::GetFrameHeightWithSpacing();
+
+        ImGui::BeginChild("##table-editor", ImVec2(0, table_heigth), false);
+        if (ImGui::BeginTable("editor",
+                              2,
+                              ImGuiTableFlags_Resizable |
+                                ImGuiTableFlags_NoSavedSettings |
+                                ImGuiTableFlags_Borders)) {
+            ImGui::TableSetupColumn("Editor",
+                                    ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn(
+              "Parameter", ImGuiTableColumnFlags_WidthFixed, 128.f);
+
+            ImGui::TableNextColumn();
+            show_hsm_editor(m_context,
+                            m_hsm,
+                            m_selected_nodes,
+                            m_selected_links,
+                            m_position,
+                            m_enabled);
+            ImGui::TableNextColumn();
+            show_panel(m_hsm, m_enabled, m_selected_nodes);
+            ImGui::EndTable();
+        }
+        ImGui::EndChild();
+
+        ImGui::TextFormat("status: {}", test_status_string[ordinal(m_test)]);
+
+        if (ImGui::CollapsingHeader("messages",
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+            small_string<127> msg;
+            while (m_messages.pop(msg))
+                ImGui::TextUnformatted(msg.c_str());
+        }
+
+        if (ImGui::Button("Ok", button_size)) {
+            m_state = state::ok;
+        }
+
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+
+        ImGui::BeginDisabled(match(m_test, test_status::being_processed));
+        if (ImGui::Button("test")) {
+            auto* app = container_of(this, &application::h_editor);
+            app->add_gui_task(task_hsm_test_start);
+        }
+        ImGui::EndDisabled();
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Cancel", button_size)) {
+            ret     = false;
+            m_state = state::cancel;
+        }
+
+        if (m_state != state::show) {
+            ret = true;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+
+    return ret;
 }
 
 } // namespace irt

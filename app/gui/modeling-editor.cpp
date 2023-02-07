@@ -138,14 +138,17 @@ static void show(const settings_manager& settings,
       "{}\n{}", c.name.c_str(), dynamics_type_names[ordinal(mdl.type)]);
     ImNodes::EndNodeTitleBar();
 
-    dispatch(mdl, [&ed, &parent, id]<typename Dynamics>(Dynamics& dyn) {
+    dispatch(mdl, [&mdl, &ed, &parent, id]<typename Dynamics>(Dynamics& dyn) {
         add_input_attribute(dyn, id);
         ImGui::PushItemWidth(120.0f);
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
             if (auto* machine = parent.hsms.try_to_get(dyn.id); machine) {
                 auto* app = container_of(&ed, &application::c_editor);
-                show_dynamics_inputs(*app, ed.mod.srcs, dyn, *machine);
+                show_dynamics_inputs(*app,
+                                     ed.mod.components.get_id(parent),
+                                     parent.models.get_id(mdl),
+                                     *machine);
                 ImNodes::EditorContextSet(ed.context);
             }
         } else {

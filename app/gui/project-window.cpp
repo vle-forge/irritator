@@ -148,12 +148,15 @@ static void show_project_hierarchy_child_configuration(component_editor& ed,
         }
 
         if (is_configured && param) {
-            dispatch(*param, [&ed, &compo]<typename Dynamics>(Dynamics& dyn) {
+            dispatch(*param, [&ed, &compo, param]<typename Dynamics>(Dynamics& dyn) {
                 if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
                     if (auto* machine = compo.hsms.try_to_get(dyn.id);
                         machine) {
                         auto* app = container_of(&ed, &application::c_editor);
-                        show_dynamics_inputs(*app, ed.mod.srcs, dyn, *machine);
+                        show_dynamics_inputs(*app,
+                                             ed.mod.components.get_id(compo),
+                                             compo.models.get_id(*param),
+                                             *machine);
                     }
                 } else
                     show_dynamics_inputs(ed.mod.srcs, dyn);

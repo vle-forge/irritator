@@ -286,25 +286,56 @@ public:
     constexpr static inline auto max_number_of_state =
       hierarchical_state_machine::max_number_of_state;
 
+    enum class state
+    {
+        show,
+        ok,
+        cancel,
+        hide
+    };
+
+    enum class test_status
+    {
+        none,
+        being_processed,
+        done,
+        failed
+    };
+
     hsm_editor() noexcept;
     ~hsm_editor() noexcept;
 
+    //! This function clear the current hierarchical state machine: suppress all
+    //! states, transitions and actions. Assign the state-0 as initial state.
     void clear() noexcept;
-    void copy_to(hierarchical_state_machine& other) noexcept;
-    void import_from(const hierarchical_state_machine& other) noexcept;
 
-    void show() noexcept;
+    void load(component_id c_id, model_id m_id) noexcept;
+    void load(model_id m_id) noexcept;
+    void save() noexcept;
+
+    bool show(const char* title) noexcept;
+    bool valid() noexcept;
+
+    bool state_ok() const noexcept { return m_state == state::ok; }
+    void hide() noexcept { m_state = state::hide; }
 
 private:
+    ImNodesEditorContext* m_context = nullptr;
+
     hierarchical_state_machine m_hsm;
-    ImNodesEditorContext*      m_context = nullptr;
+    component_id               m_compo_id;
+    model_id                   m_model_id;
 
     ImVector<int>                                  m_selected_links;
     ImVector<int>                                  m_selected_nodes;
     ImVector<hierarchical_state_machine::state_id> m_stack;
 
-    std::array<ImVec2, max_number_of_state> m_position;
-    std::array<bool, max_number_of_state>   m_enabled;
+    std::array<ImVec2, max_number_of_state>        m_position;
+    std::array<bool, max_number_of_state>          m_enabled;
+    thread_safe_ring_buffer<small_string<127>, 10> m_messages;
+
+    test_status m_test  = test_status::none;
+    state       m_state = state::hide;
 };
 
 struct simulation_editor

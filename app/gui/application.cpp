@@ -596,13 +596,14 @@ void application::show() noexcept
     application_show_windows(*this);
 
     if (show_hsm_editor) {
-        ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(700, 600), ImGuiCond_Once);
-        if (!ImGui::Begin("HSM editor", &show_hsm_editor)) {
-            ImGui::End();
-        } else {
-            h_editor.show();
-            ImGui::End();
+        ImGui::OpenPopup("HSM editor");
+        if (h_editor.show("HSM editor")) {
+            if (h_editor.state_ok())
+                h_editor.save();
+
+            h_editor.clear();
+            h_editor.hide();
+            show_hsm_editor = false;
         }
     }
 
