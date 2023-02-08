@@ -194,6 +194,9 @@ void notification_manager::show() noexcept
             continue;
         }
 
+        if (notif->only_log)
+            continue;
+
         const auto opacity    = get_fade_percent(*notif);
         auto       text_color = notification_text_color[ordinal(notif->type)];
         text_color.w          = opacity;

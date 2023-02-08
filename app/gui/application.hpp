@@ -120,6 +120,12 @@ struct notification
     message_t         message;
     u64               creation_time;
     notification_type type;
+
+    //! Is @c only_log is true, the notification is displayed only by the @c
+    //! window_logger. If @c only_log boolean is
+    //! false (default value), the notification is displayed both in the @c
+    //! window_logger and in the @c notification_manager.
+    bool only_log = false;
 };
 
 //! @brief Show notification into small auto destructible windows in bottom

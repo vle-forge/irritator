@@ -565,18 +565,50 @@ void application::show() noexcept
 
     if (!c_editor.mod.warnings.empty()) {
         while (!c_editor.mod.warnings.empty()) {
-            auto& warning = c_editor.mod.warnings.front();
+            auto& w = c_editor.mod.warnings.front();
+            auto& n = notifications.alloc();
             c_editor.mod.warnings.pop_front();
 
-            auto& n = notifications.alloc();
-            if (warning.st != status::success) {
-                n.type  = notification_type::information;
-                n.title = warning.buffer.sv();
-            } else {
-                n.type = notification_type::warning;
-                format(n.title, "{}", status_string(warning.st));
-                n.message = warning.buffer.sv();
+            switch (w.level) {
+                using enum modeling_warning::level_t;
+
+            case emergency:
+                n.type  = notification_type::error;
+                n.title = w.buffer.sv();
+                break;
+            case alert:
+                n.type  = notification_type::error;
+                n.title = w.buffer.sv();
+                break;
+            case critical:
+                n.type  = notification_type::error;
+                n.title = w.buffer.sv();
+                break;
+            case error:
+                n.type  = notification_type::error;
+                n.title = w.buffer.sv();
+                break;
+            case warning:
+                n.type  = notification_type::warning;
+                n.title = w.buffer.sv();
+                break;
+            case notice:
+                n.type  = notification_type::success;
+                n.title = w.buffer.sv();
+                break;
+            case info:
+                n.type     = notification_type::information;
+                n.title    = w.buffer.sv();
+                n.only_log = true;
+            case debug:
+                n.type     = notification_type::information;
+                n.title    = w.buffer.sv();
+                n.only_log = true;
+                break;
             }
+
+            if (is_bad(w.st))
+                format(n.message, "{}", status_string(w.st));
 
             notifications.enable(n);
         }

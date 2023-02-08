@@ -38,9 +38,10 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 //! \param fmt A format string for the fmtlib library.
 //! \param args Arguments for the fmtlib library.
 template<typename S, typename... Args>
-constexpr void log_warning(modeling& mod,
-                           status    st,
-                           const S&  fmt,
+constexpr void log_warning(modeling&                 mod,
+                           modeling_warning::level_t level,
+                           status                    st,
+                           const S&                  fmt,
                            Args&&... args) noexcept
 {
     using size_type = typename modeling_warning::string_t::size_type;
@@ -48,7 +49,8 @@ constexpr void log_warning(modeling& mod,
     if (mod.warnings.full())
         mod.warnings.pop_front();
 
-    mod.warnings.push_back({ .buffer = "", .st = status::success });
+    mod.warnings.push_back(
+      { .buffer = "", .level = level, .st = status::success });
     auto& warning = mod.warnings.back();
 
     auto ret = fmt::vformat_to_n(warning.buffer.begin(),
@@ -65,12 +67,15 @@ constexpr void log_warning(modeling& mod,
 //! The formatted string in take from the \c modeling \c ring-buffer.
 //! \param mode A reference to a modeling object.
 //! \param status The \c irt::status attached to the error.
-constexpr void log_warning(modeling& mod, status st) noexcept
+constexpr void log_warning(modeling&                 mod,
+                           modeling_warning::level_t level,
+                           status                    st) noexcept
 {
     if (mod.warnings.full())
         mod.warnings.pop_front();
 
-    mod.warnings.push_back({ .buffer = "", .st = status::success });
+    mod.warnings.push_back(
+      { .buffer = "", .level = level, .st = status::success });
     auto& warning = mod.warnings.back();
     warning.st    = st;
 }

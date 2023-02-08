@@ -349,7 +349,20 @@ struct modeling_warning
 
     using string_t = small_string<buffer_size>;
 
+    enum class level_t
+    {
+        emergency,
+        alert,
+        critical,
+        error,
+        warning,
+        notice,
+        info,
+        debug
+    };
+
     string_t buffer;
+    level_t  level;
     status   st;
 };
 
