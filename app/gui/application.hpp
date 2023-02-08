@@ -33,6 +33,19 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
       &(reinterpret_cast<T*>(0)->*member));
 }
 
+//! A helper function to get a pointer to the parent container from a member.
+//! @code
+//! struct point { float x; float y; };
+//! struct line { point p1, p2; };
+//! ...
+//! line l;
+//! ..
+//!
+//! void fn(point& p) {
+//!     line *ptr = container_of(&p, &line::p1);
+//!     ...
+//! }
+//! @endcode
 template<class T, class M>
 constexpr T* container_of(M* ptr, const M T::*member)
 {
@@ -40,8 +53,8 @@ constexpr T* container_of(M* ptr, const M T::*member)
                                 offset_of(member));
 }
 
-struct application;
 class window_logger;
+struct application;
 struct component_editor;
 struct simulation_editor;
 
