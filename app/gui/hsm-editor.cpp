@@ -750,7 +750,7 @@ static void task_hsm_test_start(void* param) noexcept
 
     auto ret = g_task->app->h_editor.valid();
     if (!ret) {
-        auto& n = g_task->app->notifications.alloc(notification_type::error);
+        auto& n = g_task->app->notifications.alloc(log_level::error);
         n.title = "HSM badly define";
         g_task->app->notifications.enable(n);
     }

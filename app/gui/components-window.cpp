@@ -29,7 +29,7 @@ static void show_component_popup_menu(irt::component_editor& ed,
                 } else {
                     auto* app = container_of(&ed, &application::c_editor);
                     auto& n   = app->notifications.alloc();
-                    n.type    = notification_type::error;
+                    n.level   = log_level::error;
                     n.title   = "Can not alloc a new component";
                     app->notifications.enable(n);
                 }
@@ -77,7 +77,7 @@ static bool show_component(component_editor& ed,
                 ed.mod.copy(c, new_c);
             } else {
                 auto& n = app->notifications.alloc();
-                n.type  = notification_type::error;
+                n.level = log_level::error;
                 n.title = "Can not alloc a new component";
                 app->notifications.enable(n);
             }
@@ -85,7 +85,7 @@ static bool show_component(component_editor& ed,
 
         if (ImGui::MenuItem("Delete file")) {
             auto& n = app->notifications.alloc();
-            n.type  = notification_type::information;
+            n.level = log_level::info;
             format(n.title = "Remove file `{}'", file.path.sv());
 
             ed.mod.remove_file(reg, dir, file);

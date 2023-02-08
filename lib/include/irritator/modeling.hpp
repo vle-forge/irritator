@@ -343,27 +343,15 @@ struct modeling_to_simulation
     void destroy() noexcept;
 };
 
-struct modeling_warning
+struct log_entry
 {
     constexpr static int buffer_size = 254;
 
     using string_t = small_string<buffer_size>;
 
-    enum class level_t
-    {
-        emergency,
-        alert,
-        critical,
-        error,
-        warning,
-        notice,
-        info,
-        debug
-    };
-
-    string_t buffer;
-    level_t  level;
-    status   st;
+    string_t  buffer;
+    log_level level;
+    status    st;
 };
 
 struct modeling
@@ -452,7 +440,7 @@ struct modeling
                          const simulation&       sim) const noexcept;
     status export_to(modeling_to_simulation& cache, simulation& sim) noexcept;
 
-    ring_buffer<modeling_warning> warnings;
+    ring_buffer<log_entry> log_entries;
 };
 
 /*

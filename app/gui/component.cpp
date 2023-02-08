@@ -392,7 +392,7 @@ component_id component_editor::add_empty_component() noexcept
         ret = mod.components.get_id(new_compo);
     } else {
         auto* app   = container_of(this, &application::c_editor);
-        auto& notif = app->notifications.alloc(notification_type::error);
+        auto& notif = app->notifications.alloc(log_level::error);
         notif.title = "Can not allocate new container";
         format(notif.message,
                "Components allocated: {}\nTree nodes allocated: {}",

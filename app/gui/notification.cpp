@@ -35,26 +35,27 @@ enum class notification_state
 };
 
 static inline const ImVec4 notification_text_color[] = {
-    { 0.46f, 0.59f, 0.78f, 1.f },
-    { 0.46f, 0.59f, 0.78f, 1.f },
-    { 0.46f, 0.78f, 0.59f, 1.f },
-    { 0.78f, 0.49f, 0.46f, 1.f },
-    { 0.46f, 0.59f, 0.78f, 1.f }
+    { 0.46f, 0.59f, 0.78f, 1.f }, { 0.46f, 0.59f, 0.78f, 1.f },
+    { 0.46f, 0.78f, 0.59f, 1.f }, { 0.78f, 0.49f, 0.46f, 1.f },
+    { 0.46f, 0.59f, 0.78f, 1.f }, { 0.46f, 0.59f, 0.78f, 1.f },
+    { 0.46f, 0.59f, 0.78f, 1.f }, { 0.46f, 0.59f, 0.78f, 1.f },
 };
 
 static inline const ImVec4 notification_color[] = {
-    { 0.16f, 0.29f, 0.48f, 1.f },
-    { 0.16f, 0.29f, 0.48f, 1.f },
-    { 0.16f, 0.48f, 0.29f, 1.f },
-    { 0.48f, 0.29f, 0.16f, 1.f },
-    { 0.16f, 0.29f, 0.48f, 1.f }
+    { 0.16f, 0.29f, 0.48f, 1.f }, { 0.16f, 0.29f, 0.48f, 1.f },
+    { 0.16f, 0.48f, 0.29f, 1.f }, { 0.48f, 0.29f, 0.16f, 1.f },
+    { 0.16f, 0.29f, 0.48f, 1.f }, { 0.16f, 0.29f, 0.48f, 1.f },
+    { 0.16f, 0.29f, 0.48f, 1.f }, { 0.16f, 0.29f, 0.48f, 1.f },
 };
 
-static inline const char* notification_prefix[] = { "",
-                                                    "Success ",
-                                                    "Warning ",
-                                                    "Error ",
-                                                    "Information " };
+static inline const char* notification_prefix[] = { "emergency error ",
+                                                    "alert error ",
+                                                    "critical error ",
+                                                    "error ",
+                                                    "warnings ",
+                                                    "",
+                                                    "",
+                                                    "debug " };
 
 static u64 get_elapsed_time(const notification& n) noexcept
 {
@@ -108,13 +109,13 @@ static float get_fade_percent(const notification& n) noexcept
 
 notification::notification() noexcept
   : creation_time(get_tick_count_in_milliseconds())
-  , type(notification_type::information)
+  , level(log_level::info)
 {
 }
 
-notification::notification(notification_type type_) noexcept
+notification::notification(log_level level_) noexcept
   : creation_time(get_tick_count_in_milliseconds())
-  , type(type_)
+  , level(level_)
 {
 }
 
@@ -138,10 +139,10 @@ notification& notification_manager::alloc() noexcept
     }
 }
 
-notification& notification_manager::alloc(notification_type type) noexcept
+notification& notification_manager::alloc(log_level level) noexcept
 {
     auto& n = alloc();
-    n.type  = type;
+    n.level = level;
 
     return n;
 }
@@ -198,7 +199,7 @@ void notification_manager::show() noexcept
             continue;
 
         const auto opacity    = get_fade_percent(*notif);
-        auto       text_color = notification_text_color[ordinal(notif->type)];
+        auto       text_color = notification_text_color[ordinal(notif->level)];
         text_color.w          = opacity;
 
         ImGui::SetNextWindowBgAlpha(opacity);
@@ -209,7 +210,7 @@ void notification_manager::show() noexcept
           ImVec2(1.0f, 1.0f));
 
         ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                              notification_color[ordinal(notif->type)]);
+                              notification_color[ordinal(notif->level)]);
         small_string<16> name;
         format(name, "##{}toast", i);
         ImGui::Begin(name.c_str(), nullptr, notification_flags);
@@ -217,7 +218,7 @@ void notification_manager::show() noexcept
 
         ImGui::PushTextWrapPos(vp_size.x / 3.f);
         ImGui::PushStyleColor(ImGuiCol_Text, text_color);
-        ImGui::TextUnformatted(notification_prefix[ordinal(notif->type)]);
+        ImGui::TextUnformatted(notification_prefix[ordinal(notif->level)]);
         ImGui::SameLine();
         ImGui::TextUnformatted(notif->title.c_str());
         ImGui::PopStyleColor();

@@ -330,7 +330,7 @@ status application::load_settings() noexcept
                 const auto error_offset = reader.GetErrorOffset();
 
                 auto  file = path->generic_string();
-                auto& n    = notifications.alloc(notification_type::error);
+                auto& n    = notifications.alloc(log_level::error);
                 n.title    = "Fail to parse settings file";
                 format(n.message,
                        "Error {} at offset {} in file {}",
@@ -340,19 +340,19 @@ status application::load_settings() noexcept
                 notifications.enable(n);
                 ret = status::io_file_format_error;
             } else {
-                auto& n = notifications.alloc(notification_type::success);
+                auto& n = notifications.alloc(log_level::notice);
                 n.title = "Load settings file";
                 notifications.enable(n);
             }
         } else {
-            auto& n   = notifications.alloc(notification_type::error);
+            auto& n   = notifications.alloc(log_level::error);
             n.title   = "Fail to open settings file";
             n.message = filename;
             notifications.enable(n);
             ret = status::io_file_format_error;
         }
     } else {
-        auto& n = notifications.alloc(notification_type::error);
+        auto& n = notifications.alloc(log_level::error);
         n.title = "Fail to create settings file name";
         notifications.enable(n);
         ret = status::io_file_format_error;
@@ -425,11 +425,11 @@ status application::save_settings() noexcept
 
             writer.EndObject();
 
-            auto& n = notifications.alloc(notification_type::success);
+            auto& n = notifications.alloc(log_level::notice);
             n.title = "Save settings file";
             notifications.enable(n);
         } else {
-            auto& n   = notifications.alloc(notification_type::error);
+            auto& n   = notifications.alloc(log_level::error);
             n.title   = "Fail to open settings file";
             n.message = filename;
             notifications.enable(n);
@@ -437,7 +437,7 @@ status application::save_settings() noexcept
             ret = status::io_file_format_error;
         }
     } else {
-        auto& n = notifications.alloc(notification_type::error);
+        auto& n = notifications.alloc(log_level::critical);
         n.title = "Fail to create settings file name";
         notifications.enable(n);
 
@@ -455,14 +455,14 @@ void component_editor::save_project(const char* filename) noexcept
 
     if (auto ret = project_save(mod, cache, filename); is_bad(ret)) {
         auto* app = container_of(this, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
+        auto& n   = app->notifications.alloc(log_level::error);
         n.title   = "Save project fail";
         format(n.message, "Can not access file `{}'", filename);
         app->notifications.enable(n);
     } else {
         mod.state = modeling_status::unmodified;
         auto* app = container_of(this, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::success);
+        auto& n   = app->notifications.alloc(log_level::notice);
         n.title   = "The file was saved successfully.";
         app->notifications.enable(n);
     }
@@ -474,13 +474,13 @@ void component_editor::load_project(const char* filename) noexcept
 
     if (auto ret = project_load(mod, cache, filename); is_bad(ret)) {
         auto* app = container_of(this, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
+        auto& n   = app->notifications.alloc(log_level::error);
         n.title   = "Load project fail";
         format(n.message, "Can not access file `{}'", filename);
         app->notifications.enable(n);
     } else {
         auto* app = container_of(this, &application::c_editor);
-        auto& n   = app->notifications.alloc(notification_type::success);
+        auto& n   = app->notifications.alloc(log_level::notice);
         n.title   = "The file was loaded successfully.";
         app->notifications.enable(n);
         mod.state = modeling_status::unmodified;

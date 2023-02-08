@@ -38,20 +38,20 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 //! \param fmt A format string for the fmtlib library.
 //! \param args Arguments for the fmtlib library.
 template<typename S, typename... Args>
-constexpr void log_warning(modeling&                 mod,
-                           modeling_warning::level_t level,
-                           status                    st,
-                           const S&                  fmt,
+constexpr void log_warning(modeling& mod,
+                           log_level level,
+                           status    st,
+                           const S&  fmt,
                            Args&&... args) noexcept
 {
-    using size_type = typename modeling_warning::string_t::size_type;
+    using size_type = typename log_entry::string_t::size_type;
 
-    if (mod.warnings.full())
-        mod.warnings.pop_front();
+    if (mod.log_entries.full())
+        mod.log_entries.pop_front();
 
-    mod.warnings.push_back(
+    mod.log_entries.push_back(
       { .buffer = "", .level = level, .st = status::success });
-    auto& warning = mod.warnings.back();
+    auto& warning = mod.log_entries.back();
 
     auto ret = fmt::vformat_to_n(warning.buffer.begin(),
                                  warning.buffer.capacity() - 1,
@@ -62,21 +62,19 @@ constexpr void log_warning(modeling&                 mod,
     warning.st = st;
 }
 
-//! Copy a formatted string into the \c modeling warnings.
+//! Copy a formatted string into the \c modeling log_entries.
 //!
 //! The formatted string in take from the \c modeling \c ring-buffer.
 //! \param mode A reference to a modeling object.
 //! \param status The \c irt::status attached to the error.
-constexpr void log_warning(modeling&                 mod,
-                           modeling_warning::level_t level,
-                           status                    st) noexcept
+constexpr void log_warning(modeling& mod, log_level level, status st) noexcept
 {
-    if (mod.warnings.full())
-        mod.warnings.pop_front();
+    if (mod.log_entries.full())
+        mod.log_entries.pop_front();
 
-    mod.warnings.push_back(
+    mod.log_entries.push_back(
       { .buffer = "", .level = level, .st = status::success });
-    auto& warning = mod.warnings.back();
+    auto& warning = mod.log_entries.back();
     warning.st    = st;
 }
 

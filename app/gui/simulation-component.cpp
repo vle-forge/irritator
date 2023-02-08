@@ -85,7 +85,7 @@ static void make_copy_error_msg(component_editor& ed,
                                 Args&&... args) noexcept
 {
     auto* app = container_of(&ed, &application::c_editor);
-    auto& n   = app->notifications.alloc(notification_type::error);
+    auto& n   = app->notifications.alloc(log_level::error);
     n.title   = "Component copy failed";
 
     auto ret = fmt::vformat_to_n(n.message.begin(),
@@ -103,7 +103,7 @@ static void make_init_error_msg(component_editor& ed,
                                 Args&&... args) noexcept
 {
     auto* app = container_of(&ed, &application::c_editor);
-    auto& n   = app->notifications.alloc(notification_type::error);
+    auto& n   = app->notifications.alloc(log_level::error);
     n.title   = "Simulation initialization fail";
 
     auto ret = fmt::vformat_to_n(n.message.begin(),
@@ -241,7 +241,7 @@ static status debug_run(simulation_editor& sim_ed) noexcept
     if (auto ret = run(sim_ed.tl, sim_ed.sim, sim_ed.simulation_current);
         is_bad(ret)) {
         auto* app = container_of(&sim_ed, &application::s_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
+        auto& n   = app->notifications.alloc(log_level::error);
         n.title   = "Debug run error";
         app->notifications.enable(n);
         sim_ed.simulation_state = simulation_status::finish_requiring;
@@ -255,7 +255,7 @@ static status run(simulation_editor& sim_ed) noexcept
 {
     if (auto ret = sim_ed.sim.run(sim_ed.simulation_current); is_bad(ret)) {
         auto* app = container_of(&sim_ed, &application::s_editor);
-        auto& n   = app->notifications.alloc(notification_type::error);
+        auto& n   = app->notifications.alloc(log_level::error);
         n.title   = "Run error";
         app->notifications.enable(n);
         sim_ed.simulation_state = simulation_status::finish_requiring;
@@ -515,7 +515,7 @@ static void task_enable_or_disable_debug(void* param) noexcept
 
         if (is_bad(ret)) {
             auto& n =
-              g_task->app->notifications.alloc(notification_type::error);
+              g_task->app->notifications.alloc(log_level::error);
             n.title = "Debug mode failed to initialize";
             format(n.message,
                    "Fail to initialize the debug mode: {}",
@@ -571,7 +571,7 @@ void simulation_editor::simulation_copy_modeling() noexcept
 
         auto* modeling_head = mod.tree_nodes.try_to_get(mod.head);
         if (!modeling_head) {
-            auto& notif = app->notifications.alloc(notification_type::error);
+            auto& notif = app->notifications.alloc(log_level::error);
             notif.title = "Empty model";
             app->notifications.enable(notif);
         } else {

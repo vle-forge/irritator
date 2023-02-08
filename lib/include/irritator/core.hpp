@@ -390,6 +390,19 @@ constexpr Iterator binary_find(Iterator begin,
     return (begin != end && !comp(value, *begin)) ? begin : end;
 }
 
+//! Enumeration class used everywhere in irritator to produce log data.
+enum class log_level
+{
+    emergency,
+    alert,
+    critical,
+    error,
+    warning,
+    notice,
+    info,
+    debug
+};
+
 /*****************************************************************************
  *
  * Return status of many function
@@ -2864,53 +2877,54 @@ status send_message(simulation&  sim,
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::convertible_to<status>;
-};
+                                  {
+                                      t.lambda(sim)
+                                      } -> std::convertible_to<status>;
+                              };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-      } -> std::convertible_to<status>;
+          } -> std::convertible_to<status>;
   };
 
 template<typename T>
-concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::convertible_to<observation_message>;
-};
+concept has_observation_function =
+  requires(T t, time s, time e) {
+      {
+          t.observation(s, e)
+          } -> std::convertible_to<observation_message>;
+  };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::convertible_to<status>;
-};
+                                      {
+                                          t.initialize(sim)
+                                          } -> std::convertible_to<status>;
+                                  };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::convertible_to<status>;
-};
+                                    {
+                                        t.finalize(sim)
+                                        } -> std::convertible_to<status>;
+                                };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
-};
+                             {
+                                 t.x
+                             };
+                         };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
-};
+                              {
+                                  t.y
+                              };
+                          };
 
 constexpr observation_message qss_observation(real X,
                                               real u,

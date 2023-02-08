@@ -296,7 +296,7 @@ static void add_popup_menuitem(component_editor& ed,
     if (!parent.models.can_alloc(1)) {
         auto* app = container_of(&ed, &application::c_editor);
         auto& n   = app->notifications.alloc();
-        n.type    = notification_type::error;
+        n.level   = log_level::error;
         n.title   = "can not allocate a new model";
         return;
     }
@@ -308,7 +308,7 @@ static void add_popup_menuitem(component_editor& ed,
 
         auto* app = container_of(&ed, &application::c_editor);
         auto& n   = app->notifications.alloc();
-        n.type    = notification_type::success;
+        n.level   = log_level::debug;
         format(n.title,
                "new model {} added",
                ordinal(parent.children.get_id(child)));
@@ -398,7 +398,7 @@ static status add_component_to_current(component_editor& ed,
 
     if (!can_add_this_component(ed, compo_to_add_id)) {
         auto* app   = container_of(&ed, &application::c_editor);
-        auto& notif = app->notifications.alloc(notification_type::error);
+        auto& notif = app->notifications.alloc(log_level::error);
         notif.title = "Fail to add component";
         format(notif.message,
                "Irritator does not accept recursive component {}",

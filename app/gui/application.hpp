@@ -51,32 +51,11 @@ enum class simulation_observation_copy_id : u64;
 enum class simulation_task_id : u64;
 enum class gui_task_id : u64;
 
-enum class notification_type
-{
-    none,
-    success,
-    warning,
-    error,
-    information
-};
-
 enum class task_status
 {
     not_started,
     started,
     finished
-};
-
-enum class log_status
-{
-    emergency,
-    alert,
-    critical,
-    error,
-    warning,
-    notice,
-    info,
-    debug
 };
 
 enum class simulation_status
@@ -114,12 +93,12 @@ struct notification
     using message_t = small_string<message_length>;
 
     notification() noexcept;
-    notification(notification_type type_) noexcept;
+    notification(log_level level_) noexcept;
 
-    title_t           title;
-    message_t         message;
-    u64               creation_time;
-    notification_type type;
+    title_t   title;
+    message_t message;
+    u64       creation_time;
+    log_level level;
 
     //! Is @c only_log is true, the notification is displayed only by the @c
     //! window_logger. If @c only_log boolean is
@@ -143,7 +122,7 @@ public:
     notification_manager() noexcept;
 
     notification& alloc() noexcept;
-    notification& alloc(notification_type type) noexcept;
+    notification& alloc(log_level level) noexcept;
 
     void enable(const notification& n) noexcept;
     void show() noexcept;
@@ -179,8 +158,6 @@ private:
     bool auto_scroll      = true;
     bool scroll_to_bottom = false;
 };
-
-const char* log_string(const log_status s) noexcept;
 
 struct raw_observation
 {

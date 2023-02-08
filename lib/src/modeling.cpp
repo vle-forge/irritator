@@ -666,7 +666,7 @@ bool dir_path::make() const noexcept { return exists_path(path.sv()); }
 bool dir_path::exists() const noexcept { return exists_path(path.sv()); }
 
 modeling::modeling() noexcept
-  : warnings(16)
+  : log_entries(16)
 {
 }
 
@@ -902,13 +902,13 @@ static void prepare_component_loading(modeling&             mod,
                 compo.desc  = mod.descriptions.get_id(desc);
             } else {
                 log_warning(mod,
-                            modeling_warning::level_t::error,
+                            log_level::error,
                             status::modeling_too_many_description_open);
             }
         }
     } catch (const std::exception& /*e*/) {
         log_warning(mod,
-                    modeling_warning::level_t::error,
+                    log_level::error,
                     status::io_filesystem_error,
                     reg_dir.path.c_str());
     }
@@ -930,7 +930,7 @@ static void prepare_component_loading(modeling&             mod,
         while (it != et) {
             if (it->is_regular_file() && it->path().extension() == ".irt") {
                 log_warning(mod,
-                            modeling_warning::level_t::debug,
+                            log_level::debug,
                             status::success,
                             "check file `{}'",
                             it->path().filename().string());
@@ -958,7 +958,7 @@ static void prepare_component_loading(modeling&             mod,
 
         if (too_many_file) {
             log_warning(mod,
-                        modeling_warning::level_t::error,
+                        log_level::error,
                         status::modeling_too_many_file_open,
                         "registred path {}, directory {}",
                         reg_dir.path.sv(),
@@ -966,7 +966,7 @@ static void prepare_component_loading(modeling&             mod,
         }
     } catch (...) {
         log_warning(mod,
-                    modeling_warning::level_t::error,
+                    log_level::error,
                     status::modeling_file_access_error,
                     "registred path {}",
                     reg_dir.path.sv());
@@ -990,7 +990,7 @@ static void prepare_component_loading(modeling&              mod,
             while (it != et) {
                 if (it->is_directory()) {
                     log_warning(mod,
-                                modeling_warning::level_t::debug,
+                                log_level::debug,
                                 status::success,
                                 "check dir_path `{}'\n",
                                 it->path().filename().string());
@@ -1019,20 +1019,20 @@ static void prepare_component_loading(modeling&              mod,
 
             if (too_many_directory)
                 log_warning(mod,
-                            modeling_warning::level_t::error,
+                            log_level::error,
                             status::modeling_too_many_directory_open,
                             "registred path {}",
                             reg_dir.path.sv());
         } else {
             log_warning(mod,
-                        modeling_warning::level_t::error,
+                        log_level::error,
                         status::modeling_file_access_error,
                         "registred path {}",
                         reg_dir.path.sv());
         }
     } catch (...) {
         log_warning(mod,
-                    modeling_warning::level_t::error,
+                    log_level::error,
                     status::modeling_file_access_error,
                     "registred path {}",
                     reg_dir.path.sv());
@@ -1049,7 +1049,7 @@ static void prepare_component_loading(modeling&       mod,
         std::error_code ec;
 
         log_warning(mod,
-                    modeling_warning::level_t::debug,
+                    log_level::debug,
                     status::success,
                     "check registred_path `{}' in path `{}'\n",
                     reg_dir.name.sv(),
@@ -1061,7 +1061,7 @@ static void prepare_component_loading(modeling&       mod,
         }
     } catch (...) {
         log_warning(mod,
-                    modeling_warning::level_t::debug,
+                    log_level::debug,
                     status::modeling_file_access_error,
                     "registred path: {} ",
                     reg_dir.path.sv());
@@ -1099,7 +1099,7 @@ static status load_component(modeling& mod, component& compo) noexcept
 
                 if (is_success(ret)) {
                     log_warning(mod,
-                                modeling_warning::level_t::debug,
+                                log_level::debug,
                                 status::success,
                                 "- load-component: {} success",
                                 file_path.string());
@@ -1107,7 +1107,7 @@ static status load_component(modeling& mod, component& compo) noexcept
                     compo.state      = component_status::unmodified;
                 } else {
                     log_warning(mod,
-                                modeling_warning::level_t::error,
+                                log_level::error,
                                 ret,
                                 "- load-component: {} fail",
                                 file_path.string());

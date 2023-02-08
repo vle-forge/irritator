@@ -712,14 +712,14 @@ void simulation_editor::add_simulation_observation_for(std::string_view name,
         } else {
             if (!sim.observers.can_alloc(1)) {
                 auto* app = container_of(this, &application::s_editor);
-                auto& n   = app->notifications.alloc(notification_type::error);
+                auto& n   = app->notifications.alloc(log_level::error);
                 n.title   = "Too many observer in simulation";
                 app->notifications.enable(n);
             }
 
             if (!sim_obs.can_alloc(1)) {
                 auto* app = container_of(this, &application::s_editor);
-                auto& n   = app->notifications.alloc(notification_type::error);
+                auto& n   = app->notifications.alloc(log_level::error);
                 n.title   = "Too many simulation observation in simulation";
                 app->notifications.enable(n);
             }
@@ -1272,7 +1272,7 @@ static void show_simulation_graph_editor(application& app) noexcept
                           *out.model, out.port_index, *in.model, in.port_index);
                         is_bad(status)) {
                         auto& notif =
-                          app.notifications.alloc(notification_type::warning);
+                          app.notifications.alloc(log_level::warning);
                         notif.title = "Not enough memory to connect model";
                         app.notifications.enable(notif);
                     }
@@ -1527,7 +1527,7 @@ void task_simulation_model_add(void* param) noexcept
     auto& sim = task->app->s_editor.sim;
 
     if (!sim.can_alloc(1)) {
-        auto& n = task->app->notifications.alloc(notification_type::error);
+        auto& n = task->app->notifications.alloc(log_level::error);
         n.title = "To many model in simulation editor";
         task->app->notifications.enable(n);
         task->state = task_status::finished;
@@ -1541,7 +1541,7 @@ void task_simulation_model_add(void* param) noexcept
     if (is_bad(ret)) {
         sim.deallocate(mdl_id);
 
-        auto& n = task->app->notifications.alloc(notification_type::error);
+        auto& n = task->app->notifications.alloc(log_level::error);
         n.title = "Fail to initialize model";
         task->app->notifications.enable(n);
         task->state = task_status::finished;

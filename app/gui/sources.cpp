@@ -192,7 +192,7 @@ static void try_init_source(data_window& data, source& src) noexcept
       app->s_editor.sim.srcs.dispatch(src, source::operation_type::initialize);
 
     if (is_bad(ret)) {
-        auto& n = app->notifications.alloc(notification_type::error);
+        auto& n = app->notifications.alloc(log_level::error);
         n.title = "Fail to initialize data";
         app->notifications.enable(n);
 
@@ -220,7 +220,7 @@ static void task_try_finalize_source(application&        app,
       src, source::operation_type::finalize);
 
     if (is_bad(ret)) {
-        auto& n = app.notifications.alloc(notification_type::error);
+        auto& n = app.notifications.alloc(log_level::error);
         n.title = "Fail to finalize data";
         app.notifications.enable(n);
     }

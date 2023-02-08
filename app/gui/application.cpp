@@ -563,52 +563,18 @@ void application::show() noexcept
     cleanup_sim_or_gui_task(sim_tasks);
     cleanup_sim_or_gui_task(gui_tasks);
 
-    if (!c_editor.mod.warnings.empty()) {
-        while (!c_editor.mod.warnings.empty()) {
-            auto& w = c_editor.mod.warnings.front();
-            auto& n = notifications.alloc();
-            c_editor.mod.warnings.pop_front();
+    if (!c_editor.mod.log_entries.empty()) {
+        while (!c_editor.mod.log_entries.empty()) {
+            auto& w = c_editor.mod.log_entries.front();
+            c_editor.mod.log_entries.pop_front();
 
-            switch (w.level) {
-                using enum modeling_warning::level_t;
+            auto& n   = notifications.alloc();
+            n.level   = w.level;
+            n.title   = w.buffer.sv();
+            n.message = status_string(w.st);
 
-            case emergency:
-                n.type  = notification_type::error;
-                n.title = w.buffer.sv();
-                break;
-            case alert:
-                n.type  = notification_type::error;
-                n.title = w.buffer.sv();
-                break;
-            case critical:
-                n.type  = notification_type::error;
-                n.title = w.buffer.sv();
-                break;
-            case error:
-                n.type  = notification_type::error;
-                n.title = w.buffer.sv();
-                break;
-            case warning:
-                n.type  = notification_type::warning;
-                n.title = w.buffer.sv();
-                break;
-            case notice:
-                n.type  = notification_type::success;
-                n.title = w.buffer.sv();
-                break;
-            case info:
-                n.type     = notification_type::information;
-                n.title    = w.buffer.sv();
+            if (match(w.level, log_level::info, log_level::debug))
                 n.only_log = true;
-            case debug:
-                n.type     = notification_type::information;
-                n.title    = w.buffer.sv();
-                n.only_log = true;
-                break;
-            }
-
-            if (is_bad(w.st))
-                format(n.message, "{}", status_string(w.st));
 
             notifications.enable(n);
         }
@@ -847,8 +813,7 @@ void task_simulation_back(void* param) noexcept
                         g_task->app->s_editor.simulation_current);
 
         if (is_bad(ret)) {
-            auto& n =
-              g_task->app->notifications.alloc(notification_type::error);
+            auto& n = g_task->app->notifications.alloc(log_level::error);
             n.title = "Fail to back the simulation";
             format(n.message, "Advance message: {}", status_string(ret));
             g_task->app->notifications.enable(n);
@@ -870,7 +835,7 @@ void task_simulation_advance(void* param) noexcept
 
         if (is_bad(ret)) {
             auto& n =
-              g_task->app->notifications.alloc(notification_type::error);
+              g_task->app->notifications.alloc(log_level::error);
             n.title = "Fail to advance the simulation";
             format(n.message, "Advance message: {}", status_string(ret));
             g_task->app->notifications.enable(n);
