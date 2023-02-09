@@ -1007,7 +1007,6 @@ static status load_component(modeling& mod, component& compo) noexcept
             bool read_description = false;
 
             if (mod.components.can_alloc()) {
-                auto&      compo = mod.components.alloc();
                 json_cache cache; // TODO move into modeling or parameter
                 auto       ret =
                   component_load(mod, compo, cache, file_path.string().c_str());
