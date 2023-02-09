@@ -1143,6 +1143,8 @@ status load(const rapidjson::Value& val,
     auto& states = states_it->value;
     for (rapidjson::SizeType i = 0, e = states.Size(); i != e; ++i) {
         int idx;
+        irt_return_if_fail(states[i].IsObject(),
+                           status::io_file_format_error);
 
         irt_return_if_bad(get_i32(states[i], "id", idx));
         irt_return_if_fail(0 <= idx && idx < length,
@@ -1388,6 +1390,9 @@ static status read_constant_sources(json_cache&             cache,
                        status::io_not_enough_memory);
 
     for (rapidjson::SizeType i = 0, e = it->value.Size(); i != e; ++i) {
+        irt_return_if_fail(it->value[i].IsObject(),
+                           status::io_file_format_error);
+
         u64 id = 0;
         irt_return_if_bad(get_u64(it->value[i], "id", id));
 
@@ -1400,6 +1405,9 @@ static status read_constant_sources(json_cache&             cache,
         auto  cst_id = srcs.constant_sources.get_id(cst);
 
         for (rapidjson::SizeType j = 0, ej = data->value.Size(); j != ej; ++j) {
+            irt_return_if_fail(data->value[i].IsObject(),
+                               status::io_file_format_error);
+
             irt_return_if_fail(data->value[j].IsDouble(),
                                status::io_file_format_error);
 
@@ -1426,6 +1434,8 @@ static status read_binary_file_sources(json_cache&             cache,
                        status::io_not_enough_memory);
 
     for (rapidjson::SizeType i = 0, e = it->value.Size(); i != e; ++i) {
+        irt_return_if_fail(it->value[i].IsObject(),
+                           status::io_file_format_error);
         u64 id          = 0;
         i32 max_clients = 0;
 
@@ -1458,6 +1468,9 @@ static status read_text_file_sources(json_cache&             cache,
                        status::io_not_enough_memory);
 
     for (rapidjson::SizeType i = 0, e = it->value.Size(); i != e; ++i) {
+        irt_return_if_fail(it->value[i].IsObject(),
+                           status::io_file_format_error);
+
         u64 id = 0;
 
         irt_return_if_bad(get_u64(it->value[i], "id", id));
@@ -1487,6 +1500,9 @@ static status read_random_sources(json_cache&             cache,
                        status::io_not_enough_memory);
 
     for (rapidjson::SizeType i = 0, e = it->value.Size(); i != e; ++i) {
+        irt_return_if_fail(it->value[i].IsObject(),
+                           status::io_file_format_error);
+
         u64 id = 0;
 
         irt_return_if_bad(get_u64(it->value[i], "id", id));
