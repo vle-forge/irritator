@@ -18,7 +18,11 @@
 #include <cstdio>
 #include <cstring>
 
+#include <ctype.h>
+#include <fcntl.h>
+#include <string.h>
 #include <sys/ptrace.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -68,6 +72,39 @@ static bool is_running_under_debugger() noexcept
     junk = sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0);
 
     return junk == 0 ? false : (info.kp_proc.p_flag & P_TRACED) != 0;
+}
+#elif defined(__linux__)
+static bool is_running_under_debugger() noexcept
+{
+    constexpr char debug_string[] = "TracerPid:";
+
+    char buf[4096];
+
+    const auto status_fd = ::open("/proc/self/status", O_RDONLY);
+    if (status_fd == -1)
+        return false;
+
+    const auto num_read = ::read(status_fd, buf, sizeof(buf) - 1);
+    ::close(status_fd);
+
+    if (num_read <= 0)
+        return false;
+
+    buf[num_read]             = '\0';
+    const auto tracer_pid_ptr = ::strstr(buf, debug_string);
+    if (!tracer_pid_ptr)
+        return false;
+
+    for (const char* it = tracer_pid_ptr + sizeof(debug_string) - 1;
+         it <= buf + num_read;
+         ++it) {
+        if (::isspace(*it))
+            continue;
+        else
+            return ::isdigit(*it) != 0 && *it != '0';
+    }
+
+    return false;
 }
 #else
 static bool is_running_under_debugger() noexcept
