@@ -1006,24 +1006,21 @@ static status load_component(modeling& mod, component& compo) noexcept
 
             bool read_description = false;
 
-            if (mod.components.can_alloc()) {
-                json_cache cache; // TODO move into modeling or parameter
-                auto       ret =
-                  component_load(mod, compo, cache, file_path.string().c_str());
+            json_cache cache; // TODO move into modeling or parameter
+            auto       ret =
+              component_load(mod, compo, cache, file_path.string().c_str());
 
-                if (is_success(ret)) {
-                    read_description = true;
-                    compo.state      = component_status::unmodified;
-                } else {
-                    log_warning(mod,
-                                log_level::error,
-                                ret,
-                                "Fail to load component {} ({})",
-                                file_path.string(),
-                                status_string(ret));
-                    mod.components.free(compo);
-                    irt_bad_return(ret);
-                }
+            if (is_success(ret)) {
+                read_description = true;
+                compo.state      = component_status::unmodified;
+            } else {
+                log_warning(mod,
+                            log_level::error,
+                            ret,
+                            "Fail to load component {} ({})",
+                            file_path.string(),
+                            status_string(ret));
+                irt_bad_return(ret);
             }
 
             if (read_description) {
