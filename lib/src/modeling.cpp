@@ -638,6 +638,13 @@ component_id modeling::search_component(const char* directory_name,
         }
     }
 
+    log_warning(*this,
+                log_level::notice,
+                status::modeling_file_access_error,
+                "Missing file {} in directory {}",
+                file_name,
+                directory_name);
+
     return undefined<component_id>();
 }
 
@@ -848,12 +855,6 @@ static void prepare_component_loading(modeling&             mod,
 
         while (it != et) {
             if (it->is_regular_file() && it->path().extension() == ".irt") {
-                log_warning(mod,
-                            log_level::debug,
-                            status::success,
-                            "check file `{}'",
-                            it->path().filename().string());
-
                 if (mod.file_paths.can_alloc() && mod.components.can_alloc()) {
                     auto  u8str = it->path().filename().u8string();
                     auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
@@ -908,12 +909,6 @@ static void prepare_component_loading(modeling&              mod,
 
             while (it != et) {
                 if (it->is_directory()) {
-                    log_warning(mod,
-                                log_level::debug,
-                                status::success,
-                                "check dir_path `{}'\n",
-                                it->path().filename().string());
-
                     if (mod.dir_paths.can_alloc()) {
                         auto u8str = it->path().filename().u8string();
                         auto cstr =
@@ -967,18 +962,17 @@ static void prepare_component_loading(modeling&       mod,
         fs::path        p(reg_dir.path.c_str());
         std::error_code ec;
 
-        log_warning(mod,
-                    log_level::debug,
-                    status::success,
-                    "check registred_path `{}' in path `{}'\n",
-                    reg_dir.name.sv(),
-                    reg_dir.path.sv());
-
         if (std::filesystem::exists(p, ec)) {
             prepare_component_loading(mod, reg_dir, p);
             reg_dir.status = registred_path::state::read;
         } else {
             reg_dir.status = registred_path::state::error;
+
+            log_warning(mod,
+                        log_level::debug,
+                        status::modeling_file_access_error,
+                        "registred path does not exist {} ",
+                        reg_dir.path.sv());
         }
     } catch (...) {
         log_warning(mod,
@@ -1019,19 +1013,15 @@ static status load_component(modeling& mod, component& compo) noexcept
                   component_load(mod, compo, cache, file_path.string().c_str());
 
                 if (is_success(ret)) {
-                    log_warning(mod,
-                                log_level::debug,
-                                status::success,
-                                "- load-component: {} success",
-                                file_path.string());
                     read_description = true;
                     compo.state      = component_status::unmodified;
                 } else {
                     log_warning(mod,
                                 log_level::error,
                                 ret,
-                                "- load-component: {} fail",
-                                file_path.string());
+                                "Fail to load component {} ({})",
+                                file_path.string(),
+                                status_string(ret));
                     mod.components.free(compo);
                     irt_bad_return(ret);
                 }
