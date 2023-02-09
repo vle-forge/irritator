@@ -265,6 +265,9 @@ static void show_hierarchy_settings(component_editor& ed,
         if (ImGui::BeginCombo("Path", reg_preview)) {
             registred_path* list = nullptr;
             while (ed.mod.registred_paths.next(list)) {
+                if (list->status == registred_path::state::error)
+                    continue;
+
                 if (ImGui::Selectable(list->path.c_str(),
                                       reg_dir == list,
                                       ImGuiSelectableFlags_None)) {

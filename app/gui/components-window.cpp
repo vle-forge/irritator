@@ -198,7 +198,7 @@ void application::show_components_window() noexcept
             small_string<32>* select;
 
             auto* reg_dir = c_editor.mod.registred_paths.try_to_get(id);
-            if (!reg_dir)
+            if (!reg_dir || reg_dir->status == registred_path::state::error)
                 continue;
 
             if (reg_dir->name.empty()) {
