@@ -414,6 +414,14 @@ void application::show_project_window() noexcept
 
     if (ImGui::CollapsingHeader("Export component", flags))
         show_hierarchy_settings(c_editor, *parent);
+
+    if (auto* compo = c_editor.mod.components.try_to_get(parent->id); compo) {
+        ImGui::TextFormat("component: {}", compo->name.sv());
+        ImGui::TextFormat("models: {}", compo->models.size());
+        ImGui::TextFormat("hsms: {}", compo->hsms.size());
+        ImGui::TextFormat("children: {}", compo->children.size());
+        ImGui::TextFormat("connections: {}", compo->connections.size());
+    }
 }
 
 } // namespace irt
