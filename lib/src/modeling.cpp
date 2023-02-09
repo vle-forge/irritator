@@ -1002,7 +1002,7 @@ static void prepare_component_loading(modeling&              mod,
                         auto& dir    = mod.dir_paths.alloc();
                         auto  dir_id = mod.dir_paths.get_id(dir);
                         dir.path     = cstr;
-                        dir.status   = dir_path::status_option::unread;
+                        dir.status   = dir_path::state::unread;
                         dir.parent   = mod.registred_paths.get_id(reg_dir);
 
                         reg_dir.children.emplace_back(dir_id);
@@ -1057,7 +1057,9 @@ static void prepare_component_loading(modeling&       mod,
 
         if (std::filesystem::exists(p, ec)) {
             prepare_component_loading(mod, reg_dir, p);
-            reg_dir.status = registred_path::status_option::read;
+            reg_dir.status = registred_path::state::read;
+        } else {
+            reg_dir.status = registred_path::state::error;
         }
     } catch (...) {
         log_warning(mod,
@@ -1230,7 +1232,7 @@ dir_path& modeling::alloc_dir(registred_path& reg) noexcept
     auto& dir  = dir_paths.alloc();
     auto  id   = dir_paths.get_id(dir);
     dir.parent = registred_paths.get_id(reg);
-    dir.status = dir_path::status_option::unread;
+    dir.status = dir_path::state::unread;
 
     reg.children.emplace_back(id);
 

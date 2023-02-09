@@ -265,7 +265,7 @@ struct component_setting_handler
                 new_reg.name     = current.name;
                 new_reg.path     = current.path;
                 new_reg.priority = static_cast<i8>(priority);
-                new_reg.status   = registred_path::status_option::unread;
+                new_reg.status   = registred_path::state::unread;
 
                 app->c_editor.mod.component_repertories.emplace_back(id);
             }

@@ -151,7 +151,7 @@ void settings_manager::show(bool* is_open) noexcept
             ImGui::Button("Add directory")) {
             auto& dir    = c_editor.mod.registred_paths.alloc();
             auto  id     = c_editor.mod.registred_paths.get_id(dir);
-            dir.status   = registred_path::status_option::none;
+            dir.status   = registred_path::state::none;
             dir.path     = "";
             dir.priority = 127;
             app->show_select_directory_dialog = true;

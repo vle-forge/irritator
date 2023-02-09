@@ -237,16 +237,17 @@ struct component
 
 struct registred_path
 {
-    enum class status_option
+    enum class state
     {
         none,
         read,
         unread,
+        error,
     };
 
     small_string<256 * 16> path;
     small_string<32>       name;
-    status_option          status   = status_option::unread;
+    state                  status   = state::unread;
     i8                     priority = 0;
 
     bool make() const noexcept;
@@ -257,15 +258,16 @@ struct registred_path
 
 struct dir_path
 {
-    enum class status_option
+    enum class state
     {
         none,
         read,
         unread,
+        error,
     };
 
     small_string<256> path;
-    status_option     status = status_option::unread;
+    state             status = state::unread;
     registred_path_id parent{ 0 };
 
     bool make() const noexcept;

@@ -306,7 +306,7 @@ static void show_hierarchy_settings(component_editor& ed,
                         auto  reg_id  = ed.mod.registred_paths.get_id(*reg_dir);
                         new_dir.parent = reg_id;
                         new_dir.path   = dir_name;
-                        new_dir.status = dir_path::status_option::unread;
+                        new_dir.status = dir_path::state::unread;
                         reg_dir->children.emplace_back(dir_id);
                         compo->reg_path = reg_id;
                         compo->dir      = dir_id;
