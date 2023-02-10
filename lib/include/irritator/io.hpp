@@ -137,7 +137,7 @@ status simulation_load(simulation&   sim,
 const char* status_string(const status s) noexcept;
 
 static constexpr inline const char* dynamics_type_names[] = {
-    "qss1_integrator", "qss1_multiplier", "qss1_cross",    "qss1_filer",
+    "qss1_integrator", "qss1_multiplier", "qss1_cross",    "qss1_filter",
     "qss1_power",      "qss1_square",     "qss1_sum_2",    "qss1_sum_3",
     "qss1_sum_4",      "qss1_wsum_2",     "qss1_wsum_3",   "qss1_wsum_4",
     "qss2_integrator", "qss2_multiplier", "qss2_cross",    "qss2_filter",

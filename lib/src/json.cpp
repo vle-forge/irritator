@@ -14,7 +14,9 @@
 #include <rapidjson/prettywriter.h>
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
+
 #include <string_view>
+#include <limits>
 
 namespace irt {
 
@@ -48,9 +50,17 @@ static status get_float(const rapidjson::Value& value,
       name.data(), static_cast<rapidjson::SizeType>(name.size()));
     const auto val = value.FindMember(str);
 
-    if (val != value.MemberEnd() && val->value.IsFloat()) {
-        data = val->value.GetFloat();
-        return status::success;
+    if (val != value.MemberEnd() && val->value.IsDouble()) {
+        constexpr double l =
+          static_cast<double>(std::numeric_limits<float>::lowest());
+        constexpr double m =
+          static_cast<double>(std::numeric_limits<float>::max());
+
+        auto temp = val->value.GetDouble();
+        if (l <= temp && temp <= m) {
+            data = static_cast<float>(temp);
+            return status::success;
+        }
     }
 
     return status::io_file_format_error;
@@ -922,9 +932,13 @@ void write(Writer& writer, const qss1_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
-    writer.Double(dyn.default_lower_threshold);
+    writer.Double(std::isinf(dyn.default_lower_threshold)
+                    ? std::numeric_limits<double>::max()
+                    : dyn.default_lower_threshold);
     writer.Key("upper-threshold");
-    writer.Double(dyn.default_upper_threshold);
+    writer.Double(std::isinf(dyn.default_upper_threshold)
+                    ? std::numeric_limits<double>::max()
+                    : dyn.default_upper_threshold);
     writer.EndObject();
 }
 
@@ -933,9 +947,13 @@ void write(Writer& writer, const qss2_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
-    writer.Double(dyn.default_lower_threshold);
+    writer.Double(std::isinf(dyn.default_lower_threshold)
+                    ? std::numeric_limits<double>::max()
+                    : dyn.default_lower_threshold);
     writer.Key("upper-threshold");
-    writer.Double(dyn.default_upper_threshold);
+    writer.Double(std::isinf(dyn.default_upper_threshold)
+                    ? std::numeric_limits<double>::max()
+                    : dyn.default_upper_threshold);
     writer.EndObject();
 }
 
@@ -944,9 +962,13 @@ void write(Writer& writer, const qss3_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
-    writer.Double(dyn.default_lower_threshold);
+    writer.Double(std::isinf(dyn.default_lower_threshold)
+                    ? std::numeric_limits<double>::max()
+                    : dyn.default_lower_threshold);
     writer.Key("upper-threshold");
-    writer.Double(dyn.default_upper_threshold);
+    writer.Double(std::isinf(dyn.default_upper_threshold)
+                    ? std::numeric_limits<double>::max()
+                    : dyn.default_upper_threshold);
     writer.EndObject();
 }
 

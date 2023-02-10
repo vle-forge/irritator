@@ -2,7 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/modeling.hpp"
+#include <irritator/modeling.hpp>
 #include <irritator/core.hpp>
 #include <irritator/examples.hpp>
 #include <irritator/ext.hpp>
@@ -13,7 +13,7 @@
 #include <fmt/format.h>
 
 #include <filesystem>
-#include <iostream>
+#include <fstream>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -1438,7 +1438,15 @@ int main()
             expect(out.size() > 0);
         }
 
-        fmt::print("\n[{}]\n", std::string_view(out.data(), out.size()));
+        try {
+            std::error_code ec;
+            auto            temp = std::filesystem::temp_directory_path(ec);
+            temp /= "unit-test.irt";
+
+            if (std::ofstream ofs(temp); ofs.is_open())
+                ofs << std::string_view(out.data(), out.size()) << '\n';
+        } catch (...) {
+        }
 
         {
             irt::simulation sim;
@@ -1449,7 +1457,7 @@ int main()
             auto is_loaded = irt::simulation_load(sim, cache, in);
 
             expect(is_success(is_loaded));
-            expect(sim.models.size() == 51);
+            expect(sim.models.size() == 60);
         }
     };
 
