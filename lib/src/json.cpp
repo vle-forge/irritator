@@ -924,7 +924,7 @@ void write(Writer& writer, const qss1_filter& dyn) noexcept
     writer.Key("lower-threshold");
     writer.Double(dyn.default_lower_threshold);
     writer.Key("upper-threshold");
-    writer.Bool(dyn.default_upper_threshold);
+    writer.Double(dyn.default_upper_threshold);
     writer.EndObject();
 }
 
@@ -935,7 +935,7 @@ void write(Writer& writer, const qss2_filter& dyn) noexcept
     writer.Key("lower-threshold");
     writer.Double(dyn.default_lower_threshold);
     writer.Key("upper-threshold");
-    writer.Bool(dyn.default_upper_threshold);
+    writer.Double(dyn.default_upper_threshold);
     writer.EndObject();
 }
 
@@ -946,7 +946,7 @@ void write(Writer& writer, const qss3_filter& dyn) noexcept
     writer.Key("lower-threshold");
     writer.Double(dyn.default_lower_threshold);
     writer.Key("upper-threshold");
-    writer.Bool(dyn.default_upper_threshold);
+    writer.Double(dyn.default_upper_threshold);
     writer.EndObject();
 }
 
