@@ -1373,6 +1373,7 @@ int main()
             sim.alloc<irt::qss1_integrator>();
             sim.alloc<irt::qss1_multiplier>();
             sim.alloc<irt::qss1_cross>();
+            sim.alloc<irt::qss1_filter>();
             sim.alloc<irt::qss1_power>();
             sim.alloc<irt::qss1_square>();
             sim.alloc<irt::qss1_sum_2>();
@@ -1384,6 +1385,7 @@ int main()
             sim.alloc<irt::qss2_integrator>();
             sim.alloc<irt::qss2_multiplier>();
             sim.alloc<irt::qss2_cross>();
+            sim.alloc<irt::qss2_filter>();
             sim.alloc<irt::qss2_power>();
             sim.alloc<irt::qss2_square>();
             sim.alloc<irt::qss2_sum_2>();
@@ -1394,9 +1396,10 @@ int main()
             sim.alloc<irt::qss2_wsum_4>();
             sim.alloc<irt::qss3_integrator>();
             sim.alloc<irt::qss3_multiplier>();
+            sim.alloc<irt::qss3_cross>();
+            sim.alloc<irt::qss3_filter>();
             sim.alloc<irt::qss3_power>();
             sim.alloc<irt::qss3_square>();
-            sim.alloc<irt::qss3_cross>();
             sim.alloc<irt::qss3_sum_2>();
             sim.alloc<irt::qss3_sum_3>();
             sim.alloc<irt::qss3_sum_4>();
@@ -1420,6 +1423,12 @@ int main()
             sim.alloc<irt::cross>();
             sim.alloc<irt::time_func>();
             sim.alloc<irt::accumulator_2>();
+            sim.alloc<irt::filter>();
+            sim.alloc<irt::logical_and_2>();
+            sim.alloc<irt::logical_and_3>();
+            sim.alloc<irt::logical_or_2>();
+            sim.alloc<irt::logical_or_3>();
+            sim.alloc<irt::logical_invert>();
             sim.alloc<irt::hsm_wrapper>();
 
             auto is_saved = irt::simulation_save(
