@@ -1237,9 +1237,9 @@ template<typename Writer>
 void write(Writer& writer, const logical_and_2& dyn) noexcept
 {
     writer.StartObject();
-    writer.Key("value0");
+    writer.Key("value-0");
     writer.Bool(dyn.default_values[0]);
-    writer.Key("value1");
+    writer.Key("value-1");
     writer.Bool(dyn.default_values[1]);
     writer.EndObject();
 }
@@ -1248,9 +1248,9 @@ template<typename Writer>
 void write(Writer& writer, const logical_and_3& dyn) noexcept
 {
     writer.StartObject();
-    writer.Key("value0");
+    writer.Key("value-0");
     writer.Bool(dyn.default_values[0]);
-    writer.Key("value1");
+    writer.Key("value-1");
     writer.Bool(dyn.default_values[1]);
     writer.EndObject();
 }
@@ -1259,9 +1259,9 @@ template<typename Writer>
 void write(Writer& writer, const logical_or_2& dyn) noexcept
 {
     writer.StartObject();
-    writer.Key("value0");
+    writer.Key("value-0");
     writer.Bool(dyn.default_values[0]);
-    writer.Key("value1");
+    writer.Key("value-1");
     writer.Bool(dyn.default_values[1]);
     writer.EndObject();
 }
@@ -1270,11 +1270,11 @@ template<typename Writer>
 void write(Writer& writer, const logical_or_3& dyn) noexcept
 {
     writer.StartObject();
-    writer.Key("value0");
+    writer.Key("value-0");
     writer.Bool(dyn.default_values[0]);
-    writer.Key("value1");
+    writer.Key("value-1");
     writer.Bool(dyn.default_values[1]);
-    writer.Key("value2");
+    writer.Key("value-2");
     writer.Bool(dyn.default_values[2]);
     writer.EndObject();
 }
@@ -1295,9 +1295,9 @@ void write(Writer&                                         writer,
     writer.StartObject();
     writer.Key("parameter");
     writer.Int(state.parameter);
-    writer.Key("var1");
+    writer.Key("var-1");
     writer.Int(static_cast<int>(state.var1));
-    writer.Key("var2");
+    writer.Key("var-2");
     writer.Int(static_cast<int>(state.var2));
     writer.Key("type");
     writer.Int(static_cast<int>(state.type));
