@@ -81,7 +81,7 @@ static status get_u8(const rapidjson::Value& value,
     const auto val = value.FindMember(str);
 
     if (val != value.MemberEnd() && val->value.IsUint()) {
-        auto temp = val->value.GetUint();
+        auto temp = val->value.GetUint64();
 
         if (temp <= UINT8_MAX) {
             data = static_cast<u8>(temp);
@@ -101,7 +101,7 @@ static status get_i16(const rapidjson::Value& value,
     const auto val = value.FindMember(str);
 
     if (val != value.MemberEnd() && val->value.IsInt()) {
-        auto temp = val->value.GetInt();
+        auto temp = val->value.GetInt64();
 
         if (INT16_MIN <= temp && temp <= UINT16_MAX) {
             data = static_cast<i16>(temp);
@@ -141,10 +141,30 @@ static status get_i32(const rapidjson::Value& value,
     const auto val = value.FindMember(str);
 
     if (val != value.MemberEnd() && val->value.IsInt()) {
-        auto temp = val->value.GetInt();
+        auto temp = val->value.GetInt64();
 
         if (INT32_MIN <= temp && temp <= INT32_MAX) {
             data = static_cast<i32>(temp);
+            return status::success;
+        }
+    }
+
+    return status::io_file_format_error;
+}
+
+static status get_u32(const rapidjson::Value& value,
+                      std::string_view        name,
+                      u32&                    data) noexcept
+{
+    const auto str = rapidjson::GenericStringRef<char>(
+      name.data(), static_cast<rapidjson::SizeType>(name.size()));
+    const auto val = value.FindMember(str);
+
+    if (val != value.MemberEnd() && val->value.IsInt()) {
+        auto temp = val->value.GetUint64();
+
+        if (temp <= UINT32_MAX) {
+            data = static_cast<u32>(temp);
             return status::success;
         }
     }
@@ -1142,13 +1162,11 @@ status load(const rapidjson::Value& val,
 
     auto& states = states_it->value;
     for (rapidjson::SizeType i = 0, e = states.Size(); i != e; ++i) {
-        int idx;
-        irt_return_if_fail(states[i].IsObject(),
-                           status::io_file_format_error);
+        u32 idx;
+        irt_return_if_fail(states[i].IsObject(), status::io_file_format_error);
 
-        irt_return_if_bad(get_i32(states[i], "id", idx));
-        irt_return_if_fail(0 <= idx && idx < length,
-                           status::io_file_format_error);
+        irt_return_if_bad(get_u32(states[i], "id", idx));
+        irt_return_if_fail(idx < length, status::io_file_format_error);
 
         auto enter = states[i].FindMember("enter");
         irt_return_if_fail(enter != states[i].MemberEnd(),
@@ -1313,13 +1331,14 @@ void write(Writer& writer,
     writer.Key("states");
     writer.StartArray();
 
-    constexpr auto length  = hierarchical_state_machine::max_number_of_state;
+    constexpr auto length =
+      to_unsigned(hierarchical_state_machine::max_number_of_state);
     constexpr auto invalid = hierarchical_state_machine::invalid_state_id;
 
     std::array<bool, length> states_to_write;
     states_to_write.fill(false);
 
-    for (int i = 0; i != length; ++i) {
+    for (unsigned i = 0; i != length; ++i) {
         if (machine.states[i].if_transition != invalid)
             states_to_write[machine.states[i].if_transition] = true;
         if (machine.states[i].else_transition != invalid)
@@ -1330,10 +1349,10 @@ void write(Writer& writer,
             states_to_write[machine.states[i].sub_id] = true;
     }
 
-    for (int i = 0; i != length; ++i) {
+    for (unsigned i = 0; i != length; ++i) {
         if (states_to_write[i]) {
             writer.Key("id");
-            writer.Int(i);
+            writer.Uint(i);
             write(writer, "enter", machine.states[i].enter_action);
             write(writer, "exit", machine.states[i].exit_action);
             write(writer, "if", machine.states[i].if_action);
@@ -1437,10 +1456,10 @@ static status read_binary_file_sources(json_cache&             cache,
         irt_return_if_fail(it->value[i].IsObject(),
                            status::io_file_format_error);
         u64 id          = 0;
-        i32 max_clients = 0;
+        u32 max_clients = 0;
 
         irt_return_if_bad(get_u64(it->value[i], "id", id));
-        irt_return_if_bad(get_i32(it->value[i], "max-clients", max_clients));
+        irt_return_if_bad(get_u32(it->value[i], "max-clients", max_clients));
         irt_return_if_bad(
           get_string(it->value[i], "path", cache.string_buffer));
 
@@ -1908,7 +1927,7 @@ static status write_binary_file_sources(json_cache& /*cache*/,
         w.Key("id");
         w.Uint64(ordinal(srcs.binary_file_sources.get_id(*src)));
         w.Key("max-clients");
-        w.Int(src->max_clients);
+        w.Uint(src->max_clients);
         w.Key("path");
         w.String(src->file_path.string().c_str());
         w.EndObject();
