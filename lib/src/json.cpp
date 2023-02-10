@@ -2111,9 +2111,9 @@ static status write_children(json_cache& /*cache*/,
         w.Key("id");
         w.Uint64(id);
         w.Key("x");
-        w.Double(c->x);
+        w.Double(static_cast<double>(c->x));
         w.Key("y");
-        w.Double(c->y);
+        w.Double(static_cast<double>(c->y));
         w.Key("configurable");
         w.Bool(c->configurable);
         w.Key("observable");
