@@ -277,6 +277,10 @@ inline std::pair<irt::u32, irt::u32> get_model_output_port(
 
 int main()
 {
+#if defined(IRRITATOR_ENABLE_DEBUG)
+    irt::is_fatal_breakpoint = true;
+#endif
+
     using namespace boost::ut;
 
     "model-id-port-node-id"_test = [] {
@@ -3258,6 +3262,10 @@ int main()
     };
 
     "null_memory"_test = [] {
+#if defined(IRRITATOR_ENABLE_DEBUG)
+        irt::is_fatal_breakpoint = false;
+#endif
+
         irt::g_alloc_fn = null_alloc;
         irt::g_free_fn  = null_free;
 
@@ -3266,6 +3274,10 @@ int main()
 
         irt::g_alloc_fn = irt::malloc_wrapper;
         irt::g_free_fn  = irt::free_wrapper;
+
+#if defined(IRRITATOR_ENABLE_DEBUG)
+        irt::is_fatal_breakpoint = true;
+#endif
     };
 
     "external_source"_test = [] {
