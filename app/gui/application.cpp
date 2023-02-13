@@ -429,25 +429,13 @@ static void application_show_windows(application& app) noexcept
         ImGui::SetNextWindowSize(components_size, window_size_flags);
 
         if (ImGui::Begin("Tools", 0, window_flags)) {
-
             if (ImGui::BeginTabBar("##Obs-Compo")) {
-                auto compo_flags = ImGuiTabItemFlags_None;
-                auto obs_flags   = ImGuiTabItemFlags_SetSelected;
-
-                if (app.show_modeling_editor) {
-                    compo_flags = ImGuiTabItemFlags_SetSelected;
-                    obs_flags   = ImGuiTabItemFlags_None;
-                }
-
-                if (app.show_modeling_editor &&
-                    ImGui::BeginTabItem(
-                      "component store", nullptr, compo_flags)) {
+                if (ImGui::BeginTabItem("component store")) {
                     app.show_components_window();
                     ImGui::EndTabItem();
                 }
 
-                if (app.show_simulation_editor &&
-                    ImGui::BeginTabItem("observations", nullptr, obs_flags)) {
+                if (ImGui::BeginTabItem("observations")) {
                     app.show_simulation_observation_window();
                     ImGui::EndTabItem();
                 }
