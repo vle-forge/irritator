@@ -256,6 +256,8 @@ static void application_manage_menu_action(application& app) noexcept
 {
     if (app.new_project_file) {
         app.c_editor.unselect();
+        auto id = app.c_editor.add_empty_component();
+        app.c_editor.open_as_main(id);
         app.new_project_file = false;
     }
 
