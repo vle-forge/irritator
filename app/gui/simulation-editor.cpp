@@ -1515,7 +1515,19 @@ void application::show_simulation_editor_widget() noexcept
 
     ImGui::EndDisabled();
 
-    show_simulation_graph_editor(*this);
+    if (ImGui::BeginTabBar("##SimulationTabBar")) {
+        if (ImGui::BeginTabItem("graph")) {
+            show_simulation_graph_editor(*this);
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("output")) {
+            show_output_editor_widget();
+            ImGui::EndTabItem();
+        }
+
+        ImGui::EndTabBar();
+    }
 }
 
 /* Task: add a model into current simulation (running, started etc.). */

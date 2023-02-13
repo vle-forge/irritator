@@ -685,11 +685,6 @@ void application::show_main_as_tabbar(ImVec2           position,
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("output")) {
-                show_output_editor_widget();
-                ImGui::EndTabItem();
-            }
-
             if (ImGui::BeginTabItem("input")) {
                 show_external_sources();
                 ImGui::EndTabItem();
