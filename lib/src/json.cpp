@@ -1274,6 +1274,8 @@ void write(Writer& writer, const logical_and_3& dyn) noexcept
     writer.Bool(dyn.default_values[0]);
     writer.Key("value-1");
     writer.Bool(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Bool(dyn.default_values[2]);
     writer.EndObject();
 }
 
