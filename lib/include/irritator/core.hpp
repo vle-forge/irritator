@@ -2714,7 +2714,6 @@ enum class dynamics_type : i32
     qss1_wsum_2,
     qss1_wsum_3,
     qss1_wsum_4,
-
     qss2_integrator,
     qss2_multiplier,
     qss2_cross,
@@ -2727,7 +2726,6 @@ enum class dynamics_type : i32
     qss2_wsum_2,
     qss2_wsum_3,
     qss2_wsum_4,
-
     qss3_integrator,
     qss3_multiplier,
     qss3_cross,
@@ -2740,7 +2738,6 @@ enum class dynamics_type : i32
     qss3_wsum_2,
     qss3_wsum_3,
     qss3_wsum_4,
-
     integrator,
     quantifier,
     adder_2,
@@ -2749,26 +2746,21 @@ enum class dynamics_type : i32
     mult_2,
     mult_3,
     mult_4,
-
     counter,
-
     queue,
     dynamic_queue,
     priority_queue,
-
     generator,
     constant,
     cross,
     time_func,
     accumulator_2,
     filter,
-
     logical_and_2,
     logical_and_3,
     logical_or_2,
     logical_or_3,
     logical_invert,
-
     hsm_wrapper
 };
 
