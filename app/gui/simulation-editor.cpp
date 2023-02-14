@@ -11,6 +11,8 @@
 #include "editor.hpp"
 #include "internal.hpp"
 
+#include <imgui.h>
+
 #include "imnodes.h"
 #include "implot.h"
 
@@ -1406,36 +1408,38 @@ void application::show_simulation_editor_widget() noexcept
                                        simulation_status::paused,
                                        simulation_status::pause_forced);
 
-    ImGui::PushItemWidth(100.f);
-    ImGui::InputReal("Begin", &s_editor.simulation_begin);
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    ImGui::Checkbox("Edit", &s_editor.allow_user_changes);
+    if (ImGui::CollapsingHeader("parameters")) {
+        ImGui::PushItemWidth(100.f);
+        ImGui::InputReal("Begin", &s_editor.simulation_begin);
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+        ImGui::Checkbox("Edit", &s_editor.allow_user_changes);
 
-    ImGui::InputReal("End", &s_editor.simulation_end);
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    if (ImGui::Checkbox("Debug", &s_editor.store_all_changes)) {
-        if (s_editor.store_all_changes &&
-            s_editor.simulation_state == simulation_status::running) {
-            s_editor.enable_or_disable_debug();
+        ImGui::InputReal("End", &s_editor.simulation_end);
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+        if (ImGui::Checkbox("Debug", &s_editor.store_all_changes)) {
+            if (s_editor.store_all_changes &&
+                s_editor.simulation_state == simulation_status::running) {
+                s_editor.enable_or_disable_debug();
+            }
         }
+
+        ImGui::BeginDisabled(!s_editor.real_time);
+        ImGui::InputScalar("Micro second for 1 unit time",
+                           ImGuiDataType_S64,
+                           &s_editor.simulation_real_time_relation);
+        ImGui::EndDisabled();
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+        ImGui::Checkbox("No time limit", &s_editor.infinity_simulation);
+
+        ImGui::TextFormat("Current time {:.6f}", s_editor.simulation_current);
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+        ImGui::Checkbox("Real time", &s_editor.real_time);
+
+        ImGui::TextFormat("Simulation phase: {}",
+                          ordinal(s_editor.simulation_state));
+
+        ImGui::PopItemWidth();
     }
-
-    ImGui::BeginDisabled(!s_editor.real_time);
-    ImGui::InputScalar("Micro second for 1 unit time",
-                       ImGuiDataType_S64,
-                       &s_editor.simulation_real_time_relation);
-    ImGui::EndDisabled();
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    ImGui::Checkbox("No time limit", &s_editor.infinity_simulation);
-
-    ImGui::TextFormat("Current time {:.6f}", s_editor.simulation_current);
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    ImGui::Checkbox("Real time", &s_editor.real_time);
-
-    ImGui::TextFormat("Simulation phase: {}",
-                      ordinal(s_editor.simulation_state));
-
-    ImGui::PopItemWidth();
 
     if (ImGui::Button("clear"))
         s_editor.simulation_clear();
