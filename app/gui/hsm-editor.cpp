@@ -87,8 +87,8 @@ constexpr hsm_t::state_id get_state(int idx) noexcept
 
 enum class transition_type : u8
 {
-    super_transition = 1,
-    if_transition,
+    // super_transition = 1,
+    if_transition = 1,
     else_transition,
 };
 
@@ -203,10 +203,10 @@ static void remove_link(hsm_t& hsm, transition t) noexcept
     using hsm_t = hsm_t;
 
     switch (t.type) {
-    case transition_type::super_transition:
-        hsm.states[t.output].super_id = hsm_t::invalid_state_id;
-        update_super_sub_id(hsm, t.input, t.output);
-        break;
+    // case transition_type::super_transition:
+    //     hsm.states[t.output].super_id = hsm_t::invalid_state_id;
+    //     update_super_sub_id(hsm, t.input, t.output);
+    //     break;
     case transition_type::if_transition:
         hsm.states[t.output].if_transition = hsm_t::invalid_state_id;
         break;
@@ -527,13 +527,11 @@ void hsm_editor::clear() noexcept
     m_selected_nodes.clear();
 }
 
-static void show_hsm(
-  hsm_t&                                              hsm,
-  const std::array<bool, hsm_t::max_number_of_state>& enabled) noexcept
+void hsm_editor::show_hsm() noexcept
 {
     for (u8 i = 0, e = static_cast<u8>(hsm_t::max_number_of_state); i != e;
          ++i) {
-        if (enabled[i] == false)
+        if (m_enabled[i] == false)
             continue;
 
         ImNodes::BeginNode(make_state(i));
@@ -546,13 +544,13 @@ static void show_hsm(
         ImGui::TextUnformatted("in");
         ImNodes::EndInputAttribute();
 
-        show_condition(hsm.states[i].condition);
+        show_condition(m_hsm.states[i].condition);
 
-        ImNodes::BeginOutputAttribute(
-          make_output(i, transition_type::super_transition),
-          ImNodesPinShape_CircleFilled);
-        ImGui::TextUnformatted("super");
-        ImNodes::EndOutputAttribute();
+        // ImNodes::BeginOutputAttribute(
+        //   make_output(i, transition_type::super_transition),
+        //   ImNodesPinShape_CircleFilled);
+        // ImGui::TextUnformatted("super");
+        // ImNodes::EndOutputAttribute();
         ImNodes::BeginOutputAttribute(
           make_output(i, transition_type::if_transition),
           ImNodesPinShape_CircleFilled);
@@ -569,29 +567,29 @@ static void show_hsm(
 
     for (u8 i = 0, e = static_cast<u8>(hsm_t::max_number_of_state); i != e;
          ++i) {
-        if (enabled[i] == false)
+        if (m_enabled[i] == false)
             continue;
 
-        if (hsm.states[i].super_id != hsm_t::invalid_state_id)
-            ImNodes::Link(make_transition(i,
-                                          hsm.states[i].super_id,
-                                          transition_type::super_transition),
-                          make_output(i, transition_type::super_transition),
-                          make_input(hsm.states[i].super_id));
+        // if (m_hsm.states[i].super_id != hsm_t::invalid_state_id)
+        //     ImNodes::Link(make_transition(i,
+        //                                   m_hsm.states[i].super_id,
+        //                                   transition_type::super_transition),
+        //                   make_output(i, transition_type::super_transition),
+        //                   make_input(m_hsm.states[i].super_id));
 
-        if (hsm.states[i].if_transition != hsm_t::invalid_state_id)
+        if (m_hsm.states[i].if_transition != hsm_t::invalid_state_id)
             ImNodes::Link(make_transition(i,
-                                          hsm.states[i].if_transition,
+                                          m_hsm.states[i].if_transition,
                                           transition_type::if_transition),
                           make_output(i, transition_type::if_transition),
-                          make_input(hsm.states[i].if_transition));
+                          make_input(m_hsm.states[i].if_transition));
 
-        if (hsm.states[i].else_transition != hsm_t::invalid_state_id)
+        if (m_hsm.states[i].else_transition != hsm_t::invalid_state_id)
             ImNodes::Link(make_transition(i,
-                                          hsm.states[i].else_transition,
+                                          m_hsm.states[i].else_transition,
                                           transition_type::else_transition),
                           make_output(i, transition_type::else_transition),
-                          make_input(hsm.states[i].else_transition));
+                          make_input(m_hsm.states[i].else_transition));
     }
 }
 
@@ -603,11 +601,11 @@ static void is_link_created(hsm_t& hsm) noexcept
         auto in  = get_input(input_idx);
 
         switch (out.type) {
-        case transition_type::super_transition:
-            hsm.states[out.output].super_id = in;
-            if (hsm.states[in].sub_id == hsm_t::invalid_state_id)
-                hsm.states[in].sub_id = out.output;
-            break;
+        // case transition_type::super_transition:
+        //     hsm.states[out.output].super_id = in;
+        //     if (hsm.states[in].sub_id == hsm_t::invalid_state_id)
+        //         hsm.states[in].sub_id = out.output;
+        //     break;
         case transition_type::if_transition:
             hsm.states[out.output].if_transition = in;
             break;
@@ -618,12 +616,8 @@ static void is_link_created(hsm_t& hsm) noexcept
     }
 }
 
-static void show_menu(
-  hsm_t&                                          hsm,
-  std::array<ImVec2, hsm_t::max_number_of_state>& positions,
-  std::array<bool, hsm_t::max_number_of_state>&   enabled) noexcept
+void hsm_editor::show_menu() noexcept
 {
-    const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
       ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
@@ -633,16 +627,19 @@ static void show_menu(
         ImGui::OpenPopup("Context menu");
 
     if (ImGui::BeginPopup("Context menu")) {
-        if (auto id = get_first_available(enabled); id.has_value()) {
+        const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+
+        if (auto id = get_first_available(m_enabled); id.has_value()) {
             if (ImGui::MenuItem("new state")) {
-                enabled[id.value()] = true;
+                m_enabled[id.value()] = true;
 
-                if (hsm.states[0].sub_id == hsm_t::invalid_state_id)
-                    hsm.states[0].sub_id = id.value();
+                if (m_hsm.states[0].sub_id == hsm_t::invalid_state_id)
+                    m_hsm.states[0].sub_id = id.value();
 
-                hsm.states[id.value()].super_id = 0u;
-                hsm.states[id.value()].sub_id   = hsm_t::invalid_state_id;
-                positions[id.value()]           = click_pos;
+                m_hsm.states[id.value()].super_id = 0u;
+                m_hsm.states[id.value()].sub_id   = hsm_t::invalid_state_id;
+                m_position[id.value()]            = click_pos;
+                ImNodes::SetNodeScreenSpacePos(id.value(), click_pos);
             }
         }
 
@@ -652,93 +649,50 @@ static void show_menu(
     ImGui::PopStyleVar();
 }
 
-static void show_hsm_editor(
-  ImNodesEditorContext*                           ctx,
-  hsm_t&                                          hsm,
-  ImVector<int>&                                  selected_nodes,
-  ImVector<int>&                                  selected_links,
-  std::array<ImVec2, hsm_t::max_number_of_state>& positions,
-  std::array<bool, hsm_t::max_number_of_state>&   enabled) noexcept
+void hsm_editor::show_graph() noexcept
 {
-    ImNodes::EditorContextSet(ctx);
+    ImNodes::EditorContextSet(m_context);
     ImNodes::BeginNodeEditor();
-
-    show_hsm(hsm, enabled);
-    show_menu(hsm, positions, enabled);
-
+    show_menu();
+    show_hsm();
+    ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
     ImNodes::EndNodeEditor();
-    is_link_created(hsm);
+    is_link_created(m_hsm);
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
 
     if (num_selected_nodes == 0) {
-        selected_nodes.clear();
+        m_selected_nodes.clear();
         ImNodes::ClearNodeSelection();
     }
 
     if (num_selected_links == 0) {
-        selected_links.clear();
+        m_selected_links.clear();
         ImNodes::ClearLinkSelection();
     }
 
     if (num_selected_nodes > 0) {
-        selected_nodes.resize(num_selected_nodes, 0);
-        ImNodes::GetSelectedNodes(selected_nodes.begin());
+        m_selected_nodes.resize(num_selected_nodes, 0);
+        ImNodes::GetSelectedNodes(m_selected_nodes.begin());
 
         if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-            for (auto idx : selected_nodes) {
+            for (auto idx : m_selected_nodes) {
                 if (idx != 0)
-                    remove_state(hsm, get_state(idx), enabled);
+                    remove_state(m_hsm, get_state(idx), m_enabled);
             }
         }
     }
 
     if (num_selected_links > 0) {
-        selected_links.resize(num_selected_links, 0);
-        ImNodes::GetSelectedLinks(selected_links.begin());
+        m_selected_links.resize(num_selected_links, 0);
+        ImNodes::GetSelectedLinks(m_selected_links.begin());
 
         if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-            for (auto idx : selected_links) {
+            for (auto idx : m_selected_links) {
                 if (idx != 0)
-                    remove_link(hsm, get_transition(idx));
+                    remove_link(m_hsm, get_transition(idx));
             }
-        }
-    }
-}
-
-static void show_panel(hsm_t&                                        hsm,
-                       std::array<bool, hsm_t::max_number_of_state>& enabled,
-                       const ImVector<int>& selected_nodes) noexcept
-{
-    if (ImGui::CollapsingHeader("selected states",
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
-        for (int i = 0, e = selected_nodes.Size; i != e; ++i) {
-            const auto id    = get_state(selected_nodes[i]);
-            auto&      state = hsm.states[id];
-
-            ImGui::PushID(i);
-            ImGui::TextFormat("State {}", selected_nodes[i]);
-
-            ImGui::TextUnformatted("condition");
-            show_state_condition(state.condition);
-
-            ImGui::TextUnformatted("if success run:");
-            show_state_action(state.if_action);
-            show_state_id_editor(enabled, state.if_transition);
-
-            ImGui::TextUnformatted("else run:");
-            show_state_action(state.else_action);
-            show_state_id_editor(enabled, state.else_transition);
-
-            ImGui::TextUnformatted("enter state run:");
-            show_state_action(state.enter_action);
-
-            ImGui::TextUnformatted("exit state run:");
-            show_state_action(state.exit_action);
-
-            ImGui::PopID();
-            ImGui::Separator();
         }
     }
 }
@@ -756,6 +710,54 @@ static void task_hsm_test_start(void* param) noexcept
     }
 
     g_task->state = task_status::finished;
+}
+
+void hsm_editor::show_panel() noexcept
+{
+    if (ImGui::CollapsingHeader("parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::InputScalar("a", ImGuiDataType_S32, &m_hsm.a);
+        ImGui::InputScalar("b", ImGuiDataType_S32, &m_hsm.a);
+    }
+
+    if (ImGui::CollapsingHeader("selected states",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        for (int i = 0, e = m_selected_nodes.Size; i != e; ++i) {
+            const auto id    = get_state(m_selected_nodes[i]);
+            auto&      state = m_hsm.states[id];
+
+            ImGui::PushID(i);
+            // show_state_id_editor(m_enabled, state.super_id);
+            ImGui::TextFormat("State {}", m_selected_nodes[i]);
+
+            ImGui::TextUnformatted("condition");
+            show_state_condition(state.condition);
+
+            ImGui::TextUnformatted("if success run:");
+            show_state_action(state.if_action);
+            // show_state_id_editor(m_enabled, state.if_transition);
+
+            ImGui::TextUnformatted("else run:");
+            show_state_action(state.else_action);
+            // show_state_id_editor(m_enabled, state.else_transition);
+
+            ImGui::TextUnformatted("enter state run:");
+            show_state_action(state.enter_action);
+
+            ImGui::TextUnformatted("exit state run:");
+            show_state_action(state.exit_action);
+
+            ImGui::PopID();
+            ImGui::Separator();
+        }
+    }
+
+    ImGui::TextFormat("status: {}", test_status_string[ordinal(m_test)]);
+    ImGui::BeginDisabled(match(m_test, test_status::being_processed));
+    if (ImGui::Button("test")) {
+        auto* app = container_of(this, &application::h_editor);
+        app->add_gui_task(task_hsm_test_start);
+    }
+    ImGui::EndDisabled();
 }
 
 bool hsm_editor::valid() noexcept
@@ -918,50 +920,56 @@ bool hsm_editor::show(const char* title) noexcept
     if (m_state == state::hide)
         m_state = state::show;
 
-    ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_FirstUseEver);
     bool ret = false;
 
     if (ImGui::BeginPopupModal(title)) {
+        // ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_FirstUseEver);
         const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;
         const auto region_width  = ImGui::GetContentRegionAvail().x;
         const auto region_height = ImGui::GetContentRegionAvail().y;
         const auto button_size =
-          ImVec2{ (region_width - 2.f * item_spacing) / 3.f, 0 };
-        const auto table_heigth =
-          region_height - 3.f * ImGui::GetFrameHeightWithSpacing();
+          ImVec2((region_width - item_spacing) / 2.f, 0.f);
+        const auto table_heigth = region_height -
+                                  ImGui::GetFrameHeightWithSpacing() -
+                                  ImGui::GetStyle().ItemSpacing.y;
 
         ImGui::BeginChild("##table-editor", ImVec2(0, table_heigth), false);
-        if (ImGui::BeginTable("editor",
-                              2,
-                              ImGuiTableFlags_Resizable |
-                                ImGuiTableFlags_NoSavedSettings |
-                                ImGuiTableFlags_Borders)) {
-            ImGui::TableSetupColumn("Editor",
-                                    ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn(
-              "Parameter", ImGuiTableColumnFlags_WidthFixed, 128.f);
+        if (ImGui::BeginTabBar("##hsm-editor")) {
+            if (ImGui::BeginTabItem("editor")) {
+                if (ImGui::BeginTable("editor",
+                                      2,
+                                      ImGuiTableFlags_Resizable |
+                                        ImGuiTableFlags_NoSavedSettings |
+                                        ImGuiTableFlags_Borders)) {
+                    ImGui::TableSetupColumn("Editor",
+                                            ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableSetupColumn(
+                      "Parameter", ImGuiTableColumnFlags_WidthFixed, 128.f);
 
-            ImGui::TableNextColumn();
-            show_hsm_editor(m_context,
-                            m_hsm,
-                            m_selected_nodes,
-                            m_selected_links,
-                            m_position,
-                            m_enabled);
-            ImGui::TableNextColumn();
-            show_panel(m_hsm, m_enabled, m_selected_nodes);
-            ImGui::EndTable();
+                    ImGui::TableNextColumn();
+                    show_graph();
+                    ImGui::TableNextColumn();
+                    show_panel();
+                    ImGui::EndTable();
+                }
+
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("log")) {
+                if (ImGui::CollapsingHeader("messages",
+                                            ImGuiTreeNodeFlags_DefaultOpen)) {
+                    small_string<127> msg;
+                    while (m_messages.pop(msg))
+                        ImGui::TextUnformatted(msg.c_str());
+                }
+
+                ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
         }
         ImGui::EndChild();
-
-        ImGui::TextFormat("status: {}", test_status_string[ordinal(m_test)]);
-
-        if (ImGui::CollapsingHeader("messages",
-                                    ImGuiTreeNodeFlags_DefaultOpen)) {
-            small_string<127> msg;
-            while (m_messages.pop(msg))
-                ImGui::TextUnformatted(msg.c_str());
-        }
 
         if (ImGui::Button("Ok", button_size)) {
             m_state = state::ok;
@@ -969,13 +977,6 @@ bool hsm_editor::show(const char* title) noexcept
 
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
-
-        ImGui::BeginDisabled(match(m_test, test_status::being_processed));
-        if (ImGui::Button("test")) {
-            auto* app = container_of(this, &application::h_editor);
-            app->add_gui_task(task_hsm_test_start);
-        }
-        ImGui::EndDisabled();
 
         ImGui::SameLine();
 

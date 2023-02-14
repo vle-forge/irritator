@@ -316,6 +316,11 @@ public:
     void hide() noexcept { m_state = state::hide; }
 
 private:
+    void show_hsm() noexcept;
+    void show_menu() noexcept;
+    void show_graph() noexcept;
+    void show_panel() noexcept;
+
     ImNodesEditorContext* m_context = nullptr;
 
     hierarchical_state_machine m_hsm;
