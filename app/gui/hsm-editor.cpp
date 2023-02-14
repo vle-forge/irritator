@@ -723,18 +723,18 @@ static void show_panel(hsm_t&                                        hsm,
             ImGui::TextUnformatted("condition");
             show_state_condition(state.condition);
 
-            ImGui::TextUnformatted("success");
+            ImGui::TextUnformatted("if success run:");
             show_state_action(state.if_action);
             show_state_id_editor(enabled, state.if_transition);
 
-            ImGui::TextUnformatted("else");
+            ImGui::TextUnformatted("else run:");
             show_state_action(state.else_action);
             show_state_id_editor(enabled, state.else_transition);
 
-            ImGui::TextUnformatted("enter-action");
+            ImGui::TextUnformatted("enter state run:");
             show_state_action(state.enter_action);
 
-            ImGui::TextUnformatted("exit-action");
+            ImGui::TextUnformatted("exit state run:");
             show_state_action(state.exit_action);
 
             ImGui::PopID();
