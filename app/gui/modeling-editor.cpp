@@ -291,7 +291,7 @@ static void show_opened_component_ref(const settings_manager& settings,
 static void add_popup_menuitem(component_editor& ed,
                                component&        parent,
                                dynamics_type     type,
-                               child_id*         new_model)
+                               ImVec2            click_pos)
 {
     if (!parent.models.can_alloc(1)) {
         auto* app = container_of(&ed, &application::c_editor);
@@ -302,9 +302,13 @@ static void add_popup_menuitem(component_editor& ed,
     }
 
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)])) {
-        auto& child  = ed.mod.alloc(parent, type);
-        *new_model   = parent.children.get_id(child);
+        auto& child    = ed.mod.alloc(parent, type);
+        auto  child_id = parent.children.get_id(child);
+
         parent.state = component_status::modified;
+        ImNodes::SetNodeScreenSpacePos(pack_node(child_id), click_pos);
+        child.x = click_pos.x;
+        child.y = click_pos.y;
 
         auto* app = container_of(&ed, &application::c_editor);
         auto& n   = app->notifications.alloc();
@@ -318,10 +322,10 @@ static void add_popup_menuitem(component_editor& ed,
 static void add_popup_menuitem(component_editor& ed,
                                component&        parent,
                                int               type,
-                               child_id*         new_model)
+                               ImVec2            click_pos)
 {
     auto d_type = enum_cast<dynamics_type>(type);
-    add_popup_menuitem(ed, parent, d_type, new_model);
+    add_popup_menuitem(ed, parent, d_type, click_pos);
 }
 
 static void compute_grid_layout(settings_manager& settings,
@@ -507,22 +511,20 @@ static void show_popup_all_component_menuitem(component_editor& ed,
 
 static void show_popup_menuitem(component_editor& ed,
                                 tree_node&        tree,
-                                component&        parent,
-                                ImVec2*           click_pos,
-                                child_id*         new_model) noexcept
+                                component&        parent) noexcept
 {
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
       ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
-
-    *new_model = undefined<child_id>();
-    *click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
     if (!ImGui::IsAnyItemHovered() && open_popup)
         ImGui::OpenPopup("Context menu");
 
     if (ImGui::BeginPopup("Context menu")) {
+        const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+        child_id   new_model = undefined<child_id>();
+
         if (ImGui::MenuItem("Force grid layout")) {
             auto* app = container_of(&ed, &application::c_editor);
             compute_grid_layout(app->settings, parent);
@@ -530,7 +532,7 @@ static void show_popup_menuitem(component_editor& ed,
 
         ImGui::Separator();
 
-        show_popup_all_component_menuitem(ed, tree, parent, *click_pos);
+        show_popup_all_component_menuitem(ed, tree, parent, click_pos);
 
         ImGui::Separator();
 
@@ -538,7 +540,7 @@ static void show_popup_menuitem(component_editor& ed,
             auto       i = ordinal(dynamics_type::qss1_integrator);
             const auto e = ordinal(dynamics_type::qss1_wsum_4);
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, i, new_model);
+                add_popup_menuitem(ed, parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -547,7 +549,7 @@ static void show_popup_menuitem(component_editor& ed,
             const auto e = ordinal(dynamics_type::qss2_wsum_4);
 
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, i, new_model);
+                add_popup_menuitem(ed, parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -556,50 +558,50 @@ static void show_popup_menuitem(component_editor& ed,
             const auto e = ordinal(dynamics_type::qss3_wsum_4);
 
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, i, new_model);
+                add_popup_menuitem(ed, parent, i, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("AQSS (experimental)")) {
             add_popup_menuitem(
-              ed, parent, dynamics_type::integrator, new_model);
+              ed, parent, dynamics_type::integrator, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::quantifier, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::adder_2, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::adder_3, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::adder_4, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::mult_2, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::mult_3, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::mult_4, new_model);
-            add_popup_menuitem(ed, parent, dynamics_type::cross, new_model);
+              ed, parent, dynamics_type::quantifier, click_pos);
+            add_popup_menuitem(ed, parent, dynamics_type::adder_2, click_pos);
+            add_popup_menuitem(ed, parent, dynamics_type::adder_3, click_pos);
+            add_popup_menuitem(ed, parent, dynamics_type::adder_4, click_pos);
+            add_popup_menuitem(ed, parent, dynamics_type::mult_2, click_pos);
+            add_popup_menuitem(ed, parent, dynamics_type::mult_3, click_pos);
+            add_popup_menuitem(ed, parent, dynamics_type::mult_4, click_pos);
+            add_popup_menuitem(ed, parent, dynamics_type::cross, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Logical")) {
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_and_2, new_model);
+              ed, parent, dynamics_type::logical_and_2, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_or_2, new_model);
+              ed, parent, dynamics_type::logical_or_2, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_and_3, new_model);
+              ed, parent, dynamics_type::logical_and_3, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_or_3, new_model);
+              ed, parent, dynamics_type::logical_or_3, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_invert, new_model);
+              ed, parent, dynamics_type::logical_invert, click_pos);
             ImGui::EndMenu();
         }
 
-        add_popup_menuitem(ed, parent, dynamics_type::counter, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::queue, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::dynamic_queue, new_model);
+        add_popup_menuitem(ed, parent, dynamics_type::counter, click_pos);
+        add_popup_menuitem(ed, parent, dynamics_type::queue, click_pos);
+        add_popup_menuitem(ed, parent, dynamics_type::dynamic_queue, click_pos);
         add_popup_menuitem(
-          ed, parent, dynamics_type::priority_queue, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::generator, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::constant, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::time_func, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::accumulator_2, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::filter, new_model);
-        add_popup_menuitem(ed, parent, dynamics_type::hsm_wrapper, new_model);
+          ed, parent, dynamics_type::priority_queue, click_pos);
+        add_popup_menuitem(ed, parent, dynamics_type::generator, click_pos);
+        add_popup_menuitem(ed, parent, dynamics_type::constant, click_pos);
+        add_popup_menuitem(ed, parent, dynamics_type::time_func, click_pos);
+        add_popup_menuitem(ed, parent, dynamics_type::accumulator_2, click_pos);
+        add_popup_menuitem(ed, parent, dynamics_type::filter, click_pos);
+        add_popup_menuitem(ed, parent, dynamics_type::hsm_wrapper, click_pos);
 
         ImGui::EndPopup();
     }
@@ -942,23 +944,13 @@ static void show_modeling_widget(const settings_manager& settings,
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();
 
-    ImVec2   click_pos;
-    child_id new_model;
-
+    show_popup_menuitem(ed, tree, compo);
     show_opened_component_ref(settings, ed, tree, compo);
-    show_popup_menuitem(ed, tree, compo, &click_pos, &new_model);
 
     if (ed.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
 
     ImNodes::EndNodeEditor();
-
-    if (auto* child = compo.children.try_to_get(new_model); child) {
-        compo.state = component_status::modified;
-        ImNodes::SetNodeScreenSpacePos(pack_node(new_model), click_pos);
-        child->x = click_pos.x;
-        child->y = click_pos.y;
-    }
 
     is_link_created(ed, compo);
     is_link_destroyed(compo);
