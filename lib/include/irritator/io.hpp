@@ -136,6 +136,11 @@ status simulation_load(simulation&   sim,
 //! Return the description string for each status.
 const char* status_string(const status s) noexcept;
 
+static inline constexpr const std::string_view log_level_names[] = {
+    "emergency", "alert",  "critical", "error",
+    "warning",   "notice", "info",     "debug",
+};
+
 static constexpr inline const char* dynamics_type_names[] = {
     "qss1_integrator", "qss1_multiplier", "qss1_cross",     "qss1_filter",
     "qss1_power",      "qss1_square",     "qss1_sum_2",     "qss1_sum_3",

@@ -7,10 +7,12 @@
 
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
+#include <irritator/io.hpp>
 
 #include "application.hpp"
 
 #include <imgui.h>
+#include <utility>
 
 namespace irt {
 
@@ -34,22 +36,36 @@ inline int portable_filename_dirname_callback(
 //!
 //! The formatted string in take from the \c logger-window \c ring-buffer.
 //! \param app A reference to the global application.
-//! \param level A level between 0 and 7.
+//! \param level Log level of the message 0 and 7.
 //! \param fmt A format string for the fmtlib library.
 //! \param args Arguments for the fmtlib library.
 template<typename S, typename... Args>
-constexpr void log_w(application&         app,
-                     [[maybe_unused]] int level,
-                     const S&             fmt,
+constexpr void log_w(application& app,
+                     log_level    level,
+                     const S&     fmt,
                      Args&&... args) noexcept
 {
     using size_type = typename window_logger::string_t::size_type;
 
-    auto& str = app.log_window.enqueue();
-    auto  ret = fmt::vformat_to_n(
-      str.begin(), str.capacity() - 1, fmt, fmt::make_format_args(args...));
+    auto level_msg = log_level_names[ordinal(level)];
+    auto level_msg_len = level_msg.size();
 
-    str.resize(static_cast<size_type>(ret.size));
+    auto& str = app.log_window.enqueue();
+    irt_assert(std::cmp_greater(str.capacity(), level_msg_len));
+
+    std::copy_n(level_msg.data(), level_msg.size(), str.begin());
+    str[level_msg_len] = ' ';
+    str.resize(++level_msg_len);
+
+    auto remaining = static_cast<sz>(str.capacity()) - level_msg_len;
+    if (remaining > 1) {
+        auto ret = fmt::vformat_to_n(str.begin() + level_msg_len,
+                                     remaining - 1,
+                                     fmt,
+                                     fmt::make_format_args(args...));
+
+        str.resize(static_cast<size_type>(ret.size + level_msg_len));
+    }
 }
 
 } // namespace irt
@@ -87,9 +103,7 @@ bool InputSmallString(const char*                label,
                       ImGuiInputTextCallback     callback  = nullptr,
                       void*                      user_data = nullptr)
 {
-    const bool ret = ImGui::InputText(label,
-                                      string.begin(),
-                                      static_cast<size_t>(string.capacity()),
+    const bool ret = ImGui::InputText(label, string.begin(), static_cast<size_t>(string.capacity()),
                                       flags,
                                       callback,
                                       user_data);

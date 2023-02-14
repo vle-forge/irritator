@@ -318,7 +318,7 @@ static void show_hierarchy_settings(component_editor& ed,
                             auto* app =
                               container_of(&ed, &application::c_editor);
                             log_w(*app,
-                                  4,
+                                  log_level::error,
                                   "Fail to create directory `%.*s'",
                                   new_dir.path.ssize(),
                                   new_dir.path.begin());

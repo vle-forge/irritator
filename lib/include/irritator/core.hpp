@@ -9691,7 +9691,7 @@ template<int length>
 inline constexpr typename small_string<length>::reference
 small_string<length>::operator[](std::integral auto index) noexcept
 {
-    irt_assert(std::cmp_less(index, m_size));
+    irt_assert(std::cmp_less(index, length));
 
     return m_buffer[index];
 }

@@ -37,15 +37,15 @@ application::application() noexcept
     sim_tasks.init(simulation_task_number);
     gui_tasks.init(simulation_task_number);
 
-    log_w(*this, 7, "GUI Irritator start\n");
+    log_w(*this, log_level::info, "GUI Irritator start\n");
 
     log_w(*this,
-          7,
+          log_level::info,
           "Start with {} main threads and {} generic workers\n",
           task_mgr.main_workers.ssize(),
           task_mgr.temp_workers.ssize());
 
-    log_w(*this, 7, "Initialization successfull");
+    log_w(*this, log_level::info, "Initialization successfull");
 
     task_mgr.start();
 
@@ -54,25 +54,27 @@ application::application() noexcept
 
 application::~application() noexcept
 {
-    log_w(*this, 7, "Task manager shutdown\n");
+    log_w(*this, log_level::info, "Task manager shutdown\n");
     task_mgr.finalize();
-    log_w(*this, 7, "Application shutdown\n");
+    log_w(*this, log_level::info, "Application shutdown\n");
 }
 
 bool application::init() noexcept
 {
     if (auto ret = c_editor.mod.registred_paths.init(max_component_dirs);
         is_bad(ret)) {
-        log_w(*this, 2, "Fail to initialize registred dir paths");
+        log_w(
+          *this, log_level::alert, "Fail to initialize registred dir paths");
     }
 
     if (auto ret = load_settings(); is_bad(ret))
-        log_w(
-          *this, 2, "Fail to read settings files. Default parameters used\n");
+        log_w(*this,
+              log_level::alert,
+              "Fail to read settings files. Default parameters used\n");
 
     if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
         log_w(*this,
-              2,
+              log_level::error,
               "Fail to initialize modeling components: {}\n",
               status_string(ret));
         return false;
@@ -84,7 +86,10 @@ bool application::init() noexcept
             auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
             new_dir.name     = "System directory";
             new_dir.path     = path.value().string().c_str();
-            log_w(*this, 7, "Add system directory: {}\n", new_dir.path.c_str());
+            log_w(*this,
+                  log_level::info,
+                  "Add system directory: {}\n",
+                  new_dir.path.c_str());
 
             c_editor.mod.component_repertories.emplace_back(new_dir_id);
         }
@@ -94,21 +99,24 @@ bool application::init() noexcept
             auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
             new_dir.name     = "User directory";
             new_dir.path     = path.value().string().c_str();
-            log_w(*this, 7, "Add user directory: {}\n", new_dir.path.c_str());
+            log_w(*this,
+                  log_level::info,
+                  "Add user directory: {}\n",
+                  new_dir.path.c_str());
 
             c_editor.mod.component_repertories.emplace_back(new_dir_id);
         }
     }
 
     if (auto ret = save_settings(); is_bad(ret)) {
-        log_w(*this, 2, "Fail to save settings files.\n");
+        log_w(*this, log_level::error, "Fail to save settings files.\n");
     }
 
     if (auto ret = s_editor.sim.init(mod_init.model_capacity,
                                      mod_init.model_capacity * 256);
         is_bad(ret)) {
         log_w(*this,
-              2,
+              log_level::error,
               "Fail to initialize simulation components: {}\n",
               status_string(ret));
         return false;
@@ -118,7 +126,7 @@ bool application::init() noexcept
 
     if (auto ret = s_editor.sim_obs.init(16); is_bad(ret)) {
         log_w(*this,
-              2,
+              log_level::error,
               "Fail to initialize simulation observation: {}\n",
               status_string(ret));
         return false;
@@ -126,7 +134,7 @@ bool application::init() noexcept
 
     if (auto ret = s_editor.copy_obs.init(16); is_bad(ret)) {
         log_w(*this,
-              2,
+              log_level::error,
               "Fail to initialize copy simulation observation: {}\n",
               status_string(ret));
         return false;
@@ -134,15 +142,17 @@ bool application::init() noexcept
 
     if (auto ret = c_editor.mod.srcs.init(50); is_bad(ret)) {
         log_w(*this,
-              2,
+              log_level::error,
               "Fail to initialize external sources: {}\n",
               status_string(ret));
         return false;
     }
 
     if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
-        log_w(
-          *this, 2, "Fail to fill component list: {}\n", status_string(ret));
+        log_w(*this,
+              log_level::error,
+              "Fail to fill component list: {}\n",
+              status_string(ret));
     }
 
     c_editor.mod.fill_components();
