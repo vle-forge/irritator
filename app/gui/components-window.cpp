@@ -180,14 +180,13 @@ static void show_dirpath_component(irt::component_editor& ed,
     }
 }
 
-void application::show_components_window() noexcept
+static void show_component_library(component_editor& c_editor,
+                                   irt::tree_node*   tree) noexcept
 {
-    constexpr ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
+    if (ImGui::CollapsingHeader("Component library",
+                                ImGuiTreeNodeFlags_CollapsingHeader |
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
 
-    auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
-
-    if (ImGui::CollapsingHeader("Component library", flags)) {
         if (ImGui::TreeNodeEx("Internal")) {
             show_internal_components(c_editor, tree);
             ImGui::TreePop();
@@ -232,10 +231,42 @@ void application::show_components_window() noexcept
             ImGui::TreePop();
         }
     }
+}
 
-    ImGui::Separator();
+static void show_input_output_ports(component& compo,
+                                    model&     mdl,
+                                    child_id   id) noexcept
+{
+    dispatch(mdl, [&compo, id]<typename Dynamics>(Dynamics& dyn) {
+        if constexpr (has_input_port<Dynamics>) {
+            for (int i = 0, e = length(dyn.x); i != e; ++i) {
+                connection* con = nullptr;
+                while (compo.connections.next(con)) {
+                    if (con->type == connection::connection_type::input &&
+                        con->input.dst == id && con->input.index_dst == i)
+                        ImGui::TextFormat("Input {} is public", i);
+                }
+            }
+        }
 
-    if (ImGui::CollapsingHeader("Selected children", flags)) {
+        if constexpr (has_output_port<Dynamics>) {
+            for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                connection* con = nullptr;
+                while (compo.connections.next(con)) {
+                    if (con->type == connection::connection_type::output &&
+                        con->output.src == id && con->output.index_src == i)
+                        ImGui::TextFormat("Output {} is public", i);
+                }
+            }
+        }
+    });
+}
+
+static void show_selected_children(component_editor& c_editor) noexcept
+{
+    if (ImGui::CollapsingHeader("Selected children",
+                                ImGuiTreeNodeFlags_CollapsingHeader |
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
         auto* tree =
           c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
         if (tree) {
@@ -247,7 +278,6 @@ void application::show_components_window() noexcept
                       static_cast<u32>(c_editor.selected_nodes[i]));
                     if (!child)
                         continue;
-
                     if (ImGui::TreeNodeEx(child,
                                           ImGuiTreeNodeFlags_DefaultOpen,
                                           "%d",
@@ -268,21 +298,25 @@ void application::show_components_window() noexcept
                             compo->state = component_status::modified;
 
                         if (child->type == child_type::model) {
-                            auto  child_id = enum_cast<model_id>(child->id);
-                            auto* mdl      = compo->models.try_to_get(child_id);
+                            auto  child_id = compo->children.get_id(*child);
+                            auto  mdl_id   = enum_cast<model_id>(child->id);
+                            auto* mdl      = compo->models.try_to_get(mdl_id);
 
-                            if (mdl)
-                                ImGui::Text(
-                                  "type: %s",
+                            if (mdl) {
+                                ImGui::TextFormat(
+                                  "type: {}",
                                   dynamics_type_names[ordinal(mdl->type)]);
+
+                                show_input_output_ports(*compo, *mdl, child_id);
+                            }
                         } else {
                             auto  compo_id = enum_cast<component_id>(child->id);
                             auto* compo =
                               c_editor.mod.components.try_to_get(compo_id);
 
                             if (compo)
-                                ImGui::Text(
-                                  "type: %s",
+                                ImGui::TextFormat(
+                                  "type: {}",
                                   component_type_names[ordinal(compo->type)]);
                         }
 
@@ -292,6 +326,67 @@ void application::show_components_window() noexcept
             }
         }
     }
+}
+
+static inline const char* port_labels[] = { "1", "2", "3", "4",
+                                            "5", "6", "7", "8" };
+
+static void show_input_output(component_editor& c_editor) noexcept
+{
+    if (ImGui::CollapsingHeader("component inputs/outputs")) {
+        if (auto* tree =
+              c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
+            tree) {
+            if (component* compo = c_editor.mod.components.try_to_get(tree->id);
+                compo) {
+                if (ImGui::BeginTable("##io-table",
+                                      3,
+                                      ImGuiTableFlags_Resizable |
+                                        ImGuiTableFlags_NoSavedSettings |
+                                        ImGuiTableFlags_Borders)) {
+                    ImGui::TableSetupColumn(
+                      "id", ImGuiTableColumnFlags_WidthFixed, 32.f);
+                    ImGui::TableSetupColumn("in");
+                    ImGui::TableSetupColumn("out");
+
+                    ImGui::TableHeadersRow();
+
+                    for (int i = 0; i < component::port_number; ++i) {
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        ImGui::TextUnformatted(port_labels[i]);
+
+                        ImGui::TableNextColumn();
+                        ImGui::PushItemWidth(-1.f);
+                        ImGui::PushID(i);
+                        ImGui::InputFilteredString("##in", compo->x_names[i]);
+                        ImGui::PopID();
+                        ImGui::PopItemWidth();
+
+                        ImGui::TableNextColumn();
+                        ImGui::PushItemWidth(-1.f);
+                        ImGui::PushID(i + 16);
+                        ImGui::InputFilteredString("##out", compo->y_names[i]);
+                        ImGui::PopID();
+                        ImGui::PopItemWidth();
+                    }
+
+                    ImGui::EndTable();
+                }
+            }
+        }
+    }
+}
+
+void application::show_components_window() noexcept
+{
+    auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
+
+    show_component_library(c_editor, tree);
+    ImGui::Separator();
+    show_input_output(c_editor);
+    ImGui::Separator();
+    show_selected_children(c_editor);
 }
 
 } // namespace irt
