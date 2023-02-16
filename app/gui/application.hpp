@@ -484,11 +484,14 @@ struct component_editor
     modeling    mod;
     data_window data;
 
-    tree_node_id          selected_component  = undefined<tree_node_id>();
-    ImNodesEditorContext* context             = nullptr;
-    bool                  is_saved            = true;
-    bool                  show_minimap        = true;
-    bool                  force_node_position = false;
+    tree_node_id          selected_component      = undefined<tree_node_id>();
+    ImNodesEditorContext* context                 = nullptr;
+    bool                  is_saved                = true;
+    bool                  show_minimap            = true;
+    bool                  force_node_position     = false;
+    bool                  show_input_output       = true;
+    bool                  first_show_input_output = true;
+    bool                  fix_input_output        = false;
 
     ImVector<int> selected_links;
     ImVector<int> selected_nodes;

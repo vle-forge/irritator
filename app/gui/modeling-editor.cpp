@@ -5,9 +5,71 @@
 #include "application.hpp"
 #include "dialog.hpp"
 #include "editor.hpp"
+#include "imgui.h"
+#include "imnodes.h"
 #include "internal.hpp"
+#include "irritator/core.hpp"
 
 namespace irt {
+
+static inline const char* port_names[] = { "0", "1", "2", "3",
+                                           "4", "5", "6", "7" };
+
+static inline const u32 component_input_ports[8] = {
+    0b11111111111111111111111111100000, 0b11111111111111111111111111100001,
+    0b11111111111111111111111111100010, 0b11111111111111111111111111100011,
+    0b11111111111111111111111111100100, 0b11111111111111111111111111100101,
+    0b11111111111111111111111111100110, 0b11111111111111111111111111100111,
+};
+
+static inline const u32 component_output_ports[8] = {
+    0b11111111111111111111111111110000, 0b11111111111111111111111111110001,
+    0b11111111111111111111111111110010, 0b11111111111111111111111111110011,
+    0b11111111111111111111111111110100, 0b11111111111111111111111111110101,
+    0b11111111111111111111111111110110, 0b11111111111111111111111111110111,
+};
+
+inline bool is_component_input_or_output(const int node_id) noexcept
+{
+    return static_cast<u32>(node_id) >= 0b11111111111111111111111111100000;
+}
+
+inline int pack_component_input(const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+    return static_cast<int>(component_input_ports[port]);
+}
+
+inline int pack_component_output(const int port) noexcept
+{
+    irt_assert(port >= 0 && port < 8);
+    return static_cast<int>(component_output_ports[port]);
+}
+
+inline int unpack_component_input(const int node_id) noexcept
+{
+    irt_assert(is_component_input_or_output(node_id));
+
+    const u32 index = static_cast<u32>(node_id);
+    const u32 mask  = 0b11111;
+    const u32 raw   = index & mask;
+
+    irt_assert(raw < 8);
+    return static_cast<int>(raw);
+}
+
+inline int unpack_component_output(const int node_id) noexcept
+{
+    irt_assert(is_component_input_or_output(node_id));
+
+    const u32 index = static_cast<u32>(node_id);
+    const u32 mask  = 0b11111;
+    const u32 raw   = index & mask;
+
+    irt_assert(raw >= 16);
+
+    return static_cast<int>(raw - 16);
+}
 
 inline int pack_in(const child_id id, const i8 port) noexcept
 {
@@ -99,21 +161,42 @@ static void add_output_attribute(const Dynamics& dyn, child_id id) noexcept
 static bool show_connection(const component&  parent,
                             const connection& con) noexcept
 {
-    irt_assert(con.type == connection::connection_type::internal);
+    const auto idx    = get_index(parent.connections.get_id(con));
+    const auto con_id = static_cast<int>(idx);
 
-    auto* src = parent.children.try_to_get(con.internal.src);
-    if (!src)
-        return false;
-
-    auto* dst = parent.children.try_to_get(con.internal.dst);
-    if (!dst)
-        return false;
-
-    ImNodes::Link(get_index(parent.connections.get_id(con)),
+    switch (con.type) {
+    case connection::connection_type::internal:
+        if (auto* s = parent.children.try_to_get(con.internal.src); s) {
+            if (auto* d = parent.children.try_to_get(con.internal.dst); d) {
+                ImNodes::Link(
+                  con_id,
                   pack_out(con.internal.src, con.internal.index_src),
                   pack_in(con.internal.dst, con.internal.index_dst));
+                return true;
+            }
+        }
+        break;
 
-    return true;
+    case connection::connection_type::input:
+        if (auto* d = parent.children.try_to_get(con.input.dst); d) {
+            ImNodes::Link(con_id,
+                          pack_component_input(con.input.index),
+                          pack_in(con.input.dst, con.input.index_dst));
+            return true;
+        }
+        break;
+
+    case connection::connection_type::output:
+        if (auto* s = parent.children.try_to_get(con.internal.src); s) {
+            ImNodes::Link(con_id,
+                          pack_out(con.output.src, con.output.index_src),
+                          pack_component_output(con.output.index));
+            return true;
+        }
+        break;
+    }
+
+    return false;
 }
 
 static void show(const settings_manager& settings,
@@ -184,10 +267,6 @@ static void show(const settings_manager& settings,
     ImGui::TextFormat("{}\n{}", c.name.c_str(), compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
-    static const char* port_names[] = {
-        "0", "1", "2", "3", "4", "5", "6", "7"
-    };
-
     connection* con    = nullptr;
     u32         input  = 0;
     u32         output = 0;
@@ -236,7 +315,73 @@ static void show_opened_component_ref(const settings_manager& settings,
                                       tree_node& /*ref*/,
                                       component& parent) noexcept
 {
-    child* c = nullptr;
+    const auto width = ImGui::GetWindowContentRegionWidth();
+    const auto pos   = ImNodes::EditorContextGetPanning();
+    child*     c     = nullptr;
+
+    if (ed.show_input_output) {
+        for (int i = 0, e = length(component_input_ports); i != e; ++i) {
+            ImNodes::PushColorStyle(
+              ImNodesCol_TitleBar,
+              ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
+
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
+                                    settings.gui_hovered_component_color);
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                    settings.gui_selected_component_color);
+
+            ImNodes::BeginNode(pack_component_input(i));
+            ImNodes::BeginNodeTitleBar();
+            ImGui::TextUnformatted("in");
+            ImNodes::EndNodeTitleBar();
+            ImNodes::BeginOutputAttribute(pack_component_input(i),
+                                          ImNodesPinShape_TriangleFilled);
+            ImGui::TextUnformatted(port_names[i]);
+            ImNodes::EndOutputAttribute();
+            ImNodes::EndNode();
+
+            if (ed.fix_input_output)
+                ImNodes::SetNodeDraggable(pack_component_input(i), false);
+
+            if (ed.first_show_input_output) {
+                ImNodes::SetNodeEditorSpacePos(
+                  pack_component_input(i),
+                  ImVec2(pos.x + 10.f, (float)i * 80.f + pos.y));
+            }
+        }
+
+        for (int i = 0, e = length(component_output_ports); i != e; ++i) {
+            ImNodes::PushColorStyle(
+              ImNodesCol_TitleBar,
+              ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
+
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
+                                    settings.gui_hovered_component_color);
+            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                    settings.gui_selected_component_color);
+
+            ImNodes::BeginNode(pack_component_output(i));
+            ImNodes::BeginNodeTitleBar();
+            ImGui::TextUnformatted("out");
+            ImNodes::EndNodeTitleBar();
+            ImNodes::BeginInputAttribute(pack_component_output(i),
+                                         ImNodesPinShape_TriangleFilled);
+            ImGui::TextUnformatted(port_names[i]);
+            ImNodes::EndInputAttribute();
+            ImNodes::EndNode();
+
+            if (ed.fix_input_output)
+                ImNodes::SetNodeDraggable(pack_component_output(i), false);
+
+            if (ed.first_show_input_output) {
+                ImNodes::SetNodeEditorSpacePos(
+                  pack_component_output(i),
+                  ImVec2(pos.x + width - 50.f, (float)i * 80.f + pos.y));
+            }
+        }
+
+        ed.first_show_input_output = false;
+    }
 
     while (parent.children.next(c)) {
         const auto child_id = parent.children.get_id(c);
@@ -276,10 +421,8 @@ static void show_opened_component_ref(const settings_manager& settings,
                 to_del = nullptr;
             }
 
-            if (con->type == connection::connection_type::internal) {
-                if (!show_connection(parent, *con)) {
-                    to_del = con;
-                }
+            if (!show_connection(parent, *con)) {
+                to_del = con;
             }
         }
 
@@ -523,7 +666,17 @@ static void show_popup_menuitem(component_editor& ed,
 
     if (ImGui::BeginPopup("Context menu")) {
         const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
-        child_id   new_model = undefined<child_id>();
+
+        if (ImGui::MenuItem("Show component input/output ports",
+                            nullptr,
+                            &ed.show_input_output)) {
+            ed.first_show_input_output = true;
+        }
+
+        ImGui::MenuItem(
+          "Fix component input/output ports", nullptr, &ed.fix_input_output);
+
+        ImGui::Separator();
 
         if (ImGui::MenuItem("Force grid layout")) {
             auto* app = container_of(&ed, &application::c_editor);
@@ -844,32 +997,68 @@ static void is_link_created(const component_editor& ed,
         if (!parent.connections.can_alloc())
             return;
 
-        unpack_out(start, &index_src, &port_src_index);
-        unpack_in(end, &index_dst, &port_dst_index);
+        if (is_component_input_or_output(start)) {
+            if (is_component_input_or_output(end))
+                return;
+            auto index = unpack_component_input(start);
+            unpack_in(end, &index_dst, &port_dst_index);
 
-        auto* child_src = parent.children.try_to_get(index_src);
-        auto* child_dst = parent.children.try_to_get(index_dst);
+            auto* child_dst = parent.children.try_to_get(index_dst);
+            if (child_dst == nullptr)
+                return;
 
-        if (!(child_src != nullptr && child_dst != nullptr))
-            return;
+            auto  child_dst_id  = parent.children.get_id(*child_dst);
+            auto& con           = parent.connections.alloc();
+            con.type            = connection::connection_type::input;
+            con.input.index     = static_cast<i8>(index);
+            con.input.dst       = child_dst_id;
+            con.input.index_dst = port_dst_index;
+            parent.state        = component_status::modified;
+        } else {
+            if (is_component_input_or_output(end)) {
+                auto index = unpack_component_output(end);
+                unpack_out(start, &index_src, &port_src_index);
+                auto* child_src = parent.children.try_to_get(index_src);
+                if (child_src == nullptr)
+                    return;
 
-        auto child_src_id = parent.children.get_id(*child_src);
-        auto child_dst_id = parent.children.get_id(*child_dst);
+                auto  child_src_id   = parent.children.get_id(*child_src);
+                auto& con            = parent.connections.alloc();
+                con.output.index     = static_cast<i8>(index);
+                con.output.src       = child_src_id;
+                con.output.index_src = port_src_index;
+                con.type             = connection::connection_type::output;
+                parent.state         = component_status::modified;
+            } else {
+                unpack_out(start, &index_src, &port_src_index);
+                unpack_in(end, &index_dst, &port_dst_index);
 
-        if (!is_ports_compatible(ed,
-                                 parent,
-                                 *child_src,
-                                 port_src_index,
-                                 *child_dst,
-                                 port_dst_index))
-            return;
+                auto* child_src = parent.children.try_to_get(index_src);
+                auto* child_dst = parent.children.try_to_get(index_dst);
 
-        auto& con              = parent.connections.alloc();
-        con.internal.src       = child_src_id;
-        con.internal.index_src = port_src_index;
-        con.internal.dst       = child_dst_id;
-        con.internal.index_dst = port_dst_index;
-        parent.state           = component_status::modified;
+                if (!(child_src != nullptr && child_dst != nullptr))
+                    return;
+
+                auto child_src_id = parent.children.get_id(*child_src);
+                auto child_dst_id = parent.children.get_id(*child_dst);
+
+                if (!is_ports_compatible(ed,
+                                         parent,
+                                         *child_src,
+                                         port_src_index,
+                                         *child_dst,
+                                         port_dst_index))
+                    return;
+
+                auto& con              = parent.connections.alloc();
+                con.internal.src       = child_src_id;
+                con.internal.index_src = port_src_index;
+                con.internal.dst       = child_dst_id;
+                con.internal.index_dst = port_dst_index;
+                con.type               = connection::connection_type::internal;
+                parent.state           = component_status::modified;
+            }
+        }
     }
 }
 
@@ -936,6 +1125,17 @@ static void remove_links(component_editor& ed, component& parent) noexcept
     parent.state = component_status::modified;
 }
 
+static void remove_component_input_output(ImVector<int>& v) noexcept
+{
+    int i = 0;
+    while (i < v.size()) {
+        if (is_component_input_or_output(v[i]))
+            v.erase(v.Data + i);
+        else
+            ++i;
+    };
+}
+
 static void show_modeling_widget(const settings_manager& settings,
                                  component_editor&       ed,
                                  tree_node&              tree,
@@ -960,6 +1160,7 @@ static void show_modeling_widget(const settings_manager& settings,
     if (num_selected_nodes > 0) {
         ed.selected_nodes.resize(num_selected_nodes);
         ImNodes::GetSelectedNodes(ed.selected_nodes.begin());
+        remove_component_input_output(ed.selected_nodes);
     } else {
         ed.selected_nodes.clear();
     }
