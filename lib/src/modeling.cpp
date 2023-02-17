@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <utility>
 
 namespace irt {
 
@@ -84,14 +85,15 @@ status connect(modeling&    mod,
 
 status add_integrator_component_port(modeling&  mod,
                                      component& com,
-                                     child_id   id) noexcept
+                                     child_id   id,
+                                     i8         port) noexcept
 {
     auto* child = com.children.try_to_get(id);
     irt_assert(child);
     irt_assert(child->type == child_type::model);
 
-    irt_return_if_bad(mod.connect_input(com, 0, id, 1));
-    irt_return_if_bad(mod.connect_output(com, id, 0, 0));
+    irt_return_if_bad(mod.connect_input(com, port, id, 1));
+    irt_return_if_bad(mod.connect_output(com, id, 0, port));
 
     return status::success;
 }
@@ -136,8 +138,8 @@ status add_lotka_volterra(modeling& mod, component& com) noexcept
     connect(mod, com, product, 0, sum_a, 1);
     connect(mod, com, product, 0, sum_b, 1);
 
-    add_integrator_component_port(mod, com, integrator_a.second);
-    add_integrator_component_port(mod, com, integrator_b.second);
+    add_integrator_component_port(mod, com, integrator_a.second, 0);
+    add_integrator_component_port(mod, com, integrator_b.second, 1);
 
     return status::success;
 }
@@ -182,7 +184,7 @@ status add_lif(modeling& mod, component& com) noexcept
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
 
-    add_integrator_component_port(mod, com, integrator.second);
+    add_integrator_component_port(mod, com, integrator.second, 0);
 
     return status::success;
 }
@@ -269,8 +271,8 @@ status add_izhikevich(modeling& mod, component& com) noexcept
     connect(mod, com, integrator_b, 0, sum_d, 0);
     connect(mod, com, cst, 0, sum_d, 1);
 
-    add_integrator_component_port(mod, com, integrator_a.second);
-    add_integrator_component_port(mod, com, integrator_b.second);
+    add_integrator_component_port(mod, com, integrator_a.second, 0);
+    add_integrator_component_port(mod, com, integrator_b.second, 1);
 
     return status::success;
 }
@@ -312,8 +314,8 @@ status add_van_der_pol(modeling& mod, component& com) noexcept
     connect(mod, com, product1, 0, product2, 0);
     connect(mod, com, integrator_a, 0, product2, 1);
 
-    add_integrator_component_port(mod, com, integrator_a.second);
-    add_integrator_component_port(mod, com, integrator_b.second);
+    add_integrator_component_port(mod, com, integrator_a.second, 0);
+    add_integrator_component_port(mod, com, integrator_b.second, 1);
 
     return status::success;
 }
@@ -358,7 +360,7 @@ status add_negative_lif(modeling& mod, component& com) noexcept
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
 
-    add_integrator_component_port(mod, com, integrator.second);
+    add_integrator_component_port(mod, com, integrator.second, 0);
 
     return status::success;
 }
@@ -448,10 +450,10 @@ status add_seirs(modeling& mod, component& com) noexcept
     connect(mod, com, gamma_I, 0, gamma_I_rho_R, 1);
     connect(mod, com, gamma_I_rho_R, 0, dR, 0);
 
-    add_integrator_component_port(mod, com, dS.second);
-    add_integrator_component_port(mod, com, dE.second);
-    add_integrator_component_port(mod, com, dI.second);
-    add_integrator_component_port(mod, com, dR.second);
+    add_integrator_component_port(mod, com, dS.second, 0);
+    add_integrator_component_port(mod, com, dE.second, 1);
+    add_integrator_component_port(mod, com, dI.second, 2);
+    add_integrator_component_port(mod, com, dR.second, 3);
 
     return status::success;
 }
@@ -1135,6 +1137,146 @@ void modeling::move_file(registred_path& /*reg*/,
     to.children.emplace_back(id);
 }
 
+static bool is_ports_compatible(model&     mdl_src,
+                                i8         port_src,
+                                component& compo_dst,
+                                i8         port_dst) noexcept
+{
+    bool is_compatible = true;
+
+    connection* con = nullptr;
+    while (compo_dst.connections.next(con)) {
+        if (con->type == connection::connection_type::output &&
+            con->output.index == port_dst) {
+            auto* sub_child_dst =
+              compo_dst.children.try_to_get(con->output.src);
+            irt_assert(sub_child_dst);
+            irt_assert(sub_child_dst->type == child_type::model);
+
+            auto  sub_model_dst_id = enum_cast<model_id>(sub_child_dst->id);
+            auto* sub_model_dst = compo_dst.models.try_to_get(sub_model_dst_id);
+
+            if (!is_ports_compatible(
+                  mdl_src, port_src, *sub_model_dst, con->output.index_src)) {
+                is_compatible = false;
+                break;
+            }
+        }
+    }
+
+    return is_compatible;
+}
+
+static bool is_ports_compatible(component& compo_src,
+                                i8         port_src,
+                                model&     mdl_dst,
+                                i8         port_dst) noexcept
+{
+    bool is_compatible = true;
+
+    connection* con = nullptr;
+    while (compo_src.connections.next(con)) {
+        if (con->type == connection::connection_type::input &&
+            con->input.index == port_src) {
+            auto* sub_child_src = compo_src.children.try_to_get(con->input.dst);
+            irt_assert(sub_child_src);
+            irt_assert(sub_child_src->type == child_type::model);
+
+            auto  sub_model_src_id = enum_cast<model_id>(sub_child_src->id);
+            auto* sub_model_src = compo_src.models.try_to_get(sub_model_src_id);
+            irt_assert(sub_model_src);
+
+            if (!is_ports_compatible(
+                  *sub_model_src, con->input.index_dst, mdl_dst, port_dst)) {
+                is_compatible = false;
+                break;
+            }
+        }
+    }
+
+    return is_compatible;
+}
+
+static bool is_ports_compatible(component& compo_src,
+                                i8         port_src,
+                                component& compo_dst,
+                                i8         port_dst) noexcept
+{
+    bool is_compatible = true;
+
+    connection* con = nullptr;
+    while (compo_src.connections.next(con)) {
+        if (con->type == connection::connection_type::output &&
+            con->output.index == port_src) {
+            auto* sub_child_src =
+              compo_src.children.try_to_get(con->output.src);
+            irt_assert(sub_child_src);
+            irt_assert(sub_child_src->type == child_type::model);
+
+            auto  sub_model_src_id = enum_cast<model_id>(sub_child_src->id);
+            auto* sub_model_src = compo_src.models.try_to_get(sub_model_src_id);
+            irt_assert(sub_model_src);
+
+            if (!is_ports_compatible(
+                  *sub_model_src, con->output.index_src, compo_dst, port_dst)) {
+                is_compatible = false;
+                break;
+            }
+        }
+    }
+
+    return is_compatible;
+}
+
+static bool is_ports_compatible(modeling&  mod,
+                                component& parent,
+                                child_id   src,
+                                i8         port_src,
+                                child_id   dst,
+                                i8         port_dst) noexcept
+{
+    auto* child_src = parent.children.try_to_get(src);
+    auto* child_dst = parent.children.try_to_get(dst);
+    irt_assert(child_src);
+    irt_assert(child_dst);
+
+    if (child_src->type == child_type::model) {
+        auto  mdl_src_id = enum_cast<model_id>(child_src->id);
+        auto* mdl_src    = parent.models.try_to_get(mdl_src_id);
+
+        if (child_dst->type == child_type::model) {
+            auto  mdl_dst_id = enum_cast<model_id>(child_dst->id);
+            auto* mdl_dst    = parent.models.try_to_get(mdl_dst_id);
+            return is_ports_compatible(*mdl_src, port_src, *mdl_dst, port_dst);
+
+        } else {
+            auto  compo_dst_id = enum_cast<component_id>(child_dst->id);
+            auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
+            irt_assert(compo_dst);
+
+            return is_ports_compatible(
+              *mdl_src, port_src, *compo_dst, port_dst);
+        }
+    } else {
+        auto  compo_src_id = enum_cast<component_id>(child_src->id);
+        auto* compo_src    = mod.components.try_to_get(compo_src_id);
+
+        if (child_dst->type == child_type::model) {
+            auto  mdl_dst_id = enum_cast<model_id>(child_dst->id);
+            auto* mdl_dst    = parent.models.try_to_get(mdl_dst_id);
+
+            return is_ports_compatible(
+              *compo_src, port_src, *mdl_dst, port_dst);
+        } else {
+            auto  compo_dst_id = enum_cast<component_id>(child_dst->id);
+            auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
+
+            return is_ports_compatible(
+              *compo_src, port_src, *compo_dst, port_dst);
+        }
+    }
+}
+
 status modeling::connect_input(component& parent,
                                i8         port_src,
                                child_id   dst,
@@ -1142,6 +1284,18 @@ status modeling::connect_input(component& parent,
 {
     irt_return_if_fail(parent.connections.can_alloc(),
                        status::simulation_not_enough_connection);
+
+    auto* child = parent.children.try_to_get(dst);
+    irt_assert(child);
+    irt_assert(child->type == child_type::model);
+
+    auto  mdl_id  = enum_cast<model_id>(child->id);
+    auto* mdl_dst = parent.models.try_to_get(mdl_id);
+    irt_assert(mdl_dst);
+
+    irt_return_if_fail(
+      is_ports_compatible(parent, port_src, *mdl_dst, port_dst),
+      status::model_connect_bad_dynamics);
 
     auto& con           = parent.connections.alloc();
     con.input.dst       = dst;
@@ -1160,6 +1314,18 @@ status modeling::connect_output(component& parent,
     irt_return_if_fail(parent.connections.can_alloc(),
                        status::simulation_not_enough_connection);
 
+    auto* child = parent.children.try_to_get(src);
+    irt_assert(child);
+    irt_assert(child->type == child_type::model);
+
+    auto  mdl_id  = enum_cast<model_id>(child->id);
+    auto* mdl_src = parent.models.try_to_get(mdl_id);
+    irt_assert(mdl_src);
+
+    irt_return_if_fail(
+      is_ports_compatible(*mdl_src, port_src, parent, port_dst),
+      status::model_connect_bad_dynamics);
+
     auto& con            = parent.connections.alloc();
     con.output.src       = src;
     con.output.index_src = port_src;
@@ -1177,6 +1343,10 @@ status modeling::connect(component& parent,
 {
     irt_return_if_fail(parent.connections.can_alloc(1),
                        status::data_array_not_enough_memory);
+
+    irt_return_if_fail(
+      is_ports_compatible(*this, parent, src, port_src, dst, port_dst),
+      status::model_connect_bad_dynamics);
 
     auto& con              = parent.connections.alloc();
     con.internal.src       = src;
