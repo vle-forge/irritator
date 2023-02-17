@@ -208,13 +208,6 @@ struct component
     template<typename Dynamics>
     bool can_alloc_dynamics(int place = 1) const noexcept;
 
-    status connect(child_id src,
-                   i8       port_src,
-                   child_id dst,
-                   i8       port_dst) noexcept;
-    status connect_input(i8 port_src, child_id dst, i8 port_dst) noexcept;
-    status connect_output(child_id src, i8 port_src, i8 port_dst) noexcept;
-
     data_array<model, model_id>                    models;
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<child, child_id>                    children;
@@ -417,6 +410,58 @@ struct modeling
 
     status copy(component& src, component& dst) noexcept;
 
+    /**
+     * @brief Try to connect the component input port and a child (model or
+     * component) in a component.
+     * @details This function checks:
+     * - if a connection slot is available in the parent,
+     * - if the underlying models port index are defined,
+     * - if the underlying models are compatibles to coupling.
+     *
+     * @param parent The component parent of @c src and @c dst.
+     * @param port_src The port index of the source.
+     * @param dst The child destination
+     * @param port_dst The port index of the destination.
+     * @return status::success or any other error.
+     */
+    status connect_input(component& parent,
+                         i8         port_src,
+                         child_id   dst,
+                         i8         port_dst) noexcept;
+
+    /**
+     * @brief Try to connect the component output port and a child (model or
+     * component) in a component.
+     * @details This function checks:
+     * - if a connection slot is available in the parent,
+     * - if the underlying models port index are defined,
+     * - if the underlying models are compatibles to coupling.
+     *
+     * @param parent The component parent of @c src and @c dst.
+     * @param src The child source.
+     * @param port_src The port index of the source.
+     * @param port_dst The port index of the destination.
+     * @return status::success or any other error.
+     */
+    status connect_output(component& parent,
+                          child_id   src,
+                          i8         port_src,
+                          i8         port_dst) noexcept;
+
+    /**
+     * @brief Try to connect two child (model or component) in a component.
+     * @details This function checks:
+     * - if a connection slot is available in the parent,
+     * - if the underlying models port index are defined,
+     * - if the underlying models are compatibles to coupling.
+     *
+     * @param parent The component parent of @c src and @c dst.
+     * @param src The child source.
+     * @param port_src The port index of the source.
+     * @param dst The child destination
+     * @param port_dst The port index of the destination.
+     * @return status::success or any other error.
+     */
     status connect(component& parent,
                    child_id   src,
                    i8         port_src,

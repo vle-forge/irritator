@@ -82,14 +82,16 @@ status connect(modeling&    mod,
     return status::success;
 }
 
-status add_integrator_component_port(component& com, child_id id) noexcept
+status add_integrator_component_port(modeling&  mod,
+                                     component& com,
+                                     child_id   id) noexcept
 {
     auto* child = com.children.try_to_get(id);
     irt_assert(child);
     irt_assert(child->type == child_type::model);
 
-    irt_return_if_bad(com.connect_input(0, id, 1));
-    irt_return_if_bad(com.connect_output(id, 0, 0));
+    irt_return_if_bad(mod.connect_input(com, 0, id, 1));
+    irt_return_if_bad(mod.connect_output(com, id, 0, 0));
 
     return status::success;
 }
@@ -134,8 +136,8 @@ status add_lotka_volterra(modeling& mod, component& com) noexcept
     connect(mod, com, product, 0, sum_a, 1);
     connect(mod, com, product, 0, sum_b, 1);
 
-    add_integrator_component_port(com, integrator_a.second);
-    add_integrator_component_port(com, integrator_b.second);
+    add_integrator_component_port(mod, com, integrator_a.second);
+    add_integrator_component_port(mod, com, integrator_b.second);
 
     return status::success;
 }
@@ -180,7 +182,7 @@ status add_lif(modeling& mod, component& com) noexcept
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
 
-    add_integrator_component_port(com, integrator.second);
+    add_integrator_component_port(mod, com, integrator.second);
 
     return status::success;
 }
@@ -267,8 +269,8 @@ status add_izhikevich(modeling& mod, component& com) noexcept
     connect(mod, com, integrator_b, 0, sum_d, 0);
     connect(mod, com, cst, 0, sum_d, 1);
 
-    add_integrator_component_port(com, integrator_a.second);
-    add_integrator_component_port(com, integrator_b.second);
+    add_integrator_component_port(mod, com, integrator_a.second);
+    add_integrator_component_port(mod, com, integrator_b.second);
 
     return status::success;
 }
@@ -310,8 +312,8 @@ status add_van_der_pol(modeling& mod, component& com) noexcept
     connect(mod, com, product1, 0, product2, 0);
     connect(mod, com, integrator_a, 0, product2, 1);
 
-    add_integrator_component_port(com, integrator_a.second);
-    add_integrator_component_port(com, integrator_b.second);
+    add_integrator_component_port(mod, com, integrator_a.second);
+    add_integrator_component_port(mod, com, integrator_b.second);
 
     return status::success;
 }
@@ -356,7 +358,7 @@ status add_negative_lif(modeling& mod, component& com) noexcept
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
 
-    add_integrator_component_port(com, integrator.second);
+    add_integrator_component_port(mod, com, integrator.second);
 
     return status::success;
 }
@@ -446,10 +448,10 @@ status add_seirs(modeling& mod, component& com) noexcept
     connect(mod, com, gamma_I, 0, gamma_I_rho_R, 1);
     connect(mod, com, gamma_I_rho_R, 0, dR, 0);
 
-    add_integrator_component_port(com, dS.second);
-    add_integrator_component_port(com, dE.second);
-    add_integrator_component_port(com, dI.second);
-    add_integrator_component_port(com, dR.second);
+    add_integrator_component_port(mod, com, dS.second);
+    add_integrator_component_port(mod, com, dE.second);
+    add_integrator_component_port(mod, com, dI.second);
+    add_integrator_component_port(mod, com, dR.second);
 
     return status::success;
 }
@@ -529,54 +531,6 @@ static bool exists_path(std::string_view sv) noexcept
     }
 
     return ret;
-}
-
-status component::connect(child_id src,
-                          i8       port_src,
-                          child_id dst,
-                          i8       port_dst) noexcept
-{
-    irt_return_if_fail(connections.can_alloc(),
-                       status::simulation_not_enough_connection);
-
-    auto& con              = connections.alloc();
-    con.internal.src       = src;
-    con.internal.dst       = dst;
-    con.internal.index_src = port_src;
-    con.internal.index_dst = port_dst;
-    con.type               = connection::connection_type::internal;
-
-    return status::success;
-}
-
-status component::connect_input(i8 port_src, child_id dst, i8 port_dst) noexcept
-{
-    irt_return_if_fail(connections.can_alloc(),
-                       status::simulation_not_enough_connection);
-
-    auto& con           = connections.alloc();
-    con.input.dst       = dst;
-    con.input.index     = port_src;
-    con.input.index_dst = port_dst;
-    con.type            = connection::connection_type::input;
-
-    return status::success;
-}
-
-status component::connect_output(child_id src,
-                                 i8       port_src,
-                                 i8       port_dst) noexcept
-{
-    irt_return_if_fail(connections.can_alloc(),
-                       status::simulation_not_enough_connection);
-
-    auto& con            = connections.alloc();
-    con.output.src       = src;
-    con.output.index_src = port_src;
-    con.output.index     = port_dst;
-    con.type             = connection::connection_type::output;
-
-    return status::success;
 }
 
 bool registred_path::make() const noexcept { return make_path(path.sv()); }
@@ -1181,6 +1135,40 @@ void modeling::move_file(registred_path& /*reg*/,
     to.children.emplace_back(id);
 }
 
+status modeling::connect_input(component& parent,
+                               i8         port_src,
+                               child_id   dst,
+                               i8         port_dst) noexcept
+{
+    irt_return_if_fail(parent.connections.can_alloc(),
+                       status::simulation_not_enough_connection);
+
+    auto& con           = parent.connections.alloc();
+    con.input.dst       = dst;
+    con.input.index     = port_src;
+    con.input.index_dst = port_dst;
+    con.type            = connection::connection_type::input;
+
+    return status::success;
+}
+
+status modeling::connect_output(component& parent,
+                                child_id   src,
+                                i8         port_src,
+                                i8         port_dst) noexcept
+{
+    irt_return_if_fail(parent.connections.can_alloc(),
+                       status::simulation_not_enough_connection);
+
+    auto& con            = parent.connections.alloc();
+    con.output.src       = src;
+    con.output.index_src = port_src;
+    con.output.index     = port_dst;
+    con.type             = connection::connection_type::output;
+
+    return status::success;
+}
+
 status modeling::connect(component& parent,
                          child_id   src,
                          i8         port_src,
@@ -1293,10 +1281,11 @@ status modeling::copy(component& src, component& dst) noexcept
             if (auto* child_src = mapping.get(con->internal.src); child_src) {
                 if (auto* child_dst = mapping.get(con->internal.dst);
                     child_dst) {
-                    irt_return_if_bad(dst.connect(*child_src,
-                                                  con->internal.index_src,
-                                                  *child_dst,
-                                                  con->internal.index_dst));
+                    irt_return_if_bad(connect(dst,
+                                              *child_src,
+                                              con->internal.index_src,
+                                              *child_dst,
+                                              con->internal.index_dst));
                 }
             }
         }

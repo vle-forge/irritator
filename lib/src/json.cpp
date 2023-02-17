@@ -15,8 +15,8 @@
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
 
-#include <string_view>
 #include <limits>
+#include <string_view>
 
 namespace irt {
 
@@ -1775,6 +1775,7 @@ static status read_ports(component& compo, const rapidjson::Value& val) noexcept
 }
 
 static status read_connections(json_cache&             cache,
+                               modeling&               mod,
                                component&              compo,
                                const rapidjson::Value& val) noexcept
 {
@@ -1806,11 +1807,11 @@ static status read_connections(json_cache&             cache,
             irt_return_if_fail(is_numeric_castable<i8>(port_destination),
                                status::io_file_format_model_unknown);
 
-            irt_return_if_bad(
-              compo.connect(enum_cast<child_id>(*src_id),
-                            numeric_cast<i8>(port_source),
-                            enum_cast<child_id>(*dst_id),
-                            numeric_cast<i8>(port_destination)));
+            irt_return_if_bad(mod.connect(compo,
+                                          enum_cast<child_id>(*src_id),
+                                          numeric_cast<i8>(port_source),
+                                          enum_cast<child_id>(*dst_id),
+                                          numeric_cast<i8>(port_destination)));
         } else if (cache.string_buffer == "input") {
             u64 destination;
             i32 port, port_destination;
@@ -1829,9 +1830,10 @@ static status read_connections(json_cache&             cache,
                                status::io_file_format_model_unknown);
 
             irt_return_if_bad(
-              compo.connect_input(static_cast<i8>(port),
-                                  enum_cast<child_id>(*dst_id),
-                                  static_cast<i8>(port_destination)));
+              mod.connect_input(compo,
+                                static_cast<i8>(port),
+                                enum_cast<child_id>(*dst_id),
+                                static_cast<i8>(port_destination)));
         } else if (cache.string_buffer == "output") {
             u64 source;
             i32 port_source, port_destination;
@@ -1849,9 +1851,10 @@ static status read_connections(json_cache&             cache,
                                status::io_file_format_model_unknown);
 
             irt_return_if_bad(
-              compo.connect_output(enum_cast<child_id>(*src_id),
-                                   numeric_cast<i8>(port_source),
-                                   numeric_cast<i8>(port_destination)));
+              mod.connect_output(compo,
+                                 enum_cast<child_id>(*src_id),
+                                 numeric_cast<i8>(port_source),
+                                 numeric_cast<i8>(port_destination)));
         } else
             irt_bad_return(status::io_file_format_error);
     }
@@ -1870,7 +1873,7 @@ static status do_read(json_cache&             cache,
     irt_return_if_bad(read_random_sources(cache, mod.srcs, val));
     irt_return_if_bad(read_children(cache, mod, compo, val));
     irt_return_if_bad(read_ports(compo, val));
-    irt_return_if_bad(read_connections(cache, compo, val));
+    irt_return_if_bad(read_connections(cache, mod, compo, val));
 
     compo.type  = component_type::file;
     compo.state = component_status::unmodified;
