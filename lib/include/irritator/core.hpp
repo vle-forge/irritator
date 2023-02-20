@@ -2506,6 +2506,9 @@ struct constant_source
     chunk_type       buffer;
     u32              length = 0u;
 
+    constant_source() noexcept = default;
+    constant_source(const constant_source& src) noexcept;
+
     status init() noexcept;
     status init(source& src) noexcept;
     status update(source& src) noexcept;
@@ -2533,7 +2536,11 @@ struct binary_file_source
     u32                   next_client = 0;
     u64                   next_offset = 0;
 
+    binary_file_source() noexcept = default;
+    binary_file_source(const binary_file_source& other) noexcept;
+
     status init() noexcept;
+    void   finalize() noexcept;
     status init(source& src) noexcept;
     status update(source& src) noexcept;
     status restore(source& src) noexcept;
@@ -2554,7 +2561,12 @@ struct text_file_source
     std::filesystem::path file_path;
     std::ifstream         ifs;
 
+    text_file_source() noexcept = default;
+    text_file_source(const text_file_source& other) noexcept;
+
+
     status init() noexcept;
+    void   finalize() noexcept;
     status init(source& src) noexcept;
     status update(source& src) noexcept;
     status restore(source& src) noexcept;
@@ -2585,7 +2597,11 @@ struct random_source
     double a = 0, b = 1, p, mean, lambda, alpha, beta, stddev, m, s, n;
     int    a32, b32, t32, k32;
 
+    random_source() noexcept = default;
+    random_source(const random_source& other) noexcept;
+
     status init() noexcept;
+    void   finalize() noexcept;
     status init(source& src) noexcept;
     status update(source& src) noexcept;
     status restore(source& src) noexcept;
@@ -2678,8 +2694,20 @@ struct external_source
         return status::success;
     }
 
+    //! Call the @c init function for all sources (@c constant_source, @c
+    //! binary_file_source etc.).
     status prepare() noexcept;
+
+    //! Call the @c finalize function for all sources (@c constant_source, @c
+    //! binary_file_source etc.). Usefull to close opened files.
+    void finalize() noexcept;
+
+    status import_from(const external_source& srcs);
+
     status dispatch(source& src, const source::operation_type op) noexcept;
+
+    //! Call the @c data_array<T, Id>::clear() function for all sources.
+    void clear() noexcept;
 };
 
 //! To be used in model declaration to initialize a source instance according

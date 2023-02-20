@@ -28,6 +28,14 @@
 
 namespace irt {
 
+constant_source::constant_source(const constant_source& other) noexcept
+  : name(other.name)
+  , length(other.length)
+{
+    std::copy_n(
+      std::data(other.buffer), std::size(other.buffer), std::data(buffer));
+}
+
 status constant_source::init() noexcept { return status::success; }
 
 status constant_source::init(source& src) noexcept
@@ -55,6 +63,18 @@ status constant_source::finalize(source& src) noexcept
     src.clear();
 
     return status::success;
+}
+
+binary_file_source::binary_file_source(const binary_file_source& other) noexcept
+  : name(other.name)
+  , buffers(other.buffers)
+  , offsets(other.offsets)
+  , max_clients(other.max_clients)
+  , max_reals(other.max_reals)
+  , file_path(other.file_path)
+  , next_client(other.next_client)
+  , next_offset(other.next_offset)
+{
 }
 
 status binary_file_source::init() noexcept
@@ -94,6 +114,12 @@ status binary_file_source::init() noexcept
         return status::source_empty;
 
     return status::success;
+}
+
+void binary_file_source::finalize() noexcept
+{
+    if (ifs)
+        ifs.close();
 }
 
 static status binary_file_source_fill_buffer(binary_file_source& ext,
@@ -163,6 +189,14 @@ status binary_file_source::finalize(source& src) noexcept
     return status::success;
 }
 
+text_file_source::text_file_source(const text_file_source& other) noexcept
+  : name(other.name)
+  , buffer(other.buffer)
+  , offset(other.offset)
+  , file_path(other.file_path)
+{
+}
+
 status text_file_source::init() noexcept
 {
     if (ifs.is_open())
@@ -199,6 +233,12 @@ status text_file_source::init(source& src) noexcept
     offset          = static_cast<u64>(tellg);
 
     return text_file_source_fill_buffer(*this, src);
+}
+
+void text_file_source::finalize() noexcept
+{
+    if (ifs)
+        ifs.close();
 }
 
 status text_file_source::update(source& src) noexcept
@@ -336,6 +376,34 @@ void random_source_generate(random_source& ext,
     random_source_end_source(ext, src);
 }
 
+random_source::random_source(const random_source& other) noexcept
+  : name(other.name)
+  , buffers(other.buffers)
+  , counters(other.counters)
+  , max_clients(other.max_clients)
+  , start_counter(other.start_counter)
+  , next_client(other.next_client)
+  , ctr(other.ctr)
+  , key(other.key)
+  , distribution(other.distribution)
+  , a(other.a)
+  , b(other.b)
+  , p(other.p)
+  , mean(other.mean)
+  , lambda(other.lambda)
+  , alpha(other.alpha)
+  , beta(other.beta)
+  , stddev(other.stddev)
+  , m(other.m)
+  , s(other.s)
+  , n(other.n)
+  , a32(other.a32)
+  , b32(other.b32)
+  , t32(other.t32)
+  , k32(other.k32)
+{
+}
+
 status random_source::init() noexcept
 {
     next_client = 0;
@@ -346,6 +414,12 @@ status random_source::init() noexcept
     buffers.resize(max_clients);
     counters.resize(max_clients);
 
+    return status::success;
+}
+
+status random_source::finalize(source& src) noexcept
+{
+    src.clear();
     return status::success;
 }
 
@@ -479,26 +553,6 @@ status random_source::restore(source& src) noexcept
     return status::success;
 }
 
-status random_source::finalize(source& src) noexcept
-{
-    src.clear();
-
-    return status::success;
-}
-
-// status external_source::init(std::integral auto size) noexcept
-// {
-//     irt_return_if_fail(is_numeric_castable<u32>(size),
-//                       status::data_array_init_capacity_error);
-//
-//     irt_return_if_bad(constant_sources.init(size));
-//     irt_return_if_bad(binary_file_sources.init(size));
-//     irt_return_if_bad(text_file_sources.init(size));
-//     irt_return_if_bad(random_sources.init(size));
-//
-//     return status::success;
-// }
-
 status external_source::prepare() noexcept
 {
     {
@@ -532,6 +586,21 @@ status external_source::prepare() noexcept
     }
 
     return status::success;
+}
+
+void external_source::finalize() noexcept
+{
+    {
+        binary_file_source* src = nullptr;
+        while (binary_file_sources.next(src))
+            src->finalize();
+    }
+
+    {
+        text_file_source* src = nullptr;
+        while (text_file_sources.next(src))
+            src->finalize();
+    }
 }
 
 template<typename Source>
@@ -601,6 +670,14 @@ status external_source::dispatch(source&                      src,
     }
 
     irt_unreachable();
+}
+
+void external_source::clear() noexcept
+{
+    constant_sources.clear();
+    binary_file_sources.clear();
+    text_file_sources.clear();
+    random_sources.clear();
 }
 
 } // namespace irt

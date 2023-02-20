@@ -553,11 +553,6 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(components.init(p.component_capacity));
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
-    irt_return_if_bad(srcs.constant_sources.init(p.constant_source_capacity));
-    irt_return_if_bad(srcs.text_file_sources.init(p.text_file_source_capacity));
-    irt_return_if_bad(srcs.random_sources.init(p.random_source_capacity));
-    irt_return_if_bad(
-      srcs.binary_file_sources.init(p.binary_file_source_capacity));
 
     return status::success;
 }
@@ -1626,10 +1621,47 @@ void modeling::clear_project() noexcept
     tree_nodes.clear();
 }
 
-static status simulation_copy_model(simulation&           sim,
-                                    tree_node&            tree,
-                                    simulation_tree_node& sim_tree,
-                                    component&            src)
+static status simulation_copy_source(modeling_to_simulation& cache,
+                                     const source&           src,
+                                     source&                 dst) noexcept
+{
+    switch (src.type) {
+    case source::source_type::none:
+        break;
+    case source::source_type::constant:
+        if (auto* ret = cache.constants.get(src.id); ret) {
+            dst.id = ordinal(*ret);
+            return status::success;
+        }
+        break;
+    case source::source_type::binary_file:
+        if (auto* ret = cache.binary_files.get(src.id); ret) {
+            dst.id = ordinal(*ret);
+            return status::success;
+        }
+        break;
+    case source::source_type::text_file:
+        if (auto* ret = cache.text_files.get(src.id); ret) {
+            dst.id = ordinal(*ret);
+            return status::success;
+        }
+        break;
+    case source::source_type::random:
+        if (auto* ret = cache.randoms.get(src.id); ret) {
+            dst.id = ordinal(*ret);
+            return status::success;
+        }
+        break;
+    }
+
+    irt_bad_return(status::source_unknown);
+}
+
+static status simulation_copy_model(modeling_to_simulation& cache,
+                                    simulation&             sim,
+                                    tree_node&              tree,
+                                    simulation_tree_node&   sim_tree,
+                                    component&              src) noexcept
 {
     sim_tree.children.clear();
 
@@ -1654,6 +1686,32 @@ static status simulation_copy_model(simulation&           sim,
             auto& new_mdl    = sim.clone(*mdl);
             auto  new_mdl_id = sim.models.get_id(new_mdl);
 
+            switch (mdl->type) {
+            case dynamics_type::generator: {
+                auto& dyn_src = get_dyn<generator>(*mdl);
+                auto& dyn_dst = get_dyn<generator>(new_mdl);
+                simulation_copy_source(
+                  cache, dyn_src.default_source_ta, dyn_dst.default_source_ta);
+                simulation_copy_source(cache,
+                                       dyn_src.default_source_value,
+                                       dyn_dst.default_source_value);
+            } break;
+
+            case dynamics_type::queue: {
+                auto& dyn_src = get_dyn<dynamic_queue>(*mdl);
+                auto& dyn_dst = get_dyn<dynamic_queue>(new_mdl);
+                simulation_copy_source(
+                  cache, dyn_src.default_source_ta, dyn_dst.default_source_ta);
+            } break;
+
+            case dynamics_type::priority_queue: {
+                auto& dyn_src = get_dyn<priority_queue>(*mdl);
+                auto& dyn_dst = get_dyn<priority_queue>(new_mdl);
+                simulation_copy_source(
+                  cache, dyn_src.default_source_ta, dyn_dst.default_source_ta);
+            } break;
+            }
+
             sim_tree.children.emplace_back(new_mdl_id);
             tree.sim.data.emplace_back(mdl_id, new_mdl_id);
         }
@@ -1673,6 +1731,11 @@ void modeling_to_simulation::clear() noexcept
     inputs.clear();
     outputs.clear();
     sim_tree_nodes.clear();
+
+    constants.data.clear();
+    binary_files.data.clear();
+    text_files.data.clear();
+    randoms.data.clear();
 
     head = undefined<simulation_tree_node_id>();
 }
@@ -1711,7 +1774,7 @@ static status simulation_copy_models(modeling_to_simulation& cache,
             irt_assert(sim_tree);
 
             irt_return_if_bad(
-              simulation_copy_model(sim, *cur, *sim_tree, *compo));
+              simulation_copy_model(cache, sim, *cur, *sim_tree, *compo));
         }
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
@@ -2104,6 +2167,68 @@ static auto compute_simulation_copy_models_number(modeling_to_simulation& cache,
     return std::make_pair(models, connections);
 }
 
+static status simulation_copy_sources(modeling_to_simulation& cache,
+                                      modeling&               mod,
+                                      simulation&             sim) noexcept
+{
+    sim.srcs.clear();
+
+    sim.srcs.constant_sources.init(mod.srcs.constant_sources.capacity());
+    sim.srcs.binary_file_sources.init(mod.srcs.binary_file_sources.capacity());
+    sim.srcs.text_file_sources.init(mod.srcs.text_file_sources.capacity());
+    sim.srcs.random_sources.init(mod.srcs.random_sources.capacity());
+
+    {
+        constant_source* src = nullptr;
+        while (mod.srcs.constant_sources.next(src)) {
+            auto& n_src    = mod.srcs.constant_sources.alloc(*src);
+            auto  src_id   = mod.srcs.constant_sources.get_id(*src);
+            auto  n_src_id = mod.srcs.constant_sources.get_id(n_src);
+            cache.constants.data.emplace_back(ordinal(src_id), n_src_id);
+        }
+
+        cache.constants.sort();
+    }
+
+    {
+        binary_file_source* src = nullptr;
+        while (mod.srcs.binary_file_sources.next(src)) {
+            auto& n_src    = mod.srcs.binary_file_sources.alloc(*src);
+            auto  src_id   = mod.srcs.binary_file_sources.get_id(*src);
+            auto  n_src_id = mod.srcs.binary_file_sources.get_id(n_src);
+            cache.binary_files.data.emplace_back(ordinal(src_id), n_src_id);
+        }
+
+        cache.binary_files.sort();
+    }
+
+    {
+        text_file_source* src = nullptr;
+        while (mod.srcs.text_file_sources.next(src)) {
+            auto& n_src    = mod.srcs.text_file_sources.alloc(*src);
+            auto  src_id   = mod.srcs.text_file_sources.get_id(*src);
+            auto  n_src_id = mod.srcs.text_file_sources.get_id(n_src);
+            cache.text_files.data.emplace_back(ordinal(src_id), n_src_id);
+        }
+
+        cache.text_files.sort();
+    }
+
+    {
+        random_source* src = nullptr;
+        while (mod.srcs.random_sources.next(src)) {
+            auto& n_src    = mod.srcs.random_sources.alloc(*src);
+            auto  src_id   = mod.srcs.random_sources.get_id(*src);
+            auto  n_src_id = mod.srcs.random_sources.get_id(n_src);
+            cache.randoms.data.emplace_back(ordinal(src_id), n_src_id);
+        }
+
+        cache.randoms.sort();
+    }
+
+    return status::success;
+}
+
 static status simulation_copy_tree(modeling_to_simulation& cache,
                                    modeling&               mod,
                                    tree_node&              head) noexcept
@@ -2159,6 +2284,7 @@ status modeling::export_to(modeling_to_simulation& cache,
     tree_node* top = tree_nodes.try_to_get(head);
     irt_return_if_fail(top, status::simulation_not_enough_connection);
 
+    irt_return_if_bad(simulation_copy_sources(cache, *this, sim));
     irt_return_if_bad(simulation_copy_tree(cache, *this, *top));
     irt_return_if_bad(simulation_copy_models(cache, *this, sim, *top));
     irt_return_if_bad(simulation_copy_connections(cache, *this, sim, *top));

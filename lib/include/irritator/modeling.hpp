@@ -330,6 +330,11 @@ struct modeling_to_simulation
     vector<std::pair<model_id, i8>> inputs;
     vector<std::pair<model_id, i8>> outputs;
 
+    table<u64, constant_source_id>    constants;
+    table<u64, binary_file_source_id> binary_files;
+    table<u64, text_file_source_id>   text_files;
+    table<u64, random_source_id>      randoms;
+
     data_array<simulation_tree_node, simulation_tree_node_id> sim_tree_nodes;
 
     simulation_tree_node_id head = undefined<simulation_tree_node_id>();
@@ -360,7 +365,7 @@ struct modeling
     data_array<model, model_id>                   parameters;
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
-    irt::external_source                                srcs;
+    external_source                                     srcs;
     tree_node_id                                        head;
 
     modeling_status state = modeling_status::unmodified;
