@@ -541,7 +541,7 @@ bool dir_path::make() const noexcept { return exists_path(path.sv()); }
 bool dir_path::exists() const noexcept { return exists_path(path.sv()); }
 
 modeling::modeling() noexcept
-  : log_entries(16)
+  : log_entries{ 16 }
 {
 }
 
@@ -768,7 +768,7 @@ static void prepare_component_loading(modeling&             mod,
     compo.state    = component_status::unread;
 
     try {
-        auto desc_file = path;
+        std::filesystem::path desc_file{ path };
         desc_file.replace_extension(".desc");
 
         std::error_code ec;

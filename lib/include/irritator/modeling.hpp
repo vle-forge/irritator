@@ -310,8 +310,9 @@ struct tree_node
     tree_node(component_id id_, child_id id_in_parent_) noexcept;
 
     component_id            id;
-    simulation_tree_node_id sim_tree_node;
-    child_id                id_in_parent;
+    simulation_tree_node_id sim_tree_node =
+      undefined<simulation_tree_node_id>();
+    child_id id_in_parent;
 
     hierarchy<tree_node> tree;
 
@@ -366,7 +367,8 @@ struct modeling
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     external_source                                     srcs;
-    tree_node_id                                        head;
+
+    tree_node_id head = undefined<tree_node_id>();
 
     modeling_status state = modeling_status::unmodified;
 
