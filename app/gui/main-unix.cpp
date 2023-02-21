@@ -168,8 +168,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    (void)io;
     io.IniFilename = irt::get_imgui_filename();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable
     // Keyboard Controls io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; //

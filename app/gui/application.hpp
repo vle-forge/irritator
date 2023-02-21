@@ -565,9 +565,6 @@ public:
 
     file_dialog f_dialog;
 
-    bool is_fixed_window_placement = true;
-    bool is_fixed_main_window      = true;
-
     bool show_select_directory_dialog = false;
 
     bool show_imgui_demo  = false;
@@ -575,14 +572,16 @@ public:
     bool show_settings    = false;
     bool show_memory      = false;
 
-    bool show_data_editor            = true;
-    bool show_output_editor          = true;
-    bool show_simulation_editor      = true;
-    bool show_modeling_editor        = true;
-    bool show_hsm_editor             = false;
-    bool show_observation_window     = true;
-    bool show_component_store_window = true;
-    bool show_tasks_window           = false;
+    bool show_project      = true;
+    bool show_log          = true;
+    bool show_data         = true;
+    bool show_output       = true;
+    bool show_simulation   = true;
+    bool show_modeling     = true;
+    bool show_hsm_editor   = false;
+    bool show_observation  = true;
+    bool show_components   = true;
+    bool show_tasks_window = false;
 
     bool new_project_file     = false; // rename menu_*
     bool load_project_file    = false; // rename menu_*

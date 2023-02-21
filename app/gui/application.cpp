@@ -2,12 +2,14 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/core.hpp>
 #include <irritator/io.hpp>
 
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
-#include "irritator/core.hpp"
+
+#include <imgui_internal.h>
 
 namespace irt {
 
@@ -211,31 +213,16 @@ static void application_show_menu(application& app) noexcept
 
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem(
-              "Fix window layout", nullptr, &app.is_fixed_window_placement);
+              "Show modeling editor", nullptr, &app.show_modeling);
+            ImGui::MenuItem(
+              "Show simulation editor", nullptr, &app.show_simulation);
+            ImGui::MenuItem("Show output editor", nullptr, &app.show_output);
+            ImGui::MenuItem("Show data editor", nullptr, &app.show_data);
 
-            ImGui::MenuItem("Merge main editors",
-                            nullptr,
-                            &app.is_fixed_main_window,
-                            !app.is_fixed_window_placement);
-
-            if (!app.is_fixed_main_window) {
-                ImGui::MenuItem(
-                  "Show modeling editor", nullptr, &app.show_modeling_editor);
-                ImGui::MenuItem("Show simulation editor",
-                                nullptr,
-                                &app.show_simulation_editor);
-                ImGui::MenuItem(
-                  "Show output editor", nullptr, &app.show_output_editor);
-                ImGui::MenuItem(
-                  "Show data editor", nullptr, &app.show_data_editor);
-
-                ImGui::MenuItem("Show observation window",
-                                nullptr,
-                                &app.show_observation_window);
-                ImGui::MenuItem("Show component hierarchy",
-                                nullptr,
-                                &app.show_component_store_window);
-            }
+            ImGui::MenuItem(
+              "Show observation window", nullptr, &app.show_observation);
+            ImGui::MenuItem(
+              "Show component hierarchy", nullptr, &app.show_components);
 
             ImGui::MenuItem("Show memory usage", nullptr, &app.show_memory);
             ImGui::MenuItem("Show task usage", nullptr, &app.show_tasks_window);
@@ -369,107 +356,92 @@ static void application_manage_menu_action(application& app) noexcept
 
 static void application_show_windows(application& app) noexcept
 {
-    constexpr ImGuiWindowFlags window_fixed_flags =
-      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-      ImGuiWindowFlags_NoBringToFrontOnFocus;
-    constexpr ImGuiCond        window_fixed_pos_flags  = ImGuiCond_None;
-    constexpr ImGuiCond        window_fixed_size_flags = ImGuiCond_None;
-    constexpr ImGuiWindowFlags window_floating_flags   = ImGuiWindowFlags_None;
-    constexpr ImGuiCond window_floating_pos_flags      = ImGuiCond_FirstUseEver;
-    constexpr ImGuiCond window_floating_size_flags     = ImGuiCond_Once;
+    constexpr ImGuiDockNodeFlags dockspace_flags =
+      ImGuiDockNodeFlags_PassthruCentralNode;
 
-    ImGuiWindowFlags window_flags      = window_floating_flags;
-    ImGuiCond        window_pos_flags  = window_floating_pos_flags;
-    ImGuiCond        window_size_flags = window_floating_size_flags;
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGuiID        dockspace_id =
+      ImGui::DockSpaceOverViewport(viewport, dockspace_flags);
 
-    if (app.is_fixed_window_placement) {
-        window_flags      = window_fixed_flags;
-        window_pos_flags  = window_fixed_pos_flags;
-        window_size_flags = window_fixed_size_flags;
+    constexpr ImGuiWindowFlags window_flags = 0;
+
+    static auto first_time = true;
+    if (first_time) {
+        first_time = false;
+
+        ImGui::DockBuilderRemoveNode(dockspace_id);
+        ImGui::DockBuilderAddNode(
+          dockspace_id, dockspace_flags | ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->Size);
+
+        auto dock_id_right = ImGui::DockBuilderSplitNode(
+          dockspace_id, ImGuiDir_Right, 0.2f, nullptr, &dockspace_id);
+        auto dock_id_left = ImGui::DockBuilderSplitNode(
+          dockspace_id, ImGuiDir_Left, 0.2f, nullptr, &dockspace_id);
+        auto dock_id_down = ImGui::DockBuilderSplitNode(
+          dockspace_id, ImGuiDir_Down, 0.2f, nullptr, &dockspace_id);
+
+        ImGui::DockBuilderDockWindow("Project", dock_id_left);
+
+        ImGui::DockBuilderDockWindow("Modeling", dockspace_id);
+        ImGui::DockBuilderDockWindow("Simulation", dockspace_id);
+        ImGui::DockBuilderDockWindow("Outputs", dockspace_id);
+        ImGui::DockBuilderDockWindow("Inputs", dockspace_id);
+
+        ImGui::DockBuilderDockWindow("Libraries", dock_id_right);
+        ImGui::DockBuilderDockWindow("Observations", dock_id_right);
+
+        ImGui::DockBuilderDockWindow("Log", dock_id_down);
+
+        ImGui::DockBuilderFinish(dockspace_id);
     }
 
-    const auto* viewport   = ImGui::GetMainViewport();
-    const auto  region     = viewport->WorkSize;
-    const float width_1_10 = region.x / 10.f;
-
-    ImVec2 project_size(width_1_10 * 2.f, region.y);
-
-    ImVec2 modeling_size(width_1_10 * 6.f, region.y - (region.y / 5.f));
-    ImVec2 simulation_size(width_1_10 * 6.f, region.y / 5.f);
-
-    ImVec2 components_size(width_1_10 * 2.f, region.y);
-
-    ImVec2 project_pos(0.f, viewport->WorkPos.y);
-
-    ImVec2 modeling_pos(project_size.x, viewport->WorkPos.y);
-    ImVec2 simulation_pos(project_size.x,
-                          viewport->WorkPos.y + modeling_size.y);
-
-    ImVec2 components_pos(project_size.x + modeling_size.x,
-                          viewport->WorkPos.y);
-
-    ImGui::SetNextWindowPos(project_pos, window_pos_flags);
-    ImGui::SetNextWindowSize(project_size, window_size_flags);
-    if (ImGui::Begin("Project", 0, window_flags)) {
-        app.show_project_window();
-    }
-    ImGui::End();
-
-    if (app.is_fixed_main_window) {
-        app.show_main_as_tabbar(modeling_pos,
-                                modeling_size,
-                                window_flags,
-                                window_pos_flags,
-                                window_size_flags);
-    } else {
-        app.show_main_as_window(modeling_pos, modeling_size);
+    if (app.show_project) {
+        if (ImGui::Begin("Project", &app.show_project, window_flags))
+            app.show_project_window();
+        ImGui::End();
     }
 
-    ImGui::SetNextWindowPos(simulation_pos, window_pos_flags);
-    ImGui::SetNextWindowSize(simulation_size, window_size_flags);
-    if (ImGui::Begin("Log", 0, window_flags)) {
-        app.show_log_window();
+    if (app.show_modeling) {
+        if (ImGui::Begin("Modeling", &app.show_modeling, window_flags))
+            app.show_modeling_editor_widget();
+        ImGui::End();
     }
-    ImGui::End();
 
-    if (app.is_fixed_main_window) {
-        ImGui::SetNextWindowPos(components_pos, window_pos_flags);
-        ImGui::SetNextWindowSize(components_size, window_size_flags);
+    if (app.show_simulation) {
+        if (ImGui::Begin("Simulation", &app.show_simulation, window_flags))
+            app.show_simulation_editor_widget();
+        ImGui::End();
+    }
 
-        if (ImGui::Begin("Tools", 0, window_flags)) {
-            if (ImGui::BeginTabBar("##Obs-Compo")) {
-                if (ImGui::BeginTabItem("component store")) {
-                    app.show_components_window();
-                    ImGui::EndTabItem();
-                }
+    if (app.show_output) {
+        if (ImGui::Begin("Outputs", &app.show_output, window_flags))
+            app.show_output_editor_widget();
+        ImGui::End();
+    }
 
-                if (ImGui::BeginTabItem("observations")) {
-                    app.show_simulation_observation_window();
-                    ImGui::EndTabItem();
-                }
+    if (app.show_data) {
+        if (ImGui::Begin("Inputs", &app.show_data, window_flags))
+            app.show_external_sources();
+        ImGui::End();
+    }
 
-                ImGui::EndTabBar();
-            }
-            ImGui::End();
-        }
-    } else {
-        if (app.show_observation_window) {
-            if (ImGui::Begin("Observations##Window",
-                             &app.show_observation_window)) {
-                app.show_simulation_observation_window();
-            }
-            ImGui::End();
-        }
+    if (app.show_log) {
+        if (ImGui::Begin("Log", &app.show_log, window_flags))
+            app.show_log_window();
+        ImGui::End();
+    }
 
-        if (app.show_component_store_window) {
-            if (ImGui::Begin("Components store##Window",
-                             &app.show_component_store_window)) {
-                app.show_components_window();
-            }
-            ImGui::End();
-        }
+    if (app.show_components) {
+        if (ImGui::Begin("Libraries", &app.show_components, window_flags))
+            app.show_components_window();
+        ImGui::End();
+    }
+
+    if (app.show_observation) {
+        if (ImGui::Begin("Observations", &app.show_observation, window_flags))
+            app.show_simulation_observation_window();
+        ImGui::End();
     }
 }
 
@@ -656,96 +628,41 @@ void application::show_main_as_tabbar(ImVec2           position,
 {
     ImGui::SetNextWindowPos(position, position_flags);
     ImGui::SetNextWindowSize(size, size_flags);
-    if (ImGui::Begin("Main", 0, window_flags)) {
-        auto* tree =
-          c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
-        if (!tree) {
-            ImGui::End();
-            return;
-        }
-
-        component* compo = c_editor.mod.components.try_to_get(tree->id);
-        if (!compo) {
-            ImGui::End();
-            return;
-        }
-
-        if (ImGui::BeginTabBar("##ModelingTabBar")) {
-            if (ImGui::BeginTabItem("modeling")) {
-                show_modeling_editor   = true;
-                show_simulation_editor = false;
-                show_modeling_editor_widget();
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("simulation")) {
-                show_modeling_editor   = false;
-                show_simulation_editor = true;
-                show_simulation_editor_widget();
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("input")) {
-                show_external_sources();
-                ImGui::EndTabItem();
-            }
-
-            ImGui::EndTabBar();
-        }
+    bool window_visible = ImGui::Begin("Main", 0, 0);
+    if (!window_visible) {
+        ImGui::End();
+        return;
     }
+
+    auto* tree =
+      c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
+    if (!tree) {
+        ImGui::End();
+        return;
+    }
+
+    component* compo = c_editor.mod.components.try_to_get(tree->id);
+    if (!compo) {
+        ImGui::End();
+        return;
+    }
+
+    // ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+    // ImGui::DockSpace(dockspace_id);
+
+    // ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_Always);
+    // show_modeling_editor_widget();
+
+    // ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_Always);
+    // show_simulation_editor_widget();
+
+    // ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_Always);
+    // show_external_sources();
+
     ImGui::End();
 }
 
-void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept
-{
-    size.x -= 50;
-    size.y -= 50;
-
-    if (show_modeling_editor) {
-        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("modeling", &show_modeling_editor)) {
-            show_modeling_editor_widget();
-        }
-        ImGui::End();
-    }
-
-    position.x += 25;
-    position.y += 25;
-
-    if (show_simulation_editor) {
-        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("simulation", &show_simulation_editor)) {
-            show_simulation_editor_widget();
-        }
-        ImGui::End();
-    }
-
-    position.x += 25;
-    position.y += 25;
-
-    if (show_output_editor) {
-        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("outputs", &show_output_editor)) {
-            show_output_editor_widget();
-        }
-        ImGui::End();
-    }
-
-    position.x += 25;
-    position.y += 25;
-
-    if (show_data_editor) {
-        ImGui::SetNextWindowPos(position, ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(size, ImGuiCond_Once);
-        if (ImGui::Begin("inputs", &show_data_editor)) {
-            show_external_sources();
-        }
-        ImGui::End();
-    }
-}
+void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept {}
 
 void application::add_simulation_task(task_function fn,
                                       u64           param_1,
@@ -829,8 +746,7 @@ void task_simulation_advance(void* param) noexcept
                            g_task->app->s_editor.simulation_current);
 
         if (is_bad(ret)) {
-            auto& n =
-              g_task->app->notifications.alloc(log_level::error);
+            auto& n = g_task->app->notifications.alloc(log_level::error);
             n.title = "Fail to advance the simulation";
             format(n.message, "Advance message: {}", status_string(ret));
             g_task->app->notifications.enable(n);

@@ -116,6 +116,7 @@ int main(int, char**)
     ImGui::CreateContext();
     ImGuiIO& io    = ImGui::GetIO();
     io.IniFilename = irt::get_imgui_filename();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable
     // Keyboard Controls io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; //

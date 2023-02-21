@@ -72,7 +72,6 @@ struct component_setting_handler
     {
         if (top == stack::is_fixed_window_placement) {
             app->mod_init.is_fixed_window_placement = b;
-            app->is_fixed_window_placement          = b;
             top                                     = stack::top;
             return true;
         }
@@ -392,8 +391,6 @@ status application::save_settings() noexcept
             }
             writer.EndArray();
 
-            writer.Key("is_fixed_window_placement");
-            writer.Bool(is_fixed_window_placement);
             writer.Key("model_capacity");
             writer.Int(mod_init.model_capacity);
             writer.Key("tree_capacity");
