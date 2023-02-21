@@ -9651,11 +9651,13 @@ inline constexpr small_string<length>::small_string(
 template<int length>
 void small_string<length>::resize(std::integral auto size) noexcept
 {
-    irt_assert(std::cmp_greater_equal(size, 0));
-
-    m_size = std::cmp_greater_equal(size, length)
-               ? static_cast<size_type>(length)
-               : static_cast<size_type>(size);
+    if (size < 0) {
+        m_size = 0;
+    } else if (std::cmp_greater_equal(size, length - 1)) {
+        m_size = length - 1;
+    } else {
+        m_size = static_cast<size_type>(size);
+    }
 
     m_buffer[m_size] = '\0';
 }
