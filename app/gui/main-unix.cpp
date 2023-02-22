@@ -30,6 +30,10 @@
 #include <sys/sysctl.h>
 #endif
 
+#if defined(IRRITATOR_USE_TTF)
+#include <fontconfig/fontconfig.h>
+#endif
+
 // [Win32] Our example includes a copy of glfw3.lib pre-compiled with VS2010 to
 // maximize ease of testing and compatibility with old VS compilers.
 // To link with VS2010-era libraries, VS2015+ requires linking with
@@ -51,6 +55,54 @@ static void glfw_error_callback(int error, const char* description)
       error,
       description);
 }
+
+#if defined(IRRITATOR_USE_TTF)
+auto GetSystemFontFilePath(const char* font_name, FcConfig* config) noexcept
+  -> std::optional<std::filesystem::path>
+{
+    using fcpattern_ptr =
+      std::unique_ptr<FcPattern, decltype(FcPatternDestroy)*>;
+
+    const auto*   str = reinterpret_cast<const FcChar8*>(font_name);
+    fcpattern_ptr pattern{ FcNameParse(str), FcPatternDestroy };
+
+    FcConfigSubstitute(config, pattern.get(), FcMatchPattern);
+    FcDefaultSubstitute(pattern.get());
+
+    FcResult res;
+
+    if (fcpattern_ptr font{ FcFontMatch(config, pattern.get(), &res),
+                            FcPatternDestroy };
+        font.get()) {
+        FcChar8* file = nullptr;
+        if (FcPatternGetString(font.get(), FC_FILE, 0, &file) == FcResultMatch)
+            return std::filesystem::path(reinterpret_cast<const char*>(file));
+    }
+
+    return std::nullopt;
+}
+
+auto GetSystemFontFile() noexcept -> std::optional<std::filesystem::path>
+{
+    using config_ptr = std::unique_ptr<FcConfig, decltype(FcConfigDestroy)*>;
+
+    config_ptr config{ FcInitLoadConfigAndFonts(), FcConfigDestroy };
+
+    if (auto ret = GetSystemFontFilePath("Roboto", config.get());
+        ret.has_value()) {
+        printf("Found: %s\n", ret.value().string().c_str());
+        return ret.value();
+    }
+
+    if (auto ret = GetSystemFontFilePath("DejaVu Sans", config.get());
+        ret.has_value()) {
+        printf("Found: %s\n", ret.value().string().c_str());
+        return ret.value();
+    }
+
+    return std::nullopt;
+}
+#endif
 
 #if defined(IRRITATOR_ENABLE_DEBUG)
 //! Detect if a process is being run under a debugger.
@@ -167,9 +219,25 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& io    = ImGui::GetIO();
     io.IniFilename = irt::get_imgui_filename();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+#ifdef IRRITATOR_USE_TTF
+    io.Fonts->AddFontDefault();
+    ImFont* ttf = nullptr;
+
+    if (auto sans_serif_font = GetSystemFontFile(); sans_serif_font) {
+        const auto u8str   = sans_serif_font.value().u8string();
+        const auto c_u8str = u8str.c_str();
+        const auto c_str   = reinterpret_cast<const char*>(c_u8str);
+
+        ttf = io.Fonts->AddFontFromFileTTF(c_str, 14.0f);
+
+        if (ttf)
+            io.Fonts->Build();
+    }
+#endif
 
     // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable
     // Keyboard Controls io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; //
@@ -187,6 +255,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     {
         irt::application app;
+
+#ifdef IRRITATOR_USE_TTF
+        app.ttf = ttf;
+#endif
 
         if (!app.init()) {
             ImNodes::DestroyContext();

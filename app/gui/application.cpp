@@ -532,6 +532,11 @@ void application::show_tasks_widgets() noexcept
 
 void application::show() noexcept
 {
+#ifdef IRRITATOR_USE_TTF
+    if (ttf)
+        ImGui::PushFont(ttf);
+#endif
+
     cleanup_sim_or_gui_task(sim_tasks);
     cleanup_sim_or_gui_task(gui_tasks);
 
@@ -618,6 +623,11 @@ void application::show() noexcept
     }
 
     notifications.show();
+
+#ifdef IRRITATOR_USE_TTF
+    if (ttf)
+        ImGui::PopFont();
+#endif
 }
 
 void application::show_main_as_tabbar(ImVec2           position,

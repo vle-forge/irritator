@@ -20,6 +20,7 @@
 #include <tchar.h>
 
 #define WIN32_LEAN_AND_MEAN
+#include <wchar.h>
 #include <windows.h>
 
 #ifdef _DEBUG
@@ -72,6 +73,122 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 static bool is_running_under_debugger() noexcept
 {
     return ::IsDebuggerPresent() == TRUE;
+}
+#endif
+
+#ifdef IRRITATOR_USE_TTF
+auto GetSystemFontFile(std::wstring_view        font,
+                       HKEY                     hKey,
+                       std::shared_ptr<WCHAR[]> name,
+                       std::shared_ptr<BYTE[]>  data,
+                       const DWORD              name_size,
+                       const DWORD              value_size) noexcept
+  -> std::optional<std::wstring>
+{
+    HRESULT      result;
+    std::wstring font_found;
+    DWORD        index = 0;
+    DWORD        type  = 0;
+
+    do {
+        font_found.clear();
+        auto data_len = value_size;
+        auto name_len = name_size;
+
+        result = RegEnumValueW(hKey,
+                               index++,
+                               name.get(),
+                               &name_len,
+                               0,
+                               &type,
+                               data.get(),
+                               &data_len);
+
+        if (result != ERROR_SUCCESS || type != REG_SZ)
+            continue;
+
+        font_found.assign(name.get(), name_len);
+        if (::_wcsnicmp(font.data(), font_found.c_str(), font.size()) == 0)
+            return std::wstring(reinterpret_cast<WCHAR*>(data.get()), data_len);
+
+    } while (result != ERROR_NO_MORE_ITEMS);
+
+    return std::nullopt;
+}
+
+auto GetSystemFontFilePath(std::wstring_view font_name) noexcept
+  -> std::optional<std::filesystem::path>
+{
+    std::wstring windir(MAX_PATH, L'\0');
+    UINT         windir_len =
+      ::GetWindowsDirectoryW(windir.data(), static_cast<UINT>(windir.size()));
+
+    if (std::cmp_greater_equal(windir_len, static_cast<UINT>(windir.size()))) {
+        windir.resize(windir_len + 1u, L'\0');
+        windir_len = ::GetWindowsDirectoryW(windir.data(),
+                                            static_cast<UINT>(windir.size()));
+    }
+
+    if (windir_len == 0)
+        return std::nullopt;
+
+    windir.resize(windir_len);
+
+    try {
+        std::filesystem::path ret(windir);
+        ret /= L"Fonts";
+        ret /= font_name;
+        return ret;
+    } catch (...) {
+    }
+
+    return std::nullopt;
+}
+
+auto GetSystemFontFile() noexcept -> std::optional<std::filesystem::path>
+{
+    constexpr static LPCWSTR font_reg_path =
+      L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts";
+    HKEY hKey;
+
+    if (auto result =
+          RegOpenKeyExW(HKEY_LOCAL_MACHINE, font_reg_path, 0, KEY_READ, &hKey);
+        result != ERROR_SUCCESS)
+        return std::nullopt;
+
+    DWORD max_name_size, max_value_size;
+    if (auto result = RegQueryInfoKeyW(
+          hKey, 0, 0, 0, 0, 0, 0, 0, &max_name_size, &max_value_size, 0, 0);
+        result != ERROR_SUCCESS)
+        return std::nullopt;
+
+    auto buffer_name = std::make_shared<WCHAR[]>(max_name_size);
+    auto buffer_data = std::make_shared<BYTE[]>(max_value_size);
+
+    if (auto ret = GetSystemFontFile(L"Calibri (TrueType)",
+                                     hKey,
+                                     buffer_name,
+                                     buffer_data,
+                                     max_name_size,
+                                     max_value_size);
+        ret.has_value()) {
+        RegCloseKey(hKey);
+        return GetSystemFontFilePath(ret.value());
+    }
+
+    if (auto ret = GetSystemFontFile(L"Arial (TrueType)",
+                                     hKey,
+                                     buffer_name,
+                                     buffer_data,
+                                     max_name_size,
+                                     max_value_size);
+        ret.has_value()) {
+        RegCloseKey(hKey);
+        return GetSystemFontFilePath(ret.value());
+    }
+
+    RegCloseKey(hKey);
+    return std::nullopt;
 }
 #endif
 
@@ -161,6 +278,22 @@ int main(int, char**)
     // io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f,
     // NULL, io.Fonts->GetGlyphRangesJapanese()); IM_ASSERT(font != NULL);
 
+#ifdef IRRITATOR_USE_TTF
+    io.Fonts->AddFontDefault();
+    ImFont* ttf = nullptr;
+
+    if (auto sans_serif_font = GetSystemFontFile(); sans_serif_font) {
+        const auto u8str   = sans_serif_font.value().u8string();
+        const auto c_u8str = u8str.c_str();
+        const auto c_str   = reinterpret_cast<const char*>(c_u8str);
+
+        ttf = io.Fonts->AddFontFromFileTTF(c_str, 13.0f);
+
+        if (ttf)
+            io.Fonts->Build();
+    }
+#endif
+
     // Our state
     bool   show_demo_window    = false;
     bool   show_another_window = false;
@@ -170,6 +303,11 @@ int main(int, char**)
 
     {
         irt::application app;
+
+#ifdef IRRITATOR_USE_TTF
+        app.ttf = ttf;
+#endif
+
         if (!app.init()) {
             ImNodes::DestroyContext();
 
@@ -190,12 +328,12 @@ int main(int, char**)
             // Poll and handle messages (inputs, window resize, etc.)
             // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard
             // flags to tell if dear imgui wants to use your inputs.
-            // - When io.WantCaptureMouse is true, do not dispatch mouse input
-            // data to your main application.
-            // - When io.WantCaptureKeyboard is true, do not dispatch keyboard
-            // input data to your main application. Generally you may always
-            // pass all inputs to dear imgui, and hide them from your
-            // application based on those two flags.
+            // - When io.WantCaptureMouse is true, do not dispatch mouse
+            // input data to your main application.
+            // - When io.WantCaptureKeyboard is true, do not dispatch
+            // keyboard input data to your main application. Generally you
+            // may always pass all inputs to dear imgui, and hide them from
+            // your application based on those two flags.
             if (::PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
                 ::TranslateMessage(&msg);
                 ::DispatchMessage(&msg);
@@ -213,8 +351,8 @@ int main(int, char**)
                 ::PostMessage(hwnd, WM_CLOSE, 0, 0);
 
             // 1. Show the big demo window (Most of the sample code is in
-            // ImGui::ShowDemoWindow()! You can browse its code to learn more
-            // about Dear ImGui!).
+            // ImGui::ShowDemoWindow()! You can browse its code to learn
+            // more about Dear ImGui!).
             if (show_demo_window)
                 ImGui::ShowDemoWindow(&show_demo_window);
 
@@ -227,16 +365,17 @@ int main(int, char**)
 
             //    ImGui::Begin("Hello, world!"); // Create a window called
             //    "Hello,
-            //                                   // world!" and append into it.
+            //                                   // world!" and append into
+            //                                   it.
 
             //    ImGui::Text(
-            //      "This is some useful text."); // Display some text (you can
-            //      use
+            //      "This is some useful text."); // Display some text (you
+            //      can use
             //      a
             //                                    // format strings too)
             //    ImGui::Checkbox("Demo Window",
-            //                    &show_demo_window); // Edit bools storing our
-            //                    window
+            //                    &show_demo_window); // Edit bools storing
+            //                    our window
             //                                        // open/close state
             //    ImGui::Checkbox("Another Window", &show_another_window);
 
@@ -247,7 +386,8 @@ int main(int, char**)
             //      1.0f); // Edit 1 float using a slider from 0.0f to 1.0f
             //    ImGui::ColorEdit3(
             //      "clear color",
-            //      (float*)&clear_color); // Edit 3 floats representing a color
+            //      (float*)&clear_color); // Edit 3 floats representing a
+            //      color
 
             //    if (ImGui::Button(
             //          "Button")) // Buttons return true when clicked (most
@@ -257,7 +397,8 @@ int main(int, char**)
             //    ImGui::SameLine();
             //    ImGui::Text("counter = %d", counter);
 
-            //    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+            //    ImGui::Text("Application average %.3f ms/frame (%.1f
+            //    FPS)",
             //                1000.0f / ImGui::GetIO().Framerate,
             //                ImGui::GetIO().Framerate);
             //    ImGui::End();
@@ -267,10 +408,10 @@ int main(int, char**)
             if (show_another_window) {
                 ImGui::Begin(
                   "Another Window",
-                  &show_another_window); // Pass a pointer to our bool variable
-                                         // (the window will have a closing
-                                         // button that will clear the bool when
-                                         // clicked)
+                  &show_another_window); // Pass a pointer to our bool
+                                         // variable (the window will have a
+                                         // closing button that will clear
+                                         // the bool when clicked)
                 ImGui::Text("Hello from another window!");
                 if (ImGui::Button("Close Me"))
                     show_another_window = false;
@@ -332,6 +473,7 @@ int main(int, char**)
 
         WaitForLastSubmittedFrame();
     }
+
     ImNodes::DestroyContext();
 
     // Cleanup

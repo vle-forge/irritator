@@ -50,6 +50,8 @@ endif ()
 
 add_executable(irritator-gui ${gui_sources})
 
+option(USE_TTF "Use true type font" TRUE)
+
 target_include_directories(irritator-gui
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib/include>
@@ -59,7 +61,8 @@ target_include_directories(irritator-gui
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${PROJECT_SOURCE_DIR}/../../external/imgui/backends
     ${PROJECT_SOURCE_DIR}/../../external/imgui
-    ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w)
+    ${PROJECT_SOURCE_DIR}/../../external/imgui/examples/libs/gl3w
+    $<$<AND:$<PLATFORM_ID:Linux>,$<BOOL:${USE_TTF}>,$<BOOL:${Fontconfig_FOUND}>>:${Fontconfig_INCLUDE_DIRS}>)
 
 target_link_libraries(irritator-gui
     PRIVATE
@@ -68,6 +71,7 @@ target_link_libraries(irritator-gui
     $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
     $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:Clang>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
     $<$<AND:$<PLATFORM_ID:Darwin>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
+    $<$<AND:$<PLATFORM_ID:Linux>,$<BOOL:${USE_TTF}>,$<BOOL:${Fontconfig_FOUND}>>:${Fontconfig_LIBRARIES}>
     threads
     $<$<PLATFORM_ID:Linux>:dl>
     $<$<PLATFORM_ID:Linux>:OpenGL::GL>
@@ -90,10 +94,13 @@ target_compile_options(irritator-gui
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
         /EHsc /bigobj /Zc:__cplusplus /std:c++20
-        $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
+        $<$<CONFIG:Debug>:/Od /W3 /Zi>>
+    $<$<AND:$<PLATFORM_ID:Linux>,$<BOOL:${USE_TTF}>,$<BOOL:${Fontconfig_FOUND}>>:${Fontconfig_COMPILE_OPTIONS}>)
 
 target_compile_definitions(irritator-gui
     PRIVATE
+    $<$<AND:$<PLATFORM_ID:Linux>,$<BOOL:${USE_TTF}>,$<BOOL:${Fontconfig_FOUND}>>:IRRITATOR_USE_TTF>
+    $<$<AND:$<PLATFORM_ID:Windows>,$<BOOL:${USE_TTF}>>:IRRITATOR_USE_TTF>
     $<$<BOOL:${WITH_DEBUG}>:IRRITATOR_ENABLE_DEBUG>
     $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
     $<$<CXX_COMPILER_ID:MSVC>:_SCL_SECURE_NO_WARNINGS>

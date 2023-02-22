@@ -565,6 +565,10 @@ public:
 
     file_dialog f_dialog;
 
+#ifdef IRRITATOR_USE_TTF
+    ImFont* ttf = nullptr;
+#endif
+
     bool show_select_directory_dialog = false;
 
     bool show_imgui_demo  = false;
