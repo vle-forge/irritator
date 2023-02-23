@@ -1710,6 +1710,9 @@ static status simulation_copy_model(modeling_to_simulation& cache,
                 simulation_copy_source(
                   cache, dyn_src.default_source_ta, dyn_dst.default_source_ta);
             } break;
+
+            default:
+                break;
             }
 
             sim_tree.children.emplace_back(new_mdl_id);
