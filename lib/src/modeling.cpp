@@ -1683,37 +1683,58 @@ static status simulation_copy_model(modeling_to_simulation& cache,
             irt_return_if_fail(sim.models.can_alloc(),
                                status::simulation_not_enough_model);
 
-            auto& new_mdl    = sim.clone(*mdl);
+            if (mdl->type == dynamics_type::hsm_wrapper)
+                irt_return_if_fail(sim.hsms.can_alloc(1),
+                                   status::simulation_not_enough_model);
+
+            auto& new_mdl    = sim.models.alloc();
             auto  new_mdl_id = sim.models.get_id(new_mdl);
+            new_mdl.type     = mdl->type;
+            new_mdl.handle   = nullptr;
 
-            switch (mdl->type) {
-            case dynamics_type::generator: {
-                auto& dyn_src = get_dyn<generator>(*mdl);
-                auto& dyn_dst = get_dyn<generator>(new_mdl);
-                simulation_copy_source(
-                  cache, dyn_src.default_source_ta, dyn_dst.default_source_ta);
-                simulation_copy_source(cache,
-                                       dyn_src.default_source_value,
-                                       dyn_dst.default_source_value);
-            } break;
+            dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+                const auto& src_dyn = get_dyn<Dynamics>(*mdl);
+                std::construct_at(&dyn, src_dyn);
 
-            case dynamics_type::queue: {
-                auto& dyn_src = get_dyn<dynamic_queue>(*mdl);
-                auto& dyn_dst = get_dyn<dynamic_queue>(new_mdl);
-                simulation_copy_source(
-                  cache, dyn_src.default_source_ta, dyn_dst.default_source_ta);
-            } break;
+                if constexpr (has_input_port<Dynamics>)
+                    for (int i = 0, e = length(dyn.x); i != e; ++i)
+                        dyn.x[i] = static_cast<u64>(-1);
 
-            case dynamics_type::priority_queue: {
-                auto& dyn_src = get_dyn<priority_queue>(*mdl);
-                auto& dyn_dst = get_dyn<priority_queue>(new_mdl);
-                simulation_copy_source(
-                  cache, dyn_src.default_source_ta, dyn_dst.default_source_ta);
-            } break;
+                if constexpr (has_output_port<Dynamics>)
+                    for (int i = 0, e = length(dyn.y); i != e; ++i)
+                        dyn.y[i] = static_cast<u64>(-1);
 
-            default:
-                break;
-            }
+                if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                    if (auto* hsm_src = src.hsms.try_to_get(src_dyn.id);
+                        hsm_src) {
+                        auto& hsm = sim.hsms.alloc(*hsm_src);
+                        auto  id  = sim.hsms.get_id(hsm);
+                        dyn.id    = id;
+                    } else {
+                        auto& hsm = sim.hsms.alloc();
+                        auto  id  = sim.hsms.get_id(hsm);
+                        dyn.id    = id;
+                    }
+                }
+
+                if constexpr (std::is_same_v<Dynamics, generator>) {
+                    simulation_copy_source(
+                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
+                    simulation_copy_source(cache,
+                                           src_dyn.default_source_value,
+                                           dyn.default_source_value);
+                }
+
+                if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
+                    simulation_copy_source(
+                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
+                }
+
+                if constexpr (std::is_same_v<Dynamics, priority_queue>) {
+                    simulation_copy_source(
+                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
+                }
+            });
 
             sim_tree.children.emplace_back(new_mdl_id);
             tree.sim.data.emplace_back(mdl_id, new_mdl_id);
