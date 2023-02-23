@@ -90,13 +90,11 @@ auto GetSystemFontFile() noexcept -> std::optional<std::filesystem::path>
 
     if (auto ret = GetSystemFontFilePath("Roboto", config.get());
         ret.has_value()) {
-        printf("Found: %s\n", ret.value().string().c_str());
         return ret.value();
     }
 
     if (auto ret = GetSystemFontFilePath("DejaVu Sans", config.get());
         ret.has_value()) {
-        printf("Found: %s\n", ret.value().string().c_str());
         return ret.value();
     }
 
@@ -232,9 +230,15 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         const auto c_u8str = u8str.c_str();
         const auto c_str   = reinterpret_cast<const char*>(c_u8str);
 
-        ttf = io.Fonts->AddFontFromFileTTF(c_str, 14.0f);
+        ImFontConfig baseConfig;
+        baseConfig.SizePixels  = 15.0f;
+        baseConfig.PixelSnapH  = true;
+        baseConfig.OversampleH = 2;
+        baseConfig.OversampleV = 2;
 
-        if (ttf)
+        if (ttf = io.Fonts->AddFontFromFileTTF(
+              c_str, baseConfig.SizePixels, &baseConfig);
+            ttf)
             io.Fonts->Build();
     }
 #endif

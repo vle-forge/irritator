@@ -287,9 +287,15 @@ int main(int, char**)
         const auto c_u8str = u8str.c_str();
         const auto c_str   = reinterpret_cast<const char*>(c_u8str);
 
-        ttf = io.Fonts->AddFontFromFileTTF(c_str, 13.0f);
+        ImFontConfig baseConfig;
+        baseConfig.SizePixels  = 15.0f;
+        baseConfig.PixelSnapH  = true;
+        baseConfig.OversampleH = 2;
+        baseConfig.OversampleV = 2;
 
-        if (ttf)
+        if (ttf = io.Fonts->AddFontFromFileTTF(
+              c_str, baseConfig.SizePixels, &baseConfig);
+            ttf)
             io.Fonts->Build();
     }
 #endif
