@@ -532,6 +532,18 @@ struct settings_manager
     void show(bool* is_open) noexcept;
 };
 
+struct task_window
+{
+    constexpr static inline const char* name = "Tasks";
+
+    task_window() noexcept = default;
+
+    void show() noexcept;
+    void show_widgets() noexcept;
+
+    bool is_open = false;
+};
+
 struct application
 {
     application() noexcept;
@@ -547,12 +559,10 @@ struct application
 
     window_logger log_window;
 
-private:
     data_array<simulation_task, simulation_task_id> sim_tasks;
     data_array<gui_task, gui_task_id>               gui_tasks;
     task_manager                                    task_mgr;
 
-public:
     std::filesystem::path project_file;
     std::filesystem::path select_directory;
 
@@ -563,6 +573,7 @@ public:
 
     notification_manager notifications;
 
+    task_window t_window;
     file_dialog f_dialog;
 
 #ifdef IRRITATOR_USE_TTF
@@ -576,16 +587,15 @@ public:
     bool show_settings    = false;
     bool show_memory      = false;
 
-    bool show_project      = true;
-    bool show_log          = true;
-    bool show_data         = true;
-    bool show_output       = true;
-    bool show_simulation   = true;
-    bool show_modeling     = true;
-    bool show_hsm_editor   = false;
-    bool show_observation  = true;
-    bool show_components   = true;
-    bool show_tasks_window = false;
+    bool show_project     = true;
+    bool show_log         = true;
+    bool show_data        = true;
+    bool show_output      = true;
+    bool show_simulation  = true;
+    bool show_modeling    = true;
+    bool show_hsm_editor  = false;
+    bool show_observation = true;
+    bool show_components  = true;
 
     bool new_project_file     = false; // rename menu_*
     bool load_project_file    = false; // rename menu_*

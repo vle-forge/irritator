@@ -6,9 +6,9 @@ set(gui_sources
     dialog.cpp dialog.hpp editor.cpp editor.hpp hsm-editor.cpp imnodes.cpp
     imnodes.h imnodes_internal.h implot.cpp implot.h implot_internal.h
     implot_items.cpp implot_demo.cpp internal.hpp internal.cpp io.cpp
-    modeling-editor.cpp notification.cpp output-editor.cpp 
-    project-window.cpp simulation-editor.cpp simulation-component.cpp
-    simulation-observation.cpp sources.cpp window-logger.cpp
+    modeling-editor.cpp notification.cpp output-editor.cpp project-window.cpp
+    simulation-editor.cpp simulation-component.cpp simulation-observation.cpp
+    sources.cpp task-window.cpp window-logger.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/archiver.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/external_source.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/hsm.cpp
