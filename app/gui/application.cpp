@@ -630,50 +630,6 @@ void application::show() noexcept
 #endif
 }
 
-void application::show_main_as_tabbar(ImVec2           position,
-                                      ImVec2           size,
-                                      ImGuiWindowFlags window_flags,
-                                      ImGuiCond        position_flags,
-                                      ImGuiCond        size_flags) noexcept
-{
-    ImGui::SetNextWindowPos(position, position_flags);
-    ImGui::SetNextWindowSize(size, size_flags);
-    bool window_visible = ImGui::Begin("Main", 0, 0);
-    if (!window_visible) {
-        ImGui::End();
-        return;
-    }
-
-    auto* tree =
-      c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
-    if (!tree) {
-        ImGui::End();
-        return;
-    }
-
-    component* compo = c_editor.mod.components.try_to_get(tree->id);
-    if (!compo) {
-        ImGui::End();
-        return;
-    }
-
-    // ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
-    // ImGui::DockSpace(dockspace_id);
-
-    // ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_Always);
-    // show_modeling_editor_widget();
-
-    // ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_Always);
-    // show_simulation_editor_widget();
-
-    // ImGui::SetNextWindowDockID(dockspace_id, ImGuiCond_Always);
-    // show_external_sources();
-
-    ImGui::End();
-}
-
-void application::show_main_as_window(ImVec2 position, ImVec2 size) noexcept {}
-
 void application::add_simulation_task(task_function fn,
                                       u64           param_1,
                                       u64           param_2,

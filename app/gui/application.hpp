@@ -602,12 +602,6 @@ public:
     void show_simulation_observation_window() noexcept;
     void show_components_window() noexcept;
     void show_project_window() noexcept;
-    void show_main_as_tabbar(ImVec2           position,
-                             ImVec2           size,
-                             ImGuiWindowFlags window_flags,
-                             ImGuiCond        position_flags,
-                             ImGuiCond        size_flags) noexcept;
-    void show_main_as_window(ImVec2 position, ImVec2 size) noexcept;
     void show_memory_box(bool* is_open) noexcept;
 
     void show_modeling_editor_widget() noexcept;
