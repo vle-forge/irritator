@@ -507,8 +507,18 @@ struct component_editor
     void show(bool* is_show) noexcept;
 };
 
-struct settings_manager
+struct settings_window
 {
+    constexpr static inline const char* name = "Settings";
+
+    settings_window() noexcept = default;
+
+    //! @brief Compute selected and hovered colours from gui_model_color and
+    //! gui_component_color.
+    void update() noexcept;
+
+    void show() noexcept;
+
     ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
     ImVec4 gui_component_color{ .54f, .27f, .27f, 1.f };
     ImU32  gui_hovered_model_color;
@@ -525,11 +535,7 @@ struct settings_manager
 
     bool show_dynamics_inputs_in_editor = false;
 
-    //! @brief Compute selected and hovered colours from gui_model_color and
-    //! gui_component_color.
-    void update() noexcept;
-
-    void show(bool* is_open) noexcept;
+    bool is_open = false;
 };
 
 struct task_window
@@ -552,7 +558,7 @@ struct application
     component_editor            c_editor;
     simulation_editor           s_editor;
     hsm_editor                  h_editor;
-    settings_manager            settings;
+    settings_window             settings;
     project_hierarchy_selection project_selection;
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
@@ -584,7 +590,6 @@ struct application
 
     bool show_imgui_demo  = false;
     bool show_implot_demo = false;
-    bool show_settings    = false;
     bool show_memory      = false;
 
     bool show_project     = true;

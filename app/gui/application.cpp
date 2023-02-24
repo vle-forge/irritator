@@ -15,24 +15,6 @@ namespace irt {
 
 static constexpr const i32 simulation_task_number = 64;
 
-static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
-{
-    return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
-}
-
-void settings_manager::update() noexcept
-{
-    gui_hovered_model_color =
-      ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.25f);
-    gui_selected_model_color =
-      ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.5f);
-
-    gui_hovered_component_color =
-      ImGui::ColorConvertFloat4ToU32(gui_component_color * 1.25f);
-    gui_selected_component_color =
-      ImGui::ColorConvertFloat4ToU32(gui_component_color * 1.5f);
-}
-
 application::application() noexcept
   : task_mgr{}
 {
@@ -288,7 +270,7 @@ static void application_show_menu(application& app) noexcept
             ImGui::MenuItem(
               "ImPlot demo window", nullptr, &app.show_implot_demo);
             ImGui::Separator();
-            ImGui::MenuItem("Component settings", nullptr, &app.show_settings);
+            ImGui::MenuItem("Settings", nullptr, &app.settings.is_open);
 
             if (ImGui::MenuItem("Load settings"))
                 app.load_settings();
@@ -555,9 +537,7 @@ void application::show() noexcept
         show_memory_box(&show_memory);
 
     t_window.show();
-
-    if (show_settings)
-        settings.show(&show_settings);
+    settings.show();
 
     if (show_select_directory_dialog) {
         const char* title = "Select directory";

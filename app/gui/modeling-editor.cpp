@@ -200,13 +200,15 @@ static bool show_connection(const component&  parent,
     return false;
 }
 
-static void show(const settings_manager& settings,
-                 component_editor&       ed,
-                 component&              parent,
-                 model&                  mdl,
-                 child&                  c,
-                 child_id                id) noexcept
+static void show(component_editor& ed,
+                 component&        parent,
+                 model&            mdl,
+                 child&            c,
+                 child_id          id) noexcept
 {
+    auto* app      = container_of(&ed, &application::c_editor);
+    auto& settings = app->settings;
+
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
       ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
@@ -249,11 +251,14 @@ static void show(const settings_manager& settings,
     ImNodes::PopColorStyle();
 }
 
-static void show(const settings_manager& settings,
-                 component&              compo,
-                 child&                  c,
-                 child_id                id) noexcept
+static void show(component_editor& ed,
+                 component&        compo,
+                 child&            c,
+                 child_id          id) noexcept
 {
+    auto* app      = container_of(&ed, &application::c_editor);
+    auto& settings = app->settings;
+
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
       ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
@@ -311,11 +316,13 @@ static void show(const settings_manager& settings,
     ImNodes::PopColorStyle();
 }
 
-static void show_opened_component_ref(const settings_manager& settings,
-                                      component_editor&       ed,
+static void show_opened_component_ref(component_editor& ed,
                                       tree_node& /*ref*/,
                                       component& parent) noexcept
 {
+    auto* app      = container_of(&ed, &application::c_editor);
+    auto& settings = app->settings;
+
     const auto width = ImGui::GetWindowContentRegionWidth();
     const auto pos   = ImNodes::EditorContextGetPanning();
     child*     c     = nullptr;
@@ -390,11 +397,11 @@ static void show_opened_component_ref(const settings_manager& settings,
         if (c->type == child_type::model) {
             auto id = enum_cast<model_id>(c->id);
             if (auto* mdl = parent.models.try_to_get(id); mdl)
-                show(settings, ed, parent, *mdl, *c, child_id);
+                show(ed, parent, *mdl, *c, child_id);
         } else {
             auto id = enum_cast<component_id>(c->id);
             if (auto* compo = ed.mod.components.try_to_get(id); compo)
-                show(settings, *compo, *c, child_id);
+                show(ed, *compo, *c, child_id);
         }
 
         if (ed.force_node_position) {
@@ -472,8 +479,8 @@ static void add_popup_menuitem(component_editor& ed,
     add_popup_menuitem(ed, parent, d_type, click_pos);
 }
 
-static void compute_grid_layout(settings_manager& settings,
-                                component&        compo) noexcept
+static void compute_grid_layout(settings_window& settings,
+                                component&       compo) noexcept
 {
     const auto size  = compo.children.ssize();
     const auto fsize = static_cast<float>(size);
@@ -1155,16 +1162,15 @@ static void remove_component_input_output(ImVector<int>& v) noexcept
     };
 }
 
-static void show_modeling_widget(const settings_manager& settings,
-                                 component_editor&       ed,
-                                 tree_node&              tree,
-                                 component&              compo) noexcept
+static void show_modeling_widget(component_editor& ed,
+                                 tree_node&        tree,
+                                 component&        compo) noexcept
 {
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();
 
     show_popup_menuitem(ed, tree, compo);
-    show_opened_component_ref(settings, ed, tree, compo);
+    show_opened_component_ref(ed, tree, compo);
 
     if (ed.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
@@ -1225,13 +1231,11 @@ component_editor::~component_editor() noexcept
 
 void application::show_modeling_editor_widget() noexcept
 {
-    auto* tree =
-      c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
-    if (tree) {
-        component* compo = c_editor.mod.components.try_to_get(tree->id);
-        if (compo) {
-            show_modeling_widget(settings, c_editor, *tree, *compo);
-        }
+    if (auto* tree =
+          c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
+        tree) {
+        if (auto* compo = c_editor.mod.components.try_to_get(tree->id); compo)
+            show_modeling_widget(c_editor, *tree, *compo);
     }
 }
 

@@ -962,9 +962,11 @@ static void compute_connection_distance(const model&       mdl,
     });
 }
 
-static void compute_automatic_layout(settings_manager&  settings,
-                                     simulation_editor& ed) noexcept
+static void compute_automatic_layout(simulation_editor& ed) noexcept
 {
+    auto* app      = container_of(&ed, &application::s_editor);
+    auto& settings = app->settings;
+
     /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
        Fruchterman and Edward M. Reingold in Software--Pratice and
        Experience, Vol. 21(1 1), 1129-1164 (november 1991).
@@ -1061,9 +1063,11 @@ static void compute_automatic_layout(settings_manager&  settings,
     }
 }
 
-static void compute_grid_layout(settings_manager&  settings,
-                                simulation_editor& ed) noexcept
+static void compute_grid_layout(simulation_editor& ed) noexcept
 {
+    auto* app      = container_of(&ed, &application::s_editor);
+    auto& settings = app->settings;
+
     const auto size  = ed.sim.models.max_size();
     const auto fsize = static_cast<float>(size);
 
@@ -1121,7 +1125,7 @@ static void show_simulation_graph_editor_edit_menu(application& app,
 
     if (ImGui::BeginPopup("Context menu")) {
         if (ImGui::MenuItem("Force grid layout")) {
-            compute_grid_layout(app.settings, app.s_editor);
+            compute_grid_layout(app.s_editor);
         }
 
         if (ImGui::MenuItem("Force automatic layout")) {
@@ -1244,7 +1248,7 @@ static void show_simulation_graph_editor(application& app) noexcept
     ImNodes::BeginNodeEditor();
 
     if (app.s_editor.automatic_layout_iteration > 0) {
-        compute_automatic_layout(app.settings, app.s_editor);
+        compute_automatic_layout(app.s_editor);
         --app.s_editor.automatic_layout_iteration;
     }
 
