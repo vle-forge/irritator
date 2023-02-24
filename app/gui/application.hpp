@@ -518,6 +518,7 @@ struct settings_window
     void update() noexcept;
 
     void show() noexcept;
+    void apply_default_style() noexcept;
 
     ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
     ImVec4 gui_component_color{ .54f, .27f, .27f, 1.f };
