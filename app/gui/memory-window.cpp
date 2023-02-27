@@ -21,7 +21,8 @@ void memory_window::show() noexcept
     auto& c_editor = app->component_ed;
     auto& s_editor = app->simulation_ed;
 
-    if (ImGui::CollapsingHeader("Modeling", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Component usage",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::TextFormat("tree_nodes: {} / {} / {}",
                           c_editor.mod.tree_nodes.size(),
                           c_editor.mod.tree_nodes.max_used(),
@@ -48,7 +49,8 @@ void memory_window::show() noexcept
                           c_editor.mod.file_paths.capacity());
     }
 
-    if (ImGui::CollapsingHeader("Simulation")) {
+    if (ImGui::CollapsingHeader("Simulation usage",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::TextFormat("models: {}", s_editor.sim.models.size());
         ImGui::TextFormat("hsms: {}", s_editor.sim.hsms.size());
         ImGui::TextFormat("observers: {}", s_editor.sim.observers.size());
@@ -78,7 +80,7 @@ void memory_window::show() noexcept
                           s_editor.sim.srcs.random_sources.size());
     }
 
-    if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Components")) {
         component* compo = nullptr;
         while (c_editor.mod.components.next(compo)) {
             ImGui::PushID(compo);
@@ -128,8 +130,7 @@ void memory_window::show() noexcept
         }
     }
 
-    if (ImGui::CollapsingHeader("Registred directoriess",
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Registred directoriess")) {
         if (ImGui::BeginTable("Table", 2)) {
             ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableSetupColumn("value",
@@ -151,8 +152,7 @@ void memory_window::show() noexcept
         }
     }
 
-    if (ImGui::CollapsingHeader("Directories",
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Directories")) {
         if (ImGui::BeginTable("Table", 2)) {
             ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableSetupColumn("value",
@@ -174,7 +174,7 @@ void memory_window::show() noexcept
         }
     }
 
-    if (ImGui::CollapsingHeader("Files", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Files")) {
         if (ImGui::BeginTable("Table", 2)) {
             ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableSetupColumn("value",

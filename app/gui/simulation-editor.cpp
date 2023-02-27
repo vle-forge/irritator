@@ -965,7 +965,7 @@ static void compute_connection_distance(const model&       mdl,
 static void compute_automatic_layout(simulation_editor& ed) noexcept
 {
     auto* app      = container_of(&ed, &application::simulation_ed);
-    auto& settings = app->settings;
+    auto& settings = app->settings_wnd;
 
     /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
        Fruchterman and Edward M. Reingold in Software--Pratice and
@@ -1066,7 +1066,7 @@ static void compute_automatic_layout(simulation_editor& ed) noexcept
 static void compute_grid_layout(simulation_editor& ed) noexcept
 {
     auto* app      = container_of(&ed, &application::simulation_ed);
-    auto& settings = app->settings;
+    auto& settings = app->settings_wnd;
 
     const auto size  = ed.sim.models.max_size();
     const auto fsize = static_cast<float>(size);
@@ -1130,7 +1130,7 @@ static void show_simulation_graph_editor_edit_menu(application& app,
 
         if (ImGui::MenuItem("Force automatic layout")) {
             app.simulation_ed.automatic_layout_iteration =
-              app.settings.automatic_layout_iteration_limit;
+              app.settings_wnd.automatic_layout_iteration_limit;
         }
 
         ImGui::MenuItem(

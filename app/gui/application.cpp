@@ -18,8 +18,8 @@ static constexpr const i32 simulation_task_number = 64;
 application::application() noexcept
   : task_mgr{}
 {
-    settings.update();
-    settings.apply_default_style();
+    settings_wnd.update();
+    settings_wnd.apply_default_style();
 
     sim_tasks.init(simulation_task_number);
     gui_tasks.init(simulation_task_number);
@@ -177,16 +177,16 @@ static void application_show_menu(application& app) noexcept
         if (ImGui::BeginMenu("File")) {
 
             if (ImGui::MenuItem("New project"))
-                app.new_project_file = true;
+                app.menu_new_project_file = true;
 
             if (ImGui::MenuItem("Open project"))
-                app.load_project_file = true;
+                app.menu_load_project_file = true;
 
             if (ImGui::MenuItem("Save project"))
-                app.save_project_file = true;
+                app.menu_save_project_file = true;
 
             if (ImGui::MenuItem("Save project as..."))
-                app.save_as_project_file = true;
+                app.menu_save_as_project_file = true;
 
             if (ImGui::MenuItem("Quit"))
                 app.menu_quit = true;
@@ -210,7 +210,7 @@ static void application_show_menu(application& app) noexcept
 
             ImGui::MenuItem(
               "Show memory usage", nullptr, &app.memory_wnd.is_open);
-            ImGui::MenuItem("Show task usage", nullptr, &app.t_window.is_open);
+            ImGui::MenuItem("Show task usage", nullptr, &app.task_wnd.is_open);
             ImGui::EndMenu();
         }
 
@@ -219,7 +219,7 @@ static void application_show_menu(application& app) noexcept
             ImGui::MenuItem(
               "ImPlot demo window", nullptr, &app.show_implot_demo);
             ImGui::Separator();
-            ImGui::MenuItem("Settings", nullptr, &app.settings.is_open);
+            ImGui::MenuItem("Settings", nullptr, &app.settings_wnd.is_open);
 
             if (ImGui::MenuItem("Load settings"))
                 app.load_settings();
@@ -236,14 +236,14 @@ static void application_show_menu(application& app) noexcept
 
 static void application_manage_menu_action(application& app) noexcept
 {
-    if (app.new_project_file) {
+    if (app.menu_new_project_file) {
         app.component_ed.unselect();
         auto id = app.component_ed.add_empty_component();
         app.component_ed.open_as_main(id);
-        app.new_project_file = false;
+        app.menu_new_project_file = false;
     }
 
-    if (app.load_project_file) {
+    if (app.menu_load_project_file) {
         const char*    title     = "Select project file path to load";
         const char8_t* filters[] = { u8".irt", nullptr };
 
@@ -264,11 +264,11 @@ static void application_manage_menu_action(application& app) noexcept
             }
 
             app.f_dialog.clear();
-            app.load_project_file = false;
+            app.menu_load_project_file = false;
         }
     }
 
-    if (app.save_project_file) {
+    if (app.menu_save_project_file) {
         const bool have_file = !app.project_file.empty();
 
         if (have_file) {
@@ -283,12 +283,12 @@ static void application_manage_menu_action(application& app) noexcept
                 app.add_simulation_task(task_save_project, ordinal(id));
             }
         } else {
-            app.save_project_file    = false;
-            app.save_as_project_file = true;
+            app.menu_save_project_file    = false;
+            app.menu_save_as_project_file = true;
         }
     }
 
-    if (app.save_as_project_file) {
+    if (app.menu_save_as_project_file) {
         const char*              title = "Select project file path to save";
         const std::u8string_view default_filename = u8"filename.irt";
         const char8_t*           filters[]        = { u8".irt", nullptr };
@@ -310,7 +310,7 @@ static void application_manage_menu_action(application& app) noexcept
             }
 
             app.f_dialog.clear();
-            app.save_as_project_file = false;
+            app.menu_save_as_project_file = false;
         }
     }
 
@@ -394,8 +394,8 @@ static void application_show_windows(application& app) noexcept
     if (app.data_ed.is_open)
         app.data_ed.show();
 
-    if (app.log_window.is_open)
-        app.log_window.show();
+    if (app.log_wnd.is_open)
+        app.log_wnd.show();
 
     if (app.library_wnd.is_open)
         app.library_wnd.show();
@@ -447,11 +447,11 @@ void application::show() noexcept
     if (memory_wnd.is_open)
         memory_wnd.show();
 
-    if (t_window.is_open)
-        t_window.show();
+    if (task_wnd.is_open)
+        task_wnd.show();
 
-    if (settings.is_open)
-        settings.show();
+    if (settings_wnd.is_open)
+        settings_wnd.show();
 
     if (show_select_directory_dialog) {
         const char* title = "Select directory";

@@ -618,18 +618,17 @@ struct application
     simulation_editor simulation_ed;
     output_editor     output_ed;
     hsm_editor        hsm_ed;
+    data_window       data_ed;
 
-    data_window data_ed;
-
-    settings_window settings;
+    settings_window settings_wnd;
     library_window  library_wnd;
     project_window  project_wnd;
     preview_window  preview_wnd;
     memory_window   memory_wnd;
+    window_logger   log_wnd;
+    task_window     task_wnd;
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
-
-    window_logger log_window;
 
     data_array<simulation_task, simulation_task_id> sim_tasks;
     data_array<gui_task, gui_task_id>               gui_tasks;
@@ -645,7 +644,6 @@ struct application
 
     notification_manager notifications;
 
-    task_window t_window;
     file_dialog f_dialog;
 
 #ifdef IRRITATOR_USE_TTF
@@ -657,20 +655,13 @@ struct application
     bool show_imgui_demo  = false;
     bool show_implot_demo = false;
 
-    // bool show_project     = true;
-    // bool show_log         = true;
-    // bool show_output      = true;
-    // bool show_simulation  = true;
-    // bool show_modeling    = true;
     bool show_hsm_editor = false;
-    // bool show_observation = true;
-    // bool show_components  = true;
 
-    bool new_project_file     = false; // rename menu_*
-    bool load_project_file    = false; // rename menu_*
-    bool save_project_file    = false; // rename menu_*
-    bool save_as_project_file = false; // rename menu_*
-    bool menu_quit            = false;
+    bool menu_new_project_file     = false;
+    bool menu_load_project_file    = false;
+    bool menu_save_project_file    = false;
+    bool menu_save_as_project_file = false;
+    bool menu_quit                 = false;
 
     bool init() noexcept;
     void show() noexcept;
@@ -682,10 +673,6 @@ struct application
     void show_components_window() noexcept;
     void show_project_window() noexcept;
     void show_memory_box(bool* is_open) noexcept;
-
-    // void show_modeling_editor_widget() noexcept;
-    // void show_simulation_editor_widget() noexcept;
-    // void show_output_editor_widget() noexcept;
 
     status save_settings() noexcept;
     status load_settings() noexcept;
@@ -706,7 +693,7 @@ struct application
                       u64           param_2 = 0,
                       void*         param_3 = 0) noexcept;
 
-    //! Helpers function to get a @c unordered_task_list. Wait until the  task
+    //! Helpers function to get a @c unordered_task_list. Wait until the task
     //! list is available.
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
 };

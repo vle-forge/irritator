@@ -9,7 +9,7 @@ namespace irt {
 
 void task_window::show_widgets() noexcept
 {
-    auto* app = container_of(this, &application::t_window);
+    auto* app = container_of(this, &application::task_wnd);
 
     int workers = app->task_mgr.temp_workers.ssize();
     ImGui::InputInt("workers", &workers, 1, 100, ImGuiInputTextFlags_ReadOnly);

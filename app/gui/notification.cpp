@@ -183,7 +183,7 @@ void notification_manager::show() noexcept
 
         if (get_state(*notif) == notification_state::expired) {
             auto* app = container_of(this, &application::notifications);
-            auto& msg = app->log_window.enqueue();
+            auto& msg = app->log_wnd.enqueue();
 
             if (notif->message.empty())
                 msg.assign(notif->title.sv());

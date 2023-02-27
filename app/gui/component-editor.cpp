@@ -207,7 +207,7 @@ static void show(component_editor& ed,
                  child_id          id) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
-    auto& settings = app->settings;
+    auto& settings = app->settings_wnd;
 
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -257,7 +257,7 @@ static void show(component_editor& ed,
                  child_id          id) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
-    auto& settings = app->settings;
+    auto& settings = app->settings_wnd;
 
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -321,7 +321,7 @@ static void show_opened_component_ref(component_editor& ed,
                                       component& parent) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
-    auto& settings = app->settings;
+    auto& settings = app->settings_wnd;
 
     const auto width = ImGui::GetWindowContentRegionWidth();
     const auto pos   = ImNodes::EditorContextGetPanning();
@@ -688,7 +688,7 @@ static void show_popup_menuitem(component_editor& ed,
 
         if (ImGui::MenuItem("Force grid layout")) {
             auto* app = container_of(&ed, &application::component_ed);
-            compute_grid_layout(app->settings, parent);
+            compute_grid_layout(app->settings_wnd, parent);
         }
 
         ImGui::Separator();

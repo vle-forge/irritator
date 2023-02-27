@@ -47,10 +47,10 @@ constexpr void log_w(application& app,
 {
     using size_type = typename window_logger::string_t::size_type;
 
-    auto level_msg = log_level_names[ordinal(level)];
+    auto level_msg     = log_level_names[ordinal(level)];
     auto level_msg_len = level_msg.size();
 
-    auto& str = app.log_window.enqueue();
+    auto& str = app.log_wnd.enqueue();
     irt_assert(std::cmp_greater(str.capacity(), level_msg_len));
 
     std::copy_n(level_msg.data(), level_msg.size(), str.begin());
@@ -103,7 +103,9 @@ bool InputSmallString(const char*                label,
                       ImGuiInputTextCallback     callback  = nullptr,
                       void*                      user_data = nullptr)
 {
-    const bool ret = ImGui::InputText(label, string.begin(), static_cast<size_t>(string.capacity()),
+    const bool ret = ImGui::InputText(label,
+                                      string.begin(),
+                                      static_cast<size_t>(string.capacity()),
                                       flags,
                                       callback,
                                       user_data);
