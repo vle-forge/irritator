@@ -18,7 +18,7 @@ void memory_window::show() noexcept
     }
 
     auto* app      = container_of(this, &application::memory_wnd);
-    auto& c_editor = app->c_editor;
+    auto& c_editor = app->component_ed;
     auto& s_editor = app->s_editor;
 
     if (ImGui::CollapsingHeader("Modeling", ImGuiTreeNodeFlags_DefaultOpen)) {

@@ -206,7 +206,7 @@ static void show(component_editor& ed,
                  child&            c,
                  child_id          id) noexcept
 {
-    auto* app      = container_of(&ed, &application::c_editor);
+    auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings;
 
     ImNodes::PushColorStyle(
@@ -230,7 +230,7 @@ static void show(component_editor& ed,
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
             if (auto* machine = parent.hsms.try_to_get(dyn.id); machine) {
-                auto* app = container_of(&ed, &application::c_editor);
+                auto* app = container_of(&ed, &application::component_ed);
                 show_dynamics_inputs(*app,
                                      ed.mod.components.get_id(parent),
                                      parent.models.get_id(mdl),
@@ -256,7 +256,7 @@ static void show(component_editor& ed,
                  child&            c,
                  child_id          id) noexcept
 {
-    auto* app      = container_of(&ed, &application::c_editor);
+    auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings;
 
     ImNodes::PushColorStyle(
@@ -320,7 +320,7 @@ static void show_opened_component_ref(component_editor& ed,
                                       tree_node& /*ref*/,
                                       component& parent) noexcept
 {
-    auto* app      = container_of(&ed, &application::c_editor);
+    auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings;
 
     const auto width = ImGui::GetWindowContentRegionWidth();
@@ -445,7 +445,7 @@ static void add_popup_menuitem(component_editor& ed,
                                ImVec2            click_pos)
 {
     if (!parent.models.can_alloc(1)) {
-        auto* app = container_of(&ed, &application::c_editor);
+        auto* app = container_of(&ed, &application::component_ed);
         auto& n   = app->notifications.alloc();
         n.level   = log_level::error;
         n.title   = "can not allocate a new model";
@@ -461,7 +461,7 @@ static void add_popup_menuitem(component_editor& ed,
         child.x = click_pos.x;
         child.y = click_pos.y;
 
-        auto* app = container_of(&ed, &application::c_editor);
+        auto* app = container_of(&ed, &application::component_ed);
         auto& n   = app->notifications.alloc();
         n.level   = log_level::debug;
         format(n.title,
@@ -552,7 +552,7 @@ static status add_component_to_current(component_editor& ed,
     const auto compo_to_add_id = ed.mod.components.get_id(compo_to_add);
 
     if (!can_add_this_component(ed, compo_to_add_id)) {
-        auto* app   = container_of(&ed, &application::c_editor);
+        auto* app   = container_of(&ed, &application::component_ed);
         auto& notif = app->notifications.alloc(log_level::error);
         notif.title = "Fail to add component";
         format(notif.message,
@@ -687,7 +687,7 @@ static void show_popup_menuitem(component_editor& ed,
         ImGui::Separator();
 
         if (ImGui::MenuItem("Force grid layout")) {
-            auto* app = container_of(&ed, &application::c_editor);
+            auto* app = container_of(&ed, &application::component_ed);
             compute_grid_layout(app->settings, parent);
         }
 
@@ -1018,7 +1018,7 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
         i8  port_src_index, port_dst_index;
 
         if (!parent.connections.can_alloc()) {
-            auto* app = container_of(&ed, &application::c_editor);
+            auto* app = container_of(&ed, &application::component_ed);
             auto& n   = app->notifications.alloc(log_level::error);
             n.title   = "Not enough connection slot in this component";
             format(n.message,
@@ -1030,7 +1030,7 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
 
         if (is_component_input_or_output(start)) {
             if (is_component_input_or_output(end)) {
-                auto* app = container_of(&ed, &application::c_editor);
+                auto* app = container_of(&ed, &application::component_ed);
                 auto& n   = app->notifications.alloc(log_level::error);
                 n.title   = "Can not connect component input on output ports";
                 app->notifications.enable(n);

@@ -77,7 +77,7 @@ component_id component_editor::add_empty_component() noexcept
 
         ret = mod.components.get_id(new_compo);
     } else {
-        auto* app   = container_of(this, &application::c_editor);
+        auto* app   = container_of(this, &application::component_ed);
         auto& notif = app->notifications.alloc(log_level::error);
         notif.title = "Can not allocate new container";
         format(notif.message,
@@ -167,18 +167,19 @@ void task_save_component(void* param) noexcept
     g_task->state = task_status::started;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
-    auto* compo    = g_task->app->c_editor.mod.components.try_to_get(compo_id);
+    auto* compo = g_task->app->component_ed.mod.components.try_to_get(compo_id);
 
     if (compo) {
-        auto* reg =
-          g_task->app->c_editor.mod.registred_paths.try_to_get(compo->reg_path);
-        auto* dir = g_task->app->c_editor.mod.dir_paths.try_to_get(compo->dir);
+        auto* reg = g_task->app->component_ed.mod.registred_paths.try_to_get(
+          compo->reg_path);
+        auto* dir =
+          g_task->app->component_ed.mod.dir_paths.try_to_get(compo->dir);
         auto* file =
-          g_task->app->c_editor.mod.file_paths.try_to_get(compo->file);
+          g_task->app->component_ed.mod.file_paths.try_to_get(compo->file);
 
         if (reg && dir && file) {
             if (is_bad(save_component_impl(
-                  g_task->app->c_editor.mod, *compo, *reg, *dir, *file))) {
+                  g_task->app->component_ed.mod, *compo, *reg, *dir, *file))) {
                 compo->state = component_status::modified;
             } else {
                 compo->state = component_status::unmodified;
@@ -234,16 +235,17 @@ void task_save_description(void* param) noexcept
     g_task->state = task_status::started;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
-    auto* compo    = g_task->app->c_editor.mod.components.try_to_get(compo_id);
+    auto* compo = g_task->app->component_ed.mod.components.try_to_get(compo_id);
 
     if (compo) {
-        auto* reg =
-          g_task->app->c_editor.mod.registred_paths.try_to_get(compo->reg_path);
-        auto* dir = g_task->app->c_editor.mod.dir_paths.try_to_get(compo->dir);
+        auto* reg = g_task->app->component_ed.mod.registred_paths.try_to_get(
+          compo->reg_path);
+        auto* dir =
+          g_task->app->component_ed.mod.dir_paths.try_to_get(compo->dir);
         auto* file =
-          g_task->app->c_editor.mod.file_paths.try_to_get(compo->file);
+          g_task->app->component_ed.mod.file_paths.try_to_get(compo->file);
         auto* desc =
-          g_task->app->c_editor.mod.descriptions.try_to_get(compo->desc);
+          g_task->app->component_ed.mod.descriptions.try_to_get(compo->desc);
 
         if (dir && file && desc) {
             if (is_bad(

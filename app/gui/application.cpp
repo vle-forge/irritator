@@ -46,7 +46,7 @@ application::~application() noexcept
 
 bool application::init() noexcept
 {
-    if (auto ret = c_editor.mod.registred_paths.init(max_component_dirs);
+    if (auto ret = component_ed.mod.registred_paths.init(max_component_dirs);
         is_bad(ret)) {
         log_w(
           *this, log_level::alert, "Fail to initialize registred dir paths");
@@ -57,7 +57,7 @@ bool application::init() noexcept
               log_level::alert,
               "Fail to read settings files. Default parameters used\n");
 
-    if (auto ret = c_editor.mod.init(mod_init); is_bad(ret)) {
+    if (auto ret = component_ed.mod.init(mod_init); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize modeling components: {}\n",
@@ -65,10 +65,10 @@ bool application::init() noexcept
         return false;
     }
 
-    if (c_editor.mod.registred_paths.size() == 0) {
+    if (component_ed.mod.registred_paths.size() == 0) {
         if (auto path = get_system_component_dir(); path) {
-            auto& new_dir    = c_editor.mod.registred_paths.alloc();
-            auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
+            auto& new_dir    = component_ed.mod.registred_paths.alloc();
+            auto  new_dir_id = component_ed.mod.registred_paths.get_id(new_dir);
             new_dir.name     = "System directory";
             new_dir.path     = path.value().string().c_str();
             log_w(*this,
@@ -76,12 +76,12 @@ bool application::init() noexcept
                   "Add system directory: {}\n",
                   new_dir.path.c_str());
 
-            c_editor.mod.component_repertories.emplace_back(new_dir_id);
+            component_ed.mod.component_repertories.emplace_back(new_dir_id);
         }
 
         if (auto path = get_default_user_component_dir(); path) {
-            auto& new_dir    = c_editor.mod.registred_paths.alloc();
-            auto  new_dir_id = c_editor.mod.registred_paths.get_id(new_dir);
+            auto& new_dir    = component_ed.mod.registred_paths.alloc();
+            auto  new_dir_id = component_ed.mod.registred_paths.get_id(new_dir);
             new_dir.name     = "User directory";
             new_dir.path     = path.value().string().c_str();
             log_w(*this,
@@ -89,7 +89,7 @@ bool application::init() noexcept
                   "Add user directory: {}\n",
                   new_dir.path.c_str());
 
-            c_editor.mod.component_repertories.emplace_back(new_dir_id);
+            component_ed.mod.component_repertories.emplace_back(new_dir_id);
         }
     }
 
@@ -125,7 +125,7 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = c_editor.mod.srcs.init(50); is_bad(ret)) {
+    if (auto ret = component_ed.mod.srcs.init(50); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize external sources: {}\n",
@@ -133,19 +133,19 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = c_editor.mod.fill_internal_components(); is_bad(ret)) {
+    if (auto ret = component_ed.mod.fill_internal_components(); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to fill component list: {}\n",
               status_string(ret));
     }
 
-    c_editor.mod.fill_components();
-    c_editor.mod.head           = undefined<tree_node_id>();
-    c_editor.selected_component = undefined<tree_node_id>();
+    component_ed.mod.fill_components();
+    component_ed.mod.head           = undefined<tree_node_id>();
+    component_ed.selected_component = undefined<tree_node_id>();
 
-    auto id = c_editor.add_empty_component();
-    c_editor.open_as_main(id);
+    auto id = component_ed.add_empty_component();
+    component_ed.open_as_main(id);
 
     return true;
 }
@@ -196,7 +196,7 @@ static void application_show_menu(application& app) noexcept
 
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem(
-              "Show modeling editor", nullptr, &app.c_editor.is_open);
+              "Show modeling editor", nullptr, &app.component_ed.is_open);
             ImGui::MenuItem(
               "Show simulation editor", nullptr, &app.s_editor.is_open);
             ImGui::MenuItem(
@@ -238,9 +238,9 @@ static void application_show_menu(application& app) noexcept
 static void application_manage_menu_action(application& app) noexcept
 {
     if (app.new_project_file) {
-        app.c_editor.unselect();
-        auto id = app.c_editor.add_empty_component();
-        app.c_editor.open_as_main(id);
+        app.component_ed.unselect();
+        auto id = app.component_ed.add_empty_component();
+        app.component_ed.open_as_main(id);
         app.new_project_file = false;
     }
 
@@ -255,10 +255,10 @@ static void application_manage_menu_action(application& app) noexcept
                 auto  u8str      = app.project_file.u8string();
                 auto* str        = reinterpret_cast<const char*>(u8str.c_str());
 
-                if (app.c_editor.mod.registred_paths.can_alloc(1)) {
-                    auto& path = app.c_editor.mod.registred_paths.alloc();
-                    auto  id   = app.c_editor.mod.registred_paths.get_id(path);
-                    path.path  = str;
+                if (app.component_ed.mod.registred_paths.can_alloc(1)) {
+                    auto& path = app.component_ed.mod.registred_paths.alloc();
+                    auto id = app.component_ed.mod.registred_paths.get_id(path);
+                    path.path = str;
 
                     app.add_simulation_task(task_load_project, ordinal(id));
                 }
@@ -276,9 +276,9 @@ static void application_manage_menu_action(application& app) noexcept
             auto  u8str = app.project_file.u8string();
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
-            if (app.c_editor.mod.registred_paths.can_alloc(1)) {
-                auto& path = app.c_editor.mod.registred_paths.alloc();
-                auto  id   = app.c_editor.mod.registred_paths.get_id(path);
+            if (app.component_ed.mod.registred_paths.can_alloc(1)) {
+                auto& path = app.component_ed.mod.registred_paths.alloc();
+                auto  id   = app.component_ed.mod.registred_paths.get_id(path);
                 path.path  = str;
 
                 app.add_simulation_task(task_save_project, ordinal(id));
@@ -301,10 +301,10 @@ static void application_manage_menu_action(application& app) noexcept
                 auto  u8str      = app.project_file.u8string();
                 auto* str        = reinterpret_cast<const char*>(u8str.c_str());
 
-                if (app.c_editor.mod.registred_paths.can_alloc(1)) {
-                    auto& path = app.c_editor.mod.registred_paths.alloc();
-                    auto  id   = app.c_editor.mod.registred_paths.get_id(path);
-                    path.path  = str;
+                if (app.component_ed.mod.registred_paths.can_alloc(1)) {
+                    auto& path = app.component_ed.mod.registred_paths.alloc();
+                    auto id = app.component_ed.mod.registred_paths.get_id(path);
+                    path.path = str;
 
                     app.add_simulation_task(task_save_project, ordinal(id));
                 }
@@ -383,8 +383,8 @@ static void application_show_windows(application& app) noexcept
     if (app.project_wnd.is_open)
         app.project_wnd.show();
 
-    if (app.c_editor.is_open)
-        app.c_editor.show();
+    if (app.component_ed.is_open)
+        app.component_ed.show();
 
     if (app.s_editor.is_open)
         app.s_editor.show();
@@ -415,10 +415,10 @@ void application::show() noexcept
     cleanup_sim_or_gui_task(sim_tasks);
     cleanup_sim_or_gui_task(gui_tasks);
 
-    if (!c_editor.mod.log_entries.empty()) {
-        while (!c_editor.mod.log_entries.empty()) {
-            auto& w = c_editor.mod.log_entries.front();
-            c_editor.mod.log_entries.pop_front();
+    if (!component_ed.mod.log_entries.empty()) {
+        while (!component_ed.mod.log_entries.empty()) {
+            auto& w = component_ed.mod.log_entries.front();
+            component_ed.mod.log_entries.pop_front();
 
             auto& n   = notifications.alloc();
             n.level   = w.level;
@@ -461,7 +461,7 @@ void application::show() noexcept
             if (f_dialog.state == file_dialog::status::ok) {
                 select_directory = f_dialog.result;
                 auto* dir_path =
-                  c_editor.mod.registred_paths.try_to_get(select_dir_path);
+                  component_ed.mod.registred_paths.try_to_get(select_dir_path);
                 if (dir_path) {
                     auto str = select_directory.string();
                     dir_path->path.assign(str);

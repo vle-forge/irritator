@@ -150,7 +150,8 @@ static void show_project_hierarchy_child_configuration(component_editor& ed,
                   if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
                       if (auto* machine = compo.hsms.try_to_get(dyn.id);
                           machine) {
-                          auto* app = container_of(&ed, &application::c_editor);
+                          auto* app =
+                            container_of(&ed, &application::component_ed);
                           show_dynamics_inputs(*app,
                                                ed.mod.components.get_id(compo),
                                                compo.models.get_id(*param),
@@ -314,7 +315,7 @@ static void show_hierarchy_settings(component_editor& ed,
 
                         if (!new_dir.make()) {
                             auto* app =
-                              container_of(&ed, &application::c_editor);
+                              container_of(&ed, &application::component_ed);
                             log_w(*app,
                                   log_level::error,
                                   "Fail to create directory `%.*s'",
@@ -368,9 +369,10 @@ static void show_hierarchy_settings(component_editor& ed,
 
                 if (file && dir) {
                     if (ImGui::Button("Save")) {
-                        auto* app = container_of(&ed, &application::c_editor);
-                        auto  compo_id = ed.mod.components.get_id(*compo);
-                        auto  compo    = ordinal(compo_id);
+                        auto* app =
+                          container_of(&ed, &application::component_ed);
+                        auto compo_id = ed.mod.components.get_id(*compo);
+                        auto compo    = ordinal(compo_id);
 
                         app->add_simulation_task(task_save_component, compo);
                         app->add_simulation_task(task_save_description, compo);
@@ -391,7 +393,7 @@ void project_window::show() noexcept
     auto* app = container_of(this, &application::project_wnd);
 
     auto* parent =
-      app->c_editor.mod.tree_nodes.try_to_get(app->c_editor.mod.head);
+      app->component_ed.mod.tree_nodes.try_to_get(app->component_ed.mod.head);
     if (!parent) {
         clear();
         return;
@@ -401,14 +403,17 @@ void project_window::show() noexcept
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Hierarchy", flags)) {
-        show_project_hierarchy(*this, app->c_editor, app->s_editor, *parent);
+        show_project_hierarchy(
+          *this, app->component_ed, app->s_editor, *parent);
 
-        if (auto* parent = app->c_editor.mod.tree_nodes.try_to_get(m_parent);
+        if (auto* parent =
+              app->component_ed.mod.tree_nodes.try_to_get(m_parent);
             parent) {
-            if (auto* compo = app->c_editor.mod.components.try_to_get(m_compo);
+            if (auto* compo =
+                  app->component_ed.mod.components.try_to_get(m_compo);
                 compo) {
                 if (auto* ch = compo->children.try_to_get(m_ch); ch) {
-                    app->c_editor.select(m_parent);
+                    app->component_ed.select(m_parent);
                     clear();
                 }
             }
@@ -416,9 +421,9 @@ void project_window::show() noexcept
     }
 
     if (ImGui::CollapsingHeader("Export component", flags))
-        show_hierarchy_settings(app->c_editor, *parent);
+        show_hierarchy_settings(app->component_ed, *parent);
 
-    if (auto* compo = app->c_editor.mod.components.try_to_get(parent->id);
+    if (auto* compo = app->component_ed.mod.components.try_to_get(parent->id);
         compo) {
         ImGui::TextFormat("component: {}", compo->name.sv());
         ImGui::TextFormat("models: {}", compo->models.size());

@@ -41,7 +41,7 @@ void settings_window::show() noexcept
     static const char* dir_status[] = { "none", "read", "unread" };
 
     auto* app      = container_of(this, &application::settings);
-    auto& c_editor = app->c_editor;
+    auto& c_editor = app->component_ed;
 
     if (ImGui::BeginTable("Component directories", 6)) {
         ImGui::TableSetupColumn(

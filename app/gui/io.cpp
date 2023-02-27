@@ -251,7 +251,7 @@ struct component_setting_handler
         if (top == stack::path_object) {
             bool            found   = false;
             registred_path* reg_dir = nullptr;
-            while (app->c_editor.mod.registred_paths.next(reg_dir)) {
+            while (app->component_ed.mod.registred_paths.next(reg_dir)) {
                 if (reg_dir->path == current.path) {
                     found = true;
                     break;
@@ -259,14 +259,14 @@ struct component_setting_handler
             }
 
             if (!found) {
-                auto& new_reg = app->c_editor.mod.registred_paths.alloc();
-                auto  id = app->c_editor.mod.registred_paths.get_id(new_reg);
+                auto& new_reg = app->component_ed.mod.registred_paths.alloc();
+                auto id = app->component_ed.mod.registred_paths.get_id(new_reg);
                 new_reg.name     = current.name;
                 new_reg.path     = current.path;
                 new_reg.priority = static_cast<i8>(priority);
                 new_reg.status   = registred_path::state::unread;
 
-                app->c_editor.mod.component_repertories.emplace_back(id);
+                app->component_ed.mod.component_repertories.emplace_back(id);
             }
 
             top = stack::paths_array;
@@ -379,7 +379,7 @@ status application::save_settings() noexcept
 
             writer.StartArray();
             registred_path* dir = nullptr;
-            while (c_editor.mod.registred_paths.next(dir)) {
+            while (component_ed.mod.registred_paths.next(dir)) {
                 writer.StartObject();
                 writer.Key("name");
                 writer.String(dir->name.c_str());
@@ -451,14 +451,14 @@ void component_editor::save_project(const char* filename) noexcept
     json_cache cache;
 
     if (auto ret = project_save(mod, cache, filename); is_bad(ret)) {
-        auto* app = container_of(this, &application::c_editor);
+        auto* app = container_of(this, &application::component_ed);
         auto& n   = app->notifications.alloc(log_level::error);
         n.title   = "Save project fail";
         format(n.message, "Can not access file `{}'", filename);
         app->notifications.enable(n);
     } else {
         mod.state = modeling_status::unmodified;
-        auto* app = container_of(this, &application::c_editor);
+        auto* app = container_of(this, &application::component_ed);
         auto& n   = app->notifications.alloc(log_level::notice);
         n.title   = "The file was saved successfully.";
         app->notifications.enable(n);
@@ -470,13 +470,13 @@ void component_editor::load_project(const char* filename) noexcept
     json_cache cache;
 
     if (auto ret = project_load(mod, cache, filename); is_bad(ret)) {
-        auto* app = container_of(this, &application::c_editor);
+        auto* app = container_of(this, &application::component_ed);
         auto& n   = app->notifications.alloc(log_level::error);
         n.title   = "Load project fail";
         format(n.message, "Can not access file `{}'", filename);
         app->notifications.enable(n);
     } else {
-        auto* app = container_of(this, &application::c_editor);
+        auto* app = container_of(this, &application::component_ed);
         auto& n   = app->notifications.alloc(log_level::notice);
         n.title   = "The file was loaded successfully.";
         app->notifications.enable(n);
@@ -492,10 +492,10 @@ void task_load_project(void* param) noexcept
     g_task->state = task_status::started;
 
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
-    auto* file = g_task->app->c_editor.mod.registred_paths.try_to_get(id);
+    auto* file = g_task->app->component_ed.mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->c_editor.load_project(file->path.c_str());
-        g_task->app->c_editor.mod.registred_paths.free(*file);
+        g_task->app->component_ed.load_project(file->path.c_str());
+        g_task->app->component_ed.mod.registred_paths.free(*file);
     }
 
     g_task->state = task_status::finished;
@@ -507,10 +507,10 @@ void task_save_project(void* param) noexcept
     g_task->state = task_status::started;
 
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
-    auto* file = g_task->app->c_editor.mod.registred_paths.try_to_get(id);
+    auto* file = g_task->app->component_ed.mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->c_editor.save_project(file->path.c_str());
-        g_task->app->c_editor.mod.registred_paths.free(*file);
+        g_task->app->component_ed.save_project(file->path.c_str());
+        g_task->app->component_ed.mod.registred_paths.free(*file);
     }
 
     g_task->state = task_status::finished;

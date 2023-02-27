@@ -84,7 +84,7 @@ static void make_copy_error_msg(component_editor& ed,
                                 const S&          fmt,
                                 Args&&... args) noexcept
 {
-    auto* app = container_of(&ed, &application::c_editor);
+    auto* app = container_of(&ed, &application::component_ed);
     auto& n   = app->notifications.alloc(log_level::error);
     n.title   = "Component copy failed";
 
@@ -102,7 +102,7 @@ static void make_init_error_msg(component_editor& ed,
                                 const S&          fmt,
                                 Args&&... args) noexcept
 {
-    auto* app = container_of(&ed, &application::c_editor);
+    auto* app = container_of(&ed, &application::component_ed);
     auto& n   = app->notifications.alloc(log_level::error);
     n.title   = "Simulation initialization fail";
 
@@ -207,7 +207,7 @@ static void task_simulation_clear(void* param) noexcept
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
 
-    simulation_clear(g_task->app->c_editor, g_task->app->s_editor);
+    simulation_clear(g_task->app->component_ed, g_task->app->s_editor);
 
     g_task->state = task_status::finished;
 }
@@ -219,7 +219,7 @@ static void task_simulation_copy(void* param) noexcept
 
     g_task->app->s_editor.force_pause = false;
     g_task->app->s_editor.force_stop  = false;
-    simulation_copy(g_task->app->c_editor, g_task->app->s_editor);
+    simulation_copy(g_task->app->component_ed, g_task->app->s_editor);
 
     g_task->state = task_status::finished;
 }
@@ -231,7 +231,7 @@ static void task_simulation_init(void* param) noexcept
 
     g_task->app->s_editor.force_pause = false;
     g_task->app->s_editor.force_stop  = false;
-    simulation_init(g_task->app->c_editor, g_task->app->s_editor);
+    simulation_init(g_task->app->component_ed, g_task->app->s_editor);
 
     g_task->state = task_status::finished;
 }
@@ -496,7 +496,7 @@ static void task_simulation_finish(void* param) noexcept
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
 
-    task_simulation_finish(g_task->app->c_editor, g_task->app->s_editor);
+    task_simulation_finish(g_task->app->component_ed, g_task->app->s_editor);
 
     g_task->state = task_status::finished;
 }
@@ -514,8 +514,7 @@ static void task_enable_or_disable_debug(void* param) noexcept
                               g_task->app->s_editor.simulation_current);
 
         if (is_bad(ret)) {
-            auto& n =
-              g_task->app->notifications.alloc(log_level::error);
+            auto& n = g_task->app->notifications.alloc(log_level::error);
             n.title = "Debug mode failed to initialize";
             format(n.message,
                    "Fail to initialize the debug mode: {}",
@@ -567,7 +566,7 @@ void simulation_editor::simulation_copy_modeling() noexcept
 
     if (state) {
         auto* app = container_of(this, &application::s_editor);
-        auto& mod = app->c_editor.mod;
+        auto& mod = app->component_ed.mod;
 
         auto* modeling_head = mod.tree_nodes.try_to_get(mod.head);
         if (!modeling_head) {

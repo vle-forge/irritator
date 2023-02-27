@@ -27,7 +27,7 @@ static void show_component_popup_menu(irt::component_editor& ed,
                     new_c.state = component_status::modified;
                     ed.mod.copy(*compo, new_c);
                 } else {
-                    auto* app = container_of(&ed, &application::c_editor);
+                    auto* app = container_of(&ed, &application::component_ed);
                     auto& n   = app->notifications.alloc();
                     n.level   = log_level::error;
                     n.title   = "Can not alloc a new component";
@@ -54,7 +54,7 @@ static bool show_component(component_editor& ed,
                            component&        c,
                            irt::tree_node*   head) noexcept
 {
-    auto*      app        = container_of(&ed, &application::c_editor);
+    auto*      app        = container_of(&ed, &application::component_ed);
     const auto id         = ed.mod.components.get_id(c);
     const bool selected   = head ? id == head->id : false;
     bool       is_deleted = false;
@@ -388,13 +388,13 @@ void library_window::show() noexcept
     }
 
     auto* tree =
-      app->c_editor.mod.tree_nodes.try_to_get(app->c_editor.mod.head);
+      app->component_ed.mod.tree_nodes.try_to_get(app->component_ed.mod.head);
 
-    show_component_library(app->c_editor, tree);
+    show_component_library(app->component_ed, tree);
     ImGui::Separator();
-    show_input_output(app->c_editor);
+    show_input_output(app->component_ed);
     ImGui::Separator();
-    show_selected_children(app->c_editor);
+    show_selected_children(app->component_ed);
 
     ImGui::End();
 }

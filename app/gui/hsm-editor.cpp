@@ -813,7 +813,7 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
     auto* app = container_of(&ed, &application::h_editor);
 
     if (is_defined(cid)) {
-        auto& mod = app->c_editor.mod;
+        auto& mod = app->component_ed.mod;
 
         if (auto* compo = mod.components.try_to_get(cid); compo) {
             if (auto* mdl = compo->models.try_to_get(mid); mdl) {

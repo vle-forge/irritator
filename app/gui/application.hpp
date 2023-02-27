@@ -614,16 +614,17 @@ struct application
     application() noexcept;
     ~application() noexcept;
 
-    component_editor  c_editor;
-    data_window       data_editor;
+    component_editor  component_ed;
     simulation_editor s_editor;
-    hsm_editor        h_editor;
-    settings_window   settings;
-    library_window    library_wnd;
-    project_window    project_wnd;
     output_editor     output_ed;
-    preview_window    preview_wnd;
-    memory_window     memory_wnd;
+    hsm_editor        h_editor;
+
+    data_window     data_editor;
+    settings_window settings;
+    library_window  library_wnd;
+    project_window  project_wnd;
+    preview_window  preview_wnd;
+    memory_window   memory_wnd;
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
