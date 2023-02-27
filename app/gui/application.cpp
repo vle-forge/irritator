@@ -201,8 +201,7 @@ static void application_show_menu(application& app) noexcept
               "Show simulation editor", nullptr, &app.simulation_ed.is_open);
             ImGui::MenuItem(
               "Show output editor", nullptr, &app.output_ed.is_open);
-            ImGui::MenuItem(
-              "Show data editor", nullptr, &app.data_editor.is_open);
+            ImGui::MenuItem("Show data editor", nullptr, &app.data_ed.is_open);
 
             ImGui::MenuItem(
               "Show preview window", nullptr, &app.preview_wnd.is_open);
@@ -392,8 +391,8 @@ static void application_show_windows(application& app) noexcept
     if (app.output_ed.is_open)
         app.output_ed.show();
 
-    if (app.data_editor.is_open)
-        app.data_editor.show();
+    if (app.data_ed.is_open)
+        app.data_ed.show();
 
     if (app.log_window.is_open)
         app.log_window.show();

@@ -619,7 +619,8 @@ struct application
     output_editor     output_ed;
     hsm_editor        hsm_ed;
 
-    data_window     data_editor;
+    data_window data_ed;
+
     settings_window settings;
     library_window  library_wnd;
     project_window  project_wnd;

@@ -185,7 +185,7 @@ static void show_random_distribution_input(random_source& src) noexcept
 
 static void try_init_source(data_window& data, source& src) noexcept
 {
-    auto* app = container_of(&data, &application::data_editor);
+    auto* app = container_of(&data, &application::data_ed);
 
     status ret = app->simulation_ed.sim.srcs.dispatch(
       src, source::operation_type::initialize);
@@ -234,7 +234,7 @@ static void task_try_init_source(void* param) noexcept
     src.id   = g_task->param_1;
     src.type = enum_cast<source::source_type>(g_task->param_2);
 
-    try_init_source(g_task->app->data_editor, src);
+    try_init_source(g_task->app->data_ed, src);
 
     g_task->state = task_status::finished;
 }
@@ -257,7 +257,7 @@ void data_window::show() noexcept
         return;
     }
 
-    auto* app = container_of(this, &application::data_editor);
+    auto* app = container_of(this, &application::data_ed);
 
     auto* old_constant_ptr      = constant_ptr;
     auto* old_text_file_ptr     = text_file_ptr;
