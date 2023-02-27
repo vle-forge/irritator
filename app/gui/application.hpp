@@ -288,6 +288,9 @@ struct preview_window
 
     void show() noexcept;
 
+    double preview_history   = 10.;
+    bool   preview_scrolling = true;
+
     bool is_open = true;
 };
 
@@ -360,7 +363,7 @@ private:
 
 struct simulation_editor
 {
-    constexpr static inline const char* name = "Simulation";
+    constexpr static inline const char* name = "Simulation editor";
 
     enum class visualization_mode
     {
@@ -442,8 +445,6 @@ struct simulation_editor
       copy_obs;
 
     simulation_observation_id selected_sim_obs;
-    double                    preview_history   = 10.;
-    bool                      preview_scrolling = true;
 
     ImNodesEditorContext* context        = nullptr;
     ImPlotContext*        output_context = nullptr;

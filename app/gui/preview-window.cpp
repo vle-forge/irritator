@@ -57,12 +57,11 @@ void preview_window::show() noexcept
       ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
       ImGuiTableFlags_Reorderable;
 
-    ImGui::Checkbox("Enable history", &s_editor.preview_scrolling);
+    ImGui::Checkbox("Enable history", &preview_scrolling);
 
-    ImGui::BeginDisabled(!s_editor.preview_scrolling);
-    if (ImGui::InputDouble("History", &s_editor.preview_history))
-        s_editor.preview_history =
-          s_editor.preview_history <= 0.0 ? 1.0 : s_editor.preview_history;
+    ImGui::BeginDisabled(!preview_scrolling);
+    if (ImGui::InputDouble("History", &preview_history))
+        preview_history = preview_history <= 0.0 ? 1.0 : preview_history;
     ImGui::EndDisabled();
 
     if (ImGui::BeginTable("##table", 1, flags, ImVec2(-1, 0))) {
@@ -94,8 +93,8 @@ void preview_window::show() noexcept
                                   ImPlotAxisFlags_NoDecorations);
 
                 auto start_t = obs->limits.Min;
-                if (s_editor.preview_scrolling) {
-                    start_t = obs->limits.Max - s_editor.preview_history;
+                if (preview_scrolling) {
+                    start_t = obs->limits.Max - preview_history;
                     if (start_t < obs->limits.Min)
                         start_t = obs->limits.Min;
                 }
