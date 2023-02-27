@@ -507,9 +507,9 @@ void show_dynamics_inputs(external_source& /*srcs*/, logical_or_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
 
-void show_dynamics_inputs(application& app,
-                          component_id compo,
-                          model_id id,
+void show_dynamics_inputs(application&                app,
+                          component_id                compo,
+                          model_id                    id,
                           hierarchical_state_machine& machine)
 {
     hierarchical_state_machine copy{ machine };
@@ -518,13 +518,13 @@ void show_dynamics_inputs(application& app,
                 static_cast<int>(machine.get_current_state()));
 
     if (ImGui::Button("Edit")) {
-        app.h_editor.load(compo, id);
+        app.hsm_ed.load(compo, id);
         app.show_hsm_editor = true;
     }
 }
 
-void show_dynamics_inputs(application& app,
-                          model_id id,
+void show_dynamics_inputs(application&                app,
+                          model_id                    id,
                           hierarchical_state_machine& machine)
 {
     hierarchical_state_machine copy{ machine };
@@ -533,8 +533,8 @@ void show_dynamics_inputs(application& app,
                 static_cast<int>(machine.get_current_state()));
 
     if (ImGui::Button("Edit")) {
-        app.h_editor.clear();
-        app.h_editor.load(id);
+        app.hsm_ed.clear();
+        app.hsm_ed.load(id);
         app.show_hsm_editor = true;
     }
 }

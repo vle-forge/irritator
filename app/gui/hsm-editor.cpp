@@ -703,7 +703,7 @@ static void task_hsm_test_start(void* param) noexcept
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = task_status::started;
 
-    auto ret = g_task->app->h_editor.valid();
+    auto ret = g_task->app->hsm_ed.valid();
     if (!ret) {
         auto& n = g_task->app->notifications.alloc(log_level::error);
         n.title = "HSM badly define";
@@ -755,7 +755,7 @@ void hsm_editor::show_panel() noexcept
     ImGui::TextFormat("status: {}", test_status_string[ordinal(m_test)]);
     ImGui::BeginDisabled(match(m_test, test_status::being_processed));
     if (ImGui::Button("test")) {
-        auto* app = container_of(this, &application::h_editor);
+        auto* app = container_of(this, &application::hsm_ed);
         app->add_gui_task(task_hsm_test_start);
     }
     ImGui::EndDisabled();
@@ -810,7 +810,7 @@ bool hsm_editor::valid() noexcept
 static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
   -> hierarchical_state_machine*
 {
-    auto* app = container_of(&ed, &application::h_editor);
+    auto* app = container_of(&ed, &application::hsm_ed);
 
     if (is_defined(cid)) {
         auto& mod = app->component_ed.mod;

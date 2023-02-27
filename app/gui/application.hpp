@@ -617,7 +617,7 @@ struct application
     component_editor  component_ed;
     simulation_editor simulation_ed;
     output_editor     output_ed;
-    hsm_editor        h_editor;
+    hsm_editor        hsm_ed;
 
     data_window     data_editor;
     settings_window settings;

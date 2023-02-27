@@ -479,12 +479,12 @@ void application::show() noexcept
 
     if (show_hsm_editor) {
         ImGui::OpenPopup("HSM editor");
-        if (h_editor.show("HSM editor")) {
-            if (h_editor.state_ok())
-                h_editor.save();
+        if (hsm_ed.show("HSM editor")) {
+            if (hsm_ed.state_ok())
+                hsm_ed.save();
 
-            h_editor.clear();
-            h_editor.hide();
+            hsm_ed.clear();
+            hsm_ed.hide();
             show_hsm_editor = false;
         }
     }
