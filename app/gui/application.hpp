@@ -53,10 +53,7 @@ constexpr T* container_of(M* ptr, const M T::*member)
                                 offset_of(member));
 }
 
-class window_logger;
 struct application;
-struct component_editor;
-struct simulation_editor;
 
 enum class notification_id : u64;
 enum class simulation_observation_id : u64;
