@@ -578,7 +578,7 @@ static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
         }
 
         if (ed.allow_user_changes) {
-            auto* app = container_of(&ed, &application::s_editor);
+            auto* app = container_of(&ed, &application::simulation_ed);
             ImGui::PushItemWidth(120.0f);
 
             if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
@@ -642,7 +642,7 @@ static void add_popup_menuitem(simulation_editor& ed,
                         nullptr,
                         nullptr,
                         enable_menu_item)) {
-        auto* app = container_of(&ed, &application::s_editor);
+        auto* app = container_of(&ed, &application::simulation_ed);
 
         app->add_simulation_task(task_simulation_model_add,
                                  ordinal(type),
@@ -713,14 +713,14 @@ void simulation_editor::add_simulation_observation_for(std::string_view name,
             sim.observe(*mdl, obs);
         } else {
             if (!sim.observers.can_alloc(1)) {
-                auto* app = container_of(this, &application::s_editor);
+                auto* app = container_of(this, &application::simulation_ed);
                 auto& n   = app->notifications.alloc(log_level::error);
                 n.title   = "Too many observer in simulation";
                 app->notifications.enable(n);
             }
 
             if (!sim_obs.can_alloc(1)) {
-                auto* app = container_of(this, &application::s_editor);
+                auto* app = container_of(this, &application::simulation_ed);
                 auto& n   = app->notifications.alloc(log_level::error);
                 n.title   = "Too many simulation observation in simulation";
                 app->notifications.enable(n);
@@ -872,7 +872,7 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
 static void free_children(simulation_editor&   ed,
                           const ImVector<int>& nodes) noexcept
 {
-    auto* app = container_of(&ed, &application::s_editor);
+    auto* app = container_of(&ed, &application::simulation_ed);
 
     const auto tasks = std::min(nodes.size(), task_list_tasks_number);
 
@@ -964,7 +964,7 @@ static void compute_connection_distance(const model&       mdl,
 
 static void compute_automatic_layout(simulation_editor& ed) noexcept
 {
-    auto* app      = container_of(&ed, &application::s_editor);
+    auto* app      = container_of(&ed, &application::simulation_ed);
     auto& settings = app->settings;
 
     /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
@@ -1065,7 +1065,7 @@ static void compute_automatic_layout(simulation_editor& ed) noexcept
 
 static void compute_grid_layout(simulation_editor& ed) noexcept
 {
-    auto* app      = container_of(&ed, &application::s_editor);
+    auto* app      = container_of(&ed, &application::simulation_ed);
     auto& settings = app->settings;
 
     const auto size  = ed.sim.models.max_size();
@@ -1125,29 +1125,31 @@ static void show_simulation_graph_editor_edit_menu(application& app,
 
     if (ImGui::BeginPopup("Context menu")) {
         if (ImGui::MenuItem("Force grid layout")) {
-            compute_grid_layout(app.s_editor);
+            compute_grid_layout(app.simulation_ed);
         }
 
         if (ImGui::MenuItem("Force automatic layout")) {
-            app.s_editor.automatic_layout_iteration =
+            app.simulation_ed.automatic_layout_iteration =
               app.settings.automatic_layout_iteration_limit;
         }
 
         ImGui::MenuItem(
-          "Show internal values", "", &app.s_editor.show_internal_values);
+          "Show internal values", "", &app.simulation_ed.show_internal_values);
+        ImGui::MenuItem("Show internal parameters",
+                        "",
+                        &app.simulation_ed.show_internal_inputs);
         ImGui::MenuItem(
-          "Show internal parameters", "", &app.s_editor.show_internal_inputs);
-        ImGui::MenuItem("Show identifiers", "", &app.s_editor.show_identifiers);
+          "Show identifiers", "", &app.simulation_ed.show_identifiers);
 
         ImGui::Separator();
 
-        const auto can_edit = app.s_editor.can_edit();
+        const auto can_edit = app.simulation_ed.can_edit();
 
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = static_cast<int>(dynamics_type::qss1_integrator);
             const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
             for (; i != e; ++i)
-                add_popup_menuitem(app.s_editor,
+                add_popup_menuitem(app.simulation_ed,
                                    can_edit,
                                    static_cast<dynamics_type>(i),
                                    click_pos);
@@ -1159,7 +1161,7 @@ static void show_simulation_graph_editor_edit_menu(application& app,
             const auto e = static_cast<int>(dynamics_type::qss2_wsum_4) + 1;
 
             for (; i != e; ++i)
-                add_popup_menuitem(app.s_editor,
+                add_popup_menuitem(app.simulation_ed,
                                    can_edit,
                                    static_cast<dynamics_type>(i),
                                    click_pos);
@@ -1171,7 +1173,7 @@ static void show_simulation_graph_editor_edit_menu(application& app,
             const auto e = static_cast<int>(dynamics_type::qss3_wsum_4) + 1;
 
             for (; i != e; ++i)
-                add_popup_menuitem(app.s_editor,
+                add_popup_menuitem(app.simulation_ed,
                                    can_edit,
                                    static_cast<dynamics_type>(i),
                                    click_pos);
@@ -1179,61 +1181,77 @@ static void show_simulation_graph_editor_edit_menu(application& app,
         }
 
         if (ImGui::BeginMenu("AQSS (experimental)")) {
+            add_popup_menuitem(app.simulation_ed,
+                               can_edit,
+                               dynamics_type::integrator,
+                               click_pos);
+            add_popup_menuitem(app.simulation_ed,
+                               can_edit,
+                               dynamics_type::quantifier,
+                               click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::integrator, click_pos);
+              app.simulation_ed, can_edit, dynamics_type::adder_2, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::quantifier, click_pos);
+              app.simulation_ed, can_edit, dynamics_type::adder_3, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::adder_2, click_pos);
+              app.simulation_ed, can_edit, dynamics_type::adder_4, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::adder_3, click_pos);
+              app.simulation_ed, can_edit, dynamics_type::mult_2, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::adder_4, click_pos);
+              app.simulation_ed, can_edit, dynamics_type::mult_3, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::mult_2, click_pos);
+              app.simulation_ed, can_edit, dynamics_type::mult_4, click_pos);
             add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::mult_3, click_pos);
-            add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::mult_4, click_pos);
-            add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::cross, click_pos);
+              app.simulation_ed, can_edit, dynamics_type::cross, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Logical")) {
-            add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_and_2, click_pos);
-            add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_or_2, click_pos);
-            add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_and_3, click_pos);
-            add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_or_3, click_pos);
-            add_popup_menuitem(
-              app.s_editor, can_edit, dynamics_type::logical_invert, click_pos);
+            add_popup_menuitem(app.simulation_ed,
+                               can_edit,
+                               dynamics_type::logical_and_2,
+                               click_pos);
+            add_popup_menuitem(app.simulation_ed,
+                               can_edit,
+                               dynamics_type::logical_or_2,
+                               click_pos);
+            add_popup_menuitem(app.simulation_ed,
+                               can_edit,
+                               dynamics_type::logical_and_3,
+                               click_pos);
+            add_popup_menuitem(app.simulation_ed,
+                               can_edit,
+                               dynamics_type::logical_or_3,
+                               click_pos);
+            add_popup_menuitem(app.simulation_ed,
+                               can_edit,
+                               dynamics_type::logical_invert,
+                               click_pos);
             ImGui::EndMenu();
         }
 
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::counter, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::counter, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::queue, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::queue, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::dynamic_queue, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::dynamic_queue, click_pos);
+        add_popup_menuitem(app.simulation_ed,
+                           can_edit,
+                           dynamics_type::priority_queue,
+                           click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::priority_queue, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::generator, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::generator, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::constant, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::constant, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::time_func, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::time_func, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::accumulator_2, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::accumulator_2, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::filter, click_pos);
         add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::filter, click_pos);
-        add_popup_menuitem(
-          app.s_editor, can_edit, dynamics_type::hsm_wrapper, click_pos);
+          app.simulation_ed, can_edit, dynamics_type::hsm_wrapper, click_pos);
 
         ImGui::EndPopup();
     }
@@ -1243,31 +1261,32 @@ static void show_simulation_graph_editor_edit_menu(application& app,
 
 static void show_simulation_graph_editor(application& app) noexcept
 {
-    ImNodes::EditorContextSet(app.s_editor.context);
+    ImNodes::EditorContextSet(app.simulation_ed.context);
 
     ImNodes::BeginNodeEditor();
 
-    if (app.s_editor.automatic_layout_iteration > 0) {
-        compute_automatic_layout(app.s_editor);
-        --app.s_editor.automatic_layout_iteration;
+    if (app.simulation_ed.automatic_layout_iteration > 0) {
+        compute_automatic_layout(app.simulation_ed);
+        --app.simulation_ed.automatic_layout_iteration;
     }
 
-    show_top(app.s_editor);
-    show_connections(app.s_editor);
+    show_top(app.simulation_ed);
+    show_connections(app.simulation_ed);
 
     ImVec2 click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
     show_simulation_graph_editor_edit_menu(app, click_pos);
 
-    if (app.s_editor.show_minimap)
+    if (app.simulation_ed.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
 
     ImNodes::EndNodeEditor();
 
     {
-        auto& sim   = app.s_editor.sim;
+        auto& sim   = app.simulation_ed.sim;
         int   start = 0, end = 0;
 
-        if (ImNodes::IsLinkCreated(&start, &end) && app.s_editor.can_edit()) {
+        if (ImNodes::IsLinkCreated(&start, &end) &&
+            app.simulation_ed.can_edit()) {
             const gport out = get_out(sim, start);
             const gport in  = get_in(sim, end);
 
@@ -1291,51 +1310,51 @@ static void show_simulation_graph_editor(application& app) noexcept
     int num_selected_nodes = ImNodes::NumSelectedNodes();
 
     if (num_selected_nodes == 0) {
-        app.s_editor.selected_nodes.clear();
+        app.simulation_ed.selected_nodes.clear();
         ImNodes::ClearNodeSelection();
     }
 
     if (num_selected_links == 0) {
-        app.s_editor.selected_links.clear();
+        app.simulation_ed.selected_links.clear();
         ImNodes::ClearLinkSelection();
     }
 
-    if (app.s_editor.can_edit() && num_selected_nodes > 0) {
-        app.s_editor.selected_nodes.resize(num_selected_nodes, -1);
-        ImNodes::GetSelectedNodes(app.s_editor.selected_nodes.begin());
+    if (app.simulation_ed.can_edit() && num_selected_nodes > 0) {
+        app.simulation_ed.selected_nodes.resize(num_selected_nodes, -1);
+        ImNodes::GetSelectedNodes(app.simulation_ed.selected_nodes.begin());
 
         if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-            free_children(app.s_editor, app.s_editor.selected_nodes);
-            app.s_editor.selected_nodes.clear();
+            free_children(app.simulation_ed, app.simulation_ed.selected_nodes);
+            app.simulation_ed.selected_nodes.clear();
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();
         } else if (ImGui::IsKeyReleased(ImGuiKey_D)) {
-            copy(app.s_editor, app.s_editor.selected_nodes);
-            app.s_editor.selected_nodes.clear();
+            copy(app.simulation_ed, app.simulation_ed.selected_nodes);
+            app.simulation_ed.selected_nodes.clear();
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();
         }
-    } else if (app.s_editor.can_edit() && num_selected_links > 0) {
-        app.s_editor.selected_links.resize(num_selected_links);
+    } else if (app.simulation_ed.can_edit() && num_selected_links > 0) {
+        app.simulation_ed.selected_links.resize(num_selected_links);
 
         if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-            std::fill_n(app.s_editor.selected_links.begin(),
-                        app.s_editor.selected_links.size(),
+            std::fill_n(app.simulation_ed.selected_links.begin(),
+                        app.simulation_ed.selected_links.size(),
                         -1);
-            ImNodes::GetSelectedLinks(app.s_editor.selected_links.begin());
-            std::sort(app.s_editor.selected_links.begin(),
-                      app.s_editor.selected_links.end(),
+            ImNodes::GetSelectedLinks(app.simulation_ed.selected_links.begin());
+            std::sort(app.simulation_ed.selected_links.begin(),
+                      app.simulation_ed.selected_links.end(),
                       std::less<int>());
 
-            int link_id_to_delete = app.s_editor.selected_links[0];
+            int link_id_to_delete = app.simulation_ed.selected_links[0];
             int current_link_id   = 0;
             int i                 = 0;
 
-            auto selected_links_ptr  = app.s_editor.selected_links.Data;
-            auto selected_links_size = app.s_editor.selected_links.Size;
+            auto selected_links_ptr  = app.simulation_ed.selected_links.Data;
+            auto selected_links_size = app.simulation_ed.selected_links.Size;
 
             model* mdl = nullptr;
-            while (app.s_editor.sim.models.next(mdl) &&
+            while (app.simulation_ed.sim.models.next(mdl) &&
                    link_id_to_delete != -1) {
                 dispatch(
                   *mdl,
@@ -1351,7 +1370,7 @@ static void show_simulation_graph_editor(application& app) noexcept
 
                           while (j < e && link_id_to_delete != -1) {
                               auto list =
-                                append_node(app.s_editor.sim, dyn.y[j]);
+                                append_node(app.simulation_ed.sim, dyn.y[j]);
                               auto it = list.begin();
                               auto et = list.end();
 
@@ -1381,7 +1400,7 @@ static void show_simulation_graph_editor(application& app) noexcept
             }
 
             num_selected_links = 0;
-            app.s_editor.selected_links.resize(0);
+            app.simulation_ed.selected_links.resize(0);
             ImNodes::ClearLinkSelection();
         }
     }
@@ -1527,7 +1546,7 @@ void simulation_editor::show() noexcept
 
     if (ImGui::BeginTabBar("##SimulationTabBar")) {
         if (ImGui::BeginTabItem("graph")) {
-            auto* app = container_of(this, &application::s_editor);
+            auto* app = container_of(this, &application::simulation_ed);
             show_simulation_graph_editor(*app);
             ImGui::EndTabItem();
         }
@@ -1548,7 +1567,7 @@ void task_simulation_model_add(void* param) noexcept
     auto* task  = reinterpret_cast<simulation_task*>(param);
     task->state = task_status::started;
 
-    auto& sim = task->app->s_editor.sim;
+    auto& sim = task->app->simulation_ed.sim;
 
     if (!sim.can_alloc(1)) {
         auto& n = task->app->notifications.alloc(log_level::error);
@@ -1561,7 +1580,8 @@ void task_simulation_model_add(void* param) noexcept
     auto& mdl    = sim.alloc(enum_cast<dynamics_type>(task->param_1));
     auto  mdl_id = sim.models.get_id(mdl);
 
-    auto ret = sim.make_initialize(mdl, task->app->s_editor.simulation_current);
+    auto ret =
+      sim.make_initialize(mdl, task->app->simulation_ed.simulation_current);
     if (is_bad(ret)) {
         sim.deallocate(mdl_id);
 
@@ -1575,7 +1595,7 @@ void task_simulation_model_add(void* param) noexcept
     const auto   x = static_cast<float>(task->param_2);
     const auto   y = static_cast<float>(task->param_3);
     const ImVec2 pos{ x, y };
-    task->app->s_editor.models_to_move.push(
+    task->app->simulation_ed.models_to_move.push(
       simulation_editor::model_to_move{ .id = mdl_id, .position = pos });
 
     task->state = task_status::finished;
@@ -1586,7 +1606,7 @@ void task_simulation_model_del(void* param) noexcept
     auto* task  = reinterpret_cast<simulation_task*>(param);
     task->state = task_status::started;
 
-    auto& sim    = task->app->s_editor.sim;
+    auto& sim    = task->app->simulation_ed.sim;
     auto  mdl_id = enum_cast<model_id>(task->param_1);
     sim.deallocate(mdl_id);
 

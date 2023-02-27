@@ -18,7 +18,7 @@ void task_remove_simulation_observation(void* param) noexcept
     task->state = task_status::started;
 
     auto& app    = *task->app;
-    auto& sim_ed = app.s_editor;
+    auto& sim_ed = app.simulation_ed;
     auto  mdl_id = enum_cast<model_id>(task->param_1);
 
     sim_ed.remove_simulation_observation_from(mdl_id);
@@ -32,7 +32,7 @@ void task_add_simulation_observation(void* param) noexcept
     g_task->state = task_status::started;
 
     auto& app    = *g_task->app;
-    auto& sim_ed = app.s_editor;
+    auto& sim_ed = app.simulation_ed;
     auto  mdl_id = enum_cast<model_id>(g_task->param_1);
 
     small_string<15> name;
@@ -50,7 +50,7 @@ void preview_window::show() noexcept
     }
 
     auto* app      = container_of(this, &application::preview_wnd);
-    auto& s_editor = app->s_editor;
+    auto& s_editor = app->simulation_ed;
 
     const ImGuiTableFlags flags =
       ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |

@@ -826,7 +826,7 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
             }
         }
     } else {
-        auto& sim = app->s_editor.sim;
+        auto& sim = app->simulation_ed.sim;
 
         if (auto* mdl = sim.models.try_to_get(mid); mdl) {
             if (mdl->type == dynamics_type::hsm_wrapper) {

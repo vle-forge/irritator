@@ -91,9 +91,9 @@ static void simulation_observation_job_update(void* param) noexcept
 {
     auto* job = reinterpret_cast<simulation_observation_job*>(param);
 
-    if (auto* obs = job->app->s_editor.sim.observers.try_to_get(job->id)) {
+    if (auto* obs = job->app->simulation_ed.sim.observers.try_to_get(job->id)) {
         auto sim_obs_id = enum_cast<simulation_observation_id>(obs->user_id);
-        if (auto* sobs = job->app->s_editor.sim_obs.try_to_get(sim_obs_id);
+        if (auto* sobs = job->app->simulation_ed.sim_obs.try_to_get(sim_obs_id);
             sobs)
             sobs->update(*obs);
     }
@@ -105,9 +105,9 @@ static void simulation_observation_job_finish(void* param) noexcept
 {
     auto* job = reinterpret_cast<simulation_observation_job*>(param);
 
-    if (auto* obs = job->app->s_editor.sim.observers.try_to_get(job->id)) {
+    if (auto* obs = job->app->simulation_ed.sim.observers.try_to_get(job->id)) {
         auto sim_obs_id = enum_cast<simulation_observation_id>(obs->user_id);
-        if (auto* sobs = job->app->s_editor.sim_obs.try_to_get(sim_obs_id);
+        if (auto* sobs = job->app->simulation_ed.sim_obs.try_to_get(sim_obs_id);
             sobs)
             sobs->flush(*obs);
     }
@@ -118,7 +118,7 @@ static void simulation_observation_job_finish(void* param) noexcept
    immediate_observers is empty then all observers are update. */
 void simulation_editor::build_observation_output() noexcept
 {
-    auto* app = container_of(this, &application::s_editor);
+    auto* app = container_of(this, &application::simulation_ed);
 
     constexpr int              capacity = 255;
     simulation_observation_job jobs[capacity];

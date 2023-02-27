@@ -187,8 +187,8 @@ static void try_init_source(data_window& data, source& src) noexcept
 {
     auto* app = container_of(&data, &application::data_editor);
 
-    status ret =
-      app->s_editor.sim.srcs.dispatch(src, source::operation_type::initialize);
+    status ret = app->simulation_ed.sim.srcs.dispatch(
+      src, source::operation_type::initialize);
 
     if (is_bad(ret)) {
         auto& n = app->notifications.alloc(log_level::error);
@@ -215,8 +215,8 @@ static void task_try_finalize_source(application&        app,
     source src;
     src.id   = id;
     src.type = type;
-    auto ret =
-      app.s_editor.sim.srcs.dispatch(src, source::operation_type::finalize);
+    auto ret = app.simulation_ed.sim.srcs.dispatch(
+      src, source::operation_type::finalize);
 
     if (is_bad(ret)) {
         auto& n = app.notifications.alloc(log_level::error);

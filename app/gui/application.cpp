@@ -97,8 +97,8 @@ bool application::init() noexcept
         log_w(*this, log_level::error, "Fail to save settings files.\n");
     }
 
-    if (auto ret = s_editor.sim.init(mod_init.model_capacity,
-                                     mod_init.model_capacity * 256);
+    if (auto ret = simulation_ed.sim.init(mod_init.model_capacity,
+                                          mod_init.model_capacity * 256);
         is_bad(ret)) {
         log_w(*this,
               log_level::error,
@@ -107,9 +107,9 @@ bool application::init() noexcept
         return false;
     }
 
-    s_editor.displacements.resize(mod_init.model_capacity);
+    simulation_ed.displacements.resize(mod_init.model_capacity);
 
-    if (auto ret = s_editor.sim_obs.init(16); is_bad(ret)) {
+    if (auto ret = simulation_ed.sim_obs.init(16); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize simulation observation: {}\n",
@@ -117,7 +117,7 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = s_editor.copy_obs.init(16); is_bad(ret)) {
+    if (auto ret = simulation_ed.copy_obs.init(16); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize copy simulation observation: {}\n",
@@ -198,7 +198,7 @@ static void application_show_menu(application& app) noexcept
             ImGui::MenuItem(
               "Show modeling editor", nullptr, &app.component_ed.is_open);
             ImGui::MenuItem(
-              "Show simulation editor", nullptr, &app.s_editor.is_open);
+              "Show simulation editor", nullptr, &app.simulation_ed.is_open);
             ImGui::MenuItem(
               "Show output editor", nullptr, &app.output_ed.is_open);
             ImGui::MenuItem(
@@ -316,8 +316,8 @@ static void application_manage_menu_action(application& app) noexcept
     }
 
     if (app.output_ed.write_output) {
-        auto* obs =
-          app.s_editor.sim_obs.try_to_get(app.s_editor.selected_sim_obs);
+        auto* obs = app.simulation_ed.sim_obs.try_to_get(
+          app.simulation_ed.selected_sim_obs);
 
         if (obs) {
             const char*              title = "Select raw file path to save";
@@ -331,7 +331,7 @@ static void application_manage_menu_action(application& app) noexcept
                     obs->write(obs->file);
                 }
 
-                app.s_editor.selected_sim_obs =
+                app.simulation_ed.selected_sim_obs =
                   undefined<simulation_observation_id>();
                 app.output_ed.write_output = false;
                 app.f_dialog.clear();
@@ -386,8 +386,8 @@ static void application_show_windows(application& app) noexcept
     if (app.component_ed.is_open)
         app.component_ed.show();
 
-    if (app.s_editor.is_open)
-        app.s_editor.show();
+    if (app.simulation_ed.is_open)
+        app.simulation_ed.show();
 
     if (app.output_ed.is_open)
         app.output_ed.show();
@@ -435,7 +435,7 @@ void application::show() noexcept
     application_show_menu(*this);
     application_manage_menu_action(*this);
 
-    s_editor.simulation_update_state();
+    simulation_ed.simulation_update_state();
 
     if (show_imgui_demo)
         ImGui::ShowDemoWindow(&show_imgui_demo);
@@ -552,10 +552,10 @@ void task_simulation_back(void* param) noexcept
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
 
-    if (g_task->app->s_editor.tl.can_back()) {
-        auto ret = back(g_task->app->s_editor.tl,
-                        g_task->app->s_editor.sim,
-                        g_task->app->s_editor.simulation_current);
+    if (g_task->app->simulation_ed.tl.can_back()) {
+        auto ret = back(g_task->app->simulation_ed.tl,
+                        g_task->app->simulation_ed.sim,
+                        g_task->app->simulation_ed.simulation_current);
 
         if (is_bad(ret)) {
             auto& n = g_task->app->notifications.alloc(log_level::error);
@@ -573,10 +573,10 @@ void task_simulation_advance(void* param) noexcept
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
 
-    if (g_task->app->s_editor.tl.can_advance()) {
-        auto ret = advance(g_task->app->s_editor.tl,
-                           g_task->app->s_editor.sim,
-                           g_task->app->s_editor.simulation_current);
+    if (g_task->app->simulation_ed.tl.can_advance()) {
+        auto ret = advance(g_task->app->simulation_ed.tl,
+                           g_task->app->simulation_ed.sim,
+                           g_task->app->simulation_ed.simulation_current);
 
         if (is_bad(ret)) {
             auto& n = g_task->app->notifications.alloc(log_level::error);

@@ -404,7 +404,7 @@ void project_window::show() noexcept
 
     if (ImGui::CollapsingHeader("Hierarchy", flags)) {
         show_project_hierarchy(
-          *this, app->component_ed, app->s_editor, *parent);
+          *this, app->component_ed, app->simulation_ed, *parent);
 
         if (auto* parent =
               app->component_ed.mod.tree_nodes.try_to_get(m_parent);

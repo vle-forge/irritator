@@ -615,7 +615,7 @@ struct application
     ~application() noexcept;
 
     component_editor  component_ed;
-    simulation_editor s_editor;
+    simulation_editor simulation_ed;
     output_editor     output_ed;
     hsm_editor        h_editor;
 

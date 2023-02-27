@@ -49,8 +49,8 @@ static void show_observation_table(application& app) noexcept
 
         ImGui::TableHeadersRow();
         simulation_observation* out = nullptr;
-        while (app.s_editor.sim_obs.next(out)) {
-            const auto id = app.s_editor.sim_obs.get_id(*out);
+        while (app.simulation_ed.sim_obs.next(out)) {
+            const auto id = app.simulation_ed.sim_obs.get_id(*out);
             ImGui::PushID(out);
             ImGui::TableNextRow();
 
@@ -60,7 +60,8 @@ static void show_observation_table(application& app) noexcept
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", ordinal(app.s_editor.sim_obs.get_id(*out)));
+            ImGui::TextFormat("{}",
+                              ordinal(app.simulation_ed.sim_obs.get_id(*out)));
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
             if (ImGui::InputReal("##ts", &out->time_step))
@@ -84,8 +85,8 @@ static void show_observation_table(application& app) noexcept
 
             ImGui::TableNextColumn();
             if (ImGui::Button("copy")) {
-                if (app.s_editor.copy_obs.can_alloc(1)) {
-                    auto& new_obs          = app.s_editor.copy_obs.alloc();
+                if (app.simulation_ed.copy_obs.can_alloc(1)) {
+                    auto& new_obs          = app.simulation_ed.copy_obs.alloc();
                     new_obs.name           = out->name;
                     new_obs.linear_outputs = out->linear_outputs;
                 }
@@ -93,9 +94,9 @@ static void show_observation_table(application& app) noexcept
 
             ImGui::SameLine();
             if (ImGui::Button("write")) {
-                app.s_editor.selected_sim_obs = id;
-                app.output_ed.write_output    = true;
-                auto err                      = std::error_code{};
+                app.simulation_ed.selected_sim_obs = id;
+                app.output_ed.write_output         = true;
+                auto err                           = std::error_code{};
                 auto file_path = std::filesystem::current_path(err);
                 out->write(file_path);
             }
@@ -108,8 +109,8 @@ static void show_observation_table(application& app) noexcept
         }
 
         simulation_observation_copy *copy = nullptr, *prev = nullptr;
-        while (app.s_editor.copy_obs.next(copy)) {
-            const auto id = app.s_editor.copy_obs.get_id(*copy);
+        while (app.simulation_ed.copy_obs.next(copy)) {
+            const auto id = app.simulation_ed.copy_obs.get_id(*copy);
             ImGui::PushID(copy);
             ImGui::TableNextRow();
 
@@ -140,7 +141,7 @@ static void show_observation_table(application& app) noexcept
 
             ImGui::TableNextColumn();
             if (ImGui::Button("del")) {
-                app.s_editor.copy_obs.free(*copy);
+                app.simulation_ed.copy_obs.free(*copy);
                 copy = prev;
             }
 
@@ -163,7 +164,7 @@ static void show_observation_plot(application& app) noexcept
           nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
 
         simulation_observation* obs = nullptr;
-        while (app.s_editor.sim_obs.next(obs)) {
+        while (app.simulation_ed.sim_obs.next(obs)) {
             if (obs->linear_outputs.size() > 0) {
                 switch (obs->plot_type) {
                 case simulation_plot_type::plotlines:
@@ -187,7 +188,7 @@ static void show_observation_plot(application& app) noexcept
         }
 
         simulation_observation_copy* copy = nullptr;
-        while (app.s_editor.copy_obs.next(copy)) {
+        while (app.simulation_ed.copy_obs.next(copy)) {
             if (copy->linear_outputs.size() > 0) {
                 switch (copy->plot_type) {
                 case simulation_plot_type::plotlines:
