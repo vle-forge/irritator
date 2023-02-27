@@ -196,18 +196,21 @@ static void application_show_menu(application& app) noexcept
 
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem(
-              "Show modeling editor", nullptr, &app.show_modeling);
+              "Show modeling editor", nullptr, &app.c_editor.is_open);
             ImGui::MenuItem(
-              "Show simulation editor", nullptr, &app.show_simulation);
-            ImGui::MenuItem("Show output editor", nullptr, &app.show_output);
-            ImGui::MenuItem("Show data editor", nullptr, &app.show_data);
+              "Show simulation editor", nullptr, &app.s_editor.is_open);
+            ImGui::MenuItem(
+              "Show output editor", nullptr, &app.output_ed.is_open);
+            ImGui::MenuItem(
+              "Show data editor", nullptr, &app.data_editor.is_open);
 
             ImGui::MenuItem(
-              "Show observation window", nullptr, &app.show_observation);
+              "Show preview window", nullptr, &app.preview_wnd.is_open);
             ImGui::MenuItem(
-              "Show component hierarchy", nullptr, &app.show_components);
+              "Show component hierarchy", nullptr, &app.library_wnd.is_open);
 
-            ImGui::MenuItem("Show memory usage", nullptr, &app.show_memory);
+            ImGui::MenuItem(
+              "Show memory usage", nullptr, &app.memory_wnd.is_open);
             ImGui::MenuItem("Show task usage", nullptr, &app.t_window.is_open);
             ImGui::EndMenu();
         }
@@ -312,7 +315,7 @@ static void application_manage_menu_action(application& app) noexcept
         }
     }
 
-    if (app.s_editor.output_ed.write_output) {
+    if (app.output_ed.write_output) {
         auto* obs =
           app.s_editor.sim_obs.try_to_get(app.s_editor.selected_sim_obs);
 
@@ -330,7 +333,7 @@ static void application_manage_menu_action(application& app) noexcept
 
                 app.s_editor.selected_sim_obs =
                   undefined<simulation_observation_id>();
-                app.s_editor.output_ed.write_output = false;
+                app.output_ed.write_output = false;
                 app.f_dialog.clear();
             }
         }
@@ -345,8 +348,6 @@ static void application_show_windows(application& app) noexcept
     ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGuiID        dockspace_id =
       ImGui::DockSpaceOverViewport(viewport, dockspace_flags);
-
-    constexpr ImGuiWindowFlags window_flags = 0;
 
     static auto first_time = true;
     if (first_time) {
@@ -364,68 +365,44 @@ static void application_show_windows(application& app) noexcept
         auto dock_id_down = ImGui::DockBuilderSplitNode(
           dockspace_id, ImGuiDir_Down, 0.2f, nullptr, &dockspace_id);
 
-        ImGui::DockBuilderDockWindow("Project", dock_id_left);
+        ImGui::DockBuilderDockWindow(project_window::name, dock_id_left);
 
-        ImGui::DockBuilderDockWindow("Modeling", dockspace_id);
-        ImGui::DockBuilderDockWindow("Simulation", dockspace_id);
-        ImGui::DockBuilderDockWindow("Outputs", dockspace_id);
-        ImGui::DockBuilderDockWindow("Inputs", dockspace_id);
+        ImGui::DockBuilderDockWindow(component_editor::name, dockspace_id);
+        ImGui::DockBuilderDockWindow(simulation_editor::name, dockspace_id);
+        ImGui::DockBuilderDockWindow(output_editor::name, dockspace_id);
+        ImGui::DockBuilderDockWindow(data_window::name, dockspace_id);
 
-        ImGui::DockBuilderDockWindow("Libraries", dock_id_right);
-        ImGui::DockBuilderDockWindow("Observations", dock_id_right);
+        ImGui::DockBuilderDockWindow(app.library_wnd.name, dock_id_right);
+        ImGui::DockBuilderDockWindow(app.preview_wnd.name, dock_id_right);
 
-        ImGui::DockBuilderDockWindow("Log", dock_id_down);
+        ImGui::DockBuilderDockWindow(window_logger::name, dock_id_down);
 
         ImGui::DockBuilderFinish(dockspace_id);
     }
 
-    if (app.show_project) {
-        if (ImGui::Begin("Project", &app.show_project, window_flags))
-            app.show_project_window();
-        ImGui::End();
-    }
+    if (app.project_wnd.is_open)
+        app.project_wnd.show();
 
-    if (app.show_modeling) {
-        if (ImGui::Begin("Modeling", &app.show_modeling, window_flags))
-            app.show_modeling_editor_widget();
-        ImGui::End();
-    }
+    if (app.c_editor.is_open)
+        app.c_editor.show();
 
-    if (app.show_simulation) {
-        if (ImGui::Begin("Simulation", &app.show_simulation, window_flags))
-            app.show_simulation_editor_widget();
-        ImGui::End();
-    }
+    if (app.s_editor.is_open)
+        app.s_editor.show();
 
-    if (app.show_output) {
-        if (ImGui::Begin("Outputs", &app.show_output, window_flags))
-            app.show_output_editor_widget();
-        ImGui::End();
-    }
+    if (app.output_ed.is_open)
+        app.output_ed.show();
 
-    if (app.show_data) {
-        if (ImGui::Begin("Inputs", &app.show_data, window_flags))
-            app.show_external_sources();
-        ImGui::End();
-    }
+    if (app.data_editor.is_open)
+        app.data_editor.show();
 
-    if (app.show_log) {
-        if (ImGui::Begin("Log", &app.show_log, window_flags))
-            app.show_log_window();
-        ImGui::End();
-    }
+    if (app.log_window.is_open)
+        app.log_window.show();
 
-    if (app.show_components) {
-        if (ImGui::Begin("Libraries", &app.show_components, window_flags))
-            app.show_components_window();
-        ImGui::End();
-    }
+    if (app.library_wnd.is_open)
+        app.library_wnd.show();
 
-    if (app.show_observation) {
-        if (ImGui::Begin("Observations", &app.show_observation, window_flags))
-            app.show_simulation_observation_window();
-        ImGui::End();
-    }
+    if (app.preview_wnd.is_open)
+        app.preview_wnd.show();
 }
 
 void application::show() noexcept
@@ -461,30 +438,21 @@ void application::show() noexcept
     s_editor.simulation_update_state();
 
     if (show_imgui_demo)
-        ImGui::ShowDemoWindow();
+        ImGui::ShowDemoWindow(&show_imgui_demo);
 
     if (show_implot_demo)
-        ImPlot::ShowDemoWindow();
+        ImPlot::ShowDemoWindow(&show_implot_demo);
 
     application_show_windows(*this);
 
-    if (show_hsm_editor) {
-        ImGui::OpenPopup("HSM editor");
-        if (h_editor.show("HSM editor")) {
-            if (h_editor.state_ok())
-                h_editor.save();
+    if (memory_wnd.is_open)
+        memory_wnd.show();
 
-            h_editor.clear();
-            h_editor.hide();
-            show_hsm_editor = false;
-        }
-    }
+    if (t_window.is_open)
+        t_window.show();
 
-    if (show_memory)
-        show_memory_box(&show_memory);
-
-    t_window.show();
-    settings.show();
+    if (settings.is_open)
+        settings.show();
 
     if (show_select_directory_dialog) {
         const char* title = "Select directory";
@@ -506,6 +474,18 @@ void application::show() noexcept
 
             f_dialog.clear();
             show_select_directory_dialog = false;
+        }
+    }
+
+    if (show_hsm_editor) {
+        ImGui::OpenPopup("HSM editor");
+        if (h_editor.show("HSM editor")) {
+            if (h_editor.state_ok())
+                h_editor.save();
+
+            h_editor.clear();
+            h_editor.hide();
+            show_hsm_editor = false;
         }
     }
 

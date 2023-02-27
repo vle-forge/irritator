@@ -101,15 +101,17 @@ void task_window::show_widgets() noexcept
 
 void task_window::show() noexcept
 {
-    if (is_open) {
-        ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
+    ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
 
-        if (ImGui::Begin(task_window::name, &is_open))
-            show_widgets();
-
+    if (!ImGui::Begin(task_window::name, &is_open)) {
         ImGui::End();
+        return;
     }
+
+    show_widgets();
+
+    ImGui::End();
 }
 
 } // irt

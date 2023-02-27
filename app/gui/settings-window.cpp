@@ -27,9 +27,6 @@ void settings_window::update() noexcept
 
 void settings_window::show() noexcept
 {
-    if (!is_open)
-        return;
-
     ImGui::SetNextWindowPos(ImVec2(640, 480), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
 

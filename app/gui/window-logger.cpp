@@ -29,6 +29,11 @@ auto window_logger::enqueue() noexcept -> window_logger::string_t&
 
 void window_logger::show() noexcept
 {
+    if (!ImGui::Begin(window_logger::name, &is_open)) {
+        ImGui::End();
+        return;
+    }
+
     if (ImGui::BeginPopup("Options")) {
         if (ImGui::Checkbox("Auto-scroll", &auto_scroll))
             if (auto_scroll)
@@ -61,8 +66,8 @@ void window_logger::show() noexcept
         ImGui::SetScrollHereY(1.0f);
     scroll_to_bottom = false;
     ImGui::EndChild();
-}
 
-void application::show_log_window() noexcept { log_window.show(); }
+    ImGui::End();
+}
 
 } // irt

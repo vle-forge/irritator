@@ -153,6 +153,8 @@ private:
 class window_logger
 {
 public:
+    constexpr static inline const char* name = "Log";
+
     static inline constexpr int string_length      = 510;
     static inline constexpr int ring_buffer_length = 64;
 
@@ -166,6 +168,7 @@ public:
     void      show() noexcept;
 
     ring_t entries;
+    bool   is_open = true;
 
 private:
     bool auto_scroll      = true;
@@ -264,6 +267,8 @@ struct simulation_task
 
 struct output_editor
 {
+    constexpr static inline const char* name = "Output";
+
     output_editor() noexcept;
     ~output_editor() noexcept;
 
@@ -272,6 +277,18 @@ struct output_editor
     ImPlotContext* implot_context = nullptr;
 
     bool write_output = false;
+    bool is_open      = true;
+};
+
+struct preview_window
+{
+    constexpr static inline const char* name = "Preview";
+
+    preview_window() noexcept = default;
+
+    void show() noexcept;
+
+    bool is_open = true;
 };
 
 //! An ImNodes editor for HSM.
@@ -279,6 +296,8 @@ struct output_editor
 class hsm_editor
 {
 public:
+    constexpr static inline const char* name = "HSM Editor";
+
     constexpr static inline auto max_number_of_state =
       hierarchical_state_machine::max_number_of_state;
 
@@ -341,6 +360,8 @@ private:
 
 struct simulation_editor
 {
+    constexpr static inline const char* name = "Simulation";
+
     enum class visualization_mode
     {
         flat,
@@ -352,6 +373,8 @@ struct simulation_editor
 
     simulation_editor() noexcept;
     ~simulation_editor() noexcept;
+
+    void show() noexcept;
 
     void select(simulation_tree_node_id id) noexcept;
     void unselect() noexcept;
@@ -393,6 +416,8 @@ struct simulation_editor
     bool show_internal_inputs = false;
     bool show_identifiers     = false;
 
+    bool is_open = true;
+
     simulation sim;
     timeline   tl;
 
@@ -420,8 +445,6 @@ struct simulation_editor
     double                    preview_history   = 10.;
     bool                      preview_scrolling = true;
 
-    output_editor output_ed;
-
     ImNodesEditorContext* context        = nullptr;
     ImPlotContext*        output_context = nullptr;
 
@@ -441,26 +464,14 @@ struct simulation_editor
     thread_safe_ring_buffer<model_to_move, 8> models_to_move;
 };
 
-struct project_hierarchy_selection
-{
-    tree_node_id parent = undefined<tree_node_id>();
-    component_id compo  = undefined<component_id>();
-    child_id     ch     = undefined<child_id>();
-
-    void set(tree_node_id parent, component_id compo) noexcept;
-    void set(tree_node_id parent, component_id compo, child_id ch) noexcept;
-    void clear() noexcept;
-
-    bool equal(tree_node_id parent,
-               component_id compo,
-               child_id     ch) const noexcept;
-};
-
 struct data_window
 {
+    constexpr static inline const char* name = "Data";
+
     data_window() noexcept;
     ~data_window() noexcept;
 
+    void show_widgets() noexcept;
     void show() noexcept;
 
     ImVector<ImVec2> plot;
@@ -474,15 +485,17 @@ struct data_window
 
     bool show_file_dialog = false;
     bool plot_available   = false;
+    bool is_open          = true;
 };
 
 struct component_editor
 {
+    constexpr static inline const char* name = "Modeling";
+
     component_editor() noexcept;
     ~component_editor() noexcept;
 
-    modeling    mod;
-    data_window data;
+    modeling mod;
 
     tree_node_id          selected_component      = undefined<tree_node_id>();
     ImNodesEditorContext* context                 = nullptr;
@@ -504,7 +517,43 @@ struct component_editor
     void save_project(const char* filename) noexcept;
     void load_project(const char* filename) noexcept;
 
-    void show(bool* is_show) noexcept;
+    void show() noexcept;
+
+    bool is_open = true;
+};
+
+struct library_window
+{
+    constexpr static inline const char* name = "Library";
+
+    library_window() noexcept = default;
+
+    void show() noexcept;
+
+    bool is_open = true;
+};
+
+struct project_window
+{
+    constexpr static inline const char* name = "Project";
+
+    project_window() noexcept = default;
+
+    void show() noexcept;
+
+    void set(tree_node_id parent, component_id compo) noexcept;
+    void set(tree_node_id parent, component_id compo, child_id ch) noexcept;
+    void clear() noexcept;
+
+    bool equal(tree_node_id parent,
+               component_id compo,
+               child_id     ch) const noexcept;
+
+    tree_node_id m_parent = undefined<tree_node_id>();
+    component_id m_compo  = undefined<component_id>();
+    child_id     m_ch     = undefined<child_id>();
+
+    bool is_open = true;
 };
 
 struct settings_window
@@ -551,16 +600,32 @@ struct task_window
     bool is_open = false;
 };
 
+struct memory_window
+{
+    constexpr static inline const char* name = "Memory usage";
+
+    memory_window() noexcept = default;
+
+    void show() noexcept;
+
+    bool is_open = false;
+};
+
 struct application
 {
     application() noexcept;
     ~application() noexcept;
 
-    component_editor            c_editor;
-    simulation_editor           s_editor;
-    hsm_editor                  h_editor;
-    settings_window             settings;
-    project_hierarchy_selection project_selection;
+    component_editor  c_editor;
+    data_window       data_editor;
+    simulation_editor s_editor;
+    hsm_editor        h_editor;
+    settings_window   settings;
+    library_window    library_wnd;
+    project_window    project_wnd;
+    output_editor     output_ed;
+    preview_window    preview_wnd;
+    memory_window     memory_wnd;
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
@@ -591,17 +656,15 @@ struct application
 
     bool show_imgui_demo  = false;
     bool show_implot_demo = false;
-    bool show_memory      = false;
 
-    bool show_project     = true;
-    bool show_log         = true;
-    bool show_data        = true;
-    bool show_output      = true;
-    bool show_simulation  = true;
-    bool show_modeling    = true;
-    bool show_hsm_editor  = false;
-    bool show_observation = true;
-    bool show_components  = true;
+    // bool show_project     = true;
+    // bool show_log         = true;
+    // bool show_output      = true;
+    // bool show_simulation  = true;
+    // bool show_modeling    = true;
+    bool show_hsm_editor = false;
+    // bool show_observation = true;
+    // bool show_components  = true;
 
     bool new_project_file     = false; // rename menu_*
     bool load_project_file    = false; // rename menu_*
@@ -620,9 +683,9 @@ struct application
     void show_project_window() noexcept;
     void show_memory_box(bool* is_open) noexcept;
 
-    void show_modeling_editor_widget() noexcept;
-    void show_simulation_editor_widget() noexcept;
-    void show_output_editor_widget() noexcept;
+    // void show_modeling_editor_widget() noexcept;
+    // void show_simulation_editor_widget() noexcept;
+    // void show_output_editor_widget() noexcept;
 
     status save_settings() noexcept;
     status load_settings() noexcept;

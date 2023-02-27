@@ -378,15 +378,25 @@ static void show_input_output(component_editor& c_editor) noexcept
     }
 }
 
-void application::show_components_window() noexcept
+void library_window::show() noexcept
 {
-    auto* tree = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
+    auto* app = container_of(this, &application::library_wnd);
 
-    show_component_library(c_editor, tree);
+    if (!ImGui::Begin(library_window::name, &is_open)) {
+        ImGui::End();
+        return;
+    }
+
+    auto* tree =
+      app->c_editor.mod.tree_nodes.try_to_get(app->c_editor.mod.head);
+
+    show_component_library(app->c_editor, tree);
     ImGui::Separator();
-    show_input_output(c_editor);
+    show_input_output(app->c_editor);
     ImGui::Separator();
-    show_selected_children(c_editor);
+    show_selected_children(app->c_editor);
+
+    ImGui::End();
 }
 
 } // namespace irt

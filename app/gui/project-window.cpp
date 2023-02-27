@@ -9,42 +9,39 @@
 
 namespace irt {
 
-void project_hierarchy_selection::set(tree_node_id parent,
-                                      component_id compo) noexcept
+void project_window::set(tree_node_id parent, component_id compo) noexcept
 {
-    this->parent = parent;
-    this->compo  = compo;
-    ch           = undefined<child_id>();
+    m_parent = parent;
+    m_compo  = compo;
+    m_ch     = undefined<child_id>();
 }
 
-void project_hierarchy_selection::set(tree_node_id parent,
-                                      component_id compo,
-                                      child_id     ch) noexcept
+void project_window::set(tree_node_id parent,
+                         component_id compo,
+                         child_id     ch) noexcept
 {
-    this->parent = parent;
-    this->compo  = compo;
-    this->ch     = ch;
+    m_parent = parent;
+    m_compo  = compo;
+    m_ch     = ch;
 }
 
-bool project_hierarchy_selection::equal(tree_node_id parent,
-                                        component_id compo,
-                                        child_id     ch) const noexcept
+bool project_window::equal(tree_node_id parent,
+                           component_id compo,
+                           child_id     ch) const noexcept
 {
-    return this->parent == parent && this->compo == compo && this->ch == ch;
+    return m_parent == parent && m_compo == compo && m_ch == ch;
 }
 
-void project_hierarchy_selection::clear() noexcept
+void project_window::clear() noexcept
 {
-    parent = undefined<tree_node_id>();
-    compo  = undefined<component_id>();
-    ch     = undefined<child_id>();
+    m_parent = undefined<tree_node_id>();
+    m_compo  = undefined<component_id>();
+    m_ch     = undefined<child_id>();
 }
 
-static void show_project_hierarchy_child_observable(
-  simulation_editor& /*sim_ed*/,
-  tree_node& parent,
-  component& compo,
-  child&     ch) noexcept
+static void show_project_hierarchy_child_observable(tree_node& parent,
+                                                    component& compo,
+                                                    child&     ch) noexcept
 {
     auto  id  = enum_cast<model_id>(ch.id);
     auto* mdl = compo.models.try_to_get(id);
@@ -148,27 +145,28 @@ static void show_project_hierarchy_child_configuration(component_editor& ed,
         }
 
         if (is_configured && param) {
-            dispatch(*param, [&ed, &compo, param]<typename Dynamics>(Dynamics& dyn) {
-                if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                    if (auto* machine = compo.hsms.try_to_get(dyn.id);
-                        machine) {
-                        auto* app = container_of(&ed, &application::c_editor);
-                        show_dynamics_inputs(*app,
-                                             ed.mod.components.get_id(compo),
-                                             compo.models.get_id(*param),
-                                             *machine);
-                    }
-                } else
-                    show_dynamics_inputs(ed.mod.srcs, dyn);
-            });
+            dispatch(
+              *param, [&ed, &compo, param]<typename Dynamics>(Dynamics& dyn) {
+                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                      if (auto* machine = compo.hsms.try_to_get(dyn.id);
+                          machine) {
+                          auto* app = container_of(&ed, &application::c_editor);
+                          show_dynamics_inputs(*app,
+                                               ed.mod.components.get_id(compo),
+                                               compo.models.get_id(*param),
+                                               *machine);
+                      }
+                  } else
+                      show_dynamics_inputs(ed.mod.srcs, dyn);
+              });
         }
     }
 }
 
-static void show_project_hierarchy(component_editor&            ed,
-                                   simulation_editor&           sim_ed,
-                                   tree_node&                   parent,
-                                   project_hierarchy_selection& data) noexcept
+static void show_project_hierarchy(project_window&    pj_wnd,
+                                   component_editor&  ed,
+                                   simulation_editor& sim_ed,
+                                   tree_node&         parent) noexcept
 {
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnDoubleClick;
@@ -177,11 +175,11 @@ static void show_project_hierarchy(component_editor&            ed,
         if (ImGui::TreeNodeEx(&parent, flags, "%s", compo->name.c_str())) {
             if (ImGui::IsItemHovered() &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                data.set(ed.mod.tree_nodes.get_id(parent), parent.id);
+                pj_wnd.set(ed.mod.tree_nodes.get_id(parent), parent.id);
             }
 
             if (auto* child = parent.tree.get_child(); child) {
-                show_project_hierarchy(ed, sim_ed, *child, data);
+                show_project_hierarchy(pj_wnd, ed, sim_ed, *child);
             }
 
             {
@@ -194,10 +192,10 @@ static void show_project_hierarchy(component_editor&            ed,
                         const auto compo_id  = ed.mod.components.get_id(*compo);
                         const auto ch_id     = compo->children.get_id(*pc);
                         const bool selected =
-                          data.equal(parent_id, compo_id, ch_id);
+                          pj_wnd.equal(parent_id, compo_id, ch_id);
 
                         if (ImGui::Selectable(pc->name.c_str(), selected)) {
-                            data.set(parent_id, compo_id, ch_id);
+                            pj_wnd.set(parent_id, compo_id, ch_id);
                         }
 
                         if (selected) {
@@ -206,7 +204,7 @@ static void show_project_hierarchy(component_editor&            ed,
                                   ed, parent, *compo, *pc);
                             if (pc->observable)
                                 show_project_hierarchy_child_observable(
-                                  sim_ed, parent, *compo, *pc);
+                                  parent, *compo, *pc);
                         }
 
                         ImGui::PopID();
@@ -218,7 +216,7 @@ static void show_project_hierarchy(component_editor&            ed,
         }
 
         if (auto* sibling = parent.tree.get_sibling(); sibling)
-            show_project_hierarchy(ed, sim_ed, *sibling, data);
+            show_project_hierarchy(pj_wnd, ed, sim_ed, *sibling);
     }
 }
 
@@ -383,11 +381,19 @@ static void show_hierarchy_settings(component_editor& ed,
     }
 }
 
-void application::show_project_window() noexcept
+void project_window::show() noexcept
 {
-    auto* parent = c_editor.mod.tree_nodes.try_to_get(c_editor.mod.head);
+    if (!ImGui::Begin(project_window::name, &is_open)) {
+        ImGui::End();
+        return;
+    }
+
+    auto* app = container_of(this, &application::project_wnd);
+
+    auto* parent =
+      app->c_editor.mod.tree_nodes.try_to_get(app->c_editor.mod.head);
     if (!parent) {
-        project_selection.clear();
+        clear();
         return;
     }
 
@@ -395,33 +401,33 @@ void application::show_project_window() noexcept
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Hierarchy", flags)) {
-        show_project_hierarchy(c_editor, s_editor, *parent, project_selection);
+        show_project_hierarchy(*this, app->c_editor, app->s_editor, *parent);
 
-        if (auto* parent =
-              c_editor.mod.tree_nodes.try_to_get(project_selection.parent);
+        if (auto* parent = app->c_editor.mod.tree_nodes.try_to_get(m_parent);
             parent) {
-            if (auto* compo =
-                  c_editor.mod.components.try_to_get(project_selection.compo);
+            if (auto* compo = app->c_editor.mod.components.try_to_get(m_compo);
                 compo) {
-                if (auto* ch = compo->children.try_to_get(project_selection.ch);
-                    !ch) {
-                    c_editor.select(project_selection.parent);
-                    project_selection.clear();
+                if (auto* ch = compo->children.try_to_get(m_ch); ch) {
+                    app->c_editor.select(m_parent);
+                    clear();
                 }
             }
         }
     }
 
     if (ImGui::CollapsingHeader("Export component", flags))
-        show_hierarchy_settings(c_editor, *parent);
+        show_hierarchy_settings(app->c_editor, *parent);
 
-    if (auto* compo = c_editor.mod.components.try_to_get(parent->id); compo) {
+    if (auto* compo = app->c_editor.mod.components.try_to_get(parent->id);
+        compo) {
         ImGui::TextFormat("component: {}", compo->name.sv());
         ImGui::TextFormat("models: {}", compo->models.size());
         ImGui::TextFormat("hsms: {}", compo->hsms.size());
         ImGui::TextFormat("children: {}", compo->children.size());
         ImGui::TextFormat("connections: {}", compo->connections.size());
     }
+
+    ImGui::End();
 }
 
 } // namespace irt

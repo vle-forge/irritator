@@ -6,6 +6,7 @@
 #include "dialog.hpp"
 #include "editor.hpp"
 #include "internal.hpp"
+#include "irritator/core.hpp"
 
 #include <utility>
 
@@ -26,7 +27,7 @@ output_editor::~output_editor() noexcept
         ImPlot::DestroyContext(implot_context);
 }
 
-static void show_observation_table(simulation_editor& sim_ed) noexcept
+static void show_observation_table(application& app) noexcept
 {
     static const ImGuiTableFlags flags =
       ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
@@ -48,8 +49,8 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
 
         ImGui::TableHeadersRow();
         simulation_observation* out = nullptr;
-        while (sim_ed.sim_obs.next(out)) {
-            const auto id = sim_ed.sim_obs.get_id(*out);
+        while (app.s_editor.sim_obs.next(out)) {
+            const auto id = app.s_editor.sim_obs.get_id(*out);
             ImGui::PushID(out);
             ImGui::TableNextRow();
 
@@ -59,7 +60,7 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", ordinal(sim_ed.sim_obs.get_id(*out)));
+            ImGui::TextFormat("{}", ordinal(app.s_editor.sim_obs.get_id(*out)));
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
             if (ImGui::InputReal("##ts", &out->time_step))
@@ -83,8 +84,8 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
 
             ImGui::TableNextColumn();
             if (ImGui::Button("copy")) {
-                if (sim_ed.copy_obs.can_alloc(1)) {
-                    auto& new_obs          = sim_ed.copy_obs.alloc();
+                if (app.s_editor.copy_obs.can_alloc(1)) {
+                    auto& new_obs          = app.s_editor.copy_obs.alloc();
                     new_obs.name           = out->name;
                     new_obs.linear_outputs = out->linear_outputs;
                 }
@@ -92,8 +93,8 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
 
             ImGui::SameLine();
             if (ImGui::Button("write")) {
-                sim_ed.selected_sim_obs       = id;
-                sim_ed.output_ed.write_output = true;
+                app.s_editor.selected_sim_obs = id;
+                app.output_ed.write_output    = true;
                 auto err                      = std::error_code{};
                 auto file_path = std::filesystem::current_path(err);
                 out->write(file_path);
@@ -107,8 +108,8 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
         }
 
         simulation_observation_copy *copy = nullptr, *prev = nullptr;
-        while (sim_ed.copy_obs.next(copy)) {
-            const auto id = sim_ed.copy_obs.get_id(*copy);
+        while (app.s_editor.copy_obs.next(copy)) {
+            const auto id = app.s_editor.copy_obs.get_id(*copy);
             ImGui::PushID(copy);
             ImGui::TableNextRow();
 
@@ -139,7 +140,7 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
 
             ImGui::TableNextColumn();
             if (ImGui::Button("del")) {
-                sim_ed.copy_obs.free(*copy);
+                app.s_editor.copy_obs.free(*copy);
                 copy = prev;
             }
 
@@ -151,9 +152,9 @@ static void show_observation_table(simulation_editor& sim_ed) noexcept
     }
 }
 
-static void show_observation_plot(simulation_editor& sim_ed) noexcept
+static void show_observation_plot(application& app) noexcept
 {
-    ImPlot::SetCurrentContext(sim_ed.output_ed.implot_context);
+    ImPlot::SetCurrentContext(app.output_ed.implot_context);
     if (ImPlot::BeginPlot("Plot", ImVec2(-1, -1))) {
         ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
         ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
@@ -162,7 +163,7 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
           nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
 
         simulation_observation* obs = nullptr;
-        while (sim_ed.sim_obs.next(obs)) {
+        while (app.s_editor.sim_obs.next(obs)) {
             if (obs->linear_outputs.size() > 0) {
                 switch (obs->plot_type) {
                 case simulation_plot_type::plotlines:
@@ -186,7 +187,7 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
         }
 
         simulation_observation_copy* copy = nullptr;
-        while (sim_ed.copy_obs.next(copy)) {
+        while (app.s_editor.copy_obs.next(copy)) {
             if (copy->linear_outputs.size() > 0) {
                 switch (copy->plot_type) {
                 case simulation_plot_type::plotlines:
@@ -216,20 +217,22 @@ static void show_observation_plot(simulation_editor& sim_ed) noexcept
 
 void output_editor::show() noexcept
 {
-    auto* s_editor = container_of(this, &simulation_editor::output_ed);
+    if (!ImGui::Begin(output_editor::name, &is_open)) {
+        ImGui::End();
+        return;
+    }
+
+    auto* app = container_of(this, &application::output_ed);
 
     static const ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Observations list", flags))
-        show_observation_table(*s_editor);
+        show_observation_table(*app);
 
     if (ImGui::CollapsingHeader("Plots outputs", flags))
-        show_observation_plot(*s_editor);
-}
+        show_observation_plot(*app);
 
-void application::show_output_editor_widget() noexcept
-{
-    s_editor.output_ed.show();
+    ImGui::End();
 }
 
 } // namespace irt

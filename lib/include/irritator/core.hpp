@@ -1459,8 +1459,8 @@ public:
         return *reinterpret_cast<T*>(&(m_blocks[index]));
     }
 
-    unsigned size() const noexcept { return size; }
-    int      ssize() const noexcept { return size; }
+    unsigned size() const noexcept { return static_cast<unsigned>(m_size); }
+    int      ssize() const noexcept { return m_size; }
     int      max_size() const noexcept { return m_max_size; }
     int      capacity() const noexcept { return m_capacity; }
 };
@@ -2564,7 +2564,6 @@ struct text_file_source
     text_file_source() noexcept = default;
     text_file_source(const text_file_source& other) noexcept;
 
-
     status init() noexcept;
     void   finalize() noexcept;
     status init(source& src) noexcept;
@@ -2897,54 +2896,53 @@ status send_message(simulation&  sim,
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-                                  {
-                                      t.lambda(sim)
-                                      } -> std::convertible_to<status>;
-                              };
+    {
+        t.lambda(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-          } -> std::convertible_to<status>;
+      } -> std::convertible_to<status>;
   };
 
 template<typename T>
-concept has_observation_function =
-  requires(T t, time s, time e) {
-      {
-          t.observation(s, e)
-          } -> std::convertible_to<observation_message>;
-  };
+concept has_observation_function = requires(T t, time s, time e) {
+    {
+        t.observation(s, e)
+    } -> std::convertible_to<observation_message>;
+};
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-                                      {
-                                          t.initialize(sim)
-                                          } -> std::convertible_to<status>;
-                                  };
+    {
+        t.initialize(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-                                    {
-                                        t.finalize(sim)
-                                        } -> std::convertible_to<status>;
-                                };
+    {
+        t.finalize(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_input_port = requires(T t) {
-                             {
-                                 t.x
-                             };
-                         };
+    {
+        t.x
+    };
+};
 
 template<typename T>
 concept has_output_port = requires(T t) {
-                              {
-                                  t.y
-                              };
-                          };
+    {
+        t.y
+    };
+};
 
 constexpr observation_message qss_observation(real X,
                                               real u,

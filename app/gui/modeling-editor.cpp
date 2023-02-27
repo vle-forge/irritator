@@ -1162,9 +1162,9 @@ static void remove_component_input_output(ImVector<int>& v) noexcept
     };
 }
 
-static void show_modeling_widget(component_editor& ed,
-                                 tree_node&        tree,
-                                 component&        compo) noexcept
+static void show_component_editor(component_editor& ed,
+                                  tree_node&        tree,
+                                  component&        compo) noexcept
 {
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();
@@ -1229,14 +1229,19 @@ component_editor::~component_editor() noexcept
     }
 }
 
-void application::show_modeling_editor_widget() noexcept
+void component_editor::show() noexcept
 {
-    if (auto* tree =
-          c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
-        tree) {
-        if (auto* compo = c_editor.mod.components.try_to_get(tree->id); compo)
-            show_modeling_widget(c_editor, *tree, *compo);
+    if (!ImGui::Begin(component_editor::name, &is_open)) {
+        ImGui::End();
+        return;
     }
+
+    if (auto* tree = mod.tree_nodes.try_to_get(selected_component); tree) {
+        if (auto* compo = mod.components.try_to_get(tree->id); compo)
+            show_component_editor(*this, *tree, *compo);
+    }
+
+    ImGui::End();
 }
 
 } // namespace irt
