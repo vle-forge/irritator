@@ -490,7 +490,7 @@ struct data_window
 
 struct component_editor
 {
-    constexpr static inline const char* name = "Modeling";
+    constexpr static inline const char* name = "Component editor";
 
     component_editor() noexcept;
     ~component_editor() noexcept;
