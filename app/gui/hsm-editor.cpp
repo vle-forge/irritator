@@ -221,33 +221,34 @@ static void show_condition(hsm_t::condition_action& act) noexcept
     ImGui::TextUnformatted(condition_names[ordinal(act.type)]);
 }
 
-static void show_state_id_editor(const std::array<bool, 254>& enabled,
-                                 hsm_t::state_id&             current) noexcept
-{
-    ImGui::PushID(&current);
+// static void show_state_id_editor(const std::array<bool, 254>& enabled,
+//                                  hsm_t::state_id&             current)
+//                                  noexcept
+// {
+//     ImGui::PushID(&current);
 
-    small_string<7> preview_value("-");
-    if (current != hsm_t::invalid_state_id)
-        format(preview_value, "{}", current);
+//     small_string<7> preview_value("-");
+//     if (current != hsm_t::invalid_state_id)
+//         format(preview_value, "{}", current);
 
-    ImGui::PushItemWidth(-1);
-    if (ImGui::BeginCombo("##transition", preview_value.c_str())) {
-        if (ImGui::Selectable("-", current == hsm_t::invalid_state_id))
-            current = hsm_t::invalid_state_id;
+//     ImGui::PushItemWidth(-1);
+//     if (ImGui::BeginCombo("##transition", preview_value.c_str())) {
+//         if (ImGui::Selectable("-", current == hsm_t::invalid_state_id))
+//             current = hsm_t::invalid_state_id;
 
-        for (u8 i = 0, e = hsm_t::max_number_of_state; i < e; ++i) {
-            if (enabled[i]) {
-                format(preview_value, "{}", i);
-                if (ImGui::Selectable(preview_value.c_str(), i == current))
-                    current = i;
-            }
-        }
+//         for (u8 i = 0, e = hsm_t::max_number_of_state; i < e; ++i) {
+//             if (enabled[i]) {
+//                 format(preview_value, "{}", i);
+//                 if (ImGui::Selectable(preview_value.c_str(), i == current))
+//                     current = i;
+//             }
+//         }
 
-        ImGui::EndCombo();
-    }
-    ImGui::PopItemWidth();
-    ImGui::PopID();
-}
+//         ImGui::EndCombo();
+//     }
+//     ImGui::PopItemWidth();
+//     ImGui::PopID();
+// }
 
 static void show_port_widget(hsm_t::variable& var) noexcept
 {
