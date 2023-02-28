@@ -81,7 +81,7 @@ void memory_window::show() noexcept
     }
 
     if (ImGui::CollapsingHeader("Components")) {
-        component* compo = nullptr;
+        simple_component* compo = nullptr;
         while (c_editor.mod.components.next(compo)) {
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {

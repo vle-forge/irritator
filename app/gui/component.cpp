@@ -125,11 +125,11 @@ void component_editor::open_as_main(component_id id) noexcept
 // task implementation
 //
 
-static status save_component_impl(const modeling&       mod,
-                                  const component&      compo,
-                                  const registred_path& reg_path,
-                                  const dir_path&       dir,
-                                  const file_path&      file) noexcept
+static status save_component_impl(const modeling&         mod,
+                                  const simple_component& compo,
+                                  const registred_path&   reg_path,
+                                  const dir_path&         dir,
+                                  const file_path&        file) noexcept
 {
     status ret = status::success;
 

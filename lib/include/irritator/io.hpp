@@ -86,18 +86,18 @@ status simulation_save(
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Load a component structure from a json file.
-status component_load(modeling&   mod,
-                      component&  compo,
-                      json_cache& cache,
-                      const char* filename) noexcept;
+status component_load(modeling&         mod,
+                      simple_component& compo,
+                      json_cache&       cache,
+                      const char*       filename) noexcept;
 
 //! Save a component structure into a json file.
 status component_save(
-  const modeling&   mod,
-  const component&  compo,
-  json_cache&       cache,
-  const char*       filename,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
+  const modeling&         mod,
+  const simple_component& compo,
+  json_cache&             cache,
+  const char*             filename,
+  json_pretty_print       print_options = json_pretty_print::off) noexcept;
 
 //! Load a project from a project json file.
 status project_load(modeling&   mod,

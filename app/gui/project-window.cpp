@@ -39,9 +39,9 @@ void project_window::clear() noexcept
     m_ch     = undefined<child_id>();
 }
 
-static void show_project_hierarchy_child_observable(tree_node& parent,
-                                                    component& compo,
-                                                    child&     ch) noexcept
+static void show_project_hierarchy_child_observable(tree_node&        parent,
+                                                    simple_component& compo,
+                                                    child& ch) noexcept
 {
     auto  id  = enum_cast<model_id>(ch.id);
     auto* mdl = compo.models.try_to_get(id);
@@ -72,7 +72,7 @@ static void show_project_hierarchy_child_observable(tree_node& parent,
 
 static void show_project_hierarchy_child_configuration(component_editor& ed,
                                                        tree_node&        parent,
-                                                       component&        compo,
+                                                       simple_component& compo,
                                                        child& ch) noexcept
 {
     auto  id  = enum_cast<model_id>(ch.id);

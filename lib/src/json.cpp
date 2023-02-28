@@ -1647,7 +1647,7 @@ static status read_random_sources(json_cache&             cache,
 
 static status read_children(json_cache&             cache,
                             modeling&               mod,
-                            component&              compo,
+                            simple_component&       compo,
                             const rapidjson::Value& val) noexcept
 {
     auto it = val.FindMember("children");
@@ -1737,14 +1737,15 @@ static status read_children(json_cache&             cache,
     return status::success;
 }
 
-static status read_ports(component& compo, const rapidjson::Value& val) noexcept
+static status read_ports(simple_component&       compo,
+                         const rapidjson::Value& val) noexcept
 {
     {
         auto it = val.FindMember("x");
         irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
         irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
         irt_return_if_fail(it->value.GetArray().Size() ==
-                             component::port_number,
+                             simple_component::port_number,
                            status::io_file_format_error);
 
         unsigned i = 0;
@@ -1760,7 +1761,7 @@ static status read_ports(component& compo, const rapidjson::Value& val) noexcept
         irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
         irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
         irt_return_if_fail(it->value.GetArray().Size() ==
-                             component::port_number,
+                             simple_component::port_number,
                            status::io_file_format_error);
 
         unsigned i = 0;
@@ -1776,7 +1777,7 @@ static status read_ports(component& compo, const rapidjson::Value& val) noexcept
 
 static status read_connections(json_cache&             cache,
                                modeling&               mod,
-                               component&              compo,
+                               simple_component&       compo,
                                const rapidjson::Value& val) noexcept
 {
     auto it = val.FindMember("connections");
@@ -1864,7 +1865,7 @@ static status read_connections(json_cache&             cache,
 
 static status do_read(json_cache&             cache,
                       modeling&               mod,
-                      component&              compo,
+                      simple_component&       compo,
                       const rapidjson::Value& val) noexcept
 {
     irt_return_if_bad(read_constant_sources(cache, mod.srcs, val));
@@ -1881,10 +1882,10 @@ static status do_read(json_cache&             cache,
     return status::success;
 }
 
-status component_load(modeling&   mod,
-                      component&  compo,
-                      json_cache& cache,
-                      const char* filename) noexcept
+status component_load(modeling&         mod,
+                      simple_component& compo,
+                      json_cache&       cache,
+                      const char*       filename) noexcept
 {
     file f{ filename, open_mode::read };
 
@@ -2124,9 +2125,9 @@ static status write_random_sources(json_cache& /*cache*/,
 
 template<typename Writer>
 static status write_children(json_cache& /*cache*/,
-                             const modeling&  mod,
-                             const component& compo,
-                             Writer&          w) noexcept
+                             const modeling&         mod,
+                             const simple_component& compo,
+                             Writer&                 w) noexcept
 {
     w.Key("children");
     w.StartArray();
@@ -2208,13 +2209,13 @@ static status write_children(json_cache& /*cache*/,
 template<typename Writer>
 static status write_ports(json_cache& /*cache*/,
                           const modeling& /*mod*/,
-                          const component& compo,
-                          Writer&          w) noexcept
+                          const simple_component& compo,
+                          Writer&                 w) noexcept
 {
     w.Key("x");
     w.StartArray();
 
-    for (int i = 0; i != component::port_number; ++i)
+    for (int i = 0; i != simple_component::port_number; ++i)
         w.String(compo.x_names[static_cast<unsigned>(i)].c_str());
 
     w.EndArray();
@@ -2222,7 +2223,7 @@ static status write_ports(json_cache& /*cache*/,
     w.Key("y");
     w.StartArray();
 
-    for (int i = 0; i != component::port_number; ++i)
+    for (int i = 0; i != simple_component::port_number; ++i)
         w.String(compo.y_names[static_cast<unsigned>(i)].c_str());
 
     w.EndArray();
@@ -2233,8 +2234,8 @@ static status write_ports(json_cache& /*cache*/,
 template<typename Writer>
 static status write_connections(json_cache& /*cache*/,
                                 const modeling& /*mod*/,
-                                const component& compo,
-                                Writer&          w) noexcept
+                                const simple_component& compo,
+                                Writer&                 w) noexcept
 {
     w.Key("connections");
     w.StartArray();
@@ -2285,10 +2286,10 @@ static status write_connections(json_cache& /*cache*/,
     return status::success;
 }
 
-status component_save(const modeling&  mod,
-                      const component& compo,
-                      json_cache&      cache,
-                      const char*      filename,
+status component_save(const modeling&         mod,
+                      const simple_component& compo,
+                      json_cache&             cache,
+                      const char*             filename,
                       json_pretty_print /*print_options*/) noexcept
 {
     file f{ filename, open_mode::write };
@@ -2987,11 +2988,11 @@ status modeling::save_project(const char* filename) noexcept
     return ret;
 }
 
-static status project_save_file_component(modeling&   mod,
-                                          json_cache& cache,
-                                          tree_node&  parent,
-                                          component&  compo,
-                                          file&       f) noexcept
+static status project_save_file_component(modeling&         mod,
+                                          json_cache&       cache,
+                                          tree_node&        parent,
+                                          simple_component& compo,
+                                          file&             f) noexcept
 {
     auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
     auto* dir  = mod.dir_paths.try_to_get(compo.dir);
@@ -3027,11 +3028,11 @@ static status project_save_file_component(modeling&   mod,
     return status::success;
 }
 
-static status project_save_internal_component(modeling&   mod,
-                                              json_cache& cache,
-                                              tree_node&  parent,
-                                              component&  compo,
-                                              file&       f) noexcept
+static status project_save_internal_component(modeling&         mod,
+                                              json_cache&       cache,
+                                              tree_node&        parent,
+                                              simple_component& compo,
+                                              file&             f) noexcept
 {
     auto* fp = reinterpret_cast<FILE*>(f.get_handle());
     cache.clear();

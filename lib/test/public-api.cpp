@@ -2,12 +2,12 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <irritator/modeling.hpp>
 #include <irritator/core.hpp>
 #include <irritator/examples.hpp>
 #include <irritator/ext.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling.hpp>
 #include <irritator/observation.hpp>
 
 #include <fmt/format.h>
@@ -3428,7 +3428,7 @@ int main()
           mod.components.get_id(main_compo), irt::undefined<irt::child_id>());
         mod.head = mod.tree_nodes.get_id(main_tree);
 
-        irt::component* lotka = nullptr;
+        irt::simple_component* lotka = nullptr;
         while (mod.components.next(lotka))
             if (lotka->type == irt::component_type::qss1_lotka_volterra)
                 break;

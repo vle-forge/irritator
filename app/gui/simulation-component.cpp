@@ -24,7 +24,7 @@ static void simulation_clear(component_editor&  ed,
 
 static status simulation_init_observation(simulation_editor& sim_ed,
                                           tree_node&         tree,
-                                          component&         compo)
+                                          simple_component&  compo)
 {
     child* c = nullptr;
     while (compo.children.next(c)) {

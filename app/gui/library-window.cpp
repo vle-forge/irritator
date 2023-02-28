@@ -10,7 +10,7 @@
 namespace irt {
 
 static void show_component_popup_menu(irt::component_editor& ed,
-                                      component*             compo) noexcept
+                                      simple_component*      compo) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New")) {
@@ -51,7 +51,7 @@ static bool show_component(component_editor& ed,
                            registred_path&   reg,
                            dir_path&         dir,
                            file_path&        file,
-                           component&        c,
+                           simple_component& c,
                            irt::tree_node*   head) noexcept
 {
     auto*      app        = container_of(&ed, &application::component_ed);
@@ -107,7 +107,7 @@ static bool show_component(component_editor& ed,
 static void show_notsaved_components(irt::component_editor& ed,
                                      irt::tree_node*        head) noexcept
 {
-    component* compo = nullptr;
+    simple_component* compo = nullptr;
     while (ed.mod.components.next(compo)) {
         const auto is_notsaved = match(compo->type, component_type::memory);
 
@@ -128,7 +128,7 @@ static void show_notsaved_components(irt::component_editor& ed,
 static void show_internal_components(irt::component_editor& ed,
                                      irt::tree_node*        head) noexcept
 {
-    component* compo = nullptr;
+    simple_component* compo = nullptr;
     while (ed.mod.components.next(compo)) {
         const auto is_internal =
           !match(compo->type, component_type::file, component_type::memory);
@@ -233,9 +233,9 @@ static void show_component_library(component_editor& c_editor,
     }
 }
 
-static void show_input_output_ports(component& compo,
-                                    model&     mdl,
-                                    child_id   id) noexcept
+static void show_input_output_ports(simple_component& compo,
+                                    model&            mdl,
+                                    child_id          id) noexcept
 {
     dispatch(mdl, [&compo, id]<typename Dynamics>(Dynamics& dyn) {
         if constexpr (has_input_port<Dynamics>) {
@@ -270,7 +270,8 @@ static void show_selected_children(component_editor& c_editor) noexcept
         auto* tree =
           c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
         if (tree) {
-            component* compo = c_editor.mod.components.try_to_get(tree->id);
+            simple_component* compo =
+              c_editor.mod.components.try_to_get(tree->id);
             if (compo) {
                 for (int i = 0, e = c_editor.selected_nodes.size(); i != e;
                      ++i) {
@@ -337,7 +338,8 @@ static void show_input_output(component_editor& c_editor) noexcept
         if (auto* tree =
               c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
             tree) {
-            if (component* compo = c_editor.mod.components.try_to_get(tree->id);
+            if (simple_component* compo =
+                  c_editor.mod.components.try_to_get(tree->id);
                 compo) {
                 if (ImGui::BeginTable("##io-table",
                                       3,
@@ -351,7 +353,7 @@ static void show_input_output(component_editor& c_editor) noexcept
 
                     ImGui::TableHeadersRow();
 
-                    for (int i = 0; i < component::port_number; ++i) {
+                    for (int i = 0; i < simple_component::port_number; ++i) {
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();
                         ImGui::TextUnformatted(port_labels[i]);

@@ -88,7 +88,7 @@ enum class observable_type
 
 struct connection;
 struct child;
-struct component;
+struct simple_component;
 struct modeling;
 struct description;
 
@@ -120,12 +120,12 @@ static constexpr inline const char* component_type_names[] = {
 auto get_component_type(std::string_view name) noexcept
   -> std::optional<component_type>;
 
-status add_cpp_component_ref(const char* buffer,
-                             modeling&   mod,
-                             component&  parent) noexcept;
-status add_file_component_ref(const char* buffer,
-                              modeling&   mod,
-                              component&  parent) noexcept;
+status add_cpp_component_ref(const char*       buffer,
+                             modeling&         mod,
+                             simple_component& parent) noexcept;
+status add_file_component_ref(const char*       buffer,
+                              modeling&         mod,
+                              simple_component& parent) noexcept;
 
 struct description
 {
@@ -191,14 +191,14 @@ struct connection
     };
 };
 
-struct component
+struct simple_component
 {
     static inline constexpr int port_number = 8;
 
-    component() noexcept;
+    simple_component() noexcept;
 
-    component(const component&)            = delete;
-    component& operator=(const component&) = delete;
+    simple_component(const simple_component&)            = delete;
+    simple_component& operator=(const simple_component&) = delete;
 
     void clear() noexcept;
 
@@ -359,7 +359,7 @@ struct modeling
 {
     data_array<tree_node, tree_node_id>           tree_nodes;
     data_array<description, description_id>       descriptions;
-    data_array<component, component_id>           components;
+    data_array<simple_component, component_id>    components;
     data_array<registred_path, registred_path_id> registred_paths;
     data_array<dir_path, dir_path_id>             dir_paths;
     data_array<file_path, file_path_id>           file_paths;
@@ -387,9 +387,9 @@ struct modeling
 
     //! Deletes the component, the file (@c file_path_id) and the description
     //! (@c description_id) objects attached.
-    void free(component& c) noexcept;
-    void free(component& parent, child& c) noexcept;
-    void free(component& parent, connection& c) noexcept;
+    void free(simple_component& c) noexcept;
+    void free(simple_component& parent, child& c) noexcept;
+    void free(simple_component& parent, connection& c) noexcept;
     void free(tree_node& node) noexcept;
 
     bool can_alloc_file(i32 number = 1) const noexcept;
@@ -413,9 +413,9 @@ struct modeling
     void free(dir_path& dir) noexcept;
     void free(registred_path& dir) noexcept;
 
-    child& alloc(component& parent, dynamics_type type) noexcept;
+    child& alloc(simple_component& parent, dynamics_type type) noexcept;
 
-    status copy(component& src, component& dst) noexcept;
+    status copy(simple_component& src, simple_component& dst) noexcept;
 
     /**
      * @brief Try to connect the component input port and a child (model or
@@ -431,10 +431,10 @@ struct modeling
      * @param port_dst The port index of the destination.
      * @return status::success or any other error.
      */
-    status connect_input(component& parent,
-                         i8         port_src,
-                         child_id   dst,
-                         i8         port_dst) noexcept;
+    status connect_input(simple_component& parent,
+                         i8                port_src,
+                         child_id          dst,
+                         i8                port_dst) noexcept;
 
     /**
      * @brief Try to connect the component output port and a child (model or
@@ -450,10 +450,10 @@ struct modeling
      * @param port_dst The port index of the destination.
      * @return status::success or any other error.
      */
-    status connect_output(component& parent,
-                          child_id   src,
-                          i8         port_src,
-                          i8         port_dst) noexcept;
+    status connect_output(simple_component& parent,
+                          child_id          src,
+                          i8                port_src,
+                          i8                port_dst) noexcept;
 
     /**
      * @brief Try to connect two child (model or component) in a component.
@@ -469,22 +469,23 @@ struct modeling
      * @param port_dst The port index of the destination.
      * @return status::success or any other error.
      */
-    status connect(component& parent,
-                   child_id   src,
-                   i8         port_src,
-                   child_id   dst,
-                   i8         port_dst) noexcept;
+    status connect(simple_component& parent,
+                   child_id          src,
+                   i8                port_src,
+                   child_id          dst,
+                   i8                port_dst) noexcept;
 
     //! Initialize a project with the specified \c component as head.
     //!
     //! Before initializing, the current project is cleared: all tree_nodes and
     //! component tree are cleared.
-    void init_project(component& compo) noexcept;
+    void init_project(simple_component& compo) noexcept;
 
     //! Build the @c hierarchy<component_ref> of from the component @c id
-    status make_tree_from(component& id, tree_node_id* out) noexcept;
+    status make_tree_from(simple_component& id, tree_node_id* out) noexcept;
 
-    status save(component& c) noexcept; // will call clean(component&) first.
+    status save(
+      simple_component& c) noexcept; // will call clean(component&) first.
 
     status load_project(const char* filename) noexcept;
     status save_project(const char* filename) noexcept;
@@ -519,7 +520,7 @@ inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
 {
 }
 
-inline component::component() noexcept
+inline simple_component::simple_component() noexcept
 {
     static const std::string_view port_names[] = { "0", "1", "2", "3",
                                                    "4", "5", "6", "7" };
@@ -537,12 +538,13 @@ inline component::component() noexcept
     connections.init(256);
 }
 
-inline bool component::can_alloc(int place) const noexcept
+inline bool simple_component::can_alloc(int place) const noexcept
 {
     return models.can_alloc(place);
 }
 
-inline bool component::can_alloc(dynamics_type type, int place) const noexcept
+inline bool simple_component::can_alloc(dynamics_type type,
+                                        int           place) const noexcept
 {
     if (type == dynamics_type::hsm_wrapper)
         return models.can_alloc(place) && hsms.can_alloc(place);
@@ -551,7 +553,7 @@ inline bool component::can_alloc(dynamics_type type, int place) const noexcept
 }
 
 template<typename Dynamics>
-inline bool component::can_alloc_dynamics(int place) const noexcept
+inline bool simple_component::can_alloc_dynamics(int place) const noexcept
 {
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return models.can_alloc(place) && hsms.can_alloc(place);
@@ -559,7 +561,8 @@ inline bool component::can_alloc_dynamics(int place) const noexcept
         return models.can_alloc(place);
 }
 
-inline child& modeling::alloc(component& parent, dynamics_type type) noexcept
+inline child& modeling::alloc(simple_component& parent,
+                              dynamics_type     type) noexcept
 {
     irt_assert(!parent.models.full());
 

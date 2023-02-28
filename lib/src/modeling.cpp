@@ -23,7 +23,7 @@ enum class alloc_parameter
 
 template<typename Dynamics>
 std::pair<Dynamics*, child_id> alloc(
-  component&             parent,
+  simple_component&      parent,
   const std::string_view name  = {},
   alloc_parameter        param = alloc_parameter::none) noexcept
 {
@@ -61,12 +61,12 @@ std::pair<Dynamics*, child_id> alloc(
 }
 
 template<typename DynamicsSrc, typename DynamicsDst>
-status connect(modeling&    mod,
-               component&   c,
-               DynamicsSrc& src,
-               i8           port_src,
-               DynamicsDst& dst,
-               i8           port_dst) noexcept
+status connect(modeling&         mod,
+               simple_component& c,
+               DynamicsSrc&      src,
+               i8                port_src,
+               DynamicsDst&      dst,
+               i8                port_dst) noexcept
 {
     model& src_model = get_model(*src.first);
     model& dst_model = get_model(*dst.first);
@@ -83,10 +83,10 @@ status connect(modeling&    mod,
     return status::success;
 }
 
-status add_integrator_component_port(modeling&  mod,
-                                     component& com,
-                                     child_id   id,
-                                     i8         port) noexcept
+status add_integrator_component_port(modeling&         mod,
+                                     simple_component& com,
+                                     child_id          id,
+                                     i8                port) noexcept
 {
     auto* child = com.children.try_to_get(id);
     irt_assert(child);
@@ -99,7 +99,7 @@ status add_integrator_component_port(modeling&  mod,
 }
 
 template<int QssLevel>
-status add_lotka_volterra(modeling& mod, component& com) noexcept
+status add_lotka_volterra(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -145,7 +145,7 @@ status add_lotka_volterra(modeling& mod, component& com) noexcept
 }
 
 template<int QssLevel>
-status add_lif(modeling& mod, component& com) noexcept
+status add_lif(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -190,7 +190,7 @@ status add_lif(modeling& mod, component& com) noexcept
 }
 
 template<int QssLevel>
-status add_izhikevich(modeling& mod, component& com) noexcept
+status add_izhikevich(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = com.models.can_alloc(12);
@@ -278,7 +278,7 @@ status add_izhikevich(modeling& mod, component& com) noexcept
 }
 
 template<int QssLevel>
-status add_van_der_pol(modeling& mod, component& com) noexcept
+status add_van_der_pol(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = com.models.can_alloc(5);
@@ -321,7 +321,7 @@ status add_van_der_pol(modeling& mod, component& com) noexcept
 }
 
 template<int QssLevel>
-status add_negative_lif(modeling& mod, component& com) noexcept
+status add_negative_lif(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = com.models.can_alloc(5);
@@ -366,7 +366,7 @@ status add_negative_lif(modeling& mod, component& com) noexcept
 }
 
 template<int QssLevel>
-status add_seirs(modeling& mod, component& com) noexcept
+status add_seirs(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = com.models.can_alloc(17);
@@ -559,7 +559,7 @@ status modeling::init(modeling_initializer& p) noexcept
 
 component_id modeling::search_internal_component(component_type type) noexcept
 {
-    component* compo = nullptr;
+    simple_component* compo = nullptr;
     while (components.next(compo))
         if (compo->type == type)
             return components.get_id(compo);
@@ -943,7 +943,7 @@ static void prepare_component_loading(modeling& mod) noexcept
     }
 }
 
-static status load_component(modeling& mod, component& compo) noexcept
+static status load_component(modeling& mod, simple_component& compo) noexcept
 {
     try {
         auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
@@ -1006,8 +1006,8 @@ status modeling::fill_components() noexcept
 {
     prepare_component_loading(*this);
 
-    component* compo  = nullptr;
-    component* to_del = nullptr;
+    simple_component* compo  = nullptr;
+    simple_component* to_del = nullptr;
 
     while (components.next(compo)) {
         if (to_del) {
@@ -1132,10 +1132,10 @@ void modeling::move_file(registred_path& /*reg*/,
     to.children.emplace_back(id);
 }
 
-static bool is_ports_compatible(model&     mdl_src,
-                                i8         port_src,
-                                component& compo_dst,
-                                i8         port_dst) noexcept
+static bool is_ports_compatible(model&            mdl_src,
+                                i8                port_src,
+                                simple_component& compo_dst,
+                                i8                port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -1162,10 +1162,10 @@ static bool is_ports_compatible(model&     mdl_src,
     return is_compatible;
 }
 
-static bool is_ports_compatible(component& compo_src,
-                                i8         port_src,
-                                model&     mdl_dst,
-                                i8         port_dst) noexcept
+static bool is_ports_compatible(simple_component& compo_src,
+                                i8                port_src,
+                                model&            mdl_dst,
+                                i8                port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -1192,10 +1192,10 @@ static bool is_ports_compatible(component& compo_src,
     return is_compatible;
 }
 
-static bool is_ports_compatible(component& compo_src,
-                                i8         port_src,
-                                component& compo_dst,
-                                i8         port_dst) noexcept
+static bool is_ports_compatible(simple_component& compo_src,
+                                i8                port_src,
+                                simple_component& compo_dst,
+                                i8                port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -1223,12 +1223,12 @@ static bool is_ports_compatible(component& compo_src,
     return is_compatible;
 }
 
-static bool is_ports_compatible(modeling&  mod,
-                                component& parent,
-                                child_id   src,
-                                i8         port_src,
-                                child_id   dst,
-                                i8         port_dst) noexcept
+static bool is_ports_compatible(modeling&         mod,
+                                simple_component& parent,
+                                child_id          src,
+                                i8                port_src,
+                                child_id          dst,
+                                i8                port_dst) noexcept
 {
     auto* child_src = parent.children.try_to_get(src);
     auto* child_dst = parent.children.try_to_get(dst);
@@ -1272,10 +1272,10 @@ static bool is_ports_compatible(modeling&  mod,
     }
 }
 
-status modeling::connect_input(component& parent,
-                               i8         port_src,
-                               child_id   dst,
-                               i8         port_dst) noexcept
+status modeling::connect_input(simple_component& parent,
+                               i8                port_src,
+                               child_id          dst,
+                               i8                port_dst) noexcept
 {
     irt_return_if_fail(parent.connections.can_alloc(),
                        status::simulation_not_enough_connection);
@@ -1302,10 +1302,10 @@ status modeling::connect_input(component& parent,
     return status::success;
 }
 
-status modeling::connect_output(component& parent,
-                                child_id   src,
-                                i8         port_src,
-                                i8         port_dst) noexcept
+status modeling::connect_output(simple_component& parent,
+                                child_id          src,
+                                i8                port_src,
+                                i8                port_dst) noexcept
 {
     irt_return_if_fail(parent.connections.can_alloc(),
                        status::simulation_not_enough_connection);
@@ -1332,11 +1332,11 @@ status modeling::connect_output(component& parent,
     return status::success;
 }
 
-status modeling::connect(component& parent,
-                         child_id   src,
-                         i8         port_src,
-                         child_id   dst,
-                         i8         port_dst) noexcept
+status modeling::connect(simple_component& parent,
+                         child_id          src,
+                         i8                port_src,
+                         child_id          dst,
+                         i8                port_dst) noexcept
 {
     irt_return_if_fail(parent.connections.can_alloc(1),
                        status::data_array_not_enough_memory);
@@ -1368,7 +1368,7 @@ static void free_child(data_array<child, child_id>& children,
     children.free(c);
 }
 
-void modeling::free(component& c) noexcept
+void modeling::free(simple_component& c) noexcept
 {
     c.children.clear();
     c.models.clear();
@@ -1394,17 +1394,17 @@ void modeling::free(tree_node& node) noexcept
     tree_nodes.free(node);
 }
 
-void modeling::free(component& parent, child& c) noexcept
+void modeling::free(simple_component& parent, child& c) noexcept
 {
     free_child(parent.children, parent.models, c);
 }
 
-void modeling::free(component& parent, connection& c) noexcept
+void modeling::free(simple_component& parent, connection& c) noexcept
 {
     parent.connections.free(c);
 }
 
-status modeling::copy(component& src, component& dst) noexcept
+status modeling::copy(simple_component& src, simple_component& dst) noexcept
 {
     table<child_id, child_id> mapping;
 
@@ -1462,11 +1462,11 @@ status modeling::copy(component& src, component& dst) noexcept
 }
 
 static status make_tree_recursive(
-  data_array<component, component_id>& components,
-  data_array<tree_node, tree_node_id>& trees,
-  tree_node&                           parent,
-  child_id                             compo_child_id,
-  child&                               compo_child) noexcept
+  data_array<simple_component, component_id>& components,
+  data_array<tree_node, tree_node_id>&        trees,
+  tree_node&                                  parent,
+  child_id                                    compo_child_id,
+  child&                                      compo_child) noexcept
 {
     auto compo_id = enum_cast<component_id>(compo_child.id);
 
@@ -1514,7 +1514,7 @@ void modeling::free(registred_path& reg_dir) noexcept
     registred_paths.free(reg_dir);
 }
 
-void modeling::init_project(component& compo) noexcept
+void modeling::init_project(simple_component& compo) noexcept
 {
     clear_project();
 
@@ -1523,7 +1523,8 @@ void modeling::init_project(component& compo) noexcept
         head = tn;
 }
 
-status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
+status modeling::make_tree_from(simple_component& parent,
+                                tree_node_id*     out) noexcept
 {
     irt_return_if_fail(tree_nodes.can_alloc(),
                        status::data_array_not_enough_memory);
@@ -1549,7 +1550,7 @@ status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
     return status::success;
 }
 
-void component::clear() noexcept
+void simple_component::clear() noexcept
 {
     models.clear();
     hsms.clear();
@@ -1569,7 +1570,7 @@ void component::clear() noexcept
     state = component_status::modified;
 }
 
-status modeling::save(component& c) noexcept
+status modeling::save(simple_component& c) noexcept
 {
     auto* dir = dir_paths.try_to_get(c.dir);
     irt_return_if_fail(dir, status::modeling_directory_access_error);
@@ -1663,7 +1664,7 @@ static status simulation_copy_model(modeling_to_simulation& cache,
                                     simulation&             sim,
                                     tree_node&              tree,
                                     simulation_tree_node&   sim_tree,
-                                    component&              src) noexcept
+                                    simple_component&       src) noexcept
 {
     sim_tree.children.clear();
 
@@ -1831,7 +1832,7 @@ static auto get_treenode(tree_node& parent, child_id to_search) noexcept
     return children;
 }
 
-static auto get_component(modeling& mod, child& c) noexcept -> component*
+static auto get_component(modeling& mod, child& c) noexcept -> simple_component*
 {
     auto compo_id = enum_cast<component_id>(c.id);
 
@@ -1858,7 +1859,7 @@ struct model_to_component_connect
 };
 
 static auto input_connect(model_to_component_connect& ic,
-                          component&                  compo,
+                          simple_component&           compo,
                           tree_node&                  tree,
                           i8 port_dst) noexcept -> status
 {
@@ -1901,7 +1902,7 @@ static auto input_connect(model_to_component_connect& ic,
 }
 
 static auto output_connect(model_to_component_connect& ic,
-                           component&                  compo,
+                           simple_component&           compo,
                            tree_node&                  tree,
                            i8 port_dst) noexcept -> status
 {
@@ -1945,7 +1946,7 @@ static auto output_connect(model_to_component_connect& ic,
 
 static auto get_input_model_from_component(modeling_to_simulation& cache,
                                            simulation&             sim,
-                                           component&              compo,
+                                           simple_component&       compo,
                                            tree_node&              tree,
                                            i8 port) noexcept -> status
 {
@@ -1987,7 +1988,7 @@ static auto get_input_model_from_component(modeling_to_simulation& cache,
 
 static auto get_output_model_from_component(modeling_to_simulation& cache,
                                             simulation&             sim,
-                                            component&              compo,
+                                            simple_component&       compo,
                                             tree_node&              tree,
                                             i8 port) noexcept -> status
 {
@@ -2032,7 +2033,7 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                           modeling&               mod,
                                           simulation&             sim,
                                           tree_node&              tree,
-                                          component&              compo)
+                                          simple_component&       compo)
 {
     connection* to_del = nullptr;
     connection* con    = nullptr;

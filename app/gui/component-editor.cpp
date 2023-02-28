@@ -156,8 +156,8 @@ static void add_output_attribute(const Dynamics& dyn, child_id id) noexcept
     }
 }
 
-static bool show_connection(const component&  parent,
-                            const connection& con) noexcept
+static bool show_connection(const simple_component& parent,
+                            const connection&       con) noexcept
 {
     const auto idx    = get_index(parent.connections.get_id(con));
     const auto con_id = static_cast<int>(idx);
@@ -198,7 +198,7 @@ static bool show_connection(const component&  parent,
 }
 
 static void show(component_editor& ed,
-                 component&        parent,
+                 simple_component& parent,
                  model&            mdl,
                  child&            c,
                  child_id          id) noexcept
@@ -249,7 +249,7 @@ static void show(component_editor& ed,
 }
 
 static void show(component_editor& ed,
-                 component&        compo,
+                 simple_component& compo,
                  child&            c,
                  child_id          id) noexcept
 {
@@ -315,7 +315,7 @@ static void show(component_editor& ed,
 
 static void show_opened_component_ref(component_editor& ed,
                                       tree_node& /*ref*/,
-                                      component& parent) noexcept
+                                      simple_component& parent) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
@@ -433,7 +433,7 @@ static void show_opened_component_ref(component_editor& ed,
 }
 
 static void add_popup_menuitem(component_editor& ed,
-                               component&        parent,
+                               simple_component& parent,
                                dynamics_type     type,
                                ImVec2            click_pos)
 {
@@ -464,7 +464,7 @@ static void add_popup_menuitem(component_editor& ed,
 }
 
 static void add_popup_menuitem(component_editor& ed,
-                               component&        parent,
+                               simple_component& parent,
                                int               type,
                                ImVec2            click_pos)
 {
@@ -472,8 +472,8 @@ static void add_popup_menuitem(component_editor& ed,
     add_popup_menuitem(ed, parent, d_type, click_pos);
 }
 
-static void compute_grid_layout(settings_window& settings,
-                                component&       compo) noexcept
+static void compute_grid_layout(settings_window&  settings,
+                                simple_component& compo) noexcept
 {
     const auto size  = compo.children.ssize();
     const auto fsize = static_cast<float>(size);
@@ -538,8 +538,8 @@ static bool can_add_this_component(component_editor&  ed,
 
 static status add_component_to_current(component_editor& ed,
                                        tree_node&        parent,
-                                       component&        parent_compo,
-                                       component&        compo_to_add,
+                                       simple_component& parent_compo,
+                                       simple_component& compo_to_add,
                                        ImVec2 /*click_pos*/)
 {
     const auto compo_to_add_id = ed.mod.components.get_id(compo_to_add);
@@ -572,11 +572,11 @@ static status add_component_to_current(component_editor& ed,
 
 static void show_popup_all_component_menuitem(component_editor& ed,
                                               tree_node&        tree,
-                                              component&        parent,
+                                              simple_component& parent,
                                               ImVec2 click_pos) noexcept
 {
     if (ImGui::BeginMenu("Internal library")) {
-        component* compo = nullptr;
+        simple_component* compo = nullptr;
         while (ed.mod.components.next(compo)) {
             const bool is_internal =
               !match(compo->type, component_type::file, component_type::memory);
@@ -636,7 +636,7 @@ static void show_popup_all_component_menuitem(component_editor& ed,
     }
 
     if (ImGui::BeginMenu("Not saved")) {
-        component* compo = nullptr;
+        simple_component* compo = nullptr;
         while (ed.mod.components.next(compo)) {
             const bool is_not_saved =
               match(compo->type, component_type::memory);
@@ -655,7 +655,7 @@ static void show_popup_all_component_menuitem(component_editor& ed,
 
 static void show_popup_menuitem(component_editor& ed,
                                 tree_node&        tree,
-                                component&        parent) noexcept
+                                simple_component& parent) noexcept
 {
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
@@ -1003,7 +1003,8 @@ static void show_popup_menuitem(component_editor& ed,
 //     }
 // }
 
-static void is_link_created(component_editor& ed, component& parent) noexcept
+static void is_link_created(component_editor& ed,
+                            simple_component& parent) noexcept
 {
     int start = 0, end = 0;
     if (ImNodes::IsLinkCreated(&start, &end)) {
@@ -1081,7 +1082,7 @@ static void is_link_created(component_editor& ed, component& parent) noexcept
     }
 }
 
-static void is_link_destroyed(component& parent) noexcept
+static void is_link_destroyed(simple_component& parent) noexcept
 {
     int link_id;
     if (ImNodes::IsLinkDestroyed(&link_id)) {
@@ -1095,7 +1096,7 @@ static void is_link_destroyed(component& parent) noexcept
 
 static void remove_nodes(component_editor& ed,
                          tree_node&        tree,
-                         component&        parent) noexcept
+                         simple_component& parent) noexcept
 {
     for (i32 i = 0, e = ed.selected_nodes.size(); i != e; ++i) {
         if (auto* child = unpack_node(ed.selected_nodes[i], parent.children);
@@ -1124,7 +1125,8 @@ static void remove_nodes(component_editor& ed,
     parent.state = component_status::modified;
 }
 
-static void remove_links(component_editor& ed, component& parent) noexcept
+static void remove_links(component_editor& ed,
+                         simple_component& parent) noexcept
 {
     std::sort(
       ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
@@ -1157,7 +1159,7 @@ static void remove_component_input_output(ImVector<int>& v) noexcept
 
 static void show_component_editor(component_editor& ed,
                                   tree_node&        tree,
-                                  component&        compo) noexcept
+                                  simple_component& compo) noexcept
 {
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();
