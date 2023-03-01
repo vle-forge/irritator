@@ -1696,10 +1696,9 @@ static status read_children(json_cache&             cache,
             auto& child = mod.alloc(s_compo, opt_type.value());
             last        = &child;
 
-            irt_assert(s_compo.models.try_to_get(
-                         enum_cast<model_id>(child.id)) != nullptr);
+            irt_assert(s_compo.models.try_to_get(child.id.mdl_id) != nullptr);
 
-            auto& mdl = s_compo.models.get(enum_cast<model_id>(child.id));
+            auto& mdl = s_compo.models.get(child.id.mdl_id);
 
             auto ret = dispatch(
               mdl,
@@ -2170,7 +2169,7 @@ static status write_children(json_cache& /*cache*/,
             w.Key("type");
             w.String("component");
 
-            auto  cpn_id = enum_cast<component_id>(c->id);
+            auto  cpn_id = c->id.compo_id;
             auto* cpn    = mod.components.try_to_get(cpn_id);
             irt_assert(cpn && "cleanup all component vectors before save");
 
@@ -2179,7 +2178,7 @@ static status write_children(json_cache& /*cache*/,
             w.Key("component-parameter");
             w.String(mod.file_paths.get(compo.file).path.c_str());
         } else {
-            auto  mdl_id = enum_cast<model_id>(c->id);
+            auto  mdl_id = c->id.mdl_id;
             auto* mdl    = simple_compo.models.try_to_get(mdl_id);
             irt_assert(mdl && "cleanup all component vectors before save");
 
@@ -2211,8 +2210,8 @@ static status write_children(json_cache& /*cache*/,
 template<typename Writer>
 static status write_ports(json_cache& /*cache*/,
                           const modeling& /*mod*/,
-                          const component&        compo,
-                          Writer&                 w) noexcept
+                          const component& compo,
+                          Writer&          w) noexcept
 {
     w.Key("x");
     w.StartArray();
@@ -2734,14 +2733,14 @@ static status load_access(modeling&               mod,
             irt_return_if_fail(child->type == child_type::model,
                                status::io_file_format_error);
 
-            auto id = enum_cast<component_id>(child->id);
+            auto id = child->id.compo_id;
             compo   = mod.components.try_to_get(id);
             irt_return_if_fail(compo, status::io_file_format_error);
         } else {
             irt_return_if_fail(child->type != child_type::component,
                                status::io_file_format_error);
 
-            auto id = enum_cast<model_id>(child->id);
+            auto id = child->id.mdl_id;
             mdl     = s_compo->models.try_to_get(id);
             irt_return_if_fail(mdl, status::io_file_format_error);
             break;

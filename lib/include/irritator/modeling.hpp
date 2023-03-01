@@ -16,7 +16,6 @@ namespace irt {
 enum class component_id : u64;
 enum class simple_component_id : u64;
 enum class tree_node_id : u64;
-enum class parameter_id : u64;
 enum class description_id : u64;
 enum class dir_path_id : u64;
 enum class file_path_id : u64;
@@ -134,8 +133,14 @@ struct child
     child(component_id component) noexcept;
 
     small_string<32> name;
-    u64              id;
-    child_type       type;
+
+    union
+    {
+        model_id     mdl_id;
+        component_id compo_id;
+    } id;
+
+    child_type type;
 
     float x            = 0.f;
     float y            = 0.f;
@@ -507,15 +512,15 @@ struct modeling
  */
 
 inline child::child(model_id model) noexcept
-  : id{ ordinal(model) }
-  , type{ child_type::model }
+  : type{ child_type::model }
 {
+    id.mdl_id = model;
 }
 
 inline child::child(component_id component) noexcept
-  : id{ ordinal(component) }
-  , type{ child_type::component }
+  : type{ child_type::component }
 {
+    id.compo_id = component;
 }
 
 inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept

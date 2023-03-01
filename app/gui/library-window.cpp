@@ -288,7 +288,7 @@ static void show_selected_children(component_editor& c_editor) noexcept
 
                         if (child->type == child_type::model) {
                             auto  child_id = s_compo->children.get_id(*child);
-                            auto  mdl_id   = enum_cast<model_id>(child->id);
+                            auto  mdl_id   = child->id.mdl_id;
                             auto* mdl      = s_compo->models.try_to_get(mdl_id);
 
                             if (mdl) {
@@ -300,7 +300,7 @@ static void show_selected_children(component_editor& c_editor) noexcept
                                   *s_compo, *mdl, child_id);
                             }
                         } else {
-                            auto  compo_id = enum_cast<component_id>(child->id);
+                            auto  compo_id = child->id.compo_id;
                             auto* compo =
                               c_editor.mod.components.try_to_get(compo_id);
 

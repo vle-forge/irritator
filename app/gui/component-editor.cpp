@@ -395,11 +395,11 @@ static void show_opened_component_ref(component_editor& ed,
         const auto child_id = s_parent.children.get_id(c);
 
         if (c->type == child_type::model) {
-            auto id = enum_cast<model_id>(c->id);
+            auto id = c->id.mdl_id;
             if (auto* mdl = s_parent.models.try_to_get(id); mdl)
                 show(ed, parent, *mdl, *c, child_id);
         } else {
-            auto id = enum_cast<component_id>(c->id);
+            auto id = c->id.compo_id;
             if (auto* compo = ed.mod.components.try_to_get(id); compo) {
                 switch (compo->type) {
                 case component_type::none:
@@ -1136,7 +1136,7 @@ static void remove_nodes(component_editor& ed,
             if (child->type == child_type::component) {
                 if (auto* c = tree.tree.get_child(); c) {
                     do {
-                        if (c->id == enum_cast<component_id>(child->id)) {
+                        if (c->id == child->id.compo_id) {
                             c->tree.remove_from_hierarchy();
                             c = nullptr;
                         } else {
@@ -1158,7 +1158,7 @@ static void remove_nodes(component_editor& ed,
 }
 
 static void remove_links(component_editor& ed,
-                         component& parent,
+                         component&        parent,
                          simple_component& s_parent) noexcept
 {
     std::sort(

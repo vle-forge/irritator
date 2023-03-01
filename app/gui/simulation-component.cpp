@@ -38,7 +38,7 @@ static status simulation_init_observation(simulation_editor& sim_ed,
                 if (c->observable) {
                     irt_assert(c->type == child_type::model);
 
-                    const auto mdl_id = enum_cast<model_id>(c->id);
+                    const auto mdl_id = c->id.mdl_id;
 
                     if (auto* obs_map = tree.observables.get(mdl_id); obs_map) {
                         auto* sim_map = tree.sim.get(mdl_id);

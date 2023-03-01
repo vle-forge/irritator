@@ -1102,7 +1102,7 @@ static bool is_ports_compatible(model&            mdl_src,
             irt_assert(sub_child_dst);
             irt_assert(sub_child_dst->type == child_type::model);
 
-            auto  sub_model_dst_id = enum_cast<model_id>(sub_child_dst->id);
+            auto  sub_model_dst_id = sub_child_dst->id.mdl_id;
             auto* sub_model_dst = compo_dst.models.try_to_get(sub_model_dst_id);
 
             if (!is_ports_compatible(
@@ -1131,7 +1131,7 @@ static bool is_ports_compatible(simple_component& compo_src,
             irt_assert(sub_child_src);
             irt_assert(sub_child_src->type == child_type::model);
 
-            auto  sub_model_src_id = enum_cast<model_id>(sub_child_src->id);
+            auto  sub_model_src_id = sub_child_src->id.mdl_id;
             auto* sub_model_src = compo_src.models.try_to_get(sub_model_src_id);
             irt_assert(sub_model_src);
 
@@ -1162,7 +1162,7 @@ static bool is_ports_compatible(simple_component& compo_src,
             irt_assert(sub_child_src);
             irt_assert(sub_child_src->type == child_type::model);
 
-            auto  sub_model_src_id = enum_cast<model_id>(sub_child_src->id);
+            auto  sub_model_src_id = sub_child_src->id.mdl_id;
             auto* sub_model_src = compo_src.models.try_to_get(sub_model_src_id);
             irt_assert(sub_model_src);
 
@@ -1190,16 +1190,16 @@ static bool is_ports_compatible(modeling&         mod,
     irt_assert(child_dst);
 
     if (child_src->type == child_type::model) {
-        auto  mdl_src_id = enum_cast<model_id>(child_src->id);
+        auto  mdl_src_id = child_src->id.mdl_id;
         auto* mdl_src    = parent.models.try_to_get(mdl_src_id);
 
         if (child_dst->type == child_type::model) {
-            auto  mdl_dst_id = enum_cast<model_id>(child_dst->id);
+            auto  mdl_dst_id = child_dst->id.mdl_id;
             auto* mdl_dst    = parent.models.try_to_get(mdl_dst_id);
             return is_ports_compatible(*mdl_src, port_src, *mdl_dst, port_dst);
 
         } else {
-            auto  compo_dst_id = enum_cast<component_id>(child_dst->id);
+            auto  compo_dst_id = child_dst->id.compo_id;
             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
             irt_assert(compo_dst);
             auto* s_compo_dst =
@@ -1210,7 +1210,7 @@ static bool is_ports_compatible(modeling&         mod,
               *mdl_src, port_src, *s_compo_dst, port_dst);
         }
     } else {
-        auto  compo_src_id = enum_cast<component_id>(child_src->id);
+        auto  compo_src_id = child_src->id.compo_id;
         auto* compo_src    = mod.components.try_to_get(compo_src_id);
         irt_assert(compo_src);
         auto* s_compo_src =
@@ -1218,14 +1218,14 @@ static bool is_ports_compatible(modeling&         mod,
         irt_assert(s_compo_src);
 
         if (child_dst->type == child_type::model) {
-            auto  mdl_dst_id = enum_cast<model_id>(child_dst->id);
+            auto  mdl_dst_id = child_dst->id.mdl_id;
             auto* mdl_dst    = parent.models.try_to_get(mdl_dst_id);
             irt_assert(mdl_dst);
 
             return is_ports_compatible(
               *s_compo_src, port_src, *mdl_dst, port_dst);
         } else {
-            auto  compo_dst_id = enum_cast<component_id>(child_dst->id);
+            auto  compo_dst_id = child_dst->id.compo_id;
             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
             irt_assert(compo_dst);
             auto* s_compo_dst =
@@ -1250,7 +1250,7 @@ status modeling::connect_input(simple_component& parent,
     irt_assert(child);
 
     if (child->type == child_type::model) {
-        auto  mdl_id  = enum_cast<model_id>(child->id);
+        auto  mdl_id  = child->id.mdl_id;
         auto* mdl_dst = parent.models.try_to_get(mdl_id);
         irt_assert(mdl_dst);
 
@@ -1280,7 +1280,7 @@ status modeling::connect_output(simple_component& parent,
     irt_assert(child);
 
     if (child->type == child_type::model) {
-        auto  mdl_id  = enum_cast<model_id>(child->id);
+        auto  mdl_id  = child->id.mdl_id;
         auto* mdl_src = parent.models.try_to_get(mdl_id);
         irt_assert(mdl_src);
 
@@ -1326,7 +1326,7 @@ static void free_child(data_array<child, child_id>& children,
                        child&                       c) noexcept
 {
     if (c.type == child_type::model) {
-        auto id = enum_cast<model_id>(c.id);
+        auto id = c.id.mdl_id;
         if (auto* mdl = models.try_to_get(id); mdl)
             models.free(*mdl);
     }
@@ -1377,7 +1377,8 @@ void modeling::free(simple_component& parent, connection& c) noexcept
     parent.connections.free(c);
 }
 
-status modeling::copy(const simple_component& src, simple_component& dst) noexcept
+status modeling::copy(const simple_component& src,
+                      simple_component&       dst) noexcept
 {
     table<child_id, child_id> mapping;
 
@@ -1386,7 +1387,7 @@ status modeling::copy(const simple_component& src, simple_component& dst) noexce
         const auto c_id = src.children.get_id(*c);
 
         if (c->type == child_type::model) {
-            auto id = enum_cast<model_id>(c->id);
+            auto id = c->id.mdl_id;
             if (auto* mdl = src.models.try_to_get(id); mdl) {
                 irt_return_if_fail(dst.models.can_alloc(1),
                                    status::data_array_not_enough_memory);
@@ -1400,7 +1401,7 @@ status modeling::copy(const simple_component& src, simple_component& dst) noexce
                 mapping.data.emplace_back(c_id, new_child_id);
             }
         } else {
-            auto compo_id = enum_cast<component_id>(c->id);
+            auto compo_id = c->id.compo_id;
             if (auto* compo = components.try_to_get(compo_id); compo) {
                 auto& new_child    = dst.children.alloc(compo_id);
                 auto  new_child_id = dst.children.get_id(new_child);
@@ -1475,7 +1476,7 @@ static status make_tree_recursive(
   child_id                                           compo_child_id,
   child&                                             compo_child) noexcept
 {
-    auto compo_id = enum_cast<component_id>(compo_child.id);
+    auto compo_id = compo_child.id.compo_id;
 
     if (auto* compo = components.try_to_get(compo_id); compo) {
         irt_return_if_fail(trees.can_alloc(),
@@ -1675,7 +1676,7 @@ static status simulation_copy_model(modeling_to_simulation& cache,
         to_del = c;
 
         if (c->type == child_type::model) {
-            auto  mdl_id = enum_cast<model_id>(c->id);
+            auto  mdl_id = c->id.mdl_id;
             auto* mdl    = src.models.try_to_get(mdl_id);
 
             if (!mdl)
@@ -1837,7 +1838,7 @@ static auto get_treenode(tree_node& parent, child_id to_search) noexcept
 
 static auto get_component(modeling& mod, child& c) noexcept -> component*
 {
-    auto compo_id = enum_cast<component_id>(c.id);
+    auto compo_id = c.id.compo_id;
 
     return mod.components.try_to_get(compo_id);
 }
@@ -1846,7 +1847,7 @@ static auto get_simulation_model(tree_node&  parent,
                                  simulation& sim,
                                  child&      ch) noexcept -> model*
 {
-    auto mod_model_id = enum_cast<model_id>(ch.id);
+    auto mod_model_id = ch.id.mdl_id;
     if (auto* sim_model_id = parent.sim.get(mod_model_id); sim_model_id)
         return sim.models.try_to_get(*sim_model_id);
 
@@ -1972,7 +1973,7 @@ static auto get_input_model_from_component(modeling_to_simulation& cache,
 
             irt_assert(child->type == child_type::model);
 
-            auto  mod_model_id = enum_cast<model_id>(child->id);
+            auto  mod_model_id = child->id.mdl_id;
             auto* sim_model_id = tree.sim.get(mod_model_id);
             irt_assert(sim_model_id);
 
@@ -2015,7 +2016,7 @@ static auto get_output_model_from_component(modeling_to_simulation& cache,
 
             irt_assert(child->type == child_type::model);
 
-            auto  mod_model_id = enum_cast<model_id>(child->id);
+            auto  mod_model_id = child->id.mdl_id;
             auto* sim_model_id = tree.sim.get(mod_model_id);
             irt_assert(sim_model_id);
 

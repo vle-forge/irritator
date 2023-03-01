@@ -44,7 +44,7 @@ static void show_project_hierarchy_child_observable(tree_node&        parent,
                                                     simple_component& compo,
                                                     child& ch) noexcept
 {
-    auto  id  = enum_cast<model_id>(ch.id);
+    auto  id  = ch.id.mdl_id;
     auto* mdl = compo.models.try_to_get(id);
 
     if (mdl) {
@@ -78,7 +78,7 @@ static void show_project_hierarchy_child_configuration(
   simple_component& s_compo,
   child&            ch) noexcept
 {
-    auto  id  = enum_cast<model_id>(ch.id);
+    auto  id  = ch.id.mdl_id;
     auto* mdl = s_compo.models.try_to_get(id);
 
     if (mdl) {
