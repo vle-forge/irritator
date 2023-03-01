@@ -206,6 +206,48 @@ struct simple_component
     data_array<connection, connection_id>          connections;
 };
 
+struct line_component
+{
+    i32 size = 0; //!< Lenght of the line component.
+
+    enum class options : i8
+    {
+        none,
+        circle //!< The end of line is connected to the begin.
+    };
+
+    enum class type : i8
+    {
+        number, //!< Only one port for one or two neighbor.
+        name    //!< One or two ports for left and/or right neighbor.
+    };
+
+    enum class input
+    {
+        number = 0, //!< Only the first port is used.
+        left   = 0, //!< Left model use input port 0.
+        right  = 1  //!< Right model use input port 1.
+    };
+
+    enum class children_index
+    {
+        none   = 0,
+        left   = 0,
+        center = 1,
+        right  = 2
+    };
+
+    struct specific
+    {
+        child_id id;
+        i32      index;
+    };
+
+    child_id         children[3];
+    vector<specific> specific_children;
+    type             type = type::number;
+};
+
 struct component
 {
     static inline constexpr int port_number = 8;
