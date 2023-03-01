@@ -81,50 +81,52 @@ void memory_window::show() noexcept
     }
 
     if (ImGui::CollapsingHeader("Components")) {
-        simple_component* compo = nullptr;
+        component* compo = nullptr;
         while (c_editor.mod.components.next(compo)) {
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {
-                ImGui::TextFormat("children: {}/{}",
-                                  compo->children.size(),
-                                  compo->children.capacity());
-                ImGui::TextFormat("models: {}/{}",
-                                  compo->models.size(),
-                                  compo->models.capacity());
-                ImGui::TextFormat(
-                  "hsm: {}/{}", compo->hsms.size(), compo->hsms.capacity());
-                ImGui::TextFormat("connections: {}/{}",
-                                  compo->connections.size(),
-                                  compo->connections.capacity());
-                ImGui::Separator();
+                if (auto* s_compo = c_editor.mod.simple_components.try_to_get(
+                      compo->id.simple_id);
+                    s_compo) {
+                    ImGui::TextFormat("children: {}/{}",
+                                      s_compo->children.size(),
+                                      s_compo->children.capacity());
+                    ImGui::TextFormat("models: {}/{}",
+                                      s_compo->models.size(),
+                                      s_compo->models.capacity());
+                    ImGui::TextFormat(
+                      "hsm: {}/{}", s_compo->hsms.size(), s_compo->hsms.capacity());
+                    ImGui::TextFormat("connections: {}/{}",
+                                      s_compo->connections.size(),
+                                      s_compo->connections.capacity());
+                    ImGui::Separator();
 
-                ImGui::TextFormat("Dir: {}", ordinal(compo->dir));
-                ImGui::TextFormat("Description: {}", ordinal(compo->desc));
-                ImGui::TextFormat("File: {}", ordinal(compo->file));
-                ImGui::TextFormat("Type: {}",
-                                  component_type_names[ordinal(compo->type)]);
+                    ImGui::TextFormat("Dir: {}", ordinal(compo->dir));
+                    ImGui::TextFormat("Description: {}", ordinal(compo->desc));
+                    ImGui::TextFormat("File: {}", ordinal(compo->file));
 
-                ImGui::Separator();
+                    ImGui::Separator();
 
-                int         x = 0, y = 0;
-                connection* con = nullptr;
-                while (compo->connections.next(con)) {
-                    switch (con->type) {
-                    case connection::connection_type::input:
-                        ++x;
-                        break;
-                    case connection::connection_type::output:
-                        ++y;
-                        break;
-                    default:
-                        break;
+                    int         x = 0, y = 0;
+                    connection* con = nullptr;
+                    while (s_compo->connections.next(con)) {
+                        switch (con->type) {
+                        case connection::connection_type::input:
+                            ++x;
+                            break;
+                        case connection::connection_type::output:
+                            ++y;
+                            break;
+                        default:
+                            break;
+                        }
                     }
+
+                    ImGui::TextFormat("X: {}", x);
+                    ImGui::TextFormat("Y: {}", y);
+
+                    ImGui::TreePop();
                 }
-
-                ImGui::TextFormat("X: {}", x);
-                ImGui::TextFormat("Y: {}", y);
-
-                ImGui::TreePop();
             }
             ImGui::PopID();
         }

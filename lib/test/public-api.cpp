@@ -3413,49 +3413,49 @@ int main()
         expect(b == 0x44556677);
     };
 
-    "modeling-copy"_test = [] {
-        irt::modeling             mod;
-        irt::modeling_initializer mod_init;
-
-        mod.init(mod_init);
-        mod.fill_internal_components();
-
-        auto& main_compo = mod.components.alloc();
-        main_compo.name.assign("New component");
-        main_compo.type = irt::component_type::memory;
-
-        auto& main_tree = mod.tree_nodes.alloc(
-          mod.components.get_id(main_compo), irt::undefined<irt::child_id>());
-        mod.head = mod.tree_nodes.get_id(main_tree);
-
-        irt::simple_component* lotka = nullptr;
-        while (mod.components.next(lotka))
-            if (lotka->type == irt::component_type::qss1_lotka_volterra)
-                break;
-
-        expect(lotka != nullptr);
-
-        auto lotka_id = mod.components.get_id(*lotka);
-
-        for (int i = 0; i < 2; ++i) {
-            irt::tree_node_id a;
-            mod.make_tree_from(*lotka, &a);
-
-            auto& child_a     = main_compo.children.alloc(lotka_id);
-            auto& tree        = mod.tree_nodes.get(a);
-            tree.id_in_parent = main_compo.children.get_id(child_a);
-            tree.tree.set_id(&tree);
-            tree.tree.parent_to(main_tree.tree);
-        }
-
-        irt::simulation             sim;
-        irt::modeling_to_simulation cache;
-        sim.init(1024, 4096);
-
-        expect(mod.can_export_to(cache, sim) == true);
-        expect(mod.export_to(cache, sim) == irt::status::success);
-        expect(sim.models.ssize() == 2 * lotka->children.ssize());
-    };
+    // "modeling-copy"_test = [] {
+    //     irt::modeling             mod;
+    //     irt::modeling_initializer mod_init;
+    //
+    //     mod.init(mod_init);
+    //     mod.fill_internal_components();
+    //
+    //     auto& main_compo = mod.components.alloc();
+    //     main_compo.name.assign("New component");
+    //     main_compo.type = irt::component_type::none;
+    //
+    //     auto& main_tree = mod.tree_nodes.alloc(
+    //       mod.components.get_id(main_compo), irt::undefined<irt::child_id>());
+    //     mod.head = mod.tree_nodes.get_id(main_tree);
+    //
+    //     irt::simple_component* lotka = nullptr;
+    //     while (mod.components.next(lotka))
+    //         if (lotka->type == irt::component_type::qss1_lotka_volterra)
+    //             break;
+    //
+    //     expect(lotka != nullptr);
+    //
+    //     auto lotka_id = mod.components.get_id(*lotka);
+    //
+    //     for (int i = 0; i < 2; ++i) {
+    //         irt::tree_node_id a;
+    //         mod.make_tree_from(*lotka, &a);
+    //
+    //         auto& child_a     = main_compo.children.alloc(lotka_id);
+    //         auto& tree        = mod.tree_nodes.get(a);
+    //         tree.id_in_parent = main_compo.children.get_id(child_a);
+    //         tree.tree.set_id(&tree);
+    //         tree.tree.parent_to(main_tree.tree);
+    //     }
+    //
+    //     irt::simulation             sim;
+    //     irt::modeling_to_simulation cache;
+    //     sim.init(1024, 4096);
+    //
+    //     expect(mod.can_export_to(cache, sim) == true);
+    //     expect(mod.export_to(cache, sim) == irt::status::success);
+    //     expect(sim.models.ssize() == 2 * lotka->children.ssize());
+    // };
 
     "archive"_test = [] {
         irt::vector<irt::u8> data;

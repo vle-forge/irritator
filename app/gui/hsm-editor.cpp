@@ -816,12 +816,16 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
         auto& mod = app->component_ed.mod;
 
         if (auto* compo = mod.components.try_to_get(cid); compo) {
-            if (auto* mdl = compo->models.try_to_get(mid); mdl) {
-                if (mdl->type == dynamics_type::hsm_wrapper) {
-                    auto& hsmw = get_dyn<hsm_wrapper>(*mdl);
-                    if (auto* machine = compo->hsms.try_to_get(hsmw.id);
-                        machine)
-                        return machine;
+            auto s_compo_id = compo->id.simple_id;
+            if (auto* s_compo = mod.simple_components.try_to_get(s_compo_id);
+                s_compo) {
+                if (auto* mdl = s_compo->models.try_to_get(mid); mdl) {
+                    if (mdl->type == dynamics_type::hsm_wrapper) {
+                        auto& hsmw = get_dyn<hsm_wrapper>(*mdl);
+                        if (auto* machine = s_compo->hsms.try_to_get(hsmw.id);
+                            machine)
+                            return machine;
+                    }
                 }
             }
         }

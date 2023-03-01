@@ -198,7 +198,7 @@ static bool show_connection(const simple_component& parent,
 }
 
 static void show(component_editor& ed,
-                 simple_component& parent,
+                 component&        parent,
                  model&            mdl,
                  child&            c,
                  child_id          id) noexcept
@@ -226,13 +226,18 @@ static void show(component_editor& ed,
         ImGui::PushItemWidth(120.0f);
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            if (auto* machine = parent.hsms.try_to_get(dyn.id); machine) {
-                auto* app = container_of(&ed, &application::component_ed);
-                show_dynamics_inputs(*app,
-                                     ed.mod.components.get_id(parent),
-                                     parent.models.get_id(mdl),
-                                     *machine);
-                ImNodes::EditorContextSet(ed.context);
+            auto  s_compo_id = parent.id.simple_id;
+            auto* s_compo    = ed.mod.simple_components.try_to_get(s_compo_id);
+            if (s_compo) {
+
+                if (auto* machine = s_compo->hsms.try_to_get(dyn.id); machine) {
+                    auto* app = container_of(&ed, &application::component_ed);
+                    show_dynamics_inputs(*app,
+                                         ed.mod.components.get_id(parent),
+                                         s_compo->models.get_id(mdl),
+                                         *machine);
+                    ImNodes::EditorContextSet(ed.context);
+                }
             }
         } else {
             show_dynamics_inputs(ed.mod.srcs, dyn);
@@ -249,7 +254,8 @@ static void show(component_editor& ed,
 }
 
 static void show(component_editor& ed,
-                 simple_component& compo,
+                 component&        compo,
+                 simple_component& s_compo,
                  child&            c,
                  child_id          id) noexcept
 {
@@ -274,7 +280,7 @@ static void show(component_editor& ed,
     u32         input  = 0;
     u32         output = 0;
 
-    while (compo.connections.next(con)) {
+    while (s_compo.connections.next(con)) {
         switch (con->type) {
         case connection::connection_type::input:
             input |= 1 << con->input.index;
@@ -315,7 +321,8 @@ static void show(component_editor& ed,
 
 static void show_opened_component_ref(component_editor& ed,
                                       tree_node& /*ref*/,
-                                      simple_component& parent) noexcept
+                                      component&        parent,
+                                      simple_component& s_parent) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
@@ -384,17 +391,28 @@ static void show_opened_component_ref(component_editor& ed,
         ed.first_show_input_output = false;
     }
 
-    while (parent.children.next(c)) {
-        const auto child_id = parent.children.get_id(c);
+    while (s_parent.children.next(c)) {
+        const auto child_id = s_parent.children.get_id(c);
 
         if (c->type == child_type::model) {
             auto id = enum_cast<model_id>(c->id);
-            if (auto* mdl = parent.models.try_to_get(id); mdl)
+            if (auto* mdl = s_parent.models.try_to_get(id); mdl)
                 show(ed, parent, *mdl, *c, child_id);
         } else {
             auto id = enum_cast<component_id>(c->id);
-            if (auto* compo = ed.mod.components.try_to_get(id); compo)
-                show(ed, *compo, *c, child_id);
+            if (auto* compo = ed.mod.components.try_to_get(id); compo) {
+                switch (compo->type) {
+                case component_type::none:
+                    break;
+                case component_type::simple:
+                    if (auto* s_compo = ed.mod.simple_components.try_to_get(
+                          compo->id.simple_id))
+                        show(ed, *compo, *s_compo, *c, child_id);
+                    break;
+                case component_type::internal:
+                    break;
+                }
+            }
         }
 
         if (ed.force_node_position) {
@@ -416,28 +434,29 @@ static void show_opened_component_ref(component_editor& ed,
     {
         connection* con    = nullptr;
         connection* to_del = nullptr;
-        while (parent.connections.next(con)) {
+        while (s_parent.connections.next(con)) {
             if (to_del) {
-                parent.connections.free(*to_del);
+                s_parent.connections.free(*to_del);
                 to_del = nullptr;
             }
 
-            if (!show_connection(parent, *con)) {
+            if (!show_connection(s_parent, *con)) {
                 to_del = con;
             }
         }
 
         if (to_del)
-            parent.connections.free(*to_del);
+            s_parent.connections.free(*to_del);
     }
 }
 
 static void add_popup_menuitem(component_editor& ed,
-                               simple_component& parent,
+                               component&        parent,
+                               simple_component& s_parent,
                                dynamics_type     type,
                                ImVec2            click_pos)
 {
-    if (!parent.models.can_alloc(1)) {
+    if (!s_parent.models.can_alloc(1)) {
         auto* app = container_of(&ed, &application::component_ed);
         auto& n   = app->notifications.alloc();
         n.level   = log_level::error;
@@ -446,8 +465,8 @@ static void add_popup_menuitem(component_editor& ed,
     }
 
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)])) {
-        auto& child    = ed.mod.alloc(parent, type);
-        auto  child_id = parent.children.get_id(child);
+        auto& child    = ed.mod.alloc(s_parent, type);
+        auto  child_id = s_parent.children.get_id(child);
 
         parent.state = component_status::modified;
         ImNodes::SetNodeScreenSpacePos(pack_node(child_id), click_pos);
@@ -459,23 +478,24 @@ static void add_popup_menuitem(component_editor& ed,
         n.level   = log_level::debug;
         format(n.title,
                "new model {} added",
-               ordinal(parent.children.get_id(child)));
+               ordinal(s_parent.children.get_id(child)));
     }
 }
 
 static void add_popup_menuitem(component_editor& ed,
-                               simple_component& parent,
+                               component&        parent,
+                               simple_component& s_parent,
                                int               type,
                                ImVec2            click_pos)
 {
     auto d_type = enum_cast<dynamics_type>(type);
-    add_popup_menuitem(ed, parent, d_type, click_pos);
+    add_popup_menuitem(ed, parent, s_parent, d_type, click_pos);
 }
 
 static void compute_grid_layout(settings_window&  settings,
-                                simple_component& compo) noexcept
+                                simple_component& s_compo) noexcept
 {
-    const auto size  = compo.children.ssize();
+    const auto size  = s_compo.children.ssize();
     const auto fsize = static_cast<float>(size);
 
     if (size == 0)
@@ -493,10 +513,10 @@ static void compute_grid_layout(settings_window&  settings,
         new_pos.y = panning.y + i * settings.grid_layout_y_distance;
 
         for (float j = 0.f; j < column; ++j) {
-            if (!compo.children.next(c))
+            if (!s_compo.children.next(c))
                 break;
 
-            const auto c_id = compo.children.get_id(c);
+            const auto c_id = s_compo.children.get_id(c);
             new_pos.x       = panning.x + j * settings.grid_layout_x_distance;
             ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
         }
@@ -506,10 +526,10 @@ static void compute_grid_layout(settings_window&  settings,
     new_pos.y = panning.y + column * settings.grid_layout_y_distance;
 
     for (float j = 0.f; j < remaining; ++j) {
-        if (!compo.children.next(c))
+        if (!s_compo.children.next(c))
             break;
 
-        const auto c_id = compo.children.get_id(c);
+        const auto c_id = s_compo.children.get_id(c);
         new_pos.x       = panning.x + j * settings.grid_layout_x_distance;
         ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
     }
@@ -539,7 +559,7 @@ static bool can_add_this_component(component_editor&  ed,
 static status add_component_to_current(component_editor& ed,
                                        tree_node&        parent,
                                        simple_component& parent_compo,
-                                       simple_component& compo_to_add,
+                                       component&        compo_to_add,
                                        ImVec2 /*click_pos*/)
 {
     const auto compo_to_add_id = ed.mod.components.get_id(compo_to_add);
@@ -559,9 +579,7 @@ static status add_component_to_current(component_editor& ed,
     tree_node_id tree_id;
     irt_return_if_bad(ed.mod.make_tree_from(compo_to_add, &tree_id));
 
-    auto& c            = parent_compo.children.alloc(compo_to_add_id);
-    parent_compo.state = component_status::modified;
-
+    auto& c           = parent_compo.children.alloc(compo_to_add_id);
     auto& tree        = ed.mod.tree_nodes.get(tree_id);
     tree.id_in_parent = parent_compo.children.get_id(c);
     tree.tree.set_id(&tree);
@@ -572,20 +590,15 @@ static status add_component_to_current(component_editor& ed,
 
 static void show_popup_all_component_menuitem(component_editor& ed,
                                               tree_node&        tree,
-                                              simple_component& parent,
+                                              component& /* parent */,
+                                              simple_component& s_parent,
                                               ImVec2 click_pos) noexcept
 {
     if (ImGui::BeginMenu("Internal library")) {
-        simple_component* compo = nullptr;
+        component* compo = nullptr;
         while (ed.mod.components.next(compo)) {
-            const bool is_internal =
-              !match(compo->type, component_type::file, component_type::memory);
-
-            if (is_internal) {
-                if (ImGui::MenuItem(compo->name.c_str())) {
-                    add_component_to_current(
-                      ed, tree, parent, *compo, click_pos);
-                }
+            if (ImGui::MenuItem(compo->name.c_str())) {
+                add_component_to_current(ed, tree, s_parent, *compo, click_pos);
             }
         }
 
@@ -624,7 +637,7 @@ static void show_popup_all_component_menuitem(component_editor& ed,
 
                         if (ImGui::MenuItem(file->path.c_str())) {
                             add_component_to_current(
-                              ed, tree, parent, *compo, click_pos);
+                              ed, tree, s_parent, *compo, click_pos);
                         }
                     }
                     ImGui::EndMenu();
@@ -636,15 +649,13 @@ static void show_popup_all_component_menuitem(component_editor& ed,
     }
 
     if (ImGui::BeginMenu("Not saved")) {
-        simple_component* compo = nullptr;
+        component* compo = nullptr;
         while (ed.mod.components.next(compo)) {
-            const bool is_not_saved =
-              match(compo->type, component_type::memory);
+            if (compo->state == component_status::modified) {
 
-            if (is_not_saved) {
                 if (ImGui::MenuItem(compo->name.c_str())) {
                     add_component_to_current(
-                      ed, tree, parent, *compo, click_pos);
+                      ed, tree, s_parent, *compo, click_pos);
                 }
             }
         }
@@ -655,7 +666,8 @@ static void show_popup_all_component_menuitem(component_editor& ed,
 
 static void show_popup_menuitem(component_editor& ed,
                                 tree_node&        tree,
-                                simple_component& parent) noexcept
+                                component&        parent,
+                                simple_component& s_parent) noexcept
 {
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
@@ -681,12 +693,13 @@ static void show_popup_menuitem(component_editor& ed,
 
         if (ImGui::MenuItem("Force grid layout")) {
             auto* app = container_of(&ed, &application::component_ed);
-            compute_grid_layout(app->settings_wnd, parent);
+            compute_grid_layout(app->settings_wnd, s_parent);
         }
 
         ImGui::Separator();
 
-        show_popup_all_component_menuitem(ed, tree, parent, click_pos);
+        show_popup_all_component_menuitem(
+          ed, tree, parent, s_parent, click_pos);
 
         ImGui::Separator();
 
@@ -694,7 +707,7 @@ static void show_popup_menuitem(component_editor& ed,
             auto       i = ordinal(dynamics_type::qss1_integrator);
             const auto e = ordinal(dynamics_type::qss1_wsum_4);
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, i, click_pos);
+                add_popup_menuitem(ed, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -703,7 +716,7 @@ static void show_popup_menuitem(component_editor& ed,
             const auto e = ordinal(dynamics_type::qss2_wsum_4);
 
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, i, click_pos);
+                add_popup_menuitem(ed, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -712,50 +725,66 @@ static void show_popup_menuitem(component_editor& ed,
             const auto e = ordinal(dynamics_type::qss3_wsum_4);
 
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, i, click_pos);
+                add_popup_menuitem(ed, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("AQSS (experimental)")) {
             add_popup_menuitem(
-              ed, parent, dynamics_type::integrator, click_pos);
+              ed, parent, s_parent, dynamics_type::integrator, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::quantifier, click_pos);
-            add_popup_menuitem(ed, parent, dynamics_type::adder_2, click_pos);
-            add_popup_menuitem(ed, parent, dynamics_type::adder_3, click_pos);
-            add_popup_menuitem(ed, parent, dynamics_type::adder_4, click_pos);
-            add_popup_menuitem(ed, parent, dynamics_type::mult_2, click_pos);
-            add_popup_menuitem(ed, parent, dynamics_type::mult_3, click_pos);
-            add_popup_menuitem(ed, parent, dynamics_type::mult_4, click_pos);
-            add_popup_menuitem(ed, parent, dynamics_type::cross, click_pos);
+              ed, parent, s_parent, dynamics_type::quantifier, click_pos);
+            add_popup_menuitem(
+              ed, parent, s_parent, dynamics_type::adder_2, click_pos);
+            add_popup_menuitem(
+              ed, parent, s_parent, dynamics_type::adder_3, click_pos);
+            add_popup_menuitem(
+              ed, parent, s_parent, dynamics_type::adder_4, click_pos);
+            add_popup_menuitem(
+              ed, parent, s_parent, dynamics_type::mult_2, click_pos);
+            add_popup_menuitem(
+              ed, parent, s_parent, dynamics_type::mult_3, click_pos);
+            add_popup_menuitem(
+              ed, parent, s_parent, dynamics_type::mult_4, click_pos);
+            add_popup_menuitem(
+              ed, parent, s_parent, dynamics_type::cross, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Logical")) {
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_and_2, click_pos);
+              ed, parent, s_parent, dynamics_type::logical_and_2, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_or_2, click_pos);
+              ed, parent, s_parent, dynamics_type::logical_or_2, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_and_3, click_pos);
+              ed, parent, s_parent, dynamics_type::logical_and_3, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_or_3, click_pos);
+              ed, parent, s_parent, dynamics_type::logical_or_3, click_pos);
             add_popup_menuitem(
-              ed, parent, dynamics_type::logical_invert, click_pos);
+              ed, parent, s_parent, dynamics_type::logical_invert, click_pos);
             ImGui::EndMenu();
         }
 
-        add_popup_menuitem(ed, parent, dynamics_type::counter, click_pos);
-        add_popup_menuitem(ed, parent, dynamics_type::queue, click_pos);
-        add_popup_menuitem(ed, parent, dynamics_type::dynamic_queue, click_pos);
         add_popup_menuitem(
-          ed, parent, dynamics_type::priority_queue, click_pos);
-        add_popup_menuitem(ed, parent, dynamics_type::generator, click_pos);
-        add_popup_menuitem(ed, parent, dynamics_type::constant, click_pos);
-        add_popup_menuitem(ed, parent, dynamics_type::time_func, click_pos);
-        add_popup_menuitem(ed, parent, dynamics_type::accumulator_2, click_pos);
-        add_popup_menuitem(ed, parent, dynamics_type::filter, click_pos);
-        add_popup_menuitem(ed, parent, dynamics_type::hsm_wrapper, click_pos);
+          ed, parent, s_parent, dynamics_type::counter, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::queue, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::dynamic_queue, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::priority_queue, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::generator, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::constant, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::time_func, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::accumulator_2, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::filter, click_pos);
+        add_popup_menuitem(
+          ed, parent, s_parent, dynamics_type::hsm_wrapper, click_pos);
 
         ImGui::EndPopup();
     }
@@ -1004,20 +1033,21 @@ static void show_popup_menuitem(component_editor& ed,
 // }
 
 static void is_link_created(component_editor& ed,
-                            simple_component& parent) noexcept
+                            component&        parent,
+                            simple_component& s_parent) noexcept
 {
     int start = 0, end = 0;
     if (ImNodes::IsLinkCreated(&start, &end)) {
         u32 index_src, index_dst;
         i8  port_src_index, port_dst_index;
 
-        if (!parent.connections.can_alloc()) {
+        if (!s_parent.connections.can_alloc()) {
             auto* app = container_of(&ed, &application::component_ed);
             auto& n   = app->notifications.alloc(log_level::error);
             n.title   = "Not enough connection slot in this component";
             format(n.message,
                    "All connections slots ({}) are used.",
-                   parent.connections.capacity());
+                   s_parent.connections.capacity());
             app->notifications.enable(n);
             return;
         }
@@ -1034,12 +1064,12 @@ static void is_link_created(component_editor& ed,
             auto index = unpack_component_input(start);
             unpack_in(end, &index_dst, &port_dst_index);
 
-            auto* child_dst = parent.children.try_to_get(index_dst);
+            auto* child_dst = s_parent.children.try_to_get(index_dst);
             if (child_dst == nullptr)
                 return;
 
-            auto child_dst_id = parent.children.get_id(*child_dst);
-            if (is_success(ed.mod.connect_input(parent,
+            auto child_dst_id = s_parent.children.get_id(*child_dst);
+            if (is_success(ed.mod.connect_input(s_parent,
                                                 static_cast<i8>(index),
                                                 child_dst_id,
                                                 port_dst_index)))
@@ -1048,12 +1078,12 @@ static void is_link_created(component_editor& ed,
             if (is_component_input_or_output(end)) {
                 auto index = unpack_component_output(end);
                 unpack_out(start, &index_src, &port_src_index);
-                auto* child_src = parent.children.try_to_get(index_src);
+                auto* child_src = s_parent.children.try_to_get(index_src);
                 if (child_src == nullptr)
                     return;
 
-                auto child_src_id = parent.children.get_id(*child_src);
-                if (is_success(ed.mod.connect_output(parent,
+                auto child_src_id = s_parent.children.get_id(*child_src);
+                if (is_success(ed.mod.connect_output(s_parent,
                                                      child_src_id,
                                                      port_src_index,
                                                      static_cast<i8>(index))))
@@ -1062,16 +1092,16 @@ static void is_link_created(component_editor& ed,
                 unpack_out(start, &index_src, &port_src_index);
                 unpack_in(end, &index_dst, &port_dst_index);
 
-                auto* child_src = parent.children.try_to_get(index_src);
-                auto* child_dst = parent.children.try_to_get(index_dst);
+                auto* child_src = s_parent.children.try_to_get(index_src);
+                auto* child_dst = s_parent.children.try_to_get(index_dst);
 
                 if (!(child_src != nullptr && child_dst != nullptr))
                     return;
 
-                auto child_src_id = parent.children.get_id(*child_src);
-                auto child_dst_id = parent.children.get_id(*child_dst);
+                auto child_src_id = s_parent.children.get_id(*child_src);
+                auto child_dst_id = s_parent.children.get_id(*child_dst);
 
-                if (is_success(ed.mod.connect(parent,
+                if (is_success(ed.mod.connect(s_parent,
                                               child_src_id,
                                               port_src_index,
                                               child_dst_id,
@@ -1082,13 +1112,14 @@ static void is_link_created(component_editor& ed,
     }
 }
 
-static void is_link_destroyed(simple_component& parent) noexcept
+static void is_link_destroyed(component&        parent,
+                              simple_component& s_parent) noexcept
 {
     int link_id;
     if (ImNodes::IsLinkDestroyed(&link_id)) {
         const auto link_id_correct = static_cast<u32>(link_id);
-        if (auto* con = parent.connections.try_to_get(link_id_correct); con) {
-            parent.connections.free(*con);
+        if (auto* con = s_parent.connections.try_to_get(link_id_correct); con) {
+            s_parent.connections.free(*con);
             parent.state = component_status::modified;
         }
     }
@@ -1096,10 +1127,11 @@ static void is_link_destroyed(simple_component& parent) noexcept
 
 static void remove_nodes(component_editor& ed,
                          tree_node&        tree,
-                         simple_component& parent) noexcept
+                         component&        parent,
+                         simple_component& s_parent) noexcept
 {
     for (i32 i = 0, e = ed.selected_nodes.size(); i != e; ++i) {
-        if (auto* child = unpack_node(ed.selected_nodes[i], parent.children);
+        if (auto* child = unpack_node(ed.selected_nodes[i], s_parent.children);
             child) {
             if (child->type == child_type::component) {
                 if (auto* c = tree.tree.get_child(); c) {
@@ -1114,7 +1146,7 @@ static void remove_nodes(component_editor& ed,
                 }
             }
 
-            ed.mod.free(parent, *child);
+            ed.mod.free(s_parent, *child);
             parent.state = component_status::modified;
         }
     }
@@ -1126,16 +1158,17 @@ static void remove_nodes(component_editor& ed,
 }
 
 static void remove_links(component_editor& ed,
-                         simple_component& parent) noexcept
+                         component& parent,
+                         simple_component& s_parent) noexcept
 {
     std::sort(
       ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
 
     for (i32 i = 0, e = ed.selected_links.size(); i != e; ++i) {
         const auto link_id = static_cast<u32>(ed.selected_links[i]);
-        auto*      con     = parent.connections.try_to_get(link_id);
+        auto*      con     = s_parent.connections.try_to_get(link_id);
         if (con) {
-            parent.connections.free(*con);
+            s_parent.connections.free(*con);
             parent.state = component_status::modified;
         }
     }
@@ -1159,21 +1192,22 @@ static void remove_component_input_output(ImVector<int>& v) noexcept
 
 static void show_component_editor(component_editor& ed,
                                   tree_node&        tree,
-                                  simple_component& compo) noexcept
+                                  component&        compo,
+                                  simple_component& s_compo) noexcept
 {
     ImNodes::EditorContextSet(ed.context);
     ImNodes::BeginNodeEditor();
 
-    show_popup_menuitem(ed, tree, compo);
-    show_opened_component_ref(ed, tree, compo);
+    show_popup_menuitem(ed, tree, compo, s_compo);
+    show_opened_component_ref(ed, tree, compo, s_compo);
 
     if (ed.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
 
     ImNodes::EndNodeEditor();
 
-    is_link_created(ed, compo);
-    is_link_destroyed(compo);
+    is_link_created(ed, compo, s_compo);
+    is_link_destroyed(compo, s_compo);
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
@@ -1194,9 +1228,9 @@ static void show_component_editor(component_editor& ed,
 
     if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
         if (num_selected_nodes > 0)
-            remove_nodes(ed, tree, compo);
+            remove_nodes(ed, tree, compo, s_compo);
         else if (num_selected_links > 0)
-            remove_links(ed, compo);
+            remove_links(ed, compo, s_compo);
     }
 }
 
@@ -1232,8 +1266,20 @@ void component_editor::show() noexcept
     }
 
     if (auto* tree = mod.tree_nodes.try_to_get(selected_component); tree) {
-        if (auto* compo = mod.components.try_to_get(tree->id); compo)
-            show_component_editor(*this, *tree, *compo);
+        if (auto* compo = mod.components.try_to_get(tree->id); compo) {
+            switch (compo->type) {
+            case component_type::none:
+                break;
+            case component_type::simple:
+                if (auto* s_compo =
+                      mod.simple_components.try_to_get(compo->id.simple_id);
+                    s_compo)
+                    show_component_editor(*this, *tree, *compo, *s_compo);
+                break;
+            case component_type::internal:
+                break;
+            }
+        }
     }
 
     ImGui::End();

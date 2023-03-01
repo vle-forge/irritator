@@ -6,11 +6,12 @@
 #include "dialog.hpp"
 #include "editor.hpp"
 #include "internal.hpp"
+#include "irritator/modeling.hpp"
 
 namespace irt {
 
 static void show_component_popup_menu(irt::component_editor& ed,
-                                      simple_component*      compo) noexcept
+                                      component*             compo) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New")) {
@@ -22,7 +23,7 @@ static void show_component_popup_menu(irt::component_editor& ed,
             if (ImGui::MenuItem("Copy")) {
                 if (ed.mod.components.can_alloc()) {
                     auto& new_c = ed.mod.components.alloc();
-                    new_c.type  = component_type::memory;
+                    new_c.type  = component_type::simple;
                     new_c.name  = compo->name;
                     new_c.state = component_status::modified;
                     ed.mod.copy(*compo, new_c);
@@ -35,13 +36,6 @@ static void show_component_popup_menu(irt::component_editor& ed,
                 }
             }
 
-            if (compo->type == component_type::memory) {
-                if (ImGui::MenuItem("Delete")) {
-                    ed.mod.components.free(*compo);
-                    compo = nullptr;
-                }
-            }
-
             ImGui::EndPopup();
         }
     }
@@ -51,7 +45,7 @@ static bool show_component(component_editor& ed,
                            registred_path&   reg,
                            dir_path&         dir,
                            file_path&        file,
-                           simple_component& c,
+                           component&        c,
                            irt::tree_node*   head) noexcept
 {
     auto*      app        = container_of(&ed, &application::component_ed);
@@ -71,7 +65,7 @@ static bool show_component(component_editor& ed,
         if (ImGui::MenuItem("Copy")) {
             if (ed.mod.components.can_alloc()) {
                 auto& new_c = ed.mod.components.alloc();
-                new_c.type  = component_type::memory;
+                new_c.type  = component_type::simple;
                 new_c.name  = c.name;
                 new_c.state = component_status::modified;
                 ed.mod.copy(c, new_c);
@@ -107,11 +101,9 @@ static bool show_component(component_editor& ed,
 static void show_notsaved_components(irt::component_editor& ed,
                                      irt::tree_node*        head) noexcept
 {
-    simple_component* compo = nullptr;
+    component* compo = nullptr;
     while (ed.mod.components.next(compo)) {
-        const auto is_notsaved = match(compo->type, component_type::memory);
-
-        if (is_notsaved) {
+        if (compo->state == component_status::modified) {
             const auto id       = ed.mod.components.get_id(*compo);
             const bool selected = head ? id == head->id : false;
 
@@ -128,20 +120,15 @@ static void show_notsaved_components(irt::component_editor& ed,
 static void show_internal_components(irt::component_editor& ed,
                                      irt::tree_node*        head) noexcept
 {
-    simple_component* compo = nullptr;
+    component* compo = nullptr;
     while (ed.mod.components.next(compo)) {
-        const auto is_internal =
-          !match(compo->type, component_type::file, component_type::memory);
+        const auto id       = ed.mod.components.get_id(*compo);
+        const bool selected = head ? id == head->id : false;
 
-        if (is_internal) {
-            const auto id       = ed.mod.components.get_id(*compo);
-            const bool selected = head ? id == head->id : false;
+        if (ImGui::Selectable(compo->name.c_str(), selected))
+            ed.open_as_main(id);
 
-            if (ImGui::Selectable(compo->name.c_str(), selected))
-                ed.open_as_main(id);
-
-            show_component_popup_menu(ed, compo);
-        }
+        show_component_popup_menu(ed, compo);
     }
 }
 
@@ -270,12 +257,13 @@ static void show_selected_children(component_editor& c_editor) noexcept
         auto* tree =
           c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
         if (tree) {
-            simple_component* compo =
-              c_editor.mod.components.try_to_get(tree->id);
-            if (compo) {
+            auto* compo = c_editor.mod.components.try_to_get(tree->id);
+            if (compo && compo->type == component_type::simple) {
+                auto* s_compo = c_editor.mod.simple_components.try_to_get(
+                  compo->id.simple_id);
                 for (int i = 0, e = c_editor.selected_nodes.size(); i != e;
                      ++i) {
-                    auto* child = compo->children.try_to_get(
+                    auto* child = s_compo->children.try_to_get(
                       static_cast<u32>(c_editor.selected_nodes[i]));
                     if (!child)
                         continue;
@@ -299,16 +287,17 @@ static void show_selected_children(component_editor& c_editor) noexcept
                             compo->state = component_status::modified;
 
                         if (child->type == child_type::model) {
-                            auto  child_id = compo->children.get_id(*child);
+                            auto  child_id = s_compo->children.get_id(*child);
                             auto  mdl_id   = enum_cast<model_id>(child->id);
-                            auto* mdl      = compo->models.try_to_get(mdl_id);
+                            auto* mdl      = s_compo->models.try_to_get(mdl_id);
 
                             if (mdl) {
                                 ImGui::TextFormat(
                                   "type: {}",
                                   dynamics_type_names[ordinal(mdl->type)]);
 
-                                show_input_output_ports(*compo, *mdl, child_id);
+                                show_input_output_ports(
+                                  *s_compo, *mdl, child_id);
                             }
                         } else {
                             auto  compo_id = enum_cast<component_id>(child->id);
@@ -316,9 +305,7 @@ static void show_selected_children(component_editor& c_editor) noexcept
                               c_editor.mod.components.try_to_get(compo_id);
 
                             if (compo)
-                                ImGui::TextFormat(
-                                  "type: {}",
-                                  component_type_names[ordinal(compo->type)]);
+                                ImGui::TextFormat("name: {}", compo->name.sv());
                         }
 
                         ImGui::TreePop();
@@ -338,8 +325,7 @@ static void show_input_output(component_editor& c_editor) noexcept
         if (auto* tree =
               c_editor.mod.tree_nodes.try_to_get(c_editor.selected_component);
             tree) {
-            if (simple_component* compo =
-                  c_editor.mod.components.try_to_get(tree->id);
+            if (component* compo = c_editor.mod.components.try_to_get(tree->id);
                 compo) {
                 if (ImGui::BeginTable("##io-table",
                                       3,
@@ -353,7 +339,7 @@ static void show_input_output(component_editor& c_editor) noexcept
 
                     ImGui::TableHeadersRow();
 
-                    for (int i = 0; i < simple_component::port_number; ++i) {
+                    for (int i = 0; i < component::port_number; ++i) {
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();
                         ImGui::TextUnformatted(port_labels[i]);

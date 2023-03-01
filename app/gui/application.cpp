@@ -133,12 +133,12 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = component_ed.mod.fill_internal_components(); is_bad(ret)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to fill component list: {}\n",
-              status_string(ret));
-    }
+    // if (auto ret = component_ed.mod.fill_internal_components(); is_bad(ret)) {
+    //     log_w(*this,
+    //           log_level::error,
+    //           "Fail to fill component list: {}\n",
+    //           status_string(ret));
+    // }
 
     component_ed.mod.fill_components();
     component_ed.mod.head           = undefined<tree_node_id>();

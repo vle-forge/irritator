@@ -24,24 +24,34 @@ static void simulation_clear(component_editor&  ed,
 
 static status simulation_init_observation(simulation_editor& sim_ed,
                                           tree_node&         tree,
-                                          simple_component&  compo)
+                                          component&         compo)
 {
-    child* c = nullptr;
-    while (compo.children.next(c)) {
-        if (c->observable) {
-            irt_assert(c->type == child_type::model);
+    auto* app = container_of(&sim_ed, &application::simulation_ed);
+    auto& mod = app->component_ed.mod;
 
-            const auto mdl_id = enum_cast<model_id>(c->id);
+    if (compo.type == component_type::simple) {
+        if (auto* s_compo =
+              mod.simple_components.try_to_get(compo.id.simple_id);
+            s_compo) {
+            child* c = nullptr;
+            while (s_compo->children.next(c)) {
+                if (c->observable) {
+                    irt_assert(c->type == child_type::model);
 
-            if (auto* obs_map = tree.observables.get(mdl_id); obs_map) {
-                auto* sim_map = tree.sim.get(mdl_id);
-                irt_assert(sim_map);
+                    const auto mdl_id = enum_cast<model_id>(c->id);
 
-                const auto sim_id = enum_cast<model_id>(*sim_map);
-                auto*      mdl    = sim_ed.sim.models.try_to_get(sim_id);
+                    if (auto* obs_map = tree.observables.get(mdl_id); obs_map) {
+                        auto* sim_map = tree.sim.get(mdl_id);
+                        irt_assert(sim_map);
 
-                irt_assert(mdl);
-                sim_ed.add_simulation_observation_for(c->name.sv(), sim_id);
+                        const auto sim_id = enum_cast<model_id>(*sim_map);
+                        auto*      mdl = sim_ed.sim.models.try_to_get(sim_id);
+
+                        irt_assert(mdl);
+                        sim_ed.add_simulation_observation_for(c->name.sv(),
+                                                              sim_id);
+                    }
+                }
             }
         }
     }

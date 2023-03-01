@@ -461,48 +461,12 @@ status add_seirs(modeling& mod, simple_component& com) noexcept
 auto get_component_type(std::string_view name) noexcept
   -> std::optional<component_type>
 {
-    struct entry
-    {
-        std::string_view name;
-        component_type   type;
-    };
+    if (name == "internal")
+        return component_type::internal;
+    if (name == "simple")
+        return component_type::simple;
 
-    static const entry entries[] = {
-        { "file", component_type::file },
-        { "memory", component_type::memory },
-        { "qss1_izhikevich", component_type::qss1_izhikevich },
-        { "qss1_lif", component_type::qss1_lif },
-        { "qss1_lotka_volterra", component_type::qss1_lotka_volterra },
-        { "qss1_negative_lif", component_type::qss1_negative_lif },
-        { "qss1_seirs", component_type::qss1_seirs },
-        { "qss1_van_der_pol", component_type::qss1_van_der_pol },
-        { "qss2_izhikevich", component_type::qss2_izhikevich },
-        { "qss2_lif", component_type::qss2_lif },
-        { "qss2_lotka_volterra", component_type::qss2_lotka_volterra },
-        { "qss2_negative_lif", component_type::qss2_negative_lif },
-        { "qss2_seirs", component_type::qss2_seirs },
-        { "qss2_van_der_pol", component_type::qss2_van_der_pol },
-        { "qss3_izhikevich", component_type::qss3_izhikevich },
-        { "qss3_lif", component_type::qss3_lif },
-        { "qss3_lotka_volterra", component_type::qss3_lotka_volterra },
-        { "qss3_negative_lif", component_type::qss3_negative_lif },
-        { "qss3_seirs", component_type::qss3_seirs },
-        { "qss3_van_der_pol", component_type::qss3_van_der_pol },
-    };
-
-    auto it = binary_find(
-      std::begin(entries),
-      std::end(entries),
-      name,
-      [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), std::string_view>)
-              return left < right.name;
-          else
-              return left.name < right;
-      });
-
-    return it == std::end(entries) ? std::nullopt
-                                   : std::make_optional(it->type);
+    return std::nullopt;
 }
 
 static bool make_path(std::string_view sv) noexcept
@@ -557,16 +521,6 @@ status modeling::init(modeling_initializer& p) noexcept
     return status::success;
 }
 
-component_id modeling::search_internal_component(component_type type) noexcept
-{
-    simple_component* compo = nullptr;
-    while (components.next(compo))
-        if (compo->type == type)
-            return components.get_id(compo);
-
-    return undefined<component_id>();
-}
-
 component_id modeling::search_component(const char* directory_name,
                                         const char* file_name) noexcept
 {
@@ -599,9 +553,11 @@ component_id modeling::search_component(const char* directory_name,
     return undefined<component_id>();
 }
 
+#if 0
 status modeling::fill_internal_components() noexcept
 {
     irt_return_if_fail(components.can_alloc(21), status::success);
+    irt_return_if_fail(simple_components.can_alloc(21), status::success);
 
     {
         auto& c = components.alloc();
@@ -750,6 +706,7 @@ status modeling::fill_internal_components() noexcept
 
     return status::success;
 }
+#endif
 
 static void prepare_component_loading(modeling&             mod,
                                       registred_path&       reg_dir,
@@ -764,7 +721,7 @@ static void prepare_component_loading(modeling&             mod,
     compo.dir      = mod.dir_paths.get_id(dir);
     compo.file     = mod.file_paths.get_id(file);
     file.component = mod.components.get_id(compo);
-    compo.type     = component_type::file;
+    compo.type     = component_type::none;
     compo.state    = component_status::unread;
 
     try {
@@ -943,7 +900,7 @@ static void prepare_component_loading(modeling& mod) noexcept
     }
 }
 
-static status load_component(modeling& mod, simple_component& compo) noexcept
+static status load_component(modeling& mod, component& compo) noexcept
 {
     try {
         auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
@@ -1006,8 +963,8 @@ status modeling::fill_components() noexcept
 {
     prepare_component_loading(*this);
 
-    simple_component* compo  = nullptr;
-    simple_component* to_del = nullptr;
+    component* compo  = nullptr;
+    component* to_del = nullptr;
 
     while (components.next(compo)) {
         if (to_del) {
@@ -1015,11 +972,8 @@ status modeling::fill_components() noexcept
             to_del = nullptr;
         }
 
-        if (compo->type == component_type::file &&
-            compo->state == component_status::unread) {
-            if (is_bad(load_component(*this, *compo)))
-                to_del = compo;
-        }
+        if (is_bad(load_component(*this, *compo)))
+            to_del = compo;
     }
 
     if (to_del)
@@ -1248,26 +1202,38 @@ static bool is_ports_compatible(modeling&         mod,
             auto  compo_dst_id = enum_cast<component_id>(child_dst->id);
             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
             irt_assert(compo_dst);
+            auto* s_compo_dst =
+              mod.simple_components.try_to_get(compo_dst->id.simple_id);
+            irt_assert(s_compo_dst);
 
             return is_ports_compatible(
-              *mdl_src, port_src, *compo_dst, port_dst);
+              *mdl_src, port_src, *s_compo_dst, port_dst);
         }
     } else {
         auto  compo_src_id = enum_cast<component_id>(child_src->id);
         auto* compo_src    = mod.components.try_to_get(compo_src_id);
+        irt_assert(compo_src);
+        auto* s_compo_src =
+          mod.simple_components.try_to_get(compo_src->id.simple_id);
+        irt_assert(s_compo_src);
 
         if (child_dst->type == child_type::model) {
             auto  mdl_dst_id = enum_cast<model_id>(child_dst->id);
             auto* mdl_dst    = parent.models.try_to_get(mdl_dst_id);
+            irt_assert(mdl_dst);
 
             return is_ports_compatible(
-              *compo_src, port_src, *mdl_dst, port_dst);
+              *s_compo_src, port_src, *mdl_dst, port_dst);
         } else {
             auto  compo_dst_id = enum_cast<component_id>(child_dst->id);
             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
+            irt_assert(compo_dst);
+            auto* s_compo_dst =
+              mod.simple_components.try_to_get(compo_dst->id.simple_id);
+            irt_assert(s_compo_dst);
 
             return is_ports_compatible(
-              *compo_src, port_src, *compo_dst, port_dst);
+              *s_compo_src, port_src, *s_compo_dst, port_dst);
         }
     }
 }
@@ -1368,19 +1334,26 @@ static void free_child(data_array<child, child_id>& children,
     children.free(c);
 }
 
-void modeling::free(simple_component& c) noexcept
+void modeling::free(component& compo) noexcept
 {
-    c.children.clear();
-    c.models.clear();
-    c.connections.clear();
+    if (compo.type == component_type::simple) {
+        if (auto* s_compo = simple_components.try_to_get(compo.id.simple_id);
+            s_compo) {
+            s_compo->children.clear();
+            s_compo->models.clear();
+            s_compo->connections.clear();
 
-    if (auto* desc = descriptions.try_to_get(c.desc); desc)
-        descriptions.free(*desc);
+            if (auto* desc = descriptions.try_to_get(compo.desc); desc)
+                descriptions.free(*desc);
 
-    if (auto* path = file_paths.try_to_get(c.file); path)
-        file_paths.free(*path);
+            if (auto* path = file_paths.try_to_get(compo.file); path)
+                file_paths.free(*path);
 
-    components.free(c);
+            simple_components.free(*s_compo);
+        }
+    }
+
+    components.free(compo);
 }
 
 void modeling::free(tree_node& node) noexcept
@@ -1404,7 +1377,7 @@ void modeling::free(simple_component& parent, connection& c) noexcept
     parent.connections.free(c);
 }
 
-status modeling::copy(simple_component& src, simple_component& dst) noexcept
+status modeling::copy(const simple_component& src, simple_component& dst) noexcept
 {
     table<child_id, child_id> mapping;
 
@@ -1461,12 +1434,46 @@ status modeling::copy(simple_component& src, simple_component& dst) noexcept
     return status::success;
 }
 
+status modeling::copy(const component& src, component& dst) noexcept
+{
+    dst.x_names = src.x_names;
+    dst.y_names = src.y_names;
+    dst.name    = src.name;
+    dst.id      = src.id;
+    dst.type    = src.type;
+    dst.state   = src.state;
+
+    switch (src.type) {
+    case component_type::none:
+        break;
+    case component_type::internal:
+        if (const auto* s_src = simple_components.try_to_get(src.id.simple_id);
+            s_src) {
+            irt_return_if_fail(simple_components.can_alloc(),
+                               status::data_array_not_enough_memory);
+
+            auto& s_dst      = simple_components.alloc();
+            auto  s_dst_id   = simple_components.get_id(s_dst);
+            dst.id.simple_id = s_dst_id;
+
+            return copy(*s_src, s_dst);
+        }
+
+        break;
+    case component_type::simple:
+        break;
+    }
+
+    return status::success;
+}
+
 static status make_tree_recursive(
-  data_array<simple_component, component_id>& components,
-  data_array<tree_node, tree_node_id>&        trees,
-  tree_node&                                  parent,
-  child_id                                    compo_child_id,
-  child&                                      compo_child) noexcept
+  data_array<component, component_id>&               components,
+  data_array<simple_component, simple_component_id>& simple_components,
+  data_array<tree_node, tree_node_id>&               trees,
+  tree_node&                                         parent,
+  child_id                                           compo_child_id,
+  child&                                             compo_child) noexcept
 {
     auto compo_id = enum_cast<component_id>(compo_child.id);
 
@@ -1478,11 +1485,18 @@ static status make_tree_recursive(
         new_tree.tree.set_id(&new_tree);
         new_tree.tree.parent_to(parent.tree);
 
+        auto* s_compo = simple_components.try_to_get(compo->id.simple_id);
+
         child* c = nullptr;
-        while (compo->children.next(c)) {
+        while (s_compo->children.next(c)) {
             if (c->type == child_type::component) {
-                irt_return_if_bad(make_tree_recursive(
-                  components, trees, new_tree, compo->children.get_id(*c), *c));
+                irt_return_if_bad(
+                  make_tree_recursive(components,
+                                      simple_components,
+                                      trees,
+                                      new_tree,
+                                      s_compo->children.get_id(*c),
+                                      *c));
             }
         }
     }
@@ -1514,7 +1528,7 @@ void modeling::free(registred_path& reg_dir) noexcept
     registred_paths.free(reg_dir);
 }
 
-void modeling::init_project(simple_component& compo) noexcept
+void modeling::init_project(component& compo) noexcept
 {
     clear_project();
 
@@ -1523,8 +1537,7 @@ void modeling::init_project(simple_component& compo) noexcept
         head = tn;
 }
 
-status modeling::make_tree_from(simple_component& parent,
-                                tree_node_id*     out) noexcept
+status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
 {
     irt_return_if_fail(tree_nodes.can_alloc(),
                        status::data_array_not_enough_memory);
@@ -1534,14 +1547,19 @@ status modeling::make_tree_from(simple_component& parent,
 
     tree_parent.tree.set_id(&tree_parent);
 
-    child* c = nullptr;
-    while (parent.children.next(c)) {
-        if (c->type == child_type::component) {
-            irt_return_if_bad(make_tree_recursive(components,
-                                                  tree_nodes,
-                                                  tree_parent,
-                                                  parent.children.get_id(c),
-                                                  *c));
+    if (parent.type == component_type::simple) {
+        auto*  s_compo = simple_components.try_to_get(parent.id.simple_id);
+        child* c       = nullptr;
+        while (s_compo->children.next(c)) {
+            if (c->type == child_type::component) {
+                irt_return_if_bad(
+                  make_tree_recursive(components,
+                                      simple_components,
+                                      tree_nodes,
+                                      tree_parent,
+                                      s_compo->children.get_id(c),
+                                      *c));
+            }
         }
     }
 
@@ -1550,27 +1568,7 @@ status modeling::make_tree_from(simple_component& parent,
     return status::success;
 }
 
-void simple_component::clear() noexcept
-{
-    models.clear();
-    hsms.clear();
-    children.clear();
-    connections.clear();
-
-    child_mapping_io.data.clear();
-
-    desc     = description_id{ 0 };
-    reg_path = registred_path_id{ 0 };
-    dir      = dir_path_id{ 0 };
-    file     = file_path_id{ 0 };
-
-    name.clear();
-
-    type  = component_type::memory;
-    state = component_status::modified;
-}
-
-status modeling::save(simple_component& c) noexcept
+status modeling::save(component& c) noexcept
 {
     auto* dir = dir_paths.try_to_get(c.dir);
     irt_return_if_fail(dir, status::modeling_directory_access_error);
@@ -1610,7 +1608,7 @@ status modeling::save(simple_component& c) noexcept
     }
 
     c.state = component_status::unmodified;
-    c.type  = component_type::file;
+    c.type  = component_type::simple;
 
     return status::success;
 }
@@ -1796,12 +1794,17 @@ static status simulation_copy_models(modeling_to_simulation& cache,
         auto* compo    = mod.components.try_to_get(compo_id);
 
         if (compo) {
-            auto* sim_tree =
-              cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
-            irt_assert(sim_tree);
+            auto  s_compo_id = compo->id.simple_id;
+            auto* s_compo    = mod.simple_components.try_to_get(s_compo_id);
 
-            irt_return_if_bad(
-              simulation_copy_model(cache, sim, *cur, *sim_tree, *compo));
+            if (s_compo) {
+                auto* sim_tree =
+                  cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
+                irt_assert(sim_tree);
+
+                irt_return_if_bad(
+                  simulation_copy_model(cache, sim, *cur, *sim_tree, *s_compo));
+            }
         }
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
@@ -1832,7 +1835,7 @@ static auto get_treenode(tree_node& parent, child_id to_search) noexcept
     return children;
 }
 
-static auto get_component(modeling& mod, child& c) noexcept -> simple_component*
+static auto get_component(modeling& mod, child& c) noexcept -> component*
 {
     auto compo_id = enum_cast<component_id>(c.id);
 
@@ -2072,6 +2075,11 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                     if (!(c_dst && t_dst))
                         continue;
 
+                    auto  sc_dst_id = c_dst->id.simple_id;
+                    auto* sc_dst = mod.simple_components.try_to_get(sc_dst_id);
+                    if (!sc_dst)
+                        continue;
+
                     model_to_component_connect ic{ .mod    = mod,
                                                    .sim    = sim,
                                                    .mdl_id = sim.get_id(*m_src),
@@ -2079,13 +2087,19 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                                      con->internal.index_src };
 
                     irt_return_if_bad(input_connect(
-                      ic, *c_dst, *t_dst, con->internal.index_dst));
+                      ic, *sc_dst, *t_dst, con->internal.index_dst));
                 }
             } else {
                 auto* c_src = get_component(mod, *src);
                 auto* t_src = get_treenode(tree, con->internal.src);
 
                 if (!(c_src && t_src))
+                    continue;
+
+                auto  sc_src_id = c_src->id.simple_id;
+                auto* sc_src    = mod.simple_components.try_to_get(sc_src_id);
+
+                if (sc_src)
                     continue;
 
                 if (dst->type == child_type::model) {
@@ -2100,7 +2114,7 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                                      con->internal.index_dst };
 
                     irt_return_if_bad(output_connect(
-                      oc, *c_src, *t_src, con->internal.index_src));
+                      oc, *sc_src, *t_src, con->internal.index_src));
                 } else {
                     auto* c_dst = get_component(mod, *dst);
                     auto* t_dst = get_treenode(tree, con->internal.dst);
@@ -2110,10 +2124,18 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                     if (!(c_dst && t_dst && c_src && t_src))
                         continue;
 
+                    auto  sc_dst_id = c_dst->id.simple_id;
+                    auto* sc_dst = mod.simple_components.try_to_get(sc_dst_id);
+                    auto  sc_src_id = c_src->id.simple_id;
+                    auto* sc_src = mod.simple_components.try_to_get(sc_src_id);
+
+                    if (!(sc_src && sc_dst))
+                        continue;
+
                     irt_return_if_bad(get_input_model_from_component(
-                      cache, sim, *c_dst, *t_dst, con->internal.index_dst));
+                      cache, sim, *sc_dst, *t_dst, con->internal.index_dst));
                     irt_return_if_bad(get_output_model_from_component(
-                      cache, sim, *c_src, *t_src, con->internal.index_src));
+                      cache, sim, *sc_src, *t_src, con->internal.index_src));
 
                     for (auto& out : cache.outputs) {
                         for (auto& in : cache.inputs) {
@@ -2146,9 +2168,12 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
         auto  compo_id = cur->id;
         auto* compo    = mod.components.try_to_get(compo_id);
 
-        if (compo) {
+        if (compo && compo->type == component_type::simple) {
+            auto  s_compo_id = compo->id.simple_id;
+            auto* s_compo    = mod.simple_components.try_to_get(s_compo_id);
+
             irt_return_if_bad(
-              simulation_copy_connections(cache, mod, sim, *cur, *compo));
+              simulation_copy_connections(cache, mod, sim, *cur, *s_compo));
         }
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
@@ -2180,8 +2205,13 @@ static auto compute_simulation_copy_models_number(modeling_to_simulation& cache,
         auto* compo    = mod.components.try_to_get(compo_id);
 
         if (compo) {
-            models += compo->children.ssize();
-            connections += compo->connections.ssize();
+            auto  s_compo_id = compo->id.simple_id;
+            auto* s_compo    = mod.simple_components.try_to_get(s_compo_id);
+
+            if (s_compo) {
+                models += s_compo->children.ssize();
+                connections += s_compo->connections.ssize();
+            }
         }
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)

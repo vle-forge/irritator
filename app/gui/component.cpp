@@ -72,7 +72,7 @@ component_id component_editor::add_empty_component() noexcept
     if (mod.components.can_alloc()) {
         auto& new_compo = mod.components.alloc();
         new_compo.name.assign("New component");
-        new_compo.type  = component_type::memory;
+        new_compo.type  = component_type::simple;
         new_compo.state = component_status::modified;
 
         ret = mod.components.get_id(new_compo);
@@ -125,11 +125,11 @@ void component_editor::open_as_main(component_id id) noexcept
 // task implementation
 //
 
-static status save_component_impl(const modeling&         mod,
-                                  const simple_component& compo,
-                                  const registred_path&   reg_path,
-                                  const dir_path&         dir,
-                                  const file_path&        file) noexcept
+static status save_component_impl(const modeling&       mod,
+                                  const component&      compo,
+                                  const registred_path& reg_path,
+                                  const dir_path&       dir,
+                                  const file_path&      file) noexcept
 {
     status ret = status::success;
 
@@ -183,7 +183,7 @@ void task_save_component(void* param) noexcept
                 compo->state = component_status::modified;
             } else {
                 compo->state = component_status::unmodified;
-                compo->type  = component_type::file;
+                compo->type  = component_type::simple;
             }
         }
     }

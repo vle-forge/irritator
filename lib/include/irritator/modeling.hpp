@@ -14,6 +14,7 @@
 namespace irt {
 
 enum class component_id : u64;
+enum class simple_component_id : u64;
 enum class tree_node_id : u64;
 enum class parameter_id : u64;
 enum class description_id : u64;
@@ -40,7 +41,7 @@ enum class description_status
     unmodified,
 };
 
-enum class component_type
+enum class internal_component
 {
     qss1_izhikevich,
     qss1_lif,
@@ -60,8 +61,16 @@ enum class component_type
     qss3_negative_lif,
     qss3_seirs,
     qss3_van_der_pol,
-    file,
-    memory,
+};
+
+enum class component_type
+{
+    none,
+    internal,
+    simple,
+    // line
+    // grid
+    // graph
 };
 
 enum class component_status
@@ -92,27 +101,13 @@ struct simple_component;
 struct modeling;
 struct description;
 
-static constexpr inline const char* component_type_names[] = {
-    "qss1_izhikevich",
-    "qss1_lif",
-    "qss1_lotka_volterra",
-    "qss1_negative_lif",
-    "qss1_seirs",
-    "qss1_van_der_pol",
-    "qss2_izhikevich",
-    "qss2_lif",
-    "qss2_lotka_volterra",
-    "qss2_negative_lif",
-    "qss2_seirs",
-    "qss2_van_der_pol",
-    "qss3_izhikevich",
-    "qss3_lif",
-    "qss3_lotka_volterra",
-    "qss3_negative_lif",
-    "qss3_seirs",
-    "qss3_van_der_pol",
-    "file",
-    "memory",
+static constexpr inline const char* internal_component_names[] = {
+    "qss1_izhikevich",   "qss1_lif",   "qss1_lotka_volterra",
+    "qss1_negative_lif", "qss1_seirs", "qss1_van_der_pol",
+    "qss2_izhikevich",   "qss2_lif",   "qss2_lotka_volterra",
+    "qss2_negative_lif", "qss2_seirs", "qss2_van_der_pol",
+    "qss3_izhikevich",   "qss3_lif",   "qss3_lotka_volterra",
+    "qss3_negative_lif", "qss3_seirs", "qss3_van_der_pol"
 };
 
 //! Try to get the component type from a string. If the string is unknown,
@@ -193,7 +188,6 @@ struct connection
 
 struct simple_component
 {
-    static inline constexpr int port_number = 8;
 
     simple_component() noexcept;
 
@@ -212,6 +206,11 @@ struct simple_component
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<child, child_id>                    children;
     data_array<connection, connection_id>          connections;
+};
+
+struct component
+{
+    static inline constexpr int port_number = 8;
 
     std::array<small_string<7>, port_number> x_names;
     std::array<small_string<7>, port_number> y_names;
@@ -224,7 +223,13 @@ struct simple_component
     file_path_id      file     = file_path_id{ 0 };
     small_string<32>  name;
 
-    component_type   type  = component_type::memory;
+    union id
+    {
+        int                 internal_id;
+        simple_component_id simple_id;
+    } id;
+
+    component_type   type  = component_type::simple;
     component_status state = component_status::modified;
 };
 
@@ -357,13 +362,14 @@ struct log_entry
 
 struct modeling
 {
-    data_array<tree_node, tree_node_id>           tree_nodes;
-    data_array<description, description_id>       descriptions;
-    data_array<simple_component, component_id>    components;
-    data_array<registred_path, registred_path_id> registred_paths;
-    data_array<dir_path, dir_path_id>             dir_paths;
-    data_array<file_path, file_path_id>           file_paths;
-    data_array<model, model_id>                   parameters;
+    data_array<tree_node, tree_node_id>               tree_nodes;
+    data_array<description, description_id>           descriptions;
+    data_array<simple_component, simple_component_id> simple_components;
+    data_array<component, component_id>               components;
+    data_array<registred_path, registred_path_id>     registred_paths;
+    data_array<dir_path, dir_path_id>                 dir_paths;
+    data_array<file_path, file_path_id>               file_paths;
+    data_array<model, model_id>                       parameters;
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     external_source                                     srcs;
@@ -379,15 +385,13 @@ struct modeling
     component_id search_component(const char* directory,
                                   const char* filename) noexcept;
 
-    component_id search_internal_component(component_type type) noexcept;
-
     status fill_internal_components() noexcept;
     status fill_components() noexcept;
     status fill_components(registred_path& path) noexcept;
 
     //! Deletes the component, the file (@c file_path_id) and the description
     //! (@c description_id) objects attached.
-    void free(simple_component& c) noexcept;
+    void free(component& c) noexcept;
     void free(simple_component& parent, child& c) noexcept;
     void free(simple_component& parent, connection& c) noexcept;
     void free(tree_node& node) noexcept;
@@ -415,7 +419,8 @@ struct modeling
 
     child& alloc(simple_component& parent, dynamics_type type) noexcept;
 
-    status copy(simple_component& src, simple_component& dst) noexcept;
+    status copy(const simple_component& src, simple_component& dst) noexcept;
+    status copy(const component& src, component& dst) noexcept;
 
     /**
      * @brief Try to connect the component input port and a child (model or
@@ -479,13 +484,12 @@ struct modeling
     //!
     //! Before initializing, the current project is cleared: all tree_nodes and
     //! component tree are cleared.
-    void init_project(simple_component& compo) noexcept;
+    void init_project(component& compo) noexcept;
 
     //! Build the @c hierarchy<component_ref> of from the component @c id
-    status make_tree_from(simple_component& id, tree_node_id* out) noexcept;
+    status make_tree_from(component& id, tree_node_id* out) noexcept;
 
-    status save(
-      simple_component& c) noexcept; // will call clean(component&) first.
+    status save(component& c) noexcept; // will call clean(component&) first.
 
     status load_project(const char* filename) noexcept;
     status save_project(const char* filename) noexcept;
