@@ -69,11 +69,14 @@ component_id component_editor::add_empty_component() noexcept
 {
     auto ret = undefined<component_id>();
 
-    if (mod.components.can_alloc()) {
+    if (mod.components.can_alloc() && mod.simple_components.can_alloc()) {
         auto& new_compo = mod.components.alloc();
         new_compo.name.assign("New component");
         new_compo.type  = component_type::simple;
         new_compo.state = component_status::modified;
+
+        auto& new_s_compo      = mod.simple_components.alloc();
+        new_compo.id.simple_id = mod.simple_components.get_id(new_s_compo);
 
         ret = mod.components.get_id(new_compo);
     } else {

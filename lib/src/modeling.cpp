@@ -515,6 +515,7 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(descriptions.init(p.description_capacity));
     irt_return_if_bad(parameters.init(p.parameter_capacity));
     irt_return_if_bad(components.init(p.component_capacity));
+    irt_return_if_bad(simple_components.init(p.component_capacity));
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
 
