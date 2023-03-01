@@ -1436,6 +1436,57 @@ status modeling::copy(const simple_component& src,
     return status::success;
 }
 
+status modeling::copy(internal_component src, component& dst) noexcept
+{
+    irt_return_if_fail(simple_components.can_alloc(),
+                       status::data_array_not_enough_memory);
+
+    auto& s_compo    = simple_components.alloc();
+    auto  s_compo_id = simple_components.get_id(s_compo);
+    dst.id.simple_id = s_compo_id;
+
+    switch (src) {
+    case internal_component::qss1_izhikevich:
+        return add_izhikevich<1>(*this, s_compo);
+    case internal_component::qss1_lif:
+        return add_lif<1>(*this, s_compo);
+    case internal_component::qss1_lotka_volterra:
+        return add_lotka_volterra<1>(*this, s_compo);
+    case internal_component::qss1_negative_lif:
+        return add_negative_lif<1>(*this, s_compo);
+    case internal_component::qss1_seirs:
+        return add_seirs<1>(*this, s_compo);
+    case internal_component::qss1_van_der_pol:
+        return add_van_der_pol<1>(*this, s_compo);
+    case internal_component::qss2_izhikevich:
+        return add_izhikevich<2>(*this, s_compo);
+    case internal_component::qss2_lif:
+        return add_lif<2>(*this, s_compo);
+    case internal_component::qss2_lotka_volterra:
+        return add_lotka_volterra<2>(*this, s_compo);
+    case internal_component::qss2_negative_lif:
+        return add_negative_lif<2>(*this, s_compo);
+    case internal_component::qss2_seirs:
+        return add_seirs<2>(*this, s_compo);
+    case internal_component::qss2_van_der_pol:
+        return add_van_der_pol<2>(*this, s_compo);
+    case internal_component::qss3_izhikevich:
+        return add_izhikevich<3>(*this, s_compo);
+    case internal_component::qss3_lif:
+        return add_lif<3>(*this, s_compo);
+    case internal_component::qss3_lotka_volterra:
+        return add_lotka_volterra<3>(*this, s_compo);
+    case internal_component::qss3_negative_lif:
+        return add_negative_lif<3>(*this, s_compo);
+    case internal_component::qss3_seirs:
+        return add_seirs<3>(*this, s_compo);
+    case internal_component::qss3_van_der_pol:
+        return add_van_der_pol<3>(*this, s_compo);
+    }
+
+    irt_unreachable();
+}
+
 status modeling::copy(const component& src, component& dst) noexcept
 {
     dst.x_names = src.x_names;

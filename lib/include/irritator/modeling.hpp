@@ -114,13 +114,6 @@ static constexpr inline const char* internal_component_names[] = {
 auto get_component_type(std::string_view name) noexcept
   -> std::optional<component_type>;
 
-status add_cpp_component_ref(const char*       buffer,
-                             modeling&         mod,
-                             simple_component& parent) noexcept;
-status add_file_component_ref(const char*       buffer,
-                              modeling&         mod,
-                              simple_component& parent) noexcept;
-
 struct description
 {
     small_string<1024> data;
@@ -425,6 +418,7 @@ struct modeling
     child& alloc(simple_component& parent, dynamics_type type) noexcept;
 
     status copy(const simple_component& src, simple_component& dst) noexcept;
+    status copy(internal_component src, component& dst) noexcept;
     status copy(const component& src, component& dst) noexcept;
 
     /**

@@ -10,8 +10,11 @@
 
 namespace irt {
 
+using component_popup =
+  std::variant<std::monostate, component*, internal_component>;
+
 static void show_component_popup_menu(irt::component_editor& ed,
-                                      component*             compo) noexcept
+                                      component_popup        selection) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New")) {
@@ -19,12 +22,30 @@ static void show_component_popup_menu(irt::component_editor& ed,
             ed.open_as_main(id);
         }
 
-        if (compo) {
+        if (auto** compo = std::get_if<component*>(&selection); compo) {
             if (ImGui::MenuItem("Copy")) {
                 if (ed.mod.components.can_alloc()) {
                     auto& new_c = ed.mod.components.alloc();
                     new_c.type  = component_type::simple;
-                    new_c.name  = compo->name;
+                    new_c.name  = (*compo)->name;
+                    new_c.state = component_status::modified;
+                    ed.mod.copy(*(*compo), new_c);
+                } else {
+                    auto* app = container_of(&ed, &application::component_ed);
+                    auto& n   = app->notifications.alloc();
+                    n.level   = log_level::error;
+                    n.title   = "Can not alloc a new component";
+                    app->notifications.enable(n);
+                }
+            }
+        }
+
+        if (auto* compo = std::get_if<internal_component>(&selection); compo) {
+            if (ImGui::MenuItem("Copy")) {
+                if (ed.mod.components.can_alloc()) {
+                    auto& new_c = ed.mod.components.alloc();
+                    new_c.type  = component_type::simple;
+                    new_c.name  = internal_component_names[ordinal(*compo)];
                     new_c.state = component_status::modified;
                     ed.mod.copy(*compo, new_c);
                 } else {
@@ -35,9 +56,9 @@ static void show_component_popup_menu(irt::component_editor& ed,
                     app->notifications.enable(n);
                 }
             }
-
-            ImGui::EndPopup();
         }
+
+        ImGui::EndPopup();
     }
 }
 
@@ -120,15 +141,11 @@ static void show_notsaved_components(irt::component_editor& ed,
 static void show_internal_components(irt::component_editor& ed,
                                      irt::tree_node*        head) noexcept
 {
-    component* compo = nullptr;
-    while (ed.mod.components.next(compo)) {
-        const auto id       = ed.mod.components.get_id(*compo);
-        const bool selected = head ? id == head->id : false;
+    constexpr int nb = length(internal_component_names);
+    for (int i = 0; i < nb; ++i) {
+        ImGui::Selectable(internal_component_names[i]);
 
-        if (ImGui::Selectable(compo->name.c_str(), selected))
-            ed.open_as_main(id);
-
-        show_component_popup_menu(ed, compo);
+        show_component_popup_menu(ed, enum_cast<internal_component>(i));
     }
 }
 
