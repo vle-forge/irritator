@@ -811,6 +811,7 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
   -> hierarchical_state_machine*
 {
     auto* app = container_of(&ed, &application::hsm_ed);
+    auto& mod = app->component_ed.mod;
 
     if (is_defined(cid)) {
         auto& mod = app->component_ed.mod;
@@ -819,10 +820,10 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
             auto s_compo_id = compo->id.simple_id;
             if (auto* s_compo = mod.simple_components.try_to_get(s_compo_id);
                 s_compo) {
-                if (auto* mdl = s_compo->models.try_to_get(mid); mdl) {
+                if (auto* mdl = mod.models.try_to_get(mid); mdl) {
                     if (mdl->type == dynamics_type::hsm_wrapper) {
                         auto& hsmw = get_dyn<hsm_wrapper>(*mdl);
-                        if (auto* machine = s_compo->hsms.try_to_get(hsmw.id);
+                        if (auto* machine = mod.hsms.try_to_get(hsmw.id);
                             machine)
                             return machine;
                     }

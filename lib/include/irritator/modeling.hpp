@@ -125,7 +125,7 @@ struct child
     child(model_id model) noexcept;
     child(component_id component) noexcept;
 
-    small_string<32> name;
+    small_string<23> name;
 
     union
     {
@@ -186,29 +186,13 @@ struct connection
 
 struct simple_component
 {
-
-    simple_component() noexcept;
-
-    simple_component(const simple_component&)            = delete;
-    simple_component& operator=(const simple_component&) = delete;
-
-    void clear() noexcept;
-
-    bool can_alloc(int place = 1) const noexcept;
-    bool can_alloc(dynamics_type type, int place = 1) const noexcept;
-
-    template<typename Dynamics>
-    bool can_alloc_dynamics(int place = 1) const noexcept;
-
-    data_array<model, model_id>                    models;
-    data_array<hierarchical_state_machine, hsm_id> hsms;
-    data_array<child, child_id>                    children;
-    data_array<connection, connection_id>          connections;
+    vector<child_id>      children;
+    vector<connection_id> connections;
 };
 
 struct line_component
 {
-    i32 size = 0; //!< Lenght of the line component.
+    i32 size = 0; //!< Length of the line component.
 
     enum class options : i8
     {
@@ -410,6 +394,10 @@ struct modeling
     data_array<dir_path, dir_path_id>                 dir_paths;
     data_array<file_path, file_path_id>               file_paths;
     data_array<model, model_id>                       parameters;
+    data_array<model, model_id>                       models;
+    data_array<hierarchical_state_machine, hsm_id>    hsms;
+    data_array<child, child_id>                       children;
+    data_array<connection, connection_id>             connections;
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     external_source                                     srcs;
@@ -432,8 +420,8 @@ struct modeling
     //! Deletes the component, the file (@c file_path_id) and the description
     //! (@c description_id) objects attached.
     void free(component& c) noexcept;
-    void free(simple_component& parent, child& c) noexcept;
-    void free(simple_component& parent, connection& c) noexcept;
+    void free(child& c) noexcept;
+    void free(connection& c) noexcept;
     void free(tree_node& node) noexcept;
 
     bool can_alloc_file(i32 number = 1) const noexcept;
@@ -458,6 +446,7 @@ struct modeling
     void free(registred_path& dir) noexcept;
 
     child& alloc(simple_component& parent, dynamics_type type) noexcept;
+    child& alloc(simple_component& parent, component_id id) noexcept;
 
     status copy(const simple_component& src, simple_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;
@@ -563,81 +552,6 @@ inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
   : id(id_)
   , id_in_parent(id_in_parent_)
 {
-}
-
-inline simple_component::simple_component() noexcept
-{
-    static const std::string_view port_names[] = { "0", "1", "2", "3",
-                                                   "4", "5", "6", "7" };
-
-    for (int i = 0; i < length(port_names); ++i) {
-        x_names[i] = port_names[i];
-        y_names[i] = port_names[i];
-    }
-
-    std::array<small_string<7>, port_number> x_names;
-
-    models.init(64); // @TODO replace these constants
-    hsms.init(8);    // with variables from init files
-    children.init(80);
-    connections.init(256);
-}
-
-inline bool simple_component::can_alloc(int place) const noexcept
-{
-    return models.can_alloc(place);
-}
-
-inline bool simple_component::can_alloc(dynamics_type type,
-                                        int           place) const noexcept
-{
-    if (type == dynamics_type::hsm_wrapper)
-        return models.can_alloc(place) && hsms.can_alloc(place);
-    else
-        return models.can_alloc(place);
-}
-
-template<typename Dynamics>
-inline bool simple_component::can_alloc_dynamics(int place) const noexcept
-{
-    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-        return models.can_alloc(place) && hsms.can_alloc(place);
-    else
-        return models.can_alloc(place);
-}
-
-inline child& modeling::alloc(simple_component& parent,
-                              dynamics_type     type) noexcept
-{
-    irt_assert(!parent.models.full());
-
-    auto& mdl  = parent.models.alloc();
-    mdl.type   = type;
-    mdl.handle = nullptr;
-
-    dispatch(mdl, [&parent]<typename Dynamics>(Dynamics& dyn) -> void {
-        new (&dyn) Dynamics{};
-
-        if constexpr (has_input_port<Dynamics>)
-            for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = static_cast<u64>(-1);
-
-        if constexpr (has_output_port<Dynamics>)
-            for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i] = static_cast<u64>(-1);
-
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            irt_assert(parent.hsms.can_alloc());
-
-            auto& machine = parent.hsms.alloc();
-            dyn.id        = parent.hsms.get_id(machine);
-        }
-    });
-
-    auto  mdl_id = parent.models.get_id(mdl);
-    auto& child  = parent.children.alloc(mdl_id);
-
-    return child;
 }
 
 } // namespace irt

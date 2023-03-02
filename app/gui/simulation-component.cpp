@@ -33,8 +33,11 @@ static status simulation_init_observation(simulation_editor& sim_ed,
         if (auto* s_compo =
               mod.simple_components.try_to_get(compo.id.simple_id);
             s_compo) {
-            child* c = nullptr;
-            while (s_compo->children.next(c)) {
+            for (auto child_id : s_compo->children) {
+                auto* c = mod.children.try_to_get(child_id);
+                if (!c)
+                    continue;
+
                 if (c->observable) {
                     irt_assert(c->type == child_type::model);
 

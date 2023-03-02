@@ -91,11 +91,6 @@ void memory_window::show() noexcept
                     ImGui::TextFormat("children: {}/{}",
                                       s_compo->children.size(),
                                       s_compo->children.capacity());
-                    ImGui::TextFormat("models: {}/{}",
-                                      s_compo->models.size(),
-                                      s_compo->models.capacity());
-                    ImGui::TextFormat(
-                      "hsm: {}/{}", s_compo->hsms.size(), s_compo->hsms.capacity());
                     ImGui::TextFormat("connections: {}/{}",
                                       s_compo->connections.size(),
                                       s_compo->connections.capacity());
@@ -107,9 +102,13 @@ void memory_window::show() noexcept
 
                     ImGui::Separator();
 
-                    int         x = 0, y = 0;
-                    connection* con = nullptr;
-                    while (s_compo->connections.next(con)) {
+                    int x = 0, y = 0;
+                    for (auto connection_id : s_compo->connections) {
+                        auto* con =
+                          c_editor.mod.connections.try_to_get(connection_id);
+                        if (!con)
+                            continue;
+
                         switch (con->type) {
                         case connection::connection_type::input:
                             ++x;

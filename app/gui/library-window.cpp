@@ -138,8 +138,7 @@ static void show_notsaved_components(irt::component_editor& ed,
     }
 }
 
-static void show_internal_components(irt::component_editor& ed,
-                                     irt::tree_node*        head) noexcept
+static void show_internal_components(irt::component_editor& ed) noexcept
 {
     constexpr int nb = length(internal_component_names);
     for (int i = 0; i < nb; ++i) {
@@ -192,7 +191,7 @@ static void show_component_library(component_editor& c_editor,
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
 
         if (ImGui::TreeNodeEx("Internal")) {
-            show_internal_components(c_editor, tree);
+            show_internal_components(c_editor);
             ImGui::TreePop();
         }
 
@@ -237,15 +236,19 @@ static void show_component_library(component_editor& c_editor,
     }
 }
 
-static void show_input_output_ports(simple_component& compo,
+static void show_input_output_ports(modeling&         mod,
+                                    simple_component& compo,
                                     model&            mdl,
                                     child_id          id) noexcept
 {
-    dispatch(mdl, [&compo, id]<typename Dynamics>(Dynamics& dyn) {
+    dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
         if constexpr (has_input_port<Dynamics>) {
             for (int i = 0, e = length(dyn.x); i != e; ++i) {
-                connection* con = nullptr;
-                while (compo.connections.next(con)) {
+                for (auto connection_id : compo.connections) {
+                    auto* con = mod.connections.try_to_get(connection_id);
+                    if (!con)
+                        continue;
+
                     if (con->type == connection::connection_type::input &&
                         con->input.dst == id && con->input.index_dst == i)
                         ImGui::TextFormat("Input {} is public", i);
@@ -255,8 +258,11 @@ static void show_input_output_ports(simple_component& compo,
 
         if constexpr (has_output_port<Dynamics>) {
             for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                connection* con = nullptr;
-                while (compo.connections.next(con)) {
+                for (auto connection_id : compo.connections) {
+                    auto* con = mod.connections.try_to_get(connection_id);
+                    if (!con)
+                        continue;
+
                     if (con->type == connection::connection_type::output &&
                         con->output.src == id && con->output.index_src == i)
                         ImGui::TextFormat("Output {} is public", i);
@@ -276,56 +282,62 @@ static void show_selected_children(component_editor& c_editor) noexcept
         if (tree) {
             auto* compo = c_editor.mod.components.try_to_get(tree->id);
             if (compo && compo->type == component_type::simple) {
-                auto* s_compo = c_editor.mod.simple_components.try_to_get(
-                  compo->id.simple_id);
-                for (int i = 0, e = c_editor.selected_nodes.size(); i != e;
-                     ++i) {
-                    auto* child = s_compo->children.try_to_get(
-                      static_cast<u32>(c_editor.selected_nodes[i]));
-                    if (!child)
-                        continue;
-                    if (ImGui::TreeNodeEx(child,
-                                          ImGuiTreeNodeFlags_DefaultOpen,
-                                          "%d",
-                                          c_editor.selected_nodes[i])) {
-                        bool is_modified = false;
-                        ImGui::Text("position %f %f",
-                                    static_cast<double>(child->x),
-                                    static_cast<double>(child->y));
-                        if (ImGui::Checkbox("configurable",
-                                            &child->configurable))
-                            is_modified = true;
-                        if (ImGui::Checkbox("observables", &child->observable))
-                            is_modified = true;
-                        if (ImGui::InputSmallString("name", child->name))
-                            is_modified = true;
+                if (auto* s_compo = c_editor.mod.simple_components.try_to_get(
+                      compo->id.simple_id);
+                    s_compo) {
+                    for (int i = 0, e = c_editor.selected_nodes.size(); i != e;
+                         ++i) {
+                        auto* child = c_editor.mod.children.try_to_get(
+                          static_cast<u32>(c_editor.selected_nodes[i]));
+                        if (!child)
+                            continue;
+                        if (ImGui::TreeNodeEx(child,
+                                              ImGuiTreeNodeFlags_DefaultOpen,
+                                              "%d",
+                                              c_editor.selected_nodes[i])) {
+                            bool is_modified = false;
+                            ImGui::Text("position %f %f",
+                                        static_cast<double>(child->x),
+                                        static_cast<double>(child->y));
+                            if (ImGui::Checkbox("configurable",
+                                                &child->configurable))
+                                is_modified = true;
+                            if (ImGui::Checkbox("observables",
+                                                &child->observable))
+                                is_modified = true;
+                            if (ImGui::InputSmallString("name", child->name))
+                                is_modified = true;
 
-                        if (is_modified)
-                            compo->state = component_status::modified;
+                            if (is_modified)
+                                compo->state = component_status::modified;
 
-                        if (child->type == child_type::model) {
-                            auto  child_id = s_compo->children.get_id(*child);
-                            auto  mdl_id   = child->id.mdl_id;
-                            auto* mdl      = s_compo->models.try_to_get(mdl_id);
+                            if (child->type == child_type::model) {
+                                auto child_id =
+                                  c_editor.mod.children.get_id(*child);
+                                auto  mdl_id = child->id.mdl_id;
+                                auto* mdl =
+                                  c_editor.mod.models.try_to_get(mdl_id);
 
-                            if (mdl) {
-                                ImGui::TextFormat(
-                                  "type: {}",
-                                  dynamics_type_names[ordinal(mdl->type)]);
+                                if (mdl) {
+                                    ImGui::TextFormat(
+                                      "type: {}",
+                                      dynamics_type_names[ordinal(mdl->type)]);
 
-                                show_input_output_ports(
-                                  *s_compo, *mdl, child_id);
+                                    show_input_output_ports(
+                                      c_editor.mod, *s_compo, *mdl, child_id);
+                                }
+                            } else {
+                                auto  compo_id = child->id.compo_id;
+                                auto* compo =
+                                  c_editor.mod.components.try_to_get(compo_id);
+
+                                if (compo)
+                                    ImGui::TextFormat("name: {}",
+                                                      compo->name.sv());
                             }
-                        } else {
-                            auto  compo_id = child->id.compo_id;
-                            auto* compo =
-                              c_editor.mod.components.try_to_get(compo_id);
 
-                            if (compo)
-                                ImGui::TextFormat("name: {}", compo->name.sv());
+                            ImGui::TreePop();
                         }
-
-                        ImGui::TreePop();
                     }
                 }
             }

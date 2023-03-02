@@ -9139,7 +9139,7 @@ constexpr ring_buffer<T>::ring_buffer(const ring_buffer& rhs) noexcept
             if (rhs.m_capacity) {
                 buffer =
                   reinterpret_cast<T*>(g_alloc_fn(rhs.m_capacity * sizeof(T)));
-                m_capacity = rhs.capacity;
+                m_capacity = rhs.m_capacity;
             }
         }
 

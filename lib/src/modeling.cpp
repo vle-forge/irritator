@@ -23,15 +23,17 @@ enum class alloc_parameter
 
 template<typename Dynamics>
 std::pair<Dynamics*, child_id> alloc(
+  modeling&              mod,
   simple_component&      parent,
   const std::string_view name  = {},
   alloc_parameter        param = alloc_parameter::none) noexcept
 {
-    irt_assert(!parent.models.full());
+    irt_assert(!mod.models.full());
 
-    auto& mdl  = parent.models.alloc();
-    mdl.type   = dynamics_typeof<Dynamics>();
-    mdl.handle = nullptr;
+    auto& mdl    = mod.models.alloc();
+    auto  mdl_id = mod.models.get_id(mdl);
+    mdl.type     = dynamics_typeof<Dynamics>();
+    mdl.handle   = nullptr;
 
     new (&mdl.dyn) Dynamics{};
     auto& dyn = get_dyn<Dynamics>(mdl);
@@ -45,19 +47,22 @@ std::pair<Dynamics*, child_id> alloc(
             dyn.y[i] = static_cast<u64>(-1);
 
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-        irt_assert(parent.hsms.can_alloc());
-        auto& machine = parent.hsms.alloc();
-        auto  id      = parent.hsms.get_id(machine);
+        irt_assert(mod.hsms.can_alloc());
+        auto& machine = mod.hsms.alloc();
+        auto  id      = mod.hsms.get_id(machine);
         dyn.id        = id;
     }
 
-    auto& child      = parent.children.alloc(parent.models.get_id(mdl));
+    auto& child      = mod.children.alloc(mdl_id);
+    auto  child_id   = mod.children.get_id(child);
     child.name       = name;
     child.observable = ordinal(param) & ordinal(alloc_parameter::observable);
     child.configurable =
       ordinal(param) & ordinal(alloc_parameter::configurable);
 
-    return std::make_pair(&dyn, parent.children.get_id(child));
+    parent.children.emplace_back(child_id);
+
+    return std::make_pair(&dyn, child_id);
 }
 
 template<typename DynamicsSrc, typename DynamicsDst>
@@ -75,9 +80,6 @@ status connect(modeling&         mod,
       is_ports_compatible(src_model, port_src, dst_model, port_dst),
       status::model_connect_bad_dynamics);
 
-    irt_return_if_fail(c.connections.can_alloc(1),
-                       status::simulation_not_enough_connection);
-
     mod.connect(c, src.second, port_src, dst.second, port_dst);
 
     return status::success;
@@ -88,10 +90,6 @@ status add_integrator_component_port(modeling&         mod,
                                      child_id          id,
                                      i8                port) noexcept
 {
-    auto* child = com.children.try_to_get(id);
-    irt_assert(child);
-    irt_assert(child->type == child_type::model);
-
     irt_return_if_bad(mod.connect_input(com, port, id, 1));
     irt_return_if_bad(mod.connect_output(com, id, 0, port));
 
@@ -104,28 +102,28 @@ status add_lotka_volterra(modeling& mod, simple_component& com) noexcept
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = com.models.can_alloc(5);
+    bool success = mod.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto integrator_a =
-      alloc<abstract_integrator<QssLevel>>(com, "X", alloc_parameter::both);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "X", alloc_parameter::both);
     integrator_a.first->default_X  = 18.0_r;
     integrator_a.first->default_dQ = 0.1_r;
 
-    auto integrator_b =
-      alloc<abstract_integrator<QssLevel>>(com, "Y", alloc_parameter::both);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "Y", alloc_parameter::both);
     integrator_b.first->default_X  = 7.0_r;
     integrator_b.first->default_dQ = 0.1_r;
 
-    auto product = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
 
     auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(
-      com, "X+XY", alloc_parameter::configurable);
+      mod, com, "X+XY", alloc_parameter::configurable);
     sum_a.first->default_input_coeffs[0] = 2.0_r;
     sum_a.first->default_input_coeffs[1] = -0.4_r;
 
     auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(
-      com, "Y+XY", alloc_parameter::configurable);
+      mod, com, "Y+XY", alloc_parameter::configurable);
     sum_b.first->default_input_coeffs[0] = -1.0_r;
     sum_b.first->default_input_coeffs[1] = 0.1_r;
 
@@ -150,7 +148,7 @@ status add_lif(modeling& mod, simple_component& com) noexcept
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = com.models.can_alloc(5);
+    bool success = mod.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
     constexpr irt::real tau = 10.0_r;
@@ -158,22 +156,22 @@ status add_lif(modeling& mod, simple_component& com) noexcept
     constexpr irt::real V0  = 10.0_r;
     constexpr irt::real Vr  = -V0;
 
-    auto cst                 = alloc<constant>(com);
+    auto cst                 = alloc<constant>(mod, com);
     cst.first->default_value = 1.0;
 
-    auto cst_cross                 = alloc<constant>(com);
+    auto cst_cross                 = alloc<constant>(mod, com);
     cst_cross.first->default_value = Vr;
 
-    auto sum                           = alloc<abstract_wsum<QssLevel, 2>>(com);
+    auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
     sum.first->default_input_coeffs[0] = -irt::one / tau;
     sum.first->default_input_coeffs[1] = V0 / tau;
 
-    auto integrator =
-      alloc<abstract_integrator<QssLevel>>(com, "lif", alloc_parameter::both);
+    auto integrator = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "lif", alloc_parameter::both);
     integrator.first->default_X  = 0._r;
     integrator.first->default_dQ = 0.001_r;
 
-    auto cross                     = alloc<abstract_cross<QssLevel>>(com);
+    auto cross                     = alloc<abstract_cross<QssLevel>>(mod, com);
     cross.first->default_threshold = Vt;
 
     connect(mod, com, cross, 0, integrator, 1);
@@ -193,24 +191,24 @@ template<int QssLevel>
 status add_izhikevich(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = com.models.can_alloc(12);
+    bool success = mod.models.can_alloc(12);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto cst     = alloc<constant>(com);
-    auto cst2    = alloc<constant>(com);
-    auto cst3    = alloc<constant>(com);
-    auto sum_a   = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto sum_b   = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto sum_c   = alloc<abstract_wsum<QssLevel, 4>>(com);
-    auto sum_d   = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto product = alloc<abstract_multiplier<QssLevel>>(com);
-    auto integrator_a =
-      alloc<abstract_integrator<QssLevel>>(com, "V", alloc_parameter::both);
-    auto integrator_b =
-      alloc<abstract_integrator<QssLevel>>(com, "U", alloc_parameter::both);
-    auto cross  = alloc<abstract_cross<QssLevel>>(com);
-    auto cross2 = alloc<abstract_cross<QssLevel>>(com);
+    auto cst          = alloc<constant>(mod, com);
+    auto cst2         = alloc<constant>(mod, com);
+    auto cst3         = alloc<constant>(mod, com);
+    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_c        = alloc<abstract_wsum<QssLevel, 4>>(mod, com);
+    auto sum_d        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto product      = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "V", alloc_parameter::both);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "U", alloc_parameter::both);
+    auto cross  = alloc<abstract_cross<QssLevel>>(mod, com);
+    auto cross2 = alloc<abstract_cross<QssLevel>>(mod, com);
 
     constexpr irt::real a  = 0.2_r;
     constexpr irt::real b  = 2.0_r;
@@ -281,17 +279,17 @@ template<int QssLevel>
 status add_van_der_pol(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = com.models.can_alloc(5);
+    bool success = mod.models.can_alloc(5);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum      = alloc<abstract_wsum<QssLevel, 3>>(com);
-    auto product1 = alloc<abstract_multiplier<QssLevel>>(com);
-    auto product2 = alloc<abstract_multiplier<QssLevel>>(com);
-    auto integrator_a =
-      alloc<abstract_integrator<QssLevel>>(com, "X", alloc_parameter::both);
-    auto integrator_b =
-      alloc<abstract_integrator<QssLevel>>(com, "Y", alloc_parameter::both);
+    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
+    auto product1     = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product2     = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "X", alloc_parameter::both);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "Y", alloc_parameter::both);
 
     integrator_a.first->default_X  = 0.0_r;
     integrator_a.first->default_dQ = 0.001_r;
@@ -324,16 +322,16 @@ template<int QssLevel>
 status add_negative_lif(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = com.models.can_alloc(5);
+    bool success = mod.models.can_alloc(5);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum = alloc<abstract_wsum<QssLevel, 2>>(com);
-    auto integrator =
-      alloc<abstract_integrator<QssLevel>>(com, "V", alloc_parameter::both);
-    auto cross     = alloc<abstract_cross<QssLevel>>(com);
-    auto cst       = alloc<constant>(com);
-    auto cst_cross = alloc<constant>(com);
+    auto sum        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto integrator = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "V", alloc_parameter::both);
+    auto cross     = alloc<abstract_cross<QssLevel>>(mod, com);
+    auto cst       = alloc<constant>(mod, com);
+    auto cst_cross = alloc<constant>(mod, com);
 
     constexpr real tau = 10.0_r;
     constexpr real Vt  = -1.0_r;
@@ -369,61 +367,61 @@ template<int QssLevel>
 status add_seirs(modeling& mod, simple_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = com.models.can_alloc(17);
+    bool success = mod.models.can_alloc(17);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto dS =
-      alloc<abstract_integrator<QssLevel>>(com, "dS", alloc_parameter::both);
+    auto dS = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "dS", alloc_parameter::both);
     dS.first->default_X  = 0.999_r;
     dS.first->default_dQ = 0.0001_r;
 
-    auto dE =
-      alloc<abstract_integrator<QssLevel>>(com, "dE", alloc_parameter::both);
+    auto dE = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "dE", alloc_parameter::both);
     dE.first->default_X  = 0.0_r;
     dE.first->default_dQ = 0.0001_r;
 
-    auto dI =
-      alloc<abstract_integrator<QssLevel>>(com, "dI", alloc_parameter::both);
+    auto dI = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "dI", alloc_parameter::both);
     dI.first->default_X  = 0.001_r;
     dI.first->default_dQ = 0.0001_r;
 
-    auto dR =
-      alloc<abstract_integrator<QssLevel>>(com, "dR", alloc_parameter::both);
+    auto dR = alloc<abstract_integrator<QssLevel>>(
+      mod, com, "dR", alloc_parameter::both);
     dR.first->default_X  = 0.0_r;
     dR.first->default_dQ = 0.0001_r;
 
-    auto beta                  = alloc<constant>(com, "beta");
+    auto beta                  = alloc<constant>(mod, com, "beta");
     beta.first->default_value  = 0.5_r;
-    auto rho                   = alloc<constant>(com, "rho");
+    auto rho                   = alloc<constant>(mod, com, "rho");
     rho.first->default_value   = 0.00274397_r;
-    auto sigma                 = alloc<constant>(com, "sigma");
+    auto sigma                 = alloc<constant>(mod, com, "sigma");
     sigma.first->default_value = 0.33333_r;
-    auto gamma                 = alloc<constant>(com, "gamma");
+    auto gamma                 = alloc<constant>(mod, com, "gamma");
     gamma.first->default_value = 0.142857_r;
 
-    auto rho_R    = alloc<abstract_multiplier<QssLevel>>(com, "rho R");
-    auto beta_S   = alloc<abstract_multiplier<QssLevel>>(com, "beta S");
-    auto beta_S_I = alloc<abstract_multiplier<QssLevel>>(com, "beta S I");
+    auto rho_R    = alloc<abstract_multiplier<QssLevel>>(mod, com, "rho R");
+    auto beta_S   = alloc<abstract_multiplier<QssLevel>>(mod, com, "beta S");
+    auto beta_S_I = alloc<abstract_multiplier<QssLevel>>(mod, com, "beta S I");
 
     auto rho_R_beta_S_I =
-      alloc<abstract_wsum<QssLevel, 2>>(com, "rho R - beta S I");
+      alloc<abstract_wsum<QssLevel, 2>>(mod, com, "rho R - beta S I");
     rho_R_beta_S_I.first->default_input_coeffs[0] = 1.0_r;
     rho_R_beta_S_I.first->default_input_coeffs[1] = -1.0_r;
     auto beta_S_I_sigma_E =
-      alloc<abstract_wsum<QssLevel, 2>>(com, "beta S I - sigma E");
+      alloc<abstract_wsum<QssLevel, 2>>(mod, com, "beta S I - sigma E");
     beta_S_I_sigma_E.first->default_input_coeffs[0] = 1.0_r;
     beta_S_I_sigma_E.first->default_input_coeffs[1] = -1.0_r;
 
-    auto sigma_E = alloc<abstract_multiplier<QssLevel>>(com, "sigma E");
-    auto gamma_I = alloc<abstract_multiplier<QssLevel>>(com, "gamma I");
+    auto sigma_E = alloc<abstract_multiplier<QssLevel>>(mod, com, "sigma E");
+    auto gamma_I = alloc<abstract_multiplier<QssLevel>>(mod, com, "gamma I");
 
     auto sigma_E_gamma_I =
-      alloc<abstract_wsum<QssLevel, 2>>(com, "sigma E - gamma I");
+      alloc<abstract_wsum<QssLevel, 2>>(mod, com, "sigma E - gamma I");
     sigma_E_gamma_I.first->default_input_coeffs[0] = 1.0_r;
     sigma_E_gamma_I.first->default_input_coeffs[1] = -1.0_r;
     auto gamma_I_rho_R =
-      alloc<abstract_wsum<QssLevel, 2>>(com, "gamma I - rho R");
+      alloc<abstract_wsum<QssLevel, 2>>(mod, com, "gamma I - rho R");
     gamma_I_rho_R.first->default_input_coeffs[0] = -1.0_r;
     gamma_I_rho_R.first->default_input_coeffs[1] = 1.0_r;
 
@@ -518,6 +516,11 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(simple_components.init(p.component_capacity));
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
+
+    irt_return_if_bad(models.init(p.component_capacity * 16));
+    irt_return_if_bad(hsms.init(p.component_capacity));
+    irt_return_if_bad(children.init(p.component_capacity * 16));
+    irt_return_if_bad(connections.init(p.component_capacity * 32));
 
     return status::success;
 }
@@ -1087,24 +1090,27 @@ void modeling::move_file(registred_path& /*reg*/,
     to.children.emplace_back(id);
 }
 
-static bool is_ports_compatible(model&            mdl_src,
+static bool is_ports_compatible(modeling&         mod,
+                                model&            mdl_src,
                                 i8                port_src,
                                 simple_component& compo_dst,
                                 i8                port_dst) noexcept
 {
     bool is_compatible = true;
 
-    connection* con = nullptr;
-    while (compo_dst.connections.next(con)) {
+    for (auto connection_id : compo_dst.connections) {
+        connection* con = mod.connections.try_to_get(connection_id);
+        if (!con)
+            continue;
+
         if (con->type == connection::connection_type::output &&
             con->output.index == port_dst) {
-            auto* sub_child_dst =
-              compo_dst.children.try_to_get(con->output.src);
+            auto* sub_child_dst = mod.children.try_to_get(con->output.src);
             irt_assert(sub_child_dst);
             irt_assert(sub_child_dst->type == child_type::model);
 
             auto  sub_model_dst_id = sub_child_dst->id.mdl_id;
-            auto* sub_model_dst = compo_dst.models.try_to_get(sub_model_dst_id);
+            auto* sub_model_dst    = mod.models.try_to_get(sub_model_dst_id);
 
             if (!is_ports_compatible(
                   mdl_src, port_src, *sub_model_dst, con->output.index_src)) {
@@ -1117,23 +1123,27 @@ static bool is_ports_compatible(model&            mdl_src,
     return is_compatible;
 }
 
-static bool is_ports_compatible(simple_component& compo_src,
+static bool is_ports_compatible(modeling&         mod,
+                                simple_component& compo_src,
                                 i8                port_src,
                                 model&            mdl_dst,
                                 i8                port_dst) noexcept
 {
     bool is_compatible = true;
 
-    connection* con = nullptr;
-    while (compo_src.connections.next(con)) {
+    for (auto connection_id : compo_src.connections) {
+        connection* con = mod.connections.try_to_get(connection_id);
+        if (!con)
+            continue;
+
         if (con->type == connection::connection_type::input &&
             con->input.index == port_src) {
-            auto* sub_child_src = compo_src.children.try_to_get(con->input.dst);
+            auto* sub_child_src = mod.children.try_to_get(con->input.dst);
             irt_assert(sub_child_src);
             irt_assert(sub_child_src->type == child_type::model);
 
             auto  sub_model_src_id = sub_child_src->id.mdl_id;
-            auto* sub_model_src = compo_src.models.try_to_get(sub_model_src_id);
+            auto* sub_model_src    = mod.models.try_to_get(sub_model_src_id);
             irt_assert(sub_model_src);
 
             if (!is_ports_compatible(
@@ -1147,28 +1157,34 @@ static bool is_ports_compatible(simple_component& compo_src,
     return is_compatible;
 }
 
-static bool is_ports_compatible(simple_component& compo_src,
+static bool is_ports_compatible(modeling&         mod,
+                                simple_component& compo_src,
                                 i8                port_src,
                                 simple_component& compo_dst,
                                 i8                port_dst) noexcept
 {
     bool is_compatible = true;
 
-    connection* con = nullptr;
-    while (compo_src.connections.next(con)) {
+    for (auto connection_id : compo_src.connections) {
+        connection* con = mod.connections.try_to_get(connection_id);
+        if (!con)
+            continue;
+
         if (con->type == connection::connection_type::output &&
             con->output.index == port_src) {
-            auto* sub_child_src =
-              compo_src.children.try_to_get(con->output.src);
+            auto* sub_child_src = mod.children.try_to_get(con->output.src);
             irt_assert(sub_child_src);
             irt_assert(sub_child_src->type == child_type::model);
 
             auto  sub_model_src_id = sub_child_src->id.mdl_id;
-            auto* sub_model_src = compo_src.models.try_to_get(sub_model_src_id);
+            auto* sub_model_src    = mod.models.try_to_get(sub_model_src_id);
             irt_assert(sub_model_src);
 
-            if (!is_ports_compatible(
-                  *sub_model_src, con->output.index_src, compo_dst, port_dst)) {
+            if (!is_ports_compatible(mod,
+                                     *sub_model_src,
+                                     con->output.index_src,
+                                     compo_dst,
+                                     port_dst)) {
                 is_compatible = false;
                 break;
             }
@@ -1185,18 +1201,18 @@ static bool is_ports_compatible(modeling&         mod,
                                 child_id          dst,
                                 i8                port_dst) noexcept
 {
-    auto* child_src = parent.children.try_to_get(src);
-    auto* child_dst = parent.children.try_to_get(dst);
+    auto* child_src = mod.children.try_to_get(src);
+    auto* child_dst = mod.children.try_to_get(dst);
     irt_assert(child_src);
     irt_assert(child_dst);
 
     if (child_src->type == child_type::model) {
         auto  mdl_src_id = child_src->id.mdl_id;
-        auto* mdl_src    = parent.models.try_to_get(mdl_src_id);
+        auto* mdl_src    = mod.models.try_to_get(mdl_src_id);
 
         if (child_dst->type == child_type::model) {
             auto  mdl_dst_id = child_dst->id.mdl_id;
-            auto* mdl_dst    = parent.models.try_to_get(mdl_dst_id);
+            auto* mdl_dst    = mod.models.try_to_get(mdl_dst_id);
             return is_ports_compatible(*mdl_src, port_src, *mdl_dst, port_dst);
 
         } else {
@@ -1208,7 +1224,7 @@ static bool is_ports_compatible(modeling&         mod,
             irt_assert(s_compo_dst);
 
             return is_ports_compatible(
-              *mdl_src, port_src, *s_compo_dst, port_dst);
+              mod, *mdl_src, port_src, *s_compo_dst, port_dst);
         }
     } else {
         auto  compo_src_id = child_src->id.compo_id;
@@ -1220,11 +1236,11 @@ static bool is_ports_compatible(modeling&         mod,
 
         if (child_dst->type == child_type::model) {
             auto  mdl_dst_id = child_dst->id.mdl_id;
-            auto* mdl_dst    = parent.models.try_to_get(mdl_dst_id);
+            auto* mdl_dst    = mod.models.try_to_get(mdl_dst_id);
             irt_assert(mdl_dst);
 
             return is_ports_compatible(
-              *s_compo_src, port_src, *mdl_dst, port_dst);
+              mod, *s_compo_src, port_src, *mdl_dst, port_dst);
         } else {
             auto  compo_dst_id = child_dst->id.compo_id;
             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
@@ -1234,7 +1250,7 @@ static bool is_ports_compatible(modeling&         mod,
             irt_assert(s_compo_dst);
 
             return is_ports_compatible(
-              *s_compo_src, port_src, *s_compo_dst, port_dst);
+              mod, *s_compo_src, port_src, *s_compo_dst, port_dst);
         }
     }
 }
@@ -1244,27 +1260,30 @@ status modeling::connect_input(simple_component& parent,
                                child_id          dst,
                                i8                port_dst) noexcept
 {
-    irt_return_if_fail(parent.connections.can_alloc(),
+    irt_return_if_fail(connections.can_alloc(),
                        status::simulation_not_enough_connection);
 
-    auto* child = parent.children.try_to_get(dst);
+    auto* child = children.try_to_get(dst);
     irt_assert(child);
 
     if (child->type == child_type::model) {
         auto  mdl_id  = child->id.mdl_id;
-        auto* mdl_dst = parent.models.try_to_get(mdl_id);
+        auto* mdl_dst = models.try_to_get(mdl_id);
         irt_assert(mdl_dst);
 
         irt_return_if_fail(
-          is_ports_compatible(parent, port_src, *mdl_dst, port_dst),
+          is_ports_compatible(*this, parent, port_src, *mdl_dst, port_dst),
           status::model_connect_bad_dynamics);
     }
 
-    auto& con           = parent.connections.alloc();
+    auto& con           = connections.alloc();
+    auto  con_id        = connections.get_id(con);
     con.input.dst       = dst;
     con.input.index     = port_src;
     con.input.index_dst = port_dst;
     con.type            = connection::connection_type::input;
+
+    parent.connections.emplace_back(con_id);
 
     return status::success;
 }
@@ -1274,27 +1293,30 @@ status modeling::connect_output(simple_component& parent,
                                 i8                port_src,
                                 i8                port_dst) noexcept
 {
-    irt_return_if_fail(parent.connections.can_alloc(),
+    irt_return_if_fail(connections.can_alloc(),
                        status::simulation_not_enough_connection);
 
-    auto* child = parent.children.try_to_get(src);
+    auto* child = children.try_to_get(src);
     irt_assert(child);
 
     if (child->type == child_type::model) {
         auto  mdl_id  = child->id.mdl_id;
-        auto* mdl_src = parent.models.try_to_get(mdl_id);
+        auto* mdl_src = models.try_to_get(mdl_id);
         irt_assert(mdl_src);
 
         irt_return_if_fail(
-          is_ports_compatible(*mdl_src, port_src, parent, port_dst),
+          is_ports_compatible(*this, *mdl_src, port_src, parent, port_dst),
           status::model_connect_bad_dynamics);
     }
 
-    auto& con            = parent.connections.alloc();
+    auto& con            = connections.alloc();
+    auto  con_id         = connections.get_id(con);
     con.output.src       = src;
     con.output.index_src = port_src;
     con.output.index     = port_dst;
     con.type             = connection::connection_type::output;
+
+    parent.connections.emplace_back(con_id);
 
     return status::success;
 }
@@ -1305,44 +1327,49 @@ status modeling::connect(simple_component& parent,
                          child_id          dst,
                          i8                port_dst) noexcept
 {
-    irt_return_if_fail(parent.connections.can_alloc(1),
+    irt_return_if_fail(connections.can_alloc(1),
                        status::data_array_not_enough_memory);
 
     irt_return_if_fail(
       is_ports_compatible(*this, parent, src, port_src, dst, port_dst),
       status::model_connect_bad_dynamics);
 
-    auto& con              = parent.connections.alloc();
+    auto& con              = connections.alloc();
+    auto  con_id           = connections.get_id(con);
     con.internal.src       = src;
     con.internal.dst       = dst;
     con.internal.index_src = port_src;
     con.internal.index_dst = port_dst;
     con.type               = connection::connection_type::internal;
 
+    parent.connections.emplace_back(con_id);
+
     return status::success;
 }
 
-static void free_child(data_array<child, child_id>& children,
-                       data_array<model, model_id>& models,
-                       child&                       c) noexcept
+void modeling::free(child& c) noexcept
 {
-    if (c.type == child_type::model) {
-        auto id = c.id.mdl_id;
-        if (auto* mdl = models.try_to_get(id); mdl)
+    if (c.type == child_type::model)
+        if (auto* mdl = models.try_to_get(c.id.mdl_id); mdl)
             models.free(*mdl);
-    }
 
     children.free(c);
 }
+
+void modeling::free(connection& c) noexcept { connections.free(c); }
 
 void modeling::free(component& compo) noexcept
 {
     if (compo.type == component_type::simple) {
         if (auto* s_compo = simple_components.try_to_get(compo.id.simple_id);
             s_compo) {
-            s_compo->children.clear();
-            s_compo->models.clear();
-            s_compo->connections.clear();
+            for (auto child_id : s_compo->children)
+                if (auto* child = children.try_to_get(child_id); child)
+                    free(*child);
+
+            for (auto connection_id : s_compo->connections)
+                if (auto* con = connections.try_to_get(connection_id); con)
+                    free(*con);
 
             if (auto* desc = descriptions.try_to_get(compo.desc); desc)
                 descriptions.free(*desc);
@@ -1368,14 +1395,52 @@ void modeling::free(tree_node& node) noexcept
     tree_nodes.free(node);
 }
 
-void modeling::free(simple_component& parent, child& c) noexcept
+child& modeling::alloc(simple_component& parent, component_id id) noexcept
 {
-    free_child(parent.children, parent.models, c);
+    irt_assert(children.can_alloc());
+
+    auto& child    = children.alloc(id);
+    auto  child_id = children.get_id(child);
+
+    parent.children.emplace_back(child_id);
+
+    return child;
 }
 
-void modeling::free(simple_component& parent, connection& c) noexcept
+child& modeling::alloc(simple_component& parent, dynamics_type type) noexcept
 {
-    parent.connections.free(c);
+    irt_assert(models.can_alloc());
+    irt_assert(children.can_alloc());
+
+    auto& mdl    = models.alloc();
+    auto  mdl_id = models.get_id(mdl);
+    mdl.type     = type;
+    mdl.handle   = nullptr;
+
+    dispatch(mdl, [=]<typename Dynamics>(Dynamics& dyn) -> void {
+        new (&dyn) Dynamics{};
+
+        if constexpr (has_input_port<Dynamics>)
+            for (int i = 0, e = length(dyn.x); i != e; ++i)
+                dyn.x[i] = static_cast<u64>(-1);
+
+        if constexpr (has_output_port<Dynamics>)
+            for (int i = 0, e = length(dyn.y); i != e; ++i)
+                dyn.y[i] = static_cast<u64>(-1);
+
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            irt_assert(hsms.can_alloc());
+
+            auto& machine = hsms.alloc();
+            dyn.id        = hsms.get_id(machine);
+        }
+    });
+
+    auto& child    = children.alloc(mdl_id);
+    auto  child_id = children.get_id(child);
+    parent.children.emplace_back(child_id);
+
+    return child;
 }
 
 status modeling::copy(const simple_component& src,
@@ -1383,42 +1448,41 @@ status modeling::copy(const simple_component& src,
 {
     table<child_id, child_id> mapping;
 
-    child* c = nullptr;
-    while (src.children.next(c)) {
-        const auto c_id = src.children.get_id(*c);
+    for (auto child_id : src.children) {
+        auto* c = children.try_to_get(child_id);
+        if (!c)
+            continue;
 
         if (c->type == child_type::model) {
             auto id = c->id.mdl_id;
-            if (auto* mdl = src.models.try_to_get(id); mdl) {
-                irt_return_if_fail(dst.models.can_alloc(1),
-                                   status::data_array_not_enough_memory);
-
+            if (auto* mdl = models.try_to_get(id); mdl) {
                 auto& new_child    = alloc(dst, mdl->type);
-                auto  new_child_id = dst.children.get_id(new_child);
+                auto  new_child_id = children.get_id(new_child);
                 new_child.name     = c->name;
                 new_child.x        = c->x;
                 new_child.y        = c->y;
 
-                mapping.data.emplace_back(c_id, new_child_id);
+                mapping.data.emplace_back(child_id, new_child_id);
             }
         } else {
             auto compo_id = c->id.compo_id;
             if (auto* compo = components.try_to_get(compo_id); compo) {
-                auto& new_child    = dst.children.alloc(compo_id);
-                auto  new_child_id = dst.children.get_id(new_child);
+                auto& new_child    = alloc(dst, compo_id);
+                auto  new_child_id = children.get_id(new_child);
                 new_child.name     = c->name;
                 new_child.x        = c->x;
                 new_child.y        = c->y;
 
-                mapping.data.emplace_back(c_id, new_child_id);
+                mapping.data.emplace_back(child_id, new_child_id);
             }
         }
     }
 
     mapping.sort();
 
-    connection* con = nullptr;
-    while (src.connections.next(con)) {
+    for (auto connection_id : src.connections) {
+        auto* con = connections.try_to_get(connection_id);
+
         if (con->type == connection::connection_type::internal) {
             if (auto* child_src = mapping.get(con->internal.src); child_src) {
                 if (auto* child_dst = mapping.get(con->internal.dst);
@@ -1520,36 +1584,28 @@ status modeling::copy(const component& src, component& dst) noexcept
     return status::success;
 }
 
-static status make_tree_recursive(
-  data_array<component, component_id>&               components,
-  data_array<simple_component, simple_component_id>& simple_components,
-  data_array<tree_node, tree_node_id>&               trees,
-  tree_node&                                         parent,
-  child_id                                           compo_child_id,
-  child&                                             compo_child) noexcept
+static status make_tree_recursive(modeling&  mod,
+                                  tree_node& parent,
+                                  child_id   compo_child_id,
+                                  child&     compo_child) noexcept
 {
     auto compo_id = compo_child.id.compo_id;
 
-    if (auto* compo = components.try_to_get(compo_id); compo) {
-        irt_return_if_fail(trees.can_alloc(),
+    if (auto* compo = mod.components.try_to_get(compo_id); compo) {
+        irt_return_if_fail(mod.tree_nodes.can_alloc(),
                            status::data_array_not_enough_memory);
 
-        auto& new_tree = trees.alloc(compo_id, compo_child_id);
+        auto& new_tree = mod.tree_nodes.alloc(compo_id, compo_child_id);
         new_tree.tree.set_id(&new_tree);
         new_tree.tree.parent_to(parent.tree);
 
-        auto* s_compo = simple_components.try_to_get(compo->id.simple_id);
+        auto* s_compo = mod.simple_components.try_to_get(compo->id.simple_id);
 
-        child* c = nullptr;
-        while (s_compo->children.next(c)) {
+        for (auto child_id : s_compo->children) {
+            auto* c = mod.children.try_to_get(child_id);
             if (c->type == child_type::component) {
                 irt_return_if_bad(
-                  make_tree_recursive(components,
-                                      simple_components,
-                                      trees,
-                                      new_tree,
-                                      s_compo->children.get_id(*c),
-                                      *c));
+                  make_tree_recursive(mod, new_tree, child_id, *c));
             }
         }
     }
@@ -1601,17 +1657,14 @@ status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
     tree_parent.tree.set_id(&tree_parent);
 
     if (parent.type == component_type::simple) {
-        auto*  s_compo = simple_components.try_to_get(parent.id.simple_id);
-        child* c       = nullptr;
-        while (s_compo->children.next(c)) {
-            if (c->type == child_type::component) {
-                irt_return_if_bad(
-                  make_tree_recursive(components,
-                                      simple_components,
-                                      tree_nodes,
-                                      tree_parent,
-                                      s_compo->children.get_id(c),
-                                      *c));
+        auto* s_compo = simple_components.try_to_get(parent.id.simple_id);
+
+        for (auto child_id : s_compo->children) {
+            if (auto* c = children.try_to_get(child_id); c) {
+                if (c->type == child_type::component) {
+                    irt_return_if_bad(
+                      make_tree_recursive(*this, tree_parent, child_id, *c));
+                }
             }
         }
     }
@@ -1711,7 +1764,8 @@ static status simulation_copy_source(modeling_to_simulation& cache,
     irt_bad_return(status::source_unknown);
 }
 
-static status simulation_copy_model(modeling_to_simulation& cache,
+static status simulation_copy_model(modeling&               mod,
+                                    modeling_to_simulation& cache,
                                     simulation&             sim,
                                     tree_node&              tree,
                                     simulation_tree_node&   sim_tree,
@@ -1719,17 +1773,14 @@ static status simulation_copy_model(modeling_to_simulation& cache,
 {
     sim_tree.children.clear();
 
-    child* to_del = nullptr;
-    child* c      = nullptr;
-    while (src.children.next(c)) {
-        if (to_del)
-            src.children.free(*to_del);
-
-        to_del = c;
+    for (auto child_id : src.children) {
+        auto* c = mod.children.try_to_get(child_id);
+        if (!c)
+            continue;
 
         if (c->type == child_type::model) {
             auto  mdl_id = c->id.mdl_id;
-            auto* mdl    = src.models.try_to_get(mdl_id);
+            auto* mdl    = mod.models.try_to_get(mdl_id);
 
             if (!mdl)
                 continue;
@@ -1759,7 +1810,7 @@ static status simulation_copy_model(modeling_to_simulation& cache,
                         dyn.y[i] = static_cast<u64>(-1);
 
                 if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                    if (auto* hsm_src = src.hsms.try_to_get(src_dyn.id);
+                    if (auto* hsm_src = mod.hsms.try_to_get(src_dyn.id);
                         hsm_src) {
                         auto& hsm = sim.hsms.alloc(*hsm_src);
                         auto  id  = sim.hsms.get_id(hsm);
@@ -1793,12 +1844,7 @@ static status simulation_copy_model(modeling_to_simulation& cache,
             sim_tree.children.emplace_back(new_mdl_id);
             tree.sim.data.emplace_back(mdl_id, new_mdl_id);
         }
-
-        to_del = nullptr;
     }
-
-    if (to_del)
-        src.children.free(*to_del);
 
     return status::success;
 }
@@ -1855,8 +1901,8 @@ static status simulation_copy_models(modeling_to_simulation& cache,
                   cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
                 irt_assert(sim_tree);
 
-                irt_return_if_bad(
-                  simulation_copy_model(cache, sim, *cur, *sim_tree, *s_compo));
+                irt_return_if_bad(simulation_copy_model(
+                  mod, cache, sim, *cur, *sim_tree, *s_compo));
             }
         }
 
@@ -1914,25 +1960,22 @@ struct model_to_component_connect
     i8          port;
 };
 
-static auto input_connect(model_to_component_connect& ic,
+static auto input_connect(modeling&                   mod,
+                          model_to_component_connect& ic,
                           simple_component&           compo,
                           tree_node&                  tree,
                           i8 port_dst) noexcept -> status
 {
-    connection* con    = nullptr;
-    connection* to_del = nullptr;
-
-    while (compo.connections.next(con)) {
-        if (to_del)
-            compo.connections.free(*to_del);
-
-        to_del = con;
+    for (auto connection_id : compo.connections) {
+        auto* con = mod.connections.try_to_get(connection_id);
+        if (!con)
+            continue;
 
         if (!(con->type == connection::connection_type::input &&
               port_dst == con->input.index))
             continue;
 
-        auto* child = compo.children.try_to_get(con->input.dst);
+        auto* child = mod.children.try_to_get(con->input.dst);
         if (!child)
             continue;
 
@@ -1947,35 +1990,27 @@ static auto input_connect(model_to_component_connect& ic,
 
         irt_return_if_bad(
           ic.sim.connect(ic.mdl_id, ic.port, sim_mod_id, con->input.index_dst));
-
-        to_del = nullptr;
     }
-
-    if (to_del)
-        compo.connections.free(*to_del);
 
     return status::success;
 }
 
-static auto output_connect(model_to_component_connect& ic,
+static auto output_connect(modeling&                   mod,
+                           model_to_component_connect& ic,
                            simple_component&           compo,
                            tree_node&                  tree,
                            i8 port_dst) noexcept -> status
 {
-    connection* con    = nullptr;
-    connection* to_del = nullptr;
-
-    while (compo.connections.next(con)) {
-        if (to_del)
-            compo.connections.free(*to_del);
-
-        to_del = con;
+    for (auto connection_id : compo.connections) {
+        auto* con = mod.connections.try_to_get(connection_id);
+        if (!con)
+            continue;
 
         if (!(con->type == connection::connection_type::output &&
               port_dst == con->output.index))
             continue;
 
-        auto* child = compo.children.try_to_get(con->output.src);
+        auto* child = mod.children.try_to_get(con->output.src);
         if (!child)
             continue;
 
@@ -1990,36 +2025,29 @@ static auto output_connect(model_to_component_connect& ic,
 
         irt_return_if_bad(ic.sim.connect(
           sim_mod_id, con->output.index_src, ic.mdl_id, ic.port));
-
-        to_del = nullptr;
     }
-
-    if (to_del)
-        compo.connections.free(*to_del);
 
     return status::success;
 }
 
-static auto get_input_model_from_component(modeling_to_simulation& cache,
+static auto get_input_model_from_component(modeling&               mod,
+                                           modeling_to_simulation& cache,
                                            simulation&             sim,
                                            simple_component&       compo,
                                            tree_node&              tree,
                                            i8 port) noexcept -> status
 {
     cache.inputs.clear();
-    connection* con    = nullptr;
-    connection* to_del = nullptr;
 
-    while (compo.connections.next(con)) {
-        if (to_del)
-            compo.connections.free(*to_del);
-
-        to_del = con;
+    for (auto connection_id : compo.connections) {
+        auto* con = mod.connections.try_to_get(connection_id);
+        if (!con)
+            continue;
 
         if (con->type == connection::connection_type::input &&
             con->input.index == port) {
             auto  child_id = con->input.dst;
-            auto* child    = compo.children.try_to_get(child_id);
+            auto* child    = mod.children.try_to_get(child_id);
             if (!child)
                 continue;
 
@@ -2035,14 +2063,13 @@ static auto get_input_model_from_component(modeling_to_simulation& cache,
             cache.inputs.emplace_back(
               std::make_pair(*sim_model_id, con->input.index_dst));
         }
-
-        to_del = nullptr;
     }
 
     return status::success;
 }
 
-static auto get_output_model_from_component(modeling_to_simulation& cache,
+static auto get_output_model_from_component(modeling&               mod,
+                                            modeling_to_simulation& cache,
                                             simulation&             sim,
                                             simple_component&       compo,
                                             tree_node&              tree,
@@ -2050,19 +2077,15 @@ static auto get_output_model_from_component(modeling_to_simulation& cache,
 {
     cache.outputs.clear();
 
-    connection* con    = nullptr;
-    connection* to_del = nullptr;
-
-    while (compo.connections.next(con)) {
-        if (to_del)
-            compo.connections.free(*to_del);
-
-        to_del = con;
+    for (auto connection_id : compo.connections) {
+        auto* con = mod.connections.try_to_get(connection_id);
+        if (!con)
+            continue;
 
         if (con->type == connection::connection_type::output &&
             con->output.index == port) {
             auto  child_id = con->output.src;
-            auto* child    = compo.children.try_to_get(child_id);
+            auto* child    = mod.children.try_to_get(child_id);
             if (!child)
                 continue;
 
@@ -2078,8 +2101,6 @@ static auto get_output_model_from_component(modeling_to_simulation& cache,
             cache.outputs.emplace_back(
               std::make_pair(*sim_model_id, con->output.index_src));
         }
-
-        to_del = nullptr;
     }
 
     return status::success;
@@ -2091,18 +2112,14 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                           tree_node&              tree,
                                           simple_component&       compo)
 {
-    connection* to_del = nullptr;
-    connection* con    = nullptr;
-
-    while (compo.connections.next(con)) {
-        if (to_del)
-            compo.connections.free(*to_del);
-
-        to_del = con;
+    for (auto connection_id : compo.connections) {
+        auto* con = mod.connections.try_to_get(connection_id);
+        if (!con)
+            continue;
 
         if (con->type == connection::connection_type::internal) {
-            child* src = compo.children.try_to_get(con->internal.src);
-            child* dst = compo.children.try_to_get(con->internal.dst);
+            child* src = mod.children.try_to_get(con->internal.src);
+            child* dst = mod.children.try_to_get(con->internal.dst);
 
             if (!(src && dst))
                 continue;
@@ -2140,7 +2157,7 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                                      con->internal.index_src };
 
                     irt_return_if_bad(input_connect(
-                      ic, *sc_dst, *t_dst, con->internal.index_dst));
+                      mod, ic, *sc_dst, *t_dst, con->internal.index_dst));
                 }
             } else {
                 auto* c_src = get_component(mod, *src);
@@ -2167,7 +2184,7 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                                      con->internal.index_dst };
 
                     irt_return_if_bad(output_connect(
-                      oc, *sc_src, *t_src, con->internal.index_src));
+                      mod, oc, *sc_src, *t_src, con->internal.index_src));
                 } else {
                     auto* c_dst = get_component(mod, *dst);
                     auto* t_dst = get_treenode(tree, con->internal.dst);
@@ -2185,10 +2202,20 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                     if (!(sc_src && sc_dst))
                         continue;
 
-                    irt_return_if_bad(get_input_model_from_component(
-                      cache, sim, *sc_dst, *t_dst, con->internal.index_dst));
-                    irt_return_if_bad(get_output_model_from_component(
-                      cache, sim, *sc_src, *t_src, con->internal.index_src));
+                    irt_return_if_bad(
+                      get_input_model_from_component(mod,
+                                                     cache,
+                                                     sim,
+                                                     *sc_dst,
+                                                     *t_dst,
+                                                     con->internal.index_dst));
+                    irt_return_if_bad(
+                      get_output_model_from_component(mod,
+                                                      cache,
+                                                      sim,
+                                                      *sc_src,
+                                                      *t_src,
+                                                      con->internal.index_src));
 
                     for (auto& out : cache.outputs) {
                         for (auto& in : cache.inputs) {
@@ -2199,8 +2226,6 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                 }
             }
         }
-
-        to_del = nullptr;
     }
 
     return status::success;

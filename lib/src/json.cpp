@@ -1677,10 +1677,10 @@ static status read_children(json_cache&             cache,
                                                  is_file ? "file" : "cpp");
             auto* sub_compo = mod.components.try_to_get(compo_id);
             irt_return_if_fail(!sub_compo, status::io_file_format_error);
-            irt_return_if_fail(s_compo.children.can_alloc(),
+            irt_return_if_fail(mod.children.can_alloc(),
                                status::io_not_enough_memory);
 
-            auto& child = s_compo.children.alloc(compo_id);
+            auto& child = mod.alloc(s_compo, compo_id);
             last        = &child;
         } else {
             auto opt_type = convert(cache.string_buffer);
@@ -1696,25 +1696,25 @@ static status read_children(json_cache&             cache,
             auto& child = mod.alloc(s_compo, opt_type.value());
             last        = &child;
 
-            irt_assert(s_compo.models.try_to_get(child.id.mdl_id) != nullptr);
+            irt_assert(mod.models.try_to_get(child.id.mdl_id) != nullptr);
 
-            auto& mdl = s_compo.models.get(child.id.mdl_id);
+            if (auto* mdl = mod.models.try_to_get(child.id.mdl_id); mdl) {
+                auto ret = dispatch(
+                  *mdl,
+                  [&mod,
+                   &dynamics_it]<typename Dynamics>(Dynamics& dyn) -> status {
+                      if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                          if (auto* hsm = mod.hsms.try_to_get(dyn.id); hsm)
+                              return load(dynamics_it->value, dyn, *hsm);
+                      } else {
+                          return load(dynamics_it->value, dyn);
+                      }
 
-            auto ret = dispatch(
-              mdl,
-              [&s_compo,
-               &dynamics_it]<typename Dynamics>(Dynamics& dyn) -> status {
-                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                      if (auto* hsm = s_compo.hsms.try_to_get(dyn.id); hsm)
-                          return load(dynamics_it->value, dyn, *hsm);
-                  } else {
-                      return load(dynamics_it->value, dyn);
-                  }
+                      return status::io_file_format_error;
+                  });
 
-                  return status::io_file_format_error;
-              });
-
-            irt_return_if_bad(ret);
+                irt_return_if_bad(ret);
+            }
         }
 
         bool input  = false;
@@ -1727,7 +1727,7 @@ static status read_children(json_cache&             cache,
         irt_return_if_bad(get_bool(elem, "input", input));
         irt_return_if_bad(get_bool(elem, "output", output));
 
-        const auto last_id = s_compo.children.get_id(last);
+        const auto last_id = mod.children.get_id(last);
         cache.model_mapping.data.emplace_back(id, ordinal(last_id));
     }
 
@@ -2141,10 +2141,13 @@ static status write_children(json_cache& /*cache*/,
     w.Key("children");
     w.StartArray();
 
-    child* c = nullptr;
-    while (simple_compo.children.next(c)) {
+    for (auto child_id : simple_compo.children) {
+        auto* c = mod.children.try_to_get(child_id);
+        if (!c)
+            continue;
+
         w.StartObject();
-        const auto id = get_index(simple_compo.children.get_id(*c));
+        const auto id = get_index(child_id);
         w.Key("id");
         w.Uint64(id);
         w.Key("x");
@@ -2179,24 +2182,23 @@ static status write_children(json_cache& /*cache*/,
             w.String(mod.file_paths.get(compo.file).path.c_str());
         } else {
             auto  mdl_id = c->id.mdl_id;
-            auto* mdl    = simple_compo.models.try_to_get(mdl_id);
+            auto* mdl    = mod.models.try_to_get(mdl_id);
             irt_assert(mdl && "cleanup all component vectors before save");
 
             w.Key("type");
             w.String(dynamics_type_names[ordinal(mdl->type)]);
 
             w.Key("dynamics");
-            dispatch(
-              *mdl,
-              [&simple_compo, &w]<typename Dynamics>(Dynamics& dyn) -> void {
-                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                      auto* hsm = simple_compo.hsms.try_to_get(dyn.id);
-                      irt_assert(hsm);
-                      write(w, dyn, *hsm);
-                  } else {
-                      write(w, dyn);
-                  }
-              });
+            dispatch(*mdl,
+                     [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> void {
+                         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                             auto* hsm = mod.hsms.try_to_get(dyn.id);
+                             irt_assert(hsm);
+                             write(w, dyn, *hsm);
+                         } else {
+                             write(w, dyn);
+                         }
+                     });
         }
 
         w.EndObject();
@@ -2234,15 +2236,18 @@ static status write_ports(json_cache& /*cache*/,
 
 template<typename Writer>
 static status write_connections(json_cache& /*cache*/,
-                                const modeling& /*mod*/,
+                                const modeling&         mod,
                                 const simple_component& compo,
                                 Writer&                 w) noexcept
 {
     w.Key("connections");
     w.StartArray();
 
-    connection* c = nullptr;
-    while (compo.connections.next(c)) {
+    for (auto connection_id : compo.connections) {
+        connection* c = mod.connections.try_to_get(connection_id);
+        if (!c)
+            continue;
+
         w.StartObject();
 
         w.Key("type");
@@ -2706,48 +2711,49 @@ static status load_access(modeling&               mod,
                           const rapidjson::Value& val,
                           model*&                 mdl) noexcept
 {
-    cache.stack.clear();
+    // @TODO
+    // cache.stack.clear();
 
-    irt_return_if_fail(val.IsArray(), status::io_project_file_error);
+    // irt_return_if_fail(val.IsArray(), status::io_project_file_error);
 
-    for (rapidjson::SizeType i = 0, e = val.Size(); i != e; ++i) {
-        irt_return_if_fail(val[i].IsInt(), status::io_file_format_error);
-        cache.stack.emplace_back(val[i].GetInt());
-    }
+    // for (rapidjson::SizeType i = 0, e = val.Size(); i != e; ++i) {
+    //     irt_return_if_fail(val[i].IsInt(), status::io_file_format_error);
+    //     cache.stack.emplace_back(val[i].GetInt());
+    // }
 
-    auto& head       = mod.tree_nodes.get(mod.head);
-    auto& compo_head = mod.components.get(head.id);
-    auto* compo      = &compo_head;
-    auto* s_compo    = mod.simple_components.try_to_get(compo->id.simple_id);
+    // auto& head       = mod.tree_nodes.get(mod.head);
+    // auto& compo_head = mod.components.get(head.id);
+    // auto* compo      = &compo_head;
+    // auto* s_compo    = mod.simple_components.try_to_get(compo->id.simple_id);
 
-    irt_return_if_fail(!cache.stack.empty(), status::io_file_format_error);
+    // irt_return_if_fail(!cache.stack.empty(), status::io_file_format_error);
 
-    for (i32 i = 0, e = cache.stack.ssize(); i != e; ++i) {
-        auto* child_id = compo->child_mapping_io.get(cache.stack[i]);
-        irt_return_if_fail(child_id, status::io_file_format_error);
+    // for (i32 i = 0, e = cache.stack.ssize(); i != e; ++i) {
+    //     auto* child_id = compo->child_mapping_io.get(cache.stack[i]);
+    //     irt_return_if_fail(child_id, status::io_file_format_error);
 
-        auto* child = s_compo->children.try_to_get(*child_id);
-        irt_return_if_fail(child, status::io_file_format_error);
+    //    auto* child = s_compo->children.try_to_get(*child_id);
+    //    irt_return_if_fail(child, status::io_file_format_error);
 
-        if (i + 1 < e) {
-            irt_return_if_fail(child->type == child_type::model,
-                               status::io_file_format_error);
+    //    if (i + 1 < e) {
+    //        irt_return_if_fail(child->type == child_type::model,
+    //                           status::io_file_format_error);
 
-            auto id = child->id.compo_id;
-            compo   = mod.components.try_to_get(id);
-            irt_return_if_fail(compo, status::io_file_format_error);
-        } else {
-            irt_return_if_fail(child->type != child_type::component,
-                               status::io_file_format_error);
+    //        auto id = child->id.compo_id;
+    //        compo   = mod.components.try_to_get(id);
+    //        irt_return_if_fail(compo, status::io_file_format_error);
+    //    } else {
+    //        irt_return_if_fail(child->type != child_type::component,
+    //                           status::io_file_format_error);
 
-            auto id = child->id.mdl_id;
-            mdl     = s_compo->models.try_to_get(id);
-            irt_return_if_fail(mdl, status::io_file_format_error);
-            break;
-        }
-    }
+    //        auto id = child->id.mdl_id;
+    //        mdl     = s_compo->models.try_to_get(id);
+    //        irt_return_if_fail(mdl, status::io_file_format_error);
+    //        break;
+    //    }
+    //}
 
-    irt_return_if_fail(mdl, status::io_file_format_error);
+    // irt_return_if_fail(mdl, status::io_file_format_error);
     return status::success;
 }
 
@@ -2764,18 +2770,18 @@ static status load_parameter(modeling&               mod,
     auto* compo      = &compo_head;
     auto* s_compo    = mod.simple_components.try_to_get(compo->id.simple_id);
 
-    return dispatch(
-      mdl, [&val, &s_compo]<typename Dynamics>(Dynamics& dyn) -> status {
-          if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-              auto* machine = s_compo->hsms.try_to_get(dyn.id);
-              if (machine)
-                  return load(val, dyn, *machine);
-          } else {
-              return load(val, dyn);
-          }
+    return dispatch(mdl,
+                    [&val, &mod]<typename Dynamics>(Dynamics& dyn) -> status {
+                        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                            auto* machine = mod.hsms.try_to_get(dyn.id);
+                            if (machine)
+                                return load(val, dyn, *machine);
+                        } else {
+                            return load(val, dyn);
+                        }
 
-          return status::io_file_format_error;
-      });
+                        return status::io_file_format_error;
+                    });
 }
 
 static status load_project_parameters(json_cache              cache,
@@ -2929,8 +2935,8 @@ void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
         irt_assert(s_compo);
 
         for (auto pair : tree->parameters.data) {
-            auto* src = s_compo->models.try_to_get(pair.id);
-            auto* dst = s_compo->models.try_to_get(pair.value);
+            auto* src = mod.models.try_to_get(pair.id);
+            auto* dst = mod.models.try_to_get(pair.value);
 
             if (src && dst) {
                 irt_assert(src->type == dst->type);
@@ -2955,10 +2961,9 @@ void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
                 w.Key("dynamics");
 
                 dispatch(
-                  *dst,
-                  [&s_compo, &w]<typename Dynamics>(Dynamics& dyn) -> void {
+                  *dst, [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> void {
                       if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                          auto* machine = s_compo->hsms.try_to_get(dyn.id);
+                          auto* machine = mod.hsms.try_to_get(dyn.id);
                           if (machine)
                               write(w, dyn, *machine);
                       } else {

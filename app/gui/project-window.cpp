@@ -40,12 +40,13 @@ void project_window::clear() noexcept
     m_ch     = undefined<child_id>();
 }
 
-static void show_project_hierarchy_child_observable(tree_node&        parent,
+static void show_project_hierarchy_child_observable(modeling&         mod,
+                                                    tree_node&        parent,
                                                     simple_component& compo,
                                                     child& ch) noexcept
 {
     auto  id  = ch.id.mdl_id;
-    auto* mdl = compo.models.try_to_get(id);
+    auto* mdl = mod.models.try_to_get(id);
 
     if (mdl) {
         auto* value       = parent.observables.get(id);
@@ -79,7 +80,7 @@ static void show_project_hierarchy_child_configuration(
   child&            ch) noexcept
 {
     auto  id  = ch.id.mdl_id;
-    auto* mdl = s_compo.models.try_to_get(id);
+    auto* mdl = ed.mod.models.try_to_get(id);
 
     if (mdl) {
         auto*  value         = parent.parameters.get(id);
@@ -95,38 +96,6 @@ static void show_project_hierarchy_child_configuration(
                 is_configured = true;
             }
         }
-
-        // const bool is_integrator = match(mdl->type,
-        //                                  dynamics_type::qss1_integrator,
-        //                                  dynamics_type::qss2_integrator,
-        //                                  dynamics_type::qss3_integrator,
-        //                                  dynamics_type::integrator);
-
-        // if (is_integrator) {
-        //     if (ImGui::Checkbox("Input##param", &ch.in)) {
-        //         const auto elem = find_id(compo.x,
-        //         compo.children.get_id(ch)); if (ch.in) {
-        //             if (elem < 0)
-        //                 compo.x.emplace_back(compo.children.get_id(ch),
-        //                                      static_cast<i8>(1));
-        //         } else {
-        //             if (elem >= 0)
-        //                 compo.x.swap_pop_back(elem);
-        //         }
-        //     }
-
-        //    if (ImGui::Checkbox("Output##param", &ch.out)) {
-        //        const auto elem = find_id(compo.y, compo.children.get_id(ch));
-        //        if (ch.out) {
-        //            if (elem < 0)
-        //                compo.y.emplace_back(compo.children.get_id(ch),
-        //                                     static_cast<i8>(0));
-        //        } else {
-        //            if (elem >= 0)
-        //                compo.y.swap_pop_back(elem);
-        //        }
-        //    }
-        //}
 
         if (ImGui::Checkbox("Configuration##param", &is_configured)) {
             if (is_configured) {
@@ -152,13 +121,13 @@ static void show_project_hierarchy_child_configuration(
               *param,
               [&ed, &compo, &s_compo, param]<typename Dynamics>(Dynamics& dyn) {
                   if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                      if (auto* machine = s_compo.hsms.try_to_get(dyn.id);
+                      if (auto* machine = ed.mod.hsms.try_to_get(dyn.id);
                           machine) {
                           auto* app =
                             container_of(&ed, &application::component_ed);
                           show_dynamics_inputs(*app,
                                                ed.mod.components.get_id(compo),
-                                               s_compo.models.get_id(*param),
+                                               ed.mod.models.get_id(*param),
                                                *machine);
                       }
                   } else
@@ -191,8 +160,12 @@ static void show_project_hierarchy(project_window&    pj_wnd,
                 if (auto* s_compo =
                       ed.mod.simple_components.try_to_get(compo->id.simple_id);
                     s_compo) {
-                    child* pc = nullptr;
-                    while (s_compo->children.next(pc)) {
+
+                    for (auto child_id : s_compo->children) {
+                        auto* pc = ed.mod.children.try_to_get(child_id);
+                        if (!pc)
+                            continue;
+
                         if (pc->configurable || pc->observable) {
                             ImGui::PushID(pc);
 
@@ -200,12 +173,11 @@ static void show_project_hierarchy(project_window&    pj_wnd,
                               ed.mod.tree_nodes.get_id(parent);
                             const auto compo_id =
                               ed.mod.components.get_id(*compo);
-                            const auto ch_id = s_compo->children.get_id(*pc);
                             const bool selected =
-                              pj_wnd.equal(parent_id, compo_id, ch_id);
+                              pj_wnd.equal(parent_id, compo_id, child_id);
 
                             if (ImGui::Selectable(pc->name.c_str(), selected)) {
-                                pj_wnd.set(parent_id, compo_id, ch_id);
+                                pj_wnd.set(parent_id, compo_id, child_id);
                             }
 
                             if (selected) {
@@ -214,7 +186,7 @@ static void show_project_hierarchy(project_window&    pj_wnd,
                                       ed, parent, *compo, *s_compo, *pc);
                                 if (pc->observable)
                                     show_project_hierarchy_child_observable(
-                                      parent, *s_compo, *pc);
+                                      ed.mod, parent, *s_compo, *pc);
                             }
 
                             ImGui::PopID();
@@ -426,10 +398,10 @@ void project_window::show() noexcept
                       app->component_ed.mod.simple_components.try_to_get(
                         compo->id.simple_id);
                     s_compo) {
-                    if (auto* ch = s_compo->children.try_to_get(m_ch); ch) {
-                        app->component_ed.select(m_parent);
-                        clear();
-                    }
+                    // if (auto* ch = s_compo->children.try_to_get(m_ch); ch) {
+                    app->component_ed.select(m_parent);
+                    clear();
+                    //} @TODO useless ?
                 }
             }
         }
@@ -444,8 +416,6 @@ void project_window::show() noexcept
               compo->id.simple_id);
             s_compo) {
             ImGui::TextFormat("component: {}", compo->name.sv());
-            ImGui::TextFormat("models: {}", s_compo->models.size());
-            ImGui::TextFormat("hsms: {}", s_compo->hsms.size());
             ImGui::TextFormat("children: {}", s_compo->children.size());
             ImGui::TextFormat("connections: {}", s_compo->connections.size());
         }
