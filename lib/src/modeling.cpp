@@ -1195,12 +1195,12 @@ static bool is_ports_compatible(modeling&         mod,
     return is_compatible;
 }
 
-static bool is_ports_compatible(modeling&         mod,
-                                simple_component& parent,
-                                child_id          src,
-                                i8                port_src,
-                                child_id          dst,
-                                i8                port_dst) noexcept
+static bool is_ports_compatible(modeling& mod,
+                                simple_component& /*parent*/,
+                                child_id src,
+                                i8       port_src,
+                                child_id dst,
+                                i8       port_dst) noexcept
 {
     auto* child_src = mod.children.try_to_get(src);
     auto* child_dst = mod.children.try_to_get(dst);
@@ -1418,7 +1418,7 @@ child& modeling::alloc(simple_component& parent, dynamics_type type) noexcept
     mdl.type     = type;
     mdl.handle   = nullptr;
 
-    dispatch(mdl, [=]<typename Dynamics>(Dynamics& dyn) -> void {
+    dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
         new (&dyn) Dynamics{};
 
         if constexpr (has_input_port<Dynamics>)
@@ -1430,10 +1430,10 @@ child& modeling::alloc(simple_component& parent, dynamics_type type) noexcept
                 dyn.y[i] = static_cast<u64>(-1);
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            irt_assert(hsms.can_alloc());
+            irt_assert(this->hsms.can_alloc());
 
-            auto& machine = hsms.alloc();
-            dyn.id        = hsms.get_id(machine);
+            auto& machine = this->hsms.alloc();
+            dyn.id        = this->hsms.get_id(machine);
         }
     });
 
@@ -1577,6 +1577,8 @@ status modeling::copy(const component& src, component& dst) noexcept
             return copy(*s_src, s_dst);
         }
 
+        break;
+    case component_type::line:
         break;
     case component_type::simple:
         break;

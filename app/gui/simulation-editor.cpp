@@ -34,7 +34,7 @@ static int make_input_node_id(const irt::model_id mdl, const int port) noexcept
 {
     irt_assert(port >= 0 && port < 8);
 
-    irt::u32 index = irt::get_index(mdl);
+    irt::u32 index = static_cast<u32>(irt::get_index(mdl));
     irt_assert(index < 268435456u);
 
     irt::u32 port_index = static_cast<irt::u32>(port) << 28u;
@@ -47,7 +47,7 @@ static int make_output_node_id(const irt::model_id mdl, const int port) noexcept
 {
     irt_assert(port >= 0 && port < 8);
 
-    irt::u32 index = irt::get_index(mdl);
+    irt::u32 index = static_cast<u32>(irt::get_index(mdl));
     irt_assert(index < 268435456u);
 
     irt::u32 port_index = static_cast<irt::u32>(8u + port) << 28u;
@@ -603,7 +603,7 @@ static void show_top(simulation_editor& ed) noexcept
         model* mdl = nullptr;
         while (ed.sim.models.next(mdl)) {
             const auto mdl_id    = ed.sim.models.get_id(mdl);
-            const auto mdl_index = get_index(mdl_id);
+            const auto mdl_index = static_cast<u32>(get_index(mdl_id));
 
             ImNodes::BeginNode(mdl_index);
             ImNodes::BeginNodeTitleBar();
@@ -620,7 +620,7 @@ static void show_top(simulation_editor& ed) noexcept
         model* mdl = nullptr;
         while (ed.sim.models.next(mdl)) {
             const auto mdl_id    = ed.sim.models.get_id(mdl);
-            const auto mdl_index = get_index(mdl_id);
+            const auto mdl_index = static_cast<u32>(get_index(mdl_id));
 
             ImNodes::BeginNode(mdl_index);
             ImNodes::BeginNodeTitleBar();
@@ -927,8 +927,8 @@ static void compute_connection_distance(const model_id     src,
                                         simulation_editor& ed,
                                         const float        k) noexcept
 {
-    const auto u     = get_index(dst);
-    const auto v     = get_index(src);
+    const auto u     = static_cast<u32>(get_index(dst));
+    const auto v     = static_cast<u32>(get_index(src));
     const auto u_pos = ImNodes::GetNodeEditorSpacePos(u);
     const auto v_pos = ImNodes::GetNodeEditorSpacePos(v);
 
@@ -1057,7 +1057,7 @@ static void compute_automatic_layout(simulation_editor& ed) noexcept
         v_pos.y += ed.displacements[v].y;
 
         const auto mdl_id    = ed.sim.models.get_id(mdl);
-        const auto mdl_index = get_index(mdl_id);
+        const auto mdl_index = static_cast<u32>(get_index(mdl_id));
 
         ImNodes::SetNodeEditorSpacePos(mdl_index, v_pos);
     }
@@ -1090,7 +1090,7 @@ static void compute_grid_layout(simulation_editor& ed) noexcept
                 break;
 
             const auto mdl_id    = ed.sim.models.get_id(mdl);
-            const auto mdl_index = get_index(mdl_id);
+            const auto mdl_index = static_cast<u32>(get_index(mdl_id));
 
             new_pos.x = panning.x + j * settings.grid_layout_x_distance;
             ImNodes::SetNodeEditorSpacePos(mdl_index, new_pos);
@@ -1105,7 +1105,7 @@ static void compute_grid_layout(simulation_editor& ed) noexcept
             break;
 
         const auto mdl_id    = ed.sim.models.get_id(mdl);
-        const auto mdl_index = get_index(mdl_id);
+        const auto mdl_index = static_cast<u32>(get_index(mdl_id));
 
         new_pos.x = panning.x + j * settings.grid_layout_x_distance;
         ImNodes::SetNodeEditorSpacePos(mdl_index, new_pos);

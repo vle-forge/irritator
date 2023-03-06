@@ -276,9 +276,8 @@ static void show(component_editor& ed,
     ImGui::TextFormat("{}\n{}", c.name.c_str(), compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
-    connection* con    = nullptr;
-    u32         input  = 0;
-    u32         output = 0;
+    u32 input  = 0;
+    u32 output = 0;
 
     for (auto connection_id : s_compo.connections) {
         auto* con = ed.mod.connections.try_to_get(connection_id);
@@ -333,7 +332,6 @@ static void show_opened_component_ref(component_editor& ed,
 
     const auto width = ImGui::GetContentRegionAvail().x;
     const auto pos   = ImNodes::EditorContextGetPanning();
-
     const auto range = std::minmax(pos.x + 10.f, pos.x + width - 50.f);
     child*     c     = nullptr;
 
@@ -414,6 +412,8 @@ static void show_opened_component_ref(component_editor& ed,
                     if (auto* s_compo = ed.mod.simple_components.try_to_get(
                           compo->id.simple_id))
                         show(ed, *compo, *s_compo, *c, child_id);
+                    break;
+                case component_type::line:
                     break;
                 case component_type::internal:
                     break;
@@ -528,6 +528,8 @@ static void compute_grid_layout(settings_window&  settings,
 
             new_pos.x = panning.x + j * settings.grid_layout_x_distance;
             ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
+            c->x = new_pos.x;
+            c->y = new_pos.y;
         }
     }
 
@@ -543,6 +545,8 @@ static void compute_grid_layout(settings_window&  settings,
 
         new_pos.x = panning.x + j * settings.grid_layout_x_distance;
         ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
+        c->x = new_pos.x;
+        c->y = new_pos.y;
     }
 }
 
@@ -1126,9 +1130,9 @@ static void is_link_created(component_editor& ed,
     }
 }
 
-static void is_link_destroyed(modeling&         mod,
-                              component&        parent,
-                              simple_component& s_parent) noexcept
+static void is_link_destroyed(modeling&  mod,
+                              component& parent,
+                              simple_component& /*s_parent*/) noexcept
 {
     int link_id;
     if (ImNodes::IsLinkDestroyed(&link_id)) {
@@ -1143,7 +1147,7 @@ static void is_link_destroyed(modeling&         mod,
 static void remove_nodes(component_editor& ed,
                          tree_node&        tree,
                          component&        parent,
-                         simple_component& s_parent) noexcept
+                         simple_component& /*s_parent*/) noexcept
 {
     for (i32 i = 0, e = ed.selected_nodes.size(); i != e; ++i) {
         if (auto* child = unpack_node(ed.selected_nodes[i], ed.mod.children);
@@ -1174,7 +1178,7 @@ static void remove_nodes(component_editor& ed,
 
 static void remove_links(component_editor& ed,
                          component&        parent,
-                         simple_component& s_parent) noexcept
+                         simple_component& /*s_parent*/) noexcept
 {
     std::sort(
       ed.selected_links.begin(), ed.selected_links.end(), std::greater<int>());
@@ -1290,6 +1294,8 @@ void component_editor::show() noexcept
                       mod.simple_components.try_to_get(compo->id.simple_id);
                     s_compo)
                     show_component_editor(*this, *tree, *compo, *s_compo);
+                break;
+            case component_type::line:
                 break;
             case component_type::internal:
                 break;

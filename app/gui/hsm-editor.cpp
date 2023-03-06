@@ -811,7 +811,6 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
   -> hierarchical_state_machine*
 {
     auto* app = container_of(&ed, &application::hsm_ed);
-    auto& mod = app->component_ed.mod;
 
     if (is_defined(cid)) {
         auto& mod = app->component_ed.mod;

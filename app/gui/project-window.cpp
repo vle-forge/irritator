@@ -40,9 +40,9 @@ void project_window::clear() noexcept
     m_ch     = undefined<child_id>();
 }
 
-static void show_project_hierarchy_child_observable(modeling&         mod,
-                                                    tree_node&        parent,
-                                                    simple_component& compo,
+static void show_project_hierarchy_child_observable(modeling&  mod,
+                                                    tree_node& parent,
+                                                    simple_component& /*compo*/,
                                                     child& ch) noexcept
 {
     auto  id  = ch.id.mdl_id;
