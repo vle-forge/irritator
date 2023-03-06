@@ -2706,10 +2706,10 @@ static bool load_component_file(modeling&        mod,
     return found;
 }
 
-static status load_access(modeling&               mod,
-                          json_cache&             cache,
-                          const rapidjson::Value& val,
-                          model*&                 mdl) noexcept
+static status load_access(modeling& /*mod*/,
+                          json_cache& /*cache*/,
+                          const rapidjson::Value& /*val*/,
+                          model*& /*mdl*/) noexcept
 {
     // @TODO
     // cache.stack.clear();
@@ -2765,10 +2765,10 @@ static status load_parameter(modeling&               mod,
     irt_return_if_fail(val.IsObject(), status::io_file_format_error);
     irt_return_if_fail(mdl.type == type, status::io_file_format_error);
 
-    auto& head       = mod.tree_nodes.get(mod.head);
-    auto& compo_head = mod.components.get(head.id);
-    auto* compo      = &compo_head;
-    auto* s_compo    = mod.simple_components.try_to_get(compo->id.simple_id);
+    // auto& head       = mod.tree_nodes.get(mod.head);
+    // auto& compo_head = mod.components.get(head.id);
+    // auto* compo      = &compo_head;
+    // auto* s_compo    = mod.simple_components.try_to_get(compo->id.simple_id);
 
     return dispatch(mdl,
                     [&val, &mod]<typename Dynamics>(Dynamics& dyn) -> status {
