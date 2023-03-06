@@ -74,7 +74,7 @@ inline int pack_in(const child_id id, const i8 port) noexcept
     irt_assert(port >= 0 && port < 8);
 
     u32 port_index = static_cast<u32>(port);
-    u32 index      = get_index(id);
+    u32 index      = static_cast<u32>(get_index(id));
 
     return static_cast<int>((index << 5u) | port_index);
 }
@@ -84,7 +84,7 @@ inline int pack_out(const child_id id, const i8 port) noexcept
     irt_assert(port >= 0 && port < 8);
 
     u32 port_index = 8u + static_cast<u32>(port);
-    u32 index      = get_index(id);
+    u32 index      = static_cast<u32>(get_index(id));
 
     return static_cast<int>((index << 5u) | port_index);
 }

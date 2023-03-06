@@ -1042,9 +1042,7 @@ static void do_serialize_external_source(const Archiver /*s*/,
 }
 
 template<typename Archiver, typename IO>
-static status do_serialize(const Archiver   arc,
-                           simulation&      sim,
-                           IO&              io) noexcept
+static status do_serialize(const Archiver arc, simulation& sim, IO& io) noexcept
 {
     {
         auto constant_external_source = sim.srcs.constant_sources.ssize();
@@ -1143,8 +1141,8 @@ static status do_serialize(const Archiver   arc,
                         for (const auto& cnt : list) {
                             auto* dst = sim.models.try_to_get(cnt.model);
                             if (dst) {
-                                u32 out = get_index(out_id);
-                                u32 in  = get_index(cnt.model);
+                                auto out = get_index(out_id);
+                                auto in  = get_index(cnt.model);
 
                                 io(out);
                                 io(i);
@@ -1164,10 +1162,10 @@ static status do_serialize(const Archiver   arc,
 }
 
 template<typename Dearchiver, typename IO>
-static status do_deserialize(Dearchiver&      arc,
-                             simulation&      sim,
-                             IO&              io,
-                             binary_cache&    cache) noexcept
+static status do_deserialize(Dearchiver&   arc,
+                             simulation&   sim,
+                             IO&           io,
+                             binary_cache& cache) noexcept
 {
     i32 constant_external_source = 0;
     i32 binary_external_source   = 0;
@@ -1203,10 +1201,10 @@ static status do_deserialize(Dearchiver&      arc,
         sim.models.clear();
         sim.hsms.clear();
 
-        irt_return_if_bad(
-          sim.srcs.constant_sources.init(to_unsigned(constant_external_source)));
-        irt_return_if_bad(
-          sim.srcs.binary_file_sources.init(to_unsigned(binary_external_source)));
+        irt_return_if_bad(sim.srcs.constant_sources.init(
+          to_unsigned(constant_external_source)));
+        irt_return_if_bad(sim.srcs.binary_file_sources.init(
+          to_unsigned(binary_external_source)));
         irt_return_if_bad(
           sim.srcs.text_file_sources.init(to_unsigned(text_external_source)));
         irt_return_if_bad(
@@ -1221,12 +1219,12 @@ static status do_deserialize(Dearchiver&      arc,
                              to_unsigned(binary_external_source)),
                            status::io_not_enough_memory);
 
-        irt_return_if_fail(
-          sim.srcs.text_file_sources.can_alloc(to_unsigned(text_external_source)),
-          status::io_not_enough_memory);
-        irt_return_if_fail(
-          sim.srcs.random_sources.can_alloc(to_unsigned(random_external_source)),
-          status::io_not_enough_memory);
+        irt_return_if_fail(sim.srcs.text_file_sources.can_alloc(
+                             to_unsigned(text_external_source)),
+                           status::io_not_enough_memory);
+        irt_return_if_fail(sim.srcs.random_sources.can_alloc(
+                             to_unsigned(random_external_source)),
+                           status::io_not_enough_memory);
 
         irt_return_if_fail(sim.models.can_alloc(to_unsigned(models)),
                            status::io_not_enough_memory);
@@ -1386,17 +1384,14 @@ status simulation_save(simulation& sim, file& f) noexcept
     return do_serialize(archiver, sim, writer);
 }
 
-status simulation_save(simulation&      sim,
-                       memory&          m) noexcept
+status simulation_save(simulation& sim, memory& m) noexcept
 {
     write_binary_simulation<memory> writer{ m };
 
     return do_serialize(archiver, sim, writer);
 }
 
-status simulation_load(simulation&      sim,
-                       file&            f,
-                       binary_cache&    cache) noexcept
+status simulation_load(simulation& sim, file& f, binary_cache& cache) noexcept
 {
     bool is_open = f.is_open();
     bool is_writeable =
@@ -1425,9 +1420,7 @@ status simulation_load(simulation&      sim,
     return do_deserialize(dearchiver, sim, reader, cache);
 }
 
-status simulation_load(simulation&      sim,
-                       memory&          m,
-                       binary_cache&    cache) noexcept
+status simulation_load(simulation& sim, memory& m, binary_cache& cache) noexcept
 {
     read_binary_simulation<memory> reader{ m };
 

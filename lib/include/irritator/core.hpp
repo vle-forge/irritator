@@ -1957,46 +1957,34 @@ enum class dynamics_id : u64;
 enum class message_id : u64;
 enum class observer_id : u64;
 
-template<typename T>
-constexpr u32 get_index(T identifier) noexcept
+template<typename Identifier>
+constexpr sz get_index(Identifier id) noexcept
 {
-    static_assert(std::is_enum<T>::value, "Identifier must be a enumeration");
+    static_assert(std::is_enum<Identifier>::value,
+                  "Identifier must be a enumeration");
 
-    return unpack_doubleword_right(
-      static_cast<std::underlying_type_t<T>>(identifier));
+    if constexpr (std::is_same_v<u32, std::underlying_type_t<Identifier>>)
+        return static_cast<u16>(static_cast<u32>(id) & 0xffff);
+    else
+        return static_cast<u32>(static_cast<u64>(id) & 0xffffffff);
 }
 
-template<typename T>
-constexpr u32 get_key(T identifier) noexcept
+template<typename Identifier>
+constexpr sz get_key(Identifier id) noexcept
 {
-    static_assert(std::is_enum<T>::value, "Identifier must be a enumeration");
+    static_assert(std::is_enum<Identifier>::value,
+                  "Identifier must be a enumeration");
 
-    return unpack_doubleword_left(
-      static_cast<std::underlying_type_t<T>>(identifier));
+    if constexpr (std::is_same_v<u32, std::underlying_type_t<Identifier>>)
+        return static_cast<u16>((static_cast<u32>(id) >> 16) & 0xffff);
+    else
+        return static_cast<u32>((static_cast<u64>(id) >> 32) & 0xffffffff);
 }
 
-template<typename T>
-constexpr u32 get_max_size() noexcept
+template<typename Identifier>
+constexpr bool is_valid(Identifier id) noexcept
 {
-    return std::numeric_limits<u32>::max();
-}
-
-template<typename T>
-constexpr bool is_valid(T identifier) noexcept
-{
-    return get_key(identifier) > 0;
-}
-
-template<typename T>
-constexpr T make_id(u32 key, u32 index) noexcept
-{
-    return static_cast<T>(make_doubleword(key, index));
-}
-
-template<typename T>
-constexpr u32 make_next_key(u32 key) noexcept
-{
-    return key == static_cast<u32>(-1) ? 1u : key + 1;
+    return get_key(id) > 0;
 }
 
 //! @brief An optimized fixed size array for dynamics objects.
@@ -2015,36 +2003,63 @@ constexpr u32 make_next_key(u32 key) noexcept
 template<typename T, typename Identifier>
 class data_array
 {
-private:
+public:
     static_assert(
-      std::is_enum<Identifier>::value,
-      "Identifier must be a enumeration: enum class id : unsigned {};");
+      std::is_enum_v<Identifier>,
+      "Identifier must be a enumeration: enum class id : u32 or u64;");
 
+    static_assert(std::is_same_v<std::underlying_type_t<Identifier>, u32> ||
+                    std::is_same_v<std::underlying_type_t<Identifier>, u64>,
+                  "Identifier underlying type must be u32 or u64");
+
+    using underlying_id_type = std::conditional_t<
+      std::is_same_v<u32, std::underlying_type_t<Identifier>>,
+      u32,
+      u64>;
+
+    using index_type =
+      std::conditional_t<std::is_same_v<u32, underlying_id_type>, u16, u32>;
+
+    using identifier_type = Identifier;
+    using value_type      = T;
+
+private:
     struct item
     {
         T          item;
         Identifier id;
     };
 
-    item* m_items     = nullptr; // items array.
-    u32   m_max_size  = 0;       // number of valid item in array.
-    u32   m_max_used  = 0;       // highest index ever allocated in array.
-    u32   m_capacity  = 0;       // capacity of the array.
-    u32   m_next_key  = 1;       // [1..2^32] (don't let == 0)
-    u32   m_free_head = none;    // index of first free entry
+    item*      m_items     = nullptr; // items array
+    index_type m_max_size  = 0;       // number of valid item
+    index_type m_max_used  = 0;       // highest index ever allocated
+    index_type m_capacity  = 0;       // capacity of the array
+    index_type m_next_key  = 1;       // [1..2^32-64] (never == 0)
+    index_type m_free_head = none;    // index of first free entry
+
+    //! Build a new identifier merging m_next_key and the best free index.
+    static constexpr identifier_type make_id(index_type key,
+                                             index_type index) noexcept;
+
+    //! Build a new m_next_key and avoid key 0.
+    static constexpr index_type make_next_key(index_type key) noexcept;
+
+    //! Get the index part of the identifier
+    static constexpr index_type get_index(Identifier id) noexcept;
+
+    //! Get the key part of the identifier
+    static constexpr index_type get_key(Identifier id) noexcept;
 
 public:
-    using identifier_type = Identifier;
-    using value_type      = T;
-
-    static constexpr u32 none = std::numeric_limits<u32>::max();
+    static constexpr index_type none = std::numeric_limits<index_type>::max();
 
     data_array() noexcept = default;
     ~data_array() noexcept;
 
     //! @brief Allocate the underlying buffer of T.
     //!
-    //! @details If a buffer is already allocated it will be deallocated
+    //! @details If a buffer is already allocated it will be
+    //! deallocated
     //!  before a new allocation.
     //!
     //! @return @c is_success(status) or is_bad(status).
@@ -2138,7 +2153,7 @@ public:
     //!
     //! @param index The array.
     //! @return T or nullptr.
-    T* try_to_get(u32 index) const noexcept;
+    T* try_to_get(std::integral auto index) const noexcept;
 
     //! @brief Return next valid item.
     //! @code
@@ -2156,16 +2171,16 @@ public:
     //! @return true if the paramter @c t is valid false otherwise.
     bool next(T*& t) const noexcept;
 
-    constexpr bool     full() const noexcept;
-    constexpr unsigned size() const noexcept;
-    constexpr int      ssize() const noexcept;
-    constexpr bool     can_alloc(std::integral auto nb) const noexcept;
-    constexpr bool     can_alloc() const noexcept;
-    constexpr int      max_size() const noexcept;
-    constexpr int      max_used() const noexcept;
-    constexpr int      capacity() const noexcept;
-    constexpr u32      next_key() const noexcept;
-    constexpr bool     is_free_list_empty() const noexcept;
+    constexpr bool       full() const noexcept;
+    constexpr unsigned   size() const noexcept;
+    constexpr int        ssize() const noexcept;
+    constexpr bool       can_alloc(std::integral auto nb) const noexcept;
+    constexpr bool       can_alloc() const noexcept;
+    constexpr int        max_size() const noexcept;
+    constexpr int        max_used() const noexcept;
+    constexpr int        capacity() const noexcept;
+    constexpr index_type next_key() const noexcept;
+    constexpr bool       is_free_list_empty() const noexcept;
 };
 
 struct record
@@ -8119,6 +8134,48 @@ inline list_view_const<dated_message> get_dated_message(const simulation& sim,
 // class data_array;
 
 template<typename T, typename Identifier>
+constexpr typename data_array<T, Identifier>::identifier_type
+data_array<T, Identifier>::make_id(index_type key, index_type index) noexcept
+{
+    if constexpr (std::is_same_v<u16, index_type>)
+        return static_cast<identifier_type>((static_cast<u32>(key) << 16) |
+                                            static_cast<u32>(index));
+    else
+        return static_cast<identifier_type>((static_cast<u64>(key) << 32) |
+                                            static_cast<u64>(index));
+}
+
+template<typename T, typename Identifier>
+constexpr typename data_array<T, Identifier>::index_type
+data_array<T, Identifier>::make_next_key(index_type key) noexcept
+{
+    if constexpr (std::is_same_v<u16, index_type>)
+        return key == 0xffffffff ? 1u : key + 1;
+    else
+        return key == 0xffffffffffffffff ? 1u : key + 1;
+}
+
+template<typename T, typename Identifier>
+constexpr typename data_array<T, Identifier>::index_type
+data_array<T, Identifier>::get_key(Identifier id) noexcept
+{
+    if constexpr (std::is_same_v<u16, index_type>)
+        return static_cast<u16>((static_cast<u32>(id) >> 16) & 0xffff);
+    else
+        return static_cast<u32>((static_cast<u64>(id) >> 32) & 0xffffffff);
+}
+
+template<typename T, typename Identifier>
+constexpr typename data_array<T, Identifier>::index_type
+data_array<T, Identifier>::get_index(Identifier id) noexcept
+{
+    if constexpr (std::is_same_v<u16, index_type>)
+        return static_cast<u16>(static_cast<u32>(id) & 0xffff);
+    else
+        return static_cast<u32>(static_cast<u64>(id) & 0xffffffff);
+}
+
+template<typename T, typename Identifier>
 data_array<T, Identifier>::~data_array() noexcept
 {
     clear();
@@ -8130,19 +8187,19 @@ data_array<T, Identifier>::~data_array() noexcept
 template<typename T, typename Identifier>
 status data_array<T, Identifier>::init(std::integral auto capacity) noexcept
 {
-    clear();
-
-    if (std::cmp_greater_equal(capacity, get_max_size<Identifier>()))
+    if (std::cmp_greater_equal(capacity,
+                               std::numeric_limits<index_type>::max()))
         return status::data_array_init_capacity_error;
 
-    m_items =
-      static_cast<item*>(g_alloc_fn(static_cast<u32>(capacity) * sizeof(item)));
-    if (!m_items)
-        return status::data_array_not_enough_memory;
+    auto* buffer = g_alloc_fn(static_cast<sz>(capacity) * sizeof(item));
+    irt_return_if_fail(buffer, status::data_array_not_enough_memory);
 
+    clear();
+
+    m_items     = reinterpret_cast<item*>(buffer);
     m_max_size  = 0;
     m_max_used  = 0;
-    m_capacity  = static_cast<u32>(capacity);
+    m_capacity  = static_cast<index_type>(capacity);
     m_next_key  = 1;
     m_free_head = none;
 
@@ -8152,13 +8209,13 @@ status data_array<T, Identifier>::init(std::integral auto capacity) noexcept
 template<typename T, typename Identifier>
 status data_array<T, Identifier>::resize(std::integral auto capacity) noexcept
 {
-    if (m_capacity >= capacity)
+    if (std::cmp_greater_equal(m_capacity, capacity))
         return status::success;
 
     auto* buffer = g_alloc_fn(static_cast<sz>(capacity) * sizeof(item));
     irt_return_if_fail(buffer, status::data_array_not_enough_memory);
 
-    auto* new_items = static_cast<item*>(buffer);
+    auto* new_items = reinterpret_cast<item*>(buffer);
     std::copy_n(m_items, static_cast<sz>(m_max_used), new_items);
 
     g_free_fn(m_items);
@@ -8171,7 +8228,7 @@ template<typename T, typename Identifier>
 void data_array<T, Identifier>::clear() noexcept
 {
     if constexpr (!std::is_trivially_destructible_v<T>) {
-        for (u32 i = 0; i != m_max_used; ++i) {
+        for (index_type i = 0; i != m_max_used; ++i) {
             if (is_valid(m_items[i].id)) {
                 std::destroy_at(&m_items[i].item);
                 m_items[i].id = static_cast<identifier_type>(0);
@@ -8196,7 +8253,7 @@ data_array<T, Identifier>::alloc(Args&&... args) noexcept
 {
     irt_assert(can_alloc(1) && "check alloc() with full() before using use.");
 
-    u32 new_index;
+    index_type new_index;
 
     if (m_free_head != none) {
         new_index = m_free_head;
@@ -8210,8 +8267,8 @@ data_array<T, Identifier>::alloc(Args&&... args) noexcept
 
     std::construct_at(&m_items[new_index].item, std::forward<Args>(args)...);
 
-    m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
-    m_next_key            = make_next_key<Identifier>(m_next_key);
+    m_items[new_index].id = make_id(m_next_key, new_index);
+    m_next_key            = make_next_key(m_next_key);
 
     ++m_max_size;
 
@@ -8226,7 +8283,7 @@ std::pair<bool, T*> data_array<T, Identifier>::try_alloc(
     if (!can_alloc(1))
         return { false, nullptr };
 
-    u32 new_index;
+    index_type new_index;
 
     if (m_free_head != none) {
         new_index = m_free_head;
@@ -8240,8 +8297,8 @@ std::pair<bool, T*> data_array<T, Identifier>::try_alloc(
 
     std::construct_at(&m_items[new_index].item, std::forward<Args>(args)...);
 
-    m_items[new_index].id = make_id<Identifier>(m_next_key, new_index);
-    m_next_key            = make_next_key<Identifier>(m_next_key);
+    m_items[new_index].id = make_id(m_next_key, new_index);
+    m_next_key            = make_next_key(m_next_key);
 
     ++m_max_size;
 
@@ -8261,7 +8318,7 @@ void data_array<T, Identifier>::free(T& t) noexcept
     std::destroy_at(&m_items[index].item);
 
     m_items[index].id = static_cast<Identifier>(m_free_head);
-    m_free_head       = index;
+    m_free_head       = static_cast<index_type>(index);
 
     --m_max_size;
 }
@@ -8277,7 +8334,7 @@ void data_array<T, Identifier>::free(Identifier id) noexcept
     std::destroy_at(&m_items[index].item);
 
     m_items[index].id = static_cast<Identifier>(m_free_head);
-    m_free_head       = index;
+    m_free_head       = static_cast<index_type>(index);
 
     --m_max_size;
 }
@@ -8323,9 +8380,11 @@ T* data_array<T, Identifier>::try_to_get(Identifier id) const noexcept
 }
 
 template<typename T, typename Identifier>
-T* data_array<T, Identifier>::try_to_get(u32 index) const noexcept
+T* data_array<T, Identifier>::try_to_get(
+  std::integral auto index) const noexcept
 {
-    irt_assert(index < m_max_used);
+    irt_assert(std::cmp_greater_equal(index, 0));
+    irt_assert(std::cmp_less(index, m_max_used));
 
     if (is_valid(m_items[index].id))
         return &m_items[index].item;
@@ -8336,7 +8395,7 @@ T* data_array<T, Identifier>::try_to_get(u32 index) const noexcept
 template<typename T, typename Identifier>
 bool data_array<T, Identifier>::next(T*& t) const noexcept
 {
-    u32 index;
+    index_type index;
 
     if (t) {
         auto id = get_id(*t);
@@ -8392,7 +8451,7 @@ constexpr bool data_array<T, Identifier>::can_alloc(
 template<typename T, typename Identifier>
 constexpr bool data_array<T, Identifier>::can_alloc() const noexcept
 {
-    return m_capacity - m_max_size >= 1u;
+    return std::cmp_greater(m_capacity, m_max_size);
 }
 
 template<typename T, typename Identifier>
@@ -8414,7 +8473,8 @@ constexpr int data_array<T, Identifier>::capacity() const noexcept
 }
 
 template<typename T, typename Identifier>
-constexpr u32 data_array<T, Identifier>::next_key() const noexcept
+constexpr data_array<T, Identifier>::index_type
+data_array<T, Identifier>::next_key() const noexcept
 {
     return m_next_key;
 }

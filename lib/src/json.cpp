@@ -2258,25 +2258,25 @@ static status write_connections(json_cache& /*cache*/,
             w.Key("port");
             w.Int(c->input.index);
             w.Key("destination");
-            w.Uint(get_index(c->input.dst));
+            w.Uint64(get_index(c->input.dst));
             w.Key("port-destination");
             w.Int(c->input.index_dst);
             break;
         case connection::connection_type::internal:
             w.String("internal");
             w.Key("source");
-            w.Uint(get_index(c->internal.src));
+            w.Uint64(get_index(c->internal.src));
             w.Key("port-source");
             w.Int(c->internal.index_src);
             w.Key("destination");
-            w.Uint(get_index(c->internal.dst));
+            w.Uint64(get_index(c->internal.dst));
             w.Key("port-destination");
             w.Int(c->internal.index_dst);
             break;
         case connection::connection_type::output:
             w.String("output");
             w.Key("source");
-            w.Uint(get_index(c->output.src));
+            w.Uint64(get_index(c->output.src));
             w.Key("port-source");
             w.Int(c->output.index_src);
             w.Key("port");

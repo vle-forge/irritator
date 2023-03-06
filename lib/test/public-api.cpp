@@ -21,6 +21,7 @@
 #include <cstdio>
 
 #include <boost/ut.hpp>
+#include <type_traits>
 
 struct file_output
 {
@@ -190,7 +191,7 @@ inline int make_input_node_id(const irt::model_id mdl, const int port) noexcept
     fmt::print("make_input_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
     irt_assert(port >= 0 && port < 8);
 
-    irt::u32 index = irt::get_index(mdl);
+    auto index = irt::get_index(mdl);
     irt_assert(index < 268435456u);
 
     fmt::print("{0:32b} <- index\n", index);
@@ -211,7 +212,7 @@ inline int make_output_node_id(const irt::model_id mdl, const int port) noexcept
       "make_output_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
     irt_assert(port >= 0 && port < 8);
 
-    irt::u32 index = irt::get_index(mdl);
+    auto index = irt::get_index(mdl);
     irt_assert(index < 268435456u);
 
     fmt::print("{0:32b} <- index\n", index);
@@ -975,11 +976,46 @@ int main()
             float x;
         };
 
-        enum class position_id : std::uint64_t
-        {
-        };
+        enum class position32_id : irt::u32;
+        enum class position64_id : irt::u64;
 
-        irt::data_array<position, position_id> array;
+        irt::data_array<position, position32_id> small_array;
+        irt::data_array<position, position64_id> array;
+
+        expect(small_array.max_size() == 0);
+        expect(small_array.max_used() == 0);
+        expect(small_array.capacity() == 0);
+        expect(small_array.next_key() == 1);
+        expect(small_array.is_free_list_empty());
+
+        {
+            fmt::print("              u-id    idx     id    val   \n");
+            fmt::print(
+              "small-array {:>6} {:>6} {:>6} {:>6}\n",
+              sizeof(
+                irt::data_array<position, position32_id>::underlying_id_type),
+              sizeof(irt::data_array<position, position32_id>::index_type),
+              sizeof(irt::data_array<position, position32_id>::identifier_type),
+              sizeof(irt::data_array<position, position32_id>::value_type));
+
+            fmt::print(
+              "      array {:>6} {:>6} {:>6} {:>6}\n",
+              sizeof(
+                irt::data_array<position, position64_id>::underlying_id_type),
+              sizeof(irt::data_array<position, position64_id>::index_type),
+              sizeof(irt::data_array<position, position64_id>::identifier_type),
+              sizeof(irt::data_array<position, position64_id>::value_type));
+
+            irt::status ret = small_array.init(0x10000);
+            expect(is_bad(ret));
+        }
+
+        expect(irt::is_success(small_array.init(3)));
+        expect(small_array.max_size() == 0);
+        expect(small_array.max_used() == 0);
+        expect(small_array.capacity() == 3);
+        expect(small_array.next_key() == 1);
+        expect(small_array.is_free_list_empty());
 
         expect(array.max_size() == 0);
         expect(array.max_used() == 0);
@@ -987,15 +1023,13 @@ int main()
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
 
-        bool is_init = irt::is_success(array.init(3));
+        expect(irt::is_success(array.init(3)));
 
         expect(array.max_size() == 0);
         expect(array.max_used() == 0);
         expect(array.capacity() == 3);
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
-
-        expect(is_init);
 
         {
             auto& first = array.alloc();
@@ -1035,7 +1069,7 @@ int main()
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
 
-        is_init = irt::is_success(array.init(3));
+        irt::is_success(array.init(3));
 
         {
             auto& d1 = array.alloc(1.f);
@@ -3425,7 +3459,8 @@ int main()
     //     main_compo.type = irt::component_type::none;
     //
     //     auto& main_tree = mod.tree_nodes.alloc(
-    //       mod.components.get_id(main_compo), irt::undefined<irt::child_id>());
+    //       mod.components.get_id(main_compo),
+    //       irt::undefined<irt::child_id>());
     //     mod.head = mod.tree_nodes.get_id(main_tree);
     //
     //     irt::simple_component* lotka = nullptr;
