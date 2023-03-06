@@ -15,6 +15,7 @@ namespace irt {
 
 enum class component_id : u64;
 enum class simple_component_id : u64;
+enum class line_component_id : u64;
 enum class tree_node_id : u64;
 enum class description_id : u64;
 enum class dir_path_id : u64;
@@ -67,7 +68,7 @@ enum class component_type
     none,
     internal,
     simple,
-    // line
+    line
     // grid
     // graph
 };
@@ -251,6 +252,7 @@ struct component
     {
         int                 internal_id;
         simple_component_id simple_id;
+        line_component_id   line_id;
     } id;
 
     component_type   type  = component_type::simple;
@@ -389,6 +391,7 @@ struct modeling
     data_array<tree_node, tree_node_id>               tree_nodes;
     data_array<description, description_id>           descriptions;
     data_array<simple_component, simple_component_id> simple_components;
+    data_array<line_component, line_component_id>     line_components;
     data_array<component, component_id>               components;
     data_array<registred_path, registred_path_id>     registred_paths;
     data_array<dir_path, dir_path_id>                 dir_paths;
