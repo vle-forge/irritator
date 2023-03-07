@@ -2,6 +2,8 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "rapidjson/reader.h"
+#include <algorithm>
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
@@ -29,40 +31,18 @@ std::pair<Dynamics*, child_id> alloc(
   alloc_parameter        param = alloc_parameter::none) noexcept
 {
     irt_assert(!mod.models.full());
+    irt_assert(!mod.children.full());
+    irt_assert(!mod.hsms.full());
 
-    auto& mdl    = mod.models.alloc();
-    auto  mdl_id = mod.models.get_id(mdl);
-    mdl.type     = dynamics_typeof<Dynamics>();
-    mdl.handle   = nullptr;
-
-    new (&mdl.dyn) Dynamics{};
-    auto& dyn = get_dyn<Dynamics>(mdl);
-
-    if constexpr (has_input_port<Dynamics>)
-        for (int i = 0, e = length(dyn.x); i != e; ++i)
-            dyn.x[i] = static_cast<u64>(-1);
-
-    if constexpr (has_output_port<Dynamics>)
-        for (int i = 0, e = length(dyn.y); i != e; ++i)
-            dyn.y[i] = static_cast<u64>(-1);
-
-    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-        irt_assert(mod.hsms.can_alloc());
-        auto& machine = mod.hsms.alloc();
-        auto  id      = mod.hsms.get_id(machine);
-        dyn.id        = id;
-    }
-
-    auto& child      = mod.children.alloc(mdl_id);
+    auto& child      = mod.alloc(parent, dynamics_typeof<Dynamics>());
     auto  child_id   = mod.children.get_id(child);
     child.name       = name;
     child.observable = ordinal(param) & ordinal(alloc_parameter::observable);
     child.configurable =
       ordinal(param) & ordinal(alloc_parameter::configurable);
 
-    parent.children.emplace_back(child_id);
-
-    return std::make_pair(&dyn, child_id);
+    return std::make_pair(&get_dyn<Dynamics>(mod.models.get(child.id.mdl_id)),
+                          child_id);
 }
 
 template<typename DynamicsSrc, typename DynamicsDst>
@@ -456,15 +436,55 @@ status add_seirs(modeling& mod, simple_component& com) noexcept
     return status::success;
 }
 
-auto get_component_type(std::string_view name) noexcept
-  -> std::optional<component_type>
+auto get_internal_component_type(std::string_view name) noexcept
+  -> std::optional<internal_component>
 {
-    if (name == "internal")
-        return component_type::internal;
-    if (name == "simple")
-        return component_type::simple;
+    struct string_to_type
+    {
+        constexpr string_to_type(const std::string_view   n,
+                                 const internal_component t) noexcept
+          : name(n)
+          , type(t)
+        {
+        }
 
-    return std::nullopt;
+        std::string_view   name;
+        internal_component type;
+    };
+
+    static constexpr string_to_type table[] = {
+        { "qss1_izhikevich", internal_component::qss1_izhikevich },
+        { "qss1_lif", internal_component::qss1_lif },
+        { "qss1_lotka_volterra", internal_component::qss1_lotka_volterra },
+        { "qss1_negative_lif", internal_component::qss1_negative_lif },
+        { "qss1_seirs", internal_component::qss1_seirs },
+        { "qss1_van_der_pol", internal_component::qss1_van_der_pol },
+        { "qss2_izhikevich", internal_component::qss2_izhikevich },
+        { "qss2_lif", internal_component::qss2_lif },
+        { "qss2_lotka_volterra", internal_component::qss2_lotka_volterra },
+        { "qss2_negative_lif", internal_component::qss2_negative_lif },
+        { "qss2_seirs", internal_component::qss2_seirs },
+        { "qss2_van_der_pol", internal_component::qss2_van_der_pol },
+        { "qss3_izhikevich", internal_component::qss3_izhikevich },
+        { "qss3_lif", internal_component::qss3_lif },
+        { "qss3_lotka_volterra", internal_component::qss3_lotka_volterra },
+        { "qss3_negative_lif", internal_component::qss3_negative_lif },
+        { "qss3_seirs", internal_component::qss3_seirs },
+        { "qss3_van_der_pol", internal_component::qss3_van_der_pol },
+    };
+
+    auto it = binary_find(
+      std::begin(table),
+      std::end(table),
+      name,
+      [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), std::string_view>)
+              return left < right.name;
+          else
+              return left.name < right;
+      });
+
+    return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
 }
 
 static bool make_path(std::string_view sv) noexcept
@@ -502,6 +522,41 @@ bool registred_path::exists() const noexcept { return exists_path(path.sv()); }
 bool dir_path::make() const noexcept { return exists_path(path.sv()); }
 bool dir_path::exists() const noexcept { return exists_path(path.sv()); }
 
+void grid_component::set_default_children(component_id id,
+                                          int          row,
+                                          int          col) noexcept
+{
+    irt_assert(0 <= row && row < 3);
+    irt_assert(0 <= col && col < 3);
+
+    default_children[row][col] = id;
+}
+
+void grid_component::set_specific_children(component_id id,
+                                           int          row,
+                                           int          col) noexcept
+{
+    irt_assert(0 <= row && row < this->row);
+    irt_assert(0 <= col && col < this->column);
+
+    specific_children.emplace_back(
+      grid_component::specific{ .id          = id,
+                                .specific_id = make_next_unique_id(),
+                                .row         = row,
+                                .column      = column });
+}
+
+component::component() noexcept
+{
+    static const std::string_view port_names[] = { "0", "1", "2", "3",
+                                                   "4", "5", "6", "7" };
+
+    for (sz i = 0; i < std::size(port_names); ++i) {
+        x_names[i] = port_names[i];
+        y_names[i] = port_names[i];
+    }
+}
+
 modeling::modeling() noexcept
   : log_entries{ 16 }
 {
@@ -513,7 +568,7 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(descriptions.init(p.description_capacity));
     irt_return_if_bad(parameters.init(p.parameter_capacity));
     irt_return_if_bad(components.init(p.component_capacity));
-    irt_return_if_bad(line_components.init(p.component_capacity));
+    irt_return_if_bad(grid_components.init(p.component_capacity));
     irt_return_if_bad(simple_components.init(p.component_capacity));
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
@@ -557,161 +612,6 @@ component_id modeling::search_component(const char* directory_name,
 
     return undefined<component_id>();
 }
-
-#if 0
-status modeling::fill_internal_components() noexcept
-{
-    irt_return_if_fail(components.can_alloc(21), status::success);
-    irt_return_if_fail(simple_components.can_alloc(21), status::success);
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS1 lotka volterra";
-        c.type  = component_type::qss1_lotka_volterra;
-        c.state = component_status::read_only;
-        if (auto ret = add_lotka_volterra<1>(*this, c); is_bad(ret))
-            return ret;
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS2 lotka volterra";
-        c.type  = component_type::qss2_lotka_volterra;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_lotka_volterra<2>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS3 lotka volterra";
-        c.type  = component_type::qss2_lotka_volterra;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_lotka_volterra<3>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS1 lif";
-        c.type  = component_type::qss1_lif;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_lif<1>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS2 lif";
-        c.type  = component_type::qss2_lif;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_lif<2>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS3 lif";
-        c.type  = component_type::qss3_lif;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_lif<3>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS1 izhikevich";
-        c.type  = component_type::qss1_izhikevich;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_izhikevich<1>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS2 izhikevich";
-        c.type  = component_type::qss2_izhikevich;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_izhikevich<2>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS3 izhikevich";
-        c.type  = component_type::qss3_izhikevich;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_izhikevich<3>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS1 van der pol";
-        c.type  = component_type::qss1_van_der_pol;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_van_der_pol<1>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS2 van der pol";
-        c.type  = component_type::qss2_van_der_pol;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_van_der_pol<2>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS3 van der pol";
-        c.type  = component_type::qss3_van_der_pol;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_van_der_pol<3>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS1 negative lif";
-        c.type  = component_type::qss1_lif;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_negative_lif<1>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS2 negative lif";
-        c.type  = component_type::qss2_lif;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_negative_lif<2>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS3 negative lif";
-        c.type  = component_type::qss3_lif;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_negative_lif<3>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS1 seirs";
-        c.type  = component_type::qss1_seirs;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_seirs<1>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS2 seirs";
-        c.type  = component_type::qss2_seirs;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_seirs<2>(*this, c));
-    }
-
-    {
-        auto& c = components.alloc();
-        c.name  = "QSS3 seirs";
-        c.type  = component_type::qss3_seirs;
-        c.state = component_status::read_only;
-        irt_return_if_bad(add_seirs<3>(*this, c));
-    }
-
-    return status::success;
-}
-#endif
 
 static void prepare_component_loading(modeling&             mod,
                                       registred_path&       reg_dir,
@@ -1091,6 +991,48 @@ void modeling::move_file(registred_path& /*reg*/,
     to.children.emplace_back(id);
 }
 
+bool modeling::can_alloc_grid_component() const noexcept
+{
+    return components.can_alloc() && grid_components.can_alloc();
+}
+
+bool modeling::can_alloc_simple_component() const noexcept
+{
+    return components.can_alloc() && simple_components.can_alloc();
+}
+
+component& modeling::alloc_grid_component() noexcept
+{
+    irt_assert(can_alloc_grid_component());
+
+    auto& new_compo    = components.alloc();
+    auto  new_compo_id = components.get_id(new_compo);
+    format(new_compo.name, "grid {}", get_index(new_compo_id));
+    new_compo.type  = component_type::grid;
+    new_compo.state = component_status::modified;
+
+    auto& grid           = grid_components.alloc();
+    new_compo.id.grid_id = grid_components.get_id(grid);
+
+    return new_compo;
+}
+
+component& modeling::alloc_simple_component() noexcept
+{
+    irt_assert(can_alloc_simple_component());
+
+    auto& new_compo    = components.alloc();
+    auto  new_compo_id = components.get_id(new_compo);
+    format(new_compo.name, "simple {}", get_index(new_compo_id));
+    new_compo.type  = component_type::simple;
+    new_compo.state = component_status::modified;
+
+    auto& new_s_compo      = simple_components.alloc();
+    new_compo.id.simple_id = simple_components.get_id(new_s_compo);
+
+    return new_compo;
+}
+
 static bool is_ports_compatible(modeling&         mod,
                                 model&            mdl_src,
                                 i8                port_src,
@@ -1361,14 +1303,14 @@ void modeling::free(connection& c) noexcept { connections.free(c); }
 
 void modeling::free(component& compo) noexcept
 {
-    if (compo.type == component_type::simple) {
-        if (auto* s_compo = simple_components.try_to_get(compo.id.simple_id);
-            s_compo) {
-            for (auto child_id : s_compo->children)
+    switch (compo.type) {
+    case component_type::simple:
+        if (auto* s = simple_components.try_to_get(compo.id.simple_id); s) {
+            for (auto child_id : s->children)
                 if (auto* child = children.try_to_get(child_id); child)
                     free(*child);
 
-            for (auto connection_id : s_compo->connections)
+            for (auto connection_id : s->connections)
                 if (auto* con = connections.try_to_get(connection_id); con)
                     free(*con);
 
@@ -1378,31 +1320,33 @@ void modeling::free(component& compo) noexcept
             if (auto* path = file_paths.try_to_get(compo.file); path)
                 file_paths.free(*path);
 
-            simple_components.free(*s_compo);
+            simple_components.free(*s);
         }
+        break;
+
+    case component_type::grid:
+        if (auto* g = grid_components.try_to_get(compo.id.grid_id); g)
+            grid_components.free(*g);
+        break;
+
+    default:
+        break;
     }
 
     components.free(compo);
 }
 
-void modeling::free(tree_node& node) noexcept
-{
-    // for (i32 i = 0, e = node.parameters.data.ssize(); i != e; ++i) {
-    //     auto mdl_id = node.parameters.data[i].value;
-    //     if (auto* mdl = models.try_to_get(mdl_id); mdl)
-    //         models.free(*mdl);
-    // }
-
-    tree_nodes.free(node);
-}
+void modeling::free(tree_node& node) noexcept { tree_nodes.free(node); }
 
 child& modeling::alloc(simple_component& parent, component_id id) noexcept
 {
     irt_assert(children.can_alloc());
 
-    auto& child    = children.alloc(id);
-    auto  child_id = children.get_id(child);
-
+    auto& child       = children.alloc(id);
+    auto  child_id    = children.get_id(child);
+    child.unique_id   = parent.make_next_unique_id();
+    child.type        = child_type::component;
+    child.id.compo_id = id;
     parent.children.emplace_back(child_id);
 
     return child;
@@ -1437,8 +1381,25 @@ child& modeling::alloc(simple_component& parent, dynamics_type type) noexcept
         }
     });
 
-    auto& child    = children.alloc(mdl_id);
-    auto  child_id = children.get_id(child);
+    auto& child     = children.alloc(mdl_id);
+    auto  child_id  = children.get_id(child);
+    child.unique_id = parent.make_next_unique_id();
+    child.type      = child_type::model;
+    child.id.mdl_id = mdl_id;
+    parent.children.emplace_back(child_id);
+
+    return child;
+}
+
+child& modeling::alloc(simple_component& parent, model_id id) noexcept
+{
+    irt_assert(children.can_alloc());
+
+    auto& child     = children.alloc(id);
+    auto  child_id  = children.get_id(child);
+    child.unique_id = parent.make_next_unique_id();
+    child.type      = child_type::model;
+    child.id.mdl_id = id;
     parent.children.emplace_back(child_id);
 
     return child;
@@ -1562,8 +1523,6 @@ status modeling::copy(const component& src, component& dst) noexcept
     dst.state   = src.state;
 
     switch (src.type) {
-    case component_type::none:
-        break;
     case component_type::internal:
         if (const auto* s_src = simple_components.try_to_get(src.id.simple_id);
             s_src) {
@@ -1578,7 +1537,7 @@ status modeling::copy(const component& src, component& dst) noexcept
         }
 
         break;
-    case component_type::line:
+    case component_type::grid:
         break;
     case component_type::simple:
         break;
@@ -1589,28 +1548,97 @@ status modeling::copy(const component& src, component& dst) noexcept
 
 static status make_tree_recursive(modeling&  mod,
                                   tree_node& parent,
-                                  child_id   compo_child_id,
-                                  child&     compo_child) noexcept
+                                  component& compo) noexcept;
+
+static status make_tree_recursive(modeling&         mod,
+                                  tree_node&        new_tree,
+                                  simple_component& src) noexcept
 {
-    auto compo_id = compo_child.id.compo_id;
+    for (auto child_id : src.children) {
+        auto* child        = mod.children.try_to_get(child_id);
+        auto  is_component = child && child->type == child_type::component;
 
-    if (auto* compo = mod.components.try_to_get(compo_id); compo) {
-        irt_return_if_fail(mod.tree_nodes.can_alloc(),
-                           status::data_array_not_enough_memory);
-
-        auto& new_tree = mod.tree_nodes.alloc(compo_id, compo_child_id);
-        new_tree.tree.set_id(&new_tree);
-        new_tree.tree.parent_to(parent.tree);
-
-        auto* s_compo = mod.simple_components.try_to_get(compo->id.simple_id);
-
-        for (auto child_id : s_compo->children) {
-            auto* c = mod.children.try_to_get(child_id);
-            if (c->type == child_type::component) {
-                irt_return_if_bad(
-                  make_tree_recursive(mod, new_tree, child_id, *c));
-            }
+        if (is_component) {
+            auto compo_id = child->id.compo_id;
+            if (auto* compo = mod.components.try_to_get(compo_id); compo)
+                irt_return_if_bad(make_tree_recursive(mod, new_tree, *compo));
         }
+    }
+
+    return status::success;
+}
+
+static status make_tree_recursive(modeling&       mod,
+                                  tree_node&      new_tree,
+                                  grid_component& src) noexcept
+{
+    vector<component_id> matrix(src.row * src.column);
+    matrix.resize(src.row * src.column);
+    std::fill_n(matrix.data(), matrix.size(), undefined<component_id>());
+
+    matrix[0]                          = src.default_children[0][0];
+    matrix[src.column - 1]             = src.default_children[0][2];
+    matrix[src.row * (src.column - 1)] = src.default_children[2][0];
+    matrix[src.row * src.column - 1]   = src.default_children[2][2];
+
+    for (int i = 1; i < src.column - 2; ++i)
+        matrix[i] = src.default_children[0][1];
+
+    for (int i = 1; i < src.column - 2; ++i)
+        matrix[src.row * (src.column - 1) + i] = src.default_children[2][1];
+
+    for (int i = 1; i < src.row; ++i)
+        matrix[src.column * i] = src.default_children[1][0];
+
+    for (int i = 1; i < src.row; ++i)
+        matrix[src.column * i + src.row - 1] = src.default_children[1][2];
+
+    for (int row = 1; row < src.row - 2; ++row) {
+        for (int col = 0; col < src.column - 2; ++col) {
+            matrix[row * src.column + col] = src.default_children[1][1];
+        }
+    }
+
+    for (const auto& elem : src.specific_children)
+        matrix[elem.row * src.column + elem.column] = elem.id;
+
+    for (int row = 0; row < src.row; ++row) {
+        for (int col = 0; col < src.column; ++col) {
+            auto id = matrix[row * src.column + col];
+            if (auto* c = mod.components.try_to_get(id); c)
+                irt_return_if_bad(make_tree_recursive(mod, new_tree, *c));
+        }
+    }
+
+    return status::success;
+}
+
+static status make_tree_recursive(modeling&  mod,
+                                  tree_node& parent,
+                                  component& compo) noexcept
+{
+    irt_return_if_fail(mod.tree_nodes.can_alloc(),
+                       status::data_array_not_enough_memory);
+
+    auto& new_tree = mod.tree_nodes.alloc(mod.components.get_id(compo));
+    new_tree.tree.set_id(&new_tree);
+    new_tree.tree.parent_to(parent.tree);
+
+    switch (compo.type) {
+    case component_type::simple: {
+        auto s_id = compo.id.simple_id;
+        if (auto* s = mod.simple_components.try_to_get(s_id); s)
+            irt_return_if_bad(make_tree_recursive(mod, new_tree, *s));
+    } break;
+
+    case component_type::grid: {
+        auto g_id = compo.id.grid_id;
+        if (auto* g = mod.grid_components.try_to_get(g_id); g)
+            irt_return_if_bad(make_tree_recursive(mod, new_tree, *g));
+    } break;
+
+    case component_type::internal:
+        break;
     }
 
     return status::success;
@@ -1654,25 +1682,27 @@ status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
     irt_return_if_fail(tree_nodes.can_alloc(),
                        status::data_array_not_enough_memory);
 
-    auto  compo_id    = components.get_id(parent);
-    auto& tree_parent = tree_nodes.alloc(compo_id, undefined<child_id>());
+    auto& new_tree = tree_nodes.alloc(components.get_id(parent));
+    new_tree.tree.set_id(&new_tree);
 
-    tree_parent.tree.set_id(&tree_parent);
+    switch (parent.type) {
+    case component_type::simple: {
+        auto s_id = parent.id.simple_id;
+        if (auto* s = simple_components.try_to_get(s_id); s)
+            irt_return_if_bad(make_tree_recursive(*this, new_tree, *s));
+    } break;
 
-    if (parent.type == component_type::simple) {
-        auto* s_compo = simple_components.try_to_get(parent.id.simple_id);
+    case component_type::grid: {
+        auto g_id = parent.id.grid_id;
+        if (auto* g = grid_components.try_to_get(g_id); g)
+            irt_return_if_bad(make_tree_recursive(*this, new_tree, *g));
+    } break;
 
-        for (auto child_id : s_compo->children) {
-            if (auto* c = children.try_to_get(child_id); c) {
-                if (c->type == child_type::component) {
-                    irt_return_if_bad(
-                      make_tree_recursive(*this, tree_parent, child_id, *c));
-                }
-            }
-        }
+    case component_type::internal:
+        break;
     }
 
-    *out = tree_nodes.get_id(tree_parent);
+    *out = tree_nodes.get_id(new_tree);
 
     return status::success;
 }
@@ -1896,16 +1926,38 @@ static status simulation_copy_models(modeling_to_simulation& cache,
         auto* compo    = mod.components.try_to_get(compo_id);
 
         if (compo) {
-            auto  s_compo_id = compo->id.simple_id;
-            auto* s_compo    = mod.simple_components.try_to_get(s_compo_id);
+            switch (compo->type) {
+            case component_type::grid: {
+                // auto  grid_id = compo->id.grid_id;
+                // auto* grid    = mod.grid_components.try_to_get(grid_id);
 
-            if (s_compo) {
-                auto* sim_tree =
-                  cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
-                irt_assert(sim_tree);
+                // if (grid) {
+                //     auto* sim_tree =
+                //       cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
+                //     irt_assert(sim_tree);
 
-                irt_return_if_bad(simulation_copy_model(
-                  mod, cache, sim, *cur, *sim_tree, *s_compo));
+                //    irt_return_if_bad(simulation_copy_model(
+                //      mod, cache, sim, *cur, *sim_tree, *grid));
+                //}
+
+            } break;
+
+            case component_type::internal:
+                break;
+
+            case component_type::simple: {
+                auto  s_compo_id = compo->id.simple_id;
+                auto* s_compo    = mod.simple_components.try_to_get(s_compo_id);
+
+                if (s_compo) {
+                    auto* sim_tree =
+                      cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
+                    irt_assert(sim_tree);
+
+                    irt_return_if_bad(simulation_copy_model(
+                      mod, cache, sim, *cur, *sim_tree, *s_compo));
+                }
+            } break;
             }
         }
 

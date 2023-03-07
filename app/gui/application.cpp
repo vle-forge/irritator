@@ -46,8 +46,7 @@ application::~application() noexcept
 
 bool application::init() noexcept
 {
-    if (auto ret = component_ed.mod.registred_paths.init(max_component_dirs);
-        is_bad(ret)) {
+    if (auto ret = mod.registred_paths.init(max_component_dirs); is_bad(ret)) {
         log_w(
           *this, log_level::alert, "Fail to initialize registred dir paths");
     }
@@ -57,7 +56,7 @@ bool application::init() noexcept
               log_level::alert,
               "Fail to read settings files. Default parameters used\n");
 
-    if (auto ret = component_ed.mod.init(mod_init); is_bad(ret)) {
+    if (auto ret = mod.init(mod_init); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize modeling components: {}\n",
@@ -65,10 +64,10 @@ bool application::init() noexcept
         return false;
     }
 
-    if (component_ed.mod.registred_paths.size() == 0) {
+    if (mod.registred_paths.size() == 0) {
         if (auto path = get_system_component_dir(); path) {
-            auto& new_dir    = component_ed.mod.registred_paths.alloc();
-            auto  new_dir_id = component_ed.mod.registred_paths.get_id(new_dir);
+            auto& new_dir    = mod.registred_paths.alloc();
+            auto  new_dir_id = mod.registred_paths.get_id(new_dir);
             new_dir.name     = "System directory";
             new_dir.path     = path.value().string().c_str();
             log_w(*this,
@@ -76,12 +75,12 @@ bool application::init() noexcept
                   "Add system directory: {}\n",
                   new_dir.path.c_str());
 
-            component_ed.mod.component_repertories.emplace_back(new_dir_id);
+            mod.component_repertories.emplace_back(new_dir_id);
         }
 
         if (auto path = get_default_user_component_dir(); path) {
-            auto& new_dir    = component_ed.mod.registred_paths.alloc();
-            auto  new_dir_id = component_ed.mod.registred_paths.get_id(new_dir);
+            auto& new_dir    = mod.registred_paths.alloc();
+            auto  new_dir_id = mod.registred_paths.get_id(new_dir);
             new_dir.name     = "User directory";
             new_dir.path     = path.value().string().c_str();
             log_w(*this,
@@ -89,7 +88,7 @@ bool application::init() noexcept
                   "Add user directory: {}\n",
                   new_dir.path.c_str());
 
-            component_ed.mod.component_repertories.emplace_back(new_dir_id);
+            mod.component_repertories.emplace_back(new_dir_id);
         }
     }
 
@@ -97,8 +96,8 @@ bool application::init() noexcept
         log_w(*this, log_level::error, "Fail to save settings files.\n");
     }
 
-    if (auto ret = simulation_ed.sim.init(mod_init.model_capacity,
-                                          mod_init.model_capacity * 256);
+    if (auto ret =
+          sim.init(mod_init.model_capacity, mod_init.model_capacity * 256);
         is_bad(ret)) {
         log_w(*this,
               log_level::error,
@@ -125,7 +124,7 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = component_ed.mod.srcs.init(50); is_bad(ret)) {
+    if (auto ret = mod.srcs.init(50); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize external sources: {}\n",
@@ -133,19 +132,37 @@ bool application::init() noexcept
         return false;
     }
 
-    // if (auto ret = component_ed.mod.fill_internal_components(); is_bad(ret)) {
+    // if (auto ret = component_ed.mod.fill_internal_components(); is_bad(ret))
+    // {
     //     log_w(*this,
     //           log_level::error,
     //           "Fail to fill component list: {}\n",
     //           status_string(ret));
     // }
 
-    component_ed.mod.fill_components();
-    component_ed.mod.head           = undefined<tree_node_id>();
-    component_ed.selected_component = undefined<tree_node_id>();
+    if (auto ret = grids.init(32); is_bad(ret)) {
+        log_w(*this,
+              log_level::error,
+              "Fail to initialize grid component editors: {}\n",
+              status_string(ret));
+        return false;
+    }
 
-    auto id = component_ed.add_empty_component();
-    component_ed.open_as_main(id);
+    if (auto ret = generics.init(32); is_bad(ret)) {
+        log_w(*this,
+              log_level::error,
+              "Fail to initialize generic component editors: {}\n",
+              status_string(ret));
+        return false;
+    }
+
+    mod.fill_components();
+    mod.head                       = undefined<tree_node_id>();
+    project.selected_component = undefined<tree_node_id>();
+
+    // @TODO at beggining, open a default generic component ?
+    // auto id = component_ed.add_generic_component();
+    // component_ed.open_as_main(id);
 
     return true;
 }
@@ -237,9 +254,9 @@ static void application_show_menu(application& app) noexcept
 static void application_manage_menu_action(application& app) noexcept
 {
     if (app.menu_new_project_file) {
-        app.component_ed.unselect();
-        auto id = app.component_ed.add_empty_component();
-        app.component_ed.open_as_main(id);
+        app.project.clear();
+        // auto id = app.component_ed.add_generic_component();
+        // app.project_wnd.open_as_main(id);
         app.menu_new_project_file = false;
     }
 
@@ -254,10 +271,10 @@ static void application_manage_menu_action(application& app) noexcept
                 auto  u8str      = app.project_file.u8string();
                 auto* str        = reinterpret_cast<const char*>(u8str.c_str());
 
-                if (app.component_ed.mod.registred_paths.can_alloc(1)) {
-                    auto& path = app.component_ed.mod.registred_paths.alloc();
-                    auto id = app.component_ed.mod.registred_paths.get_id(path);
-                    path.path = str;
+                if (app.mod.registred_paths.can_alloc(1)) {
+                    auto& path = app.mod.registred_paths.alloc();
+                    auto  id   = app.mod.registred_paths.get_id(path);
+                    path.path  = str;
 
                     app.add_simulation_task(task_load_project, ordinal(id));
                 }
@@ -275,9 +292,9 @@ static void application_manage_menu_action(application& app) noexcept
             auto  u8str = app.project_file.u8string();
             auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
-            if (app.component_ed.mod.registred_paths.can_alloc(1)) {
-                auto& path = app.component_ed.mod.registred_paths.alloc();
-                auto  id   = app.component_ed.mod.registred_paths.get_id(path);
+            if (app.mod.registred_paths.can_alloc(1)) {
+                auto& path = app.mod.registred_paths.alloc();
+                auto  id   = app.mod.registred_paths.get_id(path);
                 path.path  = str;
 
                 app.add_simulation_task(task_save_project, ordinal(id));
@@ -300,10 +317,10 @@ static void application_manage_menu_action(application& app) noexcept
                 auto  u8str      = app.project_file.u8string();
                 auto* str        = reinterpret_cast<const char*>(u8str.c_str());
 
-                if (app.component_ed.mod.registred_paths.can_alloc(1)) {
-                    auto& path = app.component_ed.mod.registred_paths.alloc();
-                    auto id = app.component_ed.mod.registred_paths.get_id(path);
-                    path.path = str;
+                if (app.mod.registred_paths.can_alloc(1)) {
+                    auto& path = app.mod.registred_paths.alloc();
+                    auto  id   = app.mod.registred_paths.get_id(path);
+                    path.path  = str;
 
                     app.add_simulation_task(task_save_project, ordinal(id));
                 }
@@ -364,7 +381,7 @@ static void application_show_windows(application& app) noexcept
         auto dock_id_down = ImGui::DockBuilderSplitNode(
           dockspace_id, ImGuiDir_Down, 0.2f, nullptr, &dockspace_id);
 
-        ImGui::DockBuilderDockWindow(project_window::name, dock_id_left);
+        // ImGui::DockBuilderDockWindow(project::name, dock_id_left);
 
         ImGui::DockBuilderDockWindow(component_editor::name, dockspace_id);
         ImGui::DockBuilderDockWindow(simulation_editor::name, dockspace_id);
@@ -378,9 +395,6 @@ static void application_show_windows(application& app) noexcept
 
         ImGui::DockBuilderFinish(dockspace_id);
     }
-
-    if (app.project_wnd.is_open)
-        app.project_wnd.show();
 
     if (app.component_ed.is_open)
         app.component_ed.show();
@@ -414,10 +428,10 @@ void application::show() noexcept
     cleanup_sim_or_gui_task(sim_tasks);
     cleanup_sim_or_gui_task(gui_tasks);
 
-    if (!component_ed.mod.log_entries.empty()) {
-        while (!component_ed.mod.log_entries.empty()) {
-            auto& w = component_ed.mod.log_entries.front();
-            component_ed.mod.log_entries.pop_front();
+    if (!mod.log_entries.empty()) {
+        while (!mod.log_entries.empty()) {
+            auto& w = mod.log_entries.front();
+            mod.log_entries.pop_front();
 
             auto& n   = notifications.alloc();
             n.level   = w.level;
@@ -460,7 +474,7 @@ void application::show() noexcept
             if (f_dialog.state == file_dialog::status::ok) {
                 select_directory = f_dialog.result;
                 auto* dir_path =
-                  component_ed.mod.registred_paths.try_to_get(select_dir_path);
+                  mod.registred_paths.try_to_get(select_dir_path);
                 if (dir_path) {
                     auto str = select_directory.string();
                     dir_path->path.assign(str);
@@ -553,7 +567,7 @@ void task_simulation_back(void* param) noexcept
 
     if (g_task->app->simulation_ed.tl.can_back()) {
         auto ret = back(g_task->app->simulation_ed.tl,
-                        g_task->app->simulation_ed.sim,
+                        g_task->app->sim,
                         g_task->app->simulation_ed.simulation_current);
 
         if (is_bad(ret)) {
@@ -574,7 +588,7 @@ void task_simulation_advance(void* param) noexcept
 
     if (g_task->app->simulation_ed.tl.can_advance()) {
         auto ret = advance(g_task->app->simulation_ed.tl,
-                           g_task->app->simulation_ed.sim,
+                           g_task->app->sim,
                            g_task->app->simulation_ed.simulation_current);
 
         if (is_bad(ret)) {

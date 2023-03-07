@@ -91,7 +91,7 @@ static void simulation_observation_job_update(void* param) noexcept
 {
     auto* job = reinterpret_cast<simulation_observation_job*>(param);
 
-    if (auto* obs = job->app->simulation_ed.sim.observers.try_to_get(job->id)) {
+    if (auto* obs = job->app->sim.observers.try_to_get(job->id)) {
         auto sim_obs_id = enum_cast<simulation_observation_id>(obs->user_id);
         if (auto* sobs = job->app->simulation_ed.sim_obs.try_to_get(sim_obs_id);
             sobs)
@@ -105,7 +105,7 @@ static void simulation_observation_job_finish(void* param) noexcept
 {
     auto* job = reinterpret_cast<simulation_observation_job*>(param);
 
-    if (auto* obs = job->app->simulation_ed.sim.observers.try_to_get(job->id)) {
+    if (auto* obs = job->app->sim.observers.try_to_get(job->id)) {
         auto sim_obs_id = enum_cast<simulation_observation_id>(obs->user_id);
         if (auto* sobs = job->app->simulation_ed.sim_obs.try_to_get(sim_obs_id);
             sobs)
@@ -125,16 +125,16 @@ void simulation_editor::build_observation_output() noexcept
 
     auto& task_list = app->get_unordered_task_list(0);
 
-    if (sim.immediate_observers.empty()) {
-        int       obs_max = sim.observers.ssize();
+    if (app->sim.immediate_observers.empty()) {
+        int       obs_max = app->sim.observers.ssize();
         observer* obs     = nullptr;
 
-        while (sim.observers.next(obs)) {
+        while (app->sim.observers.next(obs)) {
             int loop = std::min(obs_max, capacity);
 
             for (int i = 0; i != loop; ++i) {
-                auto obs_id = sim.observers.get_id(*obs);
-                sim.observers.next(obs);
+                auto obs_id = app->sim.observers.get_id(*obs);
+                app->sim.observers.next(obs);
 
                 jobs[i] = { .app = app, .id = obs_id };
                 task_list.add(simulation_observation_job_update, &jobs[i]);
@@ -149,14 +149,14 @@ void simulation_editor::build_observation_output() noexcept
                 obs_max = 0;
         }
     } else {
-        int obs_max = sim.immediate_observers.ssize();
+        int obs_max = app->sim.immediate_observers.ssize();
         int current = 0;
 
         while (obs_max > 0) {
             int loop = std::min(obs_max, capacity);
 
             for (int i = 0; i != loop; ++i) {
-                auto obs_id = sim.immediate_observers[i + current];
+                auto obs_id = app->sim.immediate_observers[i + current];
 
                 jobs[i] = { .app = app, .id = obs_id };
                 task_list.add(simulation_observation_job_finish, &jobs[i]);

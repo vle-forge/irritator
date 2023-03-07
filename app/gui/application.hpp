@@ -54,12 +54,15 @@ constexpr T* container_of(M* ptr, const M T::*member)
 }
 
 struct application;
+struct component_editor;
 
 enum class notification_id : u64;
 enum class simulation_observation_id : u64;
 enum class simulation_observation_copy_id : u64;
 enum class simulation_task_id : u64;
 enum class gui_task_id : u64;
+
+enum class grid_editor_data_id : u32;
 
 enum class task_status
 {
@@ -358,6 +361,21 @@ private:
     state       m_state = state::hide;
 };
 
+class grid_editor_data
+{
+public:
+    void load(const component_id id, const grid_component& grid) noexcept;
+    void save(grid_component& grid) noexcept;
+
+    void show(component_editor& ed) noexcept;
+
+    grid_component m_grid;
+    component_id   id = undefined<component_id>();
+
+    int m_row = -1;
+    int m_col = -1;
+};
+
 struct simulation_editor
 {
     constexpr static inline const char* name = "Simulation editor";
@@ -420,8 +438,7 @@ struct simulation_editor
 
     bool is_open = true;
 
-    simulation sim;
-    timeline   tl;
+    timeline tl;
 
     real simulation_begin   = 0;
     real simulation_end     = 100;
@@ -488,38 +505,43 @@ struct data_window
     bool is_open          = true;
 };
 
+enum class component_editor_data_id : u32;
+struct component_editor_data;
+
 struct component_editor
 {
     constexpr static inline const char* name = "Component editor";
 
-    component_editor() noexcept;
-    ~component_editor() noexcept;
+    void show() noexcept;
+    void add_generic_component() noexcept;
+    void add_grid_component() noexcept;
 
-    modeling mod;
+    small_string<31> title;
+    small_string<31> component_name;
 
-    tree_node_id          selected_component      = undefined<tree_node_id>();
-    ImNodesEditorContext* context                 = nullptr;
-    bool                  is_saved                = true;
-    bool                  show_minimap            = true;
-    bool                  force_node_position     = false;
-    bool                  show_input_output       = true;
-    bool                  first_show_input_output = true;
-    bool                  fix_input_output        = false;
+    component_id request_to_open = undefined<component_id>();
+    bool         is_open         = true;
+};
+
+struct component_editor_data
+{
+    component_editor_data() noexcept;
+    ~component_editor_data() noexcept;
+
+    void show(component_editor& ed) noexcept;
+
+    ImNodesEditorContext* context = nullptr;
+    component_id          id      = undefined<component_id>();
+
+    bool is_saved                = true;
+    bool show_minimap            = true;
+    bool force_node_position     = false;
+    bool show_input_output       = true;
+    bool first_show_input_output = true;
+    bool fix_input_output        = false;
 
     ImVector<int> selected_links;
     ImVector<int> selected_nodes;
-
-    component_id add_empty_component() noexcept;
-    void         select(tree_node_id id) noexcept;
-    void         open_as_main(component_id id) noexcept;
-    void         unselect() noexcept;
-
-    void save_project(const char* filename) noexcept;
-    void load_project(const char* filename) noexcept;
-
-    void show() noexcept;
-
-    bool is_open = true;
 };
 
 struct library_window
@@ -533,27 +555,35 @@ struct library_window
     bool is_open = true;
 };
 
-struct project_window
+struct project
 {
-    constexpr static inline const char* name = "Project";
-
-    project_window() noexcept = default;
+    project() noexcept = default;
 
     void show() noexcept;
 
+    void save_project(const char* filename) noexcept;
+    void load_project(const char* filename) noexcept;
+
     void set(tree_node_id parent, component_id compo) noexcept;
     void set(tree_node_id parent, component_id compo, child_id ch) noexcept;
-    void clear() noexcept;
 
     bool equal(tree_node_id parent,
                component_id compo,
                child_id     ch) const noexcept;
 
-    tree_node_id m_parent = undefined<tree_node_id>();
-    component_id m_compo  = undefined<component_id>();
-    child_id     m_ch     = undefined<child_id>();
+    //! Build a modeling tree node based on the component id.
+    void open_as_main(component_id id) noexcept;
 
-    bool is_open = true;
+    //! Select a elememt in the modeling tree node.
+    void select(tree_node_id id) noexcept;
+
+    //! Clear the current project.
+    void clear() noexcept;
+
+    tree_node_id selected_component = undefined<tree_node_id>();
+    tree_node_id m_parent           = undefined<tree_node_id>();
+    component_id m_compo            = undefined<component_id>();
+    child_id     m_ch               = undefined<child_id>();
 };
 
 struct settings_window
@@ -616,6 +646,10 @@ struct application
     application() noexcept;
     ~application() noexcept;
 
+    modeling   mod;
+    simulation sim;
+    project    project;
+
     component_editor  component_ed;
     simulation_editor simulation_ed;
     output_editor     output_ed;
@@ -624,7 +658,6 @@ struct application
 
     settings_window settings_wnd;
     library_window  library_wnd;
-    project_window  project_wnd;
     preview_window  preview_wnd;
     memory_window   memory_wnd;
     window_logger   log_wnd;
@@ -635,6 +668,9 @@ struct application
     data_array<simulation_task, simulation_task_id> sim_tasks;
     data_array<gui_task, gui_task_id>               gui_tasks;
     task_manager                                    task_mgr;
+
+    data_array<grid_editor_data, grid_editor_data_id>           grids;
+    data_array<component_editor_data, component_editor_data_id> generics;
 
     std::filesystem::path project_file;
     std::filesystem::path select_directory;

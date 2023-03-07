@@ -24,68 +24,67 @@ void memory_window::show() noexcept
     if (ImGui::CollapsingHeader("Component usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::TextFormat("tree_nodes: {} / {} / {}",
-                          c_editor.mod.tree_nodes.size(),
-                          c_editor.mod.tree_nodes.max_used(),
-                          c_editor.mod.tree_nodes.capacity());
+                          app->mod.tree_nodes.size(),
+                          app->mod.tree_nodes.max_used(),
+                          app->mod.tree_nodes.capacity());
         ImGui::TextFormat("descriptions: {} / {} / {}",
-                          c_editor.mod.descriptions.size(),
-                          c_editor.mod.descriptions.max_used(),
-                          c_editor.mod.descriptions.capacity());
+                          app->mod.descriptions.size(),
+                          app->mod.descriptions.max_used(),
+                          app->mod.descriptions.capacity());
         ImGui::TextFormat("components: {} / {} / {}",
-                          c_editor.mod.components.size(),
-                          c_editor.mod.components.max_used(),
-                          c_editor.mod.components.capacity());
+                          app->mod.components.size(),
+                          app->mod.components.max_used(),
+                          app->mod.components.capacity());
         ImGui::TextFormat("registred_paths: {} / {} / {}",
-                          c_editor.mod.registred_paths.size(),
-                          c_editor.mod.registred_paths.max_used(),
-                          c_editor.mod.registred_paths.capacity());
+                          app->mod.registred_paths.size(),
+                          app->mod.registred_paths.max_used(),
+                          app->mod.registred_paths.capacity());
         ImGui::TextFormat("dir_paths: {} / {} / {}",
-                          c_editor.mod.dir_paths.size(),
-                          c_editor.mod.dir_paths.max_used(),
-                          c_editor.mod.dir_paths.capacity());
+                          app->mod.dir_paths.size(),
+                          app->mod.dir_paths.max_used(),
+                          app->mod.dir_paths.capacity());
         ImGui::TextFormat("file_paths: {} / {} / {}",
-                          c_editor.mod.file_paths.size(),
-                          c_editor.mod.file_paths.max_used(),
-                          c_editor.mod.file_paths.capacity());
+                          app->mod.file_paths.size(),
+                          app->mod.file_paths.max_used(),
+                          app->mod.file_paths.capacity());
     }
 
     if (ImGui::CollapsingHeader("Simulation usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::TextFormat("models: {}", s_editor.sim.models.size());
-        ImGui::TextFormat("hsms: {}", s_editor.sim.hsms.size());
-        ImGui::TextFormat("observers: {}", s_editor.sim.observers.size());
+        ImGui::TextFormat("models: {}", app->sim.models.size());
+        ImGui::TextFormat("hsms: {}", app->sim.hsms.size());
+        ImGui::TextFormat("observers: {}", app->sim.observers.size());
 
         ImGui::TextFormat("immediate_models: {}",
-                          s_editor.sim.immediate_models.size());
+                          app->sim.immediate_models.size());
         ImGui::TextFormat("immediate_observers: {}",
-                          s_editor.sim.immediate_observers.size());
+                          app->sim.immediate_observers.size());
 
-        ImGui::TextFormat("message_alloc: {}",
-                          s_editor.sim.message_alloc.size());
-        ImGui::TextFormat("node: {}", s_editor.sim.node_alloc.size());
-        ImGui::TextFormat("record: {}", s_editor.sim.record_alloc.size());
+        ImGui::TextFormat("message_alloc: {}", app->sim.message_alloc.size());
+        ImGui::TextFormat("node: {}", app->sim.node_alloc.size());
+        ImGui::TextFormat("record: {}", app->sim.record_alloc.size());
 
         ImGui::TextFormat("dated_message_alloc: {}",
-                          s_editor.sim.dated_message_alloc.size());
+                          app->sim.dated_message_alloc.size());
         ImGui::TextFormat("emitting_output_ports: {}",
-                          s_editor.sim.emitting_output_ports.size());
+                          app->sim.emitting_output_ports.size());
 
         ImGui::TextFormat("contant sources: {}",
-                          s_editor.sim.srcs.constant_sources.size());
+                          app->sim.srcs.constant_sources.size());
         ImGui::TextFormat("text sources: {}",
-                          s_editor.sim.srcs.text_file_sources.size());
+                          app->sim.srcs.text_file_sources.size());
         ImGui::TextFormat("binary sources: {}",
-                          s_editor.sim.srcs.binary_file_sources.size());
+                          app->sim.srcs.binary_file_sources.size());
         ImGui::TextFormat("random sources: {}",
-                          s_editor.sim.srcs.random_sources.size());
+                          app->sim.srcs.random_sources.size());
     }
 
     if (ImGui::CollapsingHeader("Components")) {
         component* compo = nullptr;
-        while (c_editor.mod.components.next(compo)) {
+        while (app->mod.components.next(compo)) {
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {
-                if (auto* s_compo = c_editor.mod.simple_components.try_to_get(
+                if (auto* s_compo = app->mod.simple_components.try_to_get(
                       compo->id.simple_id);
                     s_compo) {
                     ImGui::TextFormat("children: {}/{}",
@@ -105,7 +104,7 @@ void memory_window::show() noexcept
                     int x = 0, y = 0;
                     for (auto connection_id : s_compo->connections) {
                         auto* con =
-                          c_editor.mod.connections.try_to_get(connection_id);
+                          app->mod.connections.try_to_get(connection_id);
                         if (!con)
                             continue;
 
@@ -139,12 +138,12 @@ void memory_window::show() noexcept
 
             ImGui::TableHeadersRow();
             registred_path* dir = nullptr;
-            while (c_editor.mod.registred_paths.next(dir)) {
+            while (app->mod.registred_paths.next(dir)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
                 ImGui::TextFormat(
-                  "{}", ordinal(c_editor.mod.registred_paths.get_id(*dir)));
+                  "{}", ordinal(app->mod.registred_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -161,12 +160,12 @@ void memory_window::show() noexcept
 
             ImGui::TableHeadersRow();
             dir_path* dir = nullptr;
-            while (c_editor.mod.dir_paths.next(dir)) {
+            while (app->mod.dir_paths.next(dir)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
                 ImGui::TextFormat("{}",
-                                  ordinal(c_editor.mod.dir_paths.get_id(*dir)));
+                                  ordinal(app->mod.dir_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -183,12 +182,12 @@ void memory_window::show() noexcept
 
             ImGui::TableHeadersRow();
             file_path* file = nullptr;
-            while (c_editor.mod.file_paths.next(file)) {
+            while (app->mod.file_paths.next(file)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::TextFormat(
-                  "{}", ordinal(c_editor.mod.file_paths.get_id(*file)));
+                ImGui::TextFormat("{}",
+                                  ordinal(app->mod.file_paths.get_id(*file)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(file->path.c_str());
             }

@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
+#include "rapidjson/reader.h"
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
@@ -15,7 +16,7 @@ namespace irt {
 
 enum class component_id : u64;
 enum class simple_component_id : u64;
-enum class line_component_id : u64;
+enum class grid_component_id : u64;
 enum class tree_node_id : u64;
 enum class description_id : u64;
 enum class dir_path_id : u64;
@@ -63,13 +64,15 @@ enum class internal_component
     qss3_van_der_pol,
 };
 
+constexpr int internal_component_count =
+  ordinal(internal_component::qss3_van_der_pol) + 1;
+
 enum class component_type
 {
-    none,
+    none, //! The component does not reference any container.
     internal,
     simple,
-    line
-    // grid
+    grid
     // graph
 };
 
@@ -115,6 +118,11 @@ static constexpr inline const char* internal_component_names[] = {
 auto get_component_type(std::string_view name) noexcept
   -> std::optional<component_type>;
 
+//! Try to get internal component type from a string. If the string is unknown,
+//! optional returns \c std::nullopt.
+auto get_internal_component_type(std::string_view name) noexcept
+  -> std::optional<internal_component>;
+
 struct description
 {
     small_string<1024> data;
@@ -136,6 +144,7 @@ struct child
 
     child_type type;
 
+    u64   unique_id    = 0; // A identifier unique in the component parent.
     float x            = 0.f;
     float y            = 0.f;
     bool  configurable = false; // true: is public initialization
@@ -189,53 +198,56 @@ struct simple_component
 {
     vector<child_id>      children;
     vector<connection_id> connections;
+
+    u64 next_unique_id = 0;
+
+    u64 make_next_unique_id() noexcept { return next_unique_id++; }
 };
 
-struct line_component
+struct grid_component
 {
-    i32 size = 0; //!< Length of the line component.
+    i32 row    = 1;
+    i32 column = 1;
 
     enum class options : i8
     {
-        none,
-        circle //!< The end of line is connected to the begin.
+        none = 0,
+        row_cylinder,
+        column_cylinder,
+        torus
     };
 
     enum class type : i8
     {
-        number, //!< Only one port for one or two neighbor.
-        name    //!< One or two ports for left and/or right neighbor.
-    };
-
-    enum class input
-    {
-        number = 0, //!< Only the first port is used.
-        left   = 0, //!< Left model use input port 0.
-        right  = 1  //!< Right model use input port 1.
-    };
-
-    enum class children_index
-    {
-        none   = 0,
-        left   = 0,
-        center = 1,
-        right  = 2
+        number, //!< Only one port for all neighbor.
+        name    //!< One, two, three or four ports according to neighbor.
     };
 
     struct specific
     {
-        child_id id;
-        i32      index;
+        component_id id;
+        u64          specific_id;
+        i32          row;
+        i32          column;
     };
 
-    child_id         children[3];
+    void set_default_children(component_id id, int row, int col) noexcept;
+    void set_specific_children(component_id id, int row, int col) noexcept;
+
+    u64 make_next_unique_id() noexcept { return next_unique_id++; }
+
+    component_id     default_children[3][3];
     vector<specific> specific_children;
-    type             type = type::number;
+    options          opts            = options::none;
+    type             connection_type = type::name;
+    u64              next_unique_id  = 0;
 };
 
 struct component
 {
     static inline constexpr int port_number = 8;
+
+    component() noexcept;
 
     std::array<small_string<7>, port_number> x_names;
     std::array<small_string<7>, port_number> y_names;
@@ -252,10 +264,10 @@ struct component
     {
         int                 internal_id;
         simple_component_id simple_id;
-        line_component_id   line_id;
+        grid_component_id   grid_id;
     } id;
 
-    component_type   type  = component_type::simple;
+    component_type   type  = component_type::none;
     component_status state = component_status::modified;
 };
 
@@ -338,7 +350,8 @@ struct simulation_tree_node
 
 struct tree_node
 {
-    tree_node(component_id id_, child_id id_in_parent_) noexcept;
+    tree_node(component_id) noexcept;
+    //    tree_node(component_id id_, child_id id_in_parent_) noexcept;
 
     component_id            id;
     simulation_tree_node_id sim_tree_node =
@@ -391,7 +404,7 @@ struct modeling
     data_array<tree_node, tree_node_id>               tree_nodes;
     data_array<description, description_id>           descriptions;
     data_array<simple_component, simple_component_id> simple_components;
-    data_array<line_component, line_component_id>     line_components;
+    data_array<grid_component, grid_component_id>     grid_components;
     data_array<component, component_id>               components;
     data_array<registred_path, registred_path_id>     registred_paths;
     data_array<dir_path, dir_path_id>                 dir_paths;
@@ -448,8 +461,15 @@ struct modeling
     void free(dir_path& dir) noexcept;
     void free(registred_path& dir) noexcept;
 
+    bool can_alloc_grid_component() const noexcept;
+    bool can_alloc_simple_component() const noexcept;
+
+    component& alloc_grid_component() noexcept;
+    component& alloc_simple_component() noexcept;
+
     child& alloc(simple_component& parent, dynamics_type type) noexcept;
     child& alloc(simple_component& parent, component_id id) noexcept;
+    child& alloc(simple_component& parent, model_id id) noexcept;
 
     status copy(const simple_component& src, simple_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;
@@ -551,11 +571,17 @@ inline child::child(component_id component) noexcept
     id.compo_id = component;
 }
 
-inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
+inline tree_node::tree_node(component_id id_) noexcept
   : id(id_)
-  , id_in_parent(id_in_parent_)
 {
 }
+
+// inline tree_node::tree_node(component_id id_, child_id id_in_parent_)
+// noexcept
+//   : id(id_)
+//   , id_in_parent(id_in_parent_)
+// {
+// }
 
 } // namespace irt
 

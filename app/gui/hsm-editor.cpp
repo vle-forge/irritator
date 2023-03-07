@@ -813,7 +813,7 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
     auto* app = container_of(&ed, &application::hsm_ed);
 
     if (is_defined(cid)) {
-        auto& mod = app->component_ed.mod;
+        auto& mod = app->mod;
 
         if (auto* compo = mod.components.try_to_get(cid); compo) {
             auto s_compo_id = compo->id.simple_id;
@@ -830,7 +830,7 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
             }
         }
     } else {
-        auto& sim = app->simulation_ed.sim;
+        auto& sim = app->sim;
 
         if (auto* mdl = sim.models.try_to_get(mid); mdl) {
             if (mdl->type == dynamics_type::hsm_wrapper) {

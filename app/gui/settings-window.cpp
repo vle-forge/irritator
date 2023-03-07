@@ -40,8 +40,7 @@ void settings_window::show() noexcept
 
     static const char* dir_status[] = { "none", "read", "unread" };
 
-    auto* app      = container_of(this, &application::settings_wnd);
-    auto& c_editor = app->component_ed;
+    auto* app = container_of(this, &application::settings_wnd);
 
     if (ImGui::BeginTable("Component directories", 6)) {
         ImGui::TableSetupColumn(
@@ -55,16 +54,16 @@ void settings_window::show() noexcept
 
         registred_path* dir       = nullptr;
         registred_path* to_delete = nullptr;
-        while (c_editor.mod.registred_paths.next(dir)) {
+        while (app->mod.registred_paths.next(dir)) {
             if (to_delete) {
-                const auto id = c_editor.mod.registred_paths.get_id(*to_delete);
-                c_editor.mod.registred_paths.free(*to_delete);
+                const auto id = app->mod.registred_paths.get_id(*to_delete);
+                app->mod.registred_paths.free(*to_delete);
                 to_delete = nullptr;
 
-                i32 i = 0, e = c_editor.mod.component_repertories.ssize();
+                i32 i = 0, e = app->mod.component_repertories.ssize();
                 for (; i != e; ++i) {
-                    if (c_editor.mod.component_repertories[i] == id) {
-                        c_editor.mod.component_repertories.swap_pop_back(i);
+                    if (app->mod.component_repertories[i] == id) {
+                        app->mod.component_repertories.swap_pop_back(i);
                         break;
                     }
                 }
@@ -100,7 +99,7 @@ void settings_window::show() noexcept
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(60.f);
             if (ImGui::Button("Refresh")) {
-                c_editor.mod.fill_components(*dir);
+                app->mod.fill_components(*dir);
             }
             ImGui::PopItemWidth();
 
@@ -114,21 +113,21 @@ void settings_window::show() noexcept
         }
 
         if (to_delete) {
-            c_editor.mod.free(*to_delete);
+            app->mod.free(*to_delete);
         }
 
         ImGui::EndTable();
 
-        if (c_editor.mod.registred_paths.can_alloc(1) &&
+        if (app->mod.registred_paths.can_alloc(1) &&
             ImGui::Button("Add directory")) {
-            auto& dir    = c_editor.mod.registred_paths.alloc();
-            auto  id     = c_editor.mod.registred_paths.get_id(dir);
+            auto& dir    = app->mod.registred_paths.alloc();
+            auto  id     = app->mod.registred_paths.get_id(dir);
             dir.status   = registred_path::state::none;
             dir.path     = "";
             dir.priority = 127;
             app->show_select_directory_dialog = true;
             app->select_dir_path              = id;
-            c_editor.mod.component_repertories.emplace_back(id);
+            app->mod.component_repertories.emplace_back(id);
         }
     }
 

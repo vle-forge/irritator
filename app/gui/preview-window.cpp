@@ -135,14 +135,13 @@ void preview_window::show() noexcept
 
             for (int i = 0, e = s_editor.selected_nodes.size(); i != e; ++i) {
                 const auto index = s_editor.selected_nodes[i];
-                auto*      mdl =
-                  s_editor.sim.models.try_to_get(static_cast<u32>(index));
+                auto* mdl = app->sim.models.try_to_get(static_cast<u32>(index));
                 if (!mdl)
                     continue;
 
                 ImGui::TableNextRow();
 
-                const auto mdl_id = s_editor.sim.models.get_id(*mdl);
+                const auto mdl_id = app->sim.models.get_id(*mdl);
                 ImGui::PushID(i);
 
                 bool                    already_observed = false;

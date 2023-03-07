@@ -159,6 +159,49 @@ static constexpr inline const char* dynamics_type_names[] = {
     "logical_or_2",    "logical_or_3",    "logical_invert", "hsm_wrapper",
 };
 
+static constexpr inline const char* component_type_names[] = {
+    "internal",
+    "simple",
+    "grid",
+    // graph
+};
+
+inline auto get_component_type(std::string_view name) noexcept
+  -> std::optional<component_type>
+{
+    struct string_to_type
+    {
+        constexpr string_to_type(const std::string_view n,
+                                 const component_type   t) noexcept
+          : name(n)
+          , type(t)
+        {
+        }
+
+        std::string_view name;
+        component_type   type;
+    };
+
+    static constexpr string_to_type table[] = {
+        { "grid", component_type::grid },
+        { "internal", component_type::internal },
+        { "simple", component_type::simple },
+    };
+
+    auto it = binary_find(
+      std::begin(table),
+      std::end(table),
+      name,
+      [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), std::string_view>)
+              return left < right.name;
+          else
+              return left.name < right;
+      });
+
+    return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
+}
+
 inline auto convert(std::string_view dynamics_name) noexcept
   -> std::optional<dynamics_type>
 {

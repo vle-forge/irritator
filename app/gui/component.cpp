@@ -54,75 +54,76 @@ namespace irt {
 //     }
 // }
 
-static void unselect_editor_component_ref(component_editor& ed) noexcept
+// static void unselect_editor_component_ref(component_editor_data& data)
+// noexcept
+// {
+//     ImNodes::EditorContextSet(data.context);
+//     data.selected_component = undefined<tree_node_id>();
+
+//     ImNodes::ClearLinkSelection();
+//     ImNodes::ClearNodeSelection();
+//     data.selected_links.clear();
+//     data.selected_nodes.clear();
+// }
+
+void component_editor::add_generic_component() noexcept
 {
-    ImNodes::EditorContextSet(ed.context);
-    ed.selected_component = undefined<tree_node_id>();
+    auto* app = container_of(this, &application::component_ed);
 
-    ImNodes::ClearLinkSelection();
-    ImNodes::ClearNodeSelection();
-    ed.selected_links.clear();
-    ed.selected_nodes.clear();
-}
+    if (app->mod.can_alloc_simple_component()) {
+        auto& compo = app->mod.alloc_simple_component();
 
-component_id component_editor::add_empty_component() noexcept
-{
-    auto ret = undefined<component_id>();
+        auto& notif = app->notifications.alloc(log_level::notice);
+        notif.title = "Component";
 
-    if (mod.components.can_alloc() && mod.simple_components.can_alloc()) {
-        auto& new_compo = mod.components.alloc();
-        new_compo.name.assign("New component");
-        new_compo.type  = component_type::simple;
-        new_compo.state = component_status::modified;
-
-        auto& new_s_compo      = mod.simple_components.alloc();
-        new_compo.id.simple_id = mod.simple_components.get_id(new_s_compo);
-
-        ret = mod.components.get_id(new_compo);
+        format(notif.message,
+               "Generic component {} allocated: {}\nTree nodes allocated: {}",
+               compo.name.c_str(),
+               app->mod.components.size(),
+               app->mod.tree_nodes.size());
     } else {
-        auto* app   = container_of(this, &application::component_ed);
         auto& notif = app->notifications.alloc(log_level::error);
-        notif.title = "Can not allocate new container";
+        notif.title = "Can not allocate new generic component";
+
         format(notif.message,
                "Components allocated: {}\nTree nodes allocated: {}",
-               mod.components.size(),
-               mod.tree_nodes.size());
-    }
-
-    return ret;
-}
-
-void component_editor::unselect() noexcept
-{
-    mod.clear_project();
-    unselect_editor_component_ref(*this);
-}
-
-void component_editor::select(tree_node_id id) noexcept
-{
-    if (auto* tree = mod.tree_nodes.try_to_get(id); tree) {
-        if (auto* compo = mod.components.try_to_get(tree->id); compo) {
-            unselect_editor_component_ref(*this);
-
-            selected_component  = id;
-            force_node_position = true;
-        }
+               app->mod.components.size(),
+               app->mod.tree_nodes.size());
     }
 }
 
-void component_editor::open_as_main(component_id id) noexcept
+void component_editor::add_grid_component() noexcept
 {
-    if (auto* compo = mod.components.try_to_get(id); compo) {
-        unselect();
+    auto* app = container_of(this, &application::component_ed);
 
-        tree_node_id parent_id;
-        if (is_success(mod.make_tree_from(*compo, &parent_id))) {
-            mod.head            = parent_id;
-            selected_component  = parent_id;
-            force_node_position = true;
-        }
+    if (app->mod.can_alloc_grid_component()) {
+        auto& compo = app->mod.alloc_grid_component();
+
+        auto& notif = app->notifications.alloc(log_level::notice);
+        notif.title = "Component";
+
+        format(notif.message,
+               "Grid component {} allocated: {}\nTree nodes allocated: {}",
+               compo.name.c_str(),
+               app->mod.components.size(),
+               app->mod.tree_nodes.size());
+    } else {
+        auto& notif = app->notifications.alloc(log_level::error);
+        notif.title = "Can not allocate new generic component";
+
+        format(notif.message,
+               "Components allocated: {}\nTree nodes allocated: {}",
+               app->mod.components.size(),
+               app->mod.tree_nodes.size());
     }
 }
+
+// void component_editor_data ::unselect() noexcept
+// {
+//     auto* app = container_of(this, &application::component_ed);
+//     app->mod.clear_project();
+//     unselect_editor_component_ref(*this);
+// }
 
 //
 // task implementation
@@ -170,19 +171,17 @@ void task_save_component(void* param) noexcept
     g_task->state = task_status::started;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
-    auto* compo = g_task->app->component_ed.mod.components.try_to_get(compo_id);
+    auto* compo    = g_task->app->mod.components.try_to_get(compo_id);
 
     if (compo) {
-        auto* reg = g_task->app->component_ed.mod.registred_paths.try_to_get(
-          compo->reg_path);
-        auto* dir =
-          g_task->app->component_ed.mod.dir_paths.try_to_get(compo->dir);
-        auto* file =
-          g_task->app->component_ed.mod.file_paths.try_to_get(compo->file);
+        auto* reg =
+          g_task->app->mod.registred_paths.try_to_get(compo->reg_path);
+        auto* dir  = g_task->app->mod.dir_paths.try_to_get(compo->dir);
+        auto* file = g_task->app->mod.file_paths.try_to_get(compo->file);
 
         if (reg && dir && file) {
             if (is_bad(save_component_impl(
-                  g_task->app->component_ed.mod, *compo, *reg, *dir, *file))) {
+                  g_task->app->mod, *compo, *reg, *dir, *file))) {
                 compo->state = component_status::modified;
             } else {
                 compo->state = component_status::unmodified;
@@ -238,17 +237,14 @@ void task_save_description(void* param) noexcept
     g_task->state = task_status::started;
 
     auto  compo_id = enum_cast<component_id>(g_task->param_1);
-    auto* compo = g_task->app->component_ed.mod.components.try_to_get(compo_id);
+    auto* compo    = g_task->app->mod.components.try_to_get(compo_id);
 
     if (compo) {
-        auto* reg = g_task->app->component_ed.mod.registred_paths.try_to_get(
-          compo->reg_path);
-        auto* dir =
-          g_task->app->component_ed.mod.dir_paths.try_to_get(compo->dir);
-        auto* file =
-          g_task->app->component_ed.mod.file_paths.try_to_get(compo->file);
-        auto* desc =
-          g_task->app->component_ed.mod.descriptions.try_to_get(compo->desc);
+        auto* reg =
+          g_task->app->mod.registred_paths.try_to_get(compo->reg_path);
+        auto* dir  = g_task->app->mod.dir_paths.try_to_get(compo->dir);
+        auto* file = g_task->app->mod.file_paths.try_to_get(compo->file);
+        auto* desc = g_task->app->mod.descriptions.try_to_get(compo->desc);
 
         if (dir && file && desc) {
             if (is_bad(

@@ -8150,7 +8150,7 @@ constexpr typename data_array<T, Identifier>::index_type
 data_array<T, Identifier>::make_next_key(index_type key) noexcept
 {
     if constexpr (std::is_same_v<u16, index_type>)
-        return key == 0xffffffff ? 1u : key + 1;
+        return key == 0xffffffff ? 1u : key + 1u;
     else
         return key == 0xffffffffffffffff ? 1u : key + 1;
 }
@@ -8372,6 +8372,9 @@ T* data_array<T, Identifier>::try_to_get(Identifier id) const noexcept
 {
     if (get_key(id)) {
         auto index = get_index(id);
+        irt_assert(std::cmp_greater_equal(index, 0));
+        irt_assert(std::cmp_less(index, m_max_used));
+
         if (m_items[index].id == id)
             return &m_items[index].item;
     }

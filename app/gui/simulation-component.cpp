@@ -14,8 +14,10 @@ namespace irt {
 static void simulation_clear(component_editor&  ed,
                              simulation_editor& sim_ed) noexcept
 {
+    auto* app = container_of(&ed, &application::component_ed);
+
     tree_node* tree = nullptr;
-    while (ed.mod.tree_nodes.next(tree))
+    while (app->mod.tree_nodes.next(tree))
         tree->sim.data.clear();
 
     sim_ed.clear();
@@ -27,7 +29,7 @@ static status simulation_init_observation(simulation_editor& sim_ed,
                                           component&         compo)
 {
     auto* app = container_of(&sim_ed, &application::simulation_ed);
-    auto& mod = app->component_ed.mod;
+    auto& mod = app->mod;
 
     if (compo.type == component_type::simple) {
         if (auto* s_compo =
@@ -48,7 +50,7 @@ static status simulation_init_observation(simulation_editor& sim_ed,
                         irt_assert(sim_map);
 
                         const auto sim_id = enum_cast<model_id>(*sim_map);
-                        auto*      mdl = sim_ed.sim.models.try_to_get(sim_id);
+                        auto*      mdl    = app->sim.models.try_to_get(sim_id);
 
                         irt_assert(mdl);
                         sim_ed.add_simulation_observation_for(c->name.sv(),
@@ -66,8 +68,9 @@ static status simulation_init_observation(component_editor&  ed,
                                           simulation_editor& sim_ed,
                                           tree_node&         head) noexcept
 {
+    auto* app = container_of(&sim_ed, &application::simulation_ed);
     sim_ed.sim_obs.clear();
-    sim_ed.sim.observers.clear();
+    app->sim.observers.clear();
 
     vector<tree_node*> stack;
     stack.emplace_back(&head);
@@ -77,7 +80,7 @@ static status simulation_init_observation(component_editor&  ed,
         stack.pop_back();
 
         auto  compo_id = cur->id;
-        auto* compo    = ed.mod.components.try_to_get(compo_id);
+        auto* compo    = app->mod.components.try_to_get(compo_id);
 
         if (compo)
             irt_return_if_bad(
@@ -132,20 +135,22 @@ static void make_init_error_msg(component_editor& ed,
 static void simulation_copy(component_editor&  ed,
                             simulation_editor& sim_ed) noexcept
 {
+    auto* app = container_of(&ed, &application::component_ed);
+
     sim_ed.simulation_state = simulation_status::initializing;
     simulation_clear(ed, sim_ed);
 
-    sim_ed.sim.clear();
+    app->sim.clear();
     sim_ed.simulation_current = sim_ed.simulation_begin;
 
-    auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
+    auto* head = app->mod.tree_nodes.try_to_get(app->mod.head);
     if (!head) {
         make_copy_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    if (auto ret = ed.mod.export_to(sim_ed.cache, sim_ed.sim); is_bad(ret)) {
+    if (auto ret = app->mod.export_to(sim_ed.cache, app->sim); is_bad(ret)) {
         make_copy_error_msg(
           ed, "Copy hierarchy failed: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
@@ -160,15 +165,14 @@ static void simulation_copy(component_editor&  ed,
         return;
     }
 
-    if (auto ret = ed.mod.srcs.prepare(); is_bad(ret)) {
+    if (auto ret = app->mod.srcs.prepare(); is_bad(ret)) {
         make_copy_error_msg(
           ed, "External sources initialization: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    if (auto ret = sim_ed.sim.initialize(sim_ed.simulation_begin);
-        is_bad(ret)) {
+    if (auto ret = app->sim.initialize(sim_ed.simulation_begin); is_bad(ret)) {
         make_copy_error_msg(
           ed, "Models initialization models: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
@@ -181,12 +185,14 @@ static void simulation_copy(component_editor&  ed,
 static void simulation_init(component_editor&  ed,
                             simulation_editor& sim_ed) noexcept
 {
+    auto* app = container_of(&ed, &application::component_ed);
+
     sim_ed.simulation_state   = simulation_status::initializing;
     sim_ed.simulation_current = sim_ed.simulation_begin;
 
     sim_ed.tl.reset();
 
-    auto* head = ed.mod.tree_nodes.try_to_get(ed.mod.head);
+    auto* head = app->mod.tree_nodes.try_to_get(app->mod.head);
     if (!head) {
         make_init_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
@@ -198,15 +204,14 @@ static void simulation_init(component_editor&  ed,
         mem->clear();
     }
 
-    if (auto ret = ed.mod.srcs.prepare(); is_bad(ret)) {
+    if (auto ret = app->mod.srcs.prepare(); is_bad(ret)) {
         make_init_error_msg(
           ed, "Fail to initalize external sources: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    if (auto ret = sim_ed.sim.initialize(sim_ed.simulation_begin);
-        is_bad(ret)) {
+    if (auto ret = app->sim.initialize(sim_ed.simulation_begin); is_bad(ret)) {
         make_init_error_msg(
           ed, "Models initialization models: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
@@ -252,7 +257,9 @@ static void task_simulation_init(void* param) noexcept
 
 static status debug_run(simulation_editor& sim_ed) noexcept
 {
-    if (auto ret = run(sim_ed.tl, sim_ed.sim, sim_ed.simulation_current);
+    auto* app = container_of(&sim_ed, &application::simulation_ed);
+
+    if (auto ret = run(sim_ed.tl, app->sim, sim_ed.simulation_current);
         is_bad(ret)) {
         auto* app = container_of(&sim_ed, &application::simulation_ed);
         auto& n   = app->notifications.alloc(log_level::error);
@@ -267,7 +274,9 @@ static status debug_run(simulation_editor& sim_ed) noexcept
 
 static status run(simulation_editor& sim_ed) noexcept
 {
-    if (auto ret = sim_ed.sim.run(sim_ed.simulation_current); is_bad(ret)) {
+    auto* app = container_of(&sim_ed, &application::simulation_ed);
+
+    if (auto ret = app->sim.run(sim_ed.simulation_current); is_bad(ret)) {
         auto* app = container_of(&sim_ed, &application::simulation_ed);
         auto& n   = app->notifications.alloc(log_level::error);
         n.title   = "Run error";
@@ -281,6 +290,8 @@ static status run(simulation_editor& sim_ed) noexcept
 
 static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
 {
+    auto* app = container_of(&sim_ed, &application::simulation_ed);
+
     sim_ed.simulation_state = simulation_status::running;
     namespace stdc          = std::chrono;
 
@@ -309,7 +320,7 @@ static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
             }
         }
 
-        if (!sim_ed.sim.immediate_observers.empty())
+        if (!app->sim.immediate_observers.empty())
             sim_ed.build_observation_output();
 
         if (!sim_ed.infinity_simulation &&
@@ -340,6 +351,8 @@ static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
 
 static void task_simulation_live_run(simulation_editor& sim_ed) noexcept
 {
+    auto* app = container_of(&sim_ed, &application::simulation_ed);
+
     sim_ed.simulation_state = simulation_status::running;
     namespace stdc          = std::chrono;
 
@@ -373,7 +386,7 @@ static void task_simulation_live_run(simulation_editor& sim_ed) noexcept
             }
         }
 
-        if (!sim_ed.sim.immediate_observers.empty())
+        if (!app->sim.immediate_observers.empty())
             sim_ed.build_observation_output();
 
         const auto sim_end_at   = sim_ed.simulation_current;
@@ -453,15 +466,17 @@ static void task_simulation_run_1(simulation_editor& sim_ed) noexcept
 static void task_simulation_finish(component_editor& /*ed*/,
                                    simulation_editor& sim_ed) noexcept
 {
+    auto* app = container_of(&sim_ed, &application::simulation_ed);
+
     sim_ed.simulation_state = simulation_status::finishing;
 
-    sim_ed.sim.immediate_observers.clear();
+    app->sim.immediate_observers.clear();
     sim_ed.build_observation_output();
 
     if (sim_ed.store_all_changes)
-        finalize(sim_ed.tl, sim_ed.sim, sim_ed.simulation_current);
+        finalize(sim_ed.tl, app->sim, sim_ed.simulation_current);
     else
-        sim_ed.sim.finalize(sim_ed.simulation_end);
+        app->sim.finalize(sim_ed.simulation_end);
 
     sim_ed.simulation_state = simulation_status::finished;
 }
@@ -525,7 +540,7 @@ static void task_enable_or_disable_debug(void* param) noexcept
 
     if (g_task->app->simulation_ed.store_all_changes) {
         auto ret = initialize(g_task->app->simulation_ed.tl,
-                              g_task->app->simulation_ed.sim,
+                              g_task->app->sim,
                               g_task->app->simulation_ed.simulation_current);
 
         if (is_bad(ret)) {
@@ -581,7 +596,7 @@ void simulation_editor::simulation_copy_modeling() noexcept
 
     if (state) {
         auto* app = container_of(this, &application::simulation_ed);
-        auto& mod = app->component_ed.mod;
+        auto& mod = app->mod;
 
         auto* modeling_head = mod.tree_nodes.try_to_get(mod.head);
         if (!modeling_head) {
