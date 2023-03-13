@@ -1282,15 +1282,16 @@ status modeling::connect_input(component& parent,
 
     auto* child = parent.children.try_to_get(dst);
     irt_assert(child);
-    irt_assert(child->type == child_type::model);
 
-    auto  mdl_id  = enum_cast<model_id>(child->id);
-    auto* mdl_dst = parent.models.try_to_get(mdl_id);
-    irt_assert(mdl_dst);
+    if (child->type == child_type::model) {
+        auto  mdl_id  = enum_cast<model_id>(child->id);
+        auto* mdl_dst = parent.models.try_to_get(mdl_id);
+        irt_assert(mdl_dst);
 
-    irt_return_if_fail(
-      is_ports_compatible(parent, port_src, *mdl_dst, port_dst),
-      status::model_connect_bad_dynamics);
+        irt_return_if_fail(
+          is_ports_compatible(parent, port_src, *mdl_dst, port_dst),
+          status::model_connect_bad_dynamics);
+    }
 
     auto& con           = parent.connections.alloc();
     con.input.dst       = dst;
@@ -1311,15 +1312,16 @@ status modeling::connect_output(component& parent,
 
     auto* child = parent.children.try_to_get(src);
     irt_assert(child);
-    irt_assert(child->type == child_type::model);
 
-    auto  mdl_id  = enum_cast<model_id>(child->id);
-    auto* mdl_src = parent.models.try_to_get(mdl_id);
-    irt_assert(mdl_src);
+    if (child->type == child_type::model) {
+        auto  mdl_id  = enum_cast<model_id>(child->id);
+        auto* mdl_src = parent.models.try_to_get(mdl_id);
+        irt_assert(mdl_src);
 
-    irt_return_if_fail(
-      is_ports_compatible(*mdl_src, port_src, parent, port_dst),
-      status::model_connect_bad_dynamics);
+        irt_return_if_fail(
+          is_ports_compatible(*mdl_src, port_src, parent, port_dst),
+          status::model_connect_bad_dynamics);
+    }
 
     auto& con            = parent.connections.alloc();
     con.output.src       = src;
