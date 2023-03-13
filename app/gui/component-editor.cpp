@@ -320,8 +320,10 @@ static void show_opened_component_ref(component_editor& ed,
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
 
-    const auto width = ImGui::GetWindowContentRegionWidth();
+    const auto width = ImGui::GetContentRegionAvail().x;
     const auto pos   = ImNodes::EditorContextGetPanning();
+
+    const auto range = std::minmax(pos.x + 10.f, pos.x + width - 50.f);
     child*     c     = nullptr;
 
     if (ed.show_input_output) {
@@ -351,7 +353,7 @@ static void show_opened_component_ref(component_editor& ed,
             if (ed.first_show_input_output) {
                 ImNodes::SetNodeEditorSpacePos(
                   pack_component_input(i),
-                  ImVec2(pos.x + 10.f, (float)i * 80.f + pos.y));
+                  ImVec2(range.first, (float)i * 50.f + pos.y));
             }
         }
 
@@ -381,7 +383,7 @@ static void show_opened_component_ref(component_editor& ed,
             if (ed.first_show_input_output) {
                 ImNodes::SetNodeEditorSpacePos(
                   pack_component_output(i),
-                  ImVec2(pos.x + width - 50.f, (float)i * 80.f + pos.y));
+                  ImVec2(range.second, (float)i * 50.f + pos.y));
             }
         }
 
