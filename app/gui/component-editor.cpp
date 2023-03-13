@@ -338,9 +338,6 @@ static void show_opened_component_ref(component_editor& ed,
                                     settings.gui_selected_component_color);
 
             ImNodes::BeginNode(pack_component_input(i));
-            ImNodes::BeginNodeTitleBar();
-            ImGui::TextUnformatted("in");
-            ImNodes::EndNodeTitleBar();
             ImNodes::BeginOutputAttribute(pack_component_input(i),
                                           ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(parent.x_names[i].c_str());
@@ -368,9 +365,6 @@ static void show_opened_component_ref(component_editor& ed,
                                     settings.gui_selected_component_color);
 
             ImNodes::BeginNode(pack_component_output(i));
-            ImNodes::BeginNodeTitleBar();
-            ImGui::TextUnformatted("out");
-            ImNodes::EndNodeTitleBar();
             ImNodes::BeginInputAttribute(pack_component_output(i),
                                          ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(parent.y_names[i].c_str());
