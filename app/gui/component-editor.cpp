@@ -13,9 +13,6 @@
 
 namespace irt {
 
-static inline const char* port_names[] = { "0", "1", "2", "3",
-                                           "4", "5", "6", "7" };
-
 static inline const u32 component_input_ports[8] = {
     0b11111111111111111111111111100000, 0b11111111111111111111111111100001,
     0b11111111111111111111111111100010, 0b11111111111111111111111111100011,
@@ -296,7 +293,7 @@ static void show(component_editor& ed,
         if (input & (1 << i)) {
             auto gid = pack_in(id, static_cast<i8>(i));
             ImNodes::BeginInputAttribute(gid, ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(port_names[i]);
+            ImGui::TextUnformatted(compo.x_names[i].c_str());
             ImNodes::EndInputAttribute();
         }
     }
@@ -305,7 +302,7 @@ static void show(component_editor& ed,
         if (output & (1 << i)) {
             auto gid = pack_out(id, static_cast<i8>(i));
             ImNodes::BeginOutputAttribute(gid, ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(port_names[i]);
+            ImGui::TextUnformatted(compo.y_names[i].c_str());
             ImNodes::EndOutputAttribute();
         }
     }
@@ -344,7 +341,7 @@ static void show_opened_component_ref(component_editor& ed,
             ImNodes::EndNodeTitleBar();
             ImNodes::BeginOutputAttribute(pack_component_input(i),
                                           ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(port_names[i]);
+            ImGui::TextUnformatted(parent.x_names[i].c_str());
             ImNodes::EndOutputAttribute();
             ImNodes::EndNode();
 
@@ -374,7 +371,7 @@ static void show_opened_component_ref(component_editor& ed,
             ImNodes::EndNodeTitleBar();
             ImNodes::BeginInputAttribute(pack_component_output(i),
                                          ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(port_names[i]);
+            ImGui::TextUnformatted(parent.y_names[i].c_str());
             ImNodes::EndInputAttribute();
             ImNodes::EndNode();
 

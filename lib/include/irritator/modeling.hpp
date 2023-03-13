@@ -521,6 +521,16 @@ inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
 
 inline component::component() noexcept
 {
+    static const std::string_view port_names[] = { "0", "1", "2", "3",
+                                                   "4", "5", "6", "7" };
+
+    for (int i = 0; i < length(port_names); ++i) {
+        x_names[i] = port_names[i];
+        y_names[i] = port_names[i];
+    }
+
+    std::array<small_string<7>, port_number> x_names;
+
     models.init(64); // @TODO replace these constants
     hsms.init(8);    // with variables from init files
     children.init(80);
