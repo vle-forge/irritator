@@ -402,6 +402,7 @@ struct simulation_editor
     void build_observation_output() noexcept;
 
     bool can_edit() const noexcept;
+    bool can_display_graph_editor() const noexcept;
 
     bool force_pause           = false;
     bool force_stop            = false;
@@ -411,6 +412,7 @@ struct simulation_editor
     bool infinity_simulation   = false;
     bool real_time             = false;
     bool have_use_back_advance = false;
+    bool display_graph         = true;
 
     bool show_internal_values = false;
     bool show_internal_inputs = false;
@@ -719,6 +721,11 @@ inline bool simulation_editor::can_edit() const noexcept
         return true;
 
     return allow_user_changes;
+}
+
+inline bool simulation_editor::can_display_graph_editor() const noexcept
+{
+    return display_graph;
 }
 
 } // namespace irt

@@ -1547,7 +1547,9 @@ void simulation_editor::show() noexcept
     if (ImGui::BeginTabBar("##SimulationTabBar")) {
         if (ImGui::BeginTabItem("graph")) {
             auto* app = container_of(this, &application::simulation_ed);
-            show_simulation_graph_editor(*app);
+            if (app->simulation_ed.can_display_graph_editor()) {
+                show_simulation_graph_editor(*app);
+            }
             ImGui::EndTabItem();
         }
 

@@ -19,6 +19,7 @@ static void simulation_clear(component_editor&  ed,
         tree->sim.data.clear();
 
     sim_ed.clear();
+    sim_ed.display_graph = true;
 }
 
 static status simulation_init_observation(simulation_editor& sim_ed,
@@ -599,6 +600,11 @@ void simulation_editor::simulation_init() noexcept
 void simulation_editor::simulation_clear() noexcept
 {
     auto* app = container_of(this, &application::simulation_ed);
+
+    // Disable display graph node to avoid data race on @c
+    // simulation_editor::simulation data.
+    app->simulation_ed.display_graph = false;
+
     app->add_simulation_task(task_simulation_clear);
 }
 
