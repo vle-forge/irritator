@@ -1512,6 +1512,46 @@ static void show_file_access(application& app, component& compo) noexcept
     }
 }
 
+static inline const char* port_labels[] = { "1", "2", "3", "4",
+                                            "5", "6", "7", "8" };
+
+static void show_input_output(application& app, component& compo) noexcept
+{
+    if (ImGui::BeginTable("##io-table",
+                          3,
+                          ImGuiTableFlags_Resizable |
+                            ImGuiTableFlags_NoSavedSettings |
+                            ImGuiTableFlags_Borders)) {
+        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 32.f);
+        ImGui::TableSetupColumn("in");
+        ImGui::TableSetupColumn("out");
+
+        ImGui::TableHeadersRow();
+
+        for (int i = 0; i < component::port_number; ++i) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(port_labels[i]);
+
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1.f);
+            ImGui::PushID(i);
+            ImGui::InputFilteredString("##in", compo.x_names[i]);
+            ImGui::PopID();
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1.f);
+            ImGui::PushID(i + 16);
+            ImGui::InputFilteredString("##out", compo.y_names[i]);
+            ImGui::PopID();
+            ImGui::PopItemWidth();
+        }
+
+        ImGui::EndTable();
+    }
+}
+
 template<typename T, typename ID>
 static void show_data(application&       app,
                       component_editor&  ed,
@@ -1562,6 +1602,9 @@ static void show_data(application&       app,
 
                     if (ImGui::CollapsingHeader("File path"))
                         show_file_access(app, *c);
+
+                    if (ImGui::CollapsingHeader("i/o ports names"))
+                        show_input_output(app, *c);
 
                     ImGui::TableSetColumnIndex(1);
                     element->show(ed);

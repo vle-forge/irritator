@@ -449,57 +449,7 @@ static void show_input_output_ports(modeling&         mod,
 //     }
 // }
 
-// static inline const char* port_labels[] = { "1", "2", "3", "4",
-//                                             "5", "6", "7", "8" };
 
-// static void show_input_output(project_window& pj_wnd) noexcept
-// {
-//     auto* app = container_of(&pj_wnd, &application::project_wnd);
-
-//     if (ImGui::CollapsingHeader("component inputs/outputs")) {
-//         if (auto* tree =
-//               app->mod.tree_nodes.try_to_get(pj_wnd.selected_component);
-//             tree) {
-//             if (component* compo = app->mod.components.try_to_get(tree->id);
-//                 compo) {
-//                 if (ImGui::BeginTable("##io-table",
-//                                       3,
-//                                       ImGuiTableFlags_Resizable |
-//                                         ImGuiTableFlags_NoSavedSettings |
-//                                         ImGuiTableFlags_Borders)) {
-//                     ImGui::TableSetupColumn(
-//                       "id", ImGuiTableColumnFlags_WidthFixed, 32.f);
-//                     ImGui::TableSetupColumn("in");
-//                     ImGui::TableSetupColumn("out");
-
-//                     ImGui::TableHeadersRow();
-
-//                     for (int i = 0; i < component::port_number; ++i) {
-//                         ImGui::TableNextRow();
-//                         ImGui::TableNextColumn();
-//                         ImGui::TextUnformatted(port_labels[i]);
-
-//                         ImGui::TableNextColumn();
-//                         ImGui::PushItemWidth(-1.f);
-//                         ImGui::PushID(i);
-//                         ImGui::InputFilteredString("##in",
-//                         compo->x_names[i]); ImGui::PopID();
-//                         ImGui::PopItemWidth();
-
-//                         ImGui::TableNextColumn();
-//                         ImGui::PushItemWidth(-1.f);
-//                         ImGui::PushID(i + 16);
-//                         ImGui::InputFilteredString("##out",
-//                         compo->y_names[i]); ImGui::PopID();
-//                         ImGui::PopItemWidth();
-//                     }
-
-//                     ImGui::EndTable();
-//                 }
-//             }
-//         }
-//     }
-// }
 
 void library_window::show() noexcept
 {
