@@ -1426,92 +1426,87 @@ static void show_simulation_graph_editor(application& app) noexcept
     }
 }
 
-void simulation_editor::show() noexcept
+static void show_simulation_parameters(simulation_editor& ed) noexcept
 {
-    if (!ImGui::Begin(simulation_editor::name, &is_open)) {
-        ImGui::End();
-        return;
-    }
-
-    const bool can_be_initialized = !match(simulation_state,
+    const bool can_be_initialized = !match(ed.simulation_state,
                                            simulation_status::not_started,
                                            simulation_status::finished,
                                            simulation_status::initialized,
                                            simulation_status::not_started);
 
     const bool can_be_started =
-      !match(simulation_state, simulation_status::initialized);
+      !match(ed.simulation_state, simulation_status::initialized);
 
-    const bool can_be_paused = !match(simulation_state,
+    const bool can_be_paused = !match(ed.simulation_state,
                                       simulation_status::running,
                                       simulation_status::run_requiring,
                                       simulation_status::paused);
 
     const bool can_be_restarted =
-      !match(simulation_state, simulation_status::pause_forced);
+      !match(ed.simulation_state, simulation_status::pause_forced);
 
-    const bool can_be_stopped = !match(simulation_state,
+    const bool can_be_stopped = !match(ed.simulation_state,
                                        simulation_status::running,
                                        simulation_status::run_requiring,
                                        simulation_status::paused,
                                        simulation_status::pause_forced);
 
-    if (ImGui::CollapsingHeader("parameters")) {
+    if (ImGui::CollapsingHeader("parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::PushItemWidth(100.f);
-        ImGui::InputReal("Begin", &simulation_begin);
+        ImGui::InputReal("Begin", &ed.simulation_begin);
         ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        ImGui::Checkbox("Edit", &allow_user_changes);
+        ImGui::Checkbox("Edit", &ed.allow_user_changes);
 
-        ImGui::InputReal("End", &simulation_end);
+        ImGui::InputReal("End", &ed.simulation_end);
         ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        if (ImGui::Checkbox("Debug", &store_all_changes)) {
-            if (store_all_changes &&
-                simulation_state == simulation_status::running) {
-                enable_or_disable_debug();
+        if (ImGui::Checkbox("Debug", &ed.store_all_changes)) {
+            if (ed.store_all_changes &&
+                ed.simulation_state == simulation_status::running) {
+                ed.enable_or_disable_debug();
             }
         }
 
-        ImGui::BeginDisabled(!real_time);
+        ImGui::BeginDisabled(!ed.real_time);
         ImGui::InputScalar("Micro second for 1 unit time",
                            ImGuiDataType_S64,
-                           &simulation_real_time_relation);
+                           &ed.simulation_real_time_relation);
         ImGui::EndDisabled();
         ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        ImGui::Checkbox("No time limit", &infinity_simulation);
+        ImGui::Checkbox("No time limit", &ed.infinity_simulation);
 
-        ImGui::TextFormat("Current time {:.6f}", simulation_current);
+        ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
         ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        ImGui::Checkbox("Real time", &real_time);
+        ImGui::Checkbox("Real time", &ed.real_time);
 
-        ImGui::TextFormat("Simulation phase: {}", ordinal(simulation_state));
+        ImGui::TextFormat("Simulation phase: {}", ordinal(ed.simulation_state));
 
         ImGui::PopItemWidth();
     }
 
     if (ImGui::Button("clear"))
-        simulation_clear();
+        ed.simulation_clear();
     ImGui::SameLine();
 
     ImGui::BeginDisabled(can_be_initialized);
     if (ImGui::Button("import"))
-        simulation_copy_modeling();
+        ed.simulation_copy_modeling();
     ImGui::SameLine();
 
     if (ImGui::Button("init")) {
-        simulation_init();
+        ed.simulation_init();
     }
     ImGui::EndDisabled();
 
     ImGui::SameLine();
     ImGui::BeginDisabled(can_be_started);
     if (ImGui::Button("start"))
-        simulation_start();
+        ed.simulation_start();
     ImGui::EndDisabled();
 
     ImGui::SameLine();
     ImGui::BeginDisabled(can_be_paused);
     if (ImGui::Button("pause")) {
-        force_pause = true;
+        ed.force_pause = true;
     }
     ImGui::EndDisabled();
 
@@ -1519,7 +1514,7 @@ void simulation_editor::show() noexcept
 
     ImGui::BeginDisabled(can_be_restarted);
     if (ImGui::Button("continue")) {
-        simulation_start();
+        ed.simulation_start();
     }
     ImGui::EndDisabled();
 
@@ -1527,42 +1522,51 @@ void simulation_editor::show() noexcept
 
     ImGui::BeginDisabled(can_be_stopped);
     if (ImGui::Button("stop")) {
-        force_stop = true;
+        ed.force_stop = true;
     }
     ImGui::EndDisabled();
 
-    const bool history_mode = (store_all_changes || allow_user_changes) &&
+    const bool history_mode = (ed.store_all_changes || ed.allow_user_changes) &&
                               (can_be_started || can_be_restarted);
 
     ImGui::BeginDisabled(!history_mode);
 
-    if (store_all_changes) {
+    if (ed.store_all_changes) {
         ImGui::SameLine();
         if (ImGui::Button("step-by-step"))
-            simulation_start_1();
+            ed.simulation_start_1();
     }
 
     ImGui::SameLine();
 
-    ImGui::BeginDisabled(!tl.can_back());
+    ImGui::BeginDisabled(!ed.tl.can_back());
     if (ImGui::Button("<"))
-        simulation_back();
+        ed.simulation_back();
     ImGui::EndDisabled();
     ImGui::SameLine();
 
-    ImGui::BeginDisabled(!tl.can_advance());
+    ImGui::BeginDisabled(!ed.tl.can_advance());
     if (ImGui::Button(">"))
-        simulation_advance();
+        ed.simulation_advance();
     ImGui::EndDisabled();
     ImGui::SameLine();
 
-    if (tl.current_bag != tl.points.end()) {
-        ImGui::TextFormat("debug bag: {}/{}", tl.current_bag->bag, tl.bag);
+    if (ed.tl.current_bag != ed.tl.points.end()) {
+        ImGui::TextFormat(
+          "debug bag: {}/{}", ed.tl.current_bag->bag, ed.tl.bag);
     } else {
-        ImGui::TextFormat("debug bag: {}", tl.bag);
+        ImGui::TextFormat("debug bag: {}", ed.tl.bag);
     }
 
     ImGui::EndDisabled();
+}
+
+void simulation_editor::show() noexcept
+{
+    if (!ImGui::Begin(simulation_editor::name, &is_open)) {
+        ImGui::End();
+        return;
+    }
 
     auto* app = container_of(this, &application::simulation_ed);
 
@@ -1585,10 +1589,14 @@ void simulation_editor::show() noexcept
 
         ImGui::TableSetColumnIndex(1);
         if (ImGui::BeginTabBar("##SimulationTabBar")) {
+            if (ImGui::BeginTabItem("Parameters")) {
+                show_simulation_parameters(*this);
+                ImGui::EndTabItem();
+            }
+
             if (ImGui::BeginTabItem("graph")) {
                 if (app->simulation_ed.can_display_graph_editor())
                     show_simulation_graph_editor(*app);
-
                 ImGui::EndTabItem();
             }
 
