@@ -1577,7 +1577,7 @@ void simulation_editor::show() noexcept
 
     if (ImGui::BeginTable("##ed", 2, flags)) {
         ImGui::TableSetupColumn(
-          "Settings", ImGuiTableColumnFlags_WidthStretch, 0.2f);
+          "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
         ImGui::TableSetupColumn(
           "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
         ImGui::TableHeadersRow();
