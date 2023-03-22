@@ -66,10 +66,9 @@ static void show_component_popup_menu(irt::component_editor& ed,
                     n.title = "Fail to build tree";
                     app->notifications.enable(n);
                 } else {
-                    app->mod.head             = out;
+                    app->mod.head         = out;
                     app->project.m_parent = out;
-                    app->project.m_compo =
-                      app->mod.components.get_id(**compo);
+                    app->project.m_compo  = app->mod.components.get_id(**compo);
                 }
             }
         }
@@ -187,7 +186,7 @@ static bool show_component(component_editor& ed,
                 n.title = "Fail to build tree";
                 app->notifications.enable(n);
             } else {
-                app->mod.head             = out;
+                app->mod.head         = out;
                 app->project.m_parent = out;
                 app->project.m_compo  = app->mod.components.get_id(c);
             }
@@ -372,84 +371,6 @@ static void show_input_output_ports(modeling&         mod,
         }
     });
 }
-
-// static void show_selected_children(component_editor& c_editor) noexcept
-// {
-//     auto* app = container_of(&c_editor, &application::component_ed);
-
-//     if (ImGui::CollapsingHeader("Selected children",
-//                                 ImGuiTreeNodeFlags_CollapsingHeader |
-//                                   ImGuiTreeNodeFlags_DefaultOpen)) {
-//         auto* tree =
-//           app->mod.tree_nodes.try_to_get(c_editor.selected_component);
-//         if (tree) {
-//             auto* compo = app->mod.components.try_to_get(tree->id);
-//             if (compo && compo->type == component_type::simple) {
-//                 if (auto* s_compo = app->mod.simple_components.try_to_get(
-//                       compo->id.simple_id);
-//                     s_compo) {
-//                     for (int i = 0, e = c_editor.selected_nodes.size(); i !=
-//                     e;
-//                          ++i) {
-//                         auto* child = app->mod.children.try_to_get(
-//                           static_cast<u32>(c_editor.selected_nodes[i]));
-//                         if (!child)
-//                             continue;
-//                         if (ImGui::TreeNodeEx(child,
-//                                               ImGuiTreeNodeFlags_DefaultOpen,
-//                                               "%d",
-//                                               c_editor.selected_nodes[i])) {
-//                             bool is_modified = false;
-//                             ImGui::Text("position %f %f",
-//                                         static_cast<double>(child->x),
-//                                         static_cast<double>(child->y));
-//                             if (ImGui::Checkbox("configurable",
-//                                                 &child->configurable))
-//                                 is_modified = true;
-//                             if (ImGui::Checkbox("observables",
-//                                                 &child->observable))
-//                                 is_modified = true;
-//                             if (ImGui::InputSmallString("name", child->name))
-//                                 is_modified = true;
-
-//                             if (is_modified)
-//                                 compo->state = component_status::modified;
-
-//                             if (child->type == child_type::model) {
-//                                 auto child_id =
-//                                   app->mod.children.get_id(*child);
-//                                 auto  mdl_id = child->id.mdl_id;
-//                                 auto* mdl =
-//                                 app->mod.models.try_to_get(mdl_id);
-
-//                                 if (mdl) {
-//                                     ImGui::TextFormat(
-//                                       "type: {}",
-//                                       dynamics_type_names[ordinal(mdl->type)]);
-
-//                                     show_input_output_ports(
-//                                       app->mod, *s_compo, *mdl, child_id);
-//                                 }
-//                             } else {
-//                                 auto  compo_id = child->id.compo_id;
-//                                 auto* compo =
-//                                   app->mod.components.try_to_get(compo_id);
-
-//                                 if (compo)
-//                                     ImGui::TextFormat("name: {}",
-//                                                       compo->name.sv());
-//                             }
-
-//                             ImGui::TreePop();
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
-
-
 
 void library_window::show() noexcept
 {

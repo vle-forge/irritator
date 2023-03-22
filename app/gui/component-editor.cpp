@@ -1552,6 +1552,49 @@ static void show_input_output(application& app, component& compo) noexcept
     }
 }
 
+static void show_selected_children(application& /*app*/,
+                                   component& /*compo*/,
+                                   grid_editor_data& /*data*/) noexcept
+{
+}
+
+static void show_selected_children(application&           app,
+                                   component&             compo,
+                                   component_editor_data& data) noexcept
+{
+    if (auto* s_compo =
+          app.mod.simple_components.try_to_get(compo.id.simple_id);
+        s_compo) {
+        for (int i = 0, e = data.selected_nodes.size(); i != e; ++i) {
+            auto* child = app.mod.children.try_to_get(
+              static_cast<u32>(data.selected_nodes[i]));
+            if (!child)
+                continue;
+            if (ImGui::TreeNodeEx(child,
+                                  ImGuiTreeNodeFlags_DefaultOpen,
+                                  "%d",
+                                  data.selected_nodes[i])) {
+                bool is_modified = false;
+                ImGui::Text("position %f %f",
+                            static_cast<double>(child->x),
+                            static_cast<double>(child->y));
+                if (ImGui::Checkbox("configurable", &child->configurable))
+                    is_modified = true;
+                if (ImGui::Checkbox("observables", &child->observable))
+                    is_modified = true;
+                if (ImGui::InputSmallString("name", child->name))
+                    is_modified = true;
+
+                if (is_modified)
+                    compo.state = component_status::modified;
+
+                ImGui::TextFormat("name: {}", compo.name.sv());
+                ImGui::TreePop();
+            }
+        }
+    }
+}
+
 template<typename T, typename ID>
 static void show_data(application&       app,
                       component_editor&  ed,
@@ -1581,7 +1624,6 @@ static void show_data(application&       app,
 
             bool open = true;
             if (ImGui::BeginTabItem(ed.title.c_str(), &open, tab_item_flags)) {
-
                 static ImGuiTableFlags flags =
                   ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
                   ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
@@ -1600,11 +1642,14 @@ static void show_data(application&       app,
                     ImGui::InputFilteredString(
                       "Name", c->name, ImGuiInputTextFlags_EnterReturnsTrue);
 
-                    if (ImGui::CollapsingHeader("File path"))
+                    if (ImGui::CollapsingHeader("path"))
                         show_file_access(app, *c);
 
                     if (ImGui::CollapsingHeader("i/o ports names"))
                         show_input_output(app, *c);
+
+                    if (ImGui::CollapsingHeader("selected"))
+                        show_selected_children(app, *c, *element);
 
                     ImGui::TableSetColumnIndex(1);
                     element->show(ed);
