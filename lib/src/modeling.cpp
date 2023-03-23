@@ -1833,72 +1833,72 @@ static status simulation_copy_model(modeling&               mod,
         if (!c)
             continue;
 
-        if (c->type == child_type::model) {
-            auto  mdl_id = c->id.mdl_id;
-            auto* mdl    = mod.models.try_to_get(mdl_id);
+        if (c->type == child_type::component)
+            continue;
 
-            if (!mdl)
-                continue;
+        auto  mdl_id = c->id.mdl_id;
+        auto* mdl    = mod.models.try_to_get(mdl_id);
 
-            irt_return_if_fail(sim.models.can_alloc(),
+        if (!mdl)
+            continue;
+
+        irt_return_if_fail(sim.models.can_alloc(),
+                           status::simulation_not_enough_model);
+
+        if (mdl->type == dynamics_type::hsm_wrapper)
+            irt_return_if_fail(sim.hsms.can_alloc(1),
                                status::simulation_not_enough_model);
 
-            if (mdl->type == dynamics_type::hsm_wrapper)
-                irt_return_if_fail(sim.hsms.can_alloc(1),
-                                   status::simulation_not_enough_model);
+        auto& new_mdl    = sim.models.alloc();
+        auto  new_mdl_id = sim.models.get_id(new_mdl);
+        new_mdl.type     = mdl->type;
+        new_mdl.handle   = nullptr;
 
-            auto& new_mdl    = sim.models.alloc();
-            auto  new_mdl_id = sim.models.get_id(new_mdl);
-            new_mdl.type     = mdl->type;
-            new_mdl.handle   = nullptr;
+        dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+            const auto& src_dyn = get_dyn<Dynamics>(*mdl);
+            std::construct_at(&dyn, src_dyn);
 
-            dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
-                const auto& src_dyn = get_dyn<Dynamics>(*mdl);
-                std::construct_at(&dyn, src_dyn);
+            if constexpr (has_input_port<Dynamics>)
+                for (int i = 0, e = length(dyn.x); i != e; ++i)
+                    dyn.x[i] = static_cast<u64>(-1);
 
-                if constexpr (has_input_port<Dynamics>)
-                    for (int i = 0, e = length(dyn.x); i != e; ++i)
-                        dyn.x[i] = static_cast<u64>(-1);
+            if constexpr (has_output_port<Dynamics>)
+                for (int i = 0, e = length(dyn.y); i != e; ++i)
+                    dyn.y[i] = static_cast<u64>(-1);
 
-                if constexpr (has_output_port<Dynamics>)
-                    for (int i = 0, e = length(dyn.y); i != e; ++i)
-                        dyn.y[i] = static_cast<u64>(-1);
-
-                if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                    if (auto* hsm_src = mod.hsms.try_to_get(src_dyn.id);
-                        hsm_src) {
-                        auto& hsm = sim.hsms.alloc(*hsm_src);
-                        auto  id  = sim.hsms.get_id(hsm);
-                        dyn.id    = id;
-                    } else {
-                        auto& hsm = sim.hsms.alloc();
-                        auto  id  = sim.hsms.get_id(hsm);
-                        dyn.id    = id;
-                    }
+            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                if (auto* hsm_src = mod.hsms.try_to_get(src_dyn.id); hsm_src) {
+                    auto& hsm = sim.hsms.alloc(*hsm_src);
+                    auto  id  = sim.hsms.get_id(hsm);
+                    dyn.id    = id;
+                } else {
+                    auto& hsm = sim.hsms.alloc();
+                    auto  id  = sim.hsms.get_id(hsm);
+                    dyn.id    = id;
                 }
+            }
 
-                if constexpr (std::is_same_v<Dynamics, generator>) {
-                    simulation_copy_source(
-                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
-                    simulation_copy_source(cache,
-                                           src_dyn.default_source_value,
-                                           dyn.default_source_value);
-                }
+            if constexpr (std::is_same_v<Dynamics, generator>) {
+                simulation_copy_source(
+                  cache, src_dyn.default_source_ta, dyn.default_source_ta);
+                simulation_copy_source(cache,
+                                       src_dyn.default_source_value,
+                                       dyn.default_source_value);
+            }
 
-                if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
-                    simulation_copy_source(
-                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
-                }
+            if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
+                simulation_copy_source(
+                  cache, src_dyn.default_source_ta, dyn.default_source_ta);
+            }
 
-                if constexpr (std::is_same_v<Dynamics, priority_queue>) {
-                    simulation_copy_source(
-                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
-                }
-            });
+            if constexpr (std::is_same_v<Dynamics, priority_queue>) {
+                simulation_copy_source(
+                  cache, src_dyn.default_source_ta, dyn.default_source_ta);
+            }
+        });
 
-            sim_tree.children.emplace_back(new_mdl_id);
-            tree.sim.data.emplace_back(mdl_id, new_mdl_id);
-        }
+        sim_tree.children.emplace_back(new_mdl_id);
+        tree.sim.data.emplace_back(mdl_id, new_mdl_id);
     }
 
     return status::success;
@@ -1952,20 +1952,8 @@ static status simulation_copy_models(modeling_to_simulation& cache,
             case component_type::none:
                 break;
 
-            case component_type::grid: {
-                // auto  grid_id = compo->id.grid_id;
-                // auto* grid    = mod.grid_components.try_to_get(grid_id);
-
-                // if (grid) {
-                //     auto* sim_tree =
-                //       cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
-                //     irt_assert(sim_tree);
-
-                //    irt_return_if_bad(simulation_copy_model(
-                //      mod, cache, sim, *cur, *sim_tree, *grid));
-                //}
-
-            } break;
+            case component_type::grid:
+                break;
 
             case component_type::internal:
                 break;
