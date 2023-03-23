@@ -42,7 +42,7 @@ static void do_clear(modeling& mod, project& wnd) noexcept
 
 void project::clear() noexcept
 {
-    auto* app = container_of(this, &application::project);
+    auto* app = container_of(this, &application::pj);
 
     do_clear(app->mod, *this);
 }
@@ -247,7 +247,7 @@ bool exist(data_array<T, Identifier>& data,
 
 void project::open_as_main(component_id id) noexcept
 {
-    auto* app = container_of(this, &application::project);
+    auto* app = container_of(this, &application::pj);
 
     if (auto* compo = app->mod.components.try_to_get(id); compo) {
         do_clear(app->mod, *this);
@@ -262,7 +262,7 @@ void project::open_as_main(component_id id) noexcept
 
 void project::select(tree_node_id id) noexcept
 {
-    auto* app = container_of(this, &application::project);
+    auto* app = container_of(this, &application::pj);
 
     if (auto* tree = app->mod.tree_nodes.try_to_get(id); tree)
         if (auto* compo = app->mod.components.try_to_get(tree->id); compo)
@@ -271,7 +271,7 @@ void project::select(tree_node_id id) noexcept
 
 void project::show() noexcept
 {
-    auto* app = container_of(this, &application::project);
+    auto* app = container_of(this, &application::pj);
 
     auto* parent = app->mod.tree_nodes.try_to_get(app->mod.head);
     if (!parent) {

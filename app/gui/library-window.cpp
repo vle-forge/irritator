@@ -66,9 +66,9 @@ static void show_component_popup_menu(irt::component_editor& ed,
                     n.title = "Fail to build tree";
                     app->notifications.enable(n);
                 } else {
-                    app->mod.head         = out;
-                    app->project.m_parent = out;
-                    app->project.m_compo  = app->mod.components.get_id(**compo);
+                    app->mod.head    = out;
+                    app->pj.m_parent = out;
+                    app->pj.m_compo  = app->mod.components.get_id(**compo);
                 }
             }
         }
@@ -111,6 +111,9 @@ static void open_component(application& app, component_id id) noexcept
 {
     if (auto* compo = app.mod.components.try_to_get(id); compo) {
         switch (compo->type) {
+        case component_type::none:
+            break;
+
         case component_type::simple: {
             if (!is_already_open(app.generics, id)) {
                 auto* gen =
@@ -187,8 +190,8 @@ static bool show_component(component_editor& ed,
                 app->notifications.enable(n);
             } else {
                 app->mod.head         = out;
-                app->project.m_parent = out;
-                app->project.m_compo  = app->mod.components.get_id(c);
+                app->pj.m_parent = out;
+                app->pj.m_compo  = app->mod.components.get_id(c);
             }
         }
 
@@ -334,42 +337,6 @@ static void show_component_library(component_editor& c_editor,
             ImGui::TreePop();
         }
     }
-}
-
-static void show_input_output_ports(modeling&         mod,
-                                    simple_component& compo,
-                                    model&            mdl,
-                                    child_id          id) noexcept
-{
-    dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-        if constexpr (has_input_port<Dynamics>) {
-            for (int i = 0, e = length(dyn.x); i != e; ++i) {
-                for (auto connection_id : compo.connections) {
-                    auto* con = mod.connections.try_to_get(connection_id);
-                    if (!con)
-                        continue;
-
-                    if (con->type == connection::connection_type::input &&
-                        con->input.dst == id && con->input.index_dst == i)
-                        ImGui::TextFormat("Input {} is public", i);
-                }
-            }
-        }
-
-        if constexpr (has_output_port<Dynamics>) {
-            for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                for (auto connection_id : compo.connections) {
-                    auto* con = mod.connections.try_to_get(connection_id);
-                    if (!con)
-                        continue;
-
-                    if (con->type == connection::connection_type::output &&
-                        con->output.src == id && con->output.index_src == i)
-                        ImGui::TextFormat("Output {} is public", i);
-                }
-            }
-        }
-    });
 }
 
 void library_window::show() noexcept

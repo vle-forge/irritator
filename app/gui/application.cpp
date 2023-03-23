@@ -157,8 +157,8 @@ bool application::init() noexcept
     }
 
     mod.fill_components();
-    mod.head                       = undefined<tree_node_id>();
-    project.selected_component = undefined<tree_node_id>();
+    mod.head              = undefined<tree_node_id>();
+    pj.selected_component = undefined<tree_node_id>();
 
     // @TODO at beggining, open a default generic component ?
     // auto id = component_ed.add_generic_component();
@@ -254,7 +254,7 @@ static void application_show_menu(application& app) noexcept
 static void application_manage_menu_action(application& app) noexcept
 {
     if (app.menu_new_project_file) {
-        app.project.clear();
+        app.pj.clear();
         // auto id = app.component_ed.add_generic_component();
         // app.project_wnd.open_as_main(id);
         app.menu_new_project_file = false;
@@ -376,8 +376,8 @@ static void application_show_windows(application& app) noexcept
 
         auto dock_id_right = ImGui::DockBuilderSplitNode(
           dockspace_id, ImGuiDir_Right, 0.2f, nullptr, &dockspace_id);
-        auto dock_id_left = ImGui::DockBuilderSplitNode(
-          dockspace_id, ImGuiDir_Left, 0.2f, nullptr, &dockspace_id);
+        // auto dock_id_left = ImGui::DockBuilderSplitNode(
+        //   dockspace_id, ImGuiDir_Left, 0.2f, nullptr, &dockspace_id);
         auto dock_id_down = ImGui::DockBuilderSplitNode(
           dockspace_id, ImGuiDir_Down, 0.2f, nullptr, &dockspace_id);
 

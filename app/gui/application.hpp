@@ -648,7 +648,7 @@ struct application
 
     modeling   mod;
     simulation sim;
-    project    project;
+    project    pj;
 
     component_editor  component_ed;
     simulation_editor simulation_ed;

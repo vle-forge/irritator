@@ -1523,7 +1523,10 @@ status modeling::copy(const component& src, component& dst) noexcept
     dst.state   = src.state;
 
     switch (src.type) {
-    case component_type::internal:
+    case component_type::none:
+        break;
+
+    case component_type::simple:
         if (const auto* s_src = simple_components.try_to_get(src.id.simple_id);
             s_src) {
             irt_return_if_fail(simple_components.can_alloc(),
@@ -1532,14 +1535,27 @@ status modeling::copy(const component& src, component& dst) noexcept
             auto& s_dst      = simple_components.alloc();
             auto  s_dst_id   = simple_components.get_id(s_dst);
             dst.id.simple_id = s_dst_id;
+            dst.type         = component_type::simple;
 
-            return copy(*s_src, s_dst);
+            irt_return_if_bad(copy(*s_src, s_dst));
+        }
+        break;
+
+    case component_type::grid:
+        if (const auto* s = grid_components.try_to_get(src.id.grid_id); s) {
+            irt_return_if_fail(grid_components.can_alloc(),
+                               status::data_array_not_enough_memory);
+
+            auto& d        = grid_components.alloc();
+            auto  d_id     = grid_components.get_id(d);
+            dst.id.grid_id = d_id;
+            dst.type       = component_type::grid;
+            d              = *s;
         }
 
         break;
-    case component_type::grid:
-        break;
-    case component_type::simple:
+
+    case component_type::internal:
         break;
     }
 
@@ -1639,6 +1655,9 @@ static status make_tree_recursive(modeling&  mod,
 
     case component_type::internal:
         break;
+
+    case component_type::none:
+        break;
     }
 
     return status::success;
@@ -1699,6 +1718,9 @@ status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
     } break;
 
     case component_type::internal:
+        break;
+
+    case component_type::none:
         break;
     }
 
@@ -1927,6 +1949,9 @@ static status simulation_copy_models(modeling_to_simulation& cache,
 
         if (compo) {
             switch (compo->type) {
+            case component_type::none:
+                break;
+
             case component_type::grid: {
                 // auto  grid_id = compo->id.grid_id;
                 // auto* grid    = mod.grid_components.try_to_get(grid_id);

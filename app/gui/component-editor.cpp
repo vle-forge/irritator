@@ -457,16 +457,21 @@ static void show_graph(component_editor&      ed,
             auto id = c->id.compo_id;
             if (auto* compo = app->mod.components.try_to_get(id); compo) {
                 switch (compo->type) {
+                case component_type::none:
+                    break;
+
                 case component_type::simple:
                     if (auto* s_compo = app->mod.simple_components.try_to_get(
                           compo->id.simple_id))
                         show(ed, data, *compo, *s_compo, *c, child_id);
                     break;
+
                 case component_type::grid:
                     if (auto* s_compo = app->mod.grid_components.try_to_get(
                           compo->id.grid_id))
                         show(ed, data, *compo, *s_compo, *c, child_id);
                     break;
+
                 case component_type::internal:
                     break;
                 }
@@ -1515,7 +1520,7 @@ static void show_file_access(application& app, component& compo) noexcept
 static inline const char* port_labels[] = { "1", "2", "3", "4",
                                             "5", "6", "7", "8" };
 
-static void show_input_output(application& app, component& compo) noexcept
+static void show_input_output(component& compo) noexcept
 {
     if (ImGui::BeginTable("##io-table",
                           3,
@@ -1646,7 +1651,7 @@ static void show_data(application&       app,
                         show_file_access(app, *c);
 
                     if (ImGui::CollapsingHeader("i/o ports names"))
-                        show_input_output(app, *c);
+                        show_input_output(*c);
 
                     if (ImGui::CollapsingHeader("selected"))
                         show_selected_children(app, *c, *element);

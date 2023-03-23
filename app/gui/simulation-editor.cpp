@@ -1585,7 +1585,7 @@ void simulation_editor::show() noexcept
         ImGui::TableNextRow();
 
         ImGui::TableSetColumnIndex(0);
-        app->project.show();
+        app->pj.show();
 
         ImGui::TableSetColumnIndex(1);
         if (ImGui::BeginTabBar("##SimulationTabBar")) {
