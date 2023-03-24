@@ -64,7 +64,7 @@ static status simulation_init_observation(simulation_editor& sim_ed,
     return status::success;
 }
 
-static status simulation_init_observation(component_editor&  /* ed */,
+static status simulation_init_observation(component_editor& /* ed */,
                                           simulation_editor& sim_ed,
                                           tree_node&         head) noexcept
 {

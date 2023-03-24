@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "rapidjson/rapidjson.h"
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
@@ -1757,6 +1758,30 @@ static auto read_child_model(json_cache&             cache,
     return std::make_pair(id, status);
 }
 
+static auto read_child(json_cache&             cache,
+                       modeling&               mod,
+                       child&                  child,
+                       const rapidjson::Value& val) noexcept
+{
+    bool input  = false;
+    bool output = false;
+    u64  id;
+
+    irt_return_if_bad(get_u64(val, "id", id));
+    irt_return_if_bad(get_u64(val, "unique-id", child.unique_id));
+    irt_return_if_bad(get_float(val, "x", child.x));
+    irt_return_if_bad(get_float(val, "y", child.y));
+    irt_return_if_bad(get_bool(val, "configurable", child.configurable));
+    irt_return_if_bad(get_bool(val, "observable", child.observable));
+    irt_return_if_bad(get_bool(val, "input", input));
+    irt_return_if_bad(get_bool(val, "output", output));
+
+    cache.model_mapping.data.emplace_back(id,
+                                          ordinal(mod.children.get_id(child)));
+
+    return status::success;
+}
+
 static status read_children(json_cache&             cache,
                             modeling&               mod,
                             simple_component&       s_compo,
@@ -1786,21 +1811,7 @@ static status read_children(json_cache&             cache,
             last = &mod.alloc(s_compo, ret.first);
         }
 
-        bool input  = false;
-        bool output = false;
-        u64  id;
-
-        irt_return_if_bad(get_u64(elem, "id", id));
-        irt_return_if_bad(get_u64(elem, "unique-id", last->unique_id));
-        irt_return_if_bad(get_float(elem, "x", last->x));
-        irt_return_if_bad(get_float(elem, "y", last->y));
-        irt_return_if_bad(get_bool(elem, "configurable", last->configurable));
-        irt_return_if_bad(get_bool(elem, "observable", last->observable));
-        irt_return_if_bad(get_bool(elem, "input", input));
-        irt_return_if_bad(get_bool(elem, "output", output));
-
-        const auto last_id = mod.children.get_id(last);
-        cache.model_mapping.data.emplace_back(id, ordinal(last_id));
+        read_child(cache, mod, *last, elem);
     }
 
     cache.model_mapping.sort();
@@ -1971,30 +1982,77 @@ static status read_grid_component(json_cache&             cache,
 
         for (int row = 0; row < 3; ++row) {
             for (int col = 0; col < 3; ++col) {
-                const auto idx = row * 3 + col;
+                const auto idx =
+                  static_cast<rapidjson::SizeType>(row * 3 + col);
 
-                auto ret = read_child_component(cache, mod, children[idx]);
-                grid.set_default_children(is_success(ret.second)
-                                            ? ret.first
-                                            : undefined<component_id>(),
-                                          row,
-                                          col);
+                irt_return_if_bad(
+                  get_string(children[idx], "type", cache.string_buffer));
+
+                if (cache.string_buffer.empty()) {
+                    grid.default_children[row][col] = undefined<child_id>();
+                    if (cache.string_buffer == "component") {
+                        auto ret =
+                          read_child_component(cache, mod, children[idx]);
+                        irt_return_if_bad(ret.second);
+
+                        auto& child     = mod.children.alloc(ret.first);
+                        auto  child_id  = mod.children.get_id(child);
+                        child.unique_id = grid.make_next_unique_id();
+                        irt_return_if_bad(
+                          read_child(cache, mod, child, children[idx]));
+
+                        grid.default_children[row][col] = child_id;
+                    } else {
+                        auto ret = read_child_model(cache, mod, children[idx]);
+                        irt_return_if_bad(ret.second);
+
+                        auto& child     = mod.children.alloc(ret.first);
+                        auto  child_id  = mod.children.get_id(child);
+                        child.unique_id = grid.make_next_unique_id();
+                        irt_return_if_bad(
+                          read_child(cache, mod, child, children[idx]));
+                        grid.default_children[row][col] = child_id;
+                    }
+                }
             }
         }
-    }
 
-    auto specific_children_it = val.FindMember("specific-children");
-    if (specific_children_it != val.MemberEnd()) {
-        auto& children = specific_children_it->value;
-        for (rapidjson::SizeType i = 0, e = children.Size(); i != e; ++i) {
-            i32 row, column;
-            irt_return_if_bad(get_i32(children[i], "row", row));
-            irt_return_if_bad(get_i32(children[i], "column", column));
+        auto specific_children_it = val.FindMember("specific-children");
+        if (specific_children_it != val.MemberEnd()) {
+            auto& children = specific_children_it->value;
+            for (rapidjson::SizeType i = 0, e = children.Size(); i != e; ++i) {
+                i32 row, col;
+                irt_return_if_bad(get_i32(children[i], "row", row));
+                irt_return_if_bad(get_i32(children[i], "column", col));
+                irt_return_if_bad(
+                  get_string(children[i], "type", cache.string_buffer));
 
-            auto ret = read_child_component(cache, mod, children[i]);
-            irt_return_if_bad(ret.second);
+                if (cache.string_buffer == "component") {
+                    auto ret = read_child_component(cache, mod, children[i]);
+                    irt_return_if_bad(ret.second);
 
-            grid.set_specific_children(ret.first, row, column);
+                    auto& child    = mod.children.alloc(ret.first);
+                    auto  child_id = mod.children.get_id(child);
+                    irt_return_if_bad(
+                      read_child(cache, mod, child, children[i]));
+                    grid.specific_children.emplace_back(
+                      grid_component::specific{
+                        .id = child_id, .row = row, .column = col });
+                } else {
+                    auto ret = read_child_model(cache, mod, children[i]);
+                    irt_return_if_bad(ret.second);
+
+                    auto& child     = mod.children.alloc(ret.first);
+                    auto  child_id  = mod.children.get_id(child);
+                    child.type      = child_type::model;
+                    child.id.mdl_id = ret.first;
+                    irt_return_if_bad(
+                      read_child(cache, mod, child, children[i]));
+                    grid.specific_children.emplace_back(
+                      grid_component::specific{
+                        .id = child_id, .row = row, .column = col });
+                }
+            }
         }
     }
 
@@ -2344,6 +2402,56 @@ static void write_child_model(const modeling& mod,
 }
 
 template<typename Writer>
+static void write_empty_child(Writer& w) noexcept
+{
+    w.StartObject();
+    w.Key("type");
+    w.String("");
+    w.EndObject();
+}
+
+template<typename Writer>
+static void write_child(const modeling& mod, child& ch, Writer& w) noexcept
+{
+    const auto child_id = mod.children.get_id(ch);
+
+    w.StartObject();
+    w.Key("id");
+    w.Uint64(get_index(child_id));
+    w.Key("unique-id");
+    w.Uint64(ch.unique_id);
+    w.Key("x");
+    w.Double(static_cast<double>(ch.x));
+    w.Key("y");
+    w.Double(static_cast<double>(ch.y));
+    w.Key("configurable");
+    w.Bool(ch.configurable);
+    w.Key("observable");
+    w.Bool(ch.observable);
+    w.Key("input");
+    w.Bool(false);
+    w.Key("output");
+    w.Bool(false);
+
+    if (!ch.name.empty()) {
+        w.Key("name");
+        w.String(ch.name.c_str());
+    }
+
+    if (ch.type == child_type::component) {
+        const auto compo_id = ch.id.compo_id;
+        if (auto* compo = mod.components.try_to_get(compo_id); compo)
+            write_child_component(mod, *compo, w);
+    } else {
+        const auto mdl_id = ch.id.mdl_id;
+        if (auto* mdl = mod.models.try_to_get(mdl_id); mdl)
+            write_child_model(mod, *mdl, w);
+    }
+
+    w.EndObject();
+}
+
+template<typename Writer>
 static void write_simple_component_children(
   json_cache& /*cache*/,
   const modeling&         mod,
@@ -2353,45 +2461,9 @@ static void write_simple_component_children(
     w.Key("children");
     w.StartArray();
 
-    for (auto child_id : simple_compo.children) {
-        if (auto* c = mod.children.try_to_get(child_id); c) {
-            w.StartObject();
-            const auto id = get_index(child_id);
-            w.Key("id");
-            w.Uint64(id);
-            w.Key("unique-id");
-            w.Uint64(c->unique_id);
-            w.Key("x");
-            w.Double(static_cast<double>(c->x));
-            w.Key("y");
-            w.Double(static_cast<double>(c->y));
-            w.Key("configurable");
-            w.Bool(c->configurable);
-            w.Key("observable");
-            w.Bool(c->observable);
-            w.Key("input");
-            w.Bool(false);
-            w.Key("output");
-            w.Bool(false);
-
-            if (!c->name.empty()) {
-                w.Key("name");
-                w.String(c->name.c_str());
-            }
-
-            if (c->type == child_type::component) {
-                const auto compo_id = c->id.compo_id;
-                if (auto* compo = mod.components.try_to_get(compo_id); compo)
-                    write_child_component(mod, *compo, w);
-            } else {
-                const auto mdl_id = c->id.mdl_id;
-                if (auto* mdl = mod.models.try_to_get(mdl_id); mdl)
-                    write_child_model(mod, *mdl, w);
-            }
-
-            w.EndObject();
-        }
-    }
+    for (auto child_id : simple_compo.children)
+        if (auto* c = mod.children.try_to_get(child_id); c)
+            write_child(mod, *c, w);
 
     w.EndArray();
 }
@@ -2501,14 +2573,10 @@ static void write_grid_component(json_cache& /*cache*/,
     for (int row = 0; row < 3; ++row) {
         for (int col = 0; col < 3; ++col) {
             const auto id = grid.default_children[row][col];
-            w.StartObject();
-            if (auto* compo = mod.components.try_to_get(id); compo) {
-                write_child_component(mod, *compo, w);
-            } else {
-                w.Key("type");
-                w.String("undefined");
-            }
-            w.EndObject();
+            if (auto* child = mod.children.try_to_get(id); child)
+                write_child(mod, *child, w);
+            else
+                write_empty_child(w);
         }
     }
     w.EndArray();
@@ -2516,13 +2584,13 @@ static void write_grid_component(json_cache& /*cache*/,
     w.Key("specific-children");
     w.StartArray();
     for (const auto& elem : grid.specific_children) {
-        if (auto* compo = mod.components.try_to_get(elem.id); compo) {
+        if (auto* child = mod.children.try_to_get(elem.id); child) {
             w.Key("row");
             w.Int(elem.row);
             w.Key("column");
             w.Int(elem.column);
 
-            write_child_component(mod, *compo, w);
+            write_child(mod, *child, w);
         }
     }
     w.EndArray();
@@ -3187,7 +3255,8 @@ status modeling::load_project(const char* filename) noexcept
 
 void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
                 modeling&                                            mod,
-                tree_node& parent) noexcept
+                tree_node&
+                /* parent */) noexcept
 {
     tree_node* tree = nullptr;
     while (mod.tree_nodes.next(tree)) {
@@ -3208,11 +3277,11 @@ void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
                 w.StartArray();
 
                 {
-                    auto* p = parent.tree.get_parent();
-                    while (p) {
-                        w.Int(static_cast<int>(get_index(p->id_in_parent)));
-                        p = p->tree.get_parent();
-                    }
+                    // auto* p = parent.tree.get_parent();
+                    // while (p) {
+                    //     w.Int(static_cast<int>(get_index(p->id_in_parent)));
+                    //     p = p->tree.get_parent();
+                    // }
                 }
 
                 w.EndArray();

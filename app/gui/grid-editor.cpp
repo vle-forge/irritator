@@ -156,8 +156,15 @@ static void show_default_grid(component_editor& ed,
         }
     }
 
-    if (need_change)
-        data.m_grid.default_children[data.m_row][data.m_col] = found;
+    if (need_change) {
+        auto id = data.m_grid.default_children[data.m_row][data.m_col];
+        if (auto *c = mod.children.try_to_get(id); c) {
+            c->type = child_type::component;
+            c->id.compo_id = found;
+        } else {
+            mod.children.alloc(found);
+        }
+    }
 
     ImGui::EndChild();
 }

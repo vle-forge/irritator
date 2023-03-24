@@ -5,7 +5,6 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
-#include "rapidjson/reader.h"
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
@@ -225,18 +224,14 @@ struct grid_component
 
     struct specific
     {
-        component_id id;
-        u64          specific_id;
-        i32          row;
-        i32          column;
+        child_id id;
+        i32      row;
+        i32      column;
     };
-
-    void set_default_children(component_id id, int row, int col) noexcept;
-    void set_specific_children(component_id id, int row, int col) noexcept;
 
     u64 make_next_unique_id() noexcept { return next_unique_id++; }
 
-    component_id     default_children[3][3];
+    child_id         default_children[3][3];
     vector<specific> specific_children;
     options          opts            = options::none;
     type             connection_type = type::name;
@@ -350,20 +345,18 @@ struct simulation_tree_node
 
 struct tree_node
 {
-    tree_node(component_id) noexcept;
-    //    tree_node(component_id id_, child_id id_in_parent_) noexcept;
+    tree_node(component_id id_, child_id id_in_parent_) noexcept;
 
-    component_id            id;
+    component_id            id = undefined<component_id>();
     simulation_tree_node_id sim_tree_node =
       undefined<simulation_tree_node_id>();
-    child_id id_in_parent;
+    child_id id_in_parent = undefined<child_id>();
 
     hierarchy<tree_node> tree;
 
     table<model_id, model_id>        parameters;
     table<model_id, observable_type> observables;
-
-    table<model_id, model_id> sim;
+    table<model_id, model_id>        sim;
 };
 
 //! Used to cache memory allocation when user import a model into simulation.
@@ -571,17 +564,11 @@ inline child::child(component_id component) noexcept
     id.compo_id = component;
 }
 
-inline tree_node::tree_node(component_id id_) noexcept
+inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
   : id(id_)
+  , id_in_parent(id_in_parent_)
 {
 }
-
-// inline tree_node::tree_node(component_id id_, child_id id_in_parent_)
-// noexcept
-//   : id(id_)
-//   , id_in_parent(id_in_parent_)
-// {
-// }
 
 } // namespace irt
 

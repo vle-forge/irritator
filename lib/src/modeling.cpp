@@ -522,30 +522,6 @@ bool registred_path::exists() const noexcept { return exists_path(path.sv()); }
 bool dir_path::make() const noexcept { return exists_path(path.sv()); }
 bool dir_path::exists() const noexcept { return exists_path(path.sv()); }
 
-void grid_component::set_default_children(component_id id,
-                                          int          row,
-                                          int          col) noexcept
-{
-    irt_assert(0 <= row && row < 3);
-    irt_assert(0 <= col && col < 3);
-
-    default_children[row][col] = id;
-}
-
-void grid_component::set_specific_children(component_id id,
-                                           int          row,
-                                           int          col) noexcept
-{
-    irt_assert(0 <= row && row < this->row);
-    irt_assert(0 <= col && col < this->column);
-
-    specific_children.emplace_back(
-      grid_component::specific{ .id          = id,
-                                .specific_id = make_next_unique_id(),
-                                .row         = row,
-                                .column      = column });
-}
-
 component::component() noexcept
 {
     static const std::string_view port_names[] = { "0", "1", "2", "3",
@@ -1325,8 +1301,20 @@ void modeling::free(component& compo) noexcept
         break;
 
     case component_type::grid:
-        if (auto* g = grid_components.try_to_get(compo.id.grid_id); g)
+        if (auto* g = grid_components.try_to_get(compo.id.grid_id); g) {
+            for (int row = 0; row < 3; ++row)
+                for (int col = 0; col < 3; ++col)
+                    if (auto* c =
+                          children.try_to_get(g->default_children[row][col]);
+                        c)
+                        free(*c);
+
+            for (auto& elem : g->specific_children)
+                if (auto* c = children.try_to_get(elem.id))
+                    free(*c);
+
             grid_components.free(*g);
+        }
         break;
 
     default:
@@ -1564,7 +1552,8 @@ status modeling::copy(const component& src, component& dst) noexcept
 
 static status make_tree_recursive(modeling&  mod,
                                   tree_node& parent,
-                                  component& compo) noexcept;
+                                  component& compo,
+                                  child_id   id_in_parent) noexcept;
 
 static status make_tree_recursive(modeling&         mod,
                                   tree_node&        new_tree,
@@ -1577,7 +1566,8 @@ static status make_tree_recursive(modeling&         mod,
         if (is_component) {
             auto compo_id = child->id.compo_id;
             if (auto* compo = mod.components.try_to_get(compo_id); compo)
-                irt_return_if_bad(make_tree_recursive(mod, new_tree, *compo));
+                irt_return_if_bad(
+                  make_tree_recursive(mod, new_tree, *compo, child_id));
         }
     }
 
@@ -1588,9 +1578,9 @@ static status make_tree_recursive(modeling&       mod,
                                   tree_node&      new_tree,
                                   grid_component& src) noexcept
 {
-    vector<component_id> matrix(src.row * src.column);
+    vector<child_id> matrix(src.row * src.column);
     matrix.resize(src.row * src.column);
-    std::fill_n(matrix.data(), matrix.size(), undefined<component_id>());
+    std::fill_n(matrix.data(), matrix.size(), undefined<child_id>());
 
     matrix[0]                          = src.default_children[0][0];
     matrix[src.column - 1]             = src.default_children[0][2];
@@ -1621,8 +1611,13 @@ static status make_tree_recursive(modeling&       mod,
     for (int row = 0; row < src.row; ++row) {
         for (int col = 0; col < src.column; ++col) {
             auto id = matrix[row * src.column + col];
-            if (auto* c = mod.components.try_to_get(id); c)
-                irt_return_if_bad(make_tree_recursive(mod, new_tree, *c));
+            if (auto* c = mod.children.try_to_get(id); c)
+                if (c->type == child_type::component) {
+                    if (auto* cp = mod.components.try_to_get(c->id.compo_id);
+                        cp)
+                        irt_return_if_bad(
+                          make_tree_recursive(mod, new_tree, *cp, id));
+                }
         }
     }
 
@@ -1631,12 +1626,14 @@ static status make_tree_recursive(modeling&       mod,
 
 static status make_tree_recursive(modeling&  mod,
                                   tree_node& parent,
-                                  component& compo) noexcept
+                                  component& compo,
+                                  child_id   id_in_parent) noexcept
 {
     irt_return_if_fail(mod.tree_nodes.can_alloc(),
                        status::data_array_not_enough_memory);
 
-    auto& new_tree = mod.tree_nodes.alloc(mod.components.get_id(compo));
+    auto& new_tree =
+      mod.tree_nodes.alloc(mod.components.get_id(compo), id_in_parent);
     new_tree.tree.set_id(&new_tree);
     new_tree.tree.parent_to(parent.tree);
 
@@ -1701,7 +1698,8 @@ status modeling::make_tree_from(component& parent, tree_node_id* out) noexcept
     irt_return_if_fail(tree_nodes.can_alloc(),
                        status::data_array_not_enough_memory);
 
-    auto& new_tree = tree_nodes.alloc(components.get_id(parent));
+    auto& new_tree =
+      tree_nodes.alloc(components.get_id(parent), undefined<child_id>());
     new_tree.tree.set_id(&new_tree);
 
     switch (parent.type) {
@@ -1991,15 +1989,13 @@ static status simulation_copy_models(modeling_to_simulation& cache,
 static auto get_treenode(tree_node& parent, child_id to_search) noexcept
   -> tree_node*
 {
-    auto* children = parent.tree.get_child();
-    while (children) {
-        if (children->id_in_parent == to_search)
-            break;
-
-        children = children->tree.get_sibling();
+    for (auto* child = parent.tree.get_child(); child;
+         child       = child->tree.get_sibling()) {
+        if (child->id_in_parent == to_search)
+            return child;
     }
 
-    return children;
+    return nullptr;
 }
 
 static auto get_component(modeling& mod, child& c) noexcept -> component*
