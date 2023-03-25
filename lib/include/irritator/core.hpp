@@ -8476,7 +8476,7 @@ constexpr int data_array<T, Identifier>::capacity() const noexcept
 }
 
 template<typename T, typename Identifier>
-constexpr data_array<T, Identifier>::index_type
+constexpr typename data_array<T, Identifier>::index_type
 data_array<T, Identifier>::next_key() const noexcept
 {
     return m_next_key;
