@@ -2,13 +2,12 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "rapidjson/reader.h"
-#include <algorithm>
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
+#include <algorithm>
 #include <filesystem>
 #include <optional>
 #include <utility>

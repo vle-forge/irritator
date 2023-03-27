@@ -7,8 +7,6 @@
 #include "editor.hpp"
 #include "imgui.h"
 #include "internal.hpp"
-#include "irritator/core.hpp"
-#include "irritator/modeling.hpp"
 
 namespace irt {
 
@@ -160,11 +158,6 @@ static bool show_component(component_editor& ed,
         open_component(*app, id);
 
     if (ImGui::BeginPopupContextItem()) {
-        // if (ImGui::MenuItem("New")) {
-        //     auto id = ed.add_generic_component();
-        //     ed.open_as_main(id);
-        // }
-
         if (ImGui::MenuItem("Copy")) {
             if (app->mod.components.can_alloc()) {
                 auto& new_c = app->mod.components.alloc();
@@ -189,7 +182,7 @@ static bool show_component(component_editor& ed,
                 n.title = "Fail to build tree";
                 app->notifications.enable(n);
             } else {
-                app->mod.head         = out;
+                app->mod.head    = out;
                 app->pj.m_parent = out;
                 app->pj.m_compo  = app->mod.components.get_id(c);
             }
