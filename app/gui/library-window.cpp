@@ -308,7 +308,8 @@ static void show_component_library(component_editor& c_editor,
             }
 
             ImGui::PushID(reg_dir);
-            if (ImGui::TreeNodeEx(select->c_str())) {
+            if (ImGui::TreeNodeEx(select->c_str(),
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
                 int i = 0;
                 while (i != reg_dir->children.ssize()) {
                     auto  dir_id = reg_dir->children[i];
@@ -326,7 +327,8 @@ static void show_component_library(component_editor& c_editor,
             ImGui::PopID();
         }
 
-        if (ImGui::TreeNodeEx("Not saved")) {
+        if (ImGui::TreeNodeEx("Not saved",
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
             show_notsaved_components(c_editor, tree);
             ImGui::TreePop();
         }
