@@ -327,8 +327,7 @@ static void show_component_library(component_editor& c_editor,
             ImGui::PopID();
         }
 
-        if (ImGui::TreeNodeEx("Not saved",
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
             show_notsaved_components(c_editor, tree);
             ImGui::TreePop();
         }
