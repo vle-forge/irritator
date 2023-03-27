@@ -1602,20 +1602,20 @@ void simulation_editor::show() noexcept
 
         ImGui::TableSetColumnIndex(1);
         if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
-        if (ImGui::BeginTabBar("##SimulationTabBar")) {
-            if (ImGui::BeginTabItem("Parameters")) {
-                show_simulation_parameters(*this);
-                ImGui::EndTabItem();
-            }
+            if (ImGui::BeginTabBar("##SimulationTabBar")) {
+                if (ImGui::BeginTabItem("Parameters")) {
+                    show_simulation_parameters(*this);
+                    ImGui::EndTabItem();
+                }
 
-            if (ImGui::BeginTabItem("graph")) {
-                if (app->simulation_ed.can_display_graph_editor())
-                    show_simulation_graph_editor(*app);
-                ImGui::EndTabItem();
-            }
+                if (ImGui::BeginTabItem("graph")) {
+                    if (app->simulation_ed.can_display_graph_editor())
+                        show_simulation_graph_editor(*app);
+                    ImGui::EndTabItem();
+                }
 
-            ImGui::EndTabBar();
-        }
+                ImGui::EndTabBar();
+            }
         }
         ImGui::EndChild();
         ImGui::EndTable();

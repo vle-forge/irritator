@@ -67,6 +67,7 @@ static void show_component_popup_menu(irt::component_editor& ed,
                     app->mod.head    = out;
                     app->pj.m_parent = out;
                     app->pj.m_compo  = app->mod.components.get_id(**compo);
+                    app->simulation_ed.simulation_copy_modeling();
                 }
             }
         }
