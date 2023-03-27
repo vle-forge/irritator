@@ -521,6 +521,55 @@ bool registred_path::exists() const noexcept { return exists_path(path.sv()); }
 bool dir_path::make() const noexcept { return exists_path(path.sv()); }
 bool dir_path::exists() const noexcept { return exists_path(path.sv()); }
 
+status modeling::update_cache(grid_component& grid) noexcept
+{
+    // @TODO add a grid_component_access_error
+    irt_return_if_fail(grid.row && grid.column, status::io_project_file_error);
+
+    for (auto& elem : grid.cache)
+        if (auto* c = children.try_to_get(elem); c)
+            free(*c);
+
+    grid.cache.resize(grid.row * grid.column);
+
+    int x = 0, y = 0;
+
+    for (int row = 0; row < grid.row; ++row) {
+        if (row == 0)
+            y = 0;
+        else if (1 <= row && row + 1 < grid.row)
+            y = 1;
+        else
+            y = 2;
+
+        for (int col = 0; col < grid.column; ++col) {
+            if (col == 0)
+                x = 0;
+            else if (1 <= col && col + 1 < grid.column)
+                x = 1;
+            else
+                x = 2;
+
+            auto& ch    = children.alloc();
+            auto  ch_id = children.get_id(ch);
+            copy(grid.default_children[x][y], ch);
+            grid.cache[row * grid.column + col] = ch_id;
+        }
+    }
+
+    for (const auto& elem : grid.specific_children) {
+        irt_assert(0 <= elem.row && elem.row < grid.row);
+        irt_assert(0 <= elem.column && elem.column < grid.column);
+
+        auto& ch    = children.alloc();
+        auto  ch_id = children.get_id(ch);
+        copy(elem.ch, ch);
+        grid.cache[elem.row * grid.column + elem.column] = ch_id;
+    }
+
+    return status::success;
+}
+
 component::component() noexcept
 {
     static const std::string_view port_names[] = { "0", "1", "2", "3",
@@ -1265,11 +1314,20 @@ status modeling::connect(simple_component& parent,
     return status::success;
 }
 
-void modeling::free(child& c) noexcept
+void modeling::clear(child& c) noexcept
 {
     if (c.type == child_type::model)
         if (auto* mdl = models.try_to_get(c.id.mdl_id); mdl)
             models.free(*mdl);
+
+    c.id.mdl_id = undefined<model_id>();
+    c.type      = child_type::model;
+    c.name.clear();
+}
+
+void modeling::free(child& c) noexcept
+{
+    clear(c);
 
     children.free(c);
 }
@@ -1303,14 +1361,12 @@ void modeling::free(component& compo) noexcept
         if (auto* g = grid_components.try_to_get(compo.id.grid_id); g) {
             for (int row = 0; row < 3; ++row)
                 for (int col = 0; col < 3; ++col)
-                    if (auto* c =
-                          children.try_to_get(g->default_children[row][col]);
-                        c)
-                        free(*c);
+                    clear(g->default_children[row][col]);
 
             for (auto& elem : g->specific_children)
-                if (auto* c = children.try_to_get(elem.id))
-                    free(*c);
+                clear(elem.ch);
+
+            g->specific_children.clear();
 
             grid_components.free(*g);
         }
@@ -1390,6 +1446,32 @@ child& modeling::alloc(simple_component& parent, model_id id) noexcept
     parent.children.emplace_back(child_id);
 
     return child;
+}
+
+status modeling::copy(const child& src, child& dst) noexcept
+{
+    dst.name         = src.name;
+    dst.x            = src.x;
+    dst.y            = src.y;
+    dst.observable   = src.observable;
+    dst.configurable = dst.configurable;
+
+    if (src.type == child_type::model) {
+        irt_return_if_fail(models.can_alloc(),
+                           status::simulation_not_enough_model);
+
+        if (auto* src_mdl = models.try_to_get(src.id.mdl_id); src_mdl) {
+            auto& dst_mdl = models.alloc();
+            irt::copy(*src_mdl, dst_mdl);
+            dst.type      = child_type::model;
+            dst.id.mdl_id = models.get_id(dst_mdl);
+        }
+    } else {
+        dst.type        = child_type::component;
+        dst.id.compo_id = dst.id.compo_id;
+    }
+
+    return status::success;
 }
 
 status modeling::copy(const simple_component& src,
@@ -1577,47 +1659,15 @@ static status make_tree_recursive(modeling&       mod,
                                   tree_node&      new_tree,
                                   grid_component& src) noexcept
 {
-    vector<child_id> matrix(src.row * src.column);
-    matrix.resize(src.row * src.column);
-    std::fill_n(matrix.data(), matrix.size(), undefined<child_id>());
+    mod.update_cache(src);
 
-    matrix[0]                          = src.default_children[0][0];
-    matrix[src.column - 1]             = src.default_children[0][2];
-    matrix[src.row * (src.column - 1)] = src.default_children[2][0];
-    matrix[src.row * src.column - 1]   = src.default_children[2][2];
-
-    for (int i = 1; i < src.column - 2; ++i)
-        matrix[i] = src.default_children[0][1];
-
-    for (int i = 1; i < src.column - 2; ++i)
-        matrix[src.row * (src.column - 1) + i] = src.default_children[2][1];
-
-    for (int i = 1; i < src.row; ++i)
-        matrix[src.column * i] = src.default_children[1][0];
-
-    for (int i = 1; i < src.row; ++i)
-        matrix[src.column * i + src.row - 1] = src.default_children[1][2];
-
-    for (int row = 1; row < src.row - 2; ++row) {
-        for (int col = 0; col < src.column - 2; ++col) {
-            matrix[row * src.column + col] = src.default_children[1][1];
-        }
-    }
-
-    for (const auto& elem : src.specific_children)
-        matrix[elem.row * src.column + elem.column] = elem.id;
-
-    for (int row = 0; row < src.row; ++row) {
-        for (int col = 0; col < src.column; ++col) {
-            auto id = matrix[row * src.column + col];
-            if (auto* c = mod.children.try_to_get(id); c)
-                if (c->type == child_type::component) {
-                    if (auto* cp = mod.components.try_to_get(c->id.compo_id);
-                        cp)
-                        irt_return_if_bad(
-                          make_tree_recursive(mod, new_tree, *cp, id));
-                }
-        }
+    for (auto id : src.cache) {
+        if (auto* c = mod.children.try_to_get(id); c)
+            if (c->type == child_type::component) {
+                if (auto* cp = mod.components.try_to_get(c->id.compo_id); cp)
+                    irt_return_if_bad(
+                      make_tree_recursive(mod, new_tree, *cp, id));
+            }
     }
 
     return status::success;
@@ -1821,6 +1871,95 @@ static status simulation_copy_model(modeling&               mod,
                                     simulation&             sim,
                                     tree_node&              tree,
                                     simulation_tree_node&   sim_tree,
+                                    grid_component&         src) noexcept
+{
+    sim_tree.children.clear();
+
+    mod.update_cache(src);
+
+    for (int row = 0; row < src.row; ++row) {
+        for (int col = 0; col < src.column; ++col) {
+            auto  id = src.cache[row * src.column + col];
+            auto* c  = mod.children.try_to_get(id);
+
+            if (!c || c->type == child_type::component)
+                continue;
+
+            auto  mdl_id = c->id.mdl_id;
+            auto* mdl    = mod.models.try_to_get(mdl_id);
+
+            if (!mdl)
+                continue;
+
+            irt_return_if_fail(sim.models.can_alloc(),
+                               status::simulation_not_enough_model);
+
+            if (mdl->type == dynamics_type::hsm_wrapper)
+                irt_return_if_fail(sim.hsms.can_alloc(1),
+                                   status::simulation_not_enough_model);
+
+            auto& new_mdl    = sim.models.alloc();
+            auto  new_mdl_id = sim.models.get_id(new_mdl);
+            new_mdl.type     = mdl->type;
+            new_mdl.handle   = nullptr;
+
+            dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+                const auto& src_dyn = get_dyn<Dynamics>(*mdl);
+                std::construct_at(&dyn, src_dyn);
+
+                if constexpr (has_input_port<Dynamics>)
+                    for (int i = 0, e = length(dyn.x); i != e; ++i)
+                        dyn.x[i] = static_cast<u64>(-1);
+
+                if constexpr (has_output_port<Dynamics>)
+                    for (int i = 0, e = length(dyn.y); i != e; ++i)
+                        dyn.y[i] = static_cast<u64>(-1);
+
+                if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                    if (auto* hsm_src = mod.hsms.try_to_get(src_dyn.id);
+                        hsm_src) {
+                        auto& hsm = sim.hsms.alloc(*hsm_src);
+                        auto  id  = sim.hsms.get_id(hsm);
+                        dyn.id    = id;
+                    } else {
+                        auto& hsm = sim.hsms.alloc();
+                        auto  id  = sim.hsms.get_id(hsm);
+                        dyn.id    = id;
+                    }
+                }
+
+                if constexpr (std::is_same_v<Dynamics, generator>) {
+                    simulation_copy_source(
+                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
+                    simulation_copy_source(cache,
+                                           src_dyn.default_source_value,
+                                           dyn.default_source_value);
+                }
+
+                if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
+                    simulation_copy_source(
+                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
+                }
+
+                if constexpr (std::is_same_v<Dynamics, priority_queue>) {
+                    simulation_copy_source(
+                      cache, src_dyn.default_source_ta, dyn.default_source_ta);
+                }
+            });
+
+            sim_tree.children.emplace_back(new_mdl_id);
+            tree.sim.data.emplace_back(mdl_id, new_mdl_id);
+        }
+    }
+
+    return status::success;
+}
+
+static status simulation_copy_model(modeling&               mod,
+                                    modeling_to_simulation& cache,
+                                    simulation&             sim,
+                                    tree_node&              tree,
+                                    simulation_tree_node&   sim_tree,
                                     simple_component&       src) noexcept
 {
     sim_tree.children.clear();
@@ -1952,8 +2091,17 @@ static status simulation_copy_models(modeling_to_simulation& cache,
             case component_type::grid:
                 break;
 
-            case component_type::internal:
-                break;
+            case component_type::internal: {
+                auto g_id = compo->id.grid_id;
+                if (auto* g = mod.grid_components.try_to_get(g_id); g) {
+                    auto* sim_tree =
+                      cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
+                    irt_assert(sim_tree);
+
+                    irt_return_if_bad(simulation_copy_model(
+                      mod, cache, sim, *cur, *sim_tree, *g));
+                }
+            } break;
 
             case component_type::simple: {
                 auto  s_compo_id = compo->id.simple_id;

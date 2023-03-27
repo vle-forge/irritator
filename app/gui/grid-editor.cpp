@@ -150,24 +150,28 @@ static void show_default_grid(component_editor& ed,
             }
 
             ImGui::SameLine();
-            if (is_defined(data.m_grid.default_children[row][col])) {
-                ImGui::TextFormat(
-                  "{}", ordinal(data.m_grid.default_children[row][col]));
-            } else
-                ImGui::TextUnformatted("-");
+
+            auto& ch = data.m_grid.default_children[row][col];
+            if (ch.type == child_type::model) {
+                if (is_defined(ch.id.mdl_id))
+                    ImGui::TextFormat("model {}", ordinal(ch.id.mdl_id));
+                else
+                    ImGui::TextUnformatted("-");
+            } else {
+                if (is_defined(ch.id.compo_id))
+                    ImGui::TextFormat("component {}", ordinal(ch.id.compo_id));
+                else
+                    ImGui::TextUnformatted("-");
+            }
         }
     }
 
     if (need_change) {
-        auto id = data.m_grid.default_children[data.m_row][data.m_col];
-        if (auto* c = mod.children.try_to_get(id); c) {
-            c->type        = child_type::component;
-            c->id.compo_id = found;
-        } else {
-            auto& new_c = mod.children.alloc(found);
-            auto  c_id  = mod.children.get_id(new_c);
-            data.m_grid.default_children[data.m_row][data.m_col] = c_id;
-        }
+        auto& ch = data.m_grid.default_children[data.m_row][data.m_col];
+        mod.free(ch);
+
+        ch.type = child_type::component;
+        ch.id.compo_id = found;
     }
 
     ImGui::EndChild();
@@ -212,7 +216,7 @@ static void show_grid(grid_editor_data& data, float height) noexcept
 
             dl->AddRectFilled(upper_left,
                               lower_right,
-                              is_valid(data.m_grid.default_children[x][y])
+                              is_defined(data.m_grid.default_children[x][y].id.compo_id)
                                 ? default_col
                                 : empty_col,
                               0.f);

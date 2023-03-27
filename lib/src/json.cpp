@@ -1989,29 +1989,25 @@ static status read_grid_component(json_cache&             cache,
                   get_string(children[idx], "type", cache.string_buffer));
 
                 if (cache.string_buffer.empty()) {
-                    grid.default_children[row][col] = undefined<child_id>();
+                    auto& child = grid.default_children[row][col];
                     if (cache.string_buffer == "component") {
                         auto ret =
                           read_child_component(cache, mod, children[idx]);
                         irt_return_if_bad(ret.second);
 
-                        auto& child     = mod.children.alloc(ret.first);
-                        auto  child_id  = mod.children.get_id(child);
-                        child.unique_id = grid.make_next_unique_id();
+                        child.type        = child_type::component;
+                        child.id.compo_id = ret.first;
                         irt_return_if_bad(
                           read_child(cache, mod, child, children[idx]));
-
-                        grid.default_children[row][col] = child_id;
                     } else {
                         auto ret = read_child_model(cache, mod, children[idx]);
                         irt_return_if_bad(ret.second);
 
-                        auto& child     = mod.children.alloc(ret.first);
-                        auto  child_id  = mod.children.get_id(child);
-                        child.unique_id = grid.make_next_unique_id();
+                        child.type      = child_type::model;
+                        child.id.mdl_id = ret.first;
+
                         irt_return_if_bad(
                           read_child(cache, mod, child, children[idx]));
-                        grid.default_children[row][col] = child_id;
                     }
                 }
             }
@@ -2031,26 +2027,24 @@ static status read_grid_component(json_cache&             cache,
                     auto ret = read_child_component(cache, mod, children[i]);
                     irt_return_if_bad(ret.second);
 
-                    auto& child    = mod.children.alloc(ret.first);
-                    auto  child_id = mod.children.get_id(child);
+                    auto& elem = grid.specific_children.emplace_back();
                     irt_return_if_bad(
-                      read_child(cache, mod, child, children[i]));
-                    grid.specific_children.emplace_back(
-                      grid_component::specific{
-                        .id = child_id, .row = row, .column = col });
+                      read_child(cache, mod, elem.ch, children[i]));
+                    elem.row            = row;
+                    elem.column         = col;
+                    elem.ch.type        = child_type::component;
+                    elem.ch.id.compo_id = ret.first;
                 } else {
                     auto ret = read_child_model(cache, mod, children[i]);
                     irt_return_if_bad(ret.second);
 
-                    auto& child     = mod.children.alloc(ret.first);
-                    auto  child_id  = mod.children.get_id(child);
-                    child.type      = child_type::model;
-                    child.id.mdl_id = ret.first;
+                    auto& elem = grid.specific_children.emplace_back();
                     irt_return_if_bad(
-                      read_child(cache, mod, child, children[i]));
-                    grid.specific_children.emplace_back(
-                      grid_component::specific{
-                        .id = child_id, .row = row, .column = col });
+                      read_child(cache, mod, elem.ch, children[i]));
+                    elem.row          = row;
+                    elem.column       = col;
+                    elem.ch.type      = child_type::model;
+                    elem.ch.id.mdl_id = ret.first;
                 }
             }
         }
@@ -2411,7 +2405,9 @@ static void write_empty_child(Writer& w) noexcept
 }
 
 template<typename Writer>
-static void write_child(const modeling& mod, child& ch, Writer& w) noexcept
+static void write_child(const modeling& mod,
+                        const child&    ch,
+                        Writer&         w) noexcept
 {
     const auto child_id = mod.children.get_id(ch);
 
@@ -2572,11 +2568,9 @@ static void write_grid_component(json_cache& /*cache*/,
     w.StartArray();
     for (int row = 0; row < 3; ++row) {
         for (int col = 0; col < 3; ++col) {
-            const auto id = grid.default_children[row][col];
-            if (auto* child = mod.children.try_to_get(id); child)
-                write_child(mod, *child, w);
-            else
-                write_empty_child(w);
+            const auto& elem = grid.default_children[row][col];
+
+            write_child(mod, elem, w);
         }
     }
     w.EndArray();
@@ -2584,14 +2578,12 @@ static void write_grid_component(json_cache& /*cache*/,
     w.Key("specific-children");
     w.StartArray();
     for (const auto& elem : grid.specific_children) {
-        if (auto* child = mod.children.try_to_get(elem.id); child) {
-            w.Key("row");
-            w.Int(elem.row);
-            w.Key("column");
-            w.Int(elem.column);
+        w.Key("row");
+        w.Int(elem.row);
+        w.Key("column");
+        w.Int(elem.column);
 
-            write_child(mod, *child, w);
-        }
+        write_child(mod, elem.ch, w);
     }
     w.EndArray();
 }

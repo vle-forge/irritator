@@ -130,6 +130,12 @@ struct description
 
 struct child
 {
+    child() noexcept
+      : id{ undefined<model_id>() }
+      , type{ child_type::model }
+    {
+    }
+
     child(model_id model) noexcept;
     child(component_id component) noexcept;
 
@@ -141,7 +147,7 @@ struct child
         component_id compo_id;
     } id;
 
-    child_type type;
+    child_type type = child_type::model;
 
     u64   unique_id    = 0; // A identifier unique in the component parent.
     float x            = 0.f;
@@ -224,15 +230,16 @@ struct grid_component
 
     struct specific
     {
-        child_id id;
-        i32      row;
-        i32      column;
+        child ch = undefined<model_id>();
+        i32   row;
+        i32   column;
     };
 
     u64 make_next_unique_id() noexcept { return next_unique_id++; }
 
-    child_id         default_children[3][3];
+    child            default_children[3][3];
     vector<specific> specific_children;
+    vector<child_id> cache;
     options          opts            = options::none;
     type             connection_type = type::name;
     u64              next_unique_id  = 0;
@@ -426,12 +433,19 @@ struct modeling
     status fill_components() noexcept;
     status fill_components(registred_path& path) noexcept;
 
+    //! If the @c child references a model, model is freed, otherwise, do
+    //! nothing. This function is useful to replace the content of a existing @c
+    //! child
+    void clear(child& c) noexcept;
+
     //! Deletes the component, the file (@c file_path_id) and the description
     //! (@c description_id) objects attached.
     void free(component& c) noexcept;
     void free(child& c) noexcept;
     void free(connection& c) noexcept;
     void free(tree_node& node) noexcept;
+
+    status update_cache(grid_component& grid) noexcept;
 
     bool can_alloc_file(i32 number = 1) const noexcept;
     bool can_alloc_dir(i32 number = 1) const noexcept;
@@ -464,6 +478,7 @@ struct modeling
     child& alloc(simple_component& parent, component_id id) noexcept;
     child& alloc(simple_component& parent, model_id id) noexcept;
 
+    status copy(const child& src, child& dst) noexcept;
     status copy(const simple_component& src, simple_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;
     status copy(const component& src, component& dst) noexcept;
