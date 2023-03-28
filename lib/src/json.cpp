@@ -244,6 +244,22 @@ static status get_string(const rapidjson::Value& value,
     return status::io_file_format_error;
 }
 
+static bool get_optional_string(const rapidjson::Value& value,
+                                std::string_view        name,
+                                std::string&            data) noexcept
+{
+    const auto str = rapidjson::GenericStringRef<char>(
+      name.data(), static_cast<rapidjson::SizeType>(name.size()));
+    const auto val = value.FindMember(str);
+
+    if (val != value.MemberEnd() && val->value.IsString()) {
+        data = val->value.GetString();
+        return true;
+    }
+
+    return false;
+}
+
 template<int QssLevel>
 status load(const rapidjson::Value&        val,
             abstract_integrator<QssLevel>& dyn) noexcept
@@ -2073,6 +2089,9 @@ static status do_component_read(json_cache&             cache,
                                 component&              compo,
                                 const rapidjson::Value& val) noexcept
 {
+    if (get_optional_string(val, "name", cache.string_buffer))
+        compo.name = cache.string_buffer;
+
     irt_return_if_bad(read_constant_sources(cache, mod.srcs, val));
     irt_return_if_bad(read_binary_file_sources(cache, mod.srcs, val));
     irt_return_if_bad(read_text_file_sources(cache, mod.srcs, val));
@@ -2616,6 +2635,9 @@ status component_save(const modeling&  mod,
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
 
     w.StartObject();
+
+    w.Key("name");
+    w.String(compo.name.c_str());
 
     write_constant_sources(cache, mod.srcs, w);
     write_binary_file_sources(cache, mod.srcs, w);
