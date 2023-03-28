@@ -159,12 +159,10 @@ static constexpr inline const char* dynamics_type_names[] = {
     "logical_or_2",    "logical_or_3",    "logical_invert", "hsm_wrapper",
 };
 
-static constexpr inline const char* component_type_names[] = {
-    "internal",
-    "simple",
-    "grid",
-    // graph
-};
+static constexpr inline const char* component_type_names[] = { "none",
+                                                               "internal",
+                                                               "simple",
+                                                               "grid" };
 
 inline auto get_component_type(std::string_view name) noexcept
   -> std::optional<component_type>
@@ -185,6 +183,7 @@ inline auto get_component_type(std::string_view name) noexcept
     static constexpr string_to_type table[] = {
         { "grid", component_type::grid },
         { "internal", component_type::internal },
+        { "none", component_type::none },
         { "simple", component_type::simple },
     };
 

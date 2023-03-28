@@ -2084,7 +2084,7 @@ static status do_component_read(json_cache&             cache,
 
     irt_return_if_bad(read_ports(compo, val));
 
-    switch (compo.type) {
+    switch (type.value()) {
     case component_type::internal:
         irt_return_if_bad(read_internal_component(cache, mod, compo, val));
         break;
