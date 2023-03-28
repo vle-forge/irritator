@@ -851,6 +851,7 @@ static status load_component(modeling& mod, component& compo) noexcept
                 read_description = true;
                 compo.state      = component_status::unmodified;
             } else {
+                compo.state = component_status::unreadable;
                 log_warning(mod,
                             log_level::error,
                             ret,

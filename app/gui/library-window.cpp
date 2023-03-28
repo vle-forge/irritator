@@ -202,9 +202,27 @@ static bool show_component(component_editor& ed,
         ImGui::EndPopup();
     }
 
-    if (!is_deleted && c.state == component_status::modified) {
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (modified)");
+    if (!is_deleted) {
+        switch (c.state) {
+        case component_status::unread:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (unread)");
+            break;
+        case component_status::read_only:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (read-only)");
+            break;
+        case component_status::modified:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (modified)");
+            break;
+        case component_status::unmodified:
+            break;
+        case component_status::unreadable:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (unreadable)");
+            break;
+        }
     }
 
     return is_deleted;

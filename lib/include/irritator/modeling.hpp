@@ -77,10 +77,12 @@ enum class component_type
 
 enum class component_status
 {
-    unread,
-    read_only,
-    modified,
-    unmodified,
+    unread,     //!< The component is not read (It is referenced by another
+                //!< component).
+    read_only,  //!< The component file is in read-only.
+    modified,   //!< The component is not saved.
+    unmodified, //!< or you show an internal component.
+    unreadable  //!< When an error occurred during load-component.
 };
 
 enum class modeling_status
