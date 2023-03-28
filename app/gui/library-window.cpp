@@ -217,7 +217,10 @@ static void show_notsaved_components(irt::component_editor& ed,
 
     component* compo = nullptr;
     while (app->mod.components.next(compo)) {
-        if (compo->state == component_status::modified) {
+        const auto is_not_saved =
+          app->mod.file_paths.try_to_get(compo->file) == nullptr;
+
+        if (is_not_saved) {
             const auto id       = app->mod.components.get_id(*compo);
             const bool selected = head ? id == head->id : false;
 
