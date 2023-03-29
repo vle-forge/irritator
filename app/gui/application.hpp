@@ -394,7 +394,7 @@ struct simulation_editor
 
     void show() noexcept;
 
-    void select(simulation_tree_node_id id) noexcept;
+    void select(tree_node_id id) noexcept;
     void unselect() noexcept;
     void clear() noexcept;
 
@@ -448,14 +448,14 @@ struct simulation_editor
     //! Default 1 unit of simulation in 1 second.
     i64 simulation_real_time_relation = 1000000;
 
-    simulation_tree_node_id head    = undefined<simulation_tree_node_id>();
-    simulation_tree_node_id current = undefined<simulation_tree_node_id>();
-    visualization_mode      mode    = visualization_mode::flat;
+    tree_node_id head    = undefined<tree_node_id>();
+    tree_node_id current = undefined<tree_node_id>();
+
+    visualization_mode mode = visualization_mode::flat;
 
     simulation_status simulation_state = simulation_status::not_started;
 
     modeling_to_simulation                                        cache;
-    data_array<simulation_tree_node, simulation_tree_node_id>     tree_nodes;
     data_array<simulation_observation, simulation_observation_id> sim_obs;
     data_array<simulation_observation_copy, simulation_observation_copy_id>
       copy_obs;

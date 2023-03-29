@@ -660,8 +660,8 @@ void simulation_editor::simulation_start_1() noexcept
     irt_assert(state);
 
     if (state) {
-        if (auto* parent = tree_nodes.try_to_get(head); parent) {
-            auto* app = container_of(this, &application::simulation_ed);
+        auto* app = container_of(this, &application::simulation_ed);
+        if (auto* parent = app->mod.tree_nodes.try_to_get(head); parent) {
             app->add_simulation_task(task_simulation_run_1);
         }
     }

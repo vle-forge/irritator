@@ -23,7 +23,6 @@ enum class file_path_id : u64;
 enum class child_id : u64;
 enum class connection_id : u64;
 enum class registred_path_id : u64;
-enum class simulation_tree_node_id : u64;
 
 constexpr i32 max_component_dirs = 64;
 
@@ -241,10 +240,13 @@ struct grid_component
 
     child            default_children[3][3];
     vector<specific> specific_children;
-    vector<child_id> cache;
-    options          opts            = options::none;
-    type             connection_type = type::name;
-    u64              next_unique_id  = 0;
+
+    vector<child_id>      cache;
+    vector<connection_id> cache_connections;
+
+    options opts            = options::none;
+    type    connection_type = type::name;
+    u64     next_unique_id  = 0;
 };
 
 struct component
@@ -345,23 +347,17 @@ struct modeling_initializer
     bool is_fixed_window_placement = true;
 };
 
-struct simulation_tree_node
-{
-    vector<model_id> children;
-
-    hierarchy<simulation_tree_node> tree;
-};
-
 struct tree_node
 {
     tree_node(component_id id_, child_id id_in_parent_) noexcept;
 
-    component_id            id = undefined<component_id>();
-    simulation_tree_node_id sim_tree_node =
-      undefined<simulation_tree_node_id>();
-    child_id id_in_parent = undefined<child_id>();
+    component_id id           = undefined<component_id>();
+    child_id     id_in_parent = undefined<child_id>();
 
     hierarchy<tree_node> tree;
+
+    //! Used to store simulation model.
+    vector<model_id> children;
 
     table<model_id, model_id>        parameters;
     table<model_id, observable_type> observables;
@@ -381,10 +377,6 @@ struct modeling_to_simulation
     table<u64, binary_file_source_id> binary_files;
     table<u64, text_file_source_id>   text_files;
     table<u64, random_source_id>      randoms;
-
-    data_array<simulation_tree_node, simulation_tree_node_id> sim_tree_nodes;
-
-    simulation_tree_node_id head = undefined<simulation_tree_node_id>();
 
     void clear() noexcept;
     void destroy() noexcept;

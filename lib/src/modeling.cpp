@@ -1660,6 +1660,9 @@ static status make_tree_recursive(modeling&       mod,
                                   tree_node&      new_tree,
                                   grid_component& src) noexcept
 {
+    // Build the real children and connections grid based on default_chidren and
+    // specific_children vectors and grid_component options (torus, cylinder
+    // etc.).
     mod.update_cache(src);
 
     for (auto id : src.cache) {
@@ -1871,12 +1874,9 @@ static status simulation_copy_model(modeling&               mod,
                                     modeling_to_simulation& cache,
                                     simulation&             sim,
                                     tree_node&              tree,
-                                    simulation_tree_node&   sim_tree,
                                     grid_component&         src) noexcept
 {
-    sim_tree.children.clear();
-
-    mod.update_cache(src);
+    tree.children.clear();
 
     for (int row = 0; row < src.row; ++row) {
         for (int col = 0; col < src.column; ++col) {
@@ -1948,7 +1948,7 @@ static status simulation_copy_model(modeling&               mod,
                 }
             });
 
-            sim_tree.children.emplace_back(new_mdl_id);
+            tree.children.emplace_back(new_mdl_id);
             tree.sim.data.emplace_back(mdl_id, new_mdl_id);
         }
     }
@@ -1960,10 +1960,9 @@ static status simulation_copy_model(modeling&               mod,
                                     modeling_to_simulation& cache,
                                     simulation&             sim,
                                     tree_node&              tree,
-                                    simulation_tree_node&   sim_tree,
                                     simple_component&       src) noexcept
 {
-    sim_tree.children.clear();
+    tree.children.clear();
 
     for (auto child_id : src.children) {
         auto* c = mod.children.try_to_get(child_id);
@@ -2034,7 +2033,7 @@ static status simulation_copy_model(modeling&               mod,
             }
         });
 
-        sim_tree.children.emplace_back(new_mdl_id);
+        tree.children.emplace_back(new_mdl_id);
         tree.sim.data.emplace_back(mdl_id, new_mdl_id);
     }
 
@@ -2046,14 +2045,11 @@ void modeling_to_simulation::clear() noexcept
     stack.clear();
     inputs.clear();
     outputs.clear();
-    sim_tree_nodes.clear();
 
     constants.data.clear();
     binary_files.data.clear();
     text_files.data.clear();
     randoms.data.clear();
-
-    head = undefined<simulation_tree_node_id>();
 }
 
 void modeling_to_simulation::destroy() noexcept
@@ -2066,7 +2062,6 @@ void modeling_to_simulation::destroy() noexcept
     // sim_tree_nodes.destroy();
 
     clear();
-    head = undefined<simulation_tree_node_id>();
 }
 
 static status simulation_copy_models(modeling_to_simulation& cache,
@@ -2089,18 +2084,14 @@ static status simulation_copy_models(modeling_to_simulation& cache,
             case component_type::none:
                 break;
 
-            case component_type::grid:
+            case component_type::internal:
                 break;
 
-            case component_type::internal: {
+            case component_type::grid: {
                 auto g_id = compo->id.grid_id;
                 if (auto* g = mod.grid_components.try_to_get(g_id); g) {
-                    auto* sim_tree =
-                      cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
-                    irt_assert(sim_tree);
-
-                    irt_return_if_bad(simulation_copy_model(
-                      mod, cache, sim, *cur, *sim_tree, *g));
+                    irt_return_if_bad(
+                      simulation_copy_model(mod, cache, sim, *cur, *g));
                 }
             } break;
 
@@ -2109,12 +2100,8 @@ static status simulation_copy_models(modeling_to_simulation& cache,
                 auto* s_compo    = mod.simple_components.try_to_get(s_compo_id);
 
                 if (s_compo) {
-                    auto* sim_tree =
-                      cache.sim_tree_nodes.try_to_get(cur->sim_tree_node);
-                    irt_assert(sim_tree);
-
-                    irt_return_if_bad(simulation_copy_model(
-                      mod, cache, sim, *cur, *sim_tree, *s_compo));
+                    irt_return_if_bad(
+                      simulation_copy_model(mod, cache, sim, *cur, *s_compo));
                 }
             } break;
             }
@@ -2576,35 +2563,16 @@ static status simulation_copy_sources(modeling_to_simulation& cache,
     return status::success;
 }
 
-static status simulation_copy_tree(modeling_to_simulation& cache,
-                                   modeling&               mod,
-                                   tree_node&              head) noexcept
+//! Clear children list and map between component model -> simulation model.
+static void simulation_clear_tree(modeling_to_simulation& cache,
+                                  modeling&               mod,
+                                  tree_node&              head) noexcept
 {
     tree_node* tree = nullptr;
     while (mod.tree_nodes.next(tree)) {
-        auto& sim_tree      = cache.sim_tree_nodes.alloc();
-        tree->sim_tree_node = cache.sim_tree_nodes.get_id(sim_tree);
+        tree->children.clear();
         tree->sim.data.clear();
     }
-
-    tree = nullptr;
-    while (mod.tree_nodes.next(tree)) {
-        auto* sim_tree = cache.sim_tree_nodes.try_to_get(tree->sim_tree_node);
-        irt_assert(sim_tree);
-
-        if (auto* parent = tree->tree.get_parent(); parent) {
-            const auto parent_sim_tree_id = parent->sim_tree_node;
-            auto*      parent_sim_tree =
-              cache.sim_tree_nodes.try_to_get(parent_sim_tree_id);
-            irt_assert(parent_sim_tree);
-
-            sim_tree->tree.parent_to(parent_sim_tree->tree);
-        }
-    }
-
-    cache.head = head.sim_tree_node;
-
-    return status::success;
 }
 
 bool modeling::can_export_to(modeling_to_simulation& cache,
@@ -2624,15 +2592,14 @@ status modeling::export_to(modeling_to_simulation& cache,
                            simulation&             sim) noexcept
 {
     cache.clear();
-    cache.sim_tree_nodes.init(tree_nodes.capacity());
-
     sim.clear();
 
     tree_node* top = tree_nodes.try_to_get(head);
     irt_return_if_fail(top, status::simulation_not_enough_connection);
 
+    simulation_clear_tree(cache, *this, *top);
+
     irt_return_if_bad(simulation_copy_sources(cache, *this, sim));
-    irt_return_if_bad(simulation_copy_tree(cache, *this, *top));
     irt_return_if_bad(simulation_copy_models(cache, *this, sim, *top));
     irt_return_if_bad(simulation_copy_connections(cache, *this, sim, *top));
 

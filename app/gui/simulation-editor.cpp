@@ -741,9 +741,11 @@ void simulation_editor::add_simulation_observation_for(std::string_view name,
     }
 }
 
-void simulation_editor::select(simulation_tree_node_id id) noexcept
+void simulation_editor::select(tree_node_id id) noexcept
 {
-    if (auto* tree = tree_nodes.try_to_get(id); tree) {
+    auto* app = container_of(this, &application::simulation_ed);
+
+    if (auto* tree = app->mod.tree_nodes.try_to_get(id); tree) {
         unselect();
 
         head    = id;
@@ -753,8 +755,8 @@ void simulation_editor::select(simulation_tree_node_id id) noexcept
 
 void simulation_editor::unselect() noexcept
 {
-    head    = undefined<simulation_tree_node_id>();
-    current = undefined<simulation_tree_node_id>();
+    head    = undefined<tree_node_id>();
+    current = undefined<tree_node_id>();
 
     ImNodes::ClearLinkSelection();
     ImNodes::ClearNodeSelection();
@@ -787,13 +789,12 @@ void simulation_editor::clear() noexcept
 
     simulation_real_time_relation = 1000000;
 
-    head    = undefined<simulation_tree_node_id>();
-    current = undefined<simulation_tree_node_id>();
+    head    = undefined<tree_node_id>();
+    current = undefined<tree_node_id>();
     mode    = visualization_mode::flat;
 
     simulation_state = simulation_status::not_started;
 
-    tree_nodes.clear();
     sim_obs.clear();
 
     selected_links.clear();
