@@ -150,7 +150,8 @@ static void simulation_copy(component_editor&  ed,
         return;
     }
 
-    if (auto ret = app->mod.export_to(sim_ed.cache, app->sim); is_bad(ret)) {
+    if (auto ret = app->mod.export_to(app->pj.m_compo, sim_ed.cache, app->sim);
+        is_bad(ret)) {
         make_copy_error_msg(
           ed, "Copy hierarchy failed: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;

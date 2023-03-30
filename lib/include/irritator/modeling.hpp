@@ -351,17 +351,23 @@ struct tree_node
 {
     tree_node(component_id id_, child_id id_in_parent_) noexcept;
 
-    component_id id           = undefined<component_id>();
-    child_id     id_in_parent = undefined<child_id>();
+    //! Reference the current component
+    component_id id = undefined<component_id>();
+
+    //! If this node have a parent and the component is a simple component.
+    child_id id_in_parent = undefined<child_id>();
 
     hierarchy<tree_node> tree;
 
-    //! Used to store simulation model.
-    vector<model_id> children;
-
     table<model_id, model_id>        parameters;
     table<model_id, observable_type> observables;
-    table<model_id, model_id>        sim;
+
+    //! @c simulation, stores simulation model for this tree-node.
+    vector<model_id> children;
+
+    //! @c simulation, maps {component, child, model} to {simulation, model} for
+    //! this tree_node.
+    table<model_id, model_id> sim;
 };
 
 //! Used to cache memory allocation when user import a model into simulation.
@@ -438,8 +444,6 @@ struct modeling
     void free(child& c) noexcept;
     void free(connection& c) noexcept;
     void free(tree_node& node) noexcept;
-
-    status update_cache(grid_component& grid) noexcept;
 
     bool can_alloc_file(i32 number = 1) const noexcept;
     bool can_alloc_dir(i32 number = 1) const noexcept;
@@ -552,7 +556,9 @@ struct modeling
 
     bool   can_export_to(modeling_to_simulation& cache,
                          const simulation&       sim) const noexcept;
-    status export_to(modeling_to_simulation& cache, simulation& sim) noexcept;
+    status export_to(component_id            id,
+                     modeling_to_simulation& cache,
+                     simulation&             sim) noexcept;
 
     ring_buffer<log_entry> log_entries;
 };
