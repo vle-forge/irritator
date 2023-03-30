@@ -22,9 +22,9 @@ void memory_window::show() noexcept
     if (ImGui::CollapsingHeader("Component usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::TextFormat("tree_nodes: {} / {} / {}",
-                          app->main.tree_nodes.size(),
-                          app->main.tree_nodes.max_used(),
-                          app->main.tree_nodes.capacity());
+                          app->pj.tree_nodes.size(),
+                          app->pj.tree_nodes.max_used(),
+                          app->pj.tree_nodes.capacity());
         ImGui::TextFormat("descriptions: {} / {} / {}",
                           app->mod.descriptions.size(),
                           app->mod.descriptions.max_used(),

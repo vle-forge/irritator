@@ -47,7 +47,7 @@ void project_window::clear() noexcept
 {
     auto* app = container_of(this, &application::project_wnd);
 
-    do_clear(app->main, *this);
+    do_clear(app->pj, *this);
 }
 
 static void show_project_hierarchy_child_observable(modeling&  mod,
@@ -161,7 +161,7 @@ static void show_project_hierarchy(project_window&    pj_wnd,
         if (ImGui::TreeNodeEx(&parent, flags, "%s", compo->name.c_str())) {
             if (ImGui::IsItemHovered() &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                pj_wnd.set(app->main.tree_nodes.get_id(parent), parent.id);
+                pj_wnd.set(app->pj.tree_nodes.get_id(parent), parent.id);
             }
 
             if (auto* child = parent.tree.get_child(); child) {
@@ -182,7 +182,7 @@ static void show_project_hierarchy(project_window&    pj_wnd,
                             ImGui::PushID(pc);
 
                             const auto parent_id =
-                              app->main.tree_nodes.get_id(parent);
+                              app->pj.tree_nodes.get_id(parent);
                             const auto compo_id =
                               app->mod.components.get_id(*compo);
                             const bool selected =
@@ -251,9 +251,9 @@ void project_window::open_as_main(component_id id) noexcept
     auto* app = container_of(this, &application::project_wnd);
 
     if (auto* compo = app->mod.components.try_to_get(id); compo) {
-        do_clear(app->main, *this);
+        do_clear(app->pj, *this);
 
-        if (auto ret = project_init(app->main, app->mod, *compo); is_bad(ret)) {
+        if (auto ret = project_init(app->pj, app->mod, *compo); is_bad(ret)) {
             auto& n = app->notifications.alloc(log_level::error);
             n.title = "Failed to open component as project";
             format(n.message, "Error: {}", status_string(ret));
@@ -268,7 +268,7 @@ void project_window::select(tree_node_id id) noexcept
 {
     auto* app = container_of(this, &application::project_wnd);
 
-    if (auto* tree = app->main.tree_nodes.try_to_get(id); tree)
+    if (auto* tree = app->pj.tree_nodes.try_to_get(id); tree)
         if (auto* compo = app->mod.components.try_to_get(tree->id); compo)
             selected_component = id;
 }
@@ -277,7 +277,7 @@ void project_window::show() noexcept
 {
     auto* app = container_of(this, &application::project_wnd);
 
-    auto* parent = app->main.tree_nodes.try_to_get(app->main.tn_head);
+    auto* parent = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
     if (!parent) {
         clear();
         return;
@@ -290,7 +290,7 @@ void project_window::show() noexcept
         show_project_hierarchy(
           *this, app->component_ed, app->simulation_ed, *parent);
 
-        if (auto* parent = app->main.tree_nodes.try_to_get(m_parent); parent) {
+        if (auto* parent = app->pj.tree_nodes.try_to_get(m_parent); parent) {
             if (auto* compo = app->mod.components.try_to_get(m_compo);
                 compo && compo->type == component_type::simple) {
                 if (auto* s_compo = app->mod.simple_components.try_to_get(

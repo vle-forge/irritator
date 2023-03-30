@@ -80,7 +80,7 @@ void component_editor::add_generic_component() noexcept
                "Generic component {} allocated: {}\nTree nodes allocated: {}",
                compo.name.c_str(),
                app->mod.components.size(),
-               app->main.tree_nodes.size());
+               app->pj.tree_nodes.size());
     } else {
         auto& notif = app->notifications.alloc(log_level::error);
         notif.title = "Can not allocate new generic component";
@@ -88,7 +88,7 @@ void component_editor::add_generic_component() noexcept
         format(notif.message,
                "Components allocated: {}\nTree nodes allocated: {}",
                app->mod.components.size(),
-               app->main.tree_nodes.size());
+               app->pj.tree_nodes.size());
     }
 }
 
@@ -106,7 +106,7 @@ void component_editor::add_grid_component() noexcept
                "Grid component {} allocated: {}\nTree nodes allocated: {}",
                compo.name.c_str(),
                app->mod.components.size(),
-               app->main.tree_nodes.size());
+               app->pj.tree_nodes.size());
     } else {
         auto& notif = app->notifications.alloc(log_level::error);
         notif.title = "Can not allocate new generic component";
@@ -114,7 +114,7 @@ void component_editor::add_grid_component() noexcept
         format(notif.message,
                "Components allocated: {}\nTree nodes allocated: {}",
                app->mod.components.size(),
-               app->main.tree_nodes.size());
+               app->pj.tree_nodes.size());
     }
 }
 

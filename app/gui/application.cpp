@@ -64,7 +64,7 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = main.init(mod_init.component_capacity); is_bad(ret)) {
+    if (auto ret = pj.init(mod_init.component_capacity); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize project: {}\n",

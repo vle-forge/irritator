@@ -648,7 +648,7 @@ struct application
 
     modeling   mod;
     simulation sim;
-    project    main;
+    project    pj;
 
     project_window project_wnd;
 

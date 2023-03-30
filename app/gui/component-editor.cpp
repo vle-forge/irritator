@@ -612,7 +612,7 @@ static bool can_add_this_component(component_editor&  ed,
                                    const component_id id) noexcept
 {
     auto* app       = container_of(&ed, &application::component_ed);
-    auto* head_tree = app->main.tree_nodes.try_to_get(app->main.tn_head);
+    auto* head_tree = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
     irt_assert(head_tree);
 
     if (head_tree->id == id)

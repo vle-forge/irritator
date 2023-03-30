@@ -745,7 +745,7 @@ void simulation_editor::select(tree_node_id id) noexcept
 {
     auto* app = container_of(this, &application::simulation_ed);
 
-    if (auto* tree = app->main.tree_nodes.try_to_get(id); tree) {
+    if (auto* tree = app->pj.tree_nodes.try_to_get(id); tree) {
         unselect();
 
         head    = id;

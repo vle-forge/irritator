@@ -57,7 +57,7 @@ static void show_component_popup_menu(irt::component_editor& ed,
             if (ImGui::MenuItem("Set at main project model")) {
                 tree_node_id out = undefined<tree_node_id>();
 
-                if (auto ret = project_init(app->main, app->mod, **compo);
+                if (auto ret = project_init(app->pj, app->mod, **compo);
                     is_bad(ret)) {
                     auto& n = app->notifications.alloc();
                     n.level = log_level::error;
@@ -177,7 +177,7 @@ static bool show_component(component_editor& ed,
         if (ImGui::MenuItem("Set at main project model")) {
             tree_node_id out = undefined<tree_node_id>();
 
-            if (auto ret = project_init(app->main, app->mod, c); is_bad(ret)) {
+            if (auto ret = project_init(app->pj, app->mod, c); is_bad(ret)) {
                 auto& n = app->notifications.alloc();
                 n.level = log_level::error;
                 n.title = "Fail to build tree";
@@ -363,7 +363,7 @@ void library_window::show() noexcept
         return;
     }
 
-    auto* tree = app->main.tree_nodes.try_to_get(app->main.tn_head);
+    auto* tree = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
 
     show_component_library(app->component_ed, tree);
 
