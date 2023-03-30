@@ -8328,15 +8328,14 @@ void data_array<T, Identifier>::free(Identifier id) noexcept
 {
     auto index = get_index(id);
 
-    irt_assert(m_items[index].id == id);
-    irt_assert(is_valid(id));
+    if (m_items[index].id == id && is_valid(id)) {
+        std::destroy_at(&m_items[index].item);
 
-    std::destroy_at(&m_items[index].item);
+        m_items[index].id = static_cast<Identifier>(m_free_head);
+        m_free_head       = static_cast<index_type>(index);
 
-    m_items[index].id = static_cast<Identifier>(m_free_head);
-    m_free_head       = static_cast<index_type>(index);
-
-    --m_max_size;
+        --m_max_size;
+    }
 }
 
 template<typename T, typename Identifier>
