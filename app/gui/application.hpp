@@ -555,9 +555,9 @@ struct library_window
     bool is_open = true;
 };
 
-struct project
+struct project_window
 {
-    project() noexcept = default;
+    project_window() noexcept = default;
 
     void show() noexcept;
 
@@ -646,9 +646,9 @@ struct application
     application() noexcept;
     ~application() noexcept;
 
-    modeling   mod;
-    simulation sim;
-    project    pj;
+    modeling       mod;
+    simulation     sim;
+    project_window pj;
 
     component_editor  component_ed;
     simulation_editor simulation_ed;

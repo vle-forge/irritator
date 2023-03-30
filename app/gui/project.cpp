@@ -10,28 +10,30 @@
 
 namespace irt {
 
-void project::set(tree_node_id parent, component_id compo) noexcept
+void project_window::set(tree_node_id parent, component_id compo) noexcept
 {
     m_parent = parent;
     m_compo  = compo;
     m_ch     = undefined<child_id>();
 }
 
-void project::set(tree_node_id parent, component_id compo, child_id ch) noexcept
+void project_window::set(tree_node_id parent,
+                         component_id compo,
+                         child_id     ch) noexcept
 {
     m_parent = parent;
     m_compo  = compo;
     m_ch     = ch;
 }
 
-bool project::equal(tree_node_id parent,
-                    component_id compo,
-                    child_id     ch) const noexcept
+bool project_window::equal(tree_node_id parent,
+                           component_id compo,
+                           child_id     ch) const noexcept
 {
     return m_parent == parent && m_compo == compo && m_ch == ch;
 }
 
-static void do_clear(modeling& mod, project& wnd) noexcept
+static void do_clear(modeling& mod, project_window& wnd) noexcept
 {
     wnd.m_parent = undefined<tree_node_id>();
     wnd.m_compo  = undefined<component_id>();
@@ -40,7 +42,7 @@ static void do_clear(modeling& mod, project& wnd) noexcept
     mod.tree_nodes.clear();
 }
 
-void project::clear() noexcept
+void project_window::clear() noexcept
 {
     auto* app = container_of(this, &application::pj);
 
@@ -146,7 +148,7 @@ static void show_project_hierarchy_child_configuration(
     }
 }
 
-static void show_project_hierarchy(project&           pj_wnd,
+static void show_project_hierarchy(project_window&    pj_wnd,
                                    component_editor&  ed,
                                    simulation_editor& sim_ed,
                                    tree_node&         parent) noexcept
@@ -245,7 +247,7 @@ bool exist(data_array<T, Identifier>& data,
     return find(data, container, name) != nullptr;
 }
 
-void project::open_as_main(component_id id) noexcept
+void project_window::open_as_main(component_id id) noexcept
 {
     auto* app = container_of(this, &application::pj);
 
@@ -260,7 +262,7 @@ void project::open_as_main(component_id id) noexcept
     }
 }
 
-void project::select(tree_node_id id) noexcept
+void project_window::select(tree_node_id id) noexcept
 {
     auto* app = container_of(this, &application::pj);
 
@@ -269,7 +271,7 @@ void project::select(tree_node_id id) noexcept
             selected_component = id;
 }
 
-void project::show() noexcept
+void project_window::show() noexcept
 {
     auto* app = container_of(this, &application::pj);
 

@@ -446,7 +446,7 @@ status application::save_settings() noexcept
 
 // Gui
 
-void project::save_project(const char* filename) noexcept
+void project_window::save_project(const char* filename) noexcept
 {
     auto*      app = container_of(this, &application::pj);
     json_cache cache; // @TODO move into the application structure
@@ -464,7 +464,7 @@ void project::save_project(const char* filename) noexcept
     }
 }
 
-void project::load_project(const char* filename) noexcept
+void project_window::load_project(const char* filename) noexcept
 {
     auto*      app = container_of(this, &application::pj);
     json_cache cache; // @TODO move into the application structure
