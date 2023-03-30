@@ -612,7 +612,7 @@ static bool can_add_this_component(component_editor&  ed,
                                    const component_id id) noexcept
 {
     auto* app       = container_of(&ed, &application::component_ed);
-    auto* head_tree = app->mod.tree_nodes.try_to_get(app->mod.head);
+    auto* head_tree = app->main.tree_nodes.try_to_get(app->main.tn_head);
     irt_assert(head_tree);
 
     if (head_tree->id == id)
@@ -649,9 +649,6 @@ static status add_component_to_current(component_editor& ed,
         return status::gui_not_enough_memory; //! @TODO replace with correct
                                               //! error
     }
-
-    tree_node_id tree_id;
-    irt_return_if_bad(app->mod.make_tree_from(compo_to_add, &tree_id));
 
     auto& c    = app->mod.alloc(parent_compo, compo_to_add_id);
     auto  c_id = app->mod.children.get_id(c);

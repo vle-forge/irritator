@@ -17,14 +17,14 @@ void memory_window::show() noexcept
         return;
     }
 
-    auto* app      = container_of(this, &application::memory_wnd);
+    auto* app = container_of(this, &application::memory_wnd);
 
     if (ImGui::CollapsingHeader("Component usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::TextFormat("tree_nodes: {} / {} / {}",
-                          app->mod.tree_nodes.size(),
-                          app->mod.tree_nodes.max_used(),
-                          app->mod.tree_nodes.capacity());
+                          app->main.tree_nodes.size(),
+                          app->main.tree_nodes.max_used(),
+                          app->main.tree_nodes.capacity());
         ImGui::TextFormat("descriptions: {} / {} / {}",
                           app->mod.descriptions.size(),
                           app->mod.descriptions.max_used(),

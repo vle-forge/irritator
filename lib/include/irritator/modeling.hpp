@@ -401,7 +401,6 @@ struct log_entry
 
 struct modeling
 {
-    data_array<tree_node, tree_node_id>               tree_nodes;
     data_array<description, description_id>           descriptions;
     data_array<simple_component, simple_component_id> simple_components;
     data_array<grid_component, grid_component_id>     grid_components;
@@ -417,8 +416,6 @@ struct modeling
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     external_source                                     srcs;
-
-    tree_node_id head = undefined<tree_node_id>();
 
     modeling_status state = modeling_status::unmodified;
 
@@ -443,7 +440,6 @@ struct modeling
     void free(component& c) noexcept;
     void free(child& c) noexcept;
     void free(connection& c) noexcept;
-    void free(tree_node& node) noexcept;
 
     bool can_alloc_file(i32 number = 1) const noexcept;
     bool can_alloc_dir(i32 number = 1) const noexcept;
@@ -539,29 +535,37 @@ struct modeling
                    child_id          dst,
                    i8                port_dst) noexcept;
 
-    //! Initialize a project with the specified \c component as head.
-    //!
-    //! Before initializing, the current project is cleared: all tree_nodes and
-    //! component tree are cleared.
-    void init_project(component& compo) noexcept;
-
-    //! Build the @c hierarchy<component_ref> of from the component @c id
-    status make_tree_from(component& id, tree_node_id* out) noexcept;
-
     status save(component& c) noexcept; // will call clean(component&) first.
-
-    status load_project(const char* filename) noexcept;
-    status save_project(const char* filename) noexcept;
-    void   clear_project() noexcept;
-
-    bool   can_export_to(modeling_to_simulation& cache,
-                         const simulation&       sim) const noexcept;
-    status export_to(component_id            id,
-                     modeling_to_simulation& cache,
-                     simulation&             sim) noexcept;
 
     ring_buffer<log_entry> log_entries;
 };
+
+struct project
+{
+    component_id head    = undefined<component_id>();
+    tree_node_id tn_head = undefined<tree_node_id>();
+
+    data_array<tree_node, tree_node_id> tree_nodes;
+
+    status init(int size) noexcept;
+};
+
+//! Initialize a project with the specified \c component as head.
+//! Before initializing, the current project is cleared: all tree_nodes and
+//! component tree are cleared.
+status project_init(project& pj, modeling& mod, component& compo) noexcept;
+
+//! Project data are cleared: all tree_nodes and component tree are cleared.
+void project_clear(project& pj) noexcept;
+
+//! Build a tree from the component @compo
+tree_node_id build_tree(project& pj, modeling& mod, component& compo) noexcept;
+
+//! Fill the simulation with project data.
+status simulation_init(project&                pj,
+                       modeling&               mod,
+                       simulation&             sim,
+                       modeling_to_simulation& cache) noexcept;
 
 /*
  * Implementation

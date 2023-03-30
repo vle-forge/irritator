@@ -3054,12 +3054,15 @@ static bool load_component_file(modeling&        mod,
     return found;
 }
 
-static status load_access(modeling&               mod,
+static status load_access(project&                pj,
+                          modeling&               mod,
                           json_cache&             cache,
                           const rapidjson::Value& val,
                           model*&                 mdl) noexcept
 {
     cache.stack.clear();
+
+    auto* compo = mod.components.try_to_get(pj.head);
 
     irt_return_if_fail(val.IsArray(), status::io_project_file_error);
 
@@ -3067,12 +3070,6 @@ static status load_access(modeling&               mod,
         irt_return_if_fail(val[i].IsInt(), status::io_file_format_error);
         cache.stack.emplace_back(val[i].GetInt());
     }
-
-    auto& head       = mod.tree_nodes.get(mod.head);
-    auto& compo_head = mod.components.get(head.id);
-    auto* compo      = &compo_head;
-
-    irt_return_if_fail(!cache.stack.empty(), status::io_file_format_error);
 
     for (i32 i = 0, e = cache.stack.ssize(); i != e; ++i) {
         auto* child_id = compo->child_mapping_io.get(cache.stack[i]);
@@ -3133,6 +3130,7 @@ static status load_parameter(modeling&               mod,
 }
 
 static status load_project_parameters(json_cache              cache,
+                                      project&                pj,
                                       modeling&               mod,
                                       const rapidjson::Value& top)
 {
@@ -3148,7 +3146,7 @@ static status load_project_parameters(json_cache              cache,
             irt_return_if_fail(access_it != elm.MemberEnd(),
                                status::io_project_file_parameters_access_error);
             irt_return_if_bad_map(
-              load_access(mod, cache, access_it->value, mdl),
+              load_access(pj, mod, cache, access_it->value, mdl),
               status::io_project_file_parameters_access_error);
 
             irt_return_if_bad_map(
@@ -3172,6 +3170,7 @@ static status load_project_parameters(json_cache              cache,
 }
 
 static status load_file_project(json_cache              cache,
+                                project&                pj,
                                 modeling&               mod,
                                 const rapidjson::Value& top) noexcept
 {
@@ -3201,28 +3200,35 @@ static status load_file_project(json_cache              cache,
         mod, cache.string_buffer, mod.dir_paths.get(dir_id), file_id),
       status::io_project_file_component_file_error);
 
-    auto* fp    = mod.file_paths.try_to_get(file_id);
-    auto& compo = mod.components.get(fp->component);
-    mod.init_project(compo);
+    if (auto* fp = mod.file_paths.try_to_get(file_id); fp) {
+        if (auto* compo = mod.components.try_to_get(fp->component); compo) {
+            irt_return_if_bad(project_init(pj, mod, *compo));
 
-    auto param_it = top.FindMember("component-parameters");
-    irt_return_if_fail(param_it != top.MemberEnd() && param_it->value.IsArray(),
-                       status::io_project_file_parameters_error);
+            auto param_it = top.FindMember("component-parameters");
+            irt_return_if_fail(param_it != top.MemberEnd() &&
+                                 param_it->value.IsArray(),
+                               status::io_project_file_parameters_error);
 
-    return load_project_parameters(cache, mod, top);
+            return load_project_parameters(cache, pj, mod, top);
+        }
+    }
+
+    return status::block_allocator_bad_capacity; // TODO fileproject
 }
 
 static status load_project(json_cache              cache,
+                           project&                pj,
                            modeling&               mod,
                            const rapidjson::Value& value) noexcept
 {
     irt_return_if_fail(value.IsObject(), status::io_project_file_error);
     const auto& top = value.GetObject();
 
-    return load_file_project(cache, mod, top);
+    return load_file_project(cache, pj, mod, top);
 }
 
-status project_load(modeling&   mod,
+status project_load(project&    pj,
+                    modeling&   mod,
                     json_cache& cache,
                     const char* filename) noexcept
 {
@@ -3246,19 +3252,8 @@ status project_load(modeling&   mod,
     rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());
     irt_return_if_fail(s, status::io_file_format_error);
 
-    mod.clear_project();
-    return load_project(cache, mod, d.GetObject());
-}
-
-status modeling::load_project(const char* filename) noexcept
-{
-    json_cache cache;
-    auto       ret = project_load(*this, cache, filename);
-
-    if (is_success(ret))
-        state = modeling_status::unmodified;
-
-    return ret;
+    project_clear(pj);
+    return load_project(cache, pj, mod, d.GetObject());
 }
 
 /*****************************************************************************
@@ -3268,12 +3263,13 @@ status modeling::load_project(const char* filename) noexcept
  ****************************************************************************/
 
 void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
+                project&                                             pj,
                 modeling&                                            mod,
                 tree_node&
                 /* parent */) noexcept
 {
     tree_node* tree = nullptr;
-    while (mod.tree_nodes.next(tree)) {
+    while (pj.tree_nodes.next(tree)) {
         // auto& compo = mod.components.get(tree->id);
         // auto* s_compo =
         // mod.simple_components.try_to_get(compo.id.simple_id);
@@ -3319,18 +3315,8 @@ void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
     }
 }
 
-status modeling::save_project(const char* filename) noexcept
-{
-    json_cache  cache;
-    irt::status ret = project_save(*this, cache, filename);
-
-    if (is_success(ret))
-        state = modeling_status::unmodified;
-
-    return ret;
-}
-
-static status project_save_component(modeling&   mod,
+static status project_save_component(project&    pj,
+                                     modeling&   mod,
                                      json_cache& cache,
                                      tree_node&  parent,
                                      component&  compo,
@@ -3377,27 +3363,31 @@ static status project_save_component(modeling&   mod,
 
     w.Key("component-parameters");
     w.StartArray();
-    write_node(w, mod, parent);
+    write_node(w, pj, mod, parent);
     w.EndArray();
     w.EndObject();
 
     return status::success;
 }
 
-status project_save(modeling&   mod,
+status project_save(project&    pj,
+                    modeling&   mod,
                     json_cache& cache,
                     const char* filename,
                     json_pretty_print /*print_options*/) noexcept
 {
-    auto* parent = mod.tree_nodes.try_to_get(mod.head);
-    irt_return_if_fail(parent, status::io_project_component_empty);
+    if (auto* compo = mod.components.try_to_get(pj.head); compo) {
+        if (auto* parent = pj.tree_nodes.try_to_get(pj.tn_head); parent) {
+            irt_assert(mod.components.get_id(compo) == parent->id);
 
-    file f{ filename, open_mode::write };
-    irt_return_if_fail(f.is_open(), status::io_project_file_error);
+            file f{ filename, open_mode::write };
+            irt_return_if_fail(f.is_open(), status::io_project_file_error);
+            return project_save_component(pj, mod, cache, *parent, *compo, f);
+        }
+    }
 
-    auto& compo = mod.components.get(parent->id);
-
-    return project_save_component(mod, cache, *parent, compo, f);
+    // @TODO head is not defined
+    irt_bad_return(status::block_allocator_bad_capacity);
 }
 
 } //  irt

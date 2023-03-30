@@ -451,7 +451,8 @@ void project_window::save_project(const char* filename) noexcept
     auto*      app = container_of(this, &application::pj);
     json_cache cache; // @TODO move into the application structure
 
-    if (auto ret = project_save(app->mod, cache, filename); is_bad(ret)) {
+    if (auto ret = project_save(app->main, app->mod, cache, filename);
+        is_bad(ret)) {
         auto& n = app->notifications.alloc(log_level::error);
         n.title = "Save project fail";
         format(n.message, "Can not access file `{}'", filename);
@@ -469,7 +470,8 @@ void project_window::load_project(const char* filename) noexcept
     auto*      app = container_of(this, &application::pj);
     json_cache cache; // @TODO move into the application structure
 
-    if (auto ret = project_load(app->mod, cache, filename); is_bad(ret)) {
+    if (auto ret = project_load(app->main, app->mod, cache, filename);
+        is_bad(ret)) {
         auto& n = app->notifications.alloc(log_level::error);
         n.title = "Load project fail";
         format(n.message, "Can not access file `{}'", filename);

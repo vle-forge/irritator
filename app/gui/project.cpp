@@ -6,6 +6,7 @@
 #include "dialog.hpp"
 #include "editor.hpp"
 #include "internal.hpp"
+#include "irritator/io.hpp"
 #include "irritator/modeling.hpp"
 
 namespace irt {
@@ -33,20 +34,20 @@ bool project_window::equal(tree_node_id parent,
     return m_parent == parent && m_compo == compo && m_ch == ch;
 }
 
-static void do_clear(modeling& mod, project_window& wnd) noexcept
+static void do_clear(project& pj, project_window& wnd) noexcept
 {
     wnd.m_parent = undefined<tree_node_id>();
     wnd.m_compo  = undefined<component_id>();
     wnd.m_ch     = undefined<child_id>();
 
-    mod.tree_nodes.clear();
+    project_clear(pj);
 }
 
 void project_window::clear() noexcept
 {
     auto* app = container_of(this, &application::pj);
 
-    do_clear(app->mod, *this);
+    do_clear(app->main, *this);
 }
 
 static void show_project_hierarchy_child_observable(modeling&  mod,
@@ -85,8 +86,8 @@ static void show_project_hierarchy_child_configuration(
   component_editor& ed,
   tree_node&        parent,
   component&        compo,
-  simple_component& s_compo,
-  child&            ch) noexcept
+  simple_component& /*s_compo*/,
+  child& ch) noexcept
 {
     auto* app = container_of(&ed, &application::component_ed);
 
@@ -128,22 +129,20 @@ static void show_project_hierarchy_child_configuration(
         }
 
         if (is_configured && param) {
-            dispatch(*param,
-                     [&app, &compo, &s_compo, param]<typename Dynamics>(
-                       Dynamics& dyn) {
-                         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                             if (auto* machine =
-                                   app->mod.hsms.try_to_get(dyn.id);
-                                 machine) {
-                                 show_dynamics_inputs(
-                                   *app,
-                                   app->mod.components.get_id(compo),
-                                   app->mod.models.get_id(*param),
-                                   *machine);
-                             }
-                         } else
-                             show_dynamics_inputs(app->mod.srcs, dyn);
-                     });
+            dispatch(
+              *param, [&app, &compo, param]<typename Dynamics>(Dynamics& dyn) {
+                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                      if (auto* machine = app->mod.hsms.try_to_get(dyn.id);
+                          machine) {
+                          show_dynamics_inputs(
+                            *app,
+                            app->mod.components.get_id(compo),
+                            app->mod.models.get_id(*param),
+                            *machine);
+                      }
+                  } else
+                      show_dynamics_inputs(app->mod.srcs, dyn);
+              });
         }
     }
 }
@@ -162,7 +161,7 @@ static void show_project_hierarchy(project_window&    pj_wnd,
         if (ImGui::TreeNodeEx(&parent, flags, "%s", compo->name.c_str())) {
             if (ImGui::IsItemHovered() &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                pj_wnd.set(app->mod.tree_nodes.get_id(parent), parent.id);
+                pj_wnd.set(app->main.tree_nodes.get_id(parent), parent.id);
             }
 
             if (auto* child = parent.tree.get_child(); child) {
@@ -183,7 +182,7 @@ static void show_project_hierarchy(project_window&    pj_wnd,
                             ImGui::PushID(pc);
 
                             const auto parent_id =
-                              app->mod.tree_nodes.get_id(parent);
+                              app->main.tree_nodes.get_id(parent);
                             const auto compo_id =
                               app->mod.components.get_id(*compo);
                             const bool selected =
@@ -252,12 +251,15 @@ void project_window::open_as_main(component_id id) noexcept
     auto* app = container_of(this, &application::pj);
 
     if (auto* compo = app->mod.components.try_to_get(id); compo) {
-        do_clear(app->mod, *this);
+        do_clear(app->main, *this);
 
-        tree_node_id parent_id;
-        if (is_success(app->mod.make_tree_from(*compo, &parent_id))) {
-            app->mod.head      = parent_id;
-            selected_component = parent_id;
+        if (auto ret = project_init(app->main, app->mod, *compo); is_bad(ret)) {
+            auto& n = app->notifications.alloc(log_level::error);
+            n.title = "Failed to open component as project";
+            format(n.message, "Error: {}", status_string(ret));
+            app->notifications.enable(n);
+        } else {
+            selected_component = undefined<tree_node_id>();
         }
     }
 }
@@ -266,7 +268,7 @@ void project_window::select(tree_node_id id) noexcept
 {
     auto* app = container_of(this, &application::pj);
 
-    if (auto* tree = app->mod.tree_nodes.try_to_get(id); tree)
+    if (auto* tree = app->main.tree_nodes.try_to_get(id); tree)
         if (auto* compo = app->mod.components.try_to_get(tree->id); compo)
             selected_component = id;
 }
@@ -275,7 +277,7 @@ void project_window::show() noexcept
 {
     auto* app = container_of(this, &application::pj);
 
-    auto* parent = app->mod.tree_nodes.try_to_get(app->mod.head);
+    auto* parent = app->main.tree_nodes.try_to_get(app->main.tn_head);
     if (!parent) {
         clear();
         return;
@@ -288,7 +290,7 @@ void project_window::show() noexcept
         show_project_hierarchy(
           *this, app->component_ed, app->simulation_ed, *parent);
 
-        if (auto* parent = app->mod.tree_nodes.try_to_get(m_parent); parent) {
+        if (auto* parent = app->main.tree_nodes.try_to_get(m_parent); parent) {
             if (auto* compo = app->mod.components.try_to_get(m_compo);
                 compo && compo->type == component_type::simple) {
                 if (auto* s_compo = app->mod.simple_components.try_to_get(

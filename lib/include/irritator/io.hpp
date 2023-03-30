@@ -100,12 +100,14 @@ status component_save(
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Load a project from a project json file.
-status project_load(modeling&   mod,
+status project_load(project&    pj,
+                    modeling&   mod,
                     json_cache& cache,
                     const char* filename) noexcept;
 
 //! Save a project from the current modeling.
 status project_save(
+  project&          pj,
   modeling&         mod,
   json_cache&       cache,
   const char*       filename,

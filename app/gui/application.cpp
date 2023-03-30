@@ -64,6 +64,14 @@ bool application::init() noexcept
         return false;
     }
 
+    if (auto ret = main.init(mod_init.component_capacity); is_bad(ret)) {
+        log_w(*this,
+              log_level::error,
+              "Fail to initialize project: {}\n",
+              status_string(ret));
+        return false;
+    }
+
     if (mod.registred_paths.size() == 0) {
         if (auto path = get_system_component_dir(); path) {
             auto& new_dir    = mod.registred_paths.alloc();
@@ -157,7 +165,6 @@ bool application::init() noexcept
     }
 
     mod.fill_components();
-    mod.head              = undefined<tree_node_id>();
     pj.selected_component = undefined<tree_node_id>();
 
     // @TODO at beggining, open a default generic component ?

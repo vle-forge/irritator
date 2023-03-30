@@ -17,7 +17,7 @@ static void simulation_clear(component_editor&  ed,
     auto* app = container_of(&ed, &application::component_ed);
 
     tree_node* tree = nullptr;
-    while (app->mod.tree_nodes.next(tree))
+    while (app->main.tree_nodes.next(tree))
         tree->sim.data.clear();
 
     sim_ed.clear();
@@ -143,14 +143,14 @@ static void simulation_copy(component_editor&  ed,
     app->sim.clear();
     sim_ed.simulation_current = sim_ed.simulation_begin;
 
-    auto* head = app->mod.tree_nodes.try_to_get(app->mod.head);
+    auto* head = app->main.tree_nodes.try_to_get(app->main.tn_head);
     if (!head) {
         make_copy_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    if (auto ret = app->mod.export_to(app->pj.m_compo, sim_ed.cache, app->sim);
+    if (auto ret = simulation_init(app->main, app->mod, app->sim, sim_ed.cache);
         is_bad(ret)) {
         make_copy_error_msg(
           ed, "Copy hierarchy failed: {}", status_string(ret));
@@ -193,7 +193,7 @@ static void simulation_init(component_editor&  ed,
 
     sim_ed.tl.reset();
 
-    auto* head = app->mod.tree_nodes.try_to_get(app->mod.head);
+    auto* head = app->main.tree_nodes.try_to_get(app->main.tn_head);
     if (!head) {
         make_init_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
@@ -597,9 +597,9 @@ void simulation_editor::simulation_copy_modeling() noexcept
 
     if (state) {
         auto* app = container_of(this, &application::simulation_ed);
-        auto& mod = app->mod;
 
-        auto* modeling_head = mod.tree_nodes.try_to_get(mod.head);
+        auto* modeling_head =
+          app->main.tree_nodes.try_to_get(app->main.tn_head);
         if (!modeling_head) {
             auto& notif = app->notifications.alloc(log_level::error);
             notif.title = "Empty model";
@@ -662,7 +662,8 @@ void simulation_editor::simulation_start_1() noexcept
 
     if (state) {
         auto* app = container_of(this, &application::simulation_ed);
-        if (auto* parent = app->mod.tree_nodes.try_to_get(head); parent) {
+        if (auto* parent = app->main.tree_nodes.try_to_get(app->main.tn_head);
+            parent) {
             app->add_simulation_task(task_simulation_run_1);
         }
     }

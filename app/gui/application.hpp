@@ -646,8 +646,10 @@ struct application
     application() noexcept;
     ~application() noexcept;
 
-    modeling       mod;
-    simulation     sim;
+    modeling   mod;
+    simulation sim;
+    project    main;
+
     project_window pj;
 
     component_editor  component_ed;
