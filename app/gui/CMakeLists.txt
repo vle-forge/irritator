@@ -7,7 +7,7 @@ set(gui_sources
     grid-editor.cpp hsm-editor.cpp imnodes.cpp imnodes.h imnodes_internal.h
     implot.cpp implot.h implot_demo.cpp implot_internal.h implot_items.cpp
     internal.cpp internal.hpp io.cpp library-window.cpp memory-window.cpp
-    notification.cpp output-editor.cpp preview-window.cpp project.cpp
+    notification.cpp output-editor.cpp preview-window.cpp project-window.cpp
     settings-window.cpp simulation-component.cpp simulation-editor.cpp
     simulation-observation.cpp task-window.cpp window-logger.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/archiver.cpp
