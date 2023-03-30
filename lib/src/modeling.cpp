@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <iterator>
 #include <optional>
 #include <utility>
 
@@ -1008,6 +1009,87 @@ component& modeling::alloc_simple_component() noexcept
     return new_compo;
 }
 
+static bool fill_child(const modeling&       mod,
+                       const child&          c,
+                       vector<component_id>& out,
+                       component_id          search) noexcept
+{
+    if (c.type == child_type::component) {
+        if (c.id.compo_id == search)
+            return true;
+
+        if (auto* compo = mod.components.try_to_get(c.id.compo_id); compo)
+            out.emplace_back(c.id.compo_id);
+    }
+
+    return false;
+}
+
+static bool fill_children(const modeling&       mod,
+                          const component&      compo,
+                          vector<component_id>& out,
+                          component_id          search) noexcept
+{
+    switch (compo.type) {
+    case component_type::grid: {
+        auto id = compo.id.grid_id;
+        if (auto* g = mod.grid_components.try_to_get(id); g) {
+            for (int row = 0; row < 3; ++row)
+                for (int col = 0; col < 3; ++col)
+                    if (fill_child(
+                          mod, g->default_children[row][col], out, search))
+                        return true;
+
+            for (const auto& ch : g->specific_children)
+                if (fill_child(mod, ch.ch, out, search))
+                    return true;
+        }
+    } break;
+
+    case component_type::simple: {
+        auto id = compo.id.simple_id;
+        if (auto* s = mod.simple_components.try_to_get(id); s) {
+            for (auto id : s->children)
+                if (auto* ch = mod.children.try_to_get(id); ch)
+                    if (fill_child(mod, *ch, out, search))
+                        return true;
+        }
+        break;
+    }
+
+    default:
+        break;
+    }
+
+    return false;
+}
+
+bool modeling::can_add(const component& parent,
+                       const component& child) const noexcept
+{
+    vector<component_id> stack;
+    component_id         parent_id = components.get_id(parent);
+    component_id         child_id  = components.get_id(child);
+
+    if (parent_id == child_id)
+        return false;
+
+    if (fill_children(*this, child, stack, parent_id))
+        return true;
+
+    while (!stack.empty()) {
+        auto id = stack.back();
+        stack.pop_back();
+
+        if (auto* compo = components.try_to_get(id); compo) {
+            if (fill_children(*this, *compo, stack, parent_id))
+                return true;
+        }
+    }
+
+    return false;
+}
+
 static bool is_ports_compatible(modeling&         mod,
                                 model&            mdl_src,
                                 i8                port_src,
@@ -1648,6 +1730,5 @@ status modeling::save(component& c) noexcept
 
     return status::success;
 }
-
 }
 // namespace irt

@@ -608,29 +608,8 @@ static void compute_grid_layout(settings_window&  settings,
     }
 }
 
-static bool can_add_this_component(component_editor&  ed,
-                                   const component_id id) noexcept
-{
-    auto* app       = container_of(&ed, &application::component_ed);
-    auto* head_tree = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
-    irt_assert(head_tree);
-
-    if (head_tree->id == id)
-        return false;
-
-    if (auto* parent = head_tree->tree.get_parent(); parent) {
-        do {
-            if (parent->id == id)
-                return false;
-
-            parent = parent->tree.get_parent();
-        } while (parent);
-    }
-
-    return true;
-}
-
 static status add_component_to_current(component_editor& ed,
+                                       component&        parent,
                                        simple_component& parent_compo,
                                        component&        compo_to_add,
                                        ImVec2            click_pos = ImVec2())
@@ -638,7 +617,7 @@ static status add_component_to_current(component_editor& ed,
     auto*      app             = container_of(&ed, &application::component_ed);
     const auto compo_to_add_id = app->mod.components.get_id(compo_to_add);
 
-    if (!can_add_this_component(ed, compo_to_add_id)) {
+    if (app->mod.can_add(parent, compo_to_add)) {
         auto* app   = container_of(&ed, &application::component_ed);
         auto& notif = app->notifications.alloc(log_level::error);
         notif.title = "Fail to add component";
@@ -662,7 +641,7 @@ static status add_component_to_current(component_editor& ed,
 
 static void show_popup_all_component_menuitem(
   component_editor& ed,
-  component& /* parent */,
+  component&        parent,
   simple_component& s_parent) noexcept
 {
     auto* app = container_of(&ed, &application::component_ed);
@@ -710,7 +689,8 @@ static void show_popup_all_component_menuitem(
                             break;
 
                         if (ImGui::MenuItem(file->path.c_str())) {
-                            add_component_to_current(ed, s_parent, *compo);
+                            add_component_to_current(
+                              ed, parent, s_parent, *compo);
                         }
                     }
                     ImGui::EndMenu();
@@ -727,7 +707,7 @@ static void show_popup_all_component_menuitem(
             if (compo->state == component_status::modified) {
                 ImGui::PushID(compo);
                 if (ImGui::MenuItem(compo->name.c_str())) {
-                    add_component_to_current(ed, s_parent, *compo);
+                    add_component_to_current(ed, parent, s_parent, *compo);
                 }
                 ImGui::PopID();
             }
@@ -791,7 +771,7 @@ static void show_popup_menuitem(component_editor&      ed,
                 compo.type       = component_type::grid;
                 compo.id.grid_id = grid_id;
 
-                add_component_to_current(ed, s_parent, compo, click_pos);
+                add_component_to_current(ed, parent, s_parent, compo, click_pos);
             }
         }
 

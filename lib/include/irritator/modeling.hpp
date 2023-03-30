@@ -468,6 +468,11 @@ struct modeling
     component& alloc_grid_component() noexcept;
     component& alloc_simple_component() noexcept;
 
+    //! Checks if the child can be added to the parent to avoid recursive loop
+    //! (ie. a component child which need the same component in sub-child).
+    bool can_add(const component& parent,
+                 const component& child) const noexcept;
+
     child& alloc(simple_component& parent, dynamics_type type) noexcept;
     child& alloc(simple_component& parent, component_id id) noexcept;
     child& alloc(simple_component& parent, model_id id) noexcept;
@@ -558,7 +563,11 @@ status project_init(project& pj, modeling& mod, component& compo) noexcept;
 //! Project data are cleared: all tree_nodes and component tree are cleared.
 void project_clear(project& pj) noexcept;
 
-//! Build a tree from the component @compo
+//! Build a tree from the component @c compo. The tree must be attached to the
+//! head of the project or you need to destroy it with the @c free_tree
+//! function.
+//!
+//! @return the tree_node_id head of the component otherwise undefined.
 tree_node_id build_tree(project& pj, modeling& mod, component& compo) noexcept;
 
 //! Fill the simulation with project data.
