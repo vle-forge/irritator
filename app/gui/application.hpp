@@ -650,7 +650,7 @@ struct application
     simulation sim;
     project    main;
 
-    project_window pj;
+    project_window project_wnd;
 
     component_editor  component_ed;
     simulation_editor simulation_ed;

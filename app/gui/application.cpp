@@ -165,7 +165,7 @@ bool application::init() noexcept
     }
 
     mod.fill_components();
-    pj.selected_component = undefined<tree_node_id>();
+    project_wnd.selected_component = undefined<tree_node_id>();
 
     // @TODO at beggining, open a default generic component ?
     // auto id = component_ed.add_generic_component();
@@ -261,7 +261,7 @@ static void application_show_menu(application& app) noexcept
 static void application_manage_menu_action(application& app) noexcept
 {
     if (app.menu_new_project_file) {
-        app.pj.clear();
+        app.project_wnd.clear();
         // auto id = app.component_ed.add_generic_component();
         // app.project_wnd.open_as_main(id);
         app.menu_new_project_file = false;

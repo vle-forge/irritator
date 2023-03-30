@@ -1599,7 +1599,7 @@ void simulation_editor::show() noexcept
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
-        app->pj.show();
+        app->project_wnd.show();
 
         ImGui::TableSetColumnIndex(1);
         if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {

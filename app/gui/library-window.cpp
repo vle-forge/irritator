@@ -64,8 +64,9 @@ static void show_component_popup_menu(irt::component_editor& ed,
                     n.title = "Fail to build tree";
                     app->notifications.enable(n);
                 } else {
-                    app->pj.m_parent = out;
-                    app->pj.m_compo  = app->mod.components.get_id(**compo);
+                    app->project_wnd.m_parent = out;
+                    app->project_wnd.m_compo =
+                      app->mod.components.get_id(**compo);
                     app->simulation_ed.simulation_copy_modeling();
                 }
             }
@@ -182,8 +183,8 @@ static bool show_component(component_editor& ed,
                 n.title = "Fail to build tree";
                 app->notifications.enable(n);
             } else {
-                app->pj.m_parent = out;
-                app->pj.m_compo  = app->mod.components.get_id(c);
+                app->project_wnd.m_parent = out;
+                app->project_wnd.m_compo  = app->mod.components.get_id(c);
             }
         }
 

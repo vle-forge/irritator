@@ -45,7 +45,7 @@ static void do_clear(project& pj, project_window& wnd) noexcept
 
 void project_window::clear() noexcept
 {
-    auto* app = container_of(this, &application::pj);
+    auto* app = container_of(this, &application::project_wnd);
 
     do_clear(app->main, *this);
 }
@@ -248,7 +248,7 @@ bool exist(data_array<T, Identifier>& data,
 
 void project_window::open_as_main(component_id id) noexcept
 {
-    auto* app = container_of(this, &application::pj);
+    auto* app = container_of(this, &application::project_wnd);
 
     if (auto* compo = app->mod.components.try_to_get(id); compo) {
         do_clear(app->main, *this);
@@ -266,7 +266,7 @@ void project_window::open_as_main(component_id id) noexcept
 
 void project_window::select(tree_node_id id) noexcept
 {
-    auto* app = container_of(this, &application::pj);
+    auto* app = container_of(this, &application::project_wnd);
 
     if (auto* tree = app->main.tree_nodes.try_to_get(id); tree)
         if (auto* compo = app->mod.components.try_to_get(tree->id); compo)
@@ -275,7 +275,7 @@ void project_window::select(tree_node_id id) noexcept
 
 void project_window::show() noexcept
 {
-    auto* app = container_of(this, &application::pj);
+    auto* app = container_of(this, &application::project_wnd);
 
     auto* parent = app->main.tree_nodes.try_to_get(app->main.tn_head);
     if (!parent) {

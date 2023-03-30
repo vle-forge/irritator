@@ -448,7 +448,7 @@ status application::save_settings() noexcept
 
 void project_window::save_project(const char* filename) noexcept
 {
-    auto*      app = container_of(this, &application::pj);
+    auto*      app = container_of(this, &application::project_wnd);
     json_cache cache; // @TODO move into the application structure
 
     if (auto ret = project_save(app->main, app->mod, cache, filename);
@@ -467,7 +467,7 @@ void project_window::save_project(const char* filename) noexcept
 
 void project_window::load_project(const char* filename) noexcept
 {
-    auto*      app = container_of(this, &application::pj);
+    auto*      app = container_of(this, &application::project_wnd);
     json_cache cache; // @TODO move into the application structure
 
     if (auto ret = project_load(app->main, app->mod, cache, filename);
@@ -494,7 +494,7 @@ void task_load_project(void* param) noexcept
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->pj.load_project(file->path.c_str());
+        g_task->app->project_wnd.load_project(file->path.c_str());
         g_task->app->mod.registred_paths.free(*file);
     }
 
@@ -509,7 +509,7 @@ void task_save_project(void* param) noexcept
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->pj.save_project(file->path.c_str());
+        g_task->app->project_wnd.save_project(file->path.c_str());
         g_task->app->mod.registred_paths.free(*file);
     }
 
