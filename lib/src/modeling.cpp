@@ -1479,6 +1479,198 @@ child& modeling::alloc(simple_component& parent, model_id id) noexcept
     return child;
 }
 
+constexpr static inline int pos(int row, int col, int rows) noexcept
+{
+    return col * rows + row;
+}
+
+status modeling::build_grid_component_cache(grid_component& grid) noexcept
+{
+    clear_grid_component_cache(grid);
+
+    irt_return_if_fail(grid.row && grid.column, status::io_project_file_error);
+    irt_return_if_fail(children.can_alloc(grid.row * grid.column),
+                       status::data_array_not_enough_memory);
+    irt_return_if_fail(connections.can_alloc(grid.row * grid.column * 4),
+                       status::data_array_not_enough_memory);
+
+    grid.cache.resize(grid.row * grid.column);
+
+    int x = 0, y = 0;
+
+    for (int row = 0; row < grid.row; ++row) {
+        if (row == 0)
+            y = 0;
+        else if (1 <= row && row + 1 < grid.row)
+            y = 1;
+        else
+            y = 2;
+
+        for (int col = 0; col < grid.column; ++col) {
+            if (col == 0)
+                x = 0;
+            else if (1 <= col && col + 1 < grid.column)
+                x = 1;
+            else
+                x = 2;
+
+            auto& ch    = children.alloc();
+            auto  ch_id = children.get_id(ch);
+            copy(grid.default_children[x][y], ch);
+            grid.cache[pos(row, col, grid.row)] = ch_id;
+        }
+    }
+
+    for (const auto& elem : grid.specific_children) {
+        irt_assert(0 <= elem.row && elem.row < grid.row);
+        irt_assert(0 <= elem.column && elem.column < grid.column);
+
+        auto& ch    = children.alloc();
+        auto  ch_id = children.get_id(ch);
+        copy(elem.ch, ch);
+        grid.cache[pos(elem.row, elem.column, grid.row)] = ch_id;
+    }
+
+    for (sz i = 0, e = grid.cache.size(); i != e; ++i) {
+        auto src_id = grid.cache[i];
+        if (auto* src = children.try_to_get(src_id); src) {
+            auto& dst    = children.alloc();
+            auto  dst_id = children.get_id(dst);
+
+            irt_return_if_bad(copy(*src, dst));
+
+            grid.cache[i] = dst_id;
+        } else {
+            grid.cache[i] = undefined<child_id>();
+        }
+    }
+
+    if (grid.connection_type == grid_component::type::number) {
+        for (int row = 0; row < grid.row; ++row) {
+            for (int col = 0; col < grid.column; ++col) {
+                const auto src_id  = grid.cache[pos(row, col, grid.row)];
+                const auto row_min = row == 0 ? 0 : row - 1;
+                const auto row_max = row == grid.row - 1 ? row : row + 1;
+                const auto col_min = col == 0 ? 0 : col - 1;
+                const auto col_max = col == grid.column - 1 ? col : col + 1;
+
+                for (int i = row_min; i <= row_max; ++i) {
+                    for (int j = col_min; j <= col_max; ++j) {
+                        if (!(i == row && j == col)) {
+                            const auto dst_id = grid.cache[pos(i, j, grid.row)];
+
+                            auto& c    = connections.alloc();
+                            auto  c_id = connections.get_id(c);
+                            c.type     = connection::connection_type::internal;
+                            c.internal.src       = src_id;
+                            c.internal.index_src = 0;
+                            c.internal.dst       = dst_id;
+                            c.internal.index_dst = 0;
+                            grid.cache_connections.emplace_back(c_id);
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        for (int row = 0; row < grid.row; ++row) {
+            for (int col = 0; col < grid.column; ++col) {
+                const auto src_id  = grid.cache[pos(row, col, grid.row)];
+                const auto row_min = row == 0 ? 0 : row - 1;
+                const auto row_max = row == grid.row - 1 ? row : row + 1;
+                const auto col_min = col == 0 ? 0 : col - 1;
+                const auto col_max = col == grid.column - 1 ? col : col + 1;
+
+                for (int i = row_min; i <= row_max; ++i) {
+                    for (int j = col_min; j <= col_max; ++j) {
+                        if (!(i == row && j == col)) {
+                            const auto dst_id = grid.cache[pos(i, j, grid.row)];
+
+                            auto& c    = connections.alloc();
+                            auto  c_id = connections.get_id(c);
+                            auto  port = (col - col_min) * 3 + (row - row_min);
+
+                            c.type = connection::connection_type::internal;
+                            c.internal.src       = src_id;
+                            c.internal.index_src = port;
+                            c.internal.dst       = dst_id;
+                            c.internal.index_dst = port;
+                            grid.cache_connections.emplace_back(c_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    const auto use_row_cylinder = match(grid.opts,
+                                        grid_component::options::row_cylinder,
+                                        grid_component::options::torus);
+
+    if (use_row_cylinder) {
+        for (int row = 0; row < grid.row; ++row) {
+            const auto src_id = grid.cache[pos(row, 0, grid.row)];
+            const auto dst_id = grid.cache[pos(row, grid.column - 1, grid.row)];
+
+            auto& c1 = connections.alloc();
+            grid.cache_connections.emplace_back(connections.get_id(c1));
+            c1.type               = connection::connection_type::internal;
+            c1.internal.src       = src_id;
+            c1.internal.index_src = 0;
+            c1.internal.dst       = dst_id;
+            c1.internal.index_dst = 0;
+
+            auto& c2 = connections.alloc();
+            grid.cache_connections.emplace_back(connections.get_id(c2));
+            c2.type               = connection::connection_type::internal;
+            c2.internal.src       = dst_id;
+            c2.internal.index_src = 0;
+            c2.internal.dst       = src_id;
+            c2.internal.index_dst = 0;
+        }
+    }
+
+    const auto use_column_cylinder =
+      match(grid.opts,
+            grid_component::options::column_cylinder,
+            grid_component::options::torus);
+
+    if (use_column_cylinder) {
+        for (int col = 0; col < grid.column; ++col) {
+            const auto src_id = grid.cache[pos(0, col, grid.row)];
+            const auto dst_id = grid.cache[pos(grid.row - 1, col, grid.row)];
+
+            auto& c1 = connections.alloc();
+            grid.cache_connections.emplace_back(connections.get_id(c1));
+            c1.internal.src       = src_id;
+            c1.internal.index_src = 0;
+            c1.internal.dst       = dst_id;
+            c1.internal.index_dst = 0;
+
+            auto& c2 = connections.alloc();
+            grid.cache_connections.emplace_back(connections.get_id(c2));
+            c2.internal.src       = dst_id;
+            c2.internal.index_src = 0;
+            c2.internal.dst       = src_id;
+            c2.internal.index_dst = 0;
+        }
+    }
+
+    return status::success;
+}
+
+void modeling::clear_grid_component_cache(grid_component& grid) noexcept
+{
+    for (auto id : grid.cache)
+        children.free(id);
+
+    for (auto id : grid.cache_connections)
+        connections.free(id);
+
+    grid.cache.clear();
+    grid.cache_connections.clear();
+}
+
 status modeling::copy(const child& src, child& dst) noexcept
 {
     dst.name         = src.name;
@@ -1558,6 +1750,39 @@ status modeling::copy(const simple_component& src,
             }
         }
     }
+
+    return status::success;
+}
+
+status modeling::copy(grid_component& grid, simple_component& s) noexcept
+{
+    irt_return_if_bad(build_grid_component_cache(grid));
+
+    const auto children_size = s.children.size();
+    s.children.resize(children_size + grid.cache.size());
+    std::copy_n(
+      grid.cache.data(), grid.cache.size(), s.children.data() + children_size);
+
+    auto& none_component    = components.alloc();
+    auto  none_component_id = components.get_id(none_component);
+    none_component.type     = component_type::none;
+
+    // TODO fix this dirty part of code.
+    for (auto id : s.children) {
+        if (auto* child = children.try_to_get(id); child) {
+            child->type        = child_type::component;
+            child->id.compo_id = none_component_id;
+        }
+    }
+
+    const auto connection_size = s.connections.size();
+    s.connections.resize(connection_size + grid.cache_connections.size());
+    std::copy_n(grid.cache_connections.data(),
+                grid.cache_connections.size(),
+                s.connections.data() + connection_size);
+
+    grid.cache.clear();
+    grid.cache_connections.clear();
 
     return status::success;
 }
@@ -1730,5 +1955,5 @@ status modeling::save(component& c) noexcept
 
     return status::success;
 }
-}
-// namespace irt
+
+} // namespace irt

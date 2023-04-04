@@ -169,8 +169,7 @@ static void show_default_grid(component_editor& ed,
     if (need_change) {
         auto& ch = data.m_grid.default_children[data.m_row][data.m_col];
         mod.free(ch);
-
-        ch.type = child_type::component;
+        ch.type        = child_type::component;
         ch.id.compo_id = found;
     }
 
@@ -214,12 +213,13 @@ static void show_grid(grid_editor_data& data, float height) noexcept
             else
                 x = 2;
 
-            dl->AddRectFilled(upper_left,
-                              lower_right,
-                              is_defined(data.m_grid.default_children[x][y].id.compo_id)
-                                ? default_col
-                                : empty_col,
-                              0.f);
+            dl->AddRectFilled(
+              upper_left,
+              lower_right,
+              is_defined(data.m_grid.default_children[x][y].id.compo_id)
+                ? default_col
+                : empty_col,
+              0.f);
         }
     }
 
@@ -291,6 +291,89 @@ void grid_editor_data::show(component_editor& ed) noexcept
                 load(id, *grid);
             }
         }
+    }
+}
+
+void grid_editor_dialog::load(application*      app_,
+                              simple_component* compo_) noexcept
+{
+    app        = app_;
+    compo      = compo_;
+    is_running = true;
+    is_ok      = false;
+}
+
+void grid_editor_dialog::save() noexcept
+{
+    irt_assert(app && compo);
+
+    app->mod.copy(grid, *compo);
+}
+
+void grid_editor_dialog::show() noexcept
+{
+    ImGui::OpenPopup(grid_editor_dialog::name);
+    ImGui::SetNextWindowSize(ImVec2(400, 400), ImGuiCond_FirstUseEver);
+    if (ImGui::BeginPopupModal(grid_editor_dialog::name)) {
+        is_ok        = false;
+        bool is_show = true;
+
+        const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;
+        const auto region_width  = ImGui::GetContentRegionAvail().x;
+        const auto region_height = ImGui::GetContentRegionAvail().y;
+        const auto button_size =
+          ImVec2{ (region_width - item_spacing) / 2.f, 0 };
+        const auto child_size =
+          region_height - ImGui::GetFrameHeightWithSpacing();
+
+        int row    = grid.row;
+        int column = grid.column;
+
+        ImGui::BeginChild("##dialog", ImVec2(0.f, child_size), true);
+
+        if (ImGui::InputInt("row", &row))
+            grid.row = std::clamp(row, 1, 256);
+        if (ImGui::InputInt("column", &column))
+            grid.column = std::clamp(column, 1, 256);
+
+        int selected_options = ordinal(grid.opts);
+        int selected_type    = ordinal(grid.connection_type);
+
+        if (ImGui::Combo(
+              "Options", &selected_options, grid_options, grid_options_count)) {
+            if (selected_options != ordinal(grid.opts))
+                grid.opts =
+                  static_cast<grid_component::options>(selected_options);
+        }
+
+        if (ImGui::Combo("Type", &selected_type, grid_type, grid_type_count)) {
+            if (selected_type != ordinal(grid.connection_type))
+                grid.connection_type =
+                  enum_cast<grid_component::type>(selected_type);
+        }
+
+        ImGui::EndChild();
+
+        if (ImGui::Button("Ok", button_size)) {
+            is_ok   = true;
+            is_show = false;
+        }
+
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Cancel", button_size)) {
+            is_show = false;
+        }
+
+        if (is_show == false) {
+            ImGui::CloseCurrentPopup();
+            is_running = false;
+        }
+
+        ImGui::EndPopup();
     }
 }
 

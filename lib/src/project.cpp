@@ -9,11 +9,6 @@
 
 namespace irt {
 
-constexpr static inline int pos(int row, int col, int rows) noexcept
-{
-    return col * rows + row;
-}
-
 static status make_tree_recursive(project&   pj,
                                   modeling&  mod,
                                   tree_node& parent,
@@ -829,16 +824,8 @@ static status simulation_copy_sources(modeling_to_simulation& cache,
 static void simulation_clear_tree(project& pj, modeling& mod) noexcept
 {
     grid_component* grid = nullptr;
-    while (mod.grid_components.next(grid)) {
-        for (auto id : grid->cache)
-            mod.children.free(id);
-
-        for (auto id : grid->cache_connections)
-            mod.connections.free(id);
-
-        grid->cache.clear();
-        grid->cache_connections.clear();
-    }
+    while (mod.grid_components.next(grid))
+        mod.clear_grid_component_cache(*grid);
 
     pj.tree_nodes.clear();
 }
@@ -853,158 +840,10 @@ static status simulation_initialize_tree(project&   pj,
                                          component& top) noexcept
 {
     grid_component* grid = nullptr;
-    while (mod.grid_components.next(grid)) {
-        // @TODO add a grid_component_access_error
-        irt_return_if_fail(grid->row && grid->column,
-                           status::io_project_file_error);
-        irt_return_if_fail(mod.children.can_alloc(grid->row * grid->column),
-                           status::data_array_not_enough_memory);
-        irt_return_if_fail(
-          mod.connections.can_alloc(grid->row * grid->column * 4),
-          status::data_array_not_enough_memory);
+    while (mod.grid_components.next(grid))
+        irt_return_if_bad(mod.build_grid_component_cache(*grid));
 
-        for (auto& elem : grid->cache)
-            if (auto* c = mod.children.try_to_get(elem); c)
-                mod.free(*c);
-
-        for (auto& con : grid->cache_connections)
-            if (auto* c = mod.connections.try_to_get(con); c)
-                mod.free(*c);
-
-        grid->cache.resize(grid->row * grid->column);
-        grid->cache_connections.clear();
-
-        int x = 0, y = 0;
-
-        for (int row = 0; row < grid->row; ++row) {
-            if (row == 0)
-                y = 0;
-            else if (1 <= row && row + 1 < grid->row)
-                y = 1;
-            else
-                y = 2;
-
-            for (int col = 0; col < grid->column; ++col) {
-                if (col == 0)
-                    x = 0;
-                else if (1 <= col && col + 1 < grid->column)
-                    x = 1;
-                else
-                    x = 2;
-
-                auto& ch    = mod.children.alloc();
-                auto  ch_id = mod.children.get_id(ch);
-                mod.copy(grid->default_children[x][y], ch);
-                grid->cache[pos(row, col, grid->row)] = ch_id;
-            }
-        }
-
-        for (const auto& elem : grid->specific_children) {
-            irt_assert(0 <= elem.row && elem.row < grid->row);
-            irt_assert(0 <= elem.column && elem.column < grid->column);
-
-            auto& ch    = mod.children.alloc();
-            auto  ch_id = mod.children.get_id(ch);
-            mod.copy(elem.ch, ch);
-            grid->cache[pos(elem.row, elem.column, grid->row)] = ch_id;
-        }
-
-        if (grid->connection_type == grid_component::type::number) {
-            for (int row = 0; row < grid->row; ++row) {
-                for (int col = 0; col < grid->column; ++col) {
-                    const auto src_id  = grid->cache[row * grid->column + col];
-                    const auto row_min = std::clamp(row, 0, row - 1);
-                    const auto row_max =
-                      std::clamp(row, row + 1, grid->row - 1);
-                    const auto col_min = std::clamp(col, 0, col - 1);
-                    const auto col_max =
-                      std::clamp(col, col + 1, grid->column - 1);
-
-                    for (int i = row_min; i <= row_max; ++i) {
-                        for (int j = col_min; j <= col_max; ++j) {
-                            if (i != row && j != col) {
-                                const auto dst_id =
-                                  grid->cache[pos(i, j, grid->row)];
-
-                                auto& c    = mod.connections.alloc();
-                                auto  c_id = mod.connections.get_id(c);
-                                c.type = connection::connection_type::internal;
-                                c.internal.src       = src_id;
-                                c.internal.index_src = 0;
-                                c.internal.dst       = dst_id;
-                                c.internal.index_dst = 0;
-                                grid->cache_connections.emplace_back(c_id);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        const auto use_row_cylinder =
-          match(grid->opts,
-                grid_component::options::row_cylinder,
-                grid_component::options::torus);
-
-        if (use_row_cylinder) {
-            for (int row = 0; row < grid->row; ++row) {
-                const auto src_id = grid->cache[pos(row, 0, grid->row)];
-                const auto dst_id =
-                  grid->cache[pos(row, grid->column - 1, grid->row)];
-
-                auto& c1 = mod.connections.alloc();
-                grid->cache_connections.emplace_back(
-                  mod.connections.get_id(c1));
-                c1.type               = connection::connection_type::internal;
-                c1.internal.src       = src_id;
-                c1.internal.index_src = 0;
-                c1.internal.dst       = dst_id;
-                c1.internal.index_dst = 0;
-
-                auto& c2 = mod.connections.alloc();
-                grid->cache_connections.emplace_back(
-                  mod.connections.get_id(c2));
-                c2.type               = connection::connection_type::internal;
-                c2.internal.src       = src_id;
-                c2.internal.index_src = 0;
-                c2.internal.dst       = dst_id;
-                c2.internal.index_dst = 0;
-            }
-        }
-
-        const auto use_column_cylinder =
-          match(grid->opts,
-                grid_component::options::column_cylinder,
-                grid_component::options::torus);
-
-        if (use_column_cylinder) {
-            for (int col = 0; col < grid->column; ++col) {
-                const auto src_id = grid->cache[pos(0, col, grid->row)];
-                const auto dst_id =
-                  grid->cache[pos(grid->row - 1, col, grid->row)];
-
-                auto& c1 = mod.connections.alloc();
-                grid->cache_connections.emplace_back(
-                  mod.connections.get_id(c1));
-                c1.internal.src       = src_id;
-                c1.internal.index_src = 0;
-                c1.internal.dst       = dst_id;
-                c1.internal.index_dst = 0;
-
-                auto& c2 = mod.connections.alloc();
-                grid->cache_connections.emplace_back(
-                  mod.connections.get_id(c2));
-                c2.internal.src       = src_id;
-                c2.internal.index_src = 0;
-                c2.internal.dst       = dst_id;
-                c2.internal.index_dst = 0;
-            }
-        }
-    }
-
-    irt_return_if_bad(project_init(pj, mod, top));
-
-    return status::success;
+    return project_init(pj, mod, top);
 }
 
 static status make_tree_from(project&      pj,

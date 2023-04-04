@@ -468,6 +468,15 @@ struct modeling
     component& alloc_grid_component() noexcept;
     component& alloc_simple_component() noexcept;
 
+    //! For grid_component, build the real children and connections grid
+    //! based on default_chidren and specific_children vectors and
+    //! grid_component options (torus, cylinder etc.).
+    status build_grid_component_cache(grid_component& grid) noexcept;
+
+    //! Delete children and connections from @c modeling for the @c
+    //! grid_component cache.
+    void clear_grid_component_cache(grid_component& grid) noexcept;
+
     //! Checks if the child can be added to the parent to avoid recursive loop
     //! (ie. a component child which need the same component in sub-child).
     bool can_add(const component& parent,
@@ -481,6 +490,7 @@ struct modeling
     status copy(const simple_component& src, simple_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;
     status copy(const component& src, component& dst) noexcept;
+    status copy(grid_component& grid, simple_component& s) noexcept;
 
     /**
      * @brief Try to connect the component input port and a child (model or

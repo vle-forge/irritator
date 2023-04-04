@@ -376,6 +376,21 @@ public:
     int m_col = -1;
 };
 
+struct grid_editor_dialog
+{
+    constexpr static inline const char* name = "Grid generator";
+
+    grid_component    grid;
+    application*      app        = nullptr;
+    simple_component* compo      = nullptr;
+    bool              is_running = false;
+    bool              is_ok      = false;
+
+    void load(application* app, simple_component* compo) noexcept;
+    void save() noexcept;
+    void show() noexcept;
+};
+
 struct simulation_editor
 {
     constexpr static inline const char* name = "Simulation editor";
@@ -657,6 +672,8 @@ struct application
     output_editor     output_ed;
     hsm_editor        hsm_ed;
     data_window       data_ed;
+
+    grid_editor_dialog grid_dlg;
 
     settings_window settings_wnd;
     library_window  library_wnd;
