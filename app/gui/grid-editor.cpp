@@ -352,6 +352,9 @@ void grid_editor_dialog::show() noexcept
                   enum_cast<grid_component::type>(selected_type);
         }
 
+        app->component_sel.combobox("Default component",
+                                    &grid.default_children[0][0].id.compo_id);
+
         ImGui::EndChild();
 
         if (ImGui::Button("Ok", button_size)) {
