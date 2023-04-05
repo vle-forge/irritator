@@ -666,8 +666,9 @@ public:
 private:
     vector<component_id>      ids;
     vector<small_string<254>> names;
-    component_id              selected_id = undefined<component_id>();
-    small_string<254>         selected_name;
+
+    component_id      selected_id   = undefined<component_id>();
+    small_string<254> selected_name = "undefined";
 
     i16 files     = 0; //! Number of component in registred directories
     i16 internals = 0; //! Number of internal component

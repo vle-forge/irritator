@@ -840,6 +840,20 @@ static status load_component(modeling& mod, component& compo) noexcept
     return status::success;
 }
 
+status modeling::fill_internal_components() noexcept
+{
+    irt_return_if_fail(components.can_alloc(internal_component_count),
+                       status::modeling_too_many_file_open);
+
+    for (int i = 0, e = internal_component_count; i < e; ++i) {
+        auto& compo          = components.alloc();
+        compo.type           = component_type::internal;
+        compo.id.internal_id = i;
+    }
+
+    return status::success;
+}
+
 status modeling::fill_components() noexcept
 {
     prepare_component_loading(*this);
@@ -1763,18 +1777,6 @@ status modeling::copy(grid_component& grid, simple_component& s) noexcept
     std::copy_n(
       grid.cache.data(), grid.cache.size(), s.children.data() + children_size);
 
-    auto& none_component    = components.alloc();
-    auto  none_component_id = components.get_id(none_component);
-    none_component.type     = component_type::none;
-
-    // TODO fix this dirty part of code.
-    for (auto id : s.children) {
-        if (auto* child = children.try_to_get(id); child) {
-            child->type        = child_type::component;
-            child->id.compo_id = none_component_id;
-        }
-    }
-
     const auto connection_size = s.connections.size();
     s.connections.resize(connection_size + grid.cache_connections.size());
     std::copy_n(grid.cache_connections.data(),
@@ -1794,6 +1796,7 @@ status modeling::copy(internal_component src, component& dst) noexcept
 
     auto& s_compo    = simple_components.alloc();
     auto  s_compo_id = simple_components.get_id(s_compo);
+    dst.type         = component_type::simple;
     dst.id.simple_id = s_compo_id;
 
     switch (src) {

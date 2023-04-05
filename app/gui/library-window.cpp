@@ -10,81 +10,79 @@
 
 namespace irt {
 
-using component_popup =
-  std::variant<std::monostate, component*, internal_component>;
-
-static void show_component_popup_menu(irt::component_editor& ed,
-                                      component_popup        selection) noexcept
+static void show_component_popup_menu(application& app,
+                                      component&   selection) noexcept
 {
-    auto* app = container_of(&ed, &application::component_ed);
-
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New generic component")) {
-            auto& compo = app->mod.alloc_simple_component();
+            auto& compo = app.mod.alloc_simple_component();
 
-            if (app->generics.can_alloc()) {
-                auto& wnd = app->generics.alloc();
-                wnd.id    = app->mod.components.get_id(compo);
-                app->component_ed.request_to_open = wnd.id;
+            if (app.generics.can_alloc()) {
+                auto& wnd = app.generics.alloc();
+                wnd.id    = app.mod.components.get_id(compo);
+                app.component_ed.request_to_open = wnd.id;
+                app.component_sel.update();
             }
         }
 
         if (ImGui::MenuItem("New grid component")) {
-            auto& compo = app->mod.alloc_grid_component();
-            if (app->grids.can_alloc()) {
-                auto& wnd = app->grids.alloc();
-                wnd.id    = app->mod.components.get_id(compo);
-                app->component_ed.request_to_open = wnd.id;
+            auto& compo = app.mod.alloc_grid_component();
+            if (app.grids.can_alloc()) {
+                auto& wnd = app.grids.alloc();
+                wnd.id    = app.mod.components.get_id(compo);
+                app.component_ed.request_to_open = wnd.id;
+                app.component_sel.update();
             }
         }
 
-        if (auto** compo = std::get_if<component*>(&selection); compo) {
+        if (selection.type != component_type::internal) {
             if (ImGui::MenuItem("Copy")) {
-                if (app->mod.components.can_alloc()) {
-                    auto& new_c = app->mod.components.alloc();
+                if (app.mod.components.can_alloc()) {
+                    auto& new_c = app.mod.components.alloc();
                     new_c.type  = component_type::simple;
-                    new_c.name  = (*compo)->name;
+                    new_c.name  = selection.name;
                     new_c.state = component_status::modified;
-                    app->mod.copy(*(*compo), new_c);
+                    app.mod.copy(selection, new_c);
+                    app.component_sel.update();
                 } else {
-                    auto& n = app->notifications.alloc();
+                    auto& n = app.notifications.alloc();
                     n.level = log_level::error;
                     n.title = "Can not alloc a new component";
-                    app->notifications.enable(n);
+                    app.notifications.enable(n);
                 }
             }
 
             if (ImGui::MenuItem("Set at main project model")) {
                 tree_node_id out = undefined<tree_node_id>();
 
-                if (auto ret = project_init(app->pj, app->mod, **compo);
+                if (auto ret = project_init(app.pj, app.mod, selection);
                     is_bad(ret)) {
-                    auto& n = app->notifications.alloc();
+                    auto& n = app.notifications.alloc();
                     n.level = log_level::error;
                     n.title = "Fail to build tree";
-                    app->notifications.enable(n);
+                    app.notifications.enable(n);
                 } else {
-                    app->project_wnd.m_parent = out;
-                    app->project_wnd.m_compo =
-                      app->mod.components.get_id(**compo);
-                    app->simulation_ed.simulation_copy_modeling();
+                    app.project_wnd.m_parent = out;
+                    app.project_wnd.m_compo =
+                      app.mod.components.get_id(selection);
+                    app.simulation_ed.simulation_copy_modeling();
                 }
             }
-        }
-
-        if (auto* compo = std::get_if<internal_component>(&selection); compo) {
-            if (ImGui::MenuItem("Copy")) {
-                if (app->mod.components.can_alloc()) {
-                    auto& new_c = app->mod.components.alloc();
+        } else {
+            if (ImGui::MenuItem("Copy in generic component")) {
+                if (app.mod.components.can_alloc()) {
+                    auto& new_c = app.mod.components.alloc();
                     new_c.type  = component_type::simple;
-                    new_c.name  = internal_component_names[ordinal(*compo)];
+                    new_c.name =
+                      internal_component_names[selection.id.internal_id];
                     new_c.state = component_status::modified;
-                    app->mod.copy(*compo, new_c);
+                    app.mod.copy(selection, new_c);
+                    app.component_sel.update();
                 } else {
-                    auto& n = app->notifications.alloc();
+                    auto& n = app.notifications.alloc();
                     n.level = log_level::error;
                     n.title = "Can not alloc a new component";
-                    app->notifications.enable(n);
+                    app.notifications.enable(n);
                 }
             }
         }
@@ -166,6 +164,7 @@ static bool show_component(component_editor& ed,
                 new_c.name  = c.name;
                 new_c.state = component_status::modified;
                 app->mod.copy(c, new_c);
+                app->component_sel.update();
             } else {
                 auto& n = app->notifications.alloc();
                 n.level = log_level::error;
@@ -195,6 +194,7 @@ static bool show_component(component_editor& ed,
 
             app->mod.remove_file(reg, dir, file);
             app->mod.free(c);
+            app->component_sel.update();
             is_deleted = true;
         }
 
@@ -227,6 +227,26 @@ static bool show_component(component_editor& ed,
     return is_deleted;
 }
 
+static void show_internal_components(component_editor& ed) noexcept
+{
+    auto* app = container_of(&ed, &application::component_ed);
+
+    component* compo = nullptr;
+    while (app->mod.components.next(compo)) {
+        const auto is_internal = compo->type == component_type::internal;
+
+        if (is_internal) {
+            const auto id = app->mod.components.get_id(*compo);
+
+            ImGui::PushID(compo);
+            ImGui::Selectable(internal_component_names[compo->id.internal_id]);
+            ImGui::PopID();
+
+            show_component_popup_menu(*app, *compo);
+        }
+    }
+}
+
 static void show_notsaved_components(irt::component_editor& ed,
                                      irt::tree_node*        head) noexcept
 {
@@ -235,6 +255,7 @@ static void show_notsaved_components(irt::component_editor& ed,
     component* compo = nullptr;
     while (app->mod.components.next(compo)) {
         const auto is_not_saved =
+          compo->type != component_type::internal &&
           app->mod.file_paths.try_to_get(compo->file) == nullptr;
 
         if (is_not_saved) {
@@ -247,18 +268,8 @@ static void show_notsaved_components(irt::component_editor& ed,
             }
             ImGui::PopID();
 
-            show_component_popup_menu(ed, compo);
+            show_component_popup_menu(*app, *compo);
         }
-    }
-}
-
-static void show_internal_components(irt::component_editor& ed) noexcept
-{
-    constexpr int nb = length(internal_component_names);
-    for (int i = 0; i < nb; ++i) {
-        ImGui::Selectable(internal_component_names[i]);
-
-        show_component_popup_menu(ed, enum_cast<internal_component>(i));
     }
 }
 
@@ -302,15 +313,35 @@ static void show_dirpath_component(irt::component_editor& ed,
 static void show_component_library(component_editor& c_editor,
                                    irt::tree_node*   tree) noexcept
 {
+    auto* app = container_of(&c_editor, &application::component_ed);
+    if (ImGui::Button("+grid")) {
+        auto& compo = app->mod.alloc_grid_component();
+
+        if (app->grids.can_alloc()) {
+            auto& wnd = app->grids.alloc();
+            wnd.id    = app->mod.components.get_id(compo);
+            app->component_ed.request_to_open = wnd.id;
+            app->component_sel.update();
+        }
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("+component")) {
+        auto& compo = app->mod.alloc_simple_component();
+
+        if (app->generics.can_alloc()) {
+            auto& wnd = app->generics.alloc();
+            wnd.id    = app->mod.components.get_id(compo);
+            app->component_ed.request_to_open = wnd.id;
+            app->component_sel.update();
+        }
+    }
+
     if (ImGui::CollapsingHeader("Component library",
                                 ImGuiTreeNodeFlags_CollapsingHeader |
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
         auto* app = container_of(&c_editor, &application::component_ed);
-
-        if (ImGui::TreeNodeEx("Internal")) {
-            show_internal_components(c_editor);
-            ImGui::TreePop();
-        }
 
         for (auto id : app->mod.component_repertories) {
             small_string<32>  s;
@@ -347,6 +378,11 @@ static void show_component_library(component_editor& c_editor,
             ImGui::PopID();
         }
 
+        if (ImGui::TreeNodeEx("Internal", ImGuiTreeNodeFlags_DefaultOpen)) {
+            show_internal_components(c_editor);
+            ImGui::TreePop();
+        }
+
         if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
             show_notsaved_components(c_editor, tree);
             ImGui::TreePop();
@@ -367,10 +403,8 @@ void library_window::show() noexcept
 
     show_component_library(app->component_ed, tree);
 
-    // @TODO hidden part. Need to be fix to enable configure/observation of
-    // project.
-    // ImGui::Separator();
-    // show_input_output(*this);
+    // @TODO hidden part. Need to be fix to enable configure/observation
+    // of project. ImGui::Separator(); show_input_output(*this);
     // ImGui::Separator();
     // show_selected_children(*this);
 

@@ -140,13 +140,12 @@ bool application::init() noexcept
         return false;
     }
 
-    // if (auto ret = component_ed.mod.fill_internal_components(); is_bad(ret))
-    // {
-    //     log_w(*this,
-    //           log_level::error,
-    //           "Fail to fill component list: {}\n",
-    //           status_string(ret));
-    // }
+    if (auto ret = mod.fill_internal_components(); is_bad(ret)) {
+        log_w(*this,
+              log_level::error,
+              "Fail to fill internal component list: {}\n",
+              status_string(ret));
+    }
 
     if (auto ret = grids.init(32); is_bad(ret)) {
         log_w(*this,
@@ -165,7 +164,9 @@ bool application::init() noexcept
     }
 
     mod.fill_components();
+
     project_wnd.selected_component = undefined<tree_node_id>();
+    component_sel.update();
 
     // @TODO at beggining, open a default generic component ?
     // auto id = component_ed.add_generic_component();
@@ -540,25 +541,35 @@ void component_selector::update() noexcept
 
     files = ids.size();
 
-    constexpr int nb = length(internal_component_names);
-    for (int i = 0; i < nb; ++i) {
-        ids.emplace_back(undefined<component_id>()); // @TODO Fixme
-        auto& str = names.emplace_back();
-        component_selector_make_selected_name(internal_component_names[i], str);
+    {
+        component* compo = nullptr;
+        while (mod.components.next(compo)) {
+            if (compo->type == component_type::internal) {
+                auto id = mod.components.get_id(*compo);
+                ids.emplace_back(id);
+                auto& str = names.emplace_back();
+                component_selector_make_selected_name(
+                  internal_component_names[compo->id.internal_id], str);
+            }
+        }
     }
 
     internals = ids.size() - files;
 
-    component* compo = nullptr;
-    while (mod.components.next(compo)) {
-        const auto is_not_saved =
-          mod.file_paths.try_to_get(compo->file) == nullptr;
+    {
+        component* compo = nullptr;
+        while (mod.components.next(compo)) {
+            const auto is_not_saved =
+              compo->type != component_type::internal &&
+              mod.file_paths.try_to_get(compo->file) == nullptr;
 
-        if (is_not_saved) {
-            auto id = mod.components.get_id(*compo);
-            ids.emplace_back(id);
-            auto& str = names.emplace_back();
-            component_selector_make_selected_name(compo->name.sv(), id, str);
+            if (is_not_saved) {
+                auto id = mod.components.get_id(*compo);
+                ids.emplace_back(id);
+                auto& str = names.emplace_back();
+                component_selector_make_selected_name(
+                  compo->name.sv(), id, str);
+            }
         }
     }
 
