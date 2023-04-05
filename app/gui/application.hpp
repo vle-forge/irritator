@@ -656,6 +656,24 @@ struct memory_window
     bool is_open = false;
 };
 
+class component_selector
+{
+public:
+    void update() noexcept;
+    bool combobox(const char* label, component_id* new_selected) noexcept;
+    bool menu(const char* label, component_id* new_selected) noexcept;
+
+private:
+    vector<component_id>      ids;
+    vector<small_string<254>> names;
+    component_id              selected_id = undefined<component_id>();
+    small_string<254>         selected_name;
+
+    i16 files     = 0; //! Number of component in registred directories
+    i16 internals = 0; //! Number of internal component
+    i16 unsaved   = 0; //! Number of unsaved component
+};
+
 struct application
 {
     application() noexcept;
@@ -664,6 +682,8 @@ struct application
     modeling   mod;
     simulation sim;
     project    pj;
+
+    component_selector component_sel;
 
     project_window project_wnd;
 

@@ -425,6 +425,222 @@ static void application_show_windows(application& app) noexcept
         app.preview_wnd.show();
 }
 
+static void component_selector_make_selected_name(
+  small_string<254>& name) noexcept
+{
+    name = "undefined";
+}
+
+static void component_selector_make_selected_name(
+  std::string_view   reg,
+  std::string_view   dir,
+  std::string_view   file,
+  component&         compo,
+  component_id       id,
+  small_string<254>& name) noexcept
+{
+    if (compo.name.empty()) {
+        format(name, "{}/{}/{}/unamed {}", reg, dir, file, ordinal(id));
+    } else {
+        format(name, "{}/{}/{}/{}", reg, dir, file, compo.name.sv());
+    }
+}
+
+static void component_selector_make_selected_name(
+  std::string_view   component_name,
+  small_string<254>& name) noexcept
+{
+    format(name, "internal {}", component_name);
+}
+
+static void component_selector_make_selected_name(
+  std::string_view   component_name,
+  component_id       id,
+  small_string<254>& name) noexcept
+{
+    if (component_name.empty()) {
+        format(name, "unamed {} (unsaved)", ordinal(id));
+    } else {
+        format(name, "{} (unsaved)", component_name);
+    }
+}
+
+static void component_selector_select(modeling&          mod,
+                                      component_id       id,
+                                      small_string<254>& name) noexcept
+{
+    component_selector_make_selected_name(name);
+
+    if (auto* compo = mod.components.try_to_get(id); compo) {
+        if (compo->type == component_type::internal) {
+            component_selector_make_selected_name(
+              internal_component_names[compo->id.internal_id], name);
+        } else {
+            if (auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
+                reg) {
+                if (auto* dir = mod.dir_paths.try_to_get(compo->dir); dir) {
+                    if (auto* file = mod.file_paths.try_to_get(compo->file);
+                        file) {
+                        component_selector_make_selected_name(reg->name.sv(),
+                                                              dir->path.sv(),
+                                                              file->path.sv(),
+                                                              *compo,
+                                                              id,
+                                                              name);
+                    }
+                }
+            }
+
+            component_selector_make_selected_name(compo->name.sv(), id, name);
+        }
+    }
+}
+
+void component_selector::update() noexcept
+{
+    auto* app = container_of(this, &application::component_sel);
+    auto& mod = app->mod;
+
+    ids.clear();
+    names.clear();
+    files     = 0;
+    internals = 0;
+    unsaved   = 0;
+
+    ids.emplace_back(undefined<component_id>());
+    component_selector_make_selected_name(names.emplace_back());
+
+    for (auto id : mod.component_repertories) {
+        if (auto* reg = mod.registred_paths.try_to_get(id); reg) {
+            for (auto dir_id : reg->children) {
+                if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
+                    for (auto file_id : dir->children) {
+                        if (auto* file = mod.file_paths.try_to_get(file_id);
+                            file) {
+                            if (auto* compo =
+                                  mod.components.try_to_get(file->component);
+                                compo) {
+                                ids.emplace_back(file->component);
+                                auto& str = names.emplace_back();
+
+                                component_selector_make_selected_name(
+                                  reg->name.sv(),
+                                  dir->path.sv(),
+                                  file->path.sv(),
+                                  *compo,
+                                  file->component,
+                                  str);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    files = ids.size();
+
+    constexpr int nb = length(internal_component_names);
+    for (int i = 0; i < nb; ++i) {
+        ids.emplace_back(undefined<component_id>()); // @TODO Fixme
+        auto& str = names.emplace_back();
+        component_selector_make_selected_name(internal_component_names[i], str);
+    }
+
+    internals = ids.size() - files;
+
+    component* compo = nullptr;
+    while (mod.components.next(compo)) {
+        const auto is_not_saved =
+          mod.file_paths.try_to_get(compo->file) == nullptr;
+
+        if (is_not_saved) {
+            auto id = mod.components.get_id(*compo);
+            ids.emplace_back(id);
+            auto& str = names.emplace_back();
+            component_selector_make_selected_name(compo->name.sv(), id, str);
+        }
+    }
+
+    unsaved = ids.size() - internals - files;
+}
+
+bool component_selector::combobox(const char*   label,
+                                  component_id* new_selected) noexcept
+{
+    if (*new_selected != selected_id) {
+        auto* app   = container_of(this, &application::component_sel);
+        selected_id = *new_selected;
+
+        component_selector_select(app->mod, selected_id, selected_name);
+    }
+
+    bool ret = false;
+
+    if (ImGui::BeginCombo(label, selected_name.c_str())) {
+        for (sz i = 0, e = ids.size(); i != e; ++i) {
+            if (ImGui::Selectable(names[i].c_str(), ids[i] == *new_selected)) {
+                *new_selected = ids[i];
+                ret           = true;
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+
+    return ret;
+}
+
+bool component_selector::menu(const char*   label,
+                              component_id* new_selected) noexcept
+{
+    if (*new_selected != selected_id) {
+        auto* app   = container_of(this, &application::component_sel);
+        selected_id = *new_selected;
+
+        component_selector_select(app->mod, selected_id, selected_name);
+    }
+
+    bool ret = false;
+
+    if (ImGui::BeginMenu(label)) {
+        if (ImGui::BeginMenu("Files components")) {
+            for (int i = 0, e = files; i < e; ++i) {
+                if (ImGui::MenuItem(names[i].c_str())) {
+                    ret           = true;
+                    *new_selected = ids[i];
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Internal components")) {
+            for (int i = files, e = files + internals; i < e; ++i) {
+                if (ImGui::MenuItem(names[i].c_str())) {
+                    ret           = true;
+                    *new_selected = ids[i];
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Unsaved components")) {
+            for (int i = files + internals, e = ids.size(); i < e; ++i) {
+                if (ImGui::MenuItem(names[i].c_str())) {
+                    ret           = true;
+                    *new_selected = ids[i];
+                }
+            }
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenu();
+    }
+
+    return ret;
+}
+
 void application::show() noexcept
 {
 #ifdef IRRITATOR_USE_TTF
