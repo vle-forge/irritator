@@ -129,49 +129,28 @@ static void show_default_grid(component_editor& ed,
     auto* app = container_of(&ed, &application::component_ed);
     auto& mod = app->mod;
 
-    component_id found       = undefined<component_id>();
-    bool         need_change = false;
-
     ImGui::BeginChild("Editor", ImVec2(0, height));
 
-    for (int row = 0; row < 3; ++row) {
-        for (int col = 0; col < 3; ++col) {
-            if (ImGui::Selectable(node_name[row * 3 + col],
-                                  data.m_row == row && data.m_col == col)) {
-                data.m_row = row;
-                data.m_col = col;
-            }
+    app->component_sel.combobox(
+      "top-left", &data.m_grid.default_children[0][0].id.compo_id);
+    app->component_sel.combobox(
+      "top", &data.m_grid.default_children[0][1].id.compo_id);
+    app->component_sel.combobox(
+      "top right", &data.m_grid.default_children[0][2].id.compo_id);
 
-            if (auto sel = show_popup_menu_components(mod); sel.second) {
-                data.m_row  = row;
-                data.m_col  = col;
-                found       = sel.first;
-                need_change = true;
-            }
+    app->component_sel.combobox(
+      "left", &data.m_grid.default_children[1][0].id.compo_id);
+    app->component_sel.combobox(
+      "middle", &data.m_grid.default_children[1][1].id.compo_id);
+    app->component_sel.combobox(
+      "right", &data.m_grid.default_children[1][1].id.compo_id);
 
-            ImGui::SameLine();
-
-            auto& ch = data.m_grid.default_children[row][col];
-            if (ch.type == child_type::model) {
-                if (is_defined(ch.id.mdl_id))
-                    ImGui::TextFormat("model {}", ordinal(ch.id.mdl_id));
-                else
-                    ImGui::TextUnformatted("-");
-            } else {
-                if (is_defined(ch.id.compo_id))
-                    ImGui::TextFormat("component {}", ordinal(ch.id.compo_id));
-                else
-                    ImGui::TextUnformatted("-");
-            }
-        }
-    }
-
-    if (need_change) {
-        auto& ch = data.m_grid.default_children[data.m_row][data.m_col];
-        mod.free(ch);
-        ch.type        = child_type::component;
-        ch.id.compo_id = found;
-    }
+    app->component_sel.combobox(
+      "bottom-left", &data.m_grid.default_children[2][0].id.compo_id);
+    app->component_sel.combobox(
+      "bottom", &data.m_grid.default_children[2][1].id.compo_id);
+    app->component_sel.combobox(
+      "bottom right", &data.m_grid.default_children[2][2].id.compo_id);
 
     ImGui::EndChild();
 }
@@ -195,16 +174,16 @@ static void show_grid(grid_editor_data& data, float height) noexcept
         upper_left.x  = p.x + 10.f * static_cast<float>(row);
         lower_right.x = p.x + 10.f * static_cast<float>(row) + 8.f;
 
+        if (row == 0)
+            y = 0;
+        else if (1 <= row && row + 1 < data.m_grid.row)
+            y = 1;
+        else
+            y = 2;
+
         for (int col = 0; col < data.m_grid.column; ++col) {
             upper_left.y  = p.y + 10.f * static_cast<float>(col);
             lower_right.y = p.y + 10.f * static_cast<float>(col) + 8.f;
-
-            if (row == 0)
-                y = 0;
-            else if (1 <= row && row + 1 < data.m_grid.row)
-                y = 1;
-            else
-                y = 2;
 
             if (col == 0)
                 x = 0;
