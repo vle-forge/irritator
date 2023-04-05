@@ -674,6 +674,7 @@ struct application
     data_window       data_ed;
 
     grid_editor_dialog grid_dlg;
+    file_dialog        f_dialog;
 
     settings_window settings_wnd;
     library_window  library_wnd;
@@ -700,8 +701,6 @@ struct application
     modeling_initializer mod_init;
 
     notification_manager notifications;
-
-    file_dialog f_dialog;
 
 #ifdef IRRITATOR_USE_TTF
     ImFont* ttf = nullptr;
