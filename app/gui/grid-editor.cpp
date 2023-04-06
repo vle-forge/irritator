@@ -273,8 +273,8 @@ void grid_editor_data::show(component_editor& ed) noexcept
     }
 }
 
-void grid_editor_dialog::load(application*      app_,
-                              simple_component* compo_) noexcept
+void grid_editor_dialog::load(application*       app_,
+                              generic_component* compo_) noexcept
 {
     app        = app_;
     compo      = compo_;

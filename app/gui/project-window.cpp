@@ -50,10 +50,11 @@ void project_window::clear() noexcept
     do_clear(app->pj, *this);
 }
 
-static void show_project_hierarchy_child_observable(modeling&  mod,
-                                                    tree_node& parent,
-                                                    simple_component& /*compo*/,
-                                                    child& ch) noexcept
+static void show_project_hierarchy_child_observable(
+  modeling&  mod,
+  tree_node& parent,
+  generic_component& /*compo*/,
+  child& ch) noexcept
 {
     if (ch.type == child_type::model) {
         if (auto* mdl = mod.models.try_to_get(ch.id.mdl_id); mdl) {
@@ -86,7 +87,7 @@ static void show_project_hierarchy_child_configuration(
   component_editor& ed,
   tree_node&        parent,
   component&        compo,
-  simple_component& /*s_compo*/,
+  generic_component& /*s_compo*/,
   child& ch) noexcept
 {
     auto* app = container_of(&ed, &application::component_ed);

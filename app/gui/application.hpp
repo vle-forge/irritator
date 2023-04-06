@@ -380,13 +380,13 @@ struct grid_editor_dialog
 {
     constexpr static inline const char* name = "Grid generator";
 
-    grid_component    grid;
-    application*      app        = nullptr;
-    simple_component* compo      = nullptr;
-    bool              is_running = false;
-    bool              is_ok      = false;
+    grid_component     grid;
+    application*       app        = nullptr;
+    generic_component* compo      = nullptr;
+    bool               is_running = false;
+    bool               is_ok      = false;
 
-    void load(application* app, simple_component* compo) noexcept;
+    void load(application* app, generic_component* compo) noexcept;
     void save() noexcept;
     void show() noexcept;
 };

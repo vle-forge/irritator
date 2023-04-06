@@ -26,7 +26,7 @@ enum class alloc_parameter
 template<typename Dynamics>
 std::pair<Dynamics*, child_id> alloc(
   modeling&              mod,
-  simple_component&      parent,
+  generic_component&     parent,
   const std::string_view name  = {},
   alloc_parameter        param = alloc_parameter::none) noexcept
 {
@@ -46,12 +46,12 @@ std::pair<Dynamics*, child_id> alloc(
 }
 
 template<typename DynamicsSrc, typename DynamicsDst>
-status connect(modeling&         mod,
-               simple_component& c,
-               DynamicsSrc&      src,
-               i8                port_src,
-               DynamicsDst&      dst,
-               i8                port_dst) noexcept
+status connect(modeling&          mod,
+               generic_component& c,
+               DynamicsSrc&       src,
+               i8                 port_src,
+               DynamicsDst&       dst,
+               i8                 port_dst) noexcept
 {
     model& src_model = get_model(*src.first);
     model& dst_model = get_model(*dst.first);
@@ -65,10 +65,10 @@ status connect(modeling&         mod,
     return status::success;
 }
 
-status add_integrator_component_port(modeling&         mod,
-                                     simple_component& com,
-                                     child_id          id,
-                                     i8                port) noexcept
+status add_integrator_component_port(modeling&          mod,
+                                     generic_component& com,
+                                     child_id           id,
+                                     i8                 port) noexcept
 {
     irt_return_if_bad(mod.connect_input(com, port, id, 1));
     irt_return_if_bad(mod.connect_output(com, id, 0, port));
@@ -77,7 +77,7 @@ status add_integrator_component_port(modeling&         mod,
 }
 
 template<int QssLevel>
-status add_lotka_volterra(modeling& mod, simple_component& com) noexcept
+status add_lotka_volterra(modeling& mod, generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -123,7 +123,7 @@ status add_lotka_volterra(modeling& mod, simple_component& com) noexcept
 }
 
 template<int QssLevel>
-status add_lif(modeling& mod, simple_component& com) noexcept
+status add_lif(modeling& mod, generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -168,7 +168,7 @@ status add_lif(modeling& mod, simple_component& com) noexcept
 }
 
 template<int QssLevel>
-status add_izhikevich(modeling& mod, simple_component& com) noexcept
+status add_izhikevich(modeling& mod, generic_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = mod.models.can_alloc(12);
@@ -256,7 +256,7 @@ status add_izhikevich(modeling& mod, simple_component& com) noexcept
 }
 
 template<int QssLevel>
-status add_van_der_pol(modeling& mod, simple_component& com) noexcept
+status add_van_der_pol(modeling& mod, generic_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = mod.models.can_alloc(5);
@@ -299,7 +299,7 @@ status add_van_der_pol(modeling& mod, simple_component& com) noexcept
 }
 
 template<int QssLevel>
-status add_negative_lif(modeling& mod, simple_component& com) noexcept
+status add_negative_lif(modeling& mod, generic_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = mod.models.can_alloc(5);
@@ -344,7 +344,7 @@ status add_negative_lif(modeling& mod, simple_component& com) noexcept
 }
 
 template<int QssLevel>
-status add_seirs(modeling& mod, simple_component& com) noexcept
+status add_seirs(modeling& mod, generic_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = mod.models.can_alloc(17);
@@ -1104,11 +1104,11 @@ bool modeling::can_add(const component& parent,
     return false;
 }
 
-static bool is_ports_compatible(modeling&         mod,
-                                model&            mdl_src,
-                                i8                port_src,
-                                simple_component& compo_dst,
-                                i8                port_dst) noexcept
+static bool is_ports_compatible(modeling&          mod,
+                                model&             mdl_src,
+                                i8                 port_src,
+                                generic_component& compo_dst,
+                                i8                 port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -1137,11 +1137,11 @@ static bool is_ports_compatible(modeling&         mod,
     return is_compatible;
 }
 
-static bool is_ports_compatible(modeling&         mod,
-                                simple_component& compo_src,
-                                i8                port_src,
-                                model&            mdl_dst,
-                                i8                port_dst) noexcept
+static bool is_ports_compatible(modeling&          mod,
+                                generic_component& compo_src,
+                                i8                 port_src,
+                                model&             mdl_dst,
+                                i8                 port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -1171,11 +1171,11 @@ static bool is_ports_compatible(modeling&         mod,
     return is_compatible;
 }
 
-static bool is_ports_compatible(modeling&         mod,
-                                simple_component& compo_src,
-                                i8                port_src,
-                                simple_component& compo_dst,
-                                i8                port_dst) noexcept
+static bool is_ports_compatible(modeling&          mod,
+                                generic_component& compo_src,
+                                i8                 port_src,
+                                generic_component& compo_dst,
+                                i8                 port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -1209,7 +1209,7 @@ static bool is_ports_compatible(modeling&         mod,
 }
 
 static bool is_ports_compatible(modeling& mod,
-                                simple_component& /*parent*/,
+                                generic_component& /*parent*/,
                                 child_id src,
                                 i8       port_src,
                                 child_id dst,
@@ -1269,10 +1269,10 @@ static bool is_ports_compatible(modeling& mod,
     }
 }
 
-status modeling::connect_input(simple_component& parent,
-                               i8                port_src,
-                               child_id          dst,
-                               i8                port_dst) noexcept
+status modeling::connect_input(generic_component& parent,
+                               i8                 port_src,
+                               child_id           dst,
+                               i8                 port_dst) noexcept
 {
     irt_return_if_fail(connections.can_alloc(),
                        status::simulation_not_enough_connection);
@@ -1302,10 +1302,10 @@ status modeling::connect_input(simple_component& parent,
     return status::success;
 }
 
-status modeling::connect_output(simple_component& parent,
-                                child_id          src,
-                                i8                port_src,
-                                i8                port_dst) noexcept
+status modeling::connect_output(generic_component& parent,
+                                child_id           src,
+                                i8                 port_src,
+                                i8                 port_dst) noexcept
 {
     irt_return_if_fail(connections.can_alloc(),
                        status::simulation_not_enough_connection);
@@ -1335,11 +1335,11 @@ status modeling::connect_output(simple_component& parent,
     return status::success;
 }
 
-status modeling::connect(simple_component& parent,
-                         child_id          src,
-                         i8                port_src,
-                         child_id          dst,
-                         i8                port_dst) noexcept
+status modeling::connect(generic_component& parent,
+                         child_id           src,
+                         i8                 port_src,
+                         child_id           dst,
+                         i8                 port_dst) noexcept
 {
     irt_return_if_fail(connections.can_alloc(1),
                        status::data_array_not_enough_memory);
@@ -1426,7 +1426,7 @@ void modeling::free(component& compo) noexcept
     components.free(compo);
 }
 
-child& modeling::alloc(simple_component& parent, component_id id) noexcept
+child& modeling::alloc(generic_component& parent, component_id id) noexcept
 {
     irt_assert(children.can_alloc());
 
@@ -1440,7 +1440,7 @@ child& modeling::alloc(simple_component& parent, component_id id) noexcept
     return child;
 }
 
-child& modeling::alloc(simple_component& parent, dynamics_type type) noexcept
+child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
 {
     irt_assert(models.can_alloc());
     irt_assert(children.can_alloc());
@@ -1479,7 +1479,7 @@ child& modeling::alloc(simple_component& parent, dynamics_type type) noexcept
     return child;
 }
 
-child& modeling::alloc(simple_component& parent, model_id id) noexcept
+child& modeling::alloc(generic_component& parent, model_id id) noexcept
 {
     irt_assert(children.can_alloc());
 
@@ -1711,8 +1711,8 @@ status modeling::copy(const child& src, child& dst) noexcept
     return status::success;
 }
 
-status modeling::copy(const simple_component& src,
-                      simple_component&       dst) noexcept
+status modeling::copy(const generic_component& src,
+                      generic_component&       dst) noexcept
 {
     table<child_id, child_id> mapping;
 
@@ -1768,7 +1768,7 @@ status modeling::copy(const simple_component& src,
     return status::success;
 }
 
-status modeling::copy(grid_component& grid, simple_component& s) noexcept
+status modeling::copy(grid_component& grid, generic_component& s) noexcept
 {
     irt_return_if_bad(build_grid_component_cache(grid));
 

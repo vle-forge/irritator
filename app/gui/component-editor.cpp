@@ -304,10 +304,10 @@ static void show(component_editor& ed,
 
 static void show(component_editor& ed,
                  component_editor_data& /*data*/,
-                 component&        compo,
-                 simple_component& s_compo,
-                 child&            c,
-                 child_id          id) noexcept
+                 component&         compo,
+                 generic_component& s_compo,
+                 child&             c,
+                 child_id           id) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
@@ -420,7 +420,7 @@ static void show(component_editor& ed,
 static void show_graph(component_editor&      ed,
                        component_editor_data& data,
                        component&             parent,
-                       simple_component&      s_parent) noexcept
+                       generic_component&     s_parent) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
@@ -567,11 +567,11 @@ static void show_graph(component_editor&      ed,
     }
 }
 
-static void add_popup_menuitem(component_editor& ed,
-                               component&        parent,
-                               simple_component& s_parent,
-                               dynamics_type     type,
-                               ImVec2            click_pos)
+static void add_popup_menuitem(component_editor&  ed,
+                               component&         parent,
+                               generic_component& s_parent,
+                               dynamics_type      type,
+                               ImVec2             click_pos)
 {
     auto* app = container_of(&ed, &application::component_ed);
 
@@ -599,18 +599,18 @@ static void add_popup_menuitem(component_editor& ed,
     }
 }
 
-static void add_popup_menuitem(component_editor& ed,
-                               component&        parent,
-                               simple_component& s_parent,
-                               int               type,
-                               ImVec2            click_pos)
+static void add_popup_menuitem(component_editor&  ed,
+                               component&         parent,
+                               generic_component& s_parent,
+                               int                type,
+                               ImVec2             click_pos)
 {
     auto d_type = enum_cast<dynamics_type>(type);
     add_popup_menuitem(ed, parent, s_parent, d_type, click_pos);
 }
 
-static void compute_grid_layout(settings_window&  settings,
-                                simple_component& s_compo) noexcept
+static void compute_grid_layout(settings_window&   settings,
+                                generic_component& s_compo) noexcept
 {
     auto*      app   = container_of(&settings, &application::settings_wnd);
     const auto size  = s_compo.children.ssize();
@@ -664,11 +664,11 @@ static void compute_grid_layout(settings_window&  settings,
     }
 }
 
-static status add_component_to_current(component_editor& ed,
-                                       component&        parent,
-                                       simple_component& parent_compo,
-                                       component&        compo_to_add,
-                                       ImVec2            click_pos = ImVec2())
+static status add_component_to_current(component_editor&  ed,
+                                       component&         parent,
+                                       generic_component& parent_compo,
+                                       component&         compo_to_add,
+                                       ImVec2             click_pos = ImVec2())
 {
     auto*      app             = container_of(&ed, &application::component_ed);
     const auto compo_to_add_id = app->mod.components.get_id(compo_to_add);
@@ -696,9 +696,9 @@ static status add_component_to_current(component_editor& ed,
 }
 
 static void show_popup_all_component_menuitem(
-  component_editor& ed,
-  component&        parent,
-  simple_component& s_parent) noexcept
+  component_editor&  ed,
+  component&         parent,
+  generic_component& s_parent) noexcept
 {
     auto* app = container_of(&ed, &application::component_ed);
 
@@ -776,7 +776,7 @@ static void show_popup_all_component_menuitem(
 static void show_popup_menuitem(component_editor&      ed,
                                 component_editor_data& data,
                                 component&             parent,
-                                simple_component&      s_parent) noexcept
+                                generic_component&     s_parent) noexcept
 {
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
@@ -1175,8 +1175,8 @@ static void show_popup_menuitem(component_editor&      ed,
 
 static void is_link_created(application& app,
                             component_editor_data& /*data*/,
-                            component&        parent,
-                            simple_component& s_parent) noexcept
+                            component&         parent,
+                            generic_component& s_parent) noexcept
 {
     int start = 0, end = 0;
     if (ImNodes::IsLinkCreated(&start, &end)) {
@@ -1254,7 +1254,7 @@ static void is_link_created(application& app,
 
 static void is_link_destroyed(modeling&  mod,
                               component& parent,
-                              simple_component& /*s_parent*/) noexcept
+                              generic_component& /*s_parent*/) noexcept
 {
     int link_id;
     if (ImNodes::IsLinkDestroyed(&link_id)) {
@@ -1287,7 +1287,7 @@ static void remove_nodes(modeling&              mod,
 static void remove_links(modeling&              mod,
                          component_editor_data& data,
                          component&             parent,
-                         simple_component& /*s_parent*/) noexcept
+                         generic_component& /*s_parent*/) noexcept
 {
     std::sort(data.selected_links.begin(),
               data.selected_links.end(),
@@ -1322,7 +1322,7 @@ static void remove_component_input_output(ImVector<int>& v) noexcept
 static void show_component_editor(component_editor&      ed,
                                   component_editor_data& data,
                                   component&             compo,
-                                  simple_component&      s_compo) noexcept
+                                  generic_component&     s_compo) noexcept
 {
     auto* app = container_of(&ed, &application::component_ed);
 

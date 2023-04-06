@@ -1800,7 +1800,7 @@ static auto read_child(json_cache&             cache,
 
 static status read_children(json_cache&             cache,
                             modeling&               mod,
-                            simple_component&       s_compo,
+                            generic_component&      s_compo,
                             const rapidjson::Value& val) noexcept
 {
     auto it = val.FindMember("children");
@@ -1874,7 +1874,7 @@ static status read_ports(component& compo, const rapidjson::Value& val) noexcept
 
 static status read_connections(json_cache&             cache,
                                modeling&               mod,
-                               simple_component&       s_compo,
+                               generic_component&      s_compo,
                                const rapidjson::Value& val) noexcept
 {
     auto it = val.FindMember("connections");
@@ -2469,9 +2469,9 @@ static void write_child(const modeling& mod,
 template<typename Writer>
 static void write_simple_component_children(
   json_cache& /*cache*/,
-  const modeling&         mod,
-  const simple_component& simple_compo,
-  Writer&                 w) noexcept
+  const modeling&          mod,
+  const generic_component& simple_compo,
+  Writer&                  w) noexcept
 {
     w.Key("children");
     w.StartArray();
@@ -2508,8 +2508,8 @@ static void write_component_ports(json_cache& /*cache*/,
 
 template<typename Writer>
 static void write_simple_component_connections(json_cache& /*cache*/,
-                                               const modeling&         mod,
-                                               const simple_component& compo,
+                                               const modeling&          mod,
+                                               const generic_component& compo,
                                                Writer& w) noexcept
 {
     w.Key("connections");
@@ -2561,10 +2561,10 @@ static void write_simple_component_connections(json_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_simple_component(json_cache&             cache,
-                                   const modeling&         mod,
-                                   const simple_component& s_compo,
-                                   Writer&                 w) noexcept
+static void write_simple_component(json_cache&              cache,
+                                   const modeling&          mod,
+                                   const generic_component& s_compo,
+                                   Writer&                  w) noexcept
 {
     write_simple_component_children(cache, mod, s_compo, w);
     write_simple_component_connections(cache, mod, s_compo, w);

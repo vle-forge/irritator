@@ -15,10 +15,10 @@ static status make_tree_recursive(project&   pj,
                                   component& compo,
                                   child_id   id_in_parent) noexcept;
 
-static status make_tree_recursive(project&          pj,
-                                  modeling&         mod,
-                                  tree_node&        new_tree,
-                                  simple_component& src) noexcept
+static status make_tree_recursive(project&           pj,
+                                  modeling&          mod,
+                                  tree_node&         new_tree,
+                                  generic_component& src) noexcept
 {
     for (auto child_id : src.children) {
         auto* child        = mod.children.try_to_get(child_id);
@@ -215,7 +215,7 @@ static status simulation_copy_simple_model(modeling&               mod,
                                            modeling_to_simulation& cache,
                                            simulation&             sim,
                                            tree_node&              tree,
-                                           simple_component&       src) noexcept
+                                           generic_component&      src) noexcept
 {
     irt_assert(tree.children.empty());
 
@@ -417,7 +417,7 @@ struct model_to_component_connect
 
 static auto input_connect(modeling&                   mod,
                           model_to_component_connect& ic,
-                          simple_component&           compo,
+                          generic_component&          compo,
                           tree_node&                  tree,
                           i8 port_dst) noexcept -> status
 {
@@ -452,7 +452,7 @@ static auto input_connect(modeling&                   mod,
 
 static auto output_connect(modeling&                   mod,
                            model_to_component_connect& ic,
-                           simple_component&           compo,
+                           generic_component&          compo,
                            tree_node&                  tree,
                            i8 port_dst) noexcept -> status
 {
@@ -488,7 +488,7 @@ static auto output_connect(modeling&                   mod,
 static auto get_input_model_from_component(modeling&               mod,
                                            modeling_to_simulation& cache,
                                            simulation&             sim,
-                                           simple_component&       compo,
+                                           generic_component&      compo,
                                            tree_node&              tree,
                                            i8 port) noexcept -> status
 {
@@ -526,7 +526,7 @@ static auto get_input_model_from_component(modeling&               mod,
 static auto get_output_model_from_component(modeling&               mod,
                                             modeling_to_simulation& cache,
                                             simulation&             sim,
-                                            simple_component&       compo,
+                                            generic_component&      compo,
                                             tree_node&              tree,
                                             i8 port) noexcept -> status
 {
@@ -565,7 +565,7 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                           modeling&               mod,
                                           simulation&             sim,
                                           tree_node&              tree,
-                                          simple_component&       compo)
+                                          generic_component&      compo)
 {
     for (auto connection_id : compo.connections) {
         auto* con = mod.connections.try_to_get(connection_id);

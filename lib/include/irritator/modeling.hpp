@@ -100,7 +100,7 @@ enum class observable_type
 
 struct connection;
 struct child;
-struct simple_component;
+struct generic_component;
 struct modeling;
 struct description;
 
@@ -200,7 +200,7 @@ struct connection
     };
 };
 
-struct simple_component
+struct generic_component
 {
     vector<child_id>      children;
     vector<connection_id> connections;
@@ -401,18 +401,18 @@ struct log_entry
 
 struct modeling
 {
-    data_array<description, description_id>           descriptions;
-    data_array<simple_component, simple_component_id> simple_components;
-    data_array<grid_component, grid_component_id>     grid_components;
-    data_array<component, component_id>               components;
-    data_array<registred_path, registred_path_id>     registred_paths;
-    data_array<dir_path, dir_path_id>                 dir_paths;
-    data_array<file_path, file_path_id>               file_paths;
-    data_array<model, model_id>                       parameters;
-    data_array<model, model_id>                       models;
-    data_array<hierarchical_state_machine, hsm_id>    hsms;
-    data_array<child, child_id>                       children;
-    data_array<connection, connection_id>             connections;
+    data_array<description, description_id>            descriptions;
+    data_array<generic_component, simple_component_id> simple_components;
+    data_array<grid_component, grid_component_id>      grid_components;
+    data_array<component, component_id>                components;
+    data_array<registred_path, registred_path_id>      registred_paths;
+    data_array<dir_path, dir_path_id>                  dir_paths;
+    data_array<file_path, file_path_id>                file_paths;
+    data_array<model, model_id>                        parameters;
+    data_array<model, model_id>                        models;
+    data_array<hierarchical_state_machine, hsm_id>     hsms;
+    data_array<child, child_id>                        children;
+    data_array<connection, connection_id>              connections;
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     external_source                                     srcs;
@@ -482,15 +482,15 @@ struct modeling
     bool can_add(const component& parent,
                  const component& child) const noexcept;
 
-    child& alloc(simple_component& parent, dynamics_type type) noexcept;
-    child& alloc(simple_component& parent, component_id id) noexcept;
-    child& alloc(simple_component& parent, model_id id) noexcept;
+    child& alloc(generic_component& parent, dynamics_type type) noexcept;
+    child& alloc(generic_component& parent, component_id id) noexcept;
+    child& alloc(generic_component& parent, model_id id) noexcept;
 
     status copy(const child& src, child& dst) noexcept;
-    status copy(const simple_component& src, simple_component& dst) noexcept;
+    status copy(const generic_component& src, generic_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;
     status copy(const component& src, component& dst) noexcept;
-    status copy(grid_component& grid, simple_component& s) noexcept;
+    status copy(grid_component& grid, generic_component& s) noexcept;
 
     /**
      * @brief Try to connect the component input port and a child (model or
@@ -506,10 +506,10 @@ struct modeling
      * @param port_dst The port index of the destination.
      * @return status::success or any other error.
      */
-    status connect_input(simple_component& parent,
-                         i8                port_src,
-                         child_id          dst,
-                         i8                port_dst) noexcept;
+    status connect_input(generic_component& parent,
+                         i8                 port_src,
+                         child_id           dst,
+                         i8                 port_dst) noexcept;
 
     /**
      * @brief Try to connect the component output port and a child (model or
@@ -525,10 +525,10 @@ struct modeling
      * @param port_dst The port index of the destination.
      * @return status::success or any other error.
      */
-    status connect_output(simple_component& parent,
-                          child_id          src,
-                          i8                port_src,
-                          i8                port_dst) noexcept;
+    status connect_output(generic_component& parent,
+                          child_id           src,
+                          i8                 port_src,
+                          i8                 port_dst) noexcept;
 
     /**
      * @brief Try to connect two child (model or component) in a component.
@@ -544,11 +544,11 @@ struct modeling
      * @param port_dst The port index of the destination.
      * @return status::success or any other error.
      */
-    status connect(simple_component& parent,
-                   child_id          src,
-                   i8                port_src,
-                   child_id          dst,
-                   i8                port_dst) noexcept;
+    status connect(generic_component& parent,
+                   child_id           src,
+                   i8                 port_src,
+                   child_id           dst,
+                   i8                 port_dst) noexcept;
 
     status save(component& c) noexcept; // will call clean(component&) first.
 
