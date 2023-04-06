@@ -91,7 +91,8 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                 if (app.mod.components.can_alloc()) {
                     auto& new_c = app.mod.components.alloc();
                     new_c.type  = component_type::simple;
-                    new_c.name  = internal_component_names[sel.id.internal_id];
+                    new_c.name =
+                      internal_component_names[ordinal(sel.id.internal_id)];
                     new_c.state = component_status::modified;
                     app.mod.copy(
                       enum_cast<internal_component>(sel.id.internal_id), new_c);
@@ -207,7 +208,8 @@ static void show_internal_components(component_editor& ed) noexcept
 
         if (is_internal) {
             ImGui::PushID(compo);
-            ImGui::Selectable(internal_component_names[compo->id.internal_id]);
+            ImGui::Selectable(
+              internal_component_names[ordinal(compo->id.internal_id)]);
             ImGui::PopID();
 
             show_component_popup_menu(*app, *compo);

@@ -2079,7 +2079,7 @@ static status read_internal_component(json_cache& cache,
     auto compo_opt = get_internal_component_type(cache.string_buffer);
     irt_return_if_fail(compo_opt.has_value(), status::io_file_format_error);
 
-    compo.id.internal_id = ordinal(compo_opt.value());
+    compo.id.internal_id = compo_opt.value();
 
     return status::success;
 }
@@ -2376,7 +2376,7 @@ static void write_child_component(const modeling&  mod,
     switch (compo.type) {
     case component_type::internal:
         w.Key("component-parameter");
-        w.String(internal_component_names[compo.id.internal_id]);
+        w.String(internal_component_names[ordinal(compo.id.internal_id)]);
         break;
 
     case component_type::grid:
@@ -2610,11 +2610,11 @@ static void write_grid_component(json_cache& /*cache*/,
 template<typename Writer>
 static void write_internal_component(json_cache& /*cache*/,
                                      const modeling& /* mod */,
-                                     const int idx,
-                                     Writer&   w) noexcept
+                                     const internal_component id,
+                                     Writer&                  w) noexcept
 {
     w.Key("component");
-    w.String(internal_component_names[idx]);
+    w.String(internal_component_names[ordinal(id)]);
 }
 
 status component_save(const modeling&  mod,
@@ -2650,11 +2650,9 @@ status component_save(const modeling&  mod,
     write_component_ports(cache, mod, compo, w);
 
     switch (compo.type) {
-    case component_type::internal: {
-        const auto id = compo.id.internal_id;
-        if (0 <= id && id < internal_component_count)
-            write_internal_component(cache, mod, id, w);
-    } break;
+    case component_type::internal:
+        write_internal_component(cache, mod, compo.id.internal_id, w);
+        break;
 
     case component_type::simple: {
         const auto id = compo.id.simple_id;

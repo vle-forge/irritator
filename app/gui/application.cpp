@@ -475,7 +475,7 @@ static void component_selector_select(modeling&          mod,
     if (auto* compo = mod.components.try_to_get(id); compo) {
         if (compo->type == component_type::internal) {
             component_selector_make_selected_name(
-              internal_component_names[compo->id.internal_id], name);
+              internal_component_names[ordinal(compo->id.internal_id)], name);
         } else {
             if (auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
                 reg) {
@@ -549,7 +549,8 @@ void component_selector::update() noexcept
                 ids.emplace_back(id);
                 auto& str = names.emplace_back();
                 component_selector_make_selected_name(
-                  internal_component_names[compo->id.internal_id], str);
+                  internal_component_names[ordinal(compo->id.internal_id)],
+                  str);
             }
         }
     }

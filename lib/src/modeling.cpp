@@ -848,7 +848,7 @@ status modeling::fill_internal_components() noexcept
     for (int i = 0, e = internal_component_count; i < e; ++i) {
         auto& compo          = components.alloc();
         compo.type           = component_type::internal;
-        compo.id.internal_id = i;
+        compo.id.internal_id = enum_cast<internal_component>(i);
     }
 
     return status::success;

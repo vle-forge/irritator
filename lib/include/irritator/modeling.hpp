@@ -268,7 +268,7 @@ struct component
 
     union id
     {
-        int                 internal_id;
+        internal_component  internal_id;
         simple_component_id simple_id;
         grid_component_id   grid_id;
     } id;
