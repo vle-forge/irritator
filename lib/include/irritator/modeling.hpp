@@ -423,9 +423,6 @@ struct modeling
 
     status init(modeling_initializer& params) noexcept;
 
-    component_id search_component(const char* directory,
-                                  const char* filename) noexcept;
-
     status fill_internal_components() noexcept;
     status fill_components() noexcept;
     status fill_components(registred_path& path) noexcept;

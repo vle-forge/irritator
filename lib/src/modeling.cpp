@@ -556,38 +556,6 @@ status modeling::init(modeling_initializer& p) noexcept
     return status::success;
 }
 
-component_id modeling::search_component(const char* directory_name,
-                                        const char* file_name) noexcept
-{
-    for (auto reg_dir_id : component_repertories) {
-        auto& reg_dir = registred_paths.get(reg_dir_id);
-
-        for (auto dir_id : reg_dir.children) {
-            auto& dir = dir_paths.get(dir_id);
-
-            if (dir.path == directory_name) {
-                for (auto file_id : dir.children) {
-                    auto& file = file_paths.get(file_id);
-
-                    if (file.path == file_name) {
-                        if (components.try_to_get(file.component) != nullptr)
-                            return file.component;
-                    }
-                }
-            }
-        }
-    }
-
-    log_warning(*this,
-                log_level::notice,
-                status::modeling_file_access_error,
-                "Missing file {} in directory {}",
-                file_name,
-                directory_name);
-
-    return undefined<component_id>();
-}
-
 static void prepare_component_loading(modeling&             mod,
                                       registred_path&       reg_dir,
                                       dir_path&             dir,
