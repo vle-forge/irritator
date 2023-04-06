@@ -57,77 +57,11 @@ static void show_parameters(grid_component& grid) noexcept
     }
 }
 
-static auto show_popup_menu_components(modeling& mod) noexcept
-  -> std::pair<component_id, bool>
-{
-    component_id ret_compo = undefined<component_id>();
-    bool         ret       = false;
-
-    if (ImGui::BeginPopupContextItem()) {
-        for (auto id : mod.component_repertories) {
-            static small_string<32> s; //! @TODO remove this variable
-            small_string<32>*       select;
-
-            auto& reg_dir = mod.registred_paths.get(id);
-            if (reg_dir.name.empty()) {
-                format(s, "{}", ordinal(id));
-                select = &s;
-            } else {
-                select = &reg_dir.name;
-            }
-
-            ImGui::PushID(&reg_dir);
-            if (ImGui::BeginMenu(select->c_str())) {
-                for (auto dir_id : reg_dir.children) {
-                    auto* dir = mod.dir_paths.try_to_get(dir_id);
-                    if (!dir)
-                        break;
-
-                    if (ImGui::BeginMenu(dir->path.c_str())) {
-                        for (auto file_id : dir->children) {
-                            auto* file = mod.file_paths.try_to_get(file_id);
-                            if (!file)
-                                break;
-
-                            auto* compo =
-                              mod.components.try_to_get(file->component);
-                            if (!compo)
-                                break;
-
-                            if (ImGui::MenuItem(file->path.c_str())) {
-                                ret_compo = file->component;
-                                ret       = true;
-                            }
-                        }
-                        ImGui::EndMenu();
-                    }
-                }
-                ImGui::EndMenu();
-            }
-            ImGui::PopID();
-        }
-
-        if (ImGui::MenuItem("-##empty-value")) {
-            ret_compo = undefined<component_id>();
-            ret       = true;
-        }
-
-        ImGui::EndPopup();
-    }
-
-    return std::make_pair(ret_compo, ret);
-}
-
-static const char* node_name[] = { "Top left",    "Top",    "Top Right",
-                                   "Left",        "Center", "Right",
-                                   "Bottom left", "Bottom", "Bottom Right" };
-
 static void show_default_grid(component_editor& ed,
                               grid_editor_data& data,
                               float             height) noexcept
 {
     auto* app = container_of(&ed, &application::component_ed);
-    auto& mod = app->mod;
 
     ImGui::BeginChild("Editor", ImVec2(0, height));
 
