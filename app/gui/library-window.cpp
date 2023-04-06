@@ -10,8 +10,7 @@
 
 namespace irt {
 
-static void show_component_popup_menu(application& app,
-                                      component&   selection) noexcept
+static void show_component_popup_menu(application& app, component& sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New generic component")) {
@@ -35,14 +34,16 @@ static void show_component_popup_menu(application& app,
             }
         }
 
-        if (selection.type != component_type::internal) {
+        ImGui::Separator();
+
+        if (sel.type != component_type::internal) {
             if (ImGui::MenuItem("Copy")) {
                 if (app.mod.components.can_alloc()) {
                     auto& new_c = app.mod.components.alloc();
                     new_c.type  = component_type::simple;
-                    new_c.name  = selection.name;
+                    new_c.name  = sel.name;
                     new_c.state = component_status::modified;
-                    app.mod.copy(selection, new_c);
+                    app.mod.copy(sel, new_c);
                     app.component_sel.update();
                 } else {
                     auto& n = app.notifications.alloc();
@@ -55,7 +56,7 @@ static void show_component_popup_menu(application& app,
             if (ImGui::MenuItem("Set at main project model")) {
                 tree_node_id out = undefined<tree_node_id>();
 
-                if (auto ret = project_init(app.pj, app.mod, selection);
+                if (auto ret = project_init(app.pj, app.mod, sel);
                     is_bad(ret)) {
                     auto& n = app.notifications.alloc();
                     n.level = log_level::error;
@@ -63,9 +64,26 @@ static void show_component_popup_menu(application& app,
                     app.notifications.enable(n);
                 } else {
                     app.project_wnd.m_parent = out;
-                    app.project_wnd.m_compo =
-                      app.mod.components.get_id(selection);
+                    app.project_wnd.m_compo  = app.mod.components.get_id(sel);
                     app.simulation_ed.simulation_copy_modeling();
+                }
+            }
+
+            if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
+                if (ImGui::MenuItem("Delete file")) {
+                    auto& n = app.notifications.alloc();
+                    n.level = log_level::info;
+                    format(n.title = "Remove file `{}'", file->path.sv());
+
+                    auto* reg =
+                      app.mod.registred_paths.try_to_get(sel.reg_path);
+                    auto* dir = app.mod.dir_paths.try_to_get(sel.dir);
+
+                    if (reg && dir)
+                        app.mod.remove_file(*reg, *dir, *file);
+                    app.mod.free(sel);
+
+                    app.component_sel.update();
                 }
             }
         } else {
@@ -73,10 +91,10 @@ static void show_component_popup_menu(application& app,
                 if (app.mod.components.can_alloc()) {
                     auto& new_c = app.mod.components.alloc();
                     new_c.type  = component_type::simple;
-                    new_c.name =
-                      internal_component_names[selection.id.internal_id];
+                    new_c.name  = internal_component_names[sel.id.internal_id];
                     new_c.state = component_status::modified;
-                    app.mod.copy(selection, new_c);
+                    app.mod.copy(
+                      enum_cast<internal_component>(sel.id.internal_id), new_c);
                     app.component_sel.update();
                 } else {
                     auto& n = app.notifications.alloc();
@@ -141,90 +159,42 @@ static void open_component(application& app, component_id id) noexcept
     }
 }
 
-static bool show_component(component_editor& ed,
-                           registred_path&   reg,
-                           dir_path&         dir,
-                           file_path&        file,
-                           component&        c,
-                           irt::tree_node*   head) noexcept
+static void show_file_component(application& app,
+                                file_path&   file,
+                                component&   c,
+                                tree_node*   head) noexcept
 {
-    auto*      app        = container_of(&ed, &application::component_ed);
-    const auto id         = app->mod.components.get_id(c);
-    const bool selected   = head ? id == head->id : false;
-    bool       is_deleted = false;
+    const auto id       = app.mod.components.get_id(c);
+    const bool selected = head ? id == head->id : false;
+    const auto state    = c.state;
 
+    ImGui::PushID(&c);
     if (ImGui::Selectable(file.path.c_str(), selected))
-        open_component(*app, id);
+        open_component(app, id);
+    ImGui::PopID();
 
-    if (ImGui::BeginPopupContextItem()) {
-        if (ImGui::MenuItem("Copy")) {
-            if (app->mod.components.can_alloc()) {
-                auto& new_c = app->mod.components.alloc();
-                new_c.type  = component_type::simple;
-                new_c.name  = c.name;
-                new_c.state = component_status::modified;
-                app->mod.copy(c, new_c);
-                app->component_sel.update();
-            } else {
-                auto& n = app->notifications.alloc();
-                n.level = log_level::error;
-                n.title = "Can not alloc a new component";
-                app->notifications.enable(n);
-            }
-        }
+    show_component_popup_menu(app, c);
 
-        if (ImGui::MenuItem("Set at main project model")) {
-            tree_node_id out = undefined<tree_node_id>();
-
-            if (auto ret = project_init(app->pj, app->mod, c); is_bad(ret)) {
-                auto& n = app->notifications.alloc();
-                n.level = log_level::error;
-                n.title = "Fail to build tree";
-                app->notifications.enable(n);
-            } else {
-                app->project_wnd.m_parent = out;
-                app->project_wnd.m_compo  = app->mod.components.get_id(c);
-            }
-        }
-
-        if (ImGui::MenuItem("Delete file")) {
-            auto& n = app->notifications.alloc();
-            n.level = log_level::info;
-            format(n.title = "Remove file `{}'", file.path.sv());
-
-            app->mod.remove_file(reg, dir, file);
-            app->mod.free(c);
-            app->component_sel.update();
-            is_deleted = true;
-        }
-
-        ImGui::EndPopup();
+    switch (state) {
+    case component_status::unread:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (unread)");
+        break;
+    case component_status::read_only:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (read-only)");
+        break;
+    case component_status::modified:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (not-saved)");
+        break;
+    case component_status::unmodified:
+        break;
+    case component_status::unreadable:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (unreadable)");
+        break;
     }
-
-    if (!is_deleted) {
-        switch (c.state) {
-        case component_status::unread:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (unread)");
-            break;
-        case component_status::read_only:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (read-only)");
-            break;
-        case component_status::modified:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (modified)");
-            break;
-        case component_status::unmodified:
-            break;
-        case component_status::unreadable:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (unreadable)");
-            break;
-        }
-    }
-
-    return is_deleted;
 }
 
 static void show_internal_components(component_editor& ed) noexcept
@@ -236,8 +206,6 @@ static void show_internal_components(component_editor& ed) noexcept
         const auto is_internal = compo->type == component_type::internal;
 
         if (is_internal) {
-            const auto id = app->mod.components.get_id(*compo);
-
             ImGui::PushID(compo);
             ImGui::Selectable(internal_component_names[compo->id.internal_id]);
             ImGui::PopID();
@@ -274,7 +242,6 @@ static void show_notsaved_components(irt::component_editor& ed,
 }
 
 static void show_dirpath_component(irt::component_editor& ed,
-                                   registred_path&        reg,
                                    dir_path&              dir,
                                    irt::tree_node*        head) noexcept
 {
@@ -283,23 +250,15 @@ static void show_dirpath_component(irt::component_editor& ed,
     if (ImGui::TreeNodeEx(dir.path.c_str())) {
         int j = 0;
         while (j < dir.children.ssize()) {
-            auto  file_id = dir.children[j];
-            auto* file    = app->mod.file_paths.try_to_get(file_id);
-
-            if (file) {
-                auto  compo_id = file->component;
-                auto* compo    = app->mod.components.try_to_get(compo_id);
-
-                if (compo) {
-                    auto is_deleted =
-                      show_component(ed, reg, dir, *file, *compo, head);
-                    if (is_deleted) {
-                        dir.children.swap_pop_back(j);
-                    } else {
-                        ++j;
-                    }
+            auto file_id = dir.children[j];
+            if (auto* file = app->mod.file_paths.try_to_get(file_id); file) {
+                auto compo_id = file->component;
+                if (auto* compo = app->mod.components.try_to_get(compo_id);
+                    compo) {
+                    show_file_component(*app, *file, *compo, head);
+                    ++j;
                 } else {
-                    file->component = undefined<component_id>();
+                    app->mod.file_paths.free(*file);
                     dir.children.swap_pop_back(j);
                 }
             } else {
@@ -367,7 +326,7 @@ static void show_component_library(component_editor& c_editor,
                     auto* dir    = app->mod.dir_paths.try_to_get(dir_id);
 
                     if (dir) {
-                        show_dirpath_component(c_editor, *reg_dir, *dir, tree);
+                        show_dirpath_component(c_editor, *dir, tree);
                         ++i;
                     } else {
                         reg_dir->children.swap_pop_back(i);
