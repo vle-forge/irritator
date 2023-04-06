@@ -231,14 +231,14 @@ struct grid_component
 
     struct specific
     {
-        child ch = undefined<model_id>();
-        i32   row;
-        i32   column;
+        component_id ch = undefined<component_id>();
+        i32          row;
+        i32          column;
     };
 
     u64 make_next_unique_id() noexcept { return next_unique_id++; }
 
-    child            default_children[3][3];
+    component_id     default_children[3][3];
     vector<specific> specific_children;
 
     vector<child_id>      cache;
@@ -490,6 +490,7 @@ struct modeling
     status copy(const generic_component& src, generic_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;
     status copy(const component& src, component& dst) noexcept;
+    status copy(grid_component& grid, component& dst) noexcept;
     status copy(grid_component& grid, generic_component& s) noexcept;
 
     /**

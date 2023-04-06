@@ -57,39 +57,28 @@ static void show_parameters(grid_component& grid) noexcept
     }
 }
 
-static void show_default_grid(component_editor& ed,
-                              grid_editor_data& data,
-                              float             height) noexcept
+static void show_default_grid(application&    app,
+                              grid_component& data,
+                              float           height) noexcept
 {
-    auto* app = container_of(&ed, &application::component_ed);
-
     ImGui::BeginChild("Editor", ImVec2(0, height));
 
-    app->component_sel.combobox(
-      "top-left", &data.m_grid.default_children[0][0].id.compo_id);
-    app->component_sel.combobox(
-      "top", &data.m_grid.default_children[0][1].id.compo_id);
-    app->component_sel.combobox(
-      "top right", &data.m_grid.default_children[0][2].id.compo_id);
+    app.component_sel.combobox("topleft", &data.default_children[0][0]);
+    app.component_sel.combobox("top", &data.default_children[0][1]);
+    app.component_sel.combobox("top right", &data.default_children[0][2]);
 
-    app->component_sel.combobox(
-      "left", &data.m_grid.default_children[1][0].id.compo_id);
-    app->component_sel.combobox(
-      "middle", &data.m_grid.default_children[1][1].id.compo_id);
-    app->component_sel.combobox(
-      "right", &data.m_grid.default_children[1][1].id.compo_id);
+    app.component_sel.combobox("left", &data.default_children[1][0]);
+    app.component_sel.combobox("middle", &data.default_children[1][1]);
+    app.component_sel.combobox("right", &data.default_children[1][2]);
 
-    app->component_sel.combobox(
-      "bottom-left", &data.m_grid.default_children[2][0].id.compo_id);
-    app->component_sel.combobox(
-      "bottom", &data.m_grid.default_children[2][1].id.compo_id);
-    app->component_sel.combobox(
-      "bottom right", &data.m_grid.default_children[2][2].id.compo_id);
+    app.component_sel.combobox("bottom-left", &data.default_children[2][0]);
+    app.component_sel.combobox("bottom", &data.default_children[2][1]);
+    app.component_sel.combobox("bottom right", &data.default_children[2][2]);
 
     ImGui::EndChild();
 }
 
-static void show_grid(grid_editor_data& data, float height) noexcept
+static void show_grid(grid_component& data, float height) noexcept
 {
     ImGui::BeginChild("Editor", ImVec2(0, height));
 
@@ -104,24 +93,24 @@ static void show_grid(grid_editor_data& data, float height) noexcept
     int    x = 0;
     int    y = 0;
 
-    for (int row = 0; row < data.m_grid.row; ++row) {
+    for (int row = 0; row < data.row; ++row) {
         upper_left.x  = p.x + 10.f * static_cast<float>(row);
         lower_right.x = p.x + 10.f * static_cast<float>(row) + 8.f;
 
         if (row == 0)
             y = 0;
-        else if (1 <= row && row + 1 < data.m_grid.row)
+        else if (1 <= row && row + 1 < data.row)
             y = 1;
         else
             y = 2;
 
-        for (int col = 0; col < data.m_grid.column; ++col) {
+        for (int col = 0; col < data.column; ++col) {
             upper_left.y  = p.y + 10.f * static_cast<float>(col);
             lower_right.y = p.y + 10.f * static_cast<float>(col) + 8.f;
 
             if (col == 0)
                 x = 0;
-            else if (1 <= col && col + 1 < data.m_grid.column)
+            else if (1 <= col && col + 1 < data.column)
                 x = 1;
             else
                 x = 2;
@@ -129,9 +118,7 @@ static void show_grid(grid_editor_data& data, float height) noexcept
             dl->AddRectFilled(
               upper_left,
               lower_right,
-              is_defined(data.m_grid.default_children[x][y].id.compo_id)
-                ? default_col
-                : empty_col,
+              is_defined(data.default_children[x][y]) ? default_col : empty_col,
               0.f);
         }
     }
@@ -139,71 +126,46 @@ static void show_grid(grid_editor_data& data, float height) noexcept
     ImGui::EndChild();
 }
 
-void grid_editor_data::load(const component_id    id,
-                            const grid_component& grid) noexcept
+grid_editor_data::grid_editor_data(const component_id      id_,
+                                   const grid_component_id grid_id_) noexcept
+  : grid_id(grid_id_)
+  , id(id_)
 {
-    this->id = id;
-    m_grid   = grid;
 }
 
-void grid_editor_data::save(grid_component& grid) noexcept { grid = m_grid; }
+void grid_editor_data::clear() noexcept
+{
+    grid_id = undefined<grid_component_id>();
+    id      = undefined<component_id>();
+}
 
 void grid_editor_data::show(component_editor& ed) noexcept
 {
     const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
     const auto region_width = ImGui::GetContentRegionAvail().x;
-    const auto button_size  = (region_width - item_spacing) / 2.f;
     const auto child_height = ImGui::GetContentRegionAvail().y -
-                              ImGui::GetFrameHeightWithSpacing() * 6.f;
+                              ImGui::GetFrameHeightWithSpacing() * 5.f;
 
-    show_parameters(m_grid);
+    auto* app   = container_of(&ed, &application::component_ed);
+    auto* compo = app->mod.components.try_to_get(id);
+    auto* grid  = app->mod.grid_components.try_to_get(grid_id);
+
+    irt_assert(compo && grid);
+
+    show_parameters(*grid);
 
     if (ImGui::BeginTabBar("Editor")) {
         if (ImGui::BeginTabItem("Default")) {
-            show_default_grid(ed, *this, child_height);
+            show_default_grid(*app, *grid, child_height);
             ImGui::EndTabItem();
         }
 
         if (ImGui::BeginTabItem("Nodes")) {
-            show_grid(*this, child_height);
+            show_grid(*grid, child_height);
             ImGui::EndTabItem();
         }
 
         ImGui::EndTabBar();
-    }
-
-    if (ImGui::Button("Save", ImVec2(button_size, 0.f))) {
-        auto* app = container_of(&ed, &application::component_ed);
-        auto& mod = app->mod;
-
-        auto* compo   = mod.components.try_to_get(id);
-        auto  is_grid = compo && compo->type == component_type::grid;
-
-        if (is_grid) {
-            if (auto* grid = mod.grid_components.try_to_get(compo->id.grid_id);
-                grid) {
-                save(*grid);
-            }
-        }
-    }
-
-    ImGui::SetItemDefaultFocus();
-
-    ImGui::SameLine();
-
-    if (ImGui::Button("Restore", ImVec2(button_size, 0.f))) {
-        auto* app = container_of(&ed, &application::component_ed);
-        auto& mod = app->mod;
-
-        auto* compo   = mod.components.try_to_get(id);
-        auto  is_grid = compo && compo->type == component_type::grid;
-
-        if (is_grid) {
-            if (auto* grid = mod.grid_components.try_to_get(compo->id.grid_id);
-                grid) {
-                load(id, *grid);
-            }
-        }
     }
 }
 
@@ -266,7 +228,7 @@ void grid_editor_dialog::show() noexcept
         }
 
         app->component_sel.combobox("Default component",
-                                    &grid.default_children[0][0].id.compo_id);
+                                    &grid.default_children[0][0]);
 
         ImGui::EndChild();
 

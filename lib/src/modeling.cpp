@@ -1406,13 +1406,6 @@ void modeling::free(component& compo) noexcept
 
     case component_type::grid:
         if (auto* g = grid_components.try_to_get(compo.id.grid_id); g) {
-            for (int row = 0; row < 3; ++row)
-                for (int col = 0; col < 3; ++col)
-                    clear(g->default_children[row][col]);
-
-            for (auto& elem : g->specific_children)
-                clear(elem.ch);
-
             g->specific_children.clear();
 
             grid_components.free(*g);

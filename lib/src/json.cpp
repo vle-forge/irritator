@@ -8,6 +8,7 @@
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
+#include <optional>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <rapidjson/filereadstream.h>
@@ -18,6 +19,8 @@
 
 #include <limits>
 #include <string_view>
+#include <utility>
+#include <variant>
 
 namespace irt {
 
@@ -1662,6 +1665,119 @@ static status read_random_sources(json_cache&             cache,
     return status::success;
 }
 
+static auto search_reg(modeling& mod, std::string_view name) noexcept
+  -> registred_path*
+{
+    {
+        registred_path* reg = nullptr;
+        while (mod.registred_paths.next(reg))
+            if (name == reg->name.sv())
+                return reg;
+    }
+
+    return nullptr;
+}
+
+static auto search_dir_in_reg(modeling&        mod,
+                              registred_path&  reg,
+                              std::string_view name) noexcept -> dir_path*
+{
+    for (auto dir_id : reg.children) {
+        if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
+            if (name == dir->path.sv())
+                return dir;
+        }
+    }
+
+    return nullptr;
+}
+
+static auto search_dir(modeling& mod, std::string_view name) noexcept
+  -> dir_path*
+{
+    for (auto reg_id : mod.component_repertories) {
+        if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {
+            for (auto dir_id : reg->children) {
+                if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
+                    if (dir->path.sv() == name)
+                        return dir;
+                }
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+static auto search_file(modeling&        mod,
+                        dir_path&        dir,
+                        std::string_view name) noexcept -> file_path*
+{
+    for (auto file_id : dir.children)
+        if (auto* file = mod.file_paths.try_to_get(file_id); file)
+            if (file->path.sv() == name)
+                return file;
+
+    return nullptr;
+}
+
+static auto read_child_component_path(json_cache&             cache,
+                                      modeling&               mod,
+                                      const rapidjson::Value& val) noexcept
+  -> std::pair<component_id, status>
+{
+    registred_path* reg  = nullptr;
+    dir_path*       dir  = nullptr;
+    file_path*      file = nullptr;
+
+    if (is_success(get_string(val, "path", cache.string_buffer)))
+        reg = search_reg(mod, cache.string_buffer);
+
+    if (auto ret = get_string(val, "directory", cache.string_buffer);
+        is_bad(ret))
+        return std::make_pair(undefined<component_id>(), ret);
+
+    if (reg) {
+        dir = search_dir_in_reg(mod, *reg, cache.string_buffer);
+        if (!dir)
+            dir = search_dir(mod, cache.string_buffer);
+    } else {
+        dir = search_dir(mod, cache.string_buffer);
+    }
+
+    if (dir) {
+        if (is_success(get_string(val, "file", cache.string_buffer))) {
+            file = search_file(mod, *dir, cache.string_buffer);
+        }
+    }
+
+    return file ? std::make_pair(file->component, status::success)
+                : std::make_pair(undefined<component_id>(),
+                                 status::unknown_dynamics);
+}
+
+static auto read_child_component_internal(json_cache&             cache,
+                                          modeling&               mod,
+                                          const rapidjson::Value& val) noexcept
+  -> std::pair<component_id, status>
+{
+    if (is_success(get_string(val, "parameter", cache.string_buffer))) {
+        auto opt = get_internal_component_type(cache.string_buffer);
+
+        if (opt.has_value()) {
+            component* c = nullptr;
+            while (mod.components.next(c)) {
+                if (c->type == component_type::internal &&
+                    c->id.internal_id == opt.value())
+                    return std::make_pair(mod.components.get_id(*c),
+                                          status::success);
+            }
+        }
+    }
+
+    return std::make_pair(undefined<component_id>(), status::unknown_dynamics);
+}
+
 static auto read_child_component(json_cache&             cache,
                                  modeling&               mod,
                                  const rapidjson::Value& val) noexcept
@@ -1675,43 +1791,19 @@ static auto read_child_component(json_cache&             cache,
 
         auto compo_type_opt = get_component_type(cache.string_buffer);
         if (compo_type_opt.has_value()) {
-            if (status =
-                  get_string(val, "component-parameter", cache.string_buffer);
-                is_success(status)) {
+            switch (compo_type_opt.value()) {
+            case component_type::internal:
+                return read_child_component_internal(cache, mod, val);
 
-                switch (compo_type_opt.value()) {
-                case component_type::internal: {
-                    if (compo_id = mod.search_component(
-                          cache.string_buffer.c_str(), "cpp");
-                        is_defined(compo_id)) {
-                        status = status::success;
-                    } else {
-                        status = status::unknown_dynamics;
-                    }
-                } break;
+            case component_type::simple:
+                return read_child_component_path(cache, mod, val);
 
-                case component_type::simple: {
-                    if (compo_id = mod.search_component(
-                          cache.string_buffer.c_str(), "file");
-                        is_defined(compo_id)) {
-                    } else {
-                        status = status::unknown_dynamics;
-                    }
-                } break;
+            case component_type::grid:
+                return read_child_component_path(cache, mod, val);
 
-                case component_type::grid: {
-                    if (compo_id = mod.search_component(
-                          cache.string_buffer.c_str(), "file");
-                        is_defined(compo_id)) {
-                        status = status::success;
-                    } else {
-                        status = status::unknown_dynamics;
-                    }
-                } break;
-
-                default:
-                    break;
-                }
+            default:
+                return std::make_pair(undefined<component_id>(),
+                                      status::success);
             }
         }
     }
@@ -2001,31 +2093,12 @@ static status read_grid_component(json_cache&             cache,
                 const auto idx =
                   static_cast<rapidjson::SizeType>(row * 3 + col);
 
-                irt_return_if_bad(
-                  get_string(children[idx], "type", cache.string_buffer));
+                irt_assert(children[idx].IsObject());
+                auto compo =
+                  read_child_component(cache, mod, children[idx].GetObject());
+                irt_return_if_bad(compo.second);
 
-                if (cache.string_buffer.empty()) {
-                    auto& child = grid.default_children[row][col];
-                    if (cache.string_buffer == "component") {
-                        auto ret =
-                          read_child_component(cache, mod, children[idx]);
-                        irt_return_if_bad(ret.second);
-
-                        child.type        = child_type::component;
-                        child.id.compo_id = ret.first;
-                        irt_return_if_bad(
-                          read_child(cache, mod, child, children[idx]));
-                    } else {
-                        auto ret = read_child_model(cache, mod, children[idx]);
-                        irt_return_if_bad(ret.second);
-
-                        child.type      = child_type::model;
-                        child.id.mdl_id = ret.first;
-
-                        irt_return_if_bad(
-                          read_child(cache, mod, child, children[idx]));
-                    }
-                }
+                grid.default_children[row][col] = compo.first;
             }
         }
 
@@ -2036,32 +2109,14 @@ static status read_grid_component(json_cache&             cache,
                 i32 row, col;
                 irt_return_if_bad(get_i32(children[i], "row", row));
                 irt_return_if_bad(get_i32(children[i], "column", col));
-                irt_return_if_bad(
-                  get_string(children[i], "type", cache.string_buffer));
 
-                if (cache.string_buffer == "component") {
-                    auto ret = read_child_component(cache, mod, children[i]);
-                    irt_return_if_bad(ret.second);
+                auto compo = read_child_component(cache, mod, children[i]);
+                irt_return_if_bad(compo.second);
 
-                    auto& elem = grid.specific_children.emplace_back();
-                    irt_return_if_bad(
-                      read_child(cache, mod, elem.ch, children[i]));
-                    elem.row            = row;
-                    elem.column         = col;
-                    elem.ch.type        = child_type::component;
-                    elem.ch.id.compo_id = ret.first;
-                } else {
-                    auto ret = read_child_model(cache, mod, children[i]);
-                    irt_return_if_bad(ret.second);
-
-                    auto& elem = grid.specific_children.emplace_back();
-                    irt_return_if_bad(
-                      read_child(cache, mod, elem.ch, children[i]));
-                    elem.row          = row;
-                    elem.column       = col;
-                    elem.ch.type      = child_type::model;
-                    elem.ch.id.mdl_id = ret.first;
-                }
+                auto& elem  = grid.specific_children.emplace_back();
+                elem.row    = row;
+                elem.column = col;
+                elem.ch     = compo.first;
             }
         }
     }
@@ -2363,34 +2418,58 @@ static void write_random_sources(json_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_child_component(const modeling&  mod,
-                                  const component& compo,
-                                  Writer&          w) noexcept
+static void write_child_component_path(const modeling&  mod,
+                                       const component& compo,
+                                       Writer&          w) noexcept
 {
-    w.Key("type");
-    w.String("component");
+    if (auto* reg = mod.registred_paths.try_to_get(compo.reg_path); reg) {
+        w.Key("path");
+        w.String(reg->path.c_str());
+    }
 
-    w.Key("component-type");
-    w.String(component_type_names[ordinal(compo.type)]);
+    if (auto* dir = mod.dir_paths.try_to_get(compo.dir); dir) {
+        w.Key("directory");
+        w.String(dir->path.c_str());
+    }
 
-    switch (compo.type) {
-    case component_type::internal:
-        w.Key("component-parameter");
-        w.String(internal_component_names[ordinal(compo.id.internal_id)]);
-        break;
+    if (auto* file = mod.file_paths.try_to_get(compo.file); file) {
+        w.Key("file");
+        w.String(file->path.c_str());
+    }
+}
 
-    case component_type::grid:
-        w.Key("component-parameter");
-        w.String(mod.file_paths.get(compo.file).path.c_str());
-        break;
+template<typename Writer>
+static void write_child_component(const modeling&    mod,
+                                  const component_id compo_id,
+                                  Writer&            w) noexcept
+{
+    if (auto* compo = mod.components.try_to_get(compo_id); compo) {
+        w.Key("component-type");
+        w.String(component_type_names[ordinal(compo->type)]);
 
-    case component_type::simple:
-        w.Key("component-parameter");
-        w.String(mod.file_paths.get(compo.file).path.c_str());
-        break;
+        switch (compo->type) {
+        case component_type::none:
+            break;
 
-    default:
-        break;
+        case component_type::internal:
+            w.Key("parameter");
+            w.String(internal_component_names[ordinal(compo->id.internal_id)]);
+            break;
+
+        case component_type::grid:
+            write_child_component_path(mod, *compo, w);
+            break;
+
+        case component_type::simple:
+            write_child_component_path(mod, *compo, w);
+            break;
+
+        default:
+            break;
+        }
+    } else {
+        w.Key("component-type");
+        w.String(component_type_names[ordinal(component_type::none)]);
     }
 }
 
@@ -2399,9 +2478,6 @@ static void write_child_model(const modeling& mod,
                               model&          mdl,
                               Writer&         w) noexcept
 {
-    w.Key("type");
-    w.String(dynamics_type_names[ordinal(mdl.type)]);
-
     w.Key("dynamics");
     dispatch(mdl, [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> void {
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
@@ -2455,12 +2531,20 @@ static void write_child(const modeling& mod,
 
     if (ch.type == child_type::component) {
         const auto compo_id = ch.id.compo_id;
-        if (auto* compo = mod.components.try_to_get(compo_id); compo)
-            write_child_component(mod, *compo, w);
+        if (auto* compo = mod.components.try_to_get(compo_id); compo) {
+            w.Key("type");
+            w.String("component");
+
+            write_child_component(mod, compo_id, w);
+        }
     } else {
         const auto mdl_id = ch.id.mdl_id;
-        if (auto* mdl = mod.models.try_to_get(mdl_id); mdl)
+        if (auto* mdl = mod.models.try_to_get(mdl_id); mdl) {
+            w.Key("type");
+            w.String(dynamics_type_names[ordinal(mdl->type)]);
+
             write_child_model(mod, *mdl, w);
+        }
     }
 
     w.EndObject();
@@ -2587,9 +2671,9 @@ static void write_grid_component(json_cache& /*cache*/,
     w.StartArray();
     for (int row = 0; row < 3; ++row) {
         for (int col = 0; col < 3; ++col) {
-            const auto& elem = grid.default_children[row][col];
-
-            write_child(mod, elem, w);
+            w.StartObject();
+            write_child_component(mod, grid.default_children[row][col], w);
+            w.EndObject();
         }
     }
     w.EndArray();

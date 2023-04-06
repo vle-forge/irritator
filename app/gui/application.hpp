@@ -364,16 +364,15 @@ private:
 class grid_editor_data
 {
 public:
-    void load(const component_id id, const grid_component& grid) noexcept;
-    void save(grid_component& grid) noexcept;
+    grid_editor_data(const component_id      id,
+                     const grid_component_id grid) noexcept;
+
+    void clear() noexcept;
 
     void show(component_editor& ed) noexcept;
 
-    grid_component m_grid;
-    component_id   id = undefined<component_id>();
-
-    int m_row = -1;
-    int m_col = -1;
+    grid_component_id grid_id = undefined<grid_component_id>();
+    component_id      id      = undefined<component_id>();
 };
 
 struct grid_editor_dialog

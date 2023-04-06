@@ -25,10 +25,11 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
         }
 
         if (ImGui::MenuItem("New grid component")) {
-            auto& compo = app.mod.alloc_grid_component();
+            auto& compo    = app.mod.alloc_grid_component();
+            auto  compo_id = app.mod.components.get_id(compo);
+
             if (app.grids.can_alloc()) {
-                auto& wnd = app.grids.alloc();
-                wnd.id    = app.mod.components.get_id(compo);
+                auto& wnd = app.grids.alloc(compo_id, compo.id.grid_id);
                 app.component_ed.request_to_open = wnd.id;
                 app.component_sel.update();
             }
@@ -147,8 +148,7 @@ static void open_component(application& app, component_id id) noexcept
                 auto* grid =
                   app.mod.grid_components.try_to_get(compo->id.grid_id);
                 if (grid && app.grids.can_alloc()) {
-                    auto& g = app.grids.alloc();
-                    g.load(id, *grid);
+                    app.grids.alloc(id, compo->id.grid_id);
                 }
             }
             app.component_ed.request_to_open = id;
@@ -276,11 +276,11 @@ static void show_component_library(component_editor& c_editor,
 {
     auto* app = container_of(&c_editor, &application::component_ed);
     if (ImGui::Button("+grid")) {
-        auto& compo = app->mod.alloc_grid_component();
+        auto& compo    = app->mod.alloc_grid_component();
+        auto  compo_id = app->mod.components.get_id(compo);
 
         if (app->grids.can_alloc()) {
-            auto& wnd = app->grids.alloc();
-            wnd.id    = app->mod.components.get_id(compo);
+            auto& wnd = app->grids.alloc(compo_id, compo.id.grid_id);
             app->component_ed.request_to_open = wnd.id;
             app->component_sel.update();
         }
