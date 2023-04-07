@@ -165,7 +165,6 @@ bool application::init() noexcept
 
     mod.fill_components();
 
-    project_wnd.selected_component = undefined<tree_node_id>();
     component_sel.update();
 
     // @TODO at beggining, open a default generic component ?

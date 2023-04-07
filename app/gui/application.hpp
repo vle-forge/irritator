@@ -569,35 +569,41 @@ struct library_window
     bool is_open = true;
 };
 
-struct project_window
+//! An ImGui Window used to display the project hierarchy (@c hierarchy of @c
+//! tree_node). Configurable or observable widgets are provided for each @c
+//! tree_node with public configurable or observable component.
+class project_window
 {
+public:
     project_window() noexcept = default;
 
+    //! Display the window if the @c application::pj head is defined.
     void show() noexcept;
 
-    void save_project(const char* filename) noexcept;
-    void load_project(const char* filename) noexcept;
-
-    void set(tree_node_id parent, component_id compo) noexcept;
-    void set(tree_node_id parent, component_id compo, child_id ch) noexcept;
-
-    bool equal(tree_node_id parent,
-               component_id compo,
-               child_id     ch) const noexcept;
-
-    //! Build a modeling tree node based on the component id.
-    void open_as_main(component_id id) noexcept;
-
-    //! Select a elememt in the modeling tree node.
+    //! Select a @c tree_node node in the modeling tree node. The existence of
+    //! the underlying component is tested before assignment.
     void select(tree_node_id id) noexcept;
 
-    //! Clear the current project.
+    //! Select a @c tree_node node in the modeling tree node. The existence of
+    //! the underlying component is tested before assignment.
+    void select(tree_node& node) noexcept;
+
+    //! Select a @C child in the modeling tree node. The existence of the
+    //! underlying component is tested before assignment.
+    void select(child_id id) noexcept;
+
+    //! Clear the selected component and child.
     void clear() noexcept;
 
+    //! @return true if @c id is the selected @c tree_node.
+    bool is_selected(tree_node_id id) const noexcept;
+
+    //! @return true if @c id is the selected @c child.
+    bool is_selected(child_id id) const noexcept;
+
+private:
     tree_node_id selected_component = undefined<tree_node_id>();
-    tree_node_id m_parent           = undefined<tree_node_id>();
-    component_id m_compo            = undefined<component_id>();
-    child_id     m_ch               = undefined<child_id>();
+    child_id     selected_child     = undefined<child_id>();
 };
 
 struct settings_window

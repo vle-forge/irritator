@@ -103,6 +103,7 @@ struct child;
 struct generic_component;
 struct modeling;
 struct description;
+struct json_cache;
 
 static constexpr inline const char* internal_component_names[] = {
     "qss1_izhikevich",   "qss1_lif",   "qss1_lotka_volterra",
@@ -555,12 +556,18 @@ struct modeling
 
 struct project
 {
-    component_id head    = undefined<component_id>();
-    tree_node_id tn_head = undefined<tree_node_id>();
+    status init(int size) noexcept;
+
+    void save(const char* filename) noexcept;
+    void load(const char* filename) noexcept;
+
+    void save(const char* filename, json_cache& cache) noexcept;
+    void load(const char* filename, json_cache& cache) noexcept;
 
     data_array<tree_node, tree_node_id> tree_nodes;
 
-    status init(int size) noexcept;
+    component_id head    = undefined<component_id>();
+    tree_node_id tn_head = undefined<tree_node_id>();
 };
 
 //! Initialize a project with the specified \c component as head.

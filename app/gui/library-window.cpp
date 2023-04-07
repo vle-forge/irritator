@@ -54,7 +54,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                 }
             }
 
-            if (ImGui::MenuItem("Set at main project model")) {
+            if (ImGui::MenuItem("Set as main project model")) {
                 tree_node_id out = undefined<tree_node_id>();
 
                 if (auto ret = project_init(app.pj, app.mod, sel);
@@ -64,8 +64,6 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     n.title = "Fail to build tree";
                     app.notifications.enable(n);
                 } else {
-                    app.project_wnd.m_parent = out;
-                    app.project_wnd.m_compo  = app.mod.components.get_id(sel);
                     app.simulation_ed.simulation_copy_modeling();
                 }
             }

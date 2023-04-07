@@ -446,10 +446,10 @@ status application::save_settings() noexcept
 
 // Gui
 
-void project_window::save_project(const char* filename) noexcept
+void project::save(const char* filename) noexcept
 {
-    auto*      app = container_of(this, &application::project_wnd);
-    json_cache cache; // @TODO move into the application structure
+    auto*      app = container_of(this, &application::pj);
+    json_cache cache;
 
     if (auto ret = project_save(app->pj, app->mod, cache, filename);
         is_bad(ret)) {
@@ -465,10 +465,46 @@ void project_window::save_project(const char* filename) noexcept
     }
 }
 
-void project_window::load_project(const char* filename) noexcept
+void project::load(const char* filename) noexcept
 {
-    auto*      app = container_of(this, &application::project_wnd);
-    json_cache cache; // @TODO move into the application structure
+    auto*      app = container_of(this, &application::pj);
+    json_cache cache;
+
+    if (auto ret = project_load(app->pj, app->mod, cache, filename);
+        is_bad(ret)) {
+        auto& n = app->notifications.alloc(log_level::error);
+        n.title = "Load project fail";
+        format(n.message, "Can not access file `{}'", filename);
+        app->notifications.enable(n);
+    } else {
+        auto& n = app->notifications.alloc(log_level::notice);
+        n.title = "The file was loaded successfully.";
+        app->notifications.enable(n);
+        app->mod.state = modeling_status::unmodified;
+    }
+}
+
+void project::save(const char* filename, json_cache& cache) noexcept
+{
+    auto* app = container_of(this, &application::pj);
+
+    if (auto ret = project_save(app->pj, app->mod, cache, filename);
+        is_bad(ret)) {
+        auto& n = app->notifications.alloc(log_level::error);
+        n.title = "Save project fail";
+        format(n.message, "Can not access file `{}'", filename);
+        app->notifications.enable(n);
+    } else {
+        app->mod.state = modeling_status::unmodified;
+        auto& n        = app->notifications.alloc(log_level::notice);
+        n.title        = "The file was saved successfully.";
+        app->notifications.enable(n);
+    }
+}
+
+void project::load(const char* filename, json_cache& cache) noexcept
+{
+    auto* app = container_of(this, &application::pj);
 
     if (auto ret = project_load(app->pj, app->mod, cache, filename);
         is_bad(ret)) {
@@ -494,7 +530,7 @@ void task_load_project(void* param) noexcept
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->project_wnd.load_project(file->path.c_str());
+        g_task->app->pj.load(file->path.c_str());
         g_task->app->mod.registred_paths.free(*file);
     }
 
@@ -509,7 +545,7 @@ void task_save_project(void* param) noexcept
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->project_wnd.save_project(file->path.c_str());
+        g_task->app->pj.save(file->path.c_str());
         g_task->app->mod.registred_paths.free(*file);
     }
 
