@@ -124,9 +124,15 @@ auto get_component_type(std::string_view name) noexcept
 auto get_internal_component_type(std::string_view name) noexcept
   -> std::optional<internal_component>;
 
+//! Description store the description of a compenent in a text way. A
+//! description is attached to only one component (@c description_id). The
+//! filename is the same than the component
+//! @c file_path but with the extension ".txt".
+//!
+//! @note  The size of the buffer is static for now
 struct description
 {
-    small_string<1024> data;
+    small_string<1022> data;
     description_status status = description_status::unread;
 };
 
@@ -369,6 +375,10 @@ struct tree_node
     //! @c simulation, maps {component, child, model} to {simulation, model} for
     //! this tree_node.
     table<model_id, model_id> sim;
+
+    //! Stores for each component in children list the identifier of the
+    //! tree_node. This permit to quicky build the connection network.
+    table<child_id, tree_node*> child_to_node;
 };
 
 //! Used to cache memory allocation when user import a model into simulation.

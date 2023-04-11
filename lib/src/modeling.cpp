@@ -1122,17 +1122,20 @@ static bool is_ports_compatible(modeling&          mod,
             con->input.index == port_src) {
             auto* sub_child_src = mod.children.try_to_get(con->input.dst);
             irt_assert(sub_child_src);
-            irt_assert(sub_child_src->type == child_type::model);
+            if (sub_child_src->type == child_type::model) {
 
-            auto  sub_model_src_id = sub_child_src->id.mdl_id;
-            auto* sub_model_src    = mod.models.try_to_get(sub_model_src_id);
-            irt_assert(sub_model_src);
+                auto  sub_model_src_id = sub_child_src->id.mdl_id;
+                auto* sub_model_src = mod.models.try_to_get(sub_model_src_id);
+                irt_assert(sub_model_src);
 
-            if (!is_ports_compatible(
-                  *sub_model_src, con->input.index_dst, mdl_dst, port_dst)) {
-                is_compatible = false;
-                break;
-            }
+                if (!is_ports_compatible(*sub_model_src,
+                                         con->input.index_dst,
+                                         mdl_dst,
+                                         port_dst)) {
+                    is_compatible = false;
+                    break;
+                }
+            } // @TODO Test also component coupling
         }
     }
 
@@ -1156,20 +1159,21 @@ static bool is_ports_compatible(modeling&          mod,
             con->output.index == port_src) {
             auto* sub_child_src = mod.children.try_to_get(con->output.src);
             irt_assert(sub_child_src);
-            irt_assert(sub_child_src->type == child_type::model);
 
-            auto  sub_model_src_id = sub_child_src->id.mdl_id;
-            auto* sub_model_src    = mod.models.try_to_get(sub_model_src_id);
-            irt_assert(sub_model_src);
+            if (sub_child_src->type == child_type::model) {
+                auto  sub_model_src_id = sub_child_src->id.mdl_id;
+                auto* sub_model_src = mod.models.try_to_get(sub_model_src_id);
+                irt_assert(sub_model_src);
 
-            if (!is_ports_compatible(mod,
-                                     *sub_model_src,
-                                     con->output.index_src,
-                                     compo_dst,
-                                     port_dst)) {
-                is_compatible = false;
-                break;
-            }
+                if (!is_ports_compatible(mod,
+                                         *sub_model_src,
+                                         con->output.index_src,
+                                         compo_dst,
+                                         port_dst)) {
+                    is_compatible = false;
+                    break;
+                }
+            } // @TODO Test also component coupling
         }
     }
 
