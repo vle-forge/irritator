@@ -10,6 +10,7 @@
 
 #include <array>
 #include <optional>
+#include <utility>
 
 namespace irt {
 
@@ -97,6 +98,8 @@ enum class observable_type
     multiple,
     space,
 };
+
+class project;
 
 struct connection;
 struct child;
@@ -335,7 +338,7 @@ struct file_path
 struct modeling_initializer
 {
     i32 model_capacity              = 4096;
-    i32 tree_capacity               = 32;
+    i32 tree_capacity               = 256;
     i32 parameter_capacity          = 128;
     i32 description_capacity        = 128;
     i32 component_capacity          = 512;
@@ -377,7 +380,8 @@ struct tree_node
     table<model_id, model_id> sim;
 
     //! Stores for each component in children list the identifier of the
-    //! tree_node. This permit to quicky build the connection network.
+    //! tree_node. This variable allows to quickly build the connection
+    //! network.
     table<child_id, tree_node*> child_to_node;
 };
 
@@ -437,6 +441,9 @@ struct modeling
     status fill_internal_components() noexcept;
     status fill_components() noexcept;
     status fill_components(registred_path& path) noexcept;
+
+    //! Clean data used as cache for simulation.
+    void clean_simulation() noexcept;
 
     //! If the @c child references a model, model is freed, otherwise, do
     //! nothing. This function is useful to replace the content of a existing @c
@@ -564,8 +571,9 @@ struct modeling
     ring_buffer<log_entry> log_entries;
 };
 
-struct project
+class project
 {
+public:
     status init(int size) noexcept;
 
     void save(const char* filename) noexcept;
@@ -574,26 +582,41 @@ struct project
     void save(const char* filename, json_cache& cache) noexcept;
     void load(const char* filename, json_cache& cache) noexcept;
 
-    data_array<tree_node, tree_node_id> tree_nodes;
+    //! Assign a new @c component head. The previously allocated tree_node
+    //! hierarchy is removed and a newly one is allocated.
+    status set(modeling& mod, component& compo) noexcept;
 
-    component_id head    = undefined<component_id>();
-    tree_node_id tn_head = undefined<tree_node_id>();
+    //! Build the complete @c tree_node hierarchy from the @c component head.
+    status rebuild(modeling& mod) noexcept;
+
+    //! Remove @c tree_node hierarchy and clear the @c component head.
+    void clear() noexcept;
+
+    //! For all @c tree_node remove the simulation mapping between modelling and
+    //! simulation part (ie @c tree_node::sim variable).
+    void clean_simulation() noexcept;
+
+    auto head() const noexcept -> component_id;
+    auto tn_head() const noexcept -> tree_node*;
+
+    auto node(tree_node_id id) const noexcept -> const tree_node*;
+    auto node(tree_node& node) const noexcept -> tree_node_id;
+
+    template<typename Function, typename... Args>
+    auto for_all_tree_nodes(Function&& f, Args... args) noexcept;
+
+    template<typename Function, typename... Args>
+    auto for_all_tree_nodes(Function&& f, Args... args) const noexcept;
+
+    //! Return the size and the capacity of the tree_nodes data_array.
+    auto tree_nodes_size() const noexcept -> std::pair<int, int>;
+
+private:
+    data_array<tree_node, tree_node_id> m_tree_nodes;
+
+    component_id m_head    = undefined<component_id>();
+    tree_node_id m_tn_head = undefined<tree_node_id>();
 };
-
-//! Initialize a project with the specified \c component as head.
-//! Before initializing, the current project is cleared: all tree_nodes and
-//! component tree are cleared.
-status project_init(project& pj, modeling& mod, component& compo) noexcept;
-
-//! Project data are cleared: all tree_nodes and component tree are cleared.
-void project_clear(project& pj) noexcept;
-
-//! Build a tree from the component @c compo. The tree must be attached to the
-//! head of the project or you need to destroy it with the @c free_tree
-//! function.
-//!
-//! @return the tree_node_id head of the component otherwise undefined.
-tree_node_id build_tree(project& pj, modeling& mod, component& compo) noexcept;
 
 //! Fill the simulation with project data.
 status simulation_init(project&                pj,
@@ -601,8 +624,8 @@ status simulation_init(project&                pj,
                        simulation&             sim,
                        modeling_to_simulation& cache) noexcept;
 
-/*
- * Implementation
+/* ------------------------------------------------------------------
+   Child part
  */
 
 inline child::child(model_id model) noexcept
@@ -621,6 +644,49 @@ inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
   : id(id_)
   , id_in_parent(id_in_parent_)
 {
+}
+
+/* ------------------------------------------------------------------
+   Project part
+ */
+
+inline auto project::head() const noexcept -> component_id { return m_head; }
+
+inline auto project::tn_head() const noexcept -> tree_node*
+{
+    return m_tree_nodes.try_to_get(m_tn_head);
+}
+
+inline auto project::node(tree_node_id id) const noexcept -> const tree_node*
+{
+    return m_tree_nodes.try_to_get(id);
+}
+
+inline auto project::node(tree_node& node) const noexcept -> tree_node_id
+{
+    return m_tree_nodes.get_id(node);
+}
+
+template<typename Function, typename... Args>
+inline auto project::for_all_tree_nodes(Function&& f, Args... args) noexcept
+{
+    tree_node* tn = nullptr;
+    while (m_tree_nodes.next(tn))
+        return f(*tn, args...);
+}
+
+template<typename Function, typename... Args>
+inline auto project::for_all_tree_nodes(Function&& f,
+                                        Args... args) const noexcept
+{
+    const tree_node* tn = nullptr;
+    while (m_tree_nodes.next(tn))
+        return f(*tn, args...);
+}
+
+inline auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
+{
+    return std::make_pair(m_tree_nodes.ssize(), m_tree_nodes.capacity());
 }
 
 } // namespace irt

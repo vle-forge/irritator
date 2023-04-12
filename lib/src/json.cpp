@@ -2223,7 +2223,7 @@ static void write_constant_sources(json_cache& /*cache*/,
     w.Key("constant-sources");
     w.StartArray();
 
-    constant_source* src = nullptr;
+    const constant_source* src = nullptr;
     while (srcs.constant_sources.next(src)) {
         w.StartObject();
         w.Key("id");
@@ -2249,7 +2249,7 @@ static void write_binary_file_sources(json_cache& /*cache*/,
     w.Key("binary-file-sources");
     w.StartArray();
 
-    binary_file_source* src = nullptr;
+    const binary_file_source* src = nullptr;
     while (srcs.binary_file_sources.next(src)) {
         w.StartObject();
         w.Key("id");
@@ -2272,7 +2272,7 @@ static void write_text_file_sources(json_cache& /*cache*/,
     w.Key("text-file-sources");
     w.StartArray();
 
-    text_file_source* src = nullptr;
+    const text_file_source* src = nullptr;
     while (srcs.text_file_sources.next(src)) {
         w.StartObject();
         w.Key("id");
@@ -2293,7 +2293,7 @@ static void write_random_sources(json_cache& /*cache*/,
     w.Key("random-sources");
     w.StartArray();
 
-    random_source* src = nullptr;
+    const random_source* src = nullptr;
     while (srcs.random_sources.next(src)) {
         w.StartObject();
         w.Key("id");
@@ -2771,7 +2771,7 @@ static status write_simulation_model(const simulation& sim, Writer& w) noexcept
     w.Key("models");
     w.StartArray();
 
-    model* mdl = nullptr;
+    const model* mdl = nullptr;
     while (sim.models.next(mdl)) {
         const auto mdl_id = sim.models.get_id(*mdl);
 
@@ -2782,15 +2782,16 @@ static status write_simulation_model(const simulation& sim, Writer& w) noexcept
         w.String(dynamics_type_names[ordinal(mdl->type)]);
         w.Key("dynamics");
 
-        dispatch(*mdl, [&w, &sim]<typename Dynamics>(Dynamics& dyn) -> void {
-            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                auto* hsm = sim.hsms.try_to_get(dyn.id);
-                irt_assert(hsm);
-                write(w, dyn, *hsm);
-            } else {
-                write(w, dyn);
-            }
-        });
+        dispatch(*mdl,
+                 [&w, &sim]<typename Dynamics>(const Dynamics& dyn) -> void {
+                     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                         auto* hsm = sim.hsms.try_to_get(dyn.id);
+                         irt_assert(hsm);
+                         write(w, dyn, *hsm);
+                     } else {
+                         write(w, dyn);
+                     }
+                 });
 
         w.EndObject();
     }
@@ -2807,7 +2808,7 @@ static status write_simulation_connections(const simulation& sim,
     w.Key("connections");
     w.StartArray();
 
-    model* mdl = nullptr;
+    const model* mdl = nullptr;
     while (sim.models.next(mdl)) {
         dispatch(*mdl, [&sim, &mdl, &w]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (has_output_port<Dynamics>) {
@@ -3144,7 +3145,7 @@ static status load_access(project&                pj,
 {
     cache.stack.clear();
 
-    auto* compo = mod.components.try_to_get(pj.head);
+    auto* compo = mod.components.try_to_get(pj.head());
 
     irt_return_if_fail(val.IsArray(), status::io_project_file_error);
 
@@ -3284,7 +3285,7 @@ static status load_file_project(json_cache              cache,
 
     if (auto* fp = mod.file_paths.try_to_get(file_id); fp) {
         if (auto* compo = mod.components.try_to_get(fp->component); compo) {
-            irt_return_if_bad(project_init(pj, mod, *compo));
+            irt_return_if_bad(pj.set(mod, *compo));
 
             auto param_it = top.FindMember("component-parameters");
             irt_return_if_fail(param_it != top.MemberEnd() &&
@@ -3334,7 +3335,7 @@ status project_load(project&    pj,
     rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());
     irt_return_if_fail(s, status::io_file_format_error);
 
-    project_clear(pj);
+    pj.clear();
     return load_project(cache, pj, mod, d.GetObject());
 }
 
@@ -3345,54 +3346,49 @@ status project_load(project&    pj,
  ****************************************************************************/
 
 void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
-                project&                                             pj,
-                modeling&                                            mod,
-                tree_node&
-                /* parent */) noexcept
+                const tree_node&                                     tree,
+                modeling& mod) noexcept
 {
-    tree_node* tree = nullptr;
-    while (pj.tree_nodes.next(tree)) {
-        // auto& compo = mod.components.get(tree->id);
-        // auto* s_compo =
-        // mod.simple_components.try_to_get(compo.id.simple_id);
+    // auto& compo = mod.components.get(tree->id);
+    // auto* s_compo =
+    // mod.simple_components.try_to_get(compo.id.simple_id);
 
-        for (auto pair : tree->parameters.data) {
-            model* src = mod.models.try_to_get(pair.id);
-            model* dst = mod.models.try_to_get(pair.value);
+    for (auto pair : tree.parameters.data) {
+        model* src = mod.models.try_to_get(pair.id);
+        model* dst = mod.models.try_to_get(pair.value);
 
-            if (src && dst) {
-                irt_assert(src->type == dst->type);
+        if (src && dst) {
+            irt_assert(src->type == dst->type);
 
-                w.StartObject();
+            w.StartObject();
 
-                w.Key("access");
-                w.StartArray();
+            w.Key("access");
+            w.StartArray();
 
-                {
-                    // auto* p = parent.tree.get_parent();
-                    // while (p) {
-                    //     w.Int(static_cast<int>(get_index(p->id_in_parent)));
-                    //     p = p->tree.get_parent();
-                    // }
-                }
-
-                w.EndArray();
-
-                w.Key("type");
-                w.String(dynamics_type_names[ordinal(dst->type)]);
-                w.Key("dynamics");
-
-                dispatch(
-                  *dst, [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> void {
-                      if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                          auto* machine = mod.hsms.try_to_get(dyn.id);
-                          if (machine)
-                              write(w, dyn, *machine);
-                      } else {
-                          write(w, dyn);
-                      }
-                  });
+            {
+                // auto* p = parent.tree.get_parent();
+                // while (p) {
+                //     w.Int(static_cast<int>(get_index(p->id_in_parent)));
+                //     p = p->tree.get_parent();
+                // }
             }
+
+            w.EndArray();
+
+            w.Key("type");
+            w.String(dynamics_type_names[ordinal(dst->type)]);
+            w.Key("dynamics");
+
+            dispatch(*dst,
+                     [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> void {
+                         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                             auto* machine = mod.hsms.try_to_get(dyn.id);
+                             if (machine)
+                                 write(w, dyn, *machine);
+                         } else {
+                             write(w, dyn);
+                         }
+                     });
         }
     }
 }
@@ -3400,7 +3396,6 @@ void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
 static status project_save_component(project&    pj,
                                      modeling&   mod,
                                      json_cache& cache,
-                                     tree_node&  parent,
                                      component&  compo,
                                      file&       f) noexcept
 {
@@ -3445,7 +3440,10 @@ static status project_save_component(project&    pj,
 
     w.Key("component-parameters");
     w.StartArray();
-    write_node(w, pj, mod, parent);
+
+    pj.for_all_tree_nodes(
+      [&w, &mod](const tree_node& tn) { write_node(w, tn, mod); });
+
     w.EndArray();
     w.EndObject();
 
@@ -3458,13 +3456,13 @@ status project_save(project&    pj,
                     const char* filename,
                     json_pretty_print /*print_options*/) noexcept
 {
-    if (auto* compo = mod.components.try_to_get(pj.head); compo) {
-        if (auto* parent = pj.tree_nodes.try_to_get(pj.tn_head); parent) {
+    if (auto* compo = mod.components.try_to_get(pj.head()); compo) {
+        if (auto* parent = pj.tn_head(); parent) {
             irt_assert(mod.components.get_id(compo) == parent->id);
 
             file f{ filename, open_mode::write };
             irt_return_if_fail(f.is_open(), status::io_project_file_error);
-            return project_save_component(pj, mod, cache, *parent, *compo, f);
+            return project_save_component(pj, mod, cache, *compo, f);
         }
     }
 

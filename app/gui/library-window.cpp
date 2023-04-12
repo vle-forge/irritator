@@ -55,10 +55,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
             }
 
             if (ImGui::MenuItem("Set as main project model")) {
-                tree_node_id out = undefined<tree_node_id>();
-
-                if (auto ret = project_init(app.pj, app.mod, sel);
-                    is_bad(ret)) {
+                if (auto ret = app.pj.set(app.mod, sel); is_bad(ret)) {
                     auto& n = app.notifications.alloc();
                     n.level = log_level::error;
                     n.title = "Fail to build tree";
@@ -113,7 +110,7 @@ template<typename T, typename ID>
 static bool is_already_open(const data_array<T, ID>& data,
                             component_id             id) noexcept
 {
-    typename data_array<T, ID>::value_type* g = nullptr;
+    const typename data_array<T, ID>::value_type* g = nullptr;
 
     while (data.next(g))
         if (g->id == id)
@@ -358,7 +355,7 @@ void library_window::show() noexcept
         return;
     }
 
-    auto* tree = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
+    auto* tree = app->pj.tn_head();
 
     show_component_library(app->component_ed, tree);
 

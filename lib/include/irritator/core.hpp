@@ -2169,7 +2169,23 @@ public:
     //! free list).
     //!
     //! @return true if the paramter @c t is valid false otherwise.
-    bool next(T*& t) const noexcept;
+    bool next(T*& t) noexcept;
+
+    //! @brief Return next valid item.
+    //! @code
+    //! data_array<int> d;
+    //! ...
+    //! int* value = nullptr;
+    //! while (d.next(value)) {
+    //!     std::cout << *value << ' ';
+    //! }
+    //! @endcode
+    //!
+    //! Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not on
+    //! free list).
+    //!
+    //! @return true if the paramter @c t is valid false otherwise.
+    bool next(const T*& t) const noexcept;
 
     constexpr bool       full() const noexcept;
     constexpr unsigned   size() const noexcept;
@@ -8395,7 +8411,35 @@ T* data_array<T, Identifier>::try_to_get(
 }
 
 template<typename T, typename Identifier>
-bool data_array<T, Identifier>::next(T*& t) const noexcept
+bool data_array<T, Identifier>::next(T*& t) noexcept
+{
+    index_type index;
+
+    if (t) {
+        auto id = get_id(*t);
+        index   = get_index(id);
+        ++index;
+
+        for (; index < m_max_used; ++index) {
+            if (is_valid(m_items[index].id)) {
+                t = &m_items[index].item;
+                return true;
+            }
+        }
+    } else {
+        for (index = 0; index < m_max_used; ++index) {
+            if (is_valid(m_items[index].id)) {
+                t = &m_items[index].item;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+template<typename T, typename Identifier>
+bool data_array<T, Identifier>::next(const T*& t) const noexcept
 {
     index_type index;
 

@@ -112,9 +112,7 @@ static void show_project_hierarchy(application&       app,
             if (c->configurable || c->observable) {
                 ImGui::PushID(c);
 
-                const auto parent_id = app.pj.tree_nodes.get_id(parent);
-                const auto compo_id  = app.mod.components.get_id(compo);
-                bool       selected  = app.project_wnd.is_selected(child_id);
+                bool selected = app.project_wnd.is_selected(child_id);
 
                 if (ImGui::Selectable(c->name.c_str(), &selected))
                     app.project_wnd.select(child_id);
@@ -175,7 +173,7 @@ void project_window::clear() noexcept
 {
     auto* app = container_of(this, &application::project_wnd);
 
-    project_clear(app->pj);
+    app->pj.clear();
 }
 
 bool project_window::is_selected(tree_node_id id) const noexcept
@@ -193,7 +191,7 @@ void project_window::select(tree_node_id id) noexcept
     if (id != selected_component) {
         auto* app = container_of(this, &application::project_wnd);
 
-        if (auto* tree = app->pj.tree_nodes.try_to_get(id); tree) {
+        if (auto* tree = app->pj.node(id); tree) {
             if (auto* compo = app->mod.components.try_to_get(tree->id); compo) {
                 selected_component = id;
                 selected_child     = undefined<child_id>();
@@ -205,7 +203,7 @@ void project_window::select(tree_node_id id) noexcept
 void project_window::select(tree_node& node) noexcept
 {
     auto* app = container_of(this, &application::project_wnd);
-    auto  id  = app->pj.tree_nodes.get_id(node);
+    auto  id  = app->pj.node(node);
 
     if (id != selected_component) {
         if (auto* compo = app->mod.components.try_to_get(node.id); compo) {
@@ -225,7 +223,7 @@ void project_window::show() noexcept
 {
     auto* app = container_of(this, &application::project_wnd);
 
-    auto* parent = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
+    auto* parent = app->pj.tn_head();
     if (!parent) {
         clear();
         return;

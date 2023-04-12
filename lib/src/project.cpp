@@ -9,15 +9,15 @@
 
 namespace irt {
 
-static status make_tree_recursive(project&   pj,
-                                  modeling&  mod,
-                                  tree_node& parent,
-                                  component& compo,
-                                  child_id   id_in_parent) noexcept;
+static status make_tree_recursive(data_array<tree_node, tree_node_id>& data,
+                                  modeling&                            mod,
+                                  tree_node&                           parent,
+                                  component&                           compo,
+                                  child_id id_in_parent) noexcept;
 
-static status make_tree_recursive(project&           pj,
-                                  modeling&          mod,
-                                  tree_node&         new_tree,
+static status make_tree_recursive(data_array<tree_node, tree_node_id>& data,
+                                  modeling&                            mod,
+                                  tree_node&                           new_tree,
                                   generic_component& src) noexcept
 {
     for (auto child_id : src.children) {
@@ -28,7 +28,7 @@ static status make_tree_recursive(project&           pj,
             auto compo_id = child->id.compo_id;
             if (auto* compo = mod.components.try_to_get(compo_id); compo)
                 irt_return_if_bad(
-                  make_tree_recursive(pj, mod, new_tree, *compo, child_id));
+                  make_tree_recursive(data, mod, new_tree, *compo, child_id));
         }
     }
 
@@ -37,9 +37,9 @@ static status make_tree_recursive(project&           pj,
     return status::success;
 }
 
-static status make_tree_recursive(project&        pj,
-                                  modeling&       mod,
-                                  tree_node&      new_tree,
+static status make_tree_recursive(data_array<tree_node, tree_node_id>& data,
+                                  modeling&                            mod,
+                                  tree_node&                           new_tree,
                                   grid_component& src) noexcept
 {
     for (auto id : src.cache) {
@@ -47,7 +47,7 @@ static status make_tree_recursive(project&        pj,
             if (c->type == child_type::component) {
                 if (auto* cp = mod.components.try_to_get(c->id.compo_id); cp)
                     irt_return_if_bad(
-                      make_tree_recursive(pj, mod, new_tree, *cp, id));
+                      make_tree_recursive(data, mod, new_tree, *cp, id));
             }
     }
 
@@ -56,19 +56,15 @@ static status make_tree_recursive(project&        pj,
     return status::success;
 }
 
-static status make_tree_recursive(project&   pj,
-                                  modeling&  mod,
-                                  tree_node& parent,
-                                  component& compo,
-                                  child_id   id_in_parent) noexcept
+static status make_tree_recursive(data_array<tree_node, tree_node_id>& data,
+                                  modeling&                            mod,
+                                  tree_node&                           parent,
+                                  component&                           compo,
+                                  child_id id_in_parent) noexcept
 {
-    irt_return_if_fail(pj.tree_nodes.can_alloc(),
-                       status::data_array_not_enough_memory);
+    irt_return_if_fail(data.can_alloc(), status::data_array_not_enough_memory);
 
-    auto& new_tree =
-      pj.tree_nodes.alloc(mod.components.get_id(compo), id_in_parent);
-    auto new_tree_id = pj.tree_nodes.get_id(new_tree);
-
+    auto& new_tree = data.alloc(mod.components.get_id(compo), id_in_parent);
     new_tree.tree.set_id(&new_tree);
     new_tree.tree.parent_to(parent.tree);
 
@@ -78,13 +74,13 @@ static status make_tree_recursive(project&   pj,
     case component_type::simple: {
         auto s_id = compo.id.simple_id;
         if (auto* s = mod.simple_components.try_to_get(s_id); s)
-            irt_return_if_bad(make_tree_recursive(pj, mod, new_tree, *s));
+            irt_return_if_bad(make_tree_recursive(data, mod, new_tree, *s));
     } break;
 
     case component_type::grid: {
         auto g_id = compo.id.grid_id;
         if (auto* g = mod.grid_components.try_to_get(g_id); g)
-            irt_return_if_bad(make_tree_recursive(pj, mod, new_tree, *g));
+            irt_return_if_bad(make_tree_recursive(data, mod, new_tree, *g));
     } break;
 
     case component_type::internal:
@@ -328,7 +324,6 @@ void modeling_to_simulation::destroy() noexcept
 }
 
 static status simulation_copy_models(modeling_to_simulation& cache,
-                                     project&                pj,
                                      modeling&               mod,
                                      simulation&             sim,
                                      tree_node&              head) noexcept
@@ -376,11 +371,9 @@ static status simulation_copy_models(modeling_to_simulation& cache,
 
         if (auto* child = cur->tree.get_child(); child)
             cache.stack.emplace_back(child);
-    }
 
-    tree_node* tree = nullptr;
-    while (pj.tree_nodes.next(tree))
-        tree->sim.sort();
+        cur->sim.sort();
+    }
 
     return status::success;
 }
@@ -594,6 +587,9 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                           vector<connection_id>&  connections)
 {
     for (auto cnx_id : connections) {
+        cache.inputs.clear();
+        cache.outputs.clear();
+
         auto* cnx = mod.connections.try_to_get(cnx_id);
 
         const bool is_internal_connection =
@@ -659,9 +655,6 @@ static status simulation_copy_connections(modeling_to_simulation& cache,
                                           tree_node&              tree,
                                           component&              compo)
 {
-    cache.inputs.clear();
-    cache.outputs.clear();
-
     switch (compo.type) {
     case component_type::simple: {
         if (auto* g = mod.simple_components.try_to_get(compo.id.simple_id); g)
@@ -776,56 +769,38 @@ static status simulation_copy_sources(modeling_to_simulation& cache,
     return status::success;
 }
 
-//! Clear children list and map between component model -> simulation model.
-static void simulation_clear_tree(project& pj, modeling& mod) noexcept
-{
-    grid_component* grid = nullptr;
-    while (mod.grid_components.next(grid))
-        mod.clear_grid_component_cache(*grid);
-
-    pj.tree_nodes.clear();
-}
-
-//! Build the project hierarchy from @c top as head of the hierarchy.
-//!
-//! For grid_component, build the real children and connections grid
-//! based on default_chidren and specific_children vectors and
-//! grid_component options (torus, cylinder etc.).
-static status simulation_initialize_tree(project&   pj,
-                                         modeling&  mod,
-                                         component& top) noexcept
+static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
 {
     grid_component* grid = nullptr;
     while (mod.grid_components.next(grid))
         irt_return_if_bad(mod.build_grid_component_cache(*grid));
 
-    return project_init(pj, mod, top);
+    return status::success;
 }
 
-static status make_tree_from(project&      pj,
-                             modeling&     mod,
-                             component&    parent,
-                             tree_node_id* out) noexcept
+static status make_tree_from(data_array<tree_node, tree_node_id>& data,
+                             modeling&                            mod,
+                             component&                           parent,
+                             tree_node_id*                        out) noexcept
 {
-    irt_return_if_fail(pj.tree_nodes.can_alloc(),
-                       status::data_array_not_enough_memory);
+    irt_return_if_fail(data.can_alloc(), status::data_array_not_enough_memory);
 
     auto& new_tree =
-      pj.tree_nodes.alloc(mod.components.get_id(parent), undefined<child_id>());
-    auto new_tree_id = pj.tree_nodes.get_id(new_tree);
+      data.alloc(mod.components.get_id(parent), undefined<child_id>());
+    auto new_tree_id = data.get_id(new_tree);
     new_tree.tree.set_id(&new_tree);
 
     switch (parent.type) {
     case component_type::simple: {
         auto s_id = parent.id.simple_id;
         if (auto* s = mod.simple_components.try_to_get(s_id); s)
-            irt_return_if_bad(make_tree_recursive(pj, mod, new_tree, *s));
+            irt_return_if_bad(make_tree_recursive(data, mod, new_tree, *s));
     } break;
 
     case component_type::grid: {
         auto g_id = parent.id.grid_id;
         if (auto* g = mod.grid_components.try_to_get(g_id); g)
-            irt_return_if_bad(make_tree_recursive(pj, mod, new_tree, *g));
+            irt_return_if_bad(make_tree_recursive(data, mod, new_tree, *g));
     } break;
 
     case component_type::internal:
@@ -842,37 +817,63 @@ static status make_tree_from(project&      pj,
 
 status project::init(int size) noexcept
 {
-    irt_return_if_bad(tree_nodes.init(size));
+    irt_return_if_bad(m_tree_nodes.init(size));
 
     return status::success;
 }
 
-void project_clear(project& pj) noexcept
+status project::set(modeling& mod, component& compo) noexcept
 {
-    pj.tree_nodes.clear();
+    clear();
 
-    pj.head    = undefined<component_id>();
-    pj.tn_head = undefined<tree_node_id>();
+    irt_return_if_bad(make_component_cache(*this, mod));
+
+    tree_node_id id  = undefined<tree_node_id>();
+    auto         ret = make_tree_from(m_tree_nodes, mod, compo, &id);
+
+    if (is_success(ret)) {
+        m_head    = mod.components.get_id(compo);
+        m_tn_head = id;
+    }
+
+    return ret;
 }
 
-status project_init(project& pj, modeling& mod, component& compo) noexcept
+status project::rebuild(modeling& mod) noexcept
 {
-    project_clear(pj);
+    m_tree_nodes.clear();
 
-    irt_return_if_bad(make_tree_from(pj, mod, compo, &pj.tn_head));
-    pj.head = mod.components.get_id(compo);
+    m_tn_head = undefined<tree_node_id>();
+
+    irt_return_if_bad(make_component_cache(*this, mod));
+
+    if (auto* compo = mod.components.try_to_get(m_head); compo) {
+        tree_node_id id  = undefined<tree_node_id>();
+        auto         ret = make_tree_from(m_tree_nodes, mod, *compo, &id);
+
+        if (is_success(ret)) {
+            m_tn_head = id;
+        }
+
+        return ret;
+    }
 
     return status::success;
 }
 
-tree_node_id build_tree(project& pj, modeling& mod, component& compo) noexcept
+void project::clear() noexcept
 {
-    tree_node_id id = undefined<tree_node_id>();
+    m_tree_nodes.clear();
 
-    if (is_success(make_tree_from(pj, mod, compo, &id)))
-        return id;
+    m_head    = undefined<component_id>();
+    m_tn_head = undefined<tree_node_id>();
+}
 
-    return undefined<tree_node_id>();
+void project::clean_simulation() noexcept
+{
+    tree_node* tn = nullptr;
+    while (m_tree_nodes.next(tn))
+        tn->sim.data.clear();
 }
 
 status simulation_init(project&                pj,
@@ -883,14 +884,14 @@ status simulation_init(project&                pj,
     cache.clear();
     sim.clear();
 
-    if (auto* compo = mod.components.try_to_get(pj.head); compo) {
-        simulation_clear_tree(pj, mod);
-        irt_return_if_bad(simulation_initialize_tree(pj, mod, *compo));
+    if (auto* compo = mod.components.try_to_get(pj.head()); compo) {
+        mod.clean_simulation();
+        pj.clean_simulation();
 
-        if (auto* head = pj.tree_nodes.try_to_get(pj.tn_head); head) {
+        if (auto* head = pj.tn_head(); head) {
+            irt_return_if_bad(pj.rebuild(mod));
             irt_return_if_bad(simulation_copy_sources(cache, mod, sim));
-            irt_return_if_bad(
-              simulation_copy_models(cache, pj, mod, sim, *head));
+            irt_return_if_bad(simulation_copy_models(cache, mod, sim, *head));
             irt_return_if_bad(
               simulation_copy_connections(cache, mod, sim, *head));
         } else {

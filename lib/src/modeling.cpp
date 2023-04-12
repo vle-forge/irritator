@@ -1333,6 +1333,13 @@ status modeling::connect(generic_component& parent,
     return status::success;
 }
 
+void modeling::clean_simulation() noexcept
+{
+    grid_component* grid = nullptr;
+    while (grid_components.next(grid))
+        clear_grid_component_cache(*grid);
+}
+
 void modeling::clear(child& c) noexcept
 {
     if (c.type == child_type::model)
@@ -1493,10 +1500,13 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
             else
                 x = 2;
 
-            auto& ch    = children.alloc();
-            auto  ch_id = children.get_id(ch);
-            copy(grid.default_children[x][y], ch);
-            grid.cache[pos(row, col, grid.row)] = ch_id;
+            if (components.try_to_get(grid.default_children[x][y])) {
+                auto& ch    = children.alloc(grid.default_children[x][y]);
+                auto  ch_id = children.get_id(ch);
+                grid.cache[pos(row, col, grid.row)] = ch_id;
+            } else {
+                grid.cache[pos(row, col, grid.row)] = undefined<child_id>();
+            }
         }
     }
 
@@ -1504,30 +1514,26 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
         irt_assert(0 <= elem.row && elem.row < grid.row);
         irt_assert(0 <= elem.column && elem.column < grid.column);
 
-        auto& ch    = children.alloc();
-        auto  ch_id = children.get_id(ch);
-        copy(elem.ch, ch);
-        grid.cache[pos(elem.row, elem.column, grid.row)] = ch_id;
-    }
-
-    for (sz i = 0, e = grid.cache.size(); i != e; ++i) {
-        auto src_id = grid.cache[i];
-        if (auto* src = children.try_to_get(src_id); src) {
-            auto& dst    = children.alloc();
-            auto  dst_id = children.get_id(dst);
-
-            irt_return_if_bad(copy(*src, dst));
-
-            grid.cache[i] = dst_id;
-        } else {
-            grid.cache[i] = undefined<child_id>();
+        auto ch_id = grid.cache[pos(elem.row, elem.column, grid.row)];
+        if (components.try_to_get(elem.ch)) {
+            if (auto* ch = children.try_to_get(ch_id); ch) {
+                ch->type        = child_type::component;
+                ch->id.compo_id = elem.ch;
+            } else {
+                auto& new_ch    = children.alloc(elem.ch);
+                auto  new_ch_id = children.get_id(new_ch);
+                grid.cache[pos(elem.row, elem.column, grid.row)] = new_ch_id;
+            }
         }
     }
 
     if (grid.connection_type == grid_component::type::number) {
         for (int row = 0; row < grid.row; ++row) {
             for (int col = 0; col < grid.column; ++col) {
-                const auto src_id  = grid.cache[pos(row, col, grid.row)];
+                const auto src_id = grid.cache[pos(row, col, grid.row)];
+                if (src_id == undefined<child_id>())
+                    continue;
+
                 const auto row_min = row == 0 ? 0 : row - 1;
                 const auto row_max = row == grid.row - 1 ? row : row + 1;
                 const auto col_min = col == 0 ? 0 : col - 1;
@@ -1537,6 +1543,8 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
                     for (int j = col_min; j <= col_max; ++j) {
                         if (!(i == row && j == col)) {
                             const auto dst_id = grid.cache[pos(i, j, grid.row)];
+                            if (dst_id == undefined<child_id>())
+                                continue;
 
                             auto& c    = connections.alloc();
                             auto  c_id = connections.get_id(c);
@@ -1554,7 +1562,10 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
     } else {
         for (int row = 0; row < grid.row; ++row) {
             for (int col = 0; col < grid.column; ++col) {
-                const auto src_id  = grid.cache[pos(row, col, grid.row)];
+                const auto src_id = grid.cache[pos(row, col, grid.row)];
+                if (src_id == undefined<child_id>())
+                    continue;
+
                 const auto row_min = row == 0 ? 0 : row - 1;
                 const auto row_max = row == grid.row - 1 ? row : row + 1;
                 const auto col_min = col == 0 ? 0 : col - 1;
@@ -1564,6 +1575,8 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
                     for (int j = col_min; j <= col_max; ++j) {
                         if (!(i == row && j == col)) {
                             const auto dst_id = grid.cache[pos(i, j, grid.row)];
+                            if (dst_id == undefined<child_id>())
+                                continue;
 
                             auto& c    = connections.alloc();
                             auto  c_id = connections.get_id(c);
@@ -1652,6 +1665,8 @@ void modeling::clear_grid_component_cache(grid_component& grid) noexcept
 
 status modeling::copy(const child& src, child& dst) noexcept
 {
+    clear(dst);
+
     dst.name         = src.name;
     dst.x            = src.x;
     dst.y            = src.y;
@@ -1670,7 +1685,7 @@ status modeling::copy(const child& src, child& dst) noexcept
         }
     } else {
         dst.type        = child_type::component;
-        dst.id.compo_id = dst.id.compo_id;
+        dst.id.compo_id = src.id.compo_id;
     }
 
     return status::success;

@@ -16,9 +16,7 @@ static void simulation_clear(component_editor&  ed,
 {
     auto* app = container_of(&ed, &application::component_ed);
 
-    tree_node* tree = nullptr;
-    while (app->pj.tree_nodes.next(tree))
-        tree->sim.data.clear();
+    app->pj.clean_simulation();
 
     sim_ed.clear();
     sim_ed.display_graph = true;
@@ -141,7 +139,7 @@ static void simulation_copy(component_editor&  ed,
     app->sim.clear();
     sim_ed.simulation_current = sim_ed.simulation_begin;
 
-    auto* head = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
+    auto* head = app->pj.tn_head();
     if (!head) {
         make_copy_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
@@ -191,7 +189,7 @@ static void simulation_init(component_editor&  ed,
 
     sim_ed.tl.reset();
 
-    auto* head = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
+    auto* head = app->pj.tn_head();
     if (!head) {
         make_init_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
@@ -596,7 +594,7 @@ void simulation_editor::simulation_copy_modeling() noexcept
     if (state) {
         auto* app = container_of(this, &application::simulation_ed);
 
-        auto* modeling_head = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
+        auto* modeling_head = app->pj.tn_head();
         if (!modeling_head) {
             auto& notif = app->notifications.alloc(log_level::error);
             notif.title = "Empty model";
@@ -659,8 +657,7 @@ void simulation_editor::simulation_start_1() noexcept
 
     if (state) {
         auto* app = container_of(this, &application::simulation_ed);
-        if (auto* parent = app->pj.tree_nodes.try_to_get(app->pj.tn_head);
-            parent) {
+        if (auto* parent = app->pj.tn_head(); parent) {
             app->add_simulation_task(task_simulation_run_1);
         }
     }
