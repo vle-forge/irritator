@@ -141,8 +141,6 @@ void grid_editor_data::clear() noexcept
 
 void grid_editor_data::show(component_editor& ed) noexcept
 {
-    const auto item_spacing = ImGui::GetStyle().ItemSpacing.x;
-    const auto region_width = ImGui::GetContentRegionAvail().x;
     const auto child_height = ImGui::GetContentRegionAvail().y -
                               ImGui::GetFrameHeightWithSpacing() * 5.f;
 
