@@ -106,7 +106,28 @@ struct child;
 struct generic_component;
 struct modeling;
 struct description;
-struct json_cache;
+struct io_cache;
+
+//! A structure use to cache data when read or write json component.
+//! - @c buffer is used to store the full file content or output buffer.
+//! - @c string_buffer is used when reading string.
+//! - @c stack is used when parsing project file.
+//! - other variable are used to link file identifier with new identifier.
+struct io_cache
+{
+    vector<char> buffer;
+    std::string  string_buffer;
+
+    table<u64, u64> model_mapping;
+    table<u64, u64> constant_mapping;
+    table<u64, u64> binary_file_mapping;
+    table<u64, u64> random_mapping;
+    table<u64, u64> text_file_mapping;
+
+    vector<i32> stack;
+
+    void clear() noexcept;
+};
 
 static constexpr inline const char* internal_component_names[] = {
     "qss1_izhikevich",   "qss1_lif",   "qss1_lotka_volterra",
@@ -576,11 +597,8 @@ class project
 public:
     status init(int size) noexcept;
 
-    void save(const char* filename) noexcept;
-    void load(const char* filename) noexcept;
-
-    void save(const char* filename, json_cache& cache) noexcept;
-    void load(const char* filename, json_cache& cache) noexcept;
+    status load(modeling& mod, io_cache& cache, const char* filename) noexcept;
+    status save(modeling& mod, io_cache& cache, const char* filename) noexcept;
 
     //! Assign a new @c component head. The previously allocated tree_node
     //! hierarchy is removed and a newly one is allocated.

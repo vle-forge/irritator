@@ -577,6 +577,10 @@ class project_window
 public:
     project_window() noexcept = default;
 
+    void load(const char* filename) noexcept;
+
+    void save(const char* filename) noexcept;
+
     //! Display the window if the @c application::pj head is defined.
     void show() noexcept;
 
@@ -725,6 +729,8 @@ struct application
     std::filesystem::path executable_dir;
 
     modeling_initializer mod_init;
+
+    io_cache cache;
 
     notification_manager notifications;
 

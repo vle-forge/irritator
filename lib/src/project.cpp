@@ -876,6 +876,20 @@ void project::clean_simulation() noexcept
         tn->sim.data.clear();
 }
 
+status project::load(modeling&   mod,
+                     io_cache&   cache,
+                     const char* filename) noexcept
+{
+    return project_load(*this, mod, cache, filename);
+}
+
+status project::save(modeling&   mod,
+                     io_cache&   cache,
+                     const char* filename) noexcept
+{
+    return project_save(*this, mod, cache, filename);
+}
+
 status simulation_init(project&                pj,
                        modeling&               mod,
                        simulation&             sim,

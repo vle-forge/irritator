@@ -762,8 +762,8 @@ static status load_component(modeling& mod, component& compo) noexcept
 
             bool read_description = false;
 
-            json_cache cache; // TODO move into modeling or parameter
-            auto       ret =
+            io_cache cache; // TODO move into modeling or parameter
+            auto     ret =
               component_load(mod, compo, cache, file_path.string().c_str());
 
             if (is_success(ret)) {
@@ -1919,7 +1919,7 @@ status modeling::save(component& c) noexcept
         p /= file->path.c_str();
         p.replace_extension(".irt");
 
-        json_cache cache;
+        io_cache cache;
         irt_return_if_bad(component_save(*this, c, cache, p.string().c_str()));
 
         return status::success;

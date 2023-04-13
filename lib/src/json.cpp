@@ -1430,7 +1430,7 @@ void write(Writer& writer,
     writer.EndObject();
 }
 
-void json_cache::clear() noexcept
+void io_cache::clear() noexcept
 {
     buffer.clear();
     string_buffer.clear();
@@ -1442,7 +1442,7 @@ void json_cache::clear() noexcept
     text_file_mapping.data.clear();
 }
 
-static status read_constant_sources(json_cache&             cache,
+static status read_constant_sources(io_cache&               cache,
                                     external_source&        srcs,
                                     const rapidjson::Value& val) noexcept
 {
@@ -1485,7 +1485,7 @@ static status read_constant_sources(json_cache&             cache,
     return status::success;
 }
 
-static status read_binary_file_sources(json_cache&             cache,
+static status read_binary_file_sources(io_cache&               cache,
                                        external_source&        srcs,
                                        const rapidjson::Value& val) noexcept
 {
@@ -1520,7 +1520,7 @@ static status read_binary_file_sources(json_cache&             cache,
     return status::success;
 }
 
-static status read_text_file_sources(json_cache&             cache,
+static status read_text_file_sources(io_cache&               cache,
                                      external_source&        srcs,
                                      const rapidjson::Value& val) noexcept
 {
@@ -1552,7 +1552,7 @@ static status read_text_file_sources(json_cache&             cache,
     return status::success;
 }
 
-static status read_random_sources(json_cache&             cache,
+static status read_random_sources(io_cache&               cache,
                                   external_source&        srcs,
                                   const rapidjson::Value& val) noexcept
 {
@@ -1721,7 +1721,7 @@ static auto search_file(modeling&        mod,
     return nullptr;
 }
 
-static auto read_child_component_path(json_cache&             cache,
+static auto read_child_component_path(io_cache&               cache,
                                       modeling&               mod,
                                       const rapidjson::Value& val) noexcept
   -> std::pair<component_id, status>
@@ -1756,7 +1756,7 @@ static auto read_child_component_path(json_cache&             cache,
                                  status::unknown_dynamics);
 }
 
-static auto read_child_component_internal(json_cache&             cache,
+static auto read_child_component_internal(io_cache&               cache,
                                           modeling&               mod,
                                           const rapidjson::Value& val) noexcept
   -> std::pair<component_id, status>
@@ -1778,7 +1778,7 @@ static auto read_child_component_internal(json_cache&             cache,
     return std::make_pair(undefined<component_id>(), status::unknown_dynamics);
 }
 
-static auto read_child_component(json_cache&             cache,
+static auto read_child_component(io_cache&               cache,
                                  modeling&               mod,
                                  const rapidjson::Value& val) noexcept
   -> std::pair<component_id, status>
@@ -1811,7 +1811,7 @@ static auto read_child_component(json_cache&             cache,
     return std::make_pair(compo_id, status);
 }
 
-static auto read_child_model(json_cache&             cache,
+static auto read_child_model(io_cache&               cache,
                              modeling&               mod,
                              const rapidjson::Value& val) noexcept
   -> std::pair<model_id, status>
@@ -1866,7 +1866,7 @@ static auto read_child_model(json_cache&             cache,
     return std::make_pair(id, status);
 }
 
-static auto read_child(json_cache&             cache,
+static auto read_child(io_cache&               cache,
                        modeling&               mod,
                        child&                  child,
                        const rapidjson::Value& val) noexcept
@@ -1890,7 +1890,7 @@ static auto read_child(json_cache&             cache,
     return status::success;
 }
 
-static status read_children(json_cache&             cache,
+static status read_children(io_cache&               cache,
                             modeling&               mod,
                             generic_component&      s_compo,
                             const rapidjson::Value& val) noexcept
@@ -1964,7 +1964,7 @@ static status read_ports(component& compo, const rapidjson::Value& val) noexcept
     return status::success;
 }
 
-static status read_connections(json_cache&             cache,
+static status read_connections(io_cache&               cache,
                                modeling&               mod,
                                generic_component&      s_compo,
                                const rapidjson::Value& val) noexcept
@@ -2052,7 +2052,7 @@ static status read_connections(json_cache&             cache,
     return status::success;
 }
 
-static status read_simple_component(json_cache&             cache,
+static status read_simple_component(io_cache&               cache,
                                     modeling&               mod,
                                     component&              compo,
                                     const rapidjson::Value& val) noexcept
@@ -2067,7 +2067,7 @@ static status read_simple_component(json_cache&             cache,
     return status::success;
 }
 
-static status read_grid_component(json_cache&             cache,
+static status read_grid_component(io_cache&               cache,
                                   modeling&               mod,
                                   component&              compo,
                                   const rapidjson::Value& val) noexcept
@@ -2124,7 +2124,7 @@ static status read_grid_component(json_cache&             cache,
     return status::success;
 }
 
-static status read_internal_component(json_cache& cache,
+static status read_internal_component(io_cache& cache,
                                       modeling& /* mod */,
                                       component&              compo,
                                       const rapidjson::Value& val) noexcept
@@ -2139,7 +2139,7 @@ static status read_internal_component(json_cache& cache,
     return status::success;
 }
 
-static status do_component_read(json_cache&             cache,
+static status do_component_read(io_cache&               cache,
                                 modeling&               mod,
                                 component&              compo,
                                 const rapidjson::Value& val) noexcept
@@ -2186,7 +2186,7 @@ static status do_component_read(json_cache&             cache,
 
 status component_load(modeling&   mod,
                       component&  compo,
-                      json_cache& cache,
+                      io_cache&   cache,
                       const char* filename) noexcept
 {
     file f{ filename, open_mode::read };
@@ -2216,7 +2216,7 @@ status component_load(modeling&   mod,
 }
 
 template<typename Writer>
-static void write_constant_sources(json_cache& /*cache*/,
+static void write_constant_sources(io_cache& /*cache*/,
                                    const external_source& srcs,
                                    Writer&                w) noexcept
 {
@@ -2242,7 +2242,7 @@ static void write_constant_sources(json_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_binary_file_sources(json_cache& /*cache*/,
+static void write_binary_file_sources(io_cache& /*cache*/,
                                       const external_source& srcs,
                                       Writer&                w) noexcept
 {
@@ -2265,7 +2265,7 @@ static void write_binary_file_sources(json_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_text_file_sources(json_cache& /*cache*/,
+static void write_text_file_sources(io_cache& /*cache*/,
                                     const external_source& srcs,
                                     Writer&                w) noexcept
 {
@@ -2286,7 +2286,7 @@ static void write_text_file_sources(json_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_random_sources(json_cache& /*cache*/,
+static void write_random_sources(io_cache& /*cache*/,
                                  const external_source& srcs,
                                  Writer&                w) noexcept
 {
@@ -2552,7 +2552,7 @@ static void write_child(const modeling& mod,
 
 template<typename Writer>
 static void write_simple_component_children(
-  json_cache& /*cache*/,
+  io_cache& /*cache*/,
   const modeling&          mod,
   const generic_component& simple_compo,
   Writer&                  w) noexcept
@@ -2568,7 +2568,7 @@ static void write_simple_component_children(
 }
 
 template<typename Writer>
-static void write_component_ports(json_cache& /*cache*/,
+static void write_component_ports(io_cache& /*cache*/,
                                   const modeling& /*mod*/,
                                   const component& compo,
                                   Writer&          w) noexcept
@@ -2591,7 +2591,7 @@ static void write_component_ports(json_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_simple_component_connections(json_cache& /*cache*/,
+static void write_simple_component_connections(io_cache& /*cache*/,
                                                const modeling&          mod,
                                                const generic_component& compo,
                                                Writer& w) noexcept
@@ -2645,7 +2645,7 @@ static void write_simple_component_connections(json_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_simple_component(json_cache&              cache,
+static void write_simple_component(io_cache&                cache,
                                    const modeling&          mod,
                                    const generic_component& s_compo,
                                    Writer&                  w) noexcept
@@ -2655,7 +2655,7 @@ static void write_simple_component(json_cache&              cache,
 }
 
 template<typename Writer>
-static void write_grid_component(json_cache& /*cache*/,
+static void write_grid_component(io_cache& /*cache*/,
                                  const modeling&       mod,
                                  const grid_component& grid,
                                  Writer&               w) noexcept
@@ -2692,7 +2692,7 @@ static void write_grid_component(json_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_internal_component(json_cache& /*cache*/,
+static void write_internal_component(io_cache& /*cache*/,
                                      const modeling& /* mod */,
                                      const internal_component id,
                                      Writer&                  w) noexcept
@@ -2703,7 +2703,7 @@ static void write_internal_component(json_cache& /*cache*/,
 
 status component_save(const modeling&  mod,
                       const component& compo,
-                      json_cache&      cache,
+                      io_cache&        cache,
                       const char*      filename,
                       json_pretty_print /*print_options*/) noexcept
 {
@@ -2841,7 +2841,7 @@ static status write_simulation_connections(const simulation& sim,
 template<typename Writer>
 status do_simulation_save(Writer&           w,
                           const simulation& sim,
-                          json_cache&       cache) noexcept
+                          io_cache&         cache) noexcept
 {
     w.StartObject();
 
@@ -2859,7 +2859,7 @@ status do_simulation_save(Writer&           w,
 }
 
 status simulation_save(const simulation& sim,
-                       json_cache&       cache,
+                       io_cache&         cache,
                        const char*       filename,
                        json_pretty_print /*print_option*/) noexcept
 {
@@ -2879,7 +2879,7 @@ status simulation_save(const simulation& sim,
 }
 
 status simulation_save(const simulation& sim,
-                       json_cache&       cache,
+                       io_cache&         cache,
                        vector<char>&     out,
                        json_pretty_print print_option) noexcept
 {
@@ -2916,7 +2916,7 @@ status simulation_save(const simulation& sim,
     return status::success;
 }
 
-static status read_simulation_model(json_cache&             cache,
+static status read_simulation_model(io_cache&               cache,
                                     simulation&             sim,
                                     const rapidjson::Value& val) noexcept
 {
@@ -2969,7 +2969,7 @@ static status read_simulation_model(json_cache&             cache,
     return status::success;
 }
 
-static status read_simulation_connections(json_cache&             cache,
+static status read_simulation_connections(io_cache&               cache,
                                           simulation&             sim,
                                           const rapidjson::Value& val) noexcept
 {
@@ -3012,7 +3012,7 @@ static status read_simulation_connections(json_cache&             cache,
     return status::success;
 }
 
-static status do_simulation_read(json_cache&             cache,
+static status do_simulation_read(io_cache&               cache,
                                  simulation&             sim,
                                  const rapidjson::Value& val) noexcept
 {
@@ -3028,7 +3028,7 @@ static status do_simulation_read(json_cache&             cache,
 }
 
 status simulation_load(simulation& sim,
-                       json_cache& cache,
+                       io_cache&   cache,
                        const char* filename) noexcept
 {
     file f{ filename, open_mode::read };
@@ -3058,7 +3058,7 @@ status simulation_load(simulation& sim,
 }
 
 status simulation_load(simulation&     sim,
-                       json_cache&     cache,
+                       io_cache&       cache,
                        std::span<char> in) noexcept
 {
     cache.clear();
@@ -3139,7 +3139,7 @@ static bool load_component_file(modeling&        mod,
 
 static status load_access(project&                pj,
                           modeling&               mod,
-                          json_cache&             cache,
+                          io_cache&               cache,
                           const rapidjson::Value& val,
                           model*&                 mdl) noexcept
 {
@@ -3212,7 +3212,7 @@ static status load_parameter(modeling&               mod,
                     });
 }
 
-static status load_project_parameters(json_cache              cache,
+static status load_project_parameters(io_cache                cache,
                                       project&                pj,
                                       modeling&               mod,
                                       const rapidjson::Value& top)
@@ -3252,7 +3252,7 @@ static status load_project_parameters(json_cache              cache,
     return status::success;
 }
 
-static status load_file_project(json_cache              cache,
+static status load_file_project(io_cache                cache,
                                 project&                pj,
                                 modeling&               mod,
                                 const rapidjson::Value& top) noexcept
@@ -3299,7 +3299,7 @@ static status load_file_project(json_cache              cache,
     return status::block_allocator_bad_capacity; // TODO fileproject
 }
 
-static status load_project(json_cache              cache,
+static status load_project(io_cache                cache,
                            project&                pj,
                            modeling&               mod,
                            const rapidjson::Value& value) noexcept
@@ -3312,7 +3312,7 @@ static status load_project(json_cache              cache,
 
 status project_load(project&    pj,
                     modeling&   mod,
-                    json_cache& cache,
+                    io_cache&   cache,
                     const char* filename) noexcept
 {
     file f{ filename, open_mode::read };
@@ -3393,11 +3393,11 @@ void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
     }
 }
 
-static status project_save_component(project&    pj,
-                                     modeling&   mod,
-                                     json_cache& cache,
-                                     component&  compo,
-                                     file&       f) noexcept
+static status project_save_component(project&   pj,
+                                     modeling&  mod,
+                                     io_cache&  cache,
+                                     component& compo,
+                                     file&      f) noexcept
 {
     auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
     auto* dir  = mod.dir_paths.try_to_get(compo.dir);
@@ -3452,7 +3452,7 @@ static status project_save_component(project&    pj,
 
 status project_save(project&    pj,
                     modeling&   mod,
-                    json_cache& cache,
+                    io_cache&   cache,
                     const char* filename,
                     json_pretty_print /*print_options*/) noexcept
 {

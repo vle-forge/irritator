@@ -1401,7 +1401,7 @@ int main()
 
     "input-output"_test = [] {
         irt::vector<char> out;
-        irt::json_cache   cache;
+        irt::io_cache     cache;
 
         {
             irt::simulation sim;

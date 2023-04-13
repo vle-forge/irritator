@@ -271,7 +271,7 @@ void run_simulation(irt::real   begin,
     irt::modeling             mod;
     irt::simulation           sim;
     irt::external_source      srcs;
-    irt::json_cache           cache;
+    irt::io_cache             cache;
 
     if (irt::is_bad(pj.init(10u))) {
         fmt::print(stderr, "Fail to allocate project structure\n");
