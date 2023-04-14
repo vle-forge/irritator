@@ -15,31 +15,21 @@
 
 namespace irt {
 
-enum class alloc_parameter
-{
-    none         = 0,
-    configurable = 1 << 1,
-    observable   = 1 << 2,
-    both         = configurable | observable
-};
-
 template<typename Dynamics>
 std::pair<Dynamics*, child_id> alloc(
   modeling&              mod,
   generic_component&     parent,
   const std::string_view name  = {},
-  alloc_parameter        param = alloc_parameter::none) noexcept
+  child_flags            param = child_flags_none) noexcept
 {
     irt_assert(!mod.models.full());
     irt_assert(!mod.children.full());
     irt_assert(!mod.hsms.full());
 
-    auto& child      = mod.alloc(parent, dynamics_typeof<Dynamics>());
-    auto  child_id   = mod.children.get_id(child);
-    child.name       = name;
-    child.observable = ordinal(param) & ordinal(alloc_parameter::observable);
-    child.configurable =
-      ordinal(param) & ordinal(alloc_parameter::configurable);
+    auto& child    = mod.alloc(parent, dynamics_typeof<Dynamics>());
+    auto  child_id = mod.children.get_id(child);
+    child.name     = name;
+    child.flags    = param;
 
     return std::make_pair(&get_dyn<Dynamics>(mod.models.get(child.id.mdl_id)),
                           child_id);
@@ -85,25 +75,25 @@ status add_lotka_volterra(modeling& mod, generic_component& com) noexcept
     bool success = mod.models.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "X", alloc_parameter::both);
+    auto integrator_a =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "X", child_flags_both);
     integrator_a.first->default_X  = 18.0_r;
     integrator_a.first->default_dQ = 0.1_r;
 
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "Y", alloc_parameter::both);
+    auto integrator_b =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "Y", child_flags_both);
     integrator_b.first->default_X  = 7.0_r;
     integrator_b.first->default_dQ = 0.1_r;
 
     auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
 
     auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(
-      mod, com, "X+XY", alloc_parameter::configurable);
+      mod, com, "X+XY", child_flags_configurable);
     sum_a.first->default_input_coeffs[0] = 2.0_r;
     sum_a.first->default_input_coeffs[1] = -0.4_r;
 
     auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(
-      mod, com, "Y+XY", alloc_parameter::configurable);
+      mod, com, "Y+XY", child_flags_configurable);
     sum_b.first->default_input_coeffs[0] = -1.0_r;
     sum_b.first->default_input_coeffs[1] = 0.1_r;
 
@@ -146,8 +136,8 @@ status add_lif(modeling& mod, generic_component& com) noexcept
     sum.first->default_input_coeffs[0] = -irt::one / tau;
     sum.first->default_input_coeffs[1] = V0 / tau;
 
-    auto integrator = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "lif", alloc_parameter::both);
+    auto integrator =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "lif", child_flags_both);
     integrator.first->default_X  = 0._r;
     integrator.first->default_dQ = 0.001_r;
 
@@ -175,18 +165,18 @@ status add_izhikevich(modeling& mod, generic_component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto cst          = alloc<constant>(mod, com);
-    auto cst2         = alloc<constant>(mod, com);
-    auto cst3         = alloc<constant>(mod, com);
-    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_c        = alloc<abstract_wsum<QssLevel, 4>>(mod, com);
-    auto sum_d        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto product      = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "V", alloc_parameter::both);
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "U", alloc_parameter::both);
+    auto cst     = alloc<constant>(mod, com);
+    auto cst2    = alloc<constant>(mod, com);
+    auto cst3    = alloc<constant>(mod, com);
+    auto sum_a   = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_b   = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_c   = alloc<abstract_wsum<QssLevel, 4>>(mod, com);
+    auto sum_d   = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "V", child_flags_both);
+    auto integrator_b =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "U", child_flags_both);
     auto cross  = alloc<abstract_cross<QssLevel>>(mod, com);
     auto cross2 = alloc<abstract_cross<QssLevel>>(mod, com);
 
@@ -263,13 +253,13 @@ status add_van_der_pol(modeling& mod, generic_component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
-    auto product1     = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product2     = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "X", alloc_parameter::both);
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "Y", alloc_parameter::both);
+    auto sum      = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
+    auto product1 = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product2 = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "X", child_flags_both);
+    auto integrator_b =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "Y", child_flags_both);
 
     integrator_a.first->default_X  = 0.0_r;
     integrator_a.first->default_dQ = 0.001_r;
@@ -306,9 +296,9 @@ status add_negative_lif(modeling& mod, generic_component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto sum        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto integrator = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "V", alloc_parameter::both);
+    auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto integrator =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "V", child_flags_both);
     auto cross     = alloc<abstract_cross<QssLevel>>(mod, com);
     auto cst       = alloc<constant>(mod, com);
     auto cst_cross = alloc<constant>(mod, com);
@@ -351,23 +341,23 @@ status add_seirs(modeling& mod, generic_component& com) noexcept
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
-    auto dS = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "dS", alloc_parameter::both);
+    auto dS =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "dS", child_flags_both);
     dS.first->default_X  = 0.999_r;
     dS.first->default_dQ = 0.0001_r;
 
-    auto dE = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "dE", alloc_parameter::both);
+    auto dE =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "dE", child_flags_both);
     dE.first->default_X  = 0.0_r;
     dE.first->default_dQ = 0.0001_r;
 
-    auto dI = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "dI", alloc_parameter::both);
+    auto dI =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "dI", child_flags_both);
     dI.first->default_X  = 0.001_r;
     dI.first->default_dQ = 0.0001_r;
 
-    auto dR = alloc<abstract_integrator<QssLevel>>(
-      mod, com, "dR", alloc_parameter::both);
+    auto dR =
+      alloc<abstract_integrator<QssLevel>>(mod, com, "dR", child_flags_both);
     dR.first->default_X  = 0.0_r;
     dR.first->default_dQ = 0.0001_r;
 
@@ -1667,11 +1657,10 @@ status modeling::copy(const child& src, child& dst) noexcept
 {
     clear(dst);
 
-    dst.name         = src.name;
-    dst.x            = src.x;
-    dst.y            = src.y;
-    dst.observable   = src.observable;
-    dst.configurable = dst.configurable;
+    dst.name  = src.name;
+    dst.x     = src.x;
+    dst.y     = src.y;
+    dst.flags = src.flags;
 
     if (src.type == child_type::model) {
         irt_return_if_fail(models.can_alloc(),

@@ -160,14 +160,19 @@ struct description
     description_status status = description_status::unread;
 };
 
+using child_flags = u8;
+
+enum child_flags_ : u8
+{
+    child_flags_none         = 0,
+    child_flags_configurable = 1 << 0,
+    child_flags_observable   = 1 << 1,
+    child_flags_both = child_flags_configurable | child_flags_observable,
+};
+
 struct child
 {
-    child() noexcept
-      : id{ undefined<model_id>() }
-      , type{ child_type::model }
-    {
-    }
-
+    child() noexcept;
     child(model_id model) noexcept;
     child(component_id component) noexcept;
 
@@ -179,13 +184,12 @@ struct child
         component_id compo_id;
     } id;
 
-    child_type type = child_type::model;
+    child_type  type  = child_type::model;
+    child_flags flags = child_flags_none;
 
-    u64   unique_id    = 0; // A identifier unique in the component parent.
-    float x            = 0.f;
-    float y            = 0.f;
-    bool  configurable = false; // true: is public initialization
-    bool  observable   = false; // true: is public observable
+    u64   unique_id = 0; // A identifier unique in the component parent.
+    float x         = 0.f;
+    float y         = 0.f;
 };
 
 struct connection
@@ -645,6 +649,12 @@ status simulation_init(project&                pj,
 /* ------------------------------------------------------------------
    Child part
  */
+
+inline child::child() noexcept
+  : id{ undefined<model_id>() }
+  , type{ child_type::model }
+{
+}
 
 inline child::child(model_id model) noexcept
   : type{ child_type::model }

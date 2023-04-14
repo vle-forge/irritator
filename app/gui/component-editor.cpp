@@ -1678,10 +1678,20 @@ static void show_selected_children(application&           app,
                 ImGui::Text("position %f %f",
                             static_cast<double>(child->x),
                             static_cast<double>(child->y));
-                if (ImGui::Checkbox("configurable", &child->configurable))
+                bool configurable = child->flags & child_flags_configurable;
+                if (ImGui::Checkbox("configurable", &configurable)) {
+                    if (configurable)
+                        child->flags |= child_flags_configurable;
                     is_modified = true;
-                if (ImGui::Checkbox("observables", &child->observable))
+                }
+
+                bool observable = child->flags & child_flags_observable;
+                if (ImGui::Checkbox("observables", &observable)) {
+                    if (observable)
+                        child->flags |= child_flags_observable;
                     is_modified = true;
+                }
+
                 if (ImGui::InputSmallString("name", child->name))
                     is_modified = true;
 

@@ -109,7 +109,7 @@ static void show_project_hierarchy(application&       app,
 {
     for (auto child_id : generic.children) {
         if (auto* c = app.mod.children.try_to_get(child_id); c) {
-            if (c->configurable || c->observable) {
+            if (c->flags & child_flags_both) {
                 ImGui::PushID(c);
 
                 bool selected = app.project_wnd.is_selected(child_id);
@@ -118,10 +118,10 @@ static void show_project_hierarchy(application&       app,
                     app.project_wnd.select(child_id);
 
                 if (selected) {
-                    if (c->configurable)
+                    if (c->flags & child_flags_configurable)
                         show_project_hierarchy_child_configuration(
                           app, parent, compo, *c);
-                    if (c->observable)
+                    if (c->flags & child_flags_observable)
                         show_project_hierarchy_child_observable(
                           app.mod, parent, *c);
                 }

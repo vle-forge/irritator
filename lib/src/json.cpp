@@ -1879,8 +1879,17 @@ static auto read_child(io_cache&               cache,
     irt_return_if_bad(get_u64(val, "unique-id", child.unique_id));
     irt_return_if_bad(get_float(val, "x", child.x));
     irt_return_if_bad(get_float(val, "y", child.y));
-    irt_return_if_bad(get_bool(val, "configurable", child.configurable));
-    irt_return_if_bad(get_bool(val, "observable", child.observable));
+
+    bool configurable = false;
+    irt_return_if_bad(get_bool(val, "configurable", configurable));
+    if (configurable)
+        child.flags |= child_flags_configurable;
+
+    bool observable = false;
+    irt_return_if_bad(get_bool(val, "observable", observable));
+    if (observable)
+        child.flags |= child_flags_observable;
+
     irt_return_if_bad(get_bool(val, "input", input));
     irt_return_if_bad(get_bool(val, "output", output));
 
@@ -2516,9 +2525,9 @@ static void write_child(const modeling& mod,
     w.Key("y");
     w.Double(static_cast<double>(ch.y));
     w.Key("configurable");
-    w.Bool(ch.configurable);
+    w.Bool(ch.flags & child_flags_configurable);
     w.Key("observable");
-    w.Bool(ch.observable);
+    w.Bool(ch.flags & child_flags_observable);
     w.Key("input");
     w.Bool(false);
     w.Key("output");

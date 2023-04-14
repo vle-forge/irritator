@@ -36,7 +36,7 @@ static status simulation_init_observation(simulation_editor& sim_ed,
             for (auto child_id : s_compo->children) {
                 auto* c = mod.children.try_to_get(child_id);
                 if (c && c->type == child_type::model) {
-                    if (c->observable) {
+                    if (c->flags & child_flags_observable) {
                         const auto mdl_id = c->id.mdl_id;
 
                         if (auto* obs_map = tree.observables.get(mdl_id);
