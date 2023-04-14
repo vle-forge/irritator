@@ -146,6 +146,26 @@ static status get_u64(const rapidjson::Value& value,
     return status::io_file_format_error;
 }
 
+static bool try_get_u64(const rapidjson::Value& value,
+                        std::string_view        name,
+                        u64&                    data) noexcept
+{
+    const auto str = rapidjson::GenericStringRef<char>(
+      name.data(), static_cast<rapidjson::SizeType>(name.size()));
+    const auto val = value.FindMember(str);
+
+    if (val != value.MemberEnd() && val->value.IsUint64()) {
+        auto temp = val->value.GetUint64();
+
+        if (temp <= UINT64_MAX) {
+            data = static_cast<u64>(temp);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static status get_i32(const rapidjson::Value& value,
                       std::string_view        name,
                       i32&                    data) noexcept
@@ -1876,7 +1896,7 @@ static auto read_child(io_cache&               cache,
     u64  id;
 
     irt_return_if_bad(get_u64(val, "id", id));
-    irt_return_if_bad(get_u64(val, "unique-id", child.unique_id));
+    try_get_u64(val, "unique-id", child.unique_id);
     irt_return_if_bad(get_float(val, "x", child.x));
     irt_return_if_bad(get_float(val, "y", child.y));
 
@@ -2069,6 +2089,8 @@ static status read_simple_component(io_cache&               cache,
     auto& s_compo      = mod.simple_components.alloc();
     compo.type         = component_type::simple;
     compo.id.simple_id = mod.simple_components.get_id(s_compo);
+
+    try_get_u64(val, "next-unique-id", s_compo.next_unique_id);
 
     irt_return_if_bad(read_children(cache, mod, s_compo, val));
     irt_return_if_bad(read_connections(cache, mod, s_compo, val));
@@ -2511,6 +2533,7 @@ static void write_empty_child(Writer& w) noexcept
 template<typename Writer>
 static void write_child(const modeling& mod,
                         const child&    ch,
+                        const u64       unique_id,
                         Writer&         w) noexcept
 {
     const auto child_id = mod.children.get_id(ch);
@@ -2519,7 +2542,7 @@ static void write_child(const modeling& mod,
     w.Key("id");
     w.Uint64(get_index(child_id));
     w.Key("unique-id");
-    w.Uint64(ch.unique_id);
+    w.Uint64(unique_id);
     w.Key("x");
     w.Double(static_cast<double>(ch.x));
     w.Key("y");
@@ -2571,7 +2594,11 @@ static void write_simple_component_children(
 
     for (auto child_id : simple_compo.children)
         if (auto* c = mod.children.try_to_get(child_id); c)
-            write_child(mod, *c, w);
+            write_child(mod,
+                        *c,
+                        c->unique_id == 0 ? simple_compo.make_next_unique_id()
+                                          : c->unique_id,
+                        w);
 
     w.EndArray();
 }
@@ -2659,6 +2686,9 @@ static void write_simple_component(io_cache&                cache,
                                    const generic_component& s_compo,
                                    Writer&                  w) noexcept
 {
+    w.String("next-unique-id");
+    w.Uint64(s_compo.next_unique_id);
+
     write_simple_component_children(cache, mod, s_compo, w);
     write_simple_component_connections(cache, mod, s_compo, w);
 }
@@ -2695,7 +2725,12 @@ static void write_grid_component(io_cache& /*cache*/,
         w.Key("column");
         w.Int(elem.column);
 
-        write_child(mod, elem.ch, w);
+        write_child(mod,
+                    elem.ch,
+                    elem.unique_id == 0
+                      ? grid.make_next_unique_id(elem.row, elem.column)
+                      : elem.unique_id,
+                    w);
     }
     w.EndArray();
 }

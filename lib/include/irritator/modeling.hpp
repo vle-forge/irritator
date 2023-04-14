@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
+#include <__concepts/arithmetic.h>
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
@@ -168,9 +169,12 @@ struct child
     child_type  type  = child_type::model;
     child_flags flags = child_flags_none;
 
-    u64   unique_id = 0; // A identifier unique in the component parent.
-    float x         = 0.f;
-    float y         = 0.f;
+    //! An identifier provided by the component parent to easily found a child
+    //! in project. The value 0 means unique_id is undefined.
+    u64 unique_id = 0;
+
+    float x = 0.f;
+    float y = 0.f;
 };
 
 struct connection
@@ -221,9 +225,12 @@ struct generic_component
     vector<child_id>      children;
     vector<connection_id> connections;
 
-    u64 next_unique_id = 0;
+    //! Use to affect @c child::unique_id when the component is saved. The value
+    //! 0 means unique_id is undefined. Mutable variable to allow function @c
+    //! make_next_unique_id to be const and called in json const functions.
+    mutable u64 next_unique_id = 1;
 
-    u64 make_next_unique_id() noexcept { return next_unique_id++; }
+    u64 make_next_unique_id() const noexcept { return next_unique_id++; }
 };
 
 struct grid_component
@@ -247,12 +254,20 @@ struct grid_component
 
     struct specific
     {
-        component_id ch = undefined<component_id>();
+        component_id ch        = undefined<component_id>();
+        u64          unique_id = 0;
         i32          row;
         i32          column;
     };
 
-    u64 make_next_unique_id() noexcept { return next_unique_id++; }
+    u64 make_next_unique_id(std::integral auto row,
+                            std::integral auto col) const noexcept
+    {
+        irt_assert(is_numeric_castable<u32>(row));
+        irt_assert(is_numeric_castable<u32>(col));
+
+        return static_cast<u64>(row) << 32 | static_cast<u64>(col);
+    }
 
     component_id     default_children[3][3];
     vector<specific> specific_children;
@@ -262,7 +277,6 @@ struct grid_component
 
     options opts            = options::none;
     type    connection_type = type::name;
-    u64     next_unique_id  = 0;
 };
 
 struct component
