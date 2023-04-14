@@ -1819,7 +1819,7 @@ static auto read_child_model(io_cache&               cache,
     model_id id     = undefined<model_id>();
     status   status = status::io_file_format_error;
 
-    auto opt_type = convert(cache.string_buffer);
+    auto opt_type = get_dynamics_type(cache.string_buffer);
     if (opt_type.has_value()) {
         auto& mdl    = mod.models.alloc();
         auto  mdl_id = mod.models.get_id(mdl);
@@ -2939,7 +2939,7 @@ static status read_simulation_model(io_cache&               cache,
         irt_return_if_bad(get_string(elem, "type", cache.string_buffer));
         irt_return_if_bad(get_u64(elem, "id", id));
 
-        auto opt_type = convert(cache.string_buffer);
+        auto opt_type = get_dynamics_type(cache.string_buffer);
         irt_return_if_fail(opt_type.has_value(),
                            status::io_file_format_model_unknown);
 
@@ -3245,7 +3245,7 @@ static status load_project_parameters(io_cache                cache,
               get_string(elm, "type", cache.string_buffer),
               status::io_project_file_parameters_type_error);
 
-            auto opt_type = convert(cache.string_buffer);
+            auto opt_type = get_dynamics_type(cache.string_buffer);
             irt_return_if_fail(opt_type.has_value(),
                                status::io_project_file_parameters_init_error);
 

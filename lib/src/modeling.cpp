@@ -426,57 +426,6 @@ status add_seirs(modeling& mod, generic_component& com) noexcept
     return status::success;
 }
 
-auto get_internal_component_type(std::string_view name) noexcept
-  -> std::optional<internal_component>
-{
-    struct string_to_type
-    {
-        constexpr string_to_type(const std::string_view   n,
-                                 const internal_component t) noexcept
-          : name(n)
-          , type(t)
-        {
-        }
-
-        std::string_view   name;
-        internal_component type;
-    };
-
-    static constexpr string_to_type table[] = {
-        { "qss1_izhikevich", internal_component::qss1_izhikevich },
-        { "qss1_lif", internal_component::qss1_lif },
-        { "qss1_lotka_volterra", internal_component::qss1_lotka_volterra },
-        { "qss1_negative_lif", internal_component::qss1_negative_lif },
-        { "qss1_seirs", internal_component::qss1_seirs },
-        { "qss1_van_der_pol", internal_component::qss1_van_der_pol },
-        { "qss2_izhikevich", internal_component::qss2_izhikevich },
-        { "qss2_lif", internal_component::qss2_lif },
-        { "qss2_lotka_volterra", internal_component::qss2_lotka_volterra },
-        { "qss2_negative_lif", internal_component::qss2_negative_lif },
-        { "qss2_seirs", internal_component::qss2_seirs },
-        { "qss2_van_der_pol", internal_component::qss2_van_der_pol },
-        { "qss3_izhikevich", internal_component::qss3_izhikevich },
-        { "qss3_lif", internal_component::qss3_lif },
-        { "qss3_lotka_volterra", internal_component::qss3_lotka_volterra },
-        { "qss3_negative_lif", internal_component::qss3_negative_lif },
-        { "qss3_seirs", internal_component::qss3_seirs },
-        { "qss3_van_der_pol", internal_component::qss3_van_der_pol },
-    };
-
-    auto it = binary_find(
-      std::begin(table),
-      std::end(table),
-      name,
-      [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), std::string_view>)
-              return left < right.name;
-          else
-              return left.name < right;
-      });
-
-    return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
-}
-
 static bool make_path(std::string_view sv) noexcept
 {
     bool ret = false;

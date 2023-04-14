@@ -129,25 +129,6 @@ struct io_cache
     void clear() noexcept;
 };
 
-static constexpr inline const char* internal_component_names[] = {
-    "qss1_izhikevich",   "qss1_lif",   "qss1_lotka_volterra",
-    "qss1_negative_lif", "qss1_seirs", "qss1_van_der_pol",
-    "qss2_izhikevich",   "qss2_lif",   "qss2_lotka_volterra",
-    "qss2_negative_lif", "qss2_seirs", "qss2_van_der_pol",
-    "qss3_izhikevich",   "qss3_lif",   "qss3_lotka_volterra",
-    "qss3_negative_lif", "qss3_seirs", "qss3_van_der_pol"
-};
-
-//! Try to get the component type from a string. If the string is unknown,
-//! optional returns \c std::nullopt.
-auto get_component_type(std::string_view name) noexcept
-  -> std::optional<component_type>;
-
-//! Try to get internal component type from a string. If the string is unknown,
-//! optional returns \c std::nullopt.
-auto get_internal_component_type(std::string_view name) noexcept
-  -> std::optional<internal_component>;
-
 //! Description store the description of a compenent in a text way. A
 //! description is attached to only one component (@c description_id). The
 //! filename is the same than the component
