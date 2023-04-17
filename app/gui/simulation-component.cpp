@@ -26,42 +26,13 @@ static status simulation_init_observation(simulation_editor& sim_ed,
                                           tree_node&         tree,
                                           component&         compo)
 {
-    auto* app = container_of(&sim_ed, &application::simulation_ed);
-    auto& mod = app->mod;
-
-    if (compo.type == component_type::simple) {
-        if (auto* s_compo =
-              mod.simple_components.try_to_get(compo.id.simple_id);
-            s_compo) {
-            for (auto child_id : s_compo->children) {
-                auto* c = mod.children.try_to_get(child_id);
-                if (c && c->type == child_type::model) {
-                    if (c->flags & child_flags_observable) {
-                        const auto mdl_id = c->id.mdl_id;
-
-                        if (auto* obs_map = tree.observables.get(mdl_id);
-                            obs_map) {
-                            auto* sim_map = tree.sim.get(mdl_id);
-                            irt_assert(sim_map);
-
-                            const auto sim_id = enum_cast<model_id>(*sim_map);
-                            auto*      mdl = app->sim.models.try_to_get(sim_id);
-
-                            irt_assert(mdl);
-                            sim_ed.add_simulation_observation_for(c->name.sv(),
-                                                                  sim_id);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    for (auto& elem : tree.observables)
+        sim_ed.add_simulation_observation_for(compo.name.sv(), elem.mdl_id);
 
     return status::success;
 }
 
-static status simulation_init_observation(component_editor& /* ed */,
-                                          simulation_editor& sim_ed,
+static status simulation_init_observation(simulation_editor& sim_ed,
                                           tree_node&         head) noexcept
 {
     auto* app = container_of(&sim_ed, &application::simulation_ed);
@@ -139,23 +110,23 @@ static void simulation_copy(component_editor&  ed,
     app->sim.clear();
     sim_ed.simulation_current = sim_ed.simulation_begin;
 
-    auto* head = app->pj.tn_head();
-    if (!head) {
+    auto  compo_id = app->pj.head();
+    auto* compo    = app->mod.components.try_to_get(compo_id);
+    auto* head     = app->pj.tn_head();
+    if (!head || !compo) {
         make_copy_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    if (auto ret = simulation_init(app->pj, app->mod, app->sim, sim_ed.cache);
-        is_bad(ret)) {
+    if (auto ret = app->pj.set(app->mod, app->sim, *compo); is_bad(ret)) {
         make_copy_error_msg(
           ed, "Copy hierarchy failed: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    if (auto ret = simulation_init_observation(ed, sim_ed, *head);
-        is_bad(ret)) {
+    if (auto ret = simulation_init_observation(sim_ed, *head); is_bad(ret)) {
         make_copy_error_msg(
           ed, "Initialization of observation failed: {}", status_string(ret));
         sim_ed.simulation_state = simulation_status::not_started;

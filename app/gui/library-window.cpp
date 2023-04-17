@@ -55,7 +55,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
             }
 
             if (ImGui::MenuItem("Set as main project model")) {
-                if (auto ret = app.pj.set(app.mod, sel); is_bad(ret)) {
+                if (auto ret = app.pj.set(app.mod, app.sim, sel); is_bad(ret)) {
                     auto& n = app.notifications.alloc();
                     n.level = log_level::error;
                     n.title = "Fail to build tree";

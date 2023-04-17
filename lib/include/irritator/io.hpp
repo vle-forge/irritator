@@ -81,6 +81,7 @@ status component_save(
 //! Load a project from a project json file.
 status project_load(project&    pj,
                     modeling&   mod,
+                    simulation& sim,
                     io_cache&   cache,
                     const char* filename) noexcept;
 
@@ -88,6 +89,7 @@ status project_load(project&    pj,
 status project_save(
   project&          pj,
   modeling&         mod,
+  simulation&       sim,
   io_cache&         cache,
   const char*       filename,
   json_pretty_print print_options = json_pretty_print::off) noexcept;

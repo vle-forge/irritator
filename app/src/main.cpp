@@ -294,7 +294,8 @@ void run_simulation(irt::real   begin,
         return;
     }
 
-    if (auto ret = irt::project_load(pj, mod, cache, file_name); is_bad(ret)) {
+    if (auto ret = irt::project_load(pj, mod, sim, cache, file_name);
+        is_bad(ret)) {
         fmt::print(stderr,
                    "Fail to read file `{}: {}'\n",
                    file_name,

@@ -5,7 +5,6 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
-#include <__concepts/arithmetic.h>
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
@@ -379,48 +378,57 @@ struct modeling_initializer
 
 struct tree_node
 {
-    tree_node(component_id id_, child_id id_in_parent_) noexcept;
+    tree_node(component_id id_, u64 unique_id_) noexcept;
+
+    bool have_configuration() const noexcept;
+    bool have_observation() const noexcept;
 
     //! Reference the current component
     component_id id = undefined<component_id>();
 
-    //! If this node have a parent and the component is a simple component.
-    child_id id_in_parent = undefined<child_id>();
+    //! A unique identifier provided by component parent.
+    u64 unique_id = 0;
 
     hierarchy<tree_node> tree;
 
-    table<model_id, model_id>        parameters;
-    table<model_id, observable_type> observables;
+    struct parameter
+    {
+        u64      unique_id;
+        model_id mdl_id; // model in simulation models
+        model    param;
+    };
 
-    //! @c simulation, stores simulation model for this tree-node.
-    vector<model_id> children;
+    struct observation
+    {
+        u64             unique_id;
+        model_id        mdl_id; // model in simulation models
+        observable_type param;
+    };
 
-    //! @c simulation, maps {component, child, model} to {simulation, model} for
-    //! this tree_node.
-    table<model_id, model_id> sim;
+    //! Map unique_id or simulation model to parameters.
+    vector<parameter> parameters;
+
+    //! Map unique_id or simulation model to observables.
+    vector<observation> observables;
+
+    //! Map component children into simulation model. Table build in @c
+    //! project::set or @c project::rebuild functions.
+    table<child_id, model_id> child_to_sim;
+
+    union node
+    {
+        node() noexcept = default;
+        node(tree_node* tn_) noexcept;
+        node(model* mdl_) noexcept;
+
+        tree_node* tn;
+        model*     mdl; // model in simluation models.
+    };
 
     //! Stores for each component in children list the identifier of the
     //! tree_node. This variable allows to quickly build the connection
-    //! network.
-    table<child_id, tree_node*> child_to_node;
-};
-
-//! Used to cache memory allocation when user import a model into simulation.
-//! The memory cached can be reused using clear but memory cached can be
-//! completely free using the destroy function.
-struct modeling_to_simulation
-{
-    vector<tree_node*>              stack;
-    vector<std::pair<model_id, i8>> inputs;
-    vector<std::pair<model_id, i8>> outputs;
-
-    table<u64, constant_source_id>    constants;
-    table<u64, binary_file_source_id> binary_files;
-    table<u64, text_file_source_id>   text_files;
-    table<u64, random_source_id>      randoms;
-
-    void clear() noexcept;
-    void destroy() noexcept;
+    //! network at build time.
+    table<child_id, node> child_to_node;
 };
 
 struct log_entry
@@ -596,15 +604,22 @@ class project
 public:
     status init(int size) noexcept;
 
-    status load(modeling& mod, io_cache& cache, const char* filename) noexcept;
-    status save(modeling& mod, io_cache& cache, const char* filename) noexcept;
+    status load(modeling&   mod,
+                simulation& sim,
+                io_cache&   cache,
+                const char* filename) noexcept;
+
+    status save(modeling&   mod,
+                simulation& sim,
+                io_cache&   cache,
+                const char* filename) noexcept;
 
     //! Assign a new @c component head. The previously allocated tree_node
     //! hierarchy is removed and a newly one is allocated.
-    status set(modeling& mod, component& compo) noexcept;
+    status set(modeling& mod, simulation& sim, component& compo) noexcept;
 
     //! Build the complete @c tree_node hierarchy from the @c component head.
-    status rebuild(modeling& mod) noexcept;
+    status rebuild(modeling& mod, simulation& sim) noexcept;
 
     //! Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;
@@ -628,18 +643,35 @@ public:
     //! Return the size and the capacity of the tree_nodes data_array.
     auto tree_nodes_size() const noexcept -> std::pair<int, int>;
 
+    //! Clear all vector and table in @c cache.
+    void clear_cache() noexcept;
+
+    //! Release all memory for vectors and tables in @c cache.
+    void destroy_cache() noexcept;
+
+    //! Used to cache memory allocation when user import a model into
+    //! simulation. The memory cached can be reused using clear but memory
+    //! cached can be completely free using the @c destroy_cache function.
+    struct cache
+    {
+        vector<tree_node*>            stack;
+        vector<std::pair<model*, i8>> inputs;
+        vector<std::pair<model*, i8>> outputs;
+
+        table<u64, constant_source_id>    constants;
+        table<u64, binary_file_source_id> binary_files;
+        table<u64, text_file_source_id>   text_files;
+        table<u64, random_source_id>      randoms;
+    };
+
 private:
     data_array<tree_node, tree_node_id> m_tree_nodes;
 
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();
-};
 
-//! Fill the simulation with project data.
-status simulation_init(project&                pj,
-                       modeling&               mod,
-                       simulation&             sim,
-                       modeling_to_simulation& cache) noexcept;
+    cache m_cache;
+};
 
 /* ------------------------------------------------------------------
    Child part
@@ -663,13 +695,37 @@ inline child::child(component_id component) noexcept
     id.compo_id = component;
 }
 
-inline tree_node::tree_node(component_id id_, child_id id_in_parent_) noexcept
+inline tree_node::tree_node(component_id id_, u64 unique_id_) noexcept
   : id(id_)
-  , id_in_parent(id_in_parent_)
+  , unique_id(unique_id_)
 {
 }
 
-/* ------------------------------------------------------------------
+inline tree_node::node::node(tree_node* tn_) noexcept
+  : tn(tn_)
+{
+}
+
+inline tree_node::node::node(model* mdl_) noexcept
+  : mdl(mdl_)
+{
+}
+
+/*
+   Project part
+ */
+
+inline bool tree_node::have_configuration() const noexcept
+{
+    return !parameters.empty();
+}
+
+inline bool tree_node::have_observation() const noexcept
+{
+    return !observables.empty();
+}
+
+/*
    Project part
  */
 

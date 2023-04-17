@@ -8,9 +8,9 @@
 
 int main()
 {
-#if defined(IRRITATOR_ENABLE_DEBUG)
-    irt::is_fatal_breakpoint = false;
-#endif
+    // #if defined(IRRITATOR_ENABLE_DEBUG)
+    //     irt::is_fatal_breakpoint = false;
+    // #endif
 
     using namespace boost::ut;
 
@@ -46,15 +46,10 @@ int main()
         expect(eq(mod.children.ssize(), 4));
         expect(eq(mod.connections.ssize(), 3));
 
-        irt::modeling_to_simulation cache;
-
-        expect(irt::is_success(pj.set(mod, c3)));
+        expect(irt::is_success(pj.set(mod, sim, c3)));
         expect(eq(pj.tree_nodes_size().first, 3));
 
-        expect(irt::is_success(simulation_init(pj, mod, sim, cache)));
-
         expect(eq(sim.models.ssize(), 2));
-
         auto* m1 = sim.models.try_to_get(0);
         expect(neq(m1, nullptr));
         auto* m2 = sim.models.try_to_get(1);
@@ -95,12 +90,8 @@ int main()
         expect(eq(mod.children.ssize(), 4));
         expect(eq(mod.connections.ssize(), 0));
 
-        irt::modeling_to_simulation cache;
-
-        expect(irt::is_success(pj.set(mod, c3)));
+        expect(irt::is_success(pj.set(mod, sim, c3)));
         expect(eq(pj.tree_nodes_size().first, 3));
-
-        expect(irt::is_success(simulation_init(pj, mod, sim, cache)));
 
         expect(eq(sim.models.ssize(), 2));
 
@@ -154,12 +145,8 @@ int main()
         expect(eq(mod.children.ssize(), 6));
         expect(eq(mod.connections.ssize(), 5));
 
-        irt::modeling_to_simulation cache;
-
-        expect(irt::is_success(pj.set(mod, c3)));
+        expect(irt::is_success(pj.set(mod, sim, c3)));
         expect(eq(pj.tree_nodes_size().first, 5));
-
-        expect(irt::is_success(simulation_init(pj, mod, sim, cache)));
 
         expect(eq(sim.models.ssize(), 2));
 
@@ -203,12 +190,8 @@ int main()
             for (int col = 0; col < 3; ++col)
                 g.default_children[row][col] = mod.components.get_id(c);
 
-        irt::modeling_to_simulation cache;
-
-        expect(irt::is_success(pj.set(mod, cg)));
+        expect(irt::is_success(pj.set(mod, sim, cg)));
         expect(eq(pj.tree_nodes_size().first, g.row * g.column + 1));
-
-        expect(irt::is_success(simulation_init(pj, mod, sim, cache)));
         expect(eq(sim.models.ssize(), g.row * g.column));
     };
 
@@ -236,13 +219,9 @@ int main()
 
         g.default_children[1][1] = mod.components.get_id(c);
 
-        irt::modeling_to_simulation cache;
-
-        expect(irt::is_success(pj.set(mod, cg)));
+        expect(irt::is_success(pj.set(mod, sim, cg)));
         expect(
           eq(pj.tree_nodes_size().first, (g.row - 2) * (g.column - 2) + 1));
-
-        expect(irt::is_success(simulation_init(pj, mod, sim, cache)));
         expect(eq(sim.models.ssize(), (g.row - 2) * (g.column - 2)));
     };
 
@@ -287,12 +266,9 @@ int main()
             for (int col = 0; col < 3; ++col)
                 g.default_children[row][col] = mod.components.get_id(c3);
 
-        irt::modeling_to_simulation cache;
-
-        expect(irt::is_success(pj.set(mod, cg)));
+        expect(irt::is_success(pj.set(mod, sim, cg)));
         expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
-        expect(irt::is_success(simulation_init(pj, mod, sim, cache)));
         expect(eq(sim.models.ssize(), g.row * g.column * 2));
     };
 }

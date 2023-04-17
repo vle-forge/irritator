@@ -2,25 +2,24 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "rapidjson/rapidjson.h"
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
-#include <optional>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/filewritestream.h>
 #include <rapidjson/prettywriter.h>
+#include <rapidjson/rapidjson.h>
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
 
 #include <limits>
+#include <optional>
 #include <string_view>
 #include <utility>
-#include <variant>
 
 namespace irt {
 
@@ -3181,51 +3180,41 @@ static bool load_component_file(modeling&        mod,
     return found;
 }
 
-static status load_access(project&                pj,
-                          modeling&               mod,
-                          io_cache&               cache,
-                          const rapidjson::Value& val,
-                          model*&                 mdl) noexcept
+static child* load_access(modeling&  mod,
+                          component& compo,
+                          u64        unique_id) noexcept
 {
-    cache.stack.clear();
-
-    auto* compo = mod.components.try_to_get(pj.head());
-
-    irt_return_if_fail(val.IsArray(), status::io_project_file_error);
-
-    for (rapidjson::SizeType i = 0, e = val.Size(); i != e; ++i) {
-        irt_return_if_fail(val[i].IsInt(), status::io_file_format_error);
-        cache.stack.emplace_back(val[i].GetInt());
-    }
-
-    for (i32 i = 0, e = cache.stack.ssize(); i != e; ++i) {
-        auto* child_id = compo->child_mapping_io.get(cache.stack[i]);
-        irt_return_if_fail(child_id, status::io_file_format_error);
-
-        auto* child = mod.children.try_to_get(*child_id);
-        irt_return_if_fail(child, status::io_file_format_error);
-
-        if (i + 1 < e) {
-            irt_return_if_fail(child->type == child_type::model,
-                               status::io_file_format_error);
-
-            auto id = child->id.compo_id;
-            compo   = mod.components.try_to_get(id);
-            irt_return_if_fail(compo, status::io_file_format_error);
-        } else {
-            irt_return_if_fail(child->type != child_type::component,
-                               status::io_file_format_error);
-
-            auto id = child->id.mdl_id;
-            mdl     = mod.models.try_to_get(id);
-            irt_return_if_fail(mdl, status::io_file_format_error);
-            break;
+    switch (compo.type) {
+    case component_type::simple: {
+        if (auto* s = mod.simple_components.try_to_get(compo.id.simple_id); s) {
+            for (auto c_id : s->children) {
+                if (auto* c = mod.children.try_to_get(c_id); c) {
+                    if (c->unique_id == unique_id)
+                        return c;
+                }
+            }
         }
+    } break;
+
+    case component_type::grid: {
+        if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id); g) {
+            u32 row, col;
+            unpack_doubleword(unique_id, &row, &col);
+
+            auto pos = row * g->column + col;
+            if (pos < g->cache.size()) {
+                if (auto* c = mod.children.try_to_get(g->cache[pos]); c)
+                    if (c->unique_id == unique_id)
+                        return c;
+            }
+        }
+    } break;
+
+    default:
+        irt_unreachable();
     }
 
-    irt_return_if_fail(mdl, status::io_file_format_error);
-
-    return status::success;
+    return nullptr;
 }
 
 static status load_parameter(modeling&               mod,
@@ -3235,12 +3224,6 @@ static status load_parameter(modeling&               mod,
 {
     irt_return_if_fail(val.IsObject(), status::io_file_format_error);
     irt_return_if_fail(mdl.type == type, status::io_file_format_error);
-
-    // auto& head       = mod.tree_nodes.get(mod.head);
-    // auto& compo_head = mod.components.get(head.id);
-    // auto* compo      = &compo_head;
-    // auto* s_compo    =
-    // mod.simple_components.try_to_get(compo->id.simple_id);
 
     return dispatch(mdl,
                     [&val, &mod]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -3256,26 +3239,61 @@ static status load_parameter(modeling&               mod,
                     });
 }
 
+static tree_node* load_access(project&                pj,
+                              modeling&               mod,
+                              io_cache&               cache,
+                              const rapidjson::Value& val) noexcept
+{
+    vector<u64> unique_ids;
+
+    if (!val.IsArray())
+        return nullptr;
+
+    for (rapidjson::SizeType i = 0, e = val.Size(); i != e; ++i) {
+        if (!val[i].IsUint64())
+            return nullptr;
+
+        unique_ids.emplace_back(val[i].GetUint64());
+    }
+
+    auto* compo = mod.components.try_to_get(pj.head());
+    auto* tn    = pj.tn_head();
+
+    for (i32 i = 0, e = cache.stack.ssize(); i != e; ++i) {
+        if (auto* c = load_access(mod, *compo, unique_ids[i]); c) {
+            auto c_id = mod.children.get_id(c);
+
+            if (c->type == child_type::component) {
+                if (auto* node = tn->child_to_node.get(c_id); node) {
+                    compo = mod.components.try_to_get(node->tn->id);
+                    tn    = node->tn;
+                } else {
+                    return nullptr;
+                }
+            } else {
+                return nullptr;
+            }
+        }
+    }
+
+    return tn;
+}
+
 static status load_project_parameters(io_cache                cache,
                                       project&                pj,
                                       modeling&               mod,
                                       const rapidjson::Value& top)
 {
-    auto param_it = top.FindMember("component-parameters");
+    auto param_it = top.FindMember("access");
     irt_return_if_fail(param_it != top.MemberEnd() && param_it->value.IsArray(),
                        status::io_project_file_parameters_error);
+
+    auto* tn = load_access(pj, mod, cache, param_it->value.GetArray());
+    irt_assert(tn);
 
     for (auto& elm : param_it->value.GetArray()) {
         if (elm.IsObject()) {
             model* mdl = nullptr;
-
-            auto access_it = elm.FindMember("access");
-            irt_return_if_fail(access_it != elm.MemberEnd(),
-                               status::io_project_file_parameters_access_error);
-            irt_return_if_bad_map(
-              load_access(pj, mod, cache, access_it->value, mdl),
-              status::io_project_file_parameters_access_error);
-
             irt_return_if_bad_map(
               get_string(elm, "type", cache.string_buffer),
               status::io_project_file_parameters_type_error);
@@ -3299,6 +3317,7 @@ static status load_project_parameters(io_cache                cache,
 static status load_file_project(io_cache                cache,
                                 project&                pj,
                                 modeling&               mod,
+                                simulation&             sim,
                                 const rapidjson::Value& top) noexcept
 {
     registred_path_id reg_id  = undefined<registred_path_id>();
@@ -3329,14 +3348,15 @@ static status load_file_project(io_cache                cache,
 
     if (auto* fp = mod.file_paths.try_to_get(file_id); fp) {
         if (auto* compo = mod.components.try_to_get(fp->component); compo) {
-            irt_return_if_bad(pj.set(mod, *compo));
+            irt_return_if_bad(pj.set(mod, sim, *compo));
 
             auto param_it = top.FindMember("component-parameters");
             irt_return_if_fail(param_it != top.MemberEnd() &&
                                  param_it->value.IsArray(),
                                status::io_project_file_parameters_error);
 
-            return load_project_parameters(cache, pj, mod, top);
+            return load_project_parameters(
+              cache, pj, mod, param_it->value.GetArray());
         }
     }
 
@@ -3346,16 +3366,18 @@ static status load_file_project(io_cache                cache,
 static status load_project(io_cache                cache,
                            project&                pj,
                            modeling&               mod,
+                           simulation&             sim,
                            const rapidjson::Value& value) noexcept
 {
     irt_return_if_fail(value.IsObject(), status::io_project_file_error);
     const auto& top = value.GetObject();
 
-    return load_file_project(cache, pj, mod, top);
+    return load_file_project(cache, pj, mod, sim, top);
 }
 
 status project_load(project&    pj,
                     modeling&   mod,
+                    simulation& sim,
                     io_cache&   cache,
                     const char* filename) noexcept
 {
@@ -3380,7 +3402,7 @@ status project_load(project&    pj,
     irt_return_if_fail(s, status::io_file_format_error);
 
     pj.clear();
-    return load_project(cache, pj, mod, d.GetObject());
+    return load_project(cache, pj, mod, sim, d.GetObject());
 }
 
 /*****************************************************************************
@@ -3389,51 +3411,64 @@ status project_load(project&    pj,
  *
  ****************************************************************************/
 
-void write_node(rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w,
-                const tree_node&                                     tree,
-                modeling& mod) noexcept
+template<typename Writer>
+void write_node_access(Writer& w, const tree_node& tn) noexcept
 {
-    // auto& compo = mod.components.get(tree->id);
-    // auto* s_compo =
-    // mod.simple_components.try_to_get(compo.id.simple_id);
+    if (auto* parent = tn.tree.get_parent(); parent)
+        write_node_access(w, *parent);
 
-    for (auto pair : tree.parameters.data) {
-        model* src = mod.models.try_to_get(pair.id);
-        model* dst = mod.models.try_to_get(pair.value);
+    w.Uint64(tn.unique_id);
+}
 
-        if (src && dst) {
-            irt_assert(src->type == dst->type);
+template<typename Writer>
+void write_tree_node(Writer& w, const tree_node& tree, modeling& mod) noexcept
+{
+    w.Key("access");
+    w.StartArray();
+    write_node_access(w, tree);
+    w.EndArray();
 
+    if (!tree.parameters.empty()) {
+        w.Key("parameters");
+        w.StartArray();
+        for (const auto& elem : tree.parameters) {
             w.StartObject();
 
-            w.Key("access");
-            w.StartArray();
+            w.Key("unique-id");
+            w.Uint64(elem.unique_id);
 
-            {
-                // auto* p = parent.tree.get_parent();
-                // while (p) {
-                //     w.Int(static_cast<int>(get_index(p->id_in_parent)));
-                //     p = p->tree.get_parent();
-                // }
-            }
-
-            w.EndArray();
-
-            w.Key("type");
-            w.String(dynamics_type_names[ordinal(dst->type)]);
             w.Key("dynamics");
+            w.String(dynamics_type_names[ordinal(elem.param.type)]);
 
-            dispatch(*dst,
-                     [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> void {
-                         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                             auto* machine = mod.hsms.try_to_get(dyn.id);
-                             if (machine)
-                                 write(w, dyn, *machine);
-                         } else {
-                             write(w, dyn);
-                         }
-                     });
+            dispatch(
+              elem.param,
+              [&w, &mod]<typename Dynamics>(const Dynamics& dyn) -> void {
+                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                      if (auto* machine = mod.hsms.try_to_get(dyn.id);
+                          machine) {
+                          write(w, dyn, *machine);
+                      }
+                  } else {
+                      write(w, dyn);
+                  }
+              });
         }
+        w.EndArray();
+    }
+
+    if (!tree.parameters.empty()) {
+        w.Key("observables");
+        w.StartArray();
+
+        for (auto& elem : tree.observables) {
+            w.StartObject();
+            w.Key("unique-id");
+            w.Uint64(elem.unique_id);
+            w.Key("type");
+            w.String("single");
+        }
+
+        w.EndArray();
     }
 }
 
@@ -3485,8 +3520,10 @@ static status project_save_component(project&   pj,
     w.Key("component-parameters");
     w.StartArray();
 
-    pj.for_all_tree_nodes(
-      [&w, &mod](const tree_node& tn) { write_node(w, tn, mod); });
+    pj.for_all_tree_nodes([&w, &mod](const tree_node& tn) {
+        if (tn.have_configuration() || tn.have_observation())
+            write_tree_node(w, tn, mod);
+    });
 
     w.EndArray();
     w.EndObject();
@@ -3494,8 +3531,9 @@ static status project_save_component(project&   pj,
     return status::success;
 }
 
-status project_save(project&    pj,
-                    modeling&   mod,
+status project_save(project&  pj,
+                    modeling& mod,
+                    simulation& /* sim */,
                     io_cache&   cache,
                     const char* filename,
                     json_pretty_print /*print_options*/) noexcept

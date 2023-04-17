@@ -11,119 +11,106 @@
 
 namespace irt {
 
-static void show_project_hierarchy_child_observable(modeling&  mod,
+static void show_project_hierarchy_child_observable(application& /* app */,
                                                     tree_node& parent,
-                                                    child&     ch) noexcept
+                                                    child&     ch,
+                                                    model_id   mdl_id) noexcept
 {
-    if (ch.type == child_type::model) {
-        if (auto* mdl = mod.models.try_to_get(ch.id.mdl_id); mdl) {
-            auto* value       = parent.observables.get(ch.id.mdl_id);
-            bool  is_observed = false;
+    auto it =
+      std::find_if(std::begin(parent.observables),
+                   std::end(parent.observables),
+                   [id = ch.unique_id](const auto& elem) noexcept -> bool {
+                       return elem.unique_id == id;
+                   });
 
-            if (value) {
-                if (*value == observable_type::none) {
-                    parent.observables.erase(ch.id.mdl_id);
-                    value = nullptr;
-                } else {
-                    is_observed = true;
-                }
-            }
+    bool is_configured = false;
 
-            if (ImGui::Checkbox("Observation##obs", &is_observed)) {
-                if (is_observed) {
-                    parent.observables.set(ch.id.mdl_id,
-                                           observable_type::single);
-                } else {
-                    parent.observables.erase(ch.id.mdl_id);
-                    is_observed = false;
-                }
-            }
+    if (it != std::end(parent.observables)) {
+        is_configured = true;
+    }
+
+    bool need_observation = is_configured;
+    if (ImGui::Checkbox("Observation##obs", &need_observation)) {
+        if (need_observation && !is_configured) {
+            auto& x     = parent.observables.emplace_back();
+            x.unique_id = ch.unique_id;
+            x.mdl_id    = mdl_id;
+            x.param     = observable_type::single;
+        } else {
+            parent.observables.erase(it);
         }
     }
 }
 
 static void show_project_hierarchy_child_configuration(application& app,
                                                        tree_node&   parent,
-                                                       component&   compo,
-                                                       child&       ch) noexcept
+                                                       child&       ch,
+                                                       model_id mdl_id) noexcept
 {
-    auto  id  = ch.id.mdl_id;
-    auto* mdl = app.mod.models.try_to_get(id);
+    auto it =
+      std::find_if(std::begin(parent.parameters),
+                   std::end(parent.parameters),
+                   [id = ch.unique_id](const auto& elem) noexcept -> bool {
+                       return elem.unique_id == id;
+                   });
 
-    if (mdl) {
-        auto*  value         = parent.parameters.get(id);
-        model* param         = nullptr;
-        bool   is_configured = false;
+    model* param         = nullptr;
+    bool   is_configured = false;
 
-        if (value) {
-            param = app.mod.parameters.try_to_get(*value);
-            if (!param) {
-                parent.parameters.erase(id);
-                value = nullptr;
-            } else {
-                is_configured = true;
+    if (it != std::end(parent.parameters)) {
+        param         = &it->param;
+        is_configured = true;
+    }
+
+    bool need_configuration = is_configured;
+    if (ImGui::Checkbox("Configuration##param", &need_configuration)) {
+        if (need_configuration && !is_configured) {
+            auto& x     = parent.parameters.emplace_back();
+            x.unique_id = ch.unique_id;
+            x.mdl_id    = mdl_id;
+
+            auto& m = app.mod.models.get(ch.id.mdl_id);
+            copy(m, x.param);
+        } else {
+            is_configured = false;
+        }
+    } else {
+        parent.parameters.erase(it);
+    }
+
+    if (need_configuration) {
+        irt_assert(param);
+
+        dispatch(*param, [&app]<typename Dynamics>(Dynamics& dyn) {
+            if constexpr (!std::is_same_v<Dynamics, hsm_wrapper>) {
+                show_dynamics_inputs(app.mod.srcs, dyn);
             }
-        }
-
-        if (ImGui::Checkbox("Configuration##param", &is_configured)) {
-            if (is_configured) {
-                if (app.mod.parameters.can_alloc(1)) {
-                    auto& new_param    = app.mod.parameters.alloc();
-                    auto  new_param_id = app.mod.parameters.get_id(new_param);
-                    param              = &new_param;
-                    copy(*mdl, new_param);
-                    parent.parameters.set(id, new_param_id);
-                } else {
-                    is_configured = false;
-                }
-            } else {
-                if (param) {
-                    app.mod.parameters.free(*param);
-                }
-                parent.parameters.erase(id);
-            }
-        }
-
-        if (is_configured && param) {
-            dispatch(
-              *param, [&app, &compo, param]<typename Dynamics>(Dynamics& dyn) {
-                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                      if (auto* machine = app.mod.hsms.try_to_get(dyn.id);
-                          machine) {
-                          show_dynamics_inputs(app,
-                                               app.mod.components.get_id(compo),
-                                               app.mod.models.get_id(*param),
-                                               *machine);
-                      }
-                  } else
-                      show_dynamics_inputs(app.mod.srcs, dyn);
-              });
-        }
+        });
     }
 }
 
-static void show_project_hierarchy(application&       app,
-                                   tree_node&         parent,
-                                   component&         compo,
-                                   generic_component& generic) noexcept
+static void show_project_hierarchy(application& app,
+                                   tree_node&   parent,
+                                   component& /*compo*/,
+                                   generic_component& /*generic*/) noexcept
 {
-    for (auto child_id : generic.children) {
-        if (auto* c = app.mod.children.try_to_get(child_id); c) {
-            if (c->flags & child_flags_both) {
+    for (auto [c_id, mdl_id] : parent.child_to_sim.data) {
+        if (auto* c = app.mod.children.try_to_get(c_id); c) {
+            if (c->type == child_type::model && c->flags != child_flags_none) {
                 ImGui::PushID(c);
 
-                bool selected = app.project_wnd.is_selected(child_id);
+                bool selected = app.project_wnd.is_selected(c_id);
 
                 if (ImGui::Selectable(c->name.c_str(), &selected))
-                    app.project_wnd.select(child_id);
+                    app.project_wnd.select(c_id);
 
                 if (selected) {
                     if (c->flags & child_flags_configurable)
                         show_project_hierarchy_child_configuration(
-                          app, parent, compo, *c);
+                          app, parent, *c, mdl_id);
                     if (c->flags & child_flags_observable)
                         show_project_hierarchy_child_observable(
-                          app.mod, parent, *c);
+                          app, parent, *c, mdl_id);
                 }
 
                 ImGui::PopID();
@@ -245,17 +232,26 @@ void project_window::save(const char* filename) noexcept
 
     app->cache.clear();
 
-    if (auto ret = project_save(app->pj, app->mod, app->cache, filename);
-        is_bad(ret)) {
+    auto* head  = app->pj.tn_head();
+    auto* compo = app->mod.components.try_to_get(app->pj.head());
+
+    if (!head || !compo) {
         auto& n = app->notifications.alloc(log_level::error);
-        n.title = "Save project fail";
-        format(n.message, "Can not access file `{}'", filename);
+        n.title = "Empty project";
         app->notifications.enable(n);
     } else {
-        app->mod.state = modeling_status::unmodified;
-        auto& n        = app->notifications.alloc(log_level::notice);
-        n.title        = "The file was saved successfully.";
-        app->notifications.enable(n);
+        if (auto ret = app->pj.save(app->mod, app->sim, app->cache, filename);
+            is_bad(ret)) {
+            auto& n = app->notifications.alloc(log_level::error);
+            n.title = "Save project fail";
+            format(n.message, "Can not access file `{}'", filename);
+            app->notifications.enable(n);
+        } else {
+            app->mod.state = modeling_status::unmodified;
+            auto& n        = app->notifications.alloc(log_level::notice);
+            n.title        = "The file was saved successfully.";
+            app->notifications.enable(n);
+        }
     }
 }
 
@@ -265,7 +261,7 @@ void project_window::load(const char* filename) noexcept
 
     app->cache.clear();
 
-    if (auto ret = project_load(app->pj, app->mod, app->cache, filename);
+    if (auto ret = app->pj.load(app->mod, app->sim, app->cache, filename);
         is_bad(ret)) {
         auto& n = app->notifications.alloc(log_level::error);
         n.title = "Load project fail";
@@ -289,8 +285,10 @@ void task_load_project(void* param) noexcept
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->pj.load(
-          g_task->app->mod, g_task->app->cache, file->path.c_str());
+        g_task->app->pj.load(g_task->app->mod,
+                             g_task->app->sim,
+                             g_task->app->cache,
+                             file->path.c_str());
         g_task->app->mod.registred_paths.free(*file);
     }
 
@@ -305,8 +303,10 @@ void task_save_project(void* param) noexcept
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->pj.save(
-          g_task->app->mod, g_task->app->cache, file->path.c_str());
+        g_task->app->pj.save(g_task->app->mod,
+                             g_task->app->sim,
+                             g_task->app->cache,
+                             file->path.c_str());
         g_task->app->mod.registred_paths.free(*file);
     }
 
