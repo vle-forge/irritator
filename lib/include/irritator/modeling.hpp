@@ -251,6 +251,8 @@ struct grid_component
         name    //!< One, two, three or four ports according to neighbor.
     };
 
+    static inline constexpr auto type_count = 2;
+
     struct specific
     {
         component_id ch        = undefined<component_id>();
@@ -321,9 +323,6 @@ struct registred_path
     state                  status   = state::unread;
     i8                     priority = 0;
 
-    bool make() const noexcept;
-    bool exists() const noexcept;
-
     vector<dir_path_id> children;
 };
 
@@ -340,9 +339,6 @@ struct dir_path
     small_string<256> path;
     state             status = state::unread;
     registred_path_id parent{ 0 };
-
-    bool make() const noexcept;
-    bool exists() const noexcept;
 
     vector<file_path_id> children;
 };
@@ -491,6 +487,11 @@ struct modeling
     file_path&      alloc_file(dir_path& dir) noexcept;
     dir_path&       alloc_dir(registred_path& reg) noexcept;
     registred_path& alloc_registred() noexcept;
+
+    bool exists(const registred_path& dir) noexcept;
+    bool exists(const dir_path& dir) noexcept;
+    bool create_directories(const registred_path& dir) noexcept;
+    bool create_directories(const dir_path& dir) noexcept;
 
     void remove_file(registred_path& reg,
                      dir_path&       dir,

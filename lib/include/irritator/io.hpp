@@ -70,12 +70,26 @@ status component_load(modeling&   mod,
                       io_cache&   cache,
                       const char* filename) noexcept;
 
+//! Load a component structure from a json file.
+status component_load(modeling&       mod,
+                      component&      compo,
+                      io_cache&       cache,
+                      std::span<char> buffer) noexcept;
+
 //! Save a component structure into a json file.
 status component_save(
   const modeling&   mod,
   const component&  compo,
   io_cache&         cache,
   const char*       filename,
+  json_pretty_print print_options = json_pretty_print::off) noexcept;
+
+//! Save a component structure into a json file.
+status component_save(
+  const modeling&   mod,
+  const component&  compo,
+  io_cache&         cache,
+  vector<char>&     out,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Load a project from a project json file.
@@ -85,6 +99,13 @@ status project_load(project&    pj,
                     io_cache&   cache,
                     const char* filename) noexcept;
 
+//! Load a project from a project json file.
+status project_load(project&        pj,
+                    modeling&       mod,
+                    simulation&     sim,
+                    io_cache&       cache,
+                    std::span<char> buffer) noexcept;
+
 //! Save a project from the current modeling.
 status project_save(
   project&          pj,
@@ -92,6 +113,15 @@ status project_save(
   simulation&       sim,
   io_cache&         cache,
   const char*       filename,
+  json_pretty_print print_options = json_pretty_print::off) noexcept;
+
+//! Save a project from the current modeling.
+status project_save(
+  project&          pj,
+  modeling&         mod,
+  simulation&       sim,
+  io_cache&         cache,
+  vector<char>&     buffer,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 struct binary_cache
@@ -621,6 +651,11 @@ inline const char* distribution_str(const distribution_type type) noexcept
 {
     return distribution_type_string[static_cast<int>(type)];
 }
+
+//! Try to get the random source distribution type from a string. If the string
+//! is unknwon, optional return @c std::nullopt.
+auto get_distribution_type(std::string_view name) noexcept
+  -> std::optional<distribution_type>;
 
 enum class random_file_type
 {

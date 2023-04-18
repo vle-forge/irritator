@@ -21,143 +21,3270 @@
 #include <string_view>
 #include <utility>
 
+#include <climits>
+#include <cstdint>
+
+#ifdef IRRITATOR_ENABLE_DEBUG
+#include <fmt/format.h>
+#endif
+
+using namespace std::literals;
+
 namespace irt {
 
-/*****************************************************************************
- *
- * Model file read part
- *
- ****************************************************************************/
-
-static status get_double(const rapidjson::Value& value,
-                         std::string_view        name,
-                         double&                 data) noexcept
+enum class stack_id
 {
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
+    child,
+    child_model_dynamics,
+    child_model,
+    copy_internal_component,
+    child_internal_component,
+    child_simple_or_grid_component,
+    dispatch_child_component_type,
+    read_child_component,
+    dispatch_child_component_or_model,
+    child_component_or_model,
+    children_array,
+    children,
 
-    if (val != value.MemberEnd() && val->value.IsDouble()) {
-        data = val->value.GetDouble();
-        return status::success;
+    internal_component,
+
+    component,
+    component_ports,
+    component_grid,
+    component_grid_specific_children,
+    component_grid_default_children,
+    component_children,
+
+    component_generic,
+    component_generic_connections,
+    component_generic_dispatch_connection,
+    component_generic_internal_connection,
+    component_generic_output_connection,
+    component_generic_input_connection,
+
+    srcs_constant_source,
+    srcs_constant_sources,
+    srcs_text_file_source,
+    srcs_text_file_sources,
+    srcs_binary_file_source,
+    srcs_binary_file_sources,
+    srcs_random_source,
+    srcs_random_source_distribution,
+    srcs_random_sources,
+
+    dynamics,
+    dynamics_qss_integrator,
+    dynamics_qss_multiplier,
+    dynamics_qss_sum,
+    dynamics_qss_wsum_2,
+    dynamics_qss_wsum_3,
+    dynamics_qss_wsum_4,
+    dynamics_integrator,
+    dynamics_quantifier,
+    dynamics_adder_2,
+    dynamics_adder_3,
+    dynamics_adder_4,
+    dynamics_mult_2,
+    dynamics_mult_3,
+    dynamics_mult_4,
+    dynamics_counter,
+    dynamics_queue,
+    dynamics_dynamic_queue,
+    dynamics_priority_queue,
+    dynamics_generator,
+    dynamics_constant,
+    dynamics_qss_cross,
+    dynamics_qss_filter,
+    dynamics_qss_power,
+    dynamics_qss_square,
+    dynamics_cross,
+    dynamics_accumulator_2,
+    dynamics_time_func,
+    dynamics_filter,
+    dynamics_logical_and_2,
+    dynamics_logical_or_2,
+    dynamics_logical_and_3,
+    dynamics_logical_or_3,
+    dynamics_logical_invert,
+    dynamics_hsm_condition_action,
+    dynamics_hsm_state_action,
+    dynamics_hsm_state,
+    dynamics_hsm_states,
+    dynamics_hsm_output,
+    dynamics_hsm_outputs,
+    dynamics_hsm,
+
+    simulation_model_dynamics,
+    simulation_model,
+    simulation_models,
+    simulation_connections,
+    simulation_connection,
+    simulation_connect,
+    simulation,
+
+    project,
+    project_parameters,
+    project_parameter_assign,
+    project_parameter_type,
+    project_parameter_access,
+    project_parameter,
+    project_top_component,
+    project_set_components,
+
+    undefined,
+};
+
+static inline constexpr std::string_view stack_id_names[] = {
+    "child",
+    "child_model_dynamics",
+    "child_model",
+    "copy_internal_component",
+    "child_internal_component",
+    "child_simple_or_grid_component",
+    "dispatch_child_component_type",
+    "read_child_component",
+    "dispatch_child_component_or_model",
+    "child_component_or_model",
+    "children_array",
+    "children",
+    "internal_component",
+    "component",
+    "component_ports",
+    "component_grid",
+    "component_grid_specific_children",
+    "component_grid_default_children",
+    "component_children",
+    "component_generic",
+    "component_generic_connections",
+    "component_generic_dispatch_connection",
+    "component_generic_internal_connection",
+    "component_generic_output_connection",
+    "component_generic_input_connection",
+    "srcs_constant_source",
+    "srcs_constant_sources",
+    "srcs_text_file_source",
+    "srcs_text_file_sources",
+    "srcs_binary_file_source",
+    "srcs_binary_file_sources",
+    "srcs_random_source",
+    "srcs_random_source_distribution",
+    "srcs_random_sources",
+    "dynamics",
+    "dynamics_qss_integrator",
+    "dynamics_qss_multiplier",
+    "dynamics_qss_sum",
+    "dynamics_qss_wsum_2",
+    "dynamics_qss_wsum_3",
+    "dynamics_qss_wsum_4",
+    "dynamics_integrator",
+    "dynamics_quantifier",
+    "dynamics_adder_2",
+    "dynamics_adder_3",
+    "dynamics_adder_4",
+    "dynamics_mult_2",
+    "dynamics_mult_3",
+    "dynamics_mult_4",
+    "dynamics_counter",
+    "dynamics_queue",
+    "dynamics_dynamic_queue",
+    "dynamics_priority_queue",
+    "dynamics_generator",
+    "dynamics_constant",
+    "dynamics_qss_cross",
+    "dynamics_qss_filter",
+    "dynamics_qss_power",
+    "dynamics_qss_square",
+    "dynamics_cross",
+    "dynamics_accumulator_2",
+    "dynamics_time_func",
+    "dynamics_filter",
+    "dynamics_logical_and_2",
+    "dynamics_logical_or_2",
+    "dynamics_logical_and_3",
+    "dynamics_logical_or_3",
+    "dynamics_logical_invert",
+    "dynamics_hsm_condition_action",
+    "dynamics_hsm_state_action",
+    "dynamics_hsm_state",
+    "dynamics_hsm_states",
+    "dynamics_hsm_output",
+    "dynamics_hsm_outputs",
+    "dynamics_hsm",
+    "simulation_model_dynamics",
+    "simulation_model",
+    "simulation_models",
+    "simulation_connections",
+    "simulation_connection",
+    "simulation_connect",
+    "simulation",
+    "project",
+    "project_parameters",
+    "project_parameter_assign",
+    "project_parameter_type",
+    "project_parameter_access",
+    "project_parameter",
+    "project_top_component",
+    "project_set_components",
+    "undefined",
+};
+
+enum class error_id
+{
+    none,
+    object_name_not_found,
+    missing_integer,
+    missing_bool,
+    missing_u64,
+    missing_float,
+    missing_double,
+    missing_string,
+    missing_time_function,
+    missing_quantifier_adapt_state,
+    missing_distribution_type,
+    missing_component_type,
+    missing_internal_component_type,
+    missing_connection_type,
+    missing_grid_component_type,
+    missing_model_child_type_error,
+    missing_mandatory_arg,
+    file_system_not_enough_memory,
+    integer_to_i8_error,
+    integer_to_u8_error,
+    integer_to_u32_error,
+    integer_to_i32_error,
+    integer_to_hsm_action_type,
+    integer_to_hsm_condition_type,
+    integer_to_hsm_variable,
+    modeling_not_enough_children,
+    modeling_not_enough_model,
+    modeling_connect_error,
+    modeling_connect_input_error,
+    modeling_connect_output_error,
+    modeling_internal_component_missing,
+    modeling_component_missing,
+    modeling_hsm_id_error,
+    srcs_constant_sources_buffer_not_enough,
+    srcs_constant_sources_not_enough,
+    srcs_text_file_sources_not_enough,
+    srcs_binary_file_sources_not_enough,
+    srcs_random_sources_not_enough,
+    double_min_error,
+    double_max_error,
+    integer_min_error,
+    value_not_array,
+    value_array_bad_size,
+    value_array_size_error,
+    value_not_object,
+    unknown_element,
+    cache_model_mapping_unfound,
+    simulation_models_not_enough,
+    simulation_connect_src_unknown,
+    simulation_connect_dst_unknown,
+    simulation_connect_src_port_unknown,
+    simulation_connect_dst_port_unknown,
+    simulation_connect_error,
+    project_set_no_head,
+    project_set_error,
+    project_access_parameter_error,
+    project_access_parameter_unique_id_error,
+};
+
+static inline constexpr std::string_view error_id_names[] = {
+    "none",
+    "object_name_not_found",
+    "missing_integer",
+    "missing_bool",
+    "missing_u64",
+    "missing_float",
+    "missing_double",
+    "missing_string",
+    "missing_time_function",
+    "missing_quantifier_adapt_state",
+    "missing_distribution_type",
+    "missing_component_type",
+    "missing_internal_component_type",
+    "missing_connection_type",
+    "missing_grid_component_type",
+    "missing_model_child_type_error",
+    "missing_mandatory_arg",
+    "file_system_not_enough_memory",
+    "integer_to_i8_error",
+    "integer_to_u8_error",
+    "integer_to_u32_error",
+    "integer_to_i32_error",
+    "integer_to_hsm_action_type",
+    "integer_to_hsm_condition_type",
+    "integer_to_hsm_variable",
+    "modeling_not_enough_children",
+    "modeling_not_enough_model",
+    "modeling_connect_error",
+    "modeling_connect_input_error",
+    "modeling_connect_output_error",
+    "modeling_internal_component_missing",
+    "modeling_component_missing",
+    "modeling_hsm_id_error",
+    "srcs_constant_sources_buffer_not_enough",
+    "srcs_constant_sources_not_enough",
+    "srcs_text_file_sources_not_enough",
+    "srcs_binary_file_sources_not_enough",
+    "srcs_random_sources_not_enough",
+    "double_min_error",
+    "double_max_error",
+    "integer_min_error",
+    "value_not_array",
+    "value_array_bad_size",
+    "value_array_size_error",
+    "value_not_object",
+    "unknown_element",
+    "cache_model_mapping_unfound",
+    "simulation_models_not_enough",
+    "simulation_connect_src_unknown",
+    "simulation_connect_dst_unknown",
+    "simulation_connect_src_port_unknown",
+    "simulation_connect_dst_port_unknown",
+    "simulation_connect_error",
+    "project_set_no_head",
+    "project_set_error",
+    "project_access_parameter_error",
+    "project_access_parameter_unique_id_error",
+};
+
+#define report_json_error(error_id__)                                          \
+    do {                                                                       \
+        error = error_id__;                                                    \
+        return false;                                                          \
+    } while (0)
+
+struct reader
+{
+    template<typename Function, typename... Args>
+    bool for_each_array(const rapidjson::Value& array,
+                        Function&&              f,
+                        Args... args) noexcept
+    {
+        if (!array.IsArray())
+            report_json_error(error_id::value_not_array);
+
+        rapidjson::SizeType i = 0, e = array.GetArray().Size();
+        for (; i != e; ++i)
+            if (!f(i, array.GetArray()[i], args...))
+                return false;
+
+        return true;
     }
 
-    return status::io_file_format_error;
-}
+    template<typename Function, typename... Args>
+    bool for_each_member(const rapidjson::Value& val,
+                         Function&&              f,
+                         Args... args) noexcept
+    {
+        if (!val.IsObject())
+            report_json_error(error_id::value_not_object);
 
-static status get_float(const rapidjson::Value& value,
-                        std::string_view        name,
-                        float&                  data) noexcept
-{
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
+        for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et; ++it)
+            if (!f(it->name.GetString(), it->value, args...))
+                return false;
 
-    if (val != value.MemberEnd() && val->value.IsDouble()) {
-        constexpr double l =
-          static_cast<double>(std::numeric_limits<float>::lowest());
-        constexpr double m =
-          static_cast<double>(std::numeric_limits<float>::max());
+        return true;
+    }
 
-        auto temp = val->value.GetDouble();
-        if (l <= temp && temp <= m) {
-            data = static_cast<float>(temp);
-            return status::success;
+    template<typename Function, typename... Args>
+    bool for_first_member(const rapidjson::Value& val,
+                          std::string_view        name,
+                          Function&&              f,
+                          Args... args) noexcept
+    {
+        if (!val.IsObject())
+            report_json_error(error_id::value_not_object);
+
+        for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et; ++it)
+            if (name == it->name.GetString())
+                return f(it->value, args...);
+
+        report_json_error(error_id::object_name_not_found);
+    }
+
+    bool read_temp_integer(const rapidjson::Value& val) noexcept
+    {
+        if (!val.IsInt64())
+            report_json_error(error_id::missing_integer);
+
+        temp_integer = val.GetInt64();
+
+        return true;
+    }
+
+    bool read_temp_bool(const rapidjson::Value& val) noexcept
+    {
+        if (!val.IsBool())
+            report_json_error(error_id::missing_bool);
+
+        temp_bool = val.GetBool();
+
+        return true;
+    }
+
+    bool read_temp_unsigned_integer(const rapidjson::Value& val) noexcept
+    {
+        if (!val.IsUint64())
+            report_json_error(error_id::missing_u64);
+
+        temp_u64 = val.GetUint64();
+
+        return true;
+    }
+
+    bool read_temp_real(const rapidjson::Value& val) noexcept
+    {
+        if (!val.IsDouble())
+            report_json_error(error_id::missing_double);
+
+        temp_double = val.GetDouble();
+
+        return true;
+    }
+
+    bool read_temp_string(const rapidjson::Value& val) noexcept
+    {
+        if (!val.IsString())
+            report_json_error(error_id::missing_string);
+
+        temp_string = val.GetString();
+
+        return true;
+    }
+
+    bool copy_to(connection::connection_type& type) noexcept
+    {
+        if (temp_string == "internal"sv)
+            type = connection::connection_type::internal;
+        else if (temp_string == "output"sv)
+            type = connection::connection_type::output;
+        else if (temp_string == "input"sv)
+            type = connection::connection_type::input;
+        else
+            report_json_error(error_id::missing_connection_type);
+
+        return true;
+    }
+
+    bool copy_to(quantifier::adapt_state& dst) noexcept
+    {
+        if (temp_string == "possible"sv)
+            dst = quantifier::adapt_state::possible;
+        else if (temp_string == "impossible"sv)
+            dst = quantifier::adapt_state::impossible;
+        else if (temp_string == "done"sv)
+            dst = quantifier::adapt_state::done;
+        else
+            report_json_error(error_id::missing_quantifier_adapt_state);
+
+        return true;
+    }
+
+    bool copy_to(distribution_type& dst) noexcept
+    {
+        if (auto dist_opt = get_distribution_type(temp_string);
+            dist_opt.has_value()) {
+            dst = dist_opt.value();
+            return true;
+        }
+
+        report_json_error(error_id::missing_distribution_type);
+    }
+
+    bool copy_to(dynamics_type& dst) noexcept
+    {
+        if (auto opt = get_dynamics_type(temp_string); opt.has_value()) {
+            dst = opt.value();
+            return true;
+        }
+
+        report_json_error(error_id::missing_model_child_type_error);
+    }
+
+    bool copy_to(child_type& dst_1, dynamics_type& dst_2) noexcept
+    {
+        if (temp_string == "component"sv) {
+            dst_1 = child_type::component;
+            return true;
+        } else {
+            dst_1 = child_type::model;
+
+            if (auto opt = get_dynamics_type(temp_string); opt.has_value()) {
+                dst_2 = opt.value();
+                return true;
+            } else {
+                report_json_error(error_id::missing_model_child_type_error);
+            }
         }
     }
 
-    return status::io_file_format_error;
-}
-
-static status get_bool(const rapidjson::Value& value,
-                       std::string_view        name,
-                       bool&                   data) noexcept
-{
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
-
-    if (val != value.MemberEnd() && val->value.IsBool()) {
-        data = val->value.GetBool();
-        return status::success;
-    }
-
-    return status::io_file_format_error;
-}
-
-static status get_u8(const rapidjson::Value& value,
-                     std::string_view        name,
-                     u8&                     data) noexcept
-{
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
-
-    if (val != value.MemberEnd() && val->value.IsUint()) {
-        auto temp = val->value.GetUint64();
-
-        if (temp <= UINT8_MAX) {
-            data = static_cast<u8>(temp);
-            return status::success;
+    bool copy_to(grid_component::type& dst) noexcept
+    {
+        if (0 <= temp_integer && temp_integer < grid_component::type_count) {
+            dst = enum_cast<grid_component::type>(temp_integer);
+            return true;
         }
+
+        report_json_error(error_id::missing_grid_component_type);
     }
 
-    return status::io_file_format_error;
-}
-
-static status get_i16(const rapidjson::Value& value,
-                      std::string_view        name,
-                      i16&                    data) noexcept
-{
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
-
-    if (val != value.MemberEnd() && val->value.IsInt()) {
-        auto temp = val->value.GetInt64();
-
-        if (INT16_MIN <= temp && temp <= UINT16_MAX) {
-            data = static_cast<i16>(temp);
-            return status::success;
+    bool copy_to(component_type& dst) noexcept
+    {
+        if (auto opt = get_component_type(temp_string); opt.has_value()) {
+            dst = opt.value();
+            return true;
         }
+
+        report_json_error(error_id::missing_component_type);
     }
 
-    return status::io_file_format_error;
-}
-
-static status get_u64(const rapidjson::Value& value,
-                      std::string_view        name,
-                      u64&                    data) noexcept
-{
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
-
-    if (val != value.MemberEnd() && val->value.IsUint64()) {
-        auto temp = val->value.GetUint64();
-
-        if (temp <= UINT64_MAX) {
-            data = static_cast<u64>(temp);
-            return status::success;
+    bool copy_to(internal_component& dst) noexcept
+    {
+        if (auto compo_opt = get_internal_component_type(temp_string);
+            compo_opt.has_value()) {
+            dst = compo_opt.value();
+            return true;
         }
+
+        report_json_error(error_id::missing_internal_component_type);
     }
 
-    return status::io_file_format_error;
+    template<int Length>
+    bool copy_to(small_string<Length>& dst) noexcept
+    {
+        dst.assign(temp_string);
+
+        return true;
+    }
+
+    bool copy_to(std::filesystem::path& dst) noexcept
+    {
+        try {
+            dst.assign(temp_string);
+            return true;
+        } catch (...) {
+            report_json_error(error_id::file_system_not_enough_memory);
+        }
+
+        return false;
+    }
+
+    bool copy_to(bool& dst) noexcept
+    {
+        dst = temp_bool;
+
+        return true;
+    }
+
+    bool copy_to(double& dst) noexcept
+    {
+        dst = temp_double;
+
+        return true;
+    }
+
+    bool copy_to(i64& dst) noexcept
+    {
+        dst = temp_integer;
+
+        return true;
+    }
+
+    bool copy_to(i32& dst) noexcept
+    {
+        if (!(INT32_MIN <= temp_integer && temp_integer < INT32_MAX))
+            report_json_error(error_id::integer_to_i32_error);
+
+        dst = static_cast<i32>(temp_integer);
+
+        return true;
+    }
+
+    bool copy_to(u32& dst) noexcept
+    {
+        if (temp_u64 >= UINT32_MAX)
+            report_json_error(error_id::integer_to_u32_error);
+
+        dst = static_cast<u8>(temp_u64);
+
+        return true;
+    }
+
+    bool copy_to(i8& dst) noexcept
+    {
+        if (!(0 <= temp_integer && temp_integer < INT8_MAX))
+            report_json_error(error_id::integer_to_i8_error);
+
+        dst = static_cast<i8>(temp_integer);
+
+        return true;
+    }
+
+    bool copy_to(u8& dst) noexcept
+    {
+        if (!(0 <= temp_integer && temp_integer < UINT8_MAX))
+            report_json_error(error_id::integer_to_u8_error);
+
+        dst = static_cast<u8>(temp_integer);
+
+        return true;
+    }
+
+    bool copy_to(hierarchical_state_machine::action_type& dst) noexcept
+    {
+        if (!(0 <= temp_integer &&
+              temp_integer < hierarchical_state_machine::action_type_count))
+            report_json_error(error_id::integer_to_hsm_action_type);
+
+        dst = enum_cast<hierarchical_state_machine::action_type>(temp_integer);
+
+        return true;
+    }
+
+    bool copy_to(hierarchical_state_machine::condition_type& dst) noexcept
+    {
+        if (!(0 <= temp_integer &&
+              temp_integer < hierarchical_state_machine::condition_type_count))
+            report_json_error(error_id::integer_to_hsm_condition_type);
+
+        dst =
+          enum_cast<hierarchical_state_machine::condition_type>(temp_integer);
+
+        return true;
+    }
+
+    bool copy_to(hierarchical_state_machine::variable& dst) noexcept
+    {
+        if (!(0 <= temp_integer &&
+              temp_integer < hierarchical_state_machine::variable_count))
+            report_json_error(error_id::integer_to_hsm_variable);
+
+        dst = enum_cast<hierarchical_state_machine::variable>(temp_integer);
+
+        return true;
+    }
+
+    bool copy_to(real (*&dst)(real)) noexcept
+    {
+        if (temp_string == "time"sv)
+            dst = &time_function;
+        else if (temp_string == "square"sv)
+            dst = &square_time_function;
+        else if (temp_string == "sin"sv)
+            dst = &sin_time_function;
+        else
+            report_json_error(error_id::missing_time_function);
+
+        return true;
+    }
+
+    template<typename T>
+    bool optional_has_value(const std::optional<T>& v) noexcept
+    {
+        if (v.has_value())
+            return true;
+
+        report_json_error(error_id::missing_mandatory_arg);
+    }
+
+    bool copy_to(u64& dst) noexcept
+    {
+        dst = temp_u64;
+
+        return true;
+    }
+
+    bool copy_to(std::optional<u64>& dst) noexcept
+    {
+        dst = temp_u64;
+
+        return true;
+    }
+
+    bool copy_to(std::optional<i8>& dst) noexcept
+    {
+        i8 tmp;
+
+        if (copy_to(tmp))
+            dst = tmp;
+
+        return false;
+    }
+
+    bool copy_to(float& dst) noexcept
+    {
+        dst = static_cast<float>(temp_double);
+
+        return true;
+    }
+
+    bool copy_to(source::source_type& dst) noexcept
+    {
+        dst = enum_cast<source::source_type>(temp_integer);
+
+        return true;
+    }
+
+    bool modeling_can_alloc(std::integral auto i) noexcept
+    {
+        if (!mod().children.can_alloc(i))
+            report_json_error(error_id::modeling_not_enough_children);
+
+        return true;
+    }
+
+    bool modeling_can_alloc_model(std::integral auto i) noexcept
+    {
+        if (!mod().models.can_alloc(i))
+            report_json_error(error_id::modeling_not_enough_model);
+
+        return true;
+    }
+
+    bool is_double_greater_than(double excluded_min) noexcept
+    {
+        if (temp_double <= excluded_min)
+            report_json_error(error_id::double_min_error);
+
+        return true;
+    }
+
+    bool is_double_greater_equal_than(double included_min) noexcept
+    {
+        if (temp_double < included_min)
+            report_json_error(error_id::double_min_error);
+
+        return true;
+    }
+
+    bool is_int_less_than(int excluded_max) noexcept
+    {
+        if (temp_integer >= excluded_max)
+            report_json_error(error_id::double_max_error);
+
+        return true;
+    }
+
+    bool is_int_greater_equal_than(int included_min) noexcept
+    {
+        if (temp_integer < included_min)
+            report_json_error(error_id::integer_min_error);
+
+        return true;
+    }
+
+    bool is_value_array_size_equal(const rapidjson::Value& val, int to) noexcept
+    {
+        if (is_value_array(val))
+            if (std::cmp_equal(val.GetArray().Size(), to))
+                return true;
+
+        report_json_error(error_id::value_array_bad_size);
+    }
+
+    bool is_value_array(const rapidjson::Value& val) noexcept
+    {
+        if (!val.IsArray())
+            report_json_error(error_id::value_not_array);
+
+        return true;
+    }
+
+    bool copy_array_size(const rapidjson::Value& val, i64& dst) noexcept
+    {
+        if (!is_value_array(val))
+            return false;
+
+        dst = static_cast<i64>(val.GetArray().Size());
+        return true;
+    }
+
+    bool is_value_array_size_less(const rapidjson::Value& val,
+                                  std::integral auto      i) noexcept
+    {
+        if (!is_value_array(val))
+            return false;
+
+        if (std::cmp_less(val.GetArray().Size(), i))
+            return true;
+
+        report_json_error(error_id::value_array_bad_size);
+    }
+
+    bool is_value_object(const rapidjson::Value& val) noexcept
+    {
+        if (!val.IsObject())
+            report_json_error(error_id::value_not_object);
+
+        return true;
+    }
+
+    bool affect_configurable_to(child_flags& flag) noexcept
+    {
+        flag |= child_flags_configurable;
+
+        return true;
+    }
+
+    bool affect_observable_to(child_flags& flag) noexcept
+    {
+        flag |= child_flags_observable;
+
+        return true;
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&        val,
+                       abstract_integrator<QssLevel>& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_integrator);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& val) noexcept -> bool {
+              if ("X"sv == name)
+                  return read_temp_real(val) and copy_to(dyn.default_X);
+              if ("dQ"sv == name)
+                  return read_temp_real(val) and copy_to(dyn.default_dQ);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_multiplier);
+
+        return true;
+    }
+
+    template<int QssLevel, int PortNumber>
+    bool read_dynamics(
+      const rapidjson::Value& /*val*/,
+      const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_sum);
+
+        return true;
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&    val,
+                       abstract_wsum<QssLevel, 2> dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_wsum_2);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& val) noexcept -> bool {
+              if ("coeff-0"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&    val,
+                       abstract_wsum<QssLevel, 3> dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_wsum_3);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& val) noexcept -> bool {
+              if ("coeff-0"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+              if ("coeff-2"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[2]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&    val,
+                       abstract_wsum<QssLevel, 4> dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_wsum_4);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& val) noexcept -> bool {
+              if ("coeff-0"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+              if ("coeff-2"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[2]);
+              if ("coeff-3"sv == name)
+                  return read_temp_real(val) &&
+                         copy_to(dyn.default_input_coeffs[3]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, integrator& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_integrator);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& val) noexcept -> bool {
+              if ("value"sv == name)
+                  return read_temp_real(val) and
+                         copy_to(dyn.default_current_value);
+              if ("reset"sv == name)
+                  return read_temp_real(val) and
+                         copy_to(dyn.default_reset_value);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, quantifier& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_quantifier);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("adapt-state"sv == name)
+                  return read_temp_string(value) &&
+                         copy_to(dyn.default_adapt_state);
+              if ("step-size"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_step_size);
+              if ("past-length"sv == name)
+                  return read_temp_integer(value) &&
+                         copy_to(dyn.default_past_length);
+              if ("zero-init-offset"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_zero_init_offset);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, adder_2& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_adder_2);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[1]);
+              if ("coeff-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, adder_3& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_adder_3);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[1]);
+              if ("value-2"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[2]);
+              if ("coeff-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+              if ("coeff-2"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[2]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, adder_4& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_adder_4);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[1]);
+              if ("value-2"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[2]);
+              if ("value-3"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[3]);
+              if ("coeff-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+              if ("coeff-2"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[2]);
+              if ("coeff-3"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[3]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, mult_2& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_mult_2);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[1]);
+              if ("coeff-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, mult_3& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_mult_3);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[1]);
+              if ("value-2"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[2]);
+              if ("coeff-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+              if ("coeff-2"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[2]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, mult_4& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_mult_4);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[1]);
+              if ("value-2"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[2]);
+              if ("value-3"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_values[3]);
+              if ("coeff-0"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[0]);
+              if ("coeff-1"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[1]);
+              if ("coeff-2"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[2]);
+              if ("coeff-3"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_input_coeffs[3]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       counter& /*dyn*/) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_counter);
+
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, queue& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_queue);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("ta"sv == name)
+                  return read_temp_real(value) && is_double_greater_than(0.0) &&
+                         copy_to(dyn.default_ta);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, dynamic_queue& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_dynamic_queue);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("source-ta-type"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(source::source_type_count) &&
+                         copy_to(dyn.default_source_ta.type);
+              if ("source-ta-id"sv == name)
+                  return read_temp_unsigned_integer(value) &&
+                         copy_to(dyn.default_source_ta.id);
+              if ("stop-on-error"sv == name)
+                  return read_temp_bool(value) && copy_to(dyn.stop_on_error);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       priority_queue&         dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_priority_queue);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("ta"sv == name)
+                  return read_temp_real(value) && is_double_greater_than(0.0) &&
+                         copy_to(dyn.default_ta);
+              if ("source-ta-type"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(source::source_type_count) &&
+                         copy_to(dyn.default_source_ta.type);
+              if ("source-ta-id"sv == name)
+                  return read_temp_unsigned_integer(value) &&
+                         copy_to(dyn.default_source_ta.id);
+              if ("stop-on-error"sv == name)
+                  return read_temp_bool(value) && copy_to(dyn.stop_on_error);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, generator& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_generator);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("offset"sv == name)
+                  return read_temp_real(value) &&
+                         is_double_greater_equal_than(0.0) &&
+                         copy_to(dyn.default_offset);
+
+              if ("source-ta-type"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(source::source_type_count) &&
+                         copy_to(dyn.default_source_ta.type);
+              if ("source-ta-id"sv == name)
+                  return read_temp_unsigned_integer(value) &&
+                         copy_to(dyn.default_source_ta.id);
+
+              if ("source-value-type"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(source::source_type_count) &&
+                         copy_to(dyn.default_source_value.type);
+              if ("source-value-id"sv == name)
+                  return read_temp_unsigned_integer(value) &&
+                         copy_to(dyn.default_source_value.id);
+
+              if ("stop-on-error"sv == name)
+                  return read_temp_bool(value) && copy_to(dyn.stop_on_error);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, constant& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_constant);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value"sv == name)
+                  return read_temp_real(value) && copy_to(dyn.default_value);
+              if ("offset"sv == name)
+                  return read_temp_real(value) &&
+                         is_double_greater_equal_than(0.0) &&
+                         copy_to(dyn.default_value);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&   val,
+                       abstract_cross<QssLevel>& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_cross);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("threshold"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_threshold);
+              if ("detect-up"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_detect_up);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&    val,
+                       abstract_filter<QssLevel>& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_filter);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("lower-threshold"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_lower_threshold);
+              if ("upper-threshold"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_upper_threshold);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&   val,
+                       abstract_power<QssLevel>& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_power);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("n"sv == name)
+                  return read_temp_real(value) && copy_to(dyn.default_n);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       abstract_square<QssLevel>& /*dyn*/) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_square);
+
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, cross& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_cross);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("threshold"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_threshold);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       accumulator_2& /*dyn*/) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_accumulator_2);
+
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, time_func& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_time_func);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("function"sv == name)
+                  return read_temp_string(value) && copy_to(dyn.default_f);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, filter& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_filter);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("lower-threshold"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_lower_threshold);
+              if ("upper-threshold"sv == name)
+                  return read_temp_real(value) &&
+                         copy_to(dyn.default_upper_threshold);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, logical_and_2& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_logical_and_2);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[1]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, logical_or_2& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_logical_or_2);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[1]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, logical_and_3& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_logical_and_3);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[1]);
+              if ("value-2"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[2]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val, logical_or_3& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_logical_or_3);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value-0"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[0]);
+              if ("value-1"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[1]);
+              if ("value-2"sv == name)
+                  return read_temp_bool(value) &&
+                         copy_to(dyn.default_values[2]);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       logical_invert& /*dyn*/) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_logical_invert);
+
+        return true;
+    }
+
+    bool read_hsm_condition_action(
+      const rapidjson::Value&                       val,
+      hierarchical_state_machine::condition_action& s) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm_condition_action);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("parameter"sv == name)
+                  return read_temp_integer(value) && copy_to(s.parameter);
+
+              if ("type"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(
+                           hierarchical_state_machine::condition_type_count) &&
+                         copy_to(s.type);
+
+              if ("port"sv == name)
+                  return read_temp_integer(value) && copy_to(s.port);
+
+              if ("mask"sv == name)
+                  return read_temp_integer(value) && copy_to(s.mask);
+
+              return true;
+          });
+    }
+
+    bool read_hsm_state_action(
+      const rapidjson::Value&                   val,
+      hierarchical_state_machine::state_action& s) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm_state_action);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("parameter"sv == name)
+                  return read_temp_integer(value) && copy_to(s.parameter);
+
+              if ("var-1"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(
+                           hierarchical_state_machine::variable_count) &&
+                         copy_to(s.var1);
+
+              if ("var-2"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(
+                           hierarchical_state_machine::variable_count) &&
+                         copy_to(s.var2);
+
+              if ("type"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(
+                           hierarchical_state_machine::action_type_count) &&
+                         copy_to(s.type);
+
+              return true;
+          });
+    }
+
+    bool read_hsm_state(const rapidjson::Value&            val,
+                        hierarchical_state_machine::state& s) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm_state);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("enter"sv == name)
+                  return read_hsm_state_action(value, s.enter_action);
+
+              if ("exit"sv == name)
+                  return read_hsm_state_action(value, s.exit_action);
+
+              if ("if"sv == name)
+                  return read_hsm_state_action(value, s.if_action);
+
+              if ("else"sv == name)
+                  return read_hsm_state_action(value, s.else_action);
+
+              if ("condition"sv == name)
+                  return read_hsm_condition_action(value, s.condition);
+
+              if ("if-transition"sv == name)
+                  return read_temp_integer(value) && copy_to(s.if_transition);
+
+              if ("else-transition"sv == name)
+                  return read_temp_integer(value) && copy_to(s.else_transition);
+
+              if ("super-id"sv == name)
+                  return read_temp_integer(value) && copy_to(s.super_id);
+
+              if ("sub-id"sv == name)
+                  return read_temp_integer(value) && copy_to(s.sub_id);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_hsm_states(
+      const rapidjson::Value& val,
+      std::array<hierarchical_state_machine::state,
+                 hierarchical_state_machine::max_number_of_state>&
+        states) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm_states);
+
+        return for_each_array(
+          val, [&](const auto i, const auto& value) noexcept -> bool {
+              return read_hsm_state(value, states[i]);
+          });
+    }
+
+    bool read_hsm_outputs(
+      const rapidjson::Value& val,
+      small_vector<hierarchical_state_machine::output_message, 4>&
+        outputs) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm_outputs);
+
+        return for_each_array(
+          val, [&](const auto i, const auto& value) noexcept -> bool {
+              auto_stack a(this, stack_id::dynamics_hsm_output);
+
+              return for_each_member(
+                value,
+                [&](const auto name, const auto& value) noexcept -> bool {
+                    if ("port"sv == name)
+                        return read_temp_integer(value) &&
+                               is_int_greater_equal_than(0) &&
+                               is_int_less_than(UINT8_MAX) &&
+                               copy_to(outputs[i].port);
+
+                    if ("value"sv == name)
+                        return read_temp_integer(value) &&
+                               copy_to(outputs[i].value);
+
+                    return true;
+                });
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value&     val,
+                       hierarchical_state_machine& hsm) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("states"sv == name)
+                  return read_hsm_states(value, hsm.states);
+              if ("outputs"sv == name)
+                  return read_hsm_outputs(value, hsm.outputs);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    ////
+
+    bool add_child_to_model_mapping(u64 unique_id, child_id c_id) noexcept
+    {
+        cache().model_mapping.data.emplace_back(unique_id, ordinal(c_id));
+
+        return true;
+    }
+
+    bool read_child(const rapidjson::Value& val,
+                    child&                  c,
+                    child_id                c_id) noexcept
+    {
+        auto_stack a(this, stack_id::child);
+
+        std::optional<u64> unique_id;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("x"sv == name)
+                         return read_temp_real(value) and copy_to(c.x);
+                     if ("y"sv == name)
+                         return read_temp_real(value) and copy_to(c.y);
+                     if ("id"sv == name)
+                         return read_temp_unsigned_integer(value) and
+                                copy_to(unique_id);
+                     if ("configurable"sv == name)
+                         return read_temp_bool(value) and
+                                affect_configurable_to(c.flags);
+                     if ("observable"sv == name)
+                         return read_temp_bool(value) and
+                                affect_observable_to(c.flags);
+
+                     return true;
+                 }) &&
+               optional_has_value(unique_id) &&
+               add_child_to_model_mapping(unique_id.value(), c_id);
+    }
+
+    bool read_child_model_dynamics(const rapidjson::Value& val,
+                                   model&                  mdl) noexcept
+    {
+        auto_stack a(this, stack_id::child_model_dynamics);
+
+        return for_first_member(
+          val, "dynamics"sv, [&](const auto& val) noexcept -> bool {
+              return dispatch(
+                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
+                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                        if (auto* hsm = mod().hsms.try_to_get(dyn.id); hsm)
+                            return read_dynamics(val, *hsm);
+
+                        report_json_error(error_id::modeling_hsm_id_error);
+                    } else {
+                        return read_dynamics(val, dyn);
+                    }
+                });
+          });
+    }
+
+    bool read_child_model(const rapidjson::Value& val,
+                          child&                  c,
+                          dynamics_type           type) noexcept
+    {
+        auto_stack a(this, stack_id::child_model);
+
+        auto& mdl    = mod().models.alloc();
+        auto  mdl_id = mod().models.get_id(mdl);
+        mdl.type     = type;
+        mdl.handle   = nullptr;
+        c.type       = child_type::model;
+        c.id.mdl_id  = mdl_id;
+
+        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+            new (&dyn) Dynamics{};
+
+            if constexpr (has_input_port<Dynamics>)
+                for (int i = 0, e = length(dyn.x); i != e; ++i)
+                    dyn.x[i] = static_cast<u64>(-1);
+
+            if constexpr (has_output_port<Dynamics>)
+                for (int i = 0, e = length(dyn.y); i != e; ++i)
+                    dyn.y[i] = static_cast<u64>(-1);
+
+            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                irt_assert(mod().hsms.can_alloc());
+
+                auto& machine = mod().hsms.alloc();
+                dyn.id        = mod().hsms.get_id(machine);
+            }
+        });
+
+        return read_child_model_dynamics(val, mdl);
+    }
+
+    bool copy_internal_component(internal_component type,
+                                 component_id&      c_id) noexcept
+    {
+        auto_stack a(this, stack_id::copy_internal_component);
+
+        component* compo = nullptr;
+        while (mod().components.next(compo)) {
+            if (compo->type == component_type::internal &&
+                compo->id.internal_id == type) {
+                c_id = mod().components.get_id(*compo);
+                return true;
+            }
+        }
+
+        report_json_error(error_id::modeling_internal_component_missing);
+    }
+
+    bool read_child_internal_component(const rapidjson::Value& val,
+                                       component_id&           c_id) noexcept
+    {
+        auto_stack a(this, stack_id::child_internal_component);
+
+        internal_component compo = internal_component::qss1_izhikevich;
+
+        return read_temp_string(val) && copy_to(compo) &&
+               copy_internal_component(compo, c_id);
+    }
+
+    auto search_reg(std::string_view name) noexcept -> registred_path*
+    {
+        registred_path* reg = nullptr;
+        while (mod().registred_paths.next(reg))
+            if (name == reg->name.sv())
+                return reg;
+
+        return nullptr;
+    }
+
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
+    {
+        for (auto dir_id : reg.children) {
+            if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
+                if (name == dir->path.sv())
+                    return dir;
+            }
+        }
+
+        return nullptr;
+    }
+
+    auto search_dir(std::string_view name) noexcept -> dir_path*
+    {
+        for (auto reg_id : mod().component_repertories) {
+            if (auto* reg = mod().registred_paths.try_to_get(reg_id); reg) {
+                for (auto dir_id : reg->children) {
+                    if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
+                        if (dir->path.sv() == name)
+                            return dir;
+                    }
+                }
+            }
+        }
+
+        return nullptr;
+    }
+
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
+    {
+        for (auto file_id : dir.children)
+            if (auto* file = mod().file_paths.try_to_get(file_id); file)
+                if (file->path.sv() == name)
+                    return file;
+
+        return nullptr;
+    }
+
+    auto search_component(std::string_view name) noexcept -> component*
+    {
+        component* c = nullptr;
+        while (mod().components.next(c)) {
+            if (c->name.sv() == name)
+                return c;
+        }
+
+        return nullptr;
+    }
+
+    bool modeling_copy_component_id(const std::filesystem::path& reg,
+                                    const std::filesystem::path& dir,
+                                    const std::filesystem::path& file,
+                                    component_id&                c_id)
+    {
+        registred_path* reg_ptr  = search_reg(reg.string());
+        dir_path*       dir_ptr  = nullptr;
+        file_path*      file_ptr = nullptr;
+
+        if (reg_ptr)
+            dir_ptr = search_dir_in_reg(*reg_ptr, dir.string());
+
+        if (!dir_ptr)
+            dir_ptr = search_dir(dir.string());
+
+        if (dir_ptr)
+            file_ptr = search_file(*dir_ptr, file.string());
+
+        if (file_ptr) {
+            c_id = file_ptr->component;
+            return true;
+        }
+
+        auto* c = search_component(file.string());
+        if (c) {
+            c_id = mod().components.get_id(*c);
+            return true;
+        }
+
+        report_json_error(error_id::modeling_component_missing);
+    }
+
+    bool read_child_simple_or_grid_component(const rapidjson::Value& val,
+                                             component_id& c_id) noexcept
+    {
+        auto_stack a(this, stack_id::child_simple_or_grid_component);
+
+        std::filesystem::path reg;
+        std::filesystem::path dir;
+        std::filesystem::path file;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("path"sv == name)
+                         return read_temp_string(value) && copy_to(reg);
+
+                     if ("directory"sv == name)
+                         return read_temp_string(value) && copy_to(dir);
+
+                     if ("file"sv == name)
+                         return read_temp_string(value) && copy_to(file);
+
+                     return true;
+                 }) &&
+               modeling_copy_component_id(reg, dir, file, c_id);
+    }
+
+    bool dispatch_child_component_type(const rapidjson::Value& val,
+                                       component_type          type,
+                                       component_id&           c_id) noexcept
+    {
+        auto_stack a(this, stack_id::dispatch_child_component_type);
+
+        switch (type) {
+        case component_type::none:
+            return true;
+
+        case component_type::internal:
+            return read_child_internal_component(val, c_id);
+
+        case component_type::simple:
+            return read_child_simple_or_grid_component(val, c_id);
+
+        case component_type::grid:
+            return read_child_simple_or_grid_component(val, c_id);
+        }
+
+        report_json_error(error_id::unknown_element);
+    }
+
+    bool read_child_component(const rapidjson::Value& val,
+                              component_id&           c_id) noexcept
+    {
+        auto_stack a(this, stack_id::read_child_component);
+
+        component_type type = component_type::none;
+
+        return for_first_member(
+          val, "component-type", [&](const auto& value) noexcept -> bool {
+              return read_temp_string(value) && copy_to(type) &&
+                     dispatch_child_component_type(value, type, c_id);
+          });
+    }
+
+    bool read_child_model(const rapidjson::Value& val,
+                          dynamics_type           type,
+                          model_id&               c) noexcept
+    {
+        auto_stack a(this, stack_id::child_model);
+
+        auto& mdl  = mod().models.alloc();
+        c          = mod().models.get_id(mdl);
+        mdl.type   = type;
+        mdl.handle = nullptr;
+
+        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+            new (&dyn) Dynamics{};
+
+            if constexpr (has_input_port<Dynamics>)
+                for (int i = 0, e = length(dyn.x); i != e; ++i)
+                    dyn.x[i] = static_cast<u64>(-1);
+
+            if constexpr (has_output_port<Dynamics>)
+                for (int i = 0, e = length(dyn.y); i != e; ++i)
+                    dyn.y[i] = static_cast<u64>(-1);
+
+            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                irt_assert(mod().hsms.can_alloc());
+
+                auto& machine = mod().hsms.alloc();
+                dyn.id        = mod().hsms.get_id(machine);
+            }
+        });
+
+        return for_first_member(
+          val, "dynamics", [&](const auto& value) noexcept -> bool {
+              return dispatch(
+                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
+                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                        if (auto* hsm = mod().hsms.try_to_get(dyn.id); hsm)
+                            return read_dynamics(value, *hsm);
+
+                        report_json_error(error_id::modeling_hsm_id_error);
+                    } else {
+                        return read_dynamics(value, dyn);
+                    }
+                });
+          });
+    }
+
+    bool dispatch_child_component_or_model(const rapidjson::Value& val,
+                                           dynamics_type           d_type,
+                                           child&                  c) noexcept
+    {
+        auto_stack a(this, stack_id::dispatch_child_component_or_model);
+
+        return c.type == child_type::component
+                 ? read_child_component(val, c.id.compo_id)
+                 : modeling_can_alloc_model(1) &&
+                     read_child_model(val, d_type, c.id.mdl_id);
+    }
+
+    bool read_child_component_or_model(const rapidjson::Value& val,
+                                       child&                  c) noexcept
+    {
+        auto_stack a(this, stack_id::child_component_or_model);
+
+        dynamics_type type = dynamics_type::constant;
+
+        return for_first_member(val,
+                                "type"sv,
+                                [&](const auto& value) noexcept -> bool {
+                                    return read_temp_string(value) &&
+                                           copy_to(c.type, type);
+                                }) &&
+               dispatch_child_component_or_model(val, type, c);
+    }
+
+    bool read_children_array(const rapidjson::Value& val,
+                             generic_component&      generic) noexcept
+    {
+        auto_stack a(this, stack_id::children_array);
+
+        return modeling_can_alloc(val.GetArray().Size()) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& new_child    = mod().children.alloc();
+                     auto  new_child_id = mod().children.get_id(new_child);
+                     generic.children.emplace_back(new_child_id);
+                     return read_child_component_or_model(value, new_child);
+                 });
+    }
+
+    bool cache_model_mapping_sort() noexcept
+    {
+        cache().model_mapping.sort();
+
+        return true;
+    }
+
+    bool read_children(const rapidjson::Value& val,
+                       generic_component&      generic) noexcept
+    {
+        auto_stack a(this, stack_id::children);
+
+        return read_children_array(val, generic) && cache_model_mapping_sort();
+    }
+
+    bool constant_sources_can_alloc(external_source&   srcs,
+                                    std::integral auto i) noexcept
+    {
+        if (srcs.constant_sources.can_alloc(i))
+            return true;
+
+        report_json_error(error_id::srcs_constant_sources_not_enough);
+    }
+
+    bool text_file_sources_can_alloc(external_source&   srcs,
+                                     std::integral auto i) noexcept
+    {
+        if (srcs.text_file_sources.can_alloc(i))
+            return true;
+
+        report_json_error(error_id::srcs_text_file_sources_not_enough);
+    }
+
+    bool binary_file_sources_can_alloc(external_source&   srcs,
+                                       std::integral auto i) noexcept
+    {
+        if (srcs.binary_file_sources.can_alloc(i))
+            return true;
+
+        report_json_error(error_id::srcs_binary_file_sources_not_enough);
+    }
+
+    bool random_sources_can_alloc(external_source&   srcs,
+                                  std::integral auto i) noexcept
+    {
+        if (srcs.random_sources.can_alloc(i))
+            return true;
+
+        report_json_error(error_id::srcs_random_sources_not_enough);
+    }
+
+    bool constant_buffer_size_can_alloc(std::integral auto i) noexcept
+    {
+        if (std::cmp_greater_equal(i, 0) &&
+            std::cmp_less(i, external_source_chunk_size))
+            return true;
+
+        report_json_error(error_id::srcs_constant_sources_buffer_not_enough);
+    }
+
+    bool read_constant_source(const rapidjson::Value& val,
+                              constant_source&        src) noexcept
+    {
+        auto_stack s(this, stack_id::srcs_constant_source);
+
+        i64 len = 0;
+
+        return copy_array_size(val, len) &&
+               constant_buffer_size_can_alloc(len) &&
+               for_each_array(
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     src.length = static_cast<u32>(i);
+                     return read_temp_real(value) && copy_to(src.buffer[i]);
+                 });
+    }
+
+    bool cache_constant_mapping_add(u64                id_in_file,
+                                    constant_source_id id) noexcept
+    {
+        cache().constant_mapping.data.emplace_back(id_in_file, ordinal(id));
+
+        return true;
+    }
+
+    bool read_constant_sources(const rapidjson::Value& val,
+                               external_source&        srcs) noexcept
+    {
+        auto_stack s(this, stack_id::srcs_constant_source);
+
+        i64 len = 0;
+
+        return copy_array_size(val, len),
+               constant_sources_can_alloc(srcs, len) &&
+                 for_each_array(
+                   val,
+                   [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                       auto& cst = srcs.constant_sources.alloc();
+                       auto  id  = srcs.constant_sources.get_id(cst);
+                       std::optional<u64> id_in_file;
+
+                       return for_each_member(
+                                value,
+                                [&](const auto  name,
+                                    const auto& value) noexcept -> bool {
+                                    if ("id"sv == name)
+                                        return read_temp_unsigned_integer(
+                                                 value) &&
+                                               copy_to(id_in_file);
+
+                                    if ("parameters"sv == name)
+                                        return read_constant_source(value, cst);
+
+                                    return true;
+                                }) &&
+                              optional_has_value(id_in_file) &&
+                              cache_constant_mapping_add(*id_in_file, id);
+                   });
+    }
+
+    bool cache_text_file_mapping_add(u64                 id_in_file,
+                                     text_file_source_id id) noexcept
+    {
+        cache().text_file_mapping.data.emplace_back(id_in_file, ordinal(id));
+
+        return true;
+    }
+
+    bool read_text_file_sources(const rapidjson::Value& val,
+                                external_source&        srcs) noexcept
+    {
+        auto_stack s(this, stack_id::srcs_text_file_sources);
+
+        i64 len = 0;
+
+        return copy_array_size(val, len) &&
+               text_file_sources_can_alloc(srcs, len) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& text = srcs.text_file_sources.alloc();
+                     auto  id   = srcs.text_file_sources.get_id(text);
+                     std::optional<u64> id_in_file;
+
+                     auto_stack s(this, stack_id::srcs_text_file_source);
+
+                     return for_each_member(
+                              value,
+                              [&](const auto  name,
+                                  const auto& value) noexcept -> bool {
+                                  if ("id"sv == name)
+                                      return read_temp_unsigned_integer(
+                                               value) &&
+                                             copy_to(id_in_file);
+
+                                  if ("path"sv == name)
+                                      return read_temp_string(value) &&
+                                             copy_to(text.file_path);
+
+                                  return true;
+                              }) &&
+                            optional_has_value(id_in_file) &&
+                            cache_text_file_mapping_add(*id_in_file, id);
+                 });
+    }
+
+    bool cache_binary_file_mapping_add(u64                   id_in_file,
+                                       binary_file_source_id id) noexcept
+    {
+        cache().binary_file_mapping.data.emplace_back(id_in_file, ordinal(id));
+
+        return true;
+    }
+
+    bool read_binary_file_sources(const rapidjson::Value& val,
+                                  external_source&        srcs) noexcept
+    {
+        auto_stack s(this, stack_id::srcs_binary_file_sources);
+
+        i64 len = 0;
+
+        return copy_array_size(val, len) &&
+               binary_file_sources_can_alloc(srcs, len) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& text = srcs.binary_file_sources.alloc();
+                     auto  id   = srcs.binary_file_sources.get_id(text);
+                     std::optional<u64> id_in_file;
+
+                     auto_stack s(this, stack_id::srcs_binary_file_source);
+
+                     return for_each_member(
+                              value,
+                              [&](const auto  name,
+                                  const auto& value) noexcept -> bool {
+                                  if ("id"sv == name)
+                                      return read_temp_unsigned_integer(
+                                               value) &&
+                                             copy_to(id_in_file);
+
+                                  if ("path"sv == name)
+                                      return read_temp_string(value) &&
+                                             copy_to(text.file_path);
+
+                                  return true;
+                              }) &&
+                            optional_has_value(id_in_file) &&
+                            cache_binary_file_mapping_add(*id_in_file, id);
+                 });
+    }
+
+    bool read_distribution_type(const rapidjson::Value& val,
+                                random_source&          r) noexcept
+    {
+        auto_stack s(this, stack_id::srcs_random_source_distribution);
+
+        switch (r.distribution) {
+        case distribution_type::uniform_int:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_integer(value) && copy_to(r.a32);
+                  if ("b"sv == name)
+                      return read_temp_integer(value) && copy_to(r.b32);
+                  return true;
+              });
+
+        case distribution_type::uniform_real:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_real(value) && copy_to(r.a);
+                  if ("b"sv == name)
+                      return read_temp_real(value) && copy_to(r.b);
+                  return true;
+              });
+
+        case distribution_type::bernouilli:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("p"sv == name)
+                      return read_temp_real(value) && copy_to(r.p);
+                  return true;
+              });
+
+        case distribution_type::binomial:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("t"sv == name)
+                      return read_temp_integer(value) && copy_to(r.t32);
+                  if ("p"sv == name)
+                      return read_temp_real(value) && copy_to(r.p);
+                  return true;
+              });
+
+        case distribution_type::negative_binomial:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("t"sv == name)
+                      return read_temp_integer(value) && copy_to(r.t32);
+                  if ("p"sv == name)
+                      return read_temp_real(value) && copy_to(r.p);
+                  return true;
+              });
+
+        case distribution_type::geometric:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("p"sv == name)
+                      return read_temp_real(value) && copy_to(r.p);
+                  return true;
+              });
+
+        case distribution_type::poisson:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("mean"sv == name)
+                      return read_temp_real(value) && copy_to(r.mean);
+                  return true;
+              });
+
+        case distribution_type::exponential:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("lambda"sv == name)
+                      return read_temp_real(value) && copy_to(r.lambda);
+                  return true;
+              });
+
+        case distribution_type::gamma:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("alpha"sv == name)
+                      return read_temp_integer(value) && copy_to(r.alpha);
+                  if ("beta"sv == name)
+                      return read_temp_real(value) && copy_to(r.beta);
+                  return true;
+              });
+
+        case distribution_type::weibull:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_integer(value) && copy_to(r.a);
+                  if ("b"sv == name)
+                      return read_temp_real(value) && copy_to(r.b);
+                  return true;
+              });
+
+        case distribution_type::exterme_value:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_integer(value) && copy_to(r.a);
+                  if ("b"sv == name)
+                      return read_temp_real(value) && copy_to(r.b);
+                  return true;
+              });
+
+        case distribution_type::normal:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("mean"sv == name)
+                      return read_temp_integer(value) && copy_to(r.mean);
+                  if ("stddev"sv == name)
+                      return read_temp_real(value) && copy_to(r.stddev);
+                  return true;
+              });
+
+        case distribution_type::lognormal:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("m"sv == name)
+                      return read_temp_integer(value) && copy_to(r.m);
+                  if ("s"sv == name)
+                      return read_temp_real(value) && copy_to(r.s);
+                  return true;
+              });
+
+        case distribution_type::chi_squared:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("n"sv == name)
+                      return read_temp_integer(value) && copy_to(r.n);
+                  return true;
+              });
+
+        case distribution_type::cauchy:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_integer(value) && copy_to(r.a);
+                  if ("b"sv == name)
+                      return read_temp_real(value) && copy_to(r.b);
+                  return true;
+              });
+
+        case distribution_type::fisher_f:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("m"sv == name)
+                      return read_temp_integer(value) && copy_to(r.m);
+                  if ("n"sv == name)
+                      return read_temp_real(value) && copy_to(r.n);
+                  return true;
+              });
+
+        case distribution_type::student_t:
+            return for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("n"sv == name)
+                      return read_temp_real(value) && copy_to(r.n);
+                  return true;
+              });
+        }
+
+        irt_unreachable();
+    }
+
+    bool cache_random_mapping_add(u64 id_in_file, random_source_id id) noexcept
+    {
+        cache().random_mapping.data.emplace_back(id_in_file, ordinal(id));
+
+        return true;
+    }
+
+    bool read_random_sources(const rapidjson::Value& val,
+                             external_source&        srcs) noexcept
+    {
+        auto_stack s(this, stack_id::srcs_random_sources);
+
+        i64 len = 0;
+
+        return copy_array_size(val, len) &&
+               random_sources_can_alloc(srcs, len) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& r  = srcs.random_sources.alloc();
+                     auto  id = srcs.random_sources.get_id(r);
+
+                     std::optional<u64> id_in_file;
+
+                     auto_stack s(this, stack_id::srcs_random_source);
+
+                     return for_each_member(
+                              value,
+                              [&](const auto  name,
+                                  const auto& value) noexcept -> bool {
+                                  if ("id"sv == name)
+                                      return read_temp_unsigned_integer(
+                                               value) &&
+                                             copy_to(id_in_file);
+
+                                  if ("type"sv == name) {
+                                      return read_temp_string(value) &&
+                                             copy_to(r.distribution) &&
+                                             read_distribution_type(value, r);
+                                  }
+
+                                  return true;
+                              }) &&
+                            optional_has_value(id_in_file) &&
+                            cache_random_mapping_add(*id_in_file, id);
+                 });
+    }
+
+    bool read_internal_component(const rapidjson::Value& val,
+                                 component&              compo) noexcept
+    {
+        auto_stack a(this, stack_id::internal_component);
+
+        return for_first_member(
+          val, "component"sv, [&](const auto& value) noexcept -> bool {
+              return read_temp_string(value) && copy_to(compo.id.internal_id);
+          });
+    }
+
+    bool modeling_connect(generic_component& compo,
+                          child_id           src_id,
+                          i8                 src_port,
+                          child_id           dst_id,
+                          i8                 dst_port) noexcept
+    {
+        auto ret = mod().connect(compo, src_id, src_port, dst_id, dst_port);
+        if (is_success(ret))
+            return true;
+
+        report_json_error(error_id::modeling_connect_error);
+    }
+
+    bool modeling_connect_input(generic_component& compo,
+                                i8                 src_port,
+                                child_id           dst_id,
+                                i8                 port) noexcept
+    {
+        auto ret = mod().connect_input(compo, src_port, dst_id, port);
+        if (is_success(ret))
+            return true;
+
+        report_json_error(error_id::modeling_connect_input_error);
+    }
+
+    bool modeling_connect_output(generic_component& compo,
+                                 child_id           src_id,
+                                 i8                 src_port,
+                                 i8                 port) noexcept
+    {
+        auto ret = mod().connect_output(compo, src_id, src_port, port);
+        if (is_success(ret))
+            return true;
+
+        report_json_error(error_id::modeling_connect_output_error);
+    }
+
+    bool cache_model_mapping_to(child_id& dst) noexcept
+    {
+        if (auto* elem = cache().model_mapping.get(temp_u64); elem) {
+            dst = enum_cast<child_id>(*elem);
+            return true;
+        }
+
+        report_json_error(error_id::cache_model_mapping_unfound);
+    }
+
+    bool read_internal_connection(const rapidjson::Value& val,
+                                  generic_component&      compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_generic_internal_connection);
+
+        child_id src_id   = undefined<child_id>();
+        child_id dst_id   = undefined<child_id>();
+        i8       src_port = 0;
+        i8       dst_port = 0;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("source"sv == name)
+                         read_temp_unsigned_integer(value) &&
+                           cache_model_mapping_to(src_id);
+                     if ("destination"sv == name)
+                         read_temp_unsigned_integer(value) &&
+                           cache_model_mapping_to(dst_id);
+
+                     if ("port-source"sv == name)
+                         read_temp_integer(value) && copy_to(src_port);
+                     if ("port-destination"sv == name)
+                         read_temp_integer(value) && copy_to(dst_port);
+
+                     report_json_error(error_id::unknown_element);
+                 }) &&
+               modeling_connect(compo, src_id, src_port, dst_id, dst_port);
+    }
+
+    bool read_output_connection(const rapidjson::Value& val,
+                                generic_component&      compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_generic_output_connection);
+
+        child_id src_id   = undefined<child_id>();
+        i8       src_port = 0;
+        i8       port     = 0;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("source"sv == name)
+                         read_temp_unsigned_integer(value) &&
+                           cache_model_mapping_to(src_id);
+                     if ("port-source"sv == name)
+                         read_temp_integer(value) && copy_to(src_port);
+                     if ("port"sv == name)
+                         read_temp_integer(value) && copy_to(port);
+
+                     report_json_error(error_id::unknown_element);
+                 }) &&
+               modeling_connect_output(compo, src_id, src_port, port);
+    }
+
+    bool read_input_connection(const rapidjson::Value& val,
+                               generic_component&      compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_generic_input_connection);
+
+        child_id dst_id   = undefined<child_id>();
+        i8       dst_port = 0;
+        i8       port     = 0;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("destination"sv == name)
+                         read_temp_unsigned_integer(value) &&
+                           cache_model_mapping_to(dst_id);
+                     if ("port-destination"sv == name)
+                         read_temp_integer(value) && copy_to(dst_port);
+
+                     if ("port"sv == name)
+                         read_temp_integer(value) && copy_to(port);
+
+                     report_json_error(error_id::unknown_element);
+                 }) &&
+               modeling_connect_input(compo, port, dst_id, dst_port);
+    }
+
+    bool dispatch_connection_type(const rapidjson::Value&     val,
+                                  connection::connection_type type,
+                                  generic_component&          compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_generic_dispatch_connection);
+
+        switch (type) {
+        case connection::connection_type::internal:
+            return read_internal_connection(val, compo);
+        case connection::connection_type::output:
+            return read_output_connection(val, compo);
+        case connection::connection_type::input:
+            return read_input_connection(val, compo);
+        }
+
+        irt_unreachable();
+    }
+
+    bool read_connections(const rapidjson::Value& val,
+                          generic_component&      compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_generic_connections);
+
+        return for_each_array(
+          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+              return for_each_member(
+                value,
+                [&](const auto name, const auto& value) noexcept -> bool {
+                    if ("type"sv == name) {
+                        connection::connection_type type =
+                          connection::connection_type::internal;
+                        return read_temp_string(value) && copy_to(type) &&
+                               dispatch_connection_type(value, type, compo);
+                    }
+
+                    return true;
+                });
+          });
+    }
+
+    bool read_simple_component(const rapidjson::Value& val,
+                               component&              compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_generic);
+
+        auto& generic      = mod().simple_components.alloc();
+        compo.type         = component_type::simple;
+        compo.id.simple_id = mod().simple_components.get_id(generic);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("next-unique-id"sv == name)
+                  return read_temp_unsigned_integer(value) &&
+                         copy_to(generic.next_unique_id);
+
+              if ("children"sv == name)
+                  return read_children(value, generic);
+
+              if ("connections"sv == name)
+                  return read_connections(value, generic);
+
+              return true;
+          });
+    }
+
+    bool read_grid_default_children(const rapidjson::Value& val,
+                                    grid_component&         compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_grid_default_children);
+
+        return is_value_array_size_equal(val, 9) &&
+               for_each_array(
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     const int row = i / 3;
+                     const int col = i % 3;
+
+                     return read_child_component(
+                       value, compo.default_children[row][col]);
+                 });
+    }
+
+    bool grid_specific_child_add(vector<grid_component::specific>& out,
+                                 int                               row,
+                                 int                               col,
+                                 component_id c_id) noexcept
+    {
+        auto& new_elem  = out.emplace_back();
+        new_elem.row    = row;
+        new_elem.column = col;
+        new_elem.ch     = c_id;
+
+        return true;
+    }
+
+    bool read_grid_specific_children(const rapidjson::Value& val,
+                                     grid_component&         compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_grid_specific_children);
+
+        return for_each_array(
+          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+              int row = 0;
+              int col = 0;
+
+              component_id c_id = undefined<component_id>();
+
+              return for_each_member(
+                       value,
+                       [&](const auto  name,
+                           const auto& value) noexcept -> bool {
+                           if ("row"sv == name)
+                               return read_temp_integer(value) &&
+                                      is_int_greater_equal_than(1) &&
+                                      copy_to(row);
+                           if ("column"sv == name)
+                               return read_temp_integer(value) &&
+                                      is_int_greater_equal_than(1) &&
+                                      copy_to(col);
+
+                           return true;
+                       }) &&
+                     read_child_component(value, c_id) &&
+                     grid_specific_child_add(
+                       compo.specific_children, row, col, c_id);
+          });
+    }
+
+    bool read_grid_component(const rapidjson::Value& val,
+                             component&              compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_grid);
+
+        auto& grid       = mod().grid_components.alloc();
+        compo.type       = component_type::grid;
+        compo.id.grid_id = mod().grid_components.get_id(grid);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("rows"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(1) && copy_to(grid.row);
+
+              if ("columns"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(1) && copy_to(grid.column);
+
+              if ("connection-type"sv == name)
+                  return read_temp_integer(value) &&
+                         copy_to(grid.connection_type);
+
+              if ("default-children"sv == name)
+                  return read_grid_default_children(value, grid);
+
+              if ("specific-children"sv == name)
+                  return read_grid_specific_children(value, grid);
+
+              return true;
+          });
+    }
+
+    bool dispatch_component_type(const rapidjson::Value& val,
+                                 component&              compo) noexcept
+    {
+        switch (compo.type) {
+        case component_type::none:
+            return true;
+
+        case component_type::internal:
+            return read_internal_component(val, compo);
+
+        case component_type::simple:
+            return read_simple_component(val, compo);
+
+        case component_type::grid:
+            return read_grid_component(val, compo);
+        }
+
+        report_json_error(error_id::unknown_element);
+    }
+
+    bool convert_to_component(component& compo) noexcept
+    {
+        if (auto type = get_component_type(temp_string); type.has_value()) {
+            compo.type = type.value();
+            return true;
+        }
+
+        report_json_error(error_id::missing_component_type);
+    }
+
+    bool read_ports(
+      const rapidjson::Value&                              val,
+      std::array<small_string<7>, component::port_number>& names) noexcept
+    {
+        auto_stack s(this, stack_id::component_ports);
+
+        return is_value_array_size_less(val, component::port_number) &&
+               for_each_array(
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     return read_temp_string(value) && copy_to(names[i]);
+                 });
+    }
+
+    bool read_component(const rapidjson::Value& val, component& compo) noexcept
+    {
+        auto_stack s(this, stack_id::component);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("name"sv == name)
+                  return read_temp_string(value) && copy_to(compo.name);
+              if ("constant-sources"sv == name)
+                  return read_constant_sources(value, mod().srcs);
+              if ("binary-file-sources"sv == name)
+                  return read_binary_file_sources(value, mod().srcs);
+              if ("text-file-sources"sv == name)
+                  return read_text_file_sources(value, mod().srcs);
+              if ("random-sources"sv == name)
+                  return read_random_sources(value, mod().srcs);
+              if ("type"sv == name)
+                  return read_temp_string(value) &&
+                         convert_to_component(compo) &&
+                         dispatch_component_type(value, compo);
+              if ("x"sv == name)
+                  return read_ports(value, compo.x_names);
+              if ("y"sv == name)
+                  return read_ports(value, compo.y_names);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool read_simulation_model_dynamics(const rapidjson::Value& val,
+                                        model&                  mdl) noexcept
+    {
+        auto_stack s(this, stack_id::simulation_model_dynamics);
+
+        return for_first_member(
+          val, "dynamics"sv, [&](const auto& val) -> bool {
+              dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+                  new (&dyn) Dynamics{};
+
+                  if constexpr (has_input_port<Dynamics>)
+                      for (int i = 0, e = length(dyn.x); i != e; ++i)
+                          dyn.x[i] = static_cast<u64>(-1);
+
+                  if constexpr (has_output_port<Dynamics>)
+                      for (int i = 0, e = length(dyn.y); i != e; ++i)
+                          dyn.y[i] = static_cast<u64>(-1);
+
+                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                      irt_assert(sim().hsms.can_alloc());
+                      auto& machine = sim().hsms.alloc();
+                      dyn.id        = sim().hsms.get_id(machine);
+                  }
+              });
+
+              return dispatch(
+                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
+                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                        if (auto* hsm = sim().hsms.try_to_get(dyn.id); hsm)
+                            return read_dynamics(val, *hsm);
+
+                        report_json_error(error_id::modeling_hsm_id_error);
+                    } else {
+                        return read_dynamics(val, dyn);
+                    }
+                });
+          });
+    }
+
+    bool cache_model_mapping_add(u64 id_in_file, u64 id) noexcept
+    {
+        cache().model_mapping.data.emplace_back(id_in_file, id);
+        return true;
+    }
+
+    bool read_simulation_model(const rapidjson::Value& val, model& mdl) noexcept
+    {
+        auto_stack s(this, stack_id::simulation_model);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("type"sv == name)
+                  return read_temp_string(value) && copy_to(mdl.type) &&
+                         read_simulation_model_dynamics(val, mdl);
+
+              if ("id"sv == name) {
+                  std::optional<u64> id_in_file;
+
+                  return read_temp_unsigned_integer(value) &&
+                         copy_to(id_in_file) &&
+                         optional_has_value(id_in_file) &&
+                         cache_model_mapping_add(
+                           *id_in_file, ordinal(sim().models.get_id(mdl)));
+              }
+
+              return true;
+          });
+    }
+
+    bool sim_models_can_alloc(std::integral auto i) noexcept
+    {
+        if (sim().models.can_alloc(i))
+            return true;
+
+        report_json_error(error_id::simulation_models_not_enough);
+    }
+
+    bool read_simulation_models(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::simulation_models);
+
+        i64 len = 0;
+
+        return copy_array_size(val, len) && sim_models_can_alloc(len) &&
+               for_each_array(
+                 val,
+                 [&](const auto /* i */, const auto& value) noexcept -> bool {
+                     auto& mdl  = sim().models.alloc();
+                     mdl.handle = nullptr;
+
+                     return read_simulation_model(value, mdl);
+                 });
+    }
+
+    bool simulation_connect(u64 src, i8 port_src, u64 dst, i8 port_dst) noexcept
+    {
+        auto_stack s(this, stack_id::simulation_connect);
+
+        auto* mdl_src_id = cache().model_mapping.get(src);
+        if (!mdl_src_id)
+            report_json_error(error_id::simulation_connect_src_unknown);
+
+        auto* mdl_dst_id = cache().model_mapping.get(dst);
+        if (!mdl_dst_id)
+            report_json_error(error_id::simulation_connect_dst_unknown);
+
+        auto* mdl_src =
+          sim().models.try_to_get(enum_cast<model_id>(*mdl_src_id));
+        if (!mdl_src)
+            report_json_error(error_id::simulation_connect_src_unknown);
+
+        auto* mdl_dst =
+          sim().models.try_to_get(enum_cast<model_id>(*mdl_dst_id));
+        if (!mdl_dst)
+            report_json_error(error_id::simulation_connect_dst_unknown);
+
+        output_port* out = nullptr;
+        input_port*  in  = nullptr;
+
+        if (is_bad(get_output_port(*mdl_src, port_src, out)))
+            report_json_error(error_id::simulation_connect_src_port_unknown);
+
+        if (is_bad(get_input_port(*mdl_dst, port_dst, in)))
+            report_json_error(error_id::simulation_connect_dst_port_unknown);
+
+        if (is_bad(sim().connect(*mdl_src, port_src, *mdl_dst, port_dst)))
+            report_json_error(error_id::simulation_connect_error);
+
+        return true;
+    }
+
+    bool read_simulation_connection(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::simulation_connection);
+
+        std::optional<u64> src;
+        std::optional<u64> dst;
+        std::optional<i8>  port_src;
+        std::optional<i8>  port_dst;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("source"sv == name)
+                         return read_temp_unsigned_integer(value) &&
+                                copy_to(src);
+
+                     if ("port-source"sv == name)
+                         return read_temp_integer(value) && copy_to(port_src);
+
+                     if ("destination"sv == name)
+                         return read_temp_unsigned_integer(value) &&
+                                copy_to(dst);
+
+                     if ("port_destination"sv == name)
+                         return read_temp_integer(value) && copy_to(port_dst);
+
+                     return true;
+                 }) &&
+               optional_has_value(src) && optional_has_value(dst) &&
+               optional_has_value(port_src) && optional_has_value(port_dst) &&
+               simulation_connect(*src, *port_src, *dst, *port_dst);
+    }
+
+    bool read_simulation_connections(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::simulation_connections);
+
+        return for_each_array(
+          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+              return read_simulation_connection(value);
+          });
+    }
+
+    bool read_simulation(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::simulation);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("constant-sources"sv == name)
+                  return read_constant_sources(value, sim().srcs);
+              if ("binary-file-sources"sv == name)
+                  return read_binary_file_sources(value, sim().srcs);
+              if ("text-file-sources"sv == name)
+                  return read_text_file_sources(value, sim().srcs);
+              if ("random-sources"sv == name)
+                  return read_random_sources(value, sim().srcs);
+              if ("models"sv == name)
+                  return read_simulation_models(value);
+              if ("connections"sv == name)
+                  return read_simulation_connections(value);
+
+              report_json_error(error_id::unknown_element);
+          });
+    }
+
+    bool project_set(component_id c_id) noexcept
+    {
+        auto_stack s(this, stack_id::project_set_components);
+
+        if (auto* compo = mod().components.try_to_get(c_id); compo) {
+            if (is_success(pj().set(mod(), sim(), *compo)))
+                return true;
+            else
+                report_json_error(error_id::project_set_error);
+        } else
+            report_json_error(error_id::project_set_no_head);
+    }
+
+    bool read_project_top_component(const rapidjson::Value& val,
+                                    component_id&           c_id) noexcept
+    {
+        auto_stack s(this, stack_id::project_top_component);
+
+        std::filesystem::path reg;
+        std::filesystem::path dir;
+        std::filesystem::path file;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("component-path"sv == name)
+                         return read_temp_string(value) && copy_to(reg);
+
+                     if ("component-directory"sv == name)
+                         return read_temp_string(value) && copy_to(dir);
+
+                     if ("component-path"sv == name)
+                         return read_temp_string(value) && copy_to(file);
+
+                     return true;
+                 }) &&
+               modeling_copy_component_id(reg, dir, file, c_id) &&
+               project_set(c_id);
+    }
+
+    template<typename T>
+    bool vector_add(vector<T>& vec, const T t) noexcept
+    {
+        vec.emplace_back(t);
+        return true;
+    }
+
+    bool read_project_access_parameter(const rapidjson::Value& val,
+                                       vector<u64>&            access) noexcept
+    {
+        auto_stack s(this, stack_id::project_parameter_access);
+
+        return for_each_array(
+          val, [&](const auto /* i */, const auto& elem) noexcept -> bool {
+              u64 id = 0;
+              return read_temp_unsigned_integer(elem) && copy_to(id) &&
+                     vector_add(access, id);
+          });
+    }
+
+    bool read_project_parameter(const rapidjson::Value& val,
+                                model&                  mdl) noexcept
+    {
+        auto_stack s(this, stack_id::project_parameter);
+
+        return for_first_member(
+          val, "parameter"sv, [&](const auto& value) noexcept -> bool {
+              return dispatch(
+                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
+                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                        if (auto* hsm = sim().hsms.try_to_get(dyn.id); hsm)
+                            return read_dynamics(value, *hsm);
+
+                        report_json_error(error_id::modeling_hsm_id_error);
+                    } else {
+                        return read_dynamics(value, dyn);
+                    }
+                });
+          });
+    }
+
+    bool read_project_parameter_type(const rapidjson::Value& val,
+                                     dynamics_type&          type) noexcept
+    {
+        auto_stack s(this, stack_id::project_parameter_type);
+
+        return for_first_member(
+          val, "type"sv, [&](const auto& value) noexcept -> bool {
+              return read_temp_string(value) && copy_to(type);
+          });
+    }
+
+    bool project_assign_parameter(const vector<u64>& access,
+                                  const model&       mdl) noexcept
+    {
+        auto_stack s(this, stack_id::project_parameter_assign);
+
+        tree_node* tn = pj().tn_head();
+        irt_assert(tn);
+
+        for (auto i = 0, e = access.ssize(); i != e; ++i) {
+            u64 unique_id = access[i];
+
+            auto found = [&]() noexcept -> bool {
+                for (auto& elem : tn->parameters) {
+                    if (elem.unique_id == unique_id) {
+                        elem.param = mdl;
+                        return true;
+                    }
+                }
+                return false;
+            }();
+
+            if (found) {
+                if (i + 1 == access.ssize())
+                    return true;
+                else
+                    report_json_error(
+                      error_id::project_access_parameter_unique_id_error);
+            }
+
+            // need to serach in tree-node children
+            for (auto* tn_child = tn->tree.get_child(); tn_child;
+                 tn_child       = tn_child->tree.get_sibling()) {
+                if (tn_child->unique_id == unique_id) {
+                    tn    = tn_child;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+                report_json_error(error_id::project_access_parameter_error);
+        }
+
+        report_json_error(error_id::project_access_parameter_error);
+    }
+
+    bool read_project_parameters(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::project_parameters);
+
+        model       mdl;
+        vector<u64> access;
+
+        return for_first_member(
+          val, "access"sv, [&](const auto& value) noexcept -> bool {
+              return read_project_access_parameter(value, access) &&
+                     read_project_parameter_type(val, mdl.type) &&
+                     read_project_parameter(val, mdl) &&
+                     project_assign_parameter(access, mdl);
+          });
+    }
+
+    bool read_project(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::project);
+
+        component_id c_id = undefined<component_id>();
+
+        return read_project_top_component(val, c_id) &&
+               for_first_member(val,
+                                "component-parameters"sv,
+                                [&](const auto& value) noexcept -> bool {
+                                    return for_each_array(
+                                      value,
+                                      [&](const auto /* i */,
+                                          const auto& value) noexcept -> bool {
+                                          return read_project_parameters(value);
+                                      });
+
+                                    return true;
+                                });
+    }
+
+    io_cache*   m_cache = nullptr;
+    modeling*   m_mod   = nullptr;
+    simulation* m_sim   = nullptr;
+    project*    m_pj    = nullptr;
+
+    i64         temp_integer = 0;
+    u64         temp_u64     = 0;
+    double      temp_double  = 0.0;
+    bool        temp_bool    = false;
+    std::string temp_string;
+
+    std::array<stack_id, 8> stack{ stack_id::undefined };
+    u8                      stack_size = 0;
+
+    error_id error = error_id::none;
+
+    reader(io_cache& cache_, modeling& mod_) noexcept
+      : m_cache(&cache_)
+      , m_mod(&mod_)
+    {
+    }
+
+    reader(io_cache& cache_, simulation& mod_) noexcept
+      : m_cache(&cache_)
+      , m_sim(&mod_)
+    {
+    }
+
+    reader(io_cache&   cache_,
+           modeling&   mod_,
+           simulation& sim_,
+           project&    pj_) noexcept
+      : m_cache(&cache_)
+      , m_mod(&mod_)
+      , m_sim(&sim_)
+      , m_pj(&pj_)
+    {
+    }
+
+    struct auto_stack
+    {
+        auto_stack(reader* r_, const stack_id id) noexcept
+          : r(r_)
+        {
+            irt_assert(std::cmp_less(r->stack_size, r->stack.size()));
+
+            r->stack[r->stack_size] = id;
+            ++r->stack_size;
+        }
+
+        ~auto_stack() noexcept
+        {
+            if (!r->have_error()) {
+                irt_assert(std::cmp_greater_equal(r->stack_size, 1));
+
+                --r->stack_size;
+            }
+        }
+
+        reader* r = nullptr;
+    };
+
+    bool have_error() const noexcept { return error != error_id::none; }
+
+    modeling& mod() const noexcept
+    {
+        irt_assert(m_mod);
+        return *m_mod;
+    }
+
+    simulation& sim() const noexcept
+    {
+        irt_assert(m_sim);
+        return *m_sim;
+    }
+
+    project& pj() const noexcept
+    {
+        irt_assert(m_pj);
+        return *m_pj;
+    }
+
+    io_cache& cache() const noexcept
+    {
+        irt_assert(m_cache);
+        return *m_cache;
+    }
+};
+
+// Helper functions to read, parse files.
+//
+
+static bool copy_filename_to(const char*            filename,
+                             std::filesystem::path& dst) noexcept
+{
+    try {
+        dst = std::filesystem::path(filename);
+        return true;
+    } catch (...) {
+        return false;
+    }
 }
 
-static bool try_get_u64(const rapidjson::Value& value,
-                        std::string_view        name,
-                        u64&                    data) noexcept
+static bool file_exists(const std::filesystem::path& path) noexcept
 {
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
+    std::error_code ec;
+    return std::filesystem::is_regular_file(path, ec);
+}
 
-    if (val != value.MemberEnd() && val->value.IsUint64()) {
-        auto temp = val->value.GetUint64();
-
-        if (temp <= UINT64_MAX) {
-            data = static_cast<u64>(temp);
+static bool file_size(const std::filesystem::path& path, u64& len) noexcept
+{
+    std::error_code ec;
+    if (auto size = std::filesystem::file_size(path, ec); ec) {
+        if (is_numeric_castable<u64>(size)) {
+            len = size;
             return true;
         }
     }
@@ -165,132 +3292,62 @@ static bool try_get_u64(const rapidjson::Value& value,
     return false;
 }
 
-static status get_i32(const rapidjson::Value& value,
-                      std::string_view        name,
-                      i32&                    data) noexcept
+static bool buffer_resive(u64 len, vector<char>& vec) noexcept
 {
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
-
-    if (val != value.MemberEnd() && val->value.IsInt()) {
-        auto temp = val->value.GetInt64();
-
-        if (INT32_MIN <= temp && temp <= INT32_MAX) {
-            data = static_cast<i32>(temp);
-            return status::success;
-        }
-    }
-
-    return status::io_file_format_error;
+    vec.resize(len);
+    return true;
 }
 
-static status get_u32(const rapidjson::Value& value,
-                      std::string_view        name,
-                      u32&                    data) noexcept
+static bool file_open(const std::filesystem::path& path,
+                      std::ifstream&               ifs) noexcept
 {
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
-
-    if (val != value.MemberEnd() && val->value.IsInt()) {
-        auto temp = val->value.GetUint64();
-
-        if (temp <= UINT32_MAX) {
-            data = static_cast<u32>(temp);
-            return status::success;
-        }
-    }
-
-    return status::io_file_format_error;
+    ifs.open(path);
+    return ifs.is_open() && ifs.good();
 }
 
-static status get_hsm_action(
-  const rapidjson::Value&                  value,
-  std::string_view                         name,
-  hierarchical_state_machine::action_type& data) noexcept
+static bool buffer_fill(std::ifstream& ifs, vector<char>& vec) noexcept
 {
-    u8 temp;
-
-    irt_return_if_bad(get_u8(value, name, temp));
-    irt_return_if_fail(temp < hierarchical_state_machine::action_type_count,
-                       status::io_file_format_error);
-
-    data = enum_cast<hierarchical_state_machine::action_type>(temp);
-    return status::success;
+    return ifs.read(vec.data(), vec.size()).good();
 }
 
-static status get_hsm_variable(
-  const rapidjson::Value&               value,
-  std::string_view                      name,
-  hierarchical_state_machine::variable& data) noexcept
+static bool read_file_to_buffer(io_cache& cache, const char* filename) noexcept
 {
-    u8 temp;
+    std::filesystem::path path;
+    std::ifstream         ifs;
+    u64                   size = 0;
 
-    irt_return_if_bad(get_u8(value, name, temp));
-    irt_return_if_fail(temp < hierarchical_state_machine::variable_count,
-                       status::io_file_format_error);
-
-    data = enum_cast<hierarchical_state_machine::variable>(data);
-    return status::success;
+    return copy_filename_to(filename, path) && file_exists(path) &&
+           file_size(path, size) && buffer_resive(size, cache.buffer) &&
+           file_open(path, ifs) && buffer_fill(ifs, cache.buffer);
 }
 
-static status get_hsm_condition(
-  const rapidjson::Value&                     value,
-  std::string_view                            name,
-  hierarchical_state_machine::condition_type& data) noexcept
+static bool parse_json_data(const std::span<char>& buffer,
+                            const char*            filename,
+                            rapidjson::Document&   doc) noexcept
 {
-    u8 temp;
+    doc.Parse(buffer.data(), buffer.size());
 
-    irt_return_if_bad(get_u8(value, name, temp));
-    irt_return_if_fail(temp < hierarchical_state_machine::condition_type_count,
-                       status::io_file_format_error);
-
-    data = enum_cast<hierarchical_state_machine::condition_type>(temp);
-    return status::success;
-}
-
-static status get_string(const rapidjson::Value& value,
-                         std::string_view        name,
-                         std::string&            data) noexcept
-{
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
-
-    if (val != value.MemberEnd() && val->value.IsString()) {
-        data = val->value.GetString();
-        return status::success;
-    }
-
-    return status::io_file_format_error;
-}
-
-static bool get_optional_string(const rapidjson::Value& value,
-                                std::string_view        name,
-                                std::string&            data) noexcept
-{
-    const auto str = rapidjson::GenericStringRef<char>(
-      name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    const auto val = value.FindMember(str);
-
-    if (val != value.MemberEnd() && val->value.IsString()) {
-        data = val->value.GetString();
+    if (!doc.HasParseError())
         return true;
-    }
 
+#ifdef IRRITATOR_ENABLE_DEBUG
+    if (filename)
+        fmt::print(stderr,
+                   "Fail to parse {}. Error `{}' at offset {}\n",
+                   filename,
+                   rapidjson::GetParseError_En(doc.GetParseError()),
+                   doc.GetErrorOffset());
+    else
+        fmt::print(stderr,
+                   "Fail to parse buffer. Error `{}' at offset {}\n",
+                   rapidjson::GetParseError_En(doc.GetParseError()),
+                   doc.GetErrorOffset());
     return false;
+#endif
 }
 
-template<int QssLevel>
-status load(const rapidjson::Value&        val,
-            abstract_integrator<QssLevel>& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "X", dyn.default_X));
-    irt_return_if_bad(get_double(val, "dQ", dyn.default_dQ));
-
-    return status::success;
-}
+//
+//
 
 template<typename Writer, int QssLevel>
 void write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
@@ -301,13 +3358,6 @@ void write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
     writer.Key("dQ");
     writer.Double(dyn.default_dQ);
     writer.EndObject();
-}
-
-template<int QssLevel>
-status load(const rapidjson::Value& /*val*/,
-            abstract_multiplier<QssLevel>& /*dyn*/) noexcept
-{
-    return status::success;
 }
 
 template<typename Writer, int QssLevel>
@@ -324,46 +3374,6 @@ void write(Writer& writer,
 {
     writer.StartObject();
     writer.EndObject();
-}
-
-template<int QssLevel, int PortNumber>
-status load(const rapidjson::Value& /*val*/,
-            const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
-{
-    return status::success;
-}
-
-template<int QssLevel>
-status load(const rapidjson::Value&    val,
-            abstract_wsum<QssLevel, 2> dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-
-    return status::success;
-}
-
-template<int QssLevel>
-status load(const rapidjson::Value&    val,
-            abstract_wsum<QssLevel, 3> dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-    irt_return_if_bad(get_double(val, "coeff-2", dyn.default_input_coeffs[2]));
-
-    return status::success;
-}
-
-template<int QssLevel>
-status load(const rapidjson::Value&    val,
-            abstract_wsum<QssLevel, 4> dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-    irt_return_if_bad(get_double(val, "coeff-2", dyn.default_input_coeffs[2]));
-    irt_return_if_bad(get_double(val, "coeff-3", dyn.default_input_coeffs[3]));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -525,14 +3535,6 @@ void write(Writer& writer, const qss3_wsum_4& dyn) noexcept
     writer.EndObject();
 }
 
-status load(const rapidjson::Value& val, integrator& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "value", dyn.default_current_value));
-    irt_return_if_bad(get_double(val, "reset", dyn.default_reset_value));
-
-    return status::success;
-}
-
 template<typename Writer>
 void write(Writer& writer, const integrator& dyn) noexcept
 {
@@ -542,28 +3544,6 @@ void write(Writer& writer, const integrator& dyn) noexcept
     writer.Key("reset");
     writer.Double(dyn.default_reset_value);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, quantifier& dyn) noexcept
-{
-    auto it = val.FindMember("adapt-state");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsString(), status::io_file_format_error);
-
-    auto str = it->value.GetString();
-    if (std::strcmp(str, "possible") == 0)
-        dyn.default_adapt_state = quantifier::adapt_state::possible;
-    else if (std ::strcmp(str, "impossible") == 0)
-        dyn.default_adapt_state = quantifier::adapt_state::impossible;
-    else
-        dyn.default_adapt_state = quantifier::adapt_state::done;
-
-    irt_return_if_bad(get_double(val, "step-size", dyn.default_step_size));
-    irt_return_if_bad(get_i32(val, "past-length", dyn.default_past_length));
-    irt_return_if_bad(
-      get_bool(val, "zero-init-offset", dyn.default_zero_init_offset));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -576,24 +3556,14 @@ void write(Writer& writer, const quantifier& dyn) noexcept
     writer.Int(dyn.default_past_length);
     writer.Key("adapt-state");
     writer.String((dyn.default_adapt_state == quantifier::adapt_state::possible)
-                    ? "possible "
+                    ? "possible"
                   : dyn.default_adapt_state ==
                       quantifier::adapt_state::impossible
-                    ? "impossibe "
-                    : "done ");
+                    ? "impossibe"
+                    : "done");
     writer.Key("zero-init-offset");
     writer.Bool(dyn.default_zero_init_offset);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, adder_2& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_double(val, "value-1", dyn.default_values[1]));
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -609,18 +3579,6 @@ void write(Writer& writer, const adder_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, adder_3& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_double(val, "value-1", dyn.default_values[1]));
-    irt_return_if_bad(get_double(val, "value-2", dyn.default_values[2]));
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-    irt_return_if_bad(get_double(val, "coeff-2", dyn.default_input_coeffs[2]));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -640,20 +3598,6 @@ void write(Writer& writer, const adder_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, adder_4& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_double(val, "value-1", dyn.default_values[1]));
-    irt_return_if_bad(get_double(val, "value-2", dyn.default_values[2]));
-    irt_return_if_bad(get_double(val, "value-3", dyn.default_values[3]));
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-    irt_return_if_bad(get_double(val, "coeff-2", dyn.default_input_coeffs[2]));
-    irt_return_if_bad(get_double(val, "coeff-3", dyn.default_input_coeffs[3]));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -679,16 +3623,6 @@ void write(Writer& writer, const adder_4& dyn) noexcept
     writer.EndObject();
 }
 
-status load(const rapidjson::Value& val, mult_2& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_double(val, "value-1", dyn.default_values[1]));
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-
-    return status::success;
-}
-
 template<typename Writer>
 void write(Writer& writer, const mult_2& dyn) noexcept
 {
@@ -702,18 +3636,6 @@ void write(Writer& writer, const mult_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_values[1]);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, mult_3& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_double(val, "value-1", dyn.default_values[1]));
-    irt_return_if_bad(get_double(val, "value-2", dyn.default_values[2]));
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-    irt_return_if_bad(get_double(val, "coeff-2", dyn.default_input_coeffs[2]));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -733,20 +3655,6 @@ void write(Writer& writer, const mult_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_values[2]);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, mult_4& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_double(val, "value-1", dyn.default_values[1]));
-    irt_return_if_bad(get_double(val, "value-2", dyn.default_values[2]));
-    irt_return_if_bad(get_double(val, "value-3", dyn.default_values[3]));
-    irt_return_if_bad(get_double(val, "coeff-0", dyn.default_input_coeffs[0]));
-    irt_return_if_bad(get_double(val, "coeff-1", dyn.default_input_coeffs[1]));
-    irt_return_if_bad(get_double(val, "coeff-2", dyn.default_input_coeffs[2]));
-    irt_return_if_bad(get_double(val, "coeff-3", dyn.default_input_coeffs[3]));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -772,23 +3680,11 @@ void write(Writer& writer, const mult_4& dyn) noexcept
     writer.EndObject();
 }
 
-status load(const rapidjson::Value& /*val*/, counter& /*dyn*/) noexcept
-{
-    return status::success;
-}
-
 template<typename Writer>
 void write(Writer& writer, const counter& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, queue& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "ta", dyn.default_ta));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -798,22 +3694,6 @@ void write(Writer& writer, const queue& dyn) noexcept
     writer.Key("ta");
     writer.Double(dyn.default_ta);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, dynamic_queue& dyn) noexcept
-{
-    i16 type{};
-
-    irt_return_if_bad(get_i16(val, "source-ta-type", type));
-    irt_return_if_bad(get_u64(val, "source-ta-id", dyn.default_source_ta.id));
-    irt_return_if_bad(get_bool(val, "stop-on-error", dyn.stop_on_error));
-
-    irt_return_if_fail(0 <= type && type < source::source_type_count,
-                       status::io_file_format_error);
-
-    dyn.default_source_ta.type = enum_cast<source::source_type>(type);
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -829,23 +3709,6 @@ void write(Writer& writer, const dynamic_queue& dyn) noexcept
     writer.EndObject();
 }
 
-status load(const rapidjson::Value& val, priority_queue& dyn) noexcept
-{
-    i16 type{};
-
-    irt_return_if_bad(get_double(val, "ta", dyn.default_ta));
-    irt_return_if_bad(get_i16(val, "source-ta-type", type));
-    irt_return_if_bad(get_u64(val, "source-ta-id", dyn.default_source_ta.id));
-    irt_return_if_bad(get_bool(val, "stop-on-error", dyn.stop_on_error));
-
-    irt_return_if_fail(0 <= type && type < source::source_type_count,
-                       status::io_file_format_error);
-
-    dyn.default_source_ta.type = enum_cast<source::source_type>(type);
-
-    return status::success;
-}
-
 template<typename Writer>
 void write(Writer& writer, const priority_queue& dyn) noexcept
 {
@@ -859,31 +3722,6 @@ void write(Writer& writer, const priority_queue& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, generator& dyn) noexcept
-{
-    i16 type_ta{}, type_value{};
-
-    irt_return_if_bad(get_double(val, "offset", dyn.default_offset));
-    irt_return_if_bad(get_i16(val, "source-ta-type", type_ta));
-    irt_return_if_bad(get_u64(val, "source-ta-id", dyn.default_source_ta.id));
-    irt_return_if_bad(get_i16(val, "source-value-type", type_value));
-    irt_return_if_bad(
-      get_u64(val, "source-value-id", dyn.default_source_value.id));
-    irt_return_if_bad(get_bool(val, "stop-on-error", dyn.stop_on_error));
-
-    irt_return_if_fail(0 <= type_ta && type_ta < source::source_type_count,
-                       status::io_file_format_error);
-
-    irt_return_if_fail(0 <= type_value &&
-                         type_value < source::source_type_count,
-                       status::io_file_format_error);
-
-    dyn.default_source_ta.type    = enum_cast<source::source_type>(type_ta);
-    dyn.default_source_value.type = enum_cast<source::source_type>(type_value);
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -905,14 +3743,6 @@ void write(Writer& writer, const generator& dyn) noexcept
     writer.EndObject();
 }
 
-status load(const rapidjson::Value& val, constant& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "value", dyn.default_value));
-    irt_return_if_bad(get_double(val, "offset", dyn.default_offset));
-
-    return status::success;
-}
-
 template<typename Writer>
 void write(Writer& writer, const constant& dyn) noexcept
 {
@@ -922,15 +3752,6 @@ void write(Writer& writer, const constant& dyn) noexcept
     writer.Key("offset");
     writer.Double(dyn.default_offset);
     writer.EndObject();
-}
-
-template<int QssLevel>
-status load(const rapidjson::Value& val, abstract_cross<QssLevel>& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "threshold", dyn.default_threshold));
-    irt_return_if_bad(get_bool(val, "detect-up", dyn.default_detect_up));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -1011,26 +3832,6 @@ void write(Writer& writer, const qss3_filter& dyn) noexcept
     writer.EndObject();
 }
 
-template<int QssLevel>
-status load(const rapidjson::Value&    val,
-            abstract_filter<QssLevel>& dyn) noexcept
-{
-    irt_return_if_bad(
-      get_double(val, "lower-threshold", dyn.default_lower_threshold));
-    irt_return_if_bad(
-      get_double(val, "upper-threshold", dyn.default_upper_threshold));
-
-    return status::success;
-}
-
-template<int QssLevel>
-status load(const rapidjson::Value& val, abstract_power<QssLevel>& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "n", dyn.default_n));
-
-    return status::success;
-}
-
 template<typename Writer>
 void write(Writer& writer, const qss1_power& dyn) noexcept
 {
@@ -1058,25 +3859,11 @@ void write(Writer& writer, const qss3_power& dyn) noexcept
     writer.EndObject();
 }
 
-template<int QssLevel>
-status load(const rapidjson::Value& /*val*/,
-            abstract_square<QssLevel>& /*dyn*/) noexcept
-{
-    return status::success;
-}
-
 template<typename Writer, int QssLevel>
 void write(Writer& writer, const abstract_square<QssLevel>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, cross& dyn) noexcept
-{
-    irt_return_if_bad(get_double(val, "threshold", dyn.default_threshold));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -1088,13 +3875,6 @@ void write(Writer& writer, const cross& dyn) noexcept
     writer.EndObject();
 }
 
-template<size_t PortNumber>
-status load(const rapidjson::Value& /*val*/,
-            accumulator<PortNumber>& /*dyn*/) noexcept
-{
-    return status::success;
-}
-
 template<typename Writer, size_t PortNumber>
 void write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
 {
@@ -1102,38 +3882,15 @@ void write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
     writer.EndObject();
 }
 
-status load(const rapidjson::Value& val, time_func& dyn) noexcept
-{
-    auto it = val.FindMember("function");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsString(), status::io_file_format_error);
-
-    auto str = it->value.GetString();
-    if (std::strcmp(str, "time") == 0)
-        dyn.default_f = &time_function;
-    else
-        dyn.default_f = &square_time_function;
-
-    return status::success;
-}
-
 template<typename Writer>
 void write(Writer& writer, const time_func& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("function");
-    writer.String(dyn.default_f == &time_function ? "time" : "square");
+    writer.String(dyn.default_f == &time_function          ? "time"
+                  : dyn.default_f == &square_time_function ? "square"
+                                                           : "sin");
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, filter& dyn) noexcept
-{
-    irt_return_if_bad(
-      get_double(val, "lower-threshold", dyn.default_lower_threshold));
-    irt_return_if_bad(
-      get_double(val, "upper-threshold", dyn.default_upper_threshold));
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -1145,153 +3902,6 @@ void write(Writer& writer, const filter& dyn) noexcept
     writer.Key("upper-threshold");
     writer.Double(dyn.default_upper_threshold);
     writer.EndObject();
-}
-
-status load(const rapidjson::Value& val, logical_and_2& dyn) noexcept
-{
-    irt_return_if_bad(get_bool(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_bool(val, "value-1", dyn.default_values[1]));
-
-    return status::success;
-}
-
-status load(const rapidjson::Value& val, logical_or_2& dyn) noexcept
-{
-    irt_return_if_bad(get_bool(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_bool(val, "value-1", dyn.default_values[1]));
-
-    return status::success;
-}
-
-status load(const rapidjson::Value& val, logical_and_3& dyn) noexcept
-{
-    irt_return_if_bad(get_bool(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_bool(val, "value-1", dyn.default_values[1]));
-    irt_return_if_bad(get_bool(val, "value-2", dyn.default_values[2]));
-
-    return status::success;
-}
-
-status load(const rapidjson::Value& val, logical_or_3& dyn) noexcept
-{
-    irt_return_if_bad(get_bool(val, "value-0", dyn.default_values[0]));
-    irt_return_if_bad(get_bool(val, "value-1", dyn.default_values[1]));
-    irt_return_if_bad(get_bool(val, "value-2", dyn.default_values[2]));
-
-    return status::success;
-}
-
-status load(const rapidjson::Value& /*val*/, logical_invert& /*dyn*/) noexcept
-{
-    return status::success;
-}
-
-status load(const rapidjson::Value&                   val,
-            hierarchical_state_machine::state_action& state) noexcept
-{
-    irt_return_if_bad(get_i32(val, "parameter", state.parameter));
-    irt_return_if_bad(get_hsm_variable(val, "var-1", state.var1));
-    irt_return_if_bad(get_hsm_variable(val, "var-2", state.var2));
-    irt_return_if_bad(get_hsm_action(val, "type", state.type));
-
-    return status::success;
-}
-
-status load(const rapidjson::Value&                       val,
-            hierarchical_state_machine::condition_action& cond) noexcept
-{
-    irt_return_if_bad(get_i32(val, "parameter", cond.parameter));
-    irt_return_if_bad(get_hsm_condition(val, "type", cond.type));
-    irt_return_if_bad(get_u8(val, "port", cond.port));
-    irt_return_if_bad(get_u8(val, "mask", cond.mask));
-
-    return status::success;
-}
-
-status load(const rapidjson::Value& val,
-            hsm_wrapper& /*dyn*/,
-            hierarchical_state_machine& hsm) noexcept
-{
-    auto states_it = val.FindMember("states");
-    irt_return_if_fail(states_it != val.MemberEnd(),
-                       status::io_file_format_error);
-    irt_return_if_fail(states_it->value.IsArray(), status::io_filesystem_error);
-
-    hsm.clear();
-
-    constexpr auto length = hierarchical_state_machine::max_number_of_state;
-
-    auto& states = states_it->value;
-    for (rapidjson::SizeType i = 0, e = states.Size(); i != e; ++i) {
-        u32 idx;
-        irt_return_if_fail(states[i].IsObject(), status::io_file_format_error);
-
-        irt_return_if_bad(get_u32(states[i], "id", idx));
-        irt_return_if_fail(idx < length, status::io_file_format_error);
-
-        auto enter = states[i].FindMember("enter");
-        irt_return_if_fail(enter != states[i].MemberEnd(),
-                           status::io_file_format_error);
-        irt_return_if_fail(enter->value.IsObject(),
-                           status::io_file_format_error);
-        irt_return_if_bad(
-          load(enter->value.GetObject(), hsm.states[idx].enter_action));
-
-        auto exit = states[i].FindMember("exit");
-        irt_return_if_fail(exit != states[i].MemberEnd(),
-                           status::io_file_format_error);
-        irt_return_if_fail(exit->value.IsObject(),
-                           status::io_file_format_error);
-        irt_return_if_bad(
-          load(exit->value.GetObject(), hsm.states[idx].exit_action));
-
-        auto if_action = states[i].FindMember("if");
-        irt_return_if_fail(if_action != states[i].MemberEnd(),
-                           status::io_file_format_error);
-        irt_return_if_fail(if_action->value.IsObject(),
-                           status::io_file_format_error);
-        irt_return_if_bad(
-          load(if_action->value.GetObject(), hsm.states[idx].if_action));
-
-        auto else_action = states[i].FindMember("else");
-        irt_return_if_fail(else_action != states[i].MemberEnd(),
-                           status::io_file_format_error);
-        irt_return_if_fail(else_action->value.IsObject(),
-                           status::io_file_format_error);
-        irt_return_if_bad(
-          load(else_action->value.GetObject(), hsm.states[idx].else_action));
-
-        auto condition = states[i].FindMember("condition");
-        irt_return_if_fail(condition != states[i].MemberEnd(),
-                           status::io_file_format_error);
-        irt_return_if_fail(condition->value.IsObject(),
-                           status::io_file_format_error);
-        irt_return_if_bad(
-          load(condition->value.GetObject(), hsm.states[idx].condition));
-
-        irt_return_if_bad(
-          get_u8(val, "if-transition", hsm.states[idx].if_transition));
-        irt_return_if_bad(
-          get_u8(val, "else-transition", hsm.states[idx].else_transition));
-        irt_return_if_bad(get_u8(val, "super-id", hsm.states[idx].super_id));
-        irt_return_if_bad(get_u8(val, "sub-id", hsm.states[idx].sub_id));
-    }
-
-    auto outputs_it = val.FindMember("outputs");
-    irt_return_if_fail(outputs_it != val.MemberEnd(),
-                       status::io_file_format_error);
-    irt_return_if_fail(outputs_it->value.IsArray(),
-                       status::io_file_format_error);
-
-    int i = 0;
-    for (auto& elem : outputs_it->value.GetArray()) {
-        irt_return_if_fail(elem.IsObject(), status::io_file_format_error);
-        irt_return_if_bad(get_u8(elem, "port", hsm.outputs[i].port));
-        irt_return_if_bad(get_i32(elem, "value", hsm.outputs[i].value));
-        ++i;
-    }
-
-    return status::success;
 }
 
 template<typename Writer>
@@ -1461,757 +4071,53 @@ void io_cache::clear() noexcept
     text_file_mapping.data.clear();
 }
 
-static status read_constant_sources(io_cache&               cache,
-                                    external_source&        srcs,
-                                    const rapidjson::Value& val) noexcept
+static bool parse_json_component(modeling&                  mod,
+                                 component&                 compo,
+                                 io_cache&                  cache,
+                                 const rapidjson::Document& doc) noexcept
 {
-    auto it = val.FindMember("constant-sources");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-    irt_return_if_fail(srcs.constant_sources.can_alloc(it->value.Size()),
-                       status::io_not_enough_memory);
+    reader r{ cache, mod };
+    if (r.read_component(doc.GetObject(), compo))
+        return true;
 
-    for (rapidjson::SizeType i = 0, e = it->value.Size(); i != e; ++i) {
-        irt_return_if_fail(it->value[i].IsObject(),
-                           status::io_file_format_error);
+#ifdef IRRITATOR_ENABLE_DEBUG
+    fmt::print(stderr,
+               "read component fail with {}\n",
+               error_id_names[ordinal(r.error)]);
 
-        u64 id = 0;
-        irt_return_if_bad(get_u64(it->value[i], "id", id));
+    for (u8 i = 0; i < r.stack_size; ++i)
+        fmt::print(stderr,
+                   "  {}: {}\n",
+                   static_cast<int>(i),
+                   stack_id_names[ordinal(r.stack[i])]);
+#endif
 
-        auto data = it->value[i].FindMember("parameters");
-        irt_return_if_fail(data != it->value[i].MemberEnd(),
-                           status::io_file_format_error);
-        irt_return_if_fail(data->value.IsArray(), status::io_file_format_error);
-
-        auto& cst    = srcs.constant_sources.alloc();
-        auto  cst_id = srcs.constant_sources.get_id(cst);
-
-        for (rapidjson::SizeType j = 0, ej = data->value.Size(); j != ej; ++j) {
-            irt_return_if_fail(data->value[i].IsObject(),
-                               status::io_file_format_error);
-
-            irt_return_if_fail(data->value[j].IsDouble(),
-                               status::io_file_format_error);
-
-            cst.buffer[j] = data->value[j].GetDouble();
-        }
-
-        cache.constant_mapping.data.emplace_back(id, ordinal(cst_id));
-    }
-
-    cache.constant_mapping.sort();
-
-    return status::success;
+    return false;
 }
 
-static status read_binary_file_sources(io_cache&               cache,
-                                       external_source&        srcs,
-                                       const rapidjson::Value& val) noexcept
+static bool parse_component(modeling&   mod,
+                            component&  compo,
+                            io_cache&   cache,
+                            const char* filename) noexcept
 {
-    auto it = val.FindMember("binary-file-sources");
-    irt_return_if_fail(it != val.MemberEnd() && it->value.IsArray(),
-                       status::io_file_format_error);
+    rapidjson::Document doc;
 
-    irt_return_if_fail(srcs.binary_file_sources.can_alloc(it->value.Size()),
-                       status::io_not_enough_memory);
-
-    for (rapidjson::SizeType i = 0, e = it->value.Size(); i != e; ++i) {
-        irt_return_if_fail(it->value[i].IsObject(),
-                           status::io_file_format_error);
-        u64 id          = 0;
-        u32 max_clients = 0;
-
-        irt_return_if_bad(get_u64(it->value[i], "id", id));
-        irt_return_if_bad(get_u32(it->value[i], "max-clients", max_clients));
-        irt_return_if_bad(
-          get_string(it->value[i], "path", cache.string_buffer));
-
-        auto& bin    = srcs.binary_file_sources.alloc();
-        auto  bin_id = srcs.binary_file_sources.get_id(bin);
-
-        bin.max_clients = max_clients;
-        bin.file_path   = cache.string_buffer;
-        cache.binary_file_mapping.data.emplace_back(id, ordinal(bin_id));
-    }
-
-    cache.binary_file_mapping.sort();
-
-    return status::success;
+    return read_file_to_buffer(cache, filename) &&
+           parse_json_data(std::span(cache.buffer.data(), cache.buffer.size()),
+                           filename,
+                           doc) &&
+           parse_json_component(mod, compo, cache, doc);
 }
 
-static status read_text_file_sources(io_cache&               cache,
-                                     external_source&        srcs,
-                                     const rapidjson::Value& val) noexcept
+static bool parse_component(modeling&       mod,
+                            component&      compo,
+                            io_cache&       cache,
+                            std::span<char> buffer) noexcept
 {
-    auto it = val.FindMember("text-file-sources");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-    irt_return_if_fail(srcs.text_file_sources.can_alloc(it->value.Size()),
-                       status::io_not_enough_memory);
+    rapidjson::Document doc;
 
-    for (rapidjson::SizeType i = 0, e = it->value.Size(); i != e; ++i) {
-        irt_return_if_fail(it->value[i].IsObject(),
-                           status::io_file_format_error);
-
-        u64 id = 0;
-
-        irt_return_if_bad(get_u64(it->value[i], "id", id));
-        irt_return_if_bad(
-          get_string(it->value[i], "path", cache.string_buffer));
-
-        auto& text    = srcs.text_file_sources.alloc();
-        auto  text_id = srcs.text_file_sources.get_id(text);
-
-        text.file_path = cache.string_buffer;
-        cache.text_file_mapping.data.emplace_back(id, ordinal(text_id));
-    }
-
-    cache.text_file_mapping.sort();
-
-    return status::success;
-}
-
-static status read_random_sources(io_cache&               cache,
-                                  external_source&        srcs,
-                                  const rapidjson::Value& val) noexcept
-{
-    auto it = val.FindMember("random-sources");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-    irt_return_if_fail(srcs.random_sources.can_alloc(it->value.Size()),
-                       status::io_not_enough_memory);
-
-    for (rapidjson::SizeType i = 0, e = it->value.Size(); i != e; ++i) {
-        irt_return_if_fail(it->value[i].IsObject(),
-                           status::io_file_format_error);
-
-        u64 id = 0;
-
-        irt_return_if_bad(get_u64(it->value[i], "id", id));
-        irt_return_if_bad(
-          get_string(it->value[i], "type", cache.string_buffer));
-
-        auto& rnd        = srcs.random_sources.alloc();
-        auto  rnd_id     = srcs.random_sources.get_id(rnd);
-        rnd.distribution = enum_cast<distribution_type>(rnd_id);
-
-        switch (rnd.distribution) {
-        case distribution_type::uniform_int:
-            irt_return_if_bad(get_i32(it->value[i], "a", rnd.a32));
-            irt_return_if_bad(get_i32(it->value[i], "b", rnd.b32));
-            break;
-
-        case distribution_type::uniform_real:
-            irt_return_if_bad(get_double(it->value[i], "a", rnd.a));
-            irt_return_if_bad(get_double(it->value[i], "b", rnd.b));
-            break;
-
-        case distribution_type::bernouilli:
-            irt_return_if_bad(get_double(it->value[i], "p", rnd.p));
-            break;
-
-        case distribution_type::binomial:
-            irt_return_if_bad(get_i32(it->value[i], "t", rnd.t32));
-            irt_return_if_bad(get_double(it->value[i], "p", rnd.p));
-            break;
-
-        case distribution_type::negative_binomial:
-            irt_return_if_bad(get_i32(it->value[i], "t", rnd.t32));
-            irt_return_if_bad(get_double(it->value[i], "p", rnd.p));
-            break;
-
-        case distribution_type::geometric:
-            irt_return_if_bad(get_double(it->value[i], "p", rnd.p));
-            break;
-
-        case distribution_type::poisson:
-            irt_return_if_bad(get_double(it->value[i], "mean", rnd.mean));
-            break;
-
-        case distribution_type::exponential:
-            irt_return_if_bad(get_double(it->value[i], "lambda", rnd.lambda));
-            break;
-
-        case distribution_type::gamma:
-            irt_return_if_bad(get_double(it->value[i], "alpha", rnd.alpha));
-            irt_return_if_bad(get_double(it->value[i], "beta", rnd.beta));
-            break;
-
-        case distribution_type::weibull:
-            irt_return_if_bad(get_double(it->value[i], "a", rnd.a));
-            irt_return_if_bad(get_double(it->value[i], "b", rnd.b));
-            break;
-
-        case distribution_type::exterme_value:
-            irt_return_if_bad(get_double(it->value[i], "a", rnd.a));
-            irt_return_if_bad(get_double(it->value[i], "b", rnd.b));
-            break;
-
-        case distribution_type::normal:
-            irt_return_if_bad(get_double(it->value[i], "mean", rnd.mean));
-            irt_return_if_bad(get_double(it->value[i], "stddev", rnd.stddev));
-            break;
-
-        case distribution_type::lognormal:
-            irt_return_if_bad(get_double(it->value[i], "m", rnd.m));
-            irt_return_if_bad(get_double(it->value[i], "s", rnd.s));
-            break;
-
-        case distribution_type::chi_squared:
-            irt_return_if_bad(get_double(it->value[i], "n", rnd.n));
-            break;
-
-        case distribution_type::cauchy:
-            irt_return_if_bad(get_double(it->value[i], "a", rnd.a));
-            irt_return_if_bad(get_double(it->value[i], "a", rnd.b));
-            break;
-
-        case distribution_type::fisher_f:
-            irt_return_if_bad(get_double(it->value[i], "m", rnd.m));
-            irt_return_if_bad(get_double(it->value[i], "n", rnd.n));
-            break;
-
-        case distribution_type::student_t:
-            irt_return_if_bad(get_double(it->value[i], "n", rnd.n));
-            break;
-        }
-
-        cache.random_mapping.data.emplace_back(id, ordinal(rnd_id));
-    }
-
-    cache.random_mapping.sort();
-
-    return status::success;
-}
-
-static auto search_reg(modeling& mod, std::string_view name) noexcept
-  -> registred_path*
-{
-    {
-        registred_path* reg = nullptr;
-        while (mod.registred_paths.next(reg))
-            if (name == reg->name.sv())
-                return reg;
-    }
-
-    return nullptr;
-}
-
-static auto search_dir_in_reg(modeling&        mod,
-                              registred_path&  reg,
-                              std::string_view name) noexcept -> dir_path*
-{
-    for (auto dir_id : reg.children) {
-        if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
-            if (name == dir->path.sv())
-                return dir;
-        }
-    }
-
-    return nullptr;
-}
-
-static auto search_dir(modeling& mod, std::string_view name) noexcept
-  -> dir_path*
-{
-    for (auto reg_id : mod.component_repertories) {
-        if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {
-            for (auto dir_id : reg->children) {
-                if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
-                    if (dir->path.sv() == name)
-                        return dir;
-                }
-            }
-        }
-    }
-
-    return nullptr;
-}
-
-static auto search_file(modeling&        mod,
-                        dir_path&        dir,
-                        std::string_view name) noexcept -> file_path*
-{
-    for (auto file_id : dir.children)
-        if (auto* file = mod.file_paths.try_to_get(file_id); file)
-            if (file->path.sv() == name)
-                return file;
-
-    return nullptr;
-}
-
-static auto read_child_component_path(io_cache&               cache,
-                                      modeling&               mod,
-                                      const rapidjson::Value& val) noexcept
-  -> std::pair<component_id, status>
-{
-    registred_path* reg  = nullptr;
-    dir_path*       dir  = nullptr;
-    file_path*      file = nullptr;
-
-    if (is_success(get_string(val, "path", cache.string_buffer)))
-        reg = search_reg(mod, cache.string_buffer);
-
-    if (auto ret = get_string(val, "directory", cache.string_buffer);
-        is_bad(ret))
-        return std::make_pair(undefined<component_id>(), ret);
-
-    if (reg) {
-        dir = search_dir_in_reg(mod, *reg, cache.string_buffer);
-        if (!dir)
-            dir = search_dir(mod, cache.string_buffer);
-    } else {
-        dir = search_dir(mod, cache.string_buffer);
-    }
-
-    if (dir) {
-        if (is_success(get_string(val, "file", cache.string_buffer))) {
-            file = search_file(mod, *dir, cache.string_buffer);
-        }
-    }
-
-    return file ? std::make_pair(file->component, status::success)
-                : std::make_pair(undefined<component_id>(),
-                                 status::unknown_dynamics);
-}
-
-static auto read_child_component_internal(io_cache&               cache,
-                                          modeling&               mod,
-                                          const rapidjson::Value& val) noexcept
-  -> std::pair<component_id, status>
-{
-    if (is_success(get_string(val, "parameter", cache.string_buffer))) {
-        auto opt = get_internal_component_type(cache.string_buffer);
-
-        if (opt.has_value()) {
-            component* c = nullptr;
-            while (mod.components.next(c)) {
-                if (c->type == component_type::internal &&
-                    c->id.internal_id == opt.value())
-                    return std::make_pair(mod.components.get_id(*c),
-                                          status::success);
-            }
-        }
-    }
-
-    return std::make_pair(undefined<component_id>(), status::unknown_dynamics);
-}
-
-static auto read_child_component(io_cache&               cache,
-                                 modeling&               mod,
-                                 const rapidjson::Value& val) noexcept
-  -> std::pair<component_id, status>
-{
-    auto compo_id = undefined<component_id>();
-    auto status   = status::io_file_format_error;
-
-    if (status = get_string(val, "component-type", cache.string_buffer);
-        is_success(status)) {
-
-        auto compo_type_opt = get_component_type(cache.string_buffer);
-        if (compo_type_opt.has_value()) {
-            switch (compo_type_opt.value()) {
-            case component_type::internal:
-                return read_child_component_internal(cache, mod, val);
-
-            case component_type::simple:
-                return read_child_component_path(cache, mod, val);
-
-            case component_type::grid:
-                return read_child_component_path(cache, mod, val);
-
-            default:
-                return std::make_pair(undefined<component_id>(),
-                                      status::success);
-            }
-        }
-    }
-
-    return std::make_pair(compo_id, status);
-}
-
-static auto read_child_model(io_cache&               cache,
-                             modeling&               mod,
-                             const rapidjson::Value& val) noexcept
-  -> std::pair<model_id, status>
-{
-    model_id id     = undefined<model_id>();
-    status   status = status::io_file_format_error;
-
-    auto opt_type = get_dynamics_type(cache.string_buffer);
-    if (opt_type.has_value()) {
-        auto& mdl    = mod.models.alloc();
-        auto  mdl_id = mod.models.get_id(mdl);
-        mdl.type     = opt_type.value();
-        mdl.handle   = nullptr;
-
-        dispatch(mdl, [&mod]<typename Dynamics>(Dynamics& dyn) -> void {
-            new (&dyn) Dynamics{};
-
-            if constexpr (has_input_port<Dynamics>)
-                for (int i = 0, e = length(dyn.x); i != e; ++i)
-                    dyn.x[i] = static_cast<u64>(-1);
-
-            if constexpr (has_output_port<Dynamics>)
-                for (int i = 0, e = length(dyn.y); i != e; ++i)
-                    dyn.y[i] = static_cast<u64>(-1);
-
-            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                irt_assert(mod.hsms.can_alloc());
-
-                auto& machine = mod.hsms.alloc();
-                dyn.id        = mod.hsms.get_id(machine);
-            }
-        });
-
-        auto dynamics_it = val.FindMember("dynamics");
-        if (dynamics_it != val.MemberEnd() && dynamics_it->value.IsObject()) {
-            status = dispatch(
-              mdl, [&mod, &dynamics_it]<typename Dynamics>(Dynamics& dyn) {
-                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                      if (auto* hsm = mod.hsms.try_to_get(dyn.id); hsm)
-                          return load(dynamics_it->value, dyn, *hsm);
-                      return status::io_file_format_error;
-                  } else {
-                      return load(dynamics_it->value, dyn);
-                  }
-              });
-
-            if (is_success(status))
-                id = mdl_id;
-        }
-    }
-
-    return std::make_pair(id, status);
-}
-
-static auto read_child(io_cache&               cache,
-                       modeling&               mod,
-                       child&                  child,
-                       const rapidjson::Value& val) noexcept
-{
-    bool input  = false;
-    bool output = false;
-    u64  id;
-
-    irt_return_if_bad(get_u64(val, "id", id));
-    try_get_u64(val, "unique-id", child.unique_id);
-    irt_return_if_bad(get_float(val, "x", child.x));
-    irt_return_if_bad(get_float(val, "y", child.y));
-
-    bool configurable = false;
-    irt_return_if_bad(get_bool(val, "configurable", configurable));
-    if (configurable)
-        child.flags |= child_flags_configurable;
-
-    bool observable = false;
-    irt_return_if_bad(get_bool(val, "observable", observable));
-    if (observable)
-        child.flags |= child_flags_observable;
-
-    irt_return_if_bad(get_bool(val, "input", input));
-    irt_return_if_bad(get_bool(val, "output", output));
-
-    cache.model_mapping.data.emplace_back(id,
-                                          ordinal(mod.children.get_id(child)));
-
-    return status::success;
-}
-
-static status read_children(io_cache&               cache,
-                            modeling&               mod,
-                            generic_component&      s_compo,
-                            const rapidjson::Value& val) noexcept
-{
-    auto it = val.FindMember("children");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-
-    child* last = nullptr;
-
-    for (auto& elem : it->value.GetArray()) {
-        irt_return_if_fail(mod.children.can_alloc(),
-                           status::io_not_enough_memory);
-
-        irt_return_if_bad(get_string(elem, "type", cache.string_buffer));
-
-        if (cache.string_buffer == "component") {
-            auto ret = read_child_component(cache, mod, elem);
-            irt_return_if_bad(ret.second);
-
-            last = &mod.alloc(s_compo, ret.first);
-        } else {
-            auto ret = read_child_model(cache, mod, elem);
-            irt_return_if_bad(ret.second);
-
-            last = &mod.alloc(s_compo, ret.first);
-        }
-
-        read_child(cache, mod, *last, elem);
-    }
-
-    cache.model_mapping.sort();
-
-    return status::success;
-}
-
-static status read_ports(component& compo, const rapidjson::Value& val) noexcept
-{
-    {
-        auto it = val.FindMember("x");
-        irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-        irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-        irt_return_if_fail(it->value.GetArray().Size() ==
-                             component::port_number,
-                           status::io_file_format_error);
-
-        unsigned i = 0;
-        for (auto& elem : it->value.GetArray()) {
-            irt_return_if_fail(elem.IsString(), status::io_file_format_error);
-            compo.x_names[i] = elem.GetString();
-            ++i;
-        }
-    }
-
-    {
-        auto it = val.FindMember("y");
-        irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-        irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-        irt_return_if_fail(it->value.GetArray().Size() ==
-                             component::port_number,
-                           status::io_file_format_error);
-
-        unsigned i = 0;
-        for (auto& elem : it->value.GetArray()) {
-            irt_return_if_fail(elem.IsString(), status::io_file_format_error);
-            compo.y_names[i] = elem.GetString();
-            ++i;
-        }
-    }
-
-    return status::success;
-}
-
-static status read_connections(io_cache&               cache,
-                               modeling&               mod,
-                               generic_component&      s_compo,
-                               const rapidjson::Value& val) noexcept
-{
-    auto it = val.FindMember("connections");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
-
-    for (auto& elem : it->value.GetArray()) {
-        irt_return_if_bad(get_string(elem, "type", cache.string_buffer));
-
-        if (cache.string_buffer == "internal") {
-            u64 source, destination;
-            i32 port_source, port_destination;
-
-            irt_return_if_bad(get_u64(elem, "source", source));
-            irt_return_if_bad(get_i32(elem, "port-source", port_source));
-            irt_return_if_bad(get_u64(elem, "destination", destination));
-            irt_return_if_bad(
-              get_i32(elem, "port-destination", port_destination));
-
-            auto* src_id = cache.model_mapping.get(source);
-            auto* dst_id = cache.model_mapping.get(destination);
-
-            irt_return_if_fail(src_id, status::io_file_format_model_unknown);
-            irt_return_if_fail(dst_id, status::io_file_format_model_unknown);
-
-            irt_return_if_fail(is_numeric_castable<i8>(port_source),
-                               status::io_file_format_model_unknown);
-            irt_return_if_fail(is_numeric_castable<i8>(port_destination),
-                               status::io_file_format_model_unknown);
-
-            irt_return_if_bad(mod.connect(s_compo,
-                                          enum_cast<child_id>(*src_id),
-                                          numeric_cast<i8>(port_source),
-                                          enum_cast<child_id>(*dst_id),
-                                          numeric_cast<i8>(port_destination)));
-        } else if (cache.string_buffer == "input") {
-            u64 destination;
-            i32 port, port_destination;
-
-            irt_return_if_bad(get_i32(elem, "port", port));
-            irt_return_if_bad(get_u64(elem, "destination", destination));
-            irt_return_if_bad(
-              get_i32(elem, "port-destination", port_destination));
-
-            auto* dst_id = cache.model_mapping.get(destination);
-            irt_return_if_fail(dst_id, status::io_file_format_model_unknown);
-
-            irt_return_if_fail(is_numeric_castable<i8>(port),
-                               status::io_file_format_model_unknown);
-            irt_return_if_fail(is_numeric_castable<i8>(port_destination),
-                               status::io_file_format_model_unknown);
-
-            irt_return_if_bad(
-              mod.connect_input(s_compo,
-                                static_cast<i8>(port),
-                                enum_cast<child_id>(*dst_id),
-                                static_cast<i8>(port_destination)));
-        } else if (cache.string_buffer == "output") {
-            u64 source;
-            i32 port_source, port_destination;
-
-            irt_return_if_bad(get_u64(elem, "source", source));
-            irt_return_if_bad(get_i32(elem, "port-source", port_source));
-            irt_return_if_bad(get_i32(elem, "port", port_destination));
-
-            auto* src_id = cache.model_mapping.get(source);
-            irt_return_if_fail(src_id, status::io_file_format_model_unknown);
-
-            irt_return_if_fail(is_numeric_castable<i8>(port_source),
-                               status::io_file_format_model_unknown);
-            irt_return_if_fail(is_numeric_castable<i8>(port_destination),
-                               status::io_file_format_model_unknown);
-
-            irt_return_if_bad(
-              mod.connect_output(s_compo,
-                                 enum_cast<child_id>(*src_id),
-                                 numeric_cast<i8>(port_source),
-                                 numeric_cast<i8>(port_destination)));
-        } else
-            irt_bad_return(status::io_file_format_error);
-    }
-
-    return status::success;
-}
-
-static status read_simple_component(io_cache&               cache,
-                                    modeling&               mod,
-                                    component&              compo,
-                                    const rapidjson::Value& val) noexcept
-{
-    auto& s_compo      = mod.simple_components.alloc();
-    compo.type         = component_type::simple;
-    compo.id.simple_id = mod.simple_components.get_id(s_compo);
-
-    try_get_u64(val, "next-unique-id", s_compo.next_unique_id);
-
-    irt_return_if_bad(read_children(cache, mod, s_compo, val));
-    irt_return_if_bad(read_connections(cache, mod, s_compo, val));
-
-    return status::success;
-}
-
-static status read_grid_component(io_cache&               cache,
-                                  modeling&               mod,
-                                  component&              compo,
-                                  const rapidjson::Value& val) noexcept
-{
-    auto& grid       = mod.grid_components.alloc();
-    compo.type       = component_type::grid;
-    compo.id.grid_id = mod.grid_components.get_id(grid);
-
-    irt_return_if_bad(get_i32(val, "rows", grid.row));
-    irt_return_if_bad(get_i32(val, "columns", grid.column));
-
-    i32 cnt_type;
-    irt_return_if_bad(get_i32(val, "connection-type", cnt_type));
-    grid.connection_type = enum_cast<grid_component::type>(cnt_type);
-
-    auto default_children_it = val.FindMember("default-children");
-    if (default_children_it != val.MemberEnd()) {
-        auto& children = default_children_it->value;
-        irt_return_if_fail(children.Size() == 9, status::io_file_format_error);
-
-        for (int row = 0; row < 3; ++row) {
-            for (int col = 0; col < 3; ++col) {
-                const auto idx =
-                  static_cast<rapidjson::SizeType>(row * 3 + col);
-
-                irt_assert(children[idx].IsObject());
-                auto compo =
-                  read_child_component(cache, mod, children[idx].GetObject());
-                irt_return_if_bad(compo.second);
-
-                grid.default_children[row][col] = compo.first;
-            }
-        }
-
-        auto specific_children_it = val.FindMember("specific-children");
-        if (specific_children_it != val.MemberEnd()) {
-            auto& children = specific_children_it->value;
-            for (rapidjson::SizeType i = 0, e = children.Size(); i != e; ++i) {
-                i32 row, col;
-                irt_return_if_bad(get_i32(children[i], "row", row));
-                irt_return_if_bad(get_i32(children[i], "column", col));
-
-                auto compo = read_child_component(cache, mod, children[i]);
-                irt_return_if_bad(compo.second);
-
-                auto& elem  = grid.specific_children.emplace_back();
-                elem.row    = row;
-                elem.column = col;
-                elem.ch     = compo.first;
-            }
-        }
-    }
-
-    return status::success;
-}
-
-static status read_internal_component(io_cache& cache,
-                                      modeling& /* mod */,
-                                      component&              compo,
-                                      const rapidjson::Value& val) noexcept
-{
-    irt_return_if_bad(get_string(val, "component", cache.string_buffer));
-
-    auto compo_opt = get_internal_component_type(cache.string_buffer);
-    irt_return_if_fail(compo_opt.has_value(), status::io_file_format_error);
-
-    compo.id.internal_id = compo_opt.value();
-
-    return status::success;
-}
-
-static status do_component_read(io_cache&               cache,
-                                modeling&               mod,
-                                component&              compo,
-                                const rapidjson::Value& val) noexcept
-{
-    if (get_optional_string(val, "name", cache.string_buffer))
-        compo.name = cache.string_buffer;
-
-    irt_return_if_bad(read_constant_sources(cache, mod.srcs, val));
-    irt_return_if_bad(read_binary_file_sources(cache, mod.srcs, val));
-    irt_return_if_bad(read_text_file_sources(cache, mod.srcs, val));
-    irt_return_if_bad(read_random_sources(cache, mod.srcs, val));
-
-    irt_return_if_bad(get_string(val, "type", cache.string_buffer));
-    auto type = get_component_type(cache.string_buffer);
-    irt_return_if_fail(type.has_value(), status::io_file_format_error);
-
-    irt_return_if_bad(read_ports(compo, val));
-
-    switch (type.value()) {
-    case component_type::internal:
-        irt_return_if_bad(read_internal_component(cache, mod, compo, val));
-        break;
-
-    case component_type::simple:
-        irt_return_if_fail(mod.simple_components.can_alloc(),
-                           status::io_not_enough_memory);
-        irt_return_if_bad(read_simple_component(cache, mod, compo, val));
-        break;
-
-    case component_type::grid:
-        irt_return_if_fail(mod.grid_components.can_alloc(),
-                           status::io_not_enough_memory);
-        irt_return_if_bad(read_grid_component(cache, mod, compo, val));
-        break;
-
-    default:
-        break;
-    }
-
-    compo.state = component_status::unmodified;
-
-    return status::success;
+    return parse_json_data(buffer, nullptr, doc) &&
+           parse_json_component(mod, compo, cache, doc);
 }
 
 status component_load(modeling&   mod,
@@ -2219,30 +4125,21 @@ status component_load(modeling&   mod,
                       io_cache&   cache,
                       const char* filename) noexcept
 {
-    file f{ filename, open_mode::read };
+    irt_return_if_fail(parse_component(mod, compo, cache, filename),
+                       status::io_file_format_model_error);
 
-    irt_return_if_fail(f.is_open(), status::io_filesystem_error);
-    auto* fp = reinterpret_cast<FILE*>(f.get_handle());
-    cache.clear();
+    return status::success;
+}
 
-    std::fseek(fp, 0, SEEK_END);
-    auto filesize = std::ftell(fp);
-    if (filesize <= 0)
-        return status::io_filesystem_error;
+status component_load(modeling&       mod,
+                      component&      compo,
+                      io_cache&       cache,
+                      std::span<char> buffer) noexcept
+{
+    irt_return_if_fail(parse_component(mod, compo, cache, buffer),
+                       status::io_file_format_model_error);
 
-    std::fseek(fp, 0, SEEK_SET);
-
-    cache.buffer.resize(static_cast<int>(filesize + 1));
-    auto read_length =
-      std::fread(cache.buffer.data(), 1, static_cast<sz>(filesize), fp);
-    cache.buffer[static_cast<int>(read_length)] = '\0';
-    f.close();
-
-    rapidjson::Document    d;
-    rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());
-
-    irt_return_if_fail(s && d.IsObject(), status::io_file_format_error);
-    return do_component_read(cache, mod, compo, d.GetObject());
+    return status::success;
 }
 
 template<typename Writer>
@@ -2744,23 +4641,12 @@ static void write_internal_component(io_cache& /*cache*/,
     w.String(internal_component_names[ordinal(id)]);
 }
 
-status component_save(const modeling&  mod,
-                      const component& compo,
-                      io_cache&        cache,
-                      const char*      filename,
-                      json_pretty_print /*print_options*/) noexcept
+template<typename Writer>
+static status do_component_save(Writer&          w,
+                                const modeling&  mod,
+                                const component& compo,
+                                io_cache&        cache) noexcept
 {
-    file f{ filename, open_mode::write };
-
-    irt_return_if_fail(f.is_open(), status::io_file_format_error);
-
-    FILE* fp = reinterpret_cast<FILE*>(f.get_handle());
-    cache.clear();
-    cache.buffer.resize(4096);
-
-    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
-
     w.StartObject();
 
     w.Key("name");
@@ -2798,6 +4684,83 @@ status component_save(const modeling&  mod,
     }
 
     w.EndObject();
+
+    return status::success;
+}
+
+status component_save(const modeling&   mod,
+                      const component&  compo,
+                      io_cache&         cache,
+                      const char*       filename,
+                      json_pretty_print print_options) noexcept
+{
+    file f{ filename, open_mode::write };
+
+    irt_return_if_fail(f.is_open(), status::io_file_format_error);
+
+    FILE* fp = reinterpret_cast<FILE*>(f.get_handle());
+    cache.clear();
+    cache.buffer.resize(4096);
+
+    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+
+    switch (print_options) {
+    case json_pretty_print::indent_2:
+        w.SetIndent(' ', 2);
+        irt_return_if_bad(do_component_save(w, mod, compo, cache));
+        break;
+
+    case json_pretty_print::indent_2_one_line_array:
+        w.SetIndent(' ', 2);
+        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
+        irt_return_if_bad(do_component_save(w, mod, compo, cache));
+        break;
+
+    default:
+        irt_return_if_bad(do_component_save(w, mod, compo, cache));
+        break;
+    }
+
+    return status::success;
+}
+
+status component_save(const modeling&   mod,
+                      const component&  compo,
+                      io_cache&         cache,
+                      vector<char>&     out,
+                      json_pretty_print print_options) noexcept
+{
+    rapidjson::StringBuffer buffer;
+    buffer.Reserve(4096u);
+
+    switch (print_options) {
+    case json_pretty_print::indent_2: {
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        w.SetIndent(' ', 2);
+        irt_return_if_bad(do_component_save(w, mod, compo, cache));
+        break;
+    }
+
+    case json_pretty_print::indent_2_one_line_array: {
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        w.SetIndent(' ', 2);
+        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
+        irt_return_if_bad(do_component_save(w, mod, compo, cache));
+        break;
+    }
+
+    default: {
+        rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
+        irt_return_if_bad(do_component_save(w, mod, compo, cache));
+        break;
+    }
+    }
+
+    auto length = buffer.GetSize();
+    auto str    = buffer.GetString();
+    out.resize(static_cast<int>(length));
+    std::copy_n(str, length, out.data());
 
     return status::success;
 }
@@ -2904,7 +4867,7 @@ status do_simulation_save(Writer&           w,
 status simulation_save(const simulation& sim,
                        io_cache&         cache,
                        const char*       filename,
-                       json_pretty_print /*print_option*/) noexcept
+                       json_pretty_print print_options) noexcept
 {
     file f{ filename, open_mode::write };
     irt_return_if_fail(f.is_open(), status::io_filesystem_error);
@@ -2916,7 +4879,22 @@ status simulation_save(const simulation& sim,
     rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
 
-    irt_return_if_bad(do_simulation_save(w, sim, cache));
+    switch (print_options) {
+    case json_pretty_print::indent_2:
+        w.SetIndent(' ', 2);
+        irt_return_if_bad(do_simulation_save(w, sim, cache));
+        break;
+
+    case json_pretty_print::indent_2_one_line_array:
+        w.SetIndent(' ', 2);
+        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
+        irt_return_if_bad(do_simulation_save(w, sim, cache));
+        break;
+
+    default:
+        irt_return_if_bad(do_simulation_save(w, sim, cache));
+        break;
+    }
 
     return status::success;
 }
@@ -2924,13 +4902,15 @@ status simulation_save(const simulation& sim,
 status simulation_save(const simulation& sim,
                        io_cache&         cache,
                        vector<char>&     out,
-                       json_pretty_print print_option) noexcept
+                       json_pretty_print print_options) noexcept
 {
     rapidjson::StringBuffer buffer;
+    buffer.Reserve(4096u);
 
-    switch (print_option) {
+    switch (print_options) {
     case json_pretty_print::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        w.SetIndent(' ', 2);
         irt_return_if_bad(do_simulation_save(w, sim, cache));
         break;
     }
@@ -2952,167 +4932,78 @@ status simulation_save(const simulation& sim,
 
     auto length = buffer.GetSize();
     auto str    = buffer.GetString();
-    out.resize(static_cast<int>(length + 1));
+    out.resize(static_cast<int>(length));
     std::copy_n(str, length, out.data());
-    out.back() = '\0';
 
     return status::success;
 }
 
-static status read_simulation_model(io_cache&               cache,
-                                    simulation&             sim,
-                                    const rapidjson::Value& val) noexcept
+static bool parse_json_simulation(simulation&                sim,
+                                  io_cache&                  cache,
+                                  const rapidjson::Document& doc) noexcept
 {
-    auto it = val.FindMember("models");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
+    sim.clear();
 
-    for (auto& elem : it->value.GetArray()) {
-        u64 id;
+    reader r{ cache, sim };
+    if (r.read_simulation(doc.GetObject()))
+        return true;
 
-        irt_return_if_bad(get_string(elem, "type", cache.string_buffer));
-        irt_return_if_bad(get_u64(elem, "id", id));
+#ifdef IRRITATOR_ENABLE_DEBUG
+    fmt::print(stderr,
+               "read simulation fail with {}\n",
+               error_id_names[ordinal(r.error)]);
 
-        auto opt_type = get_dynamics_type(cache.string_buffer);
-        irt_return_if_fail(opt_type.has_value(),
-                           status::io_file_format_model_unknown);
+    for (u8 i = 0; i < r.stack_size; ++i)
+        fmt::print(stderr,
+                   "  {}: {}\n",
+                   static_cast<int>(i),
+                   stack_id_names[ordinal(r.stack[i])]);
+#endif
 
-        irt_return_if_fail(sim.models.can_alloc(),
-                           status::io_not_enough_memory);
-
-        auto& mdl    = sim.alloc(opt_type.value());
-        auto  mdl_id = sim.models.get_id(mdl);
-
-        auto dynamics_it = elem.FindMember("dynamics");
-        irt_return_if_fail(dynamics_it != elem.MemberEnd(),
-                           status::io_file_format_error);
-        irt_return_if_fail(dynamics_it->value.IsObject(),
-                           status::io_file_format_error);
-
-        auto ret = dispatch(
-          mdl,
-          [&sim, &dynamics_it]<typename Dynamics>(Dynamics& dyn) -> status {
-              if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                  if (auto* hsm = sim.hsms.try_to_get(dyn.id); hsm)
-                      return load(dynamics_it->value, dyn, *hsm);
-              } else {
-                  return load(dynamics_it->value, dyn);
-              }
-
-              return status::io_file_format_error;
-          });
-
-        irt_return_if_bad(ret);
-
-        cache.model_mapping.data.emplace_back(id, ordinal(mdl_id));
-    }
-
-    cache.model_mapping.sort();
-
-    return status::success;
+    return false;
 }
 
-static status read_simulation_connections(io_cache&               cache,
-                                          simulation&             sim,
-                                          const rapidjson::Value& val) noexcept
+static bool parse_simulation(simulation& sim,
+                             io_cache&   cache,
+                             const char* filename) noexcept
 {
-    auto it = val.FindMember("connections");
-    irt_return_if_fail(it != val.MemberEnd(), status::io_file_format_error);
-    irt_return_if_fail(it->value.IsArray(), status::io_file_format_error);
+    rapidjson::Document doc;
 
-    for (auto& elem : it->value.GetArray()) {
-        u64 source, destination;
-        i32 port_source, port_destination;
-
-        irt_return_if_bad(get_u64(elem, "source", source));
-        irt_return_if_bad(get_i32(elem, "port-source", port_source));
-        irt_return_if_bad(get_u64(elem, "destination", destination));
-        irt_return_if_bad(get_i32(elem, "port-destination", port_destination));
-
-        auto* mdl_src_id = cache.model_mapping.get(source);
-        irt_return_if_fail(mdl_src_id, status::io_file_format_model_unknown);
-
-        auto* mdl_src = sim.models.try_to_get(enum_cast<model_id>(*mdl_src_id));
-        irt_return_if_fail(mdl_src, status::io_file_format_model_unknown);
-
-        auto* mdl_dst_id = cache.model_mapping.get(destination);
-        irt_return_if_fail(mdl_dst_id, status::io_file_format_model_unknown);
-
-        auto* mdl_dst = sim.models.try_to_get(enum_cast<model_id>(*mdl_dst_id));
-        irt_return_if_fail(mdl_dst, status::io_file_format_model_unknown);
-
-        output_port* out = nullptr;
-        input_port*  in  = nullptr;
-
-        irt_return_if_bad(
-          get_output_port(*mdl_src, static_cast<int>(port_source), out));
-        irt_return_if_bad(
-          get_input_port(*mdl_dst, static_cast<int>(port_destination), in));
-        irt_return_if_bad(
-          sim.connect(*mdl_src, port_source, *mdl_dst, port_destination));
-    }
-
-    return status::success;
+    return read_file_to_buffer(cache, filename) &&
+           parse_json_data(std::span(cache.buffer.data(), cache.buffer.size()),
+                           filename,
+                           doc) &&
+           parse_json_simulation(sim, cache, doc);
 }
 
-static status do_simulation_read(io_cache&               cache,
-                                 simulation&             sim,
-                                 const rapidjson::Value& val) noexcept
+static bool parse_simulation(simulation&     sim,
+                             io_cache&       cache,
+                             std::span<char> buffer) noexcept
 {
-    irt_return_if_bad(read_constant_sources(cache, sim.srcs, val));
-    irt_return_if_bad(read_binary_file_sources(cache, sim.srcs, val));
-    irt_return_if_bad(read_text_file_sources(cache, sim.srcs, val));
-    irt_return_if_bad(read_random_sources(cache, sim.srcs, val));
+    rapidjson::Document doc;
 
-    irt_return_if_bad(read_simulation_model(cache, sim, val));
-    irt_return_if_bad(read_simulation_connections(cache, sim, val));
-
-    return status::success;
+    return parse_json_data(buffer, nullptr, doc) &&
+           parse_json_simulation(sim, cache, doc);
 }
 
 status simulation_load(simulation& sim,
                        io_cache&   cache,
                        const char* filename) noexcept
 {
-    file f{ filename, open_mode::read };
-    irt_return_if_fail(f.is_open(), status::io_file_format_error);
+    irt_return_if_fail(parse_simulation(sim, cache, filename),
+                       status::io_file_format_model_error);
 
-    auto* fp = reinterpret_cast<FILE*>(f.get_handle());
-    cache.clear();
-
-    std::fseek(fp, 0, SEEK_END);
-    auto filesize = std::ftell(fp);
-    irt_return_if_fail(filesize >= 0, status::io_file_format_error);
-    std::fseek(fp, 0, SEEK_SET);
-
-    cache.buffer.resize(static_cast<int>(filesize + 1));
-    auto read_length =
-      std::fread(cache.buffer.data(), 1, static_cast<sz>(filesize), fp);
-    cache.buffer[static_cast<int>(read_length)] = '\0';
-    f.close();
-
-    rapidjson::Document    d;
-    rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());
-
-    irt_return_if_fail(s, status::io_file_format_error);
-    irt_return_if_fail(d.IsObject(), status::io_file_format_error);
-
-    return do_simulation_read(cache, sim, d.GetObject());
+    return status::success;
 }
 
 status simulation_load(simulation&     sim,
                        io_cache&       cache,
-                       std::span<char> in) noexcept
+                       std::span<char> buffer) noexcept
 {
-    cache.clear();
+    irt_return_if_fail(parse_simulation(sim, cache, buffer),
+                       status::io_file_format_model_error);
 
-    rapidjson::Document    d;
-    rapidjson::ParseResult s = d.ParseInsitu(in.data());
-
-    irt_return_if_fail(s, status::io_file_format_error);
-    irt_return_if_fail(d.IsObject(), status::io_file_format_error);
-
-    return do_simulation_read(cache, sim, d.GetObject());
+    return status::success;
 }
 
 /*****************************************************************************
@@ -3121,258 +5012,58 @@ status simulation_load(simulation&     sim,
  *
  ****************************************************************************/
 
-static bool load_component_path(modeling&          mod,
-                                std::string_view   path,
-                                registred_path_id& reg_id) noexcept
+static bool parse_json_project(project&                   pj,
+                               modeling&                  mod,
+                               simulation&                sim,
+                               io_cache&                  cache,
+                               const rapidjson::Document& doc) noexcept
 {
-    bool found = false;
+    pj.clear();
+    sim.clear();
 
-    for (auto id : mod.component_repertories) {
-        if (auto* reg = mod.registred_paths.try_to_get(id); reg) {
-            if (reg->name == path) {
-                reg_id = id;
-                found  = true;
-                break;
-            }
-        }
-    }
+    reader r{ cache, mod, sim, pj };
+    if (r.read_project(doc.GetObject()))
+        return true;
 
-    return found;
+#ifdef IRRITATOR_ENABLE_DEBUG
+    fmt::print(
+      stderr, "read project fail with {}\n", error_id_names[ordinal(r.error)]);
+
+    for (u8 i = 0; i < r.stack_size; ++i)
+        fmt::print(stderr,
+                   "  {}: {}\n",
+                   static_cast<int>(i),
+                   stack_id_names[ordinal(r.stack[i])]);
+#endif
+
+    return false;
 }
 
-static bool load_component_directory(modeling&             mod,
-                                     std::string_view      path,
-                                     const registred_path& reg,
-                                     dir_path_id&          dir_id) noexcept
+bool parse_project(project&    pj,
+                   modeling&   mod,
+                   simulation& sim,
+                   io_cache&   cache,
+                   const char* filename) noexcept
 {
-    bool found = false;
+    rapidjson::Document doc;
 
-    for (auto id : reg.children) {
-        if (auto* dir = mod.dir_paths.try_to_get(id); dir) {
-            if (dir->path == path) {
-                dir_id = id;
-                found  = true;
-                break;
-            }
-        }
-    }
-
-    return found;
+    return read_file_to_buffer(cache, filename) &&
+           parse_json_data(std::span(cache.buffer.data(), cache.buffer.size()),
+                           filename,
+                           doc) &&
+           parse_json_project(pj, mod, sim, cache, doc);
 }
 
-static bool load_component_file(modeling&        mod,
-                                std::string_view path,
-                                const dir_path&  dir,
-                                file_path_id&    file_id) noexcept
+bool parse_project(project&        pj,
+                   modeling&       mod,
+                   simulation&     sim,
+                   io_cache&       cache,
+                   std::span<char> buffer) noexcept
 {
-    bool found = false;
+    rapidjson::Document doc;
 
-    for (auto id : dir.children) {
-        if (auto* file = mod.file_paths.try_to_get(id); file) {
-            if (file->path == path) {
-                file_id = id;
-                found   = true;
-                break;
-            }
-        }
-    }
-
-    return found;
-}
-
-static child* load_access(modeling&  mod,
-                          component& compo,
-                          u64        unique_id) noexcept
-{
-    switch (compo.type) {
-    case component_type::simple: {
-        if (auto* s = mod.simple_components.try_to_get(compo.id.simple_id); s) {
-            for (auto c_id : s->children) {
-                if (auto* c = mod.children.try_to_get(c_id); c) {
-                    if (c->unique_id == unique_id)
-                        return c;
-                }
-            }
-        }
-    } break;
-
-    case component_type::grid: {
-        if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id); g) {
-            u32 row, col;
-            unpack_doubleword(unique_id, &row, &col);
-
-            auto pos = row * g->column + col;
-            if (pos < g->cache.size()) {
-                if (auto* c = mod.children.try_to_get(g->cache[pos]); c)
-                    if (c->unique_id == unique_id)
-                        return c;
-            }
-        }
-    } break;
-
-    default:
-        irt_unreachable();
-    }
-
-    return nullptr;
-}
-
-static status load_parameter(modeling&               mod,
-                             dynamics_type           type,
-                             const rapidjson::Value& val,
-                             model&                  mdl) noexcept
-{
-    irt_return_if_fail(val.IsObject(), status::io_file_format_error);
-    irt_return_if_fail(mdl.type == type, status::io_file_format_error);
-
-    return dispatch(mdl,
-                    [&val, &mod]<typename Dynamics>(Dynamics& dyn) -> status {
-                        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                            auto* machine = mod.hsms.try_to_get(dyn.id);
-                            if (machine)
-                                return load(val, dyn, *machine);
-                        } else {
-                            return load(val, dyn);
-                        }
-
-                        return status::io_file_format_error;
-                    });
-}
-
-static tree_node* load_access(project&                pj,
-                              modeling&               mod,
-                              io_cache&               cache,
-                              const rapidjson::Value& val) noexcept
-{
-    vector<u64> unique_ids;
-
-    if (!val.IsArray())
-        return nullptr;
-
-    for (rapidjson::SizeType i = 0, e = val.Size(); i != e; ++i) {
-        if (!val[i].IsUint64())
-            return nullptr;
-
-        unique_ids.emplace_back(val[i].GetUint64());
-    }
-
-    auto* compo = mod.components.try_to_get(pj.head());
-    auto* tn    = pj.tn_head();
-
-    for (i32 i = 0, e = cache.stack.ssize(); i != e; ++i) {
-        if (auto* c = load_access(mod, *compo, unique_ids[i]); c) {
-            auto c_id = mod.children.get_id(c);
-
-            if (c->type == child_type::component) {
-                if (auto* node = tn->child_to_node.get(c_id); node) {
-                    compo = mod.components.try_to_get(node->tn->id);
-                    tn    = node->tn;
-                } else {
-                    return nullptr;
-                }
-            } else {
-                return nullptr;
-            }
-        }
-    }
-
-    return tn;
-}
-
-static status load_project_parameters(io_cache                cache,
-                                      project&                pj,
-                                      modeling&               mod,
-                                      const rapidjson::Value& top)
-{
-    auto param_it = top.FindMember("access");
-    irt_return_if_fail(param_it != top.MemberEnd() && param_it->value.IsArray(),
-                       status::io_project_file_parameters_error);
-
-    auto* tn = load_access(pj, mod, cache, param_it->value.GetArray());
-    irt_assert(tn);
-
-    for (auto& elm : param_it->value.GetArray()) {
-        if (elm.IsObject()) {
-            model* mdl = nullptr;
-            irt_return_if_bad_map(
-              get_string(elm, "type", cache.string_buffer),
-              status::io_project_file_parameters_type_error);
-
-            auto opt_type = get_dynamics_type(cache.string_buffer);
-            irt_return_if_fail(opt_type.has_value(),
-                               status::io_project_file_parameters_init_error);
-
-            auto parameter_it = elm.FindMember("parameter");
-            irt_return_if_fail(parameter_it != elm.MemberEnd(),
-                               status::io_project_file_parameters_init_error);
-            irt_return_if_bad_map(
-              load_parameter(mod, opt_type.value(), parameter_it->value, *mdl),
-              status::io_project_file_parameters_init_error);
-        }
-    }
-
-    return status::success;
-}
-
-static status load_file_project(io_cache                cache,
-                                project&                pj,
-                                modeling&               mod,
-                                simulation&             sim,
-                                const rapidjson::Value& top) noexcept
-{
-    registred_path_id reg_id  = undefined<registred_path_id>();
-    dir_path_id       dir_id  = undefined<dir_path_id>();
-    file_path_id      file_id = undefined<file_path_id>();
-
-    irt_return_if_bad_map(
-      get_string(top, "component-path", cache.string_buffer),
-      status::io_project_file_component_path_error);
-    irt_return_if_fail(load_component_path(mod, cache.string_buffer, reg_id),
-                       status::io_project_file_component_path_error);
-
-    irt_return_if_bad_map(
-      get_string(top, "component-directory", cache.string_buffer),
-      status::io_project_file_component_directory_error);
-    irt_return_if_fail(
-      load_component_directory(
-        mod, cache.string_buffer, mod.registred_paths.get(reg_id), dir_id),
-      status::io_project_file_component_directory_error);
-
-    irt_return_if_bad_map(
-      get_string(top, "component-file", cache.string_buffer),
-      status::io_project_file_component_file_error);
-    irt_return_if_fail(
-      load_component_file(
-        mod, cache.string_buffer, mod.dir_paths.get(dir_id), file_id),
-      status::io_project_file_component_file_error);
-
-    if (auto* fp = mod.file_paths.try_to_get(file_id); fp) {
-        if (auto* compo = mod.components.try_to_get(fp->component); compo) {
-            irt_return_if_bad(pj.set(mod, sim, *compo));
-
-            auto param_it = top.FindMember("component-parameters");
-            irt_return_if_fail(param_it != top.MemberEnd() &&
-                                 param_it->value.IsArray(),
-                               status::io_project_file_parameters_error);
-
-            return load_project_parameters(
-              cache, pj, mod, param_it->value.GetArray());
-        }
-    }
-
-    return status::block_allocator_bad_capacity; // TODO fileproject
-}
-
-static status load_project(io_cache                cache,
-                           project&                pj,
-                           modeling&               mod,
-                           simulation&             sim,
-                           const rapidjson::Value& value) noexcept
-{
-    irt_return_if_fail(value.IsObject(), status::io_project_file_error);
-    const auto& top = value.GetObject();
-
-    return load_file_project(cache, pj, mod, sim, top);
+    return parse_json_data(buffer, nullptr, doc) &&
+           parse_json_project(pj, mod, sim, cache, doc);
 }
 
 status project_load(project&    pj,
@@ -3381,28 +5072,22 @@ status project_load(project&    pj,
                     io_cache&   cache,
                     const char* filename) noexcept
 {
-    file f{ filename, open_mode::read };
-    irt_return_if_fail(f.is_open(), status::io_filesystem_error);
+    irt_return_if_fail(parse_project(pj, mod, sim, cache, filename),
+                       status::io_file_format_error);
 
-    auto* fp = reinterpret_cast<FILE*>(f.get_handle());
-    cache.clear();
+    return status::success;
+}
 
-    std::fseek(fp, 0, SEEK_END);
-    auto filesize = std::ftell(fp);
-    std::fseek(fp, 0, SEEK_SET);
+status project_load(project&        pj,
+                    modeling&       mod,
+                    simulation&     sim,
+                    io_cache&       cache,
+                    std::span<char> buffer) noexcept
+{
+    irt_return_if_fail(parse_project(pj, mod, sim, cache, buffer),
+                       status::io_file_format_error);
 
-    cache.buffer.resize(static_cast<int>(filesize + 1));
-    auto read_length =
-      std::fread(cache.buffer.data(), 1, static_cast<sz>(filesize), fp);
-    cache.buffer[static_cast<int>(read_length)] = '\0';
-    f.close();
-
-    rapidjson::Document    d;
-    rapidjson::ParseResult s = d.ParseInsitu(cache.buffer.data());
-    irt_return_if_fail(s, status::io_file_format_error);
-
-    pj.clear();
-    return load_project(cache, pj, mod, sim, d.GetObject());
+    return status::success;
 }
 
 /*****************************************************************************
@@ -3472,23 +5157,16 @@ void write_tree_node(Writer& w, const tree_node& tree, modeling& mod) noexcept
     }
 }
 
-static status project_save_component(project&   pj,
-                                     modeling&  mod,
-                                     io_cache&  cache,
-                                     component& compo,
-                                     file&      f) noexcept
+template<typename Writer>
+static status do_project_save(Writer&    w,
+                              project&   pj,
+                              modeling&  mod,
+                              component& compo,
+                              io_cache& /* cache */) noexcept
 {
     auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
     auto* dir  = mod.dir_paths.try_to_get(compo.dir);
     auto* file = mod.file_paths.try_to_get(compo.file);
-    irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
-
-    auto* fp = reinterpret_cast<FILE*>(f.get_handle());
-    cache.clear();
-    cache.buffer.resize(4096);
-
-    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
 
     w.StartObject();
     w.Key("component-type");
@@ -3499,18 +5177,27 @@ static status project_save_component(project&   pj,
         break;
 
     case component_type::simple:
+    case component_type::grid:
         w.Key("component-path");
-        w.String(reg->name.c_str(), static_cast<u32>(reg->name.size()), false);
+        if (reg)
+            w.String(
+              reg->name.c_str(), static_cast<u32>(reg->name.size()), false);
+        else
+            w.String("");
 
         w.Key("component-directory");
-        w.String(dir->path.begin(), static_cast<u32>(dir->path.size()), false);
+        if (dir)
+            w.String(
+              dir->path.c_str(), static_cast<u32>(dir->path.size()), false);
+        else
+            w.String("");
 
         w.Key("component-file");
-        w.String(
-          file->path.begin(), static_cast<u32>(file->path.size()), false);
-        break;
-
-    case component_type::grid:
+        if (file)
+            w.String(
+              file->path.c_str(), static_cast<u32>(file->path.size()), false);
+        else
+            w.String(compo.name.c_str());
         break;
 
     default:
@@ -3534,9 +5221,9 @@ static status project_save_component(project&   pj,
 status project_save(project&  pj,
                     modeling& mod,
                     simulation& /* sim */,
-                    io_cache&   cache,
-                    const char* filename,
-                    json_pretty_print /*print_options*/) noexcept
+                    io_cache&         cache,
+                    const char*       filename,
+                    json_pretty_print print_options) noexcept
 {
     if (auto* compo = mod.components.try_to_get(pj.head()); compo) {
         if (auto* parent = pj.tn_head(); parent) {
@@ -3544,7 +5231,86 @@ status project_save(project&  pj,
 
             file f{ filename, open_mode::write };
             irt_return_if_fail(f.is_open(), status::io_project_file_error);
-            return project_save_component(pj, mod, cache, *compo, f);
+
+            auto* reg  = mod.registred_paths.try_to_get(compo->reg_path);
+            auto* dir  = mod.dir_paths.try_to_get(compo->dir);
+            auto* file = mod.file_paths.try_to_get(compo->file);
+            irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
+
+            auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+            cache.clear();
+            cache.buffer.resize(4096);
+
+            rapidjson::FileWriteStream os(
+              fp, cache.buffer.data(), cache.buffer.size());
+            rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+
+            switch (print_options) {
+            case json_pretty_print::indent_2:
+                w.SetIndent(' ', 2);
+                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+                break;
+
+            case json_pretty_print::indent_2_one_line_array:
+                w.SetIndent(' ', 2);
+                w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
+                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+                break;
+
+            default:
+                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+                break;
+            }
+
+            return status::success;
+        }
+    }
+
+    // @TODO head is not defined
+    irt_bad_return(status::block_allocator_bad_capacity);
+}
+
+status project_save(project&  pj,
+                    modeling& mod,
+                    simulation& /* sim */,
+                    io_cache&         cache,
+                    vector<char>&     out,
+                    json_pretty_print print_options) noexcept
+{
+    if (auto* compo = mod.components.try_to_get(pj.head()); compo) {
+        if (auto* parent = pj.tn_head(); parent) {
+            irt_assert(mod.components.get_id(compo) == parent->id);
+
+            rapidjson::StringBuffer buffer;
+            buffer.Reserve(4096u);
+
+            switch (print_options) {
+            case json_pretty_print::indent_2: {
+                rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+                w.SetIndent(' ', 2);
+                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+            } break;
+
+            case json_pretty_print::indent_2_one_line_array: {
+                rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+                w.SetIndent(' ', 2);
+                w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
+                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+            } break;
+
+            default: {
+
+                rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+            } break;
+            }
+
+            auto length = buffer.GetSize();
+            auto str    = buffer.GetString();
+            out.resize(static_cast<int>(length));
+            std::copy_n(str, length, out.data());
+
+            return status::success;
         }
     }
 

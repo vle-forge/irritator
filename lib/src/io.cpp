@@ -189,4 +189,54 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
     return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
 }
 
+auto get_distribution_type(std::string_view name) noexcept
+  -> std::optional<distribution_type>
+{
+    struct string_to_type
+    {
+        constexpr string_to_type(const std::string_view  n,
+                                 const distribution_type t) noexcept
+          : name(n)
+          , type(t)
+        {
+        }
+
+        std::string_view  name;
+        distribution_type type;
+    };
+
+    static constexpr string_to_type table[] = {
+        { "bernouilli", distribution_type::bernouilli },
+        { "binomial", distribution_type::binomial },
+        { "cauchy", distribution_type::cauchy },
+        { "chi_squared", distribution_type::chi_squared },
+        { "exponential", distribution_type::exponential },
+        { "exterme_value", distribution_type::exterme_value },
+        { "fisher_f", distribution_type::fisher_f },
+        { "gamma", distribution_type::gamma },
+        { "geometric", distribution_type::geometric },
+        { "lognormal", distribution_type::lognormal },
+        { "negative_binomial", distribution_type::negative_binomial },
+        { "normal", distribution_type::normal },
+        { "poisson", distribution_type::poisson },
+        { "student_t", distribution_type::student_t },
+        { "uniform_int", distribution_type::uniform_int },
+        { "uniform_real", distribution_type::uniform_real },
+        { "weibull", distribution_type::weibull }
+    };
+
+    auto it = binary_find(
+      std::begin(table),
+      std::end(table),
+      name,
+      [](auto left, auto right) noexcept -> bool {
+          if constexpr (std::is_same_v<decltype(left), std::string_view>)
+              return left < right.name;
+          else
+              return left.name < right;
+      });
+
+    return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
+}
+
 }

@@ -426,41 +426,6 @@ status add_seirs(modeling& mod, generic_component& com) noexcept
     return status::success;
 }
 
-static bool make_path(std::string_view sv) noexcept
-{
-    bool ret = false;
-
-    try {
-        std::error_code       ec;
-        std::filesystem::path p(sv);
-        std::filesystem::create_directories(p, ec);
-        ret = true;
-    } catch (...) {
-    }
-
-    return ret;
-}
-
-static bool exists_path(std::string_view sv) noexcept
-{
-    bool ret = false;
-
-    try {
-        std::error_code       ec;
-        std::filesystem::path p(sv);
-        std::filesystem::create_directories(p, ec);
-        ret = true;
-    } catch (...) {
-    }
-
-    return ret;
-}
-
-bool registred_path::make() const noexcept { return make_path(path.sv()); }
-bool registred_path::exists() const noexcept { return exists_path(path.sv()); }
-bool dir_path::make() const noexcept { return exists_path(path.sv()); }
-bool dir_path::exists() const noexcept { return exists_path(path.sv()); }
-
 component::component() noexcept
 {
     static const std::string_view port_names[] = { "0", "1", "2", "3",
@@ -854,6 +819,68 @@ dir_path& modeling::alloc_dir(registred_path& reg) noexcept
 registred_path& modeling::alloc_registred() noexcept
 {
     return registred_paths.alloc();
+}
+
+bool modeling::exists(const registred_path& reg) noexcept
+{
+    try {
+        std::error_code       ec;
+        std::filesystem::path p{ reg.path.sv() };
+        return std::filesystem::exists(p, ec);
+    } catch (...) {
+        return false;
+    }
+}
+
+bool modeling::create_directories(const registred_path& reg) noexcept
+{
+    try {
+        std::error_code       ec;
+        std::filesystem::path p{ reg.path.sv() };
+        if (!std::filesystem::exists(p, ec))
+            return std::filesystem::create_directories(p, ec);
+    } catch (...) {
+    }
+
+    return false;
+}
+
+bool modeling::exists(const dir_path& dir) noexcept
+{
+    if (auto* reg = registred_paths.try_to_get(dir.parent); reg) {
+        try {
+            std::error_code       ec;
+            std::filesystem::path p{ reg->path.sv() };
+            if (std::filesystem::exists(p, ec)) {
+                p /= dir.path.sv();
+                if (!std::filesystem::exists(p, ec))
+                    return true;
+            }
+        } catch (...) {
+        }
+    }
+
+    return false;
+}
+
+bool modeling::create_directories(const dir_path& dir) noexcept
+{
+    if (auto* reg = registred_paths.try_to_get(dir.parent); reg) {
+        try {
+            std::error_code       ec;
+            std::filesystem::path p{ reg->path.sv() };
+            if (!std::filesystem::exists(p, ec))
+                if (!std::filesystem::create_directories(p, ec))
+                    return false;
+
+            p /= dir.path.sv();
+            if (!std::filesystem::exists(p, ec))
+                return std::filesystem::create_directories(p, ec);
+        } catch (...) {
+        }
+    }
+
+    return false;
 }
 
 void modeling::remove_file(registred_path& reg,
@@ -1834,6 +1861,9 @@ void modeling::free(registred_path& reg_dir) noexcept
 
 status modeling::save(component& c) noexcept
 {
+    auto* reg = registred_paths.try_to_get(c.reg_path);
+    irt_return_if_fail(reg, status::modeling_directory_access_error);
+
     auto* dir = dir_paths.try_to_get(c.dir);
     irt_return_if_fail(dir, status::modeling_directory_access_error);
 
@@ -1841,26 +1871,15 @@ status modeling::save(component& c) noexcept
     irt_return_if_fail(file, status::modeling_file_access_error);
 
     {
-        std::filesystem::path p{ dir->path.sv() };
-        std::error_code       ec;
-
-        if (!std::filesystem::exists(p, ec)) {
-            if (!std::filesystem::create_directory(p, ec)) {
-                return status::io_filesystem_make_directory_error;
-            }
-        } else {
-            if (!std::filesystem::is_directory(p, ec)) {
-                return status::io_filesystem_not_directory_error;
-            }
-        }
-
-        p /= file->path.c_str();
+        std::filesystem::path p{ reg->path.sv() };
+        p /= dir->path.sv();
+        p /= file->path.sv();
         p.replace_extension(".irt");
 
-        io_cache cache;
-        irt_return_if_bad(component_save(*this, c, cache, p.string().c_str()));
+        std::error_code ec;
+        io_cache        cache;
 
-        return status::success;
+        irt_return_if_bad(component_save(*this, c, cache, p.string().c_str()));
     }
 
     if (auto* desc = descriptions.try_to_get(c.desc); desc) {

@@ -1548,7 +1548,7 @@ static void show_file_access(application& app, component& compo) noexcept
                     compo.reg_path = reg_id;
                     compo.dir      = dir_id;
 
-                    if (!new_dir.make()) {
+                    if (!app.mod.create_directories(new_dir)) {
                         log_w(app,
                               log_level::error,
                               "Fail to create directory `%.*s'",

@@ -8387,10 +8387,8 @@ T* data_array<T, Identifier>::try_to_get(Identifier id) const noexcept
 {
     if (get_key(id)) {
         auto index = get_index(id);
-        irt_assert(std::cmp_greater_equal(index, 0));
-        irt_assert(std::cmp_less(index, m_max_used));
-
-        if (m_items[index].id == id)
+        if (std::cmp_greater_equal(index, 0) &&
+            std::cmp_less(index, m_max_used) && m_items[index].id == id)
             return &m_items[index].item;
     }
 
