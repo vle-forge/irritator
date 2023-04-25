@@ -1958,7 +1958,7 @@ enum class message_id : u64;
 enum class observer_id : u64;
 
 template<typename Identifier>
-constexpr sz get_index(Identifier id) noexcept
+constexpr auto get_index(Identifier id) noexcept
 {
     static_assert(std::is_enum<Identifier>::value,
                   "Identifier must be a enumeration");
@@ -1970,7 +1970,7 @@ constexpr sz get_index(Identifier id) noexcept
 }
 
 template<typename Identifier>
-constexpr sz get_key(Identifier id) noexcept
+constexpr auto get_key(Identifier id) noexcept
 {
     static_assert(std::is_enum<Identifier>::value,
                   "Identifier must be a enumeration");

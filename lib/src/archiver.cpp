@@ -547,14 +547,14 @@ static void do_serialize_dynamics(const Archiver /*s*/,
     io(dyn.number);
 }
 
-u32 get_index(u64 id) noexcept { return unpack_doubleword_right(id); }
+u32 get_source_index(u64 id) noexcept { return unpack_doubleword_right(id); }
 
 template<typename Archiver, typename IO>
 static void do_serialize_source(const Archiver /*s*/,
                                 IO&     io,
                                 source& src) noexcept
 {
-    auto ta_id = get_index(src.id);
+    auto ta_id = get_source_index(src.id);
     io(ta_id);
     io(src.type);
     io(src.index);
