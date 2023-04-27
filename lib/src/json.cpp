@@ -3251,8 +3251,7 @@ struct reader
     bool        temp_bool    = false;
     std::string temp_string;
 
-    std::array<stack_id, 8> stack{ stack_id::undefined };
-    u8                      stack_size = 0;
+    small_vector<stack_id, 16> stack;
 
     error_id error = error_id::none;
 
@@ -3284,18 +3283,15 @@ struct reader
         auto_stack(reader* r_, const stack_id id) noexcept
           : r(r_)
         {
-            irt_assert(std::cmp_less(r->stack_size, r->stack.size()));
-
-            r->stack[r->stack_size] = id;
-            ++r->stack_size;
+            irt_assert(r->stack.can_alloc(1));
+            r->stack.emplace_back(id);
         }
 
         ~auto_stack() noexcept
         {
             if (!r->have_error()) {
-                irt_assert(std::cmp_greater_equal(r->stack_size, 1));
-
-                --r->stack_size;
+                irt_assert(!r->stack.empty());
+                r->stack.pop_back();
             }
         }
 
@@ -4155,7 +4151,7 @@ static bool parse_json_component(modeling&                  mod,
                "read component fail with {}\n",
                error_id_names[ordinal(r.error)]);
 
-    for (u8 i = 0; i < r.stack_size; ++i)
+    for (auto i = 0u; i < r.stack.size(); ++i)
         fmt::print(stderr,
                    "  {}: {}\n",
                    static_cast<int>(i),
@@ -5023,7 +5019,7 @@ static bool parse_json_simulation(simulation&                sim,
                "read simulation fail with {}\n",
                error_id_names[ordinal(r.error)]);
 
-    for (u8 i = 0; i < r.stack_size; ++i)
+    for (auto i = 0u; i < r.stack.size(); ++i)
         fmt::print(stderr,
                    "  {}: {}\n",
                    static_cast<int>(i),
@@ -5099,7 +5095,7 @@ static bool parse_json_project(project&                   pj,
     fmt::print(
       stderr, "read project fail with {}\n", error_id_names[ordinal(r.error)]);
 
-    for (u8 i = 0; i < r.stack_size; ++i)
+    for (auto i = 0u; i < r.stack.size(); ++i)
         fmt::print(stderr,
                    "  {}: {}\n",
                    static_cast<int>(i),
