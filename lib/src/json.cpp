@@ -124,15 +124,21 @@ enum class stack_id
     simulation,
 
     project,
+    project_access,
     project_parameters,
     project_parameter_assign,
     project_parameter_type,
-    project_parameter_access,
     project_parameter,
+    project_observations,
+    project_observation_assign,
+    project_observation_type,
+    project_observation,
     project_top_component,
     project_set_components,
 
     undefined,
+
+    COUNT
 };
 
 static inline constexpr std::string_view stack_id_names[] = {
@@ -219,15 +225,22 @@ static inline constexpr std::string_view stack_id_names[] = {
     "simulation_connect",
     "simulation",
     "project",
+    "project_access",
     "project_parameters",
     "project_parameter_assign",
     "project_parameter_type",
-    "project_parameter_access",
     "project_parameter",
+    "project_observation",
+    "project_observation_assign",
+    "project_observation_type",
+    "project_observation",
     "project_top_component",
     "project_set_components",
-    "undefined",
+    "undefined"
 };
+
+static_assert(std::cmp_equal(std::size(stack_id_names),
+                             ordinal(stack_id::COUNT)));
 
 enum class error_id
 {
@@ -287,7 +300,9 @@ enum class error_id
     project_set_no_head,
     project_set_error,
     project_access_parameter_error,
-    project_access_parameter_unique_id_error,
+    project_access_observable_error,
+    project_access_tree_error,
+    COUNT
 };
 
 static inline constexpr std::string_view error_id_names[] = {
@@ -347,8 +362,12 @@ static inline constexpr std::string_view error_id_names[] = {
     "project_set_no_head",
     "project_set_error",
     "project_access_parameter_error",
-    "project_access_parameter_unique_id_error",
+    "project_access_observable_error",
+    "project_access_tree_error",
 };
+
+static_assert(std::cmp_equal(std::size(error_id_names),
+                             ordinal(error_id::COUNT)));
 
 #define report_json_error(error_id__)                                          \
     do {                                                                       \
@@ -3042,17 +3061,25 @@ struct reader
         return true;
     }
 
-    bool read_project_access_parameter(const rapidjson::Value& val,
-                                       vector<u64>&            access) noexcept
+    template<typename T>
+    bool vector_not_empty(const vector<T>& vec) noexcept
     {
-        auto_stack s(this, stack_id::project_parameter_access);
+        return !vec.empty();
+    }
+
+    bool read_project_access(const rapidjson::Value& val,
+                             vector<u64>&            access) noexcept
+    {
+        auto_stack s(this, stack_id::project_access);
 
         return for_each_array(
-          val, [&](const auto /* i */, const auto& elem) noexcept -> bool {
-              u64 id = 0;
-              return read_temp_unsigned_integer(elem) && copy_to(id) &&
-                     vector_add(access, id);
-          });
+                 val,
+                 [&](const auto /* i */, const auto& elem) noexcept -> bool {
+                     u64 id = 0;
+                     return read_temp_unsigned_integer(elem) && copy_to(id) &&
+                            vector_add(access, id);
+                 }) &&
+               vector_not_empty(access);
     }
 
     bool read_project_parameter(const rapidjson::Value& val,
@@ -3087,65 +3114,101 @@ struct reader
           });
     }
 
-    bool project_assign_parameter(const vector<u64>& access,
-                                  const model&       mdl) noexcept
+    bool project_access_search_tree_node(const vector<u64>& access,
+                                         tree_node*&        out) noexcept
     {
-        auto_stack s(this, stack_id::project_parameter_assign);
+        auto_stack s(this, stack_id::project_access);
+        irt_assert(access.ssize() > 0);
 
         tree_node* tn = pj().tn_head();
         irt_assert(tn);
 
-        for (auto i = 0, e = access.ssize(); i != e; ++i) {
-            u64 unique_id = access[i];
+        if (access.ssize() > 1) {
+            for (auto i = 0, e = access.ssize() - 1; i != e; ++i) {
+                u64  unique_id = access[i];
+                bool found     = false;
 
-            auto found = [&]() noexcept -> bool {
-                for (auto& elem : tn->parameters) {
-                    if (elem.unique_id == unique_id) {
-                        elem.param = mdl;
-                        return true;
+                for (auto* tn_child = tn->tree.get_child(); tn_child;
+                     tn_child       = tn_child->tree.get_sibling()) {
+                    if (tn_child->unique_id == unique_id) {
+                        found = true;
+                        tn    = tn_child;
+                        break;
                     }
                 }
-                return false;
-            }();
 
-            if (found) {
-                if (i + 1 == access.ssize())
-                    return true;
-                else
-                    report_json_error(
-                      error_id::project_access_parameter_unique_id_error);
+                if (!found)
+                    report_json_error(error_id::project_access_tree_error);
             }
+        }
 
-            // need to serach in tree-node children
-            for (auto* tn_child = tn->tree.get_child(); tn_child;
-                 tn_child       = tn_child->tree.get_sibling()) {
-                if (tn_child->unique_id == unique_id) {
-                    tn    = tn_child;
-                    found = true;
-                    break;
-                }
+        out = tn;
+
+        return true;
+    }
+
+    bool project_assign_parameter(const u64    model_unique_id,
+                                  tree_node&   tn,
+                                  const model& mdl) noexcept
+    {
+        auto_stack s(this, stack_id::project_parameter_assign);
+
+        for (auto& elem : tn.parameters) {
+            if (elem.unique_id == model_unique_id) {
+                copy(mdl, elem.param);
+                return true;
             }
-
-            if (!found)
-                report_json_error(error_id::project_access_parameter_error);
         }
 
         report_json_error(error_id::project_access_parameter_error);
+    }
+
+    bool project_assign_observation(const u64  model_unique_id,
+                                    tree_node& tn) noexcept
+    {
+        auto_stack s(this, stack_id::project_observation_assign);
+
+        for (auto& elem : tn.observables) {
+            if (elem.unique_id == model_unique_id) {
+                elem.param = observable_type::single;
+                return true;
+            }
+        }
+
+        report_json_error(error_id::project_access_observable_error);
     }
 
     bool read_project_parameters(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, stack_id::project_parameters);
 
-        model       mdl;
+        model       parameter;
         vector<u64> access;
+        tree_node*  tn = nullptr;
 
         return for_first_member(
           val, "access"sv, [&](const auto& value) noexcept -> bool {
-              return read_project_access_parameter(value, access) &&
-                     read_project_parameter_type(val, mdl.type) &&
-                     read_project_parameter(val, mdl) &&
-                     project_assign_parameter(access, mdl);
+              return read_project_access(value, access) &&
+                     read_project_parameter_type(val, parameter.type) &&
+                     read_project_parameter(val, parameter) &&
+                     project_access_search_tree_node(access, tn) &&
+                     project_assign_parameter(access.back(), *tn, parameter);
+          });
+    }
+
+    bool read_project_observations(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::project_observations);
+
+        model       mdl;
+        vector<u64> access;
+        tree_node*  tn = nullptr;
+
+        return for_first_member(
+          val, "access"sv, [&](const auto& value) noexcept -> bool {
+              return read_project_access(value, access) &&
+                     project_access_search_tree_node(access, tn) &&
+                     project_assign_observation(access.back(), *tn);
           });
     }
 
@@ -3165,9 +3228,16 @@ struct reader
                                           const auto& value) noexcept -> bool {
                                           return read_project_parameters(value);
                                       });
-
-                                    return true;
-                                });
+                                }) &&
+               for_first_member(
+                 val,
+                 "component-observables"sv,
+                 [&](const auto& value) noexcept -> bool {
+                     return for_each_array(
+                       value,
+                       [&](const auto /* i */, const auto& value) noexcept
+                       -> bool { return read_project_observations(value); });
+                 });
     }
 
     io_cache*   m_cache = nullptr;
@@ -5208,11 +5278,22 @@ static status do_project_save(Writer&    w,
     w.StartArray();
 
     pj.for_all_tree_nodes([&w, &mod](const tree_node& tn) {
-        if (tn.have_configuration() || tn.have_observation())
+        if (tn.have_configuration())
             write_tree_node(w, tn, mod);
     });
 
     w.EndArray();
+
+    w.Key("component-observables");
+    w.StartArray();
+
+    pj.for_all_tree_nodes([&w, &mod](const tree_node& tn) {
+        if (tn.have_observation())
+            write_tree_node(w, tn, mod);
+    });
+
+    w.EndArray();
+
     w.EndObject();
 
     return status::success;
