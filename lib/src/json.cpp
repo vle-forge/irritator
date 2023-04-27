@@ -1664,11 +1664,18 @@ struct reader
     {
         auto_stack a(this, stack_id::child);
 
+        std::optional<u64> id;
         std::optional<u64> unique_id;
 
         return for_each_member(
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("id"sv == name)
+                         return read_temp_unsigned_integer(value) &&
+                                copy_to(id);
+                     if ("unique-id"sv == name)
+                         return read_temp_unsigned_integer(value) &&
+                                copy_to(unique_id);
                      if ("x"sv == name)
                          return read_temp_real(value) and copy_to(c.x);
                      if ("y"sv == name)
@@ -1685,6 +1692,8 @@ struct reader
 
                      return true;
                  }) &&
+               optional_has_value(id) &&
+               cache_model_mapping_add(*id, ordinal(c_id)) &&
                optional_has_value(unique_id) &&
                add_child_to_model_mapping(unique_id.value(), c_id);
     }
@@ -1695,16 +1704,16 @@ struct reader
         auto_stack a(this, stack_id::child_model_dynamics);
 
         return for_first_member(
-          val, "dynamics"sv, [&](const auto& val) noexcept -> bool {
+          val, "dynamics"sv, [&](const auto& value) noexcept -> bool {
               return dispatch(
                 mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
                     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
                         if (auto* hsm = mod().hsms.try_to_get(dyn.id); hsm)
-                            return read_dynamics(val, *hsm);
+                            return read_dynamics(value, *hsm);
 
                         report_json_error(error_id::modeling_hsm_id_error);
                     } else {
-                        return read_dynamics(val, dyn);
+                        return read_dynamics(value, dyn);
                     }
                 });
           });
@@ -1925,7 +1934,7 @@ struct reader
         return for_first_member(
           val, "component-type", [&](const auto& value) noexcept -> bool {
               return read_temp_string(value) && copy_to(type) &&
-                     dispatch_child_component_type(value, type, c_id);
+                     dispatch_child_component_type(val, type, c_id);
           });
     }
 
@@ -2015,7 +2024,8 @@ struct reader
                      auto& new_child    = mod().children.alloc();
                      auto  new_child_id = mod().children.get_id(new_child);
                      generic.children.emplace_back(new_child_id);
-                     return read_child_component_or_model(value, new_child);
+                     return read_child(value, new_child, new_child_id) &&
+                            read_child_component_or_model(value, new_child);
                  });
     }
 
@@ -2518,18 +2528,18 @@ struct reader
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("source"sv == name)
-                         read_temp_unsigned_integer(value) &&
-                           cache_model_mapping_to(src_id);
+                         return read_temp_unsigned_integer(value) &&
+                                cache_model_mapping_to(src_id);
                      if ("destination"sv == name)
-                         read_temp_unsigned_integer(value) &&
-                           cache_model_mapping_to(dst_id);
+                         return read_temp_unsigned_integer(value) &&
+                                cache_model_mapping_to(dst_id);
 
                      if ("port-source"sv == name)
-                         read_temp_integer(value) && copy_to(src_port);
+                         return read_temp_integer(value) && copy_to(src_port);
                      if ("port-destination"sv == name)
-                         read_temp_integer(value) && copy_to(dst_port);
+                         return read_temp_integer(value) && copy_to(dst_port);
 
-                     report_json_error(error_id::unknown_element);
+                     return true;
                  }) &&
                modeling_connect(compo, src_id, src_port, dst_id, dst_port);
     }
@@ -2547,14 +2557,14 @@ struct reader
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("source"sv == name)
-                         read_temp_unsigned_integer(value) &&
-                           cache_model_mapping_to(src_id);
+                         return read_temp_unsigned_integer(value) &&
+                                cache_model_mapping_to(src_id);
                      if ("port-source"sv == name)
-                         read_temp_integer(value) && copy_to(src_port);
+                         return read_temp_integer(value) && copy_to(src_port);
                      if ("port"sv == name)
-                         read_temp_integer(value) && copy_to(port);
+                         return read_temp_integer(value) && copy_to(port);
 
-                     report_json_error(error_id::unknown_element);
+                     return true;
                  }) &&
                modeling_connect_output(compo, src_id, src_port, port);
     }
@@ -2572,15 +2582,15 @@ struct reader
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("destination"sv == name)
-                         read_temp_unsigned_integer(value) &&
-                           cache_model_mapping_to(dst_id);
+                         return read_temp_unsigned_integer(value) &&
+                                cache_model_mapping_to(dst_id);
                      if ("port-destination"sv == name)
-                         read_temp_integer(value) && copy_to(dst_port);
+                         return read_temp_integer(value) && copy_to(dst_port);
 
                      if ("port"sv == name)
-                         read_temp_integer(value) && copy_to(port);
+                         return read_temp_integer(value) && copy_to(port);
 
-                     report_json_error(error_id::unknown_element);
+                     return true;
                  }) &&
                modeling_connect_input(compo, port, dst_id, dst_port);
     }
@@ -2609,15 +2619,15 @@ struct reader
         auto_stack s(this, stack_id::component_generic_connections);
 
         return for_each_array(
-          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+          val, [&](const auto /*i*/, const auto& val_con) noexcept -> bool {
               return for_each_member(
-                value,
+                val_con,
                 [&](const auto name, const auto& value) noexcept -> bool {
                     if ("type"sv == name) {
                         connection::connection_type type =
                           connection::connection_type::internal;
                         return read_temp_string(value) && copy_to(type) &&
-                               dispatch_connection_type(value, type, compo);
+                               dispatch_connection_type(val_con, type, compo);
                     }
 
                     return true;
@@ -2781,7 +2791,7 @@ struct reader
     {
         auto_stack s(this, stack_id::component_ports);
 
-        return is_value_array_size_less(val, component::port_number) &&
+        return is_value_array_size_equal(val, component::port_number) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      return read_temp_string(value) && copy_to(names[i]);
@@ -2807,13 +2817,13 @@ struct reader
               if ("type"sv == name)
                   return read_temp_string(value) &&
                          convert_to_component(compo) &&
-                         dispatch_component_type(value, compo);
+                         dispatch_component_type(val, compo);
               if ("x"sv == name)
                   return read_ports(value, compo.x_names);
               if ("y"sv == name)
                   return read_ports(value, compo.y_names);
 
-              report_json_error(error_id::unknown_element);
+              return true;
           });
     }
 
@@ -2823,7 +2833,7 @@ struct reader
         auto_stack s(this, stack_id::simulation_model_dynamics);
 
         return for_first_member(
-          val, "dynamics"sv, [&](const auto& val) -> bool {
+          val, "dynamics"sv, [&](const auto& value) -> bool {
               dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
                   new (&dyn) Dynamics{};
 
@@ -2846,11 +2856,11 @@ struct reader
                 mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
                     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
                         if (auto* hsm = sim().hsms.try_to_get(dyn.id); hsm)
-                            return read_dynamics(val, *hsm);
+                            return read_dynamics(value, *hsm);
 
                         report_json_error(error_id::modeling_hsm_id_error);
                     } else {
-                        return read_dynamics(val, dyn);
+                        return read_dynamics(value, dyn);
                     }
                 });
           });
@@ -3348,7 +3358,7 @@ static bool file_exists(const std::filesystem::path& path) noexcept
 static bool file_size(const std::filesystem::path& path, u64& len) noexcept
 {
     std::error_code ec;
-    if (auto size = std::filesystem::file_size(path, ec); ec) {
+    if (auto size = std::filesystem::file_size(path, ec); !ec) {
         if (is_numeric_castable<u64>(size)) {
             len = size;
             return true;
