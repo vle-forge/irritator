@@ -604,9 +604,12 @@ public:
     //! @return true if @c id is the selected @c child.
     bool is_selected(child_id id) const noexcept;
 
+    tree_node_id selected_tn() noexcept;
+    child_id     selected_child() noexcept;
+
 private:
-    tree_node_id selected_component = undefined<tree_node_id>();
-    child_id     selected_child     = undefined<child_id>();
+    tree_node_id m_selected_tree_node = undefined<tree_node_id>();
+    child_id     m_selected_child     = undefined<child_id>();
 };
 
 struct settings_window
@@ -790,6 +793,16 @@ struct application
 char* get_imgui_filename() noexcept;
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+inline tree_node_id project_window::selected_tn() noexcept
+{
+    return m_selected_tree_node;
+}
+
+inline child_id project_window::selected_child() noexcept
+{
+    return m_selected_child;
+}
 
 inline raw_observation::raw_observation(const observation_message& msg_,
                                         const real                 t_) noexcept

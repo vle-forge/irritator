@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
+#include <cwchar>
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
@@ -391,7 +392,8 @@ struct tree_node
     {
         u64      unique_id;
         model_id mdl_id; // model in simulation models
-        model    param;
+        model    param;  // @TODO to replace with parameters union
+        bool     enable;
     };
 
     struct observation
@@ -399,6 +401,7 @@ struct tree_node
         u64             unique_id;
         model_id        mdl_id; // model in simulation models
         observable_type param;
+        bool            enable;
     };
 
     //! Map unique_id or simulation model to parameters.
@@ -632,7 +635,8 @@ public:
     auto head() const noexcept -> component_id;
     auto tn_head() const noexcept -> tree_node*;
 
-    auto node(tree_node_id id) const noexcept -> const tree_node*;
+    auto node(tree_node_id id) noexcept -> tree_node*;
+    auto cnode(tree_node_id id) const noexcept -> const tree_node*;
     auto node(tree_node& node) const noexcept -> tree_node_id;
 
     template<typename Function, typename... Args>
@@ -737,7 +741,12 @@ inline auto project::tn_head() const noexcept -> tree_node*
     return m_tree_nodes.try_to_get(m_tn_head);
 }
 
-inline auto project::node(tree_node_id id) const noexcept -> const tree_node*
+inline auto project::node(tree_node_id id) noexcept -> tree_node*
+{
+    return m_tree_nodes.try_to_get(id);
+}
+
+inline auto project::cnode(tree_node_id id) const noexcept -> const tree_node*
 {
     return m_tree_nodes.try_to_get(id);
 }

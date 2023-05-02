@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/modeling.hpp"
 #ifdef _WIN32
 #define NOMINMAX
 #define WINDOWS_LEAN_AND_MEAN
@@ -1512,39 +1513,239 @@ static void show_simulation_action_buttons(simulation_editor& ed,
     ImGui::EndDisabled();
 }
 
-static void show_simulation_parameters(simulation_editor& ed) noexcept
-{
-    if (ImGui::CollapsingHeader("parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::PushItemWidth(100.f);
-        ImGui::InputReal("Begin", &ed.simulation_begin);
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        ImGui::Checkbox("Edit", &ed.allow_user_changes);
+static bool dispatch_simulation_settings(application& app) noexcept;
 
-        ImGui::InputReal("End", &ed.simulation_end);
+static bool show_simulation_settings(application& app) noexcept
+{
+    int is_modified = 0;
+
+    if (ImGui::CollapsingHeader("Simulation parameters",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::PushItemWidth(100.f);
+        is_modified +=
+          ImGui::InputReal("Begin", &app.simulation_ed.simulation_begin);
         ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        if (ImGui::Checkbox("Debug", &ed.store_all_changes)) {
-            if (ed.store_all_changes &&
-                ed.simulation_state == simulation_status::running) {
-                ed.enable_or_disable_debug();
+        is_modified +=
+          ImGui::Checkbox("Edit", &app.simulation_ed.allow_user_changes);
+
+        is_modified +=
+          ImGui::InputReal("End", &app.simulation_ed.simulation_end);
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+        if (ImGui::Checkbox("Debug", &app.simulation_ed.store_all_changes)) {
+            is_modified = true;
+            if (app.simulation_ed.store_all_changes &&
+                app.simulation_ed.simulation_state ==
+                  simulation_status::running) {
+                app.simulation_ed.enable_or_disable_debug();
             }
         }
 
-        ImGui::BeginDisabled(!ed.real_time);
-        ImGui::InputScalar("Micro second for 1 unit time",
-                           ImGuiDataType_S64,
-                           &ed.simulation_real_time_relation);
+        ImGui::BeginDisabled(!app.simulation_ed.real_time);
+        is_modified +=
+          ImGui::InputScalar("Micro second for 1 unit time",
+                             ImGuiDataType_S64,
+                             &app.simulation_ed.simulation_real_time_relation);
         ImGui::EndDisabled();
         ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        ImGui::Checkbox("No time limit", &ed.infinity_simulation);
+        is_modified += ImGui::Checkbox("No time limit",
+                                       &app.simulation_ed.infinity_simulation);
 
-        ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
+        ImGui::TextFormat("Current time {:.6f}",
+                          app.simulation_ed.simulation_current);
         ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        ImGui::Checkbox("Real time", &ed.real_time);
+        is_modified +=
+          ImGui::Checkbox("Real time", &app.simulation_ed.real_time);
 
-        ImGui::TextFormat("Simulation phase: {}", ordinal(ed.simulation_state));
+        ImGui::TextFormat("Simulation phase: {}",
+                          ordinal(app.simulation_ed.simulation_state));
 
         ImGui::PopItemWidth();
     }
+
+    return is_modified > 0 || dispatch_simulation_settings(app);
+}
+
+static bool show_none_simulation_settings(application& /* app */,
+                                          tree_node& /* tn */,
+                                          component& /* compo */) noexcept
+{
+    ImGui::TextUnformatted("Empty component");
+
+    return false;
+}
+
+static bool show_internal_simulation_settings(application& /* app */,
+                                              tree_node& /* tn */,
+                                              component& compo) noexcept
+{
+    ImGui::TextUnformatted("Internal component");
+    ImGui::TextFormat("type: {}",
+                      internal_component_names[ordinal(compo.id.internal_id)]);
+
+    return false;
+}
+
+static bool show_generic_simulation_settings(application& app,
+                                             tree_node&   tn,
+                                             component&   compo) noexcept
+{
+    ImGui::TextUnformatted("Generic component");
+
+    int   is_modified = 0;
+    auto* g = app.mod.simple_components.try_to_get(compo.id.simple_id);
+
+    ImGui::TextFormat("{} children", g->children.ssize());
+    ImGui::TextFormat("{} connections", g->connections.ssize());
+
+    if (ImGui::CollapsingHeader("Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+
+        for (int i = 0, e = tn.parameters.ssize(); i != e; ++i) {
+            ImGui::PushID(i);
+            ImGui::TextFormat("id {}", tn.parameters[i].unique_id);
+            is_modified += ImGui::Checkbox("enable", &tn.parameters[i].enable);
+
+            if (tn.parameters[i].enable) {
+                dispatch(
+                  tn.parameters[i].param,
+                  [&]<typename Dynamics>(Dynamics& dyn) {
+                      if constexpr (!std::is_same_v<Dynamics, hsm_wrapper>) {
+                          show_dynamics_inputs(app.sim.srcs, dyn);
+                      }
+                  });
+            }
+
+            ImGui::PopID();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Observations",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        for (int i = 0, e = tn.observables.ssize(); i != e; ++i) {
+            ImGui::PushID(i);
+            auto& obs = tn.observables[i];
+
+            ImGui::TextFormat("id {}", obs.unique_id);
+            is_modified += ImGui::Checkbox("enable", &obs.enable);
+
+            obs.param =
+              obs.enable ? observable_type::single : observable_type::none;
+
+            ImGui::PopID();
+        }
+    }
+
+    return is_modified > 0;
+}
+
+static bool show_grid_simulation_settings(application& app,
+                                          tree_node&   tn,
+                                          component&   compo) noexcept
+{
+    ImGui::TextUnformatted("Grid component");
+    int   is_modified = 0;
+    auto* g           = app.mod.grid_components.try_to_get(compo.id.grid_id);
+
+    ImGui::TextFormat("{} * {}", g->row, g->column);
+
+    if (ImGui::CollapsingHeader("Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+        for (int i = 0, e = tn.parameters.ssize(); i != e; ++i) {
+            ImGui::PushID(i);
+            ImGui::TextFormat("id {}", tn.parameters[i].unique_id);
+            is_modified += ImGui::Checkbox("enable", &tn.parameters[i].enable);
+
+            if (tn.parameters[i].enable) {
+                dispatch(
+                  tn.parameters[i].param,
+                  [&]<typename Dynamics>(Dynamics& dyn) {
+                      if constexpr (!std::is_same_v<Dynamics, hsm_wrapper>) {
+                          show_dynamics_inputs(app.sim.srcs, dyn);
+                      }
+                  });
+            }
+
+            ImGui::PopID();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Observations",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        for (int i = 0, e = tn.observables.ssize(); i != e; ++i) {
+            ImGui::PushID(i);
+            auto& obs = tn.observables[i];
+
+            ImGui::TextFormat("id {}", obs.unique_id);
+            is_modified += ImGui::Checkbox("enable", &obs.enable);
+
+            obs.param =
+              obs.enable ? observable_type::single : observable_type::none;
+
+            ImGui::PopID();
+        }
+    }
+
+    return is_modified > 0;
+}
+
+static bool dispatch_simulation_settings(application& app,
+                                         tree_node&   tn,
+                                         component&   compo) noexcept
+{
+    switch (compo.type) {
+    case component_type::none:
+        return show_none_simulation_settings(app, tn, compo);
+
+    case component_type::internal:
+        return show_internal_simulation_settings(app, tn, compo);
+
+    case component_type::simple:
+        return show_generic_simulation_settings(app, tn, compo);
+
+    case component_type::grid:
+        return show_grid_simulation_settings(app, tn, compo);
+    }
+
+    irt_unreachable();
+}
+
+static bool notification_unknown_component_id(application& app,
+                                              tree_node&   tn) noexcept
+{
+    auto& n = app.notifications.alloc();
+    n.level = log_level::error;
+    n.title = "The component is inaccessible";
+    format(n.message,
+           "Component identifier {} is missing. Maybe deleted?",
+           ordinal(tn.id));
+    app.notifications.enable(n);
+
+    return false;
+}
+
+static bool dispatch_simulation_settings(application& app,
+                                         tree_node&   tn) noexcept
+{
+    auto* compo = app.mod.components.try_to_get(tn.id);
+
+    return compo ? dispatch_simulation_settings(app, tn, *compo)
+                 : notification_unknown_component_id(app, tn);
+}
+
+static bool dispatch_simulation_settings(application& app) noexcept
+{
+    auto  selected_tn = app.project_wnd.selected_tn();
+    auto* selected    = app.pj.node(selected_tn);
+
+    return selected ? dispatch_simulation_settings(app, *selected) : false;
+}
+
+static bool show_simulation_parameters(application& app) noexcept
+{
+    auto  selected_tn = app.project_wnd.selected_tn();
+    auto* selected    = app.pj.node(selected_tn);
+    bool  is_head     = selected == app.pj.tn_head();
+
+    return is_head ? show_simulation_settings(app)
+                   : dispatch_simulation_settings(app);
 }
 
 void simulation_editor::show() noexcept
@@ -1605,7 +1806,8 @@ void simulation_editor::show() noexcept
         if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
             if (ImGui::BeginTabBar("##SimulationTabBar")) {
                 if (ImGui::BeginTabItem("Parameters")) {
-                    show_simulation_parameters(*this);
+                    show_simulation_parameters(
+                      *container_of(this, &application::simulation_ed));
                     ImGui::EndTabItem();
                 }
 

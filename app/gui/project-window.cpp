@@ -11,145 +11,43 @@
 
 namespace irt {
 
-static void show_project_hierarchy_child_observable(application& /* app */,
-                                                    tree_node& parent,
-                                                    child&     ch,
-                                                    model_id   mdl_id) noexcept
-{
-    auto it =
-      std::find_if(std::begin(parent.observables),
-                   std::end(parent.observables),
-                   [id = ch.unique_id](const auto& elem) noexcept -> bool {
-                       return elem.unique_id == id;
-                   });
-
-    bool is_configured = false;
-
-    if (it != std::end(parent.observables)) {
-        is_configured = true;
-    }
-
-    bool need_observation = is_configured;
-    if (ImGui::Checkbox("Observation##obs", &need_observation)) {
-        if (need_observation && !is_configured) {
-            auto& x     = parent.observables.emplace_back();
-            x.unique_id = ch.unique_id;
-            x.mdl_id    = mdl_id;
-            x.param     = observable_type::single;
-        } else {
-            parent.observables.erase(it);
-        }
-    }
-}
-
-static void show_project_hierarchy_child_configuration(application& app,
-                                                       tree_node&   parent,
-                                                       child&       ch,
-                                                       model_id mdl_id) noexcept
-{
-    auto it =
-      std::find_if(std::begin(parent.parameters),
-                   std::end(parent.parameters),
-                   [id = ch.unique_id](const auto& elem) noexcept -> bool {
-                       return elem.unique_id == id;
-                   });
-
-    model* param         = nullptr;
-    bool   is_configured = false;
-
-    if (it != std::end(parent.parameters)) {
-        param         = &it->param;
-        is_configured = true;
-    }
-
-    bool need_configuration = is_configured;
-    if (ImGui::Checkbox("Configuration##param", &need_configuration)) {
-        if (need_configuration && !is_configured) {
-            auto& x     = parent.parameters.emplace_back();
-            x.unique_id = ch.unique_id;
-            x.mdl_id    = mdl_id;
-
-            auto& m = app.mod.models.get(ch.id.mdl_id);
-            copy(m, x.param);
-        } else {
-            is_configured = false;
-        }
-    } else {
-        parent.parameters.erase(it);
-    }
-
-    if (need_configuration) {
-        irt_assert(param);
-
-        dispatch(*param, [&app]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (!std::is_same_v<Dynamics, hsm_wrapper>) {
-                show_dynamics_inputs(app.mod.srcs, dyn);
-            }
-        });
-    }
-}
-
-static void show_project_hierarchy(application& app,
-                                   tree_node&   parent,
-                                   component& /*compo*/,
-                                   generic_component& /*generic*/) noexcept
-{
-    for (auto [c_id, mdl_id] : parent.child_to_sim.data) {
-        if (auto* c = app.mod.children.try_to_get(c_id); c) {
-            if (c->type == child_type::model && c->flags != child_flags_none) {
-                ImGui::PushID(c);
-
-                bool selected = app.project_wnd.is_selected(c_id);
-
-                if (ImGui::Selectable(c->name.c_str(), &selected))
-                    app.project_wnd.select(c_id);
-
-                if (selected) {
-                    if (c->flags & child_flags_configurable)
-                        show_project_hierarchy_child_configuration(
-                          app, parent, *c, mdl_id);
-                    if (c->flags & child_flags_observable)
-                        show_project_hierarchy_child_observable(
-                          app, parent, *c, mdl_id);
-                }
-
-                ImGui::PopID();
-            }
-        }
-    }
-}
-
 static void show_project_hierarchy(application& app, tree_node& parent) noexcept
 {
-    constexpr ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_OpenOnDoubleClick;
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
 
     if (auto* compo = app.mod.components.try_to_get(parent.id); compo) {
-        if (ImGui::TreeNodeEx(&parent, flags, "%s", compo->name.c_str())) {
-            if (ImGui::IsItemHovered() &&
-                ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                app.project_wnd.select(parent);
-            }
+        ImGui::PushID(&parent);
+        small_string<64> str;
 
-            if (auto* child = parent.tree.get_child(); child) {
+        switch (compo->type) {
+        case component_type::simple:
+            format(str, "{} generic", compo->name.sv());
+            break;
+        case component_type::grid:
+            format(str, "{} grid", compo->name.sv());
+            break;
+        default:
+            format(str, "{}", compo->name.sv());
+            break;
+        }
+
+        bool is_selected = app.project_wnd.is_selected(app.pj.node(parent));
+        if (is_selected)
+            flags |= ImGuiTreeNodeFlags_Selected;
+
+        bool is_open = ImGui::TreeNodeEx(str.c_str(), flags);
+
+        if (ImGui::IsItemClicked())
+            app.project_wnd.select(parent);
+
+        if (is_open) {
+            if (auto* child = parent.tree.get_child(); child)
                 show_project_hierarchy(app, *child);
-            }
-
-            switch (compo->type) {
-            case component_type::simple: {
-                if (auto* g =
-                      app.mod.simple_components.try_to_get(compo->id.simple_id);
-                    g) {
-                    show_project_hierarchy(app, parent, *compo, *g);
-                }
-            } break;
-
-            default:
-                break;
-            }
 
             ImGui::TreePop();
         }
+
+        ImGui::PopID();
 
         if (auto* sibling = parent.tree.get_sibling(); sibling)
             show_project_hierarchy(app, *sibling);
@@ -165,23 +63,23 @@ void project_window::clear() noexcept
 
 bool project_window::is_selected(tree_node_id id) const noexcept
 {
-    return selected_component == id;
+    return m_selected_tree_node == id;
 }
 
 bool project_window::is_selected(child_id id) const noexcept
 {
-    return selected_child == id;
+    return m_selected_child == id;
 }
 
 void project_window::select(tree_node_id id) noexcept
 {
-    if (id != selected_component) {
+    if (id != m_selected_tree_node) {
         auto* app = container_of(this, &application::project_wnd);
 
         if (auto* tree = app->pj.node(id); tree) {
             if (auto* compo = app->mod.components.try_to_get(tree->id); compo) {
-                selected_component = id;
-                selected_child     = undefined<child_id>();
+                m_selected_tree_node = id;
+                m_selected_child     = undefined<child_id>();
             }
         }
     }
@@ -192,18 +90,18 @@ void project_window::select(tree_node& node) noexcept
     auto* app = container_of(this, &application::project_wnd);
     auto  id  = app->pj.node(node);
 
-    if (id != selected_component) {
+    if (id != m_selected_tree_node) {
         if (auto* compo = app->mod.components.try_to_get(node.id); compo) {
-            selected_component = id;
-            selected_child     = undefined<child_id>();
+            m_selected_tree_node = id;
+            m_selected_child     = undefined<child_id>();
         }
     }
 }
 
 void project_window::select(child_id id) noexcept
 {
-    if (id != selected_child)
-        selected_child = id;
+    if (id != m_selected_child)
+        m_selected_child = id;
 }
 
 void project_window::show() noexcept
@@ -219,12 +117,9 @@ void project_window::show() noexcept
     constexpr ImGuiTreeNodeFlags flags =
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
-    if (ImGui::CollapsingHeader("Hierarchy", flags)) {
+    if (ImGui::CollapsingHeader("Hierarchy", flags))
         show_project_hierarchy(*app, *parent);
-    }
 }
-
-// Gui
 
 void project_window::save(const char* filename) noexcept
 {
