@@ -1435,29 +1435,48 @@ static void show_simulation_action_buttons(simulation_editor& ed,
                                            bool can_be_restarted,
                                            bool can_be_stopped) noexcept
 {
-    if (ImGui::Button("clear"))
+    const auto item_x         = ImGui::GetStyle().ItemSpacing.x;
+    const auto region_x       = ImGui::GetContentRegionAvail().x;
+    const auto button_x       = (region_x - item_x) / 10.f;
+    const auto small_button_x = (region_x - (button_x * 9.f)- item_x) / 3.f;
+    const auto button         = ImVec2{ button_x, 0.f };
+    const auto small_button   = ImVec2{ small_button_x, 0.f };
+
+    bool open = false;
+
+    open = ImGui::Button("clear", button);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Destroy all simulations and observations data.");
+    if (open)
         ed.simulation_clear();
     ImGui::SameLine();
 
     ImGui::BeginDisabled(can_be_initialized);
-    if (ImGui::Button("import"))
+    open = ImGui::Button("copy", button);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip(
+          "Clear all simulations and observations datas and copy "
+          "components again.");
+    if (open)
         ed.simulation_copy_modeling();
     ImGui::SameLine();
 
-    if (ImGui::Button("init")) {
+    open = ImGui::Button("init", button);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Initialize simulation models.");
+    if (open)
         ed.simulation_init();
-    }
     ImGui::EndDisabled();
 
     ImGui::SameLine();
     ImGui::BeginDisabled(can_be_started);
-    if (ImGui::Button("start"))
+    if (ImGui::Button("start", button))
         ed.simulation_start();
     ImGui::EndDisabled();
 
     ImGui::SameLine();
     ImGui::BeginDisabled(can_be_paused);
-    if (ImGui::Button("pause")) {
+    if (ImGui::Button("pause", button)) {
         ed.force_pause = true;
     }
     ImGui::EndDisabled();
@@ -1465,7 +1484,7 @@ static void show_simulation_action_buttons(simulation_editor& ed,
     ImGui::SameLine();
 
     ImGui::BeginDisabled(can_be_restarted);
-    if (ImGui::Button("continue")) {
+    if (ImGui::Button("continue", button)) {
         ed.simulation_start();
     }
     ImGui::EndDisabled();
@@ -1473,7 +1492,7 @@ static void show_simulation_action_buttons(simulation_editor& ed,
     ImGui::SameLine();
 
     ImGui::BeginDisabled(can_be_stopped);
-    if (ImGui::Button("stop")) {
+    if (ImGui::Button("stop", button)) {
         ed.force_stop = true;
     }
     ImGui::EndDisabled();
@@ -1485,20 +1504,20 @@ static void show_simulation_action_buttons(simulation_editor& ed,
 
     if (ed.store_all_changes) {
         ImGui::SameLine();
-        if (ImGui::Button("step-by-step"))
+        if (ImGui::Button("step-by-step", small_button))
             ed.simulation_start_1();
     }
 
     ImGui::SameLine();
 
     ImGui::BeginDisabled(!ed.tl.can_back());
-    if (ImGui::Button("<"))
+    if (ImGui::Button("<", small_button))
         ed.simulation_back();
     ImGui::EndDisabled();
     ImGui::SameLine();
 
     ImGui::BeginDisabled(!ed.tl.can_advance());
-    if (ImGui::Button(">"))
+    if (ImGui::Button(">", small_button))
         ed.simulation_advance();
     ImGui::EndDisabled();
     ImGui::SameLine();
