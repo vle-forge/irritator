@@ -126,13 +126,6 @@ static void simulation_copy(component_editor&  ed,
         return;
     }
 
-    if (auto ret = simulation_init_observation(sim_ed, *head); is_bad(ret)) {
-        make_copy_error_msg(
-          ed, "Initialization of observation failed: {}", status_string(ret));
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
-
     if (auto ret = app->mod.srcs.prepare(); is_bad(ret)) {
         make_copy_error_msg(
           ed, "External sources initialization: {}", status_string(ret));
@@ -171,6 +164,14 @@ static void simulation_init(component_editor&  ed,
     while (sim_ed.sim_obs.next(mem)) {
         mem->clear();
     }
+
+    if (auto ret = simulation_init_observation(sim_ed, *head); is_bad(ret)) {
+        make_copy_error_msg(
+          ed, "Initialization of observation failed: {}", status_string(ret));
+        sim_ed.simulation_state = simulation_status::not_started;
+        return;
+    }
+
 
     if (auto ret = app->mod.srcs.prepare(); is_bad(ret)) {
         make_init_error_msg(
