@@ -645,6 +645,9 @@ public:
     template<typename Function, typename... Args>
     auto for_all_tree_nodes(Function&& f, Args... args) const noexcept;
 
+    template<typename Function, typename... Args>
+    void for_each_children(tree_node& tn, Function&& f, Args... args) noexcept;
+
     //! Return the size and the capacity of the tree_nodes data_array.
     auto tree_nodes_size() const noexcept -> std::pair<int, int>;
 
@@ -771,6 +774,31 @@ inline auto project::for_all_tree_nodes(Function&& f,
     const tree_node* tn = nullptr;
     while (m_tree_nodes.next(tn))
         return f(*tn, args...);
+}
+
+template<typename Function, typename... Args>
+inline void project::for_each_children(tree_node& tn,
+                                       Function&& f,
+                                       Args... args) noexcept
+{
+    auto* child = tn.tree.get_child();
+    if (!child)
+        return;
+
+    vector<tree_node*> stack;
+    stack.emplace_back(child);
+    while (!stack.empty()) {
+        auto cur = stack.back();
+        stack.pop_back();
+
+        f(*child, args...);
+
+        if (auto* sibling = cur->tree.get_sibling(); sibling)
+            stack.emplace_back(sibling);
+
+        if (auto* child = cur->tree.get_child(); child)
+            stack.emplace_back(child);
+    }
 }
 
 inline auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
