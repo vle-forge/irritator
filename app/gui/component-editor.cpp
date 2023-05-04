@@ -221,8 +221,9 @@ static void show(component_editor&      ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat(
-      "{}\n{}", c.name.c_str(), dynamics_type_names[ordinal(mdl.type)]);
+    ImGui::TextFormat("{}\n{}",
+                      app->mod.children_names[get_index(id)].sv(),
+                      dynamics_type_names[ordinal(mdl.type)]);
     ImNodes::EndNodeTitleBar();
 
     dispatch(
@@ -277,7 +278,9 @@ static void show(component_editor& ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}", c.name.c_str(), compo.name.c_str());
+    ImGui::TextFormat("{}\n{}",
+                      app->mod.children_names[get_index(id)].sv(),
+                      compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
     ImGui::TextUnformatted("Empty component");
@@ -323,7 +326,9 @@ static void show(component_editor& ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}", c.name.c_str(), compo.name.c_str());
+    ImGui::TextFormat("{}\n{}",
+                      app->mod.children_names[get_index(id)].sv(),
+                      compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
     u32 input  = 0;
@@ -393,7 +398,9 @@ static void show(component_editor& ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}", c.name.c_str(), compo.name.c_str());
+    ImGui::TextFormat("{}\n{}",
+                      app->mod.children_names[get_index(id)].sv(),
+                      compo.name.c_str());
     ImGui::TextFormat("{}x{}", grid.row, grid.column);
     ImNodes::EndNodeTitleBar();
 
@@ -533,17 +540,20 @@ static void show_graph(component_editor&      ed,
         }
 
         if (data.force_node_position) {
-            ImNodes::SetNodeEditorSpacePos(pack_node(child_id),
-                                           ImVec2(c->x, c->y));
+            ImNodes::SetNodeEditorSpacePos(
+              pack_node(child_id),
+              ImVec2(app->mod.children_positions[get_index(child_id)].x,
+                     app->mod.children_positions[get_index(child_id)].y));
         } else {
             if (to_place) {
-                auto pos = ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+                auto  pos = ImNodes::GetNodeEditorSpacePos(pack_node(child_id));
+                auto& child = app->mod.children_positions[get_index(child_id)];
 
-                if (c->x != pos.x || c->y != pos.y)
+                if (child.x != pos.x || child.y != pos.y)
                     parent.state = component_status::modified;
 
-                c->x = pos.x;
-                c->y = pos.y;
+                child.x = pos.x;
+                child.y = pos.y;
             }
         }
     }
@@ -589,8 +599,8 @@ static void add_popup_menuitem(component_editor&  ed,
 
         parent.state = component_status::modified;
         ImNodes::SetNodeScreenSpacePos(pack_node(child_id), click_pos);
-        child.x = click_pos.x;
-        child.y = click_pos.y;
+        app->mod.children_positions[get_index(child_id)].x = click_pos.x;
+        app->mod.children_positions[get_index(child_id)].y = click_pos.y;
 
         auto* app = container_of(&ed, &application::component_ed);
         auto& n   = app->notifications.alloc();
@@ -642,8 +652,8 @@ static void compute_grid_layout(settings_window&   settings,
 
             new_pos.x = panning.x + j * settings.grid_layout_x_distance;
             ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
-            c->x = new_pos.x;
-            c->y = new_pos.y;
+            app->mod.children_positions[get_index(c_id)].x = new_pos.x;
+            app->mod.children_positions[get_index(c_id)].y = new_pos.y;
         }
     }
 
@@ -659,8 +669,8 @@ static void compute_grid_layout(settings_window&   settings,
 
         new_pos.x = panning.x + j * settings.grid_layout_x_distance;
         ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
-        c->x = new_pos.x;
-        c->y = new_pos.y;
+        app->mod.children_positions[get_index(c_id)].x = new_pos.x;
+        app->mod.children_positions[get_index(c_id)].y = new_pos.y;
     }
 }
 
@@ -689,8 +699,8 @@ static status add_component_to_current(component_editor&  ed,
     auto  c_id = app->mod.children.get_id(c);
 
     ImNodes::SetNodeScreenSpacePos(pack_node(c_id), click_pos);
-    c.x = click_pos.x;
-    c.y = click_pos.y;
+    app->mod.children_positions[get_index(c_id)].x = click_pos.x;
+    app->mod.children_positions[get_index(c_id)].y = click_pos.y;
 
     return status::success;
 }
@@ -1670,14 +1680,17 @@ static void show_selected_children(application&           app,
               static_cast<u32>(data.selected_nodes[i]));
             if (!child)
                 continue;
+
             if (ImGui::TreeNodeEx(child,
                                   ImGuiTreeNodeFlags_DefaultOpen,
                                   "%d",
                                   data.selected_nodes[i])) {
                 bool is_modified = false;
-                ImGui::Text("position %f %f",
-                            static_cast<double>(child->x),
-                            static_cast<double>(child->y));
+                ImGui::TextFormat(
+                  "position {},{}",
+                  app.mod.children_positions[data.selected_nodes[i]].x,
+                  app.mod.children_positions[data.selected_nodes[i]].y);
+
                 bool configurable = child->flags & child_flags_configurable;
                 if (ImGui::Checkbox("configurable", &configurable)) {
                     if (configurable)
@@ -1692,7 +1705,8 @@ static void show_selected_children(application&           app,
                     is_modified = true;
                 }
 
-                if (ImGui::InputSmallString("name", child->name))
+                if (ImGui::InputSmallString(
+                      "name", app.mod.children_names[data.selected_nodes[i]]))
                     is_modified = true;
 
                 if (is_modified)

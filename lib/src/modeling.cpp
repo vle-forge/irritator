@@ -28,8 +28,9 @@ std::pair<Dynamics*, child_id> alloc(
 
     auto& child    = mod.alloc(parent, dynamics_typeof<Dynamics>());
     auto  child_id = mod.children.get_id(child);
-    child.name     = name;
     child.flags    = param;
+
+    mod.children_names[get_index(child_id)] = name;
 
     return std::make_pair(&get_dyn<Dynamics>(mod.models.get(child.id.mdl_id)),
                           child_id);
@@ -456,6 +457,9 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(hsms.init(p.component_capacity));
     irt_return_if_bad(children.init(p.component_capacity * 16));
     irt_return_if_bad(connections.init(p.component_capacity * 32));
+
+    children_positions.resize(children.capacity());
+    children_names.resize(children.capacity());
 
     return status::success;
 }
@@ -1314,7 +1318,6 @@ void modeling::clear(child& c) noexcept
 
     c.id.mdl_id = undefined<model_id>();
     c.type      = child_type::model;
-    c.name.clear();
 }
 
 void modeling::free(child& c) noexcept
@@ -1629,33 +1632,6 @@ void modeling::clear_grid_component_cache(grid_component& grid) noexcept
     grid.cache_connections.clear();
 }
 
-status modeling::copy(const child& src, child& dst) noexcept
-{
-    clear(dst);
-
-    dst.name  = src.name;
-    dst.x     = src.x;
-    dst.y     = src.y;
-    dst.flags = src.flags;
-
-    if (src.type == child_type::model) {
-        irt_return_if_fail(models.can_alloc(),
-                           status::simulation_not_enough_model);
-
-        if (auto* src_mdl = models.try_to_get(src.id.mdl_id); src_mdl) {
-            auto& dst_mdl = models.alloc();
-            irt::copy(*src_mdl, dst_mdl);
-            dst.type      = child_type::model;
-            dst.id.mdl_id = models.get_id(dst_mdl);
-        }
-    } else {
-        dst.type        = child_type::component;
-        dst.id.compo_id = src.id.compo_id;
-    }
-
-    return status::success;
-}
-
 status modeling::copy(const generic_component& src,
                       generic_component&       dst) noexcept
 {
@@ -1667,24 +1643,34 @@ status modeling::copy(const generic_component& src,
             continue;
 
         if (c->type == child_type::model) {
-            auto id = c->id.mdl_id;
+            auto id      = c->id.mdl_id;
+            auto src_idx = get_index(id);
+
             if (auto* mdl = models.try_to_get(id); mdl) {
-                auto& new_child    = alloc(dst, mdl->type);
-                auto  new_child_id = children.get_id(new_child);
-                new_child.name     = c->name;
-                new_child.x        = c->x;
-                new_child.y        = c->y;
+                auto& new_child                   = alloc(dst, mdl->type);
+                auto  new_child_id                = children.get_id(new_child);
+                auto  new_child_idx               = get_index(new_child_id);
+                children_names[new_child_idx]     = children_names[src_idx];
+                children_positions[new_child_idx] = {
+                    .x = children_positions[src_idx].x,
+                    .y = children_positions[src_idx].y
+                };
 
                 mapping.data.emplace_back(child_id, new_child_id);
             }
         } else {
             auto compo_id = c->id.compo_id;
+            auto src_idx  = get_index(compo_id);
+
             if (auto* compo = components.try_to_get(compo_id); compo) {
-                auto& new_child    = alloc(dst, compo_id);
-                auto  new_child_id = children.get_id(new_child);
-                new_child.name     = c->name;
-                new_child.x        = c->x;
-                new_child.y        = c->y;
+                auto& new_child                   = alloc(dst, compo_id);
+                auto  new_child_id                = children.get_id(new_child);
+                auto  new_child_idx               = get_index(new_child_id);
+                children_names[new_child_idx]     = children_names[src_idx];
+                children_positions[new_child_idx] = {
+                    .x = children_positions[src_idx].x,
+                    .y = children_positions[src_idx].y
+                };
 
                 mapping.data.emplace_back(child_id, new_child_id);
             }

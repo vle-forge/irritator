@@ -1677,12 +1677,16 @@ struct reader
                          return read_temp_unsigned_integer(value) &&
                                 copy_to(unique_id);
                      if ("x"sv == name)
-                         return read_temp_real(value) and copy_to(c.x);
+                         return read_temp_real(value) and
+                                copy_to(
+                                  mod().children_positions[get_index(c_id)].x);
                      if ("y"sv == name)
-                         return read_temp_real(value) and copy_to(c.y);
-                     if ("id"sv == name)
-                         return read_temp_unsigned_integer(value) and
-                                copy_to(unique_id);
+                         return read_temp_real(value) and
+                                copy_to(
+                                  mod().children_positions[get_index(c_id)].y);
+                     if ("name"sv == name)
+                         return read_temp_string(value) and
+                                copy_to(mod().children_names[get_index(c_id)]);
                      if ("configurable"sv == name)
                          return read_temp_bool(value) and
                                 affect_configurable_to(c.flags);
@@ -4516,9 +4520,9 @@ static void write_child(const modeling& mod,
     w.Key("unique-id");
     w.Uint64(unique_id);
     w.Key("x");
-    w.Double(static_cast<double>(ch.x));
+    w.Double(mod.children_positions[get_index(child_id)].x);
     w.Key("y");
-    w.Double(static_cast<double>(ch.y));
+    w.Double(mod.children_positions[get_index(child_id)].y);
     w.Key("configurable");
     w.Bool(ch.flags & child_flags_configurable);
     w.Key("observable");
@@ -4527,11 +4531,8 @@ static void write_child(const modeling& mod,
     w.Bool(false);
     w.Key("output");
     w.Bool(false);
-
-    if (!ch.name.empty()) {
-        w.Key("name");
-        w.String(ch.name.c_str());
-    }
+    w.Key("name");
+    w.String(mod.children_names[get_index(child_id)].c_str());
 
     if (ch.type == child_type::component) {
         const auto compo_id = ch.id.compo_id;

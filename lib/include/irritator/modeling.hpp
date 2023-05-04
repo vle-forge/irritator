@@ -158,8 +158,6 @@ struct child
     child(model_id model) noexcept;
     child(component_id component) noexcept;
 
-    small_string<23> name;
-
     union
     {
         model_id     mdl_id;
@@ -172,7 +170,10 @@ struct child
     //! An identifier provided by the component parent to easily found a child
     //! in project. The value 0 means unique_id is undefined.
     u64 unique_id = 0;
+};
 
+struct child_position
+{
     float x = 0.f;
     float y = 0.f;
 };
@@ -456,6 +457,9 @@ struct modeling
     data_array<child, child_id>                        children;
     data_array<connection, connection_id>              connections;
 
+    vector<child_position>   children_positions;
+    vector<small_string<31>> children_names;
+
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     external_source                                     srcs;
 
@@ -533,7 +537,6 @@ struct modeling
     child& alloc(generic_component& parent, component_id id) noexcept;
     child& alloc(generic_component& parent, model_id id) noexcept;
 
-    status copy(const child& src, child& dst) noexcept;
     status copy(const generic_component& src, generic_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;
     status copy(const component& src, component& dst) noexcept;
