@@ -131,6 +131,7 @@ static status make_tree_recursive(simulation_copy&   sc,
                                   tree_node&         new_tree,
                                   generic_component& src) noexcept
 {
+
     for (auto child_id : src.children) {
         if (auto* child = sc.mod.children.try_to_get(child_id); child) {
             if (child->type == child_type::component) {

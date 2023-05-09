@@ -1613,59 +1613,87 @@ static bool show_generic_simulation_settings(application& app,
     int   is_modified = 0;
     auto* g = app.mod.simple_components.try_to_get(compo.id.simple_id);
 
-    ImGui::TextFormat("{} children", g->children.ssize());
-    ImGui::TextFormat("{} connections", g->connections.ssize());
+    ImGui::TextFormatDisabled("{} children", g->children.ssize());
+    ImGui::TextFormatDisabled("{} connections", g->connections.ssize());
+    ImGui::TextFormatDisabled("{} next unique id", g->next_unique_id);
 
     if (ImGui::CollapsingHeader("Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::BeginTable("Parameter table", 4)) {
+            ImGui::TableSetupColumn("enable");
+            ImGui::TableSetupColumn("unique id");
+            ImGui::TableSetupColumn("model type");
+            ImGui::TableSetupColumn("parameter");
+            ImGui::TableHeadersRow();
 
-        for (int i = 0, e = tn.parameters.ssize(); i != e; ++i) {
-            ImGui::PushID(i);
-            ImGui::TextFormat("id {}", tn.parameters[i].unique_id);
-            is_modified += ImGui::Checkbox("enable", &tn.parameters[i].enable);
+            for (int i = 0, e = tn.parameters.ssize(); i != e; ++i) {
+                ImGui::PushID(i);
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
 
-            if (tn.parameters[i].enable) {
-                dispatch(
-                  tn.parameters[i].param,
-                  [&]<typename Dynamics>(Dynamics& dyn) {
-                      if constexpr (!std::is_same_v<Dynamics, hsm_wrapper>) {
-                          show_dynamics_inputs(app.sim.srcs, dyn);
-                      }
-                  });
+                ImGui::Checkbox("##enable", &tn.parameters[i].enable);
+                ImGui::TableNextColumn();
+
+                ImGui::TextFormat("{}", tn.parameters[i].unique_id);
+                ImGui::TableNextColumn();
+
+                auto* mdl = app.sim.models.try_to_get(tn.parameters[i].mdl_id);
+                if (mdl)
+                    ImGui::TextFormat("{}",
+                                      dynamics_type_names[ordinal(mdl->type)]);
+                ImGui::TableNextColumn();
+
+                if (tn.parameters[i].enable) {
+                    dispatch(tn.parameters[i].param,
+                             [&]<typename Dynamics>(Dynamics& dyn) {
+                                 if constexpr (!std::is_same_v<Dynamics,
+                                                               hsm_wrapper>) {
+                                     show_dynamics_inputs(app.sim.srcs, dyn);
+                                 }
+                             });
+                }
+                ImGui::TableNextColumn();
+
+                ImGui::PopID();
             }
 
-            ImGui::PopID();
+            ImGui::EndTable();
         }
     }
 
     if (ImGui::CollapsingHeader("Observations",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        for (int i = 0, e = tn.observables.ssize(); i != e; ++i) {
-            ImGui::PushID(i);
-            ImGui::TextFormat("id {}", tn.observables[i].unique_id);
-            is_modified += ImGui::Checkbox("enable", &tn.observables[i].enable);
+        if (ImGui::BeginTable("Parameter table", 3)) {
+            ImGui::TableSetupColumn("enable");
+            ImGui::TableSetupColumn("unique id");
+            ImGui::TableSetupColumn("model type");
+            ImGui::TableHeadersRow();
 
-            tn.observables[i].param = tn.observables[i].enable
-                                        ? observable_type::single
-                                        : observable_type::none;
+            for (int i = 0, e = tn.parameters.ssize(); i != e; ++i) {
+                ImGui::PushID(i);
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
 
-            ImGui::PopID();
+                ImGui::Checkbox("##enable", &tn.observables[i].enable);
+                tn.observables[i].param = tn.observables[i].enable
+                                            ? observable_type::single
+                                            : observable_type::none;
+
+                ImGui::TableNextColumn();
+
+                ImGui::TextFormat("{}", tn.parameters[i].unique_id);
+                ImGui::TableNextColumn();
+
+                auto* mdl = app.sim.models.try_to_get(tn.parameters[i].mdl_id);
+                if (mdl)
+                    ImGui::TextFormat("{}",
+                                      dynamics_type_names[ordinal(mdl->type)]);
+                ImGui::TableNextColumn();
+
+                ImGui::PopID();
+            }
+
+            ImGui::EndTable();
         }
-
-        // app.pj.for_each_children(tn, [&](auto& child) {
-        //     for (int i = 0, e = child.observables.ssize(); i != e; ++i) {
-        //         ImGui::PushID(i);
-        //         auto& obs = child.observables[i];
-        //
-        //         ImGui::TextFormat("id {}", obs.unique_id);
-        //         is_modified += ImGui::Checkbox("enable", &obs.enable);
-        //
-        //         obs.param =
-        //           obs.enable ? observable_type::single :
-        //           observable_type::none;
-        //
-        //         ImGui::PopID();
-        //     }
-        // });
     }
 
     return is_modified > 0;
