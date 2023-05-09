@@ -60,8 +60,13 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     n.level = log_level::error;
                     n.title = "Fail to build tree";
                     app.notifications.enable(n);
-                } else {
-                    app.simulation_ed.simulation_copy_modeling();
+                    // } else {
+                    // @TODO replace with:
+                    // if (can_initialize_project) {
+                    //     app.simulation_ed.simulation_copy_modeling();
+                    //     } else {
+                    //      ...
+                    // }
                 }
             }
 
