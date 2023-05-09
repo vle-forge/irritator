@@ -52,8 +52,7 @@ enum class stack_id
     component,
     component_ports,
     component_grid,
-    component_grid_specific_children,
-    component_grid_default_children,
+    component_grid_children,
     component_children,
 
     component_generic,
@@ -158,8 +157,7 @@ static inline constexpr std::string_view stack_id_names[] = {
     "component",
     "component_ports",
     "component_grid",
-    "component_grid_specific_children",
-    "component_grid_default_children",
+    "component_grid_children",
     "component_children",
     "component_generic",
     "component_generic_connections",
@@ -2664,66 +2662,28 @@ struct reader
           });
     }
 
-    bool read_grid_default_children(const rapidjson::Value& val,
-                                    grid_component&         compo) noexcept
+    bool grid_children_add(vector<component_id>& out,
+                           component_id          c_id) noexcept
     {
-        auto_stack s(this, stack_id::component_grid_default_children);
-
-        return is_value_array_size_equal(val, 9) &&
-               for_each_array(
-                 val, [&](const auto i, const auto& value) noexcept -> bool {
-                     const int row = i / 3;
-                     const int col = i % 3;
-
-                     return read_child_component(
-                       value, compo.default_children[row][col]);
-                 });
-    }
-
-    bool grid_specific_child_add(vector<grid_component::specific>& out,
-                                 int                               row,
-                                 int                               col,
-                                 component_id c_id) noexcept
-    {
-        auto& new_elem  = out.emplace_back();
-        new_elem.row    = row;
-        new_elem.column = col;
-        new_elem.ch     = c_id;
+        auto& new_elem = out.emplace_back(c_id);
 
         return true;
     }
 
-    bool read_grid_specific_children(const rapidjson::Value& val,
-                                     grid_component&         compo) noexcept
+    bool read_grid_children(const rapidjson::Value& val,
+                            grid_component&         compo) noexcept
     {
-        auto_stack s(this, stack_id::component_grid_specific_children);
+        auto_stack s(this, stack_id::component_grid_children);
 
-        return for_each_array(
-          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
-              int row = 0;
-              int col = 0;
+        return is_value_array_size_equal(val, compo.row * compo.column) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     component_id c_id = undefined<component_id>();
 
-              component_id c_id = undefined<component_id>();
-
-              return for_each_member(
-                       value,
-                       [&](const auto  name,
-                           const auto& value) noexcept -> bool {
-                           if ("row"sv == name)
-                               return read_temp_integer(value) &&
-                                      is_int_greater_equal_than(1) &&
-                                      copy_to(row);
-                           if ("column"sv == name)
-                               return read_temp_integer(value) &&
-                                      is_int_greater_equal_than(1) &&
-                                      copy_to(col);
-
-                           return true;
-                       }) &&
-                     read_child_component(value, c_id) &&
-                     grid_specific_child_add(
-                       compo.specific_children, row, col, c_id);
-          });
+                     return read_child_component(value, c_id) &&
+                            grid_children_add(compo.children, c_id);
+                 });
     }
 
     bool read_grid_component(const rapidjson::Value& val,
@@ -2749,11 +2709,8 @@ struct reader
                   return read_temp_integer(value) &&
                          copy_to(grid.connection_type);
 
-              if ("default-children"sv == name)
-                  return read_grid_default_children(value, grid);
-
-              if ("specific-children"sv == name)
-                  return read_grid_specific_children(value, grid);
+              if ("children"sv == name)
+                  return read_grid_children(value, grid);
 
               return true;
           });
@@ -4679,31 +4636,12 @@ static void write_grid_component(io_cache& /*cache*/,
     w.Key("connection-type");
     w.Int(ordinal(grid.connection_type));
 
-    w.Key("default-children");
+    w.Key("children");
     w.StartArray();
-    for (int row = 0; row < 3; ++row) {
-        for (int col = 0; col < 3; ++col) {
-            w.StartObject();
-            write_child_component(mod, grid.default_children[row][col], w);
-            w.EndObject();
-        }
-    }
-    w.EndArray();
-
-    w.Key("specific-children");
-    w.StartArray();
-    for (const auto& elem : grid.specific_children) {
-        w.Key("row");
-        w.Int(elem.row);
-        w.Key("column");
-        w.Int(elem.column);
-
-        write_child(mod,
-                    elem.ch,
-                    elem.unique_id == 0
-                      ? grid.make_next_unique_id(elem.row, elem.column)
-                      : elem.unique_id,
-                    w);
+    for (auto& elem : grid.children) {
+        w.StartObject();
+        write_child_component(mod, elem, w);
+        w.EndObject();
     }
     w.EndArray();
 }

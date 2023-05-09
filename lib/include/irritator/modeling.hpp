@@ -253,15 +253,20 @@ struct grid_component
         name    //!< One, two, three or four ports according to neighbor.
     };
 
+    void resize(i32 row_, i32 col_, component_id id) noexcept
+    {
+        irt_assert(row_ > 0 && col_ > 0);
+
+        row = row_;
+        column = col_;
+
+        children.resize(row_ * col_ );
+        std::fill_n(children.data(), children.size(), id);
+    }
+
     static inline constexpr auto type_count = 2;
 
-    struct specific
-    {
-        component_id ch        = undefined<component_id>();
-        u64          unique_id = 0;
-        i32          row;
-        i32          column;
-    };
+    constexpr int pos(int row_, int col_) noexcept { return col_ * row + row_; }
 
     u64 make_next_unique_id(std::integral auto row,
                             std::integral auto col) const noexcept
@@ -272,8 +277,7 @@ struct grid_component
         return static_cast<u64>(row) << 32 | static_cast<u64>(col);
     }
 
-    component_id     default_children[3][3];
-    vector<specific> specific_children;
+    vector<component_id> children;
 
     vector<child_id>      cache;
     vector<connection_id> cache_connections;

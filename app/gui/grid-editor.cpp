@@ -62,18 +62,13 @@ static void show_default_grid(application&    app,
                               float           height) noexcept
 {
     ImGui::BeginChild("Editor", ImVec2(0, height));
+    auto default_children = undefined<component_id>();
 
-    app.component_sel.combobox("topleft", &data.default_children[0][0]);
-    app.component_sel.combobox("top", &data.default_children[0][1]);
-    app.component_sel.combobox("top right", &data.default_children[0][2]);
-
-    app.component_sel.combobox("left", &data.default_children[1][0]);
-    app.component_sel.combobox("middle", &data.default_children[1][1]);
-    app.component_sel.combobox("right", &data.default_children[1][2]);
-
-    app.component_sel.combobox("bottom-left", &data.default_children[2][0]);
-    app.component_sel.combobox("bottom", &data.default_children[2][1]);
-    app.component_sel.combobox("bottom right", &data.default_children[2][2]);
+    if (app.component_sel.combobox("default children", &default_children)) {
+        data.children.resize(data.row * data.column);
+        std::fill_n(
+          data.children.data(), data.children.size(), default_children);
+    }
 
     ImGui::EndChild();
 }
@@ -90,36 +85,21 @@ static void show_grid(grid_component& data, float height) noexcept
 
     ImVec2 upper_left;
     ImVec2 lower_right;
-    int    x = 0;
-    int    y = 0;
 
     for (int row = 0; row < data.row; ++row) {
         upper_left.x  = p.x + 10.f * static_cast<float>(row);
         lower_right.x = p.x + 10.f * static_cast<float>(row) + 8.f;
 
-        if (row == 0)
-            y = 0;
-        else if (1 <= row && row + 1 < data.row)
-            y = 1;
-        else
-            y = 2;
-
         for (int col = 0; col < data.column; ++col) {
             upper_left.y  = p.y + 10.f * static_cast<float>(col);
             lower_right.y = p.y + 10.f * static_cast<float>(col) + 8.f;
 
-            if (col == 0)
-                x = 0;
-            else if (1 <= col && col + 1 < data.column)
-                x = 1;
-            else
-                x = 2;
-
-            dl->AddRectFilled(
-              upper_left,
-              lower_right,
-              is_defined(data.default_children[x][y]) ? default_col : empty_col,
-              0.f);
+            dl->AddRectFilled(upper_left,
+                              lower_right,
+                              is_defined(data.children[data.pos(row, col)])
+                                ? default_col
+                                : empty_col,
+                              0.f);
         }
     }
 
@@ -225,8 +205,13 @@ void grid_editor_dialog::show() noexcept
                   enum_cast<grid_component::type>(selected_type);
         }
 
-        app->component_sel.combobox("Default component",
-                                    &grid.default_children[0][0]);
+        auto default_children = undefined<component_id>();
+        if (app->component_sel.combobox("Default component",
+                                        &default_children)) {
+            grid.children.resize(grid.row * grid.column);
+            std::fill_n(
+              grid.children.data(), grid.children.ssize(), default_children);
+        }
 
         ImGui::EndChild();
 

@@ -203,12 +203,7 @@ int main()
 
         auto& cg = mod.alloc_grid_component();
         auto& g  = mod.grid_components.get(cg.id.grid_id);
-        g.row    = 5;
-        g.column = 5;
-
-        for (int row = 0; row < 3; ++row)
-            for (int col = 0; col < 3; ++col)
-                g.default_children[row][col] = mod.components.get_id(c);
+        g.resize(5, 5, mod.components.get_id(c));
 
         expect(irt::is_success(pj.set(mod, sim, cg)));
         expect(eq(pj.tree_nodes_size().first, g.row * g.column + 1));
@@ -234,10 +229,11 @@ int main()
 
         auto& cg = mod.alloc_grid_component();
         auto& g  = mod.grid_components.get(cg.id.grid_id);
-        g.row    = 5;
-        g.column = 5;
+        g.resize(5, 5, irt::undefined<irt::component_id>());
 
-        g.default_children[1][1] = mod.components.get_id(c);
+        for (int i = 1; i < 4; ++i)
+            for (int j = 1; j < 4; ++j)
+                g.children[g.pos(i, j)] = mod.components.get_id(c);
 
         expect(irt::is_success(pj.set(mod, sim, cg)));
         expect(
@@ -283,12 +279,7 @@ int main()
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
-            g.row    = 5;
-            g.column = 5;
-
-            for (int row = 0; row < 3; ++row)
-                for (int col = 0; col < 3; ++col)
-                    g.default_children[row][col] = mod.components.get_id(c3);
+            g.resize(5, 5, mod.components.get_id(c3));
 
             expect(irt::is_success(pj.set(mod, sim, cg)));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
