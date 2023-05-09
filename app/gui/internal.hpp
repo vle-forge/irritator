@@ -158,11 +158,23 @@ bool InputSmallStringMultiline(const char*                label,
 }
 
 template<typename... Args>
-void TextFormat(const char* fmt, const Args&... args)
+void TextFormat(const char* fmt, const Args&... args) noexcept
 {
-    irt::small_string<64> buffer;
+    irt::small_string<256> buffer;
     irt::format(buffer, fmt, args...);
     ImGui::TextUnformatted(buffer.c_str());
+}
+
+template<typename... Args>
+void TextFormatDisabled(const char* fmt, const Args&... args) noexcept
+{
+    irt::small_string<256> buffer;
+
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
+    irt::format(buffer, fmt, args...);
+    ImGui::TextUnformatted(buffer.c_str());
+    ImGui::PopStyleColor();
 }
 
 } // namespace ImGui
