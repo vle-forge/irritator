@@ -121,7 +121,7 @@ static status make_tree_leaf(simulation_copy& sc,
         auto& x     = parent.observables.emplace_back();
         x.unique_id = ch.unique_id;
         x.mdl_id    = new_mdl_id;
-        x.param     = observable_type::none;
+        x.param     = observable_type::single;
     }
 
     return status::success;
