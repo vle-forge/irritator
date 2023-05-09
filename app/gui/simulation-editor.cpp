@@ -1639,21 +1639,33 @@ static bool show_generic_simulation_settings(application& app,
 
     if (ImGui::CollapsingHeader("Observations",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
+        for (int i = 0, e = tn.observables.ssize(); i != e; ++i) {
+            ImGui::PushID(i);
+            ImGui::TextFormat("id {}", tn.observables[i].unique_id);
+            is_modified += ImGui::Checkbox("enable", &tn.observables[i].enable);
 
-        app.pj.for_each_children(tn, [&](auto& child) {
-            for (int i = 0, e = child.observables.ssize(); i != e; ++i) {
-                ImGui::PushID(i);
-                auto& obs = child.observables[i];
+            tn.observables[i].param = tn.observables[i].enable
+                                        ? observable_type::single
+                                        : observable_type::none;
 
-                ImGui::TextFormat("id {}", obs.unique_id);
-                is_modified += ImGui::Checkbox("enable", &obs.enable);
+            ImGui::PopID();
+        }
 
-                obs.param =
-                  obs.enable ? observable_type::single : observable_type::none;
-
-                ImGui::PopID();
-            }
-        });
+        // app.pj.for_each_children(tn, [&](auto& child) {
+        //     for (int i = 0, e = child.observables.ssize(); i != e; ++i) {
+        //         ImGui::PushID(i);
+        //         auto& obs = child.observables[i];
+        //
+        //         ImGui::TextFormat("id {}", obs.unique_id);
+        //         is_modified += ImGui::Checkbox("enable", &obs.enable);
+        //
+        //         obs.param =
+        //           obs.enable ? observable_type::single :
+        //           observable_type::none;
+        //
+        //         ImGui::PopID();
+        //     }
+        // });
     }
 
     return is_modified > 0;
