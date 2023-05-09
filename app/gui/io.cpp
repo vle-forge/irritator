@@ -19,8 +19,7 @@
 
 namespace irt {
 
-// @TODO rename component_setting_handler into settings_handler
-struct component_setting_handler
+struct settings_handler
 {
     enum class stack
     {
@@ -49,20 +48,20 @@ struct component_setting_handler
         priority
     };
 
-    application*   app;
+    application&   app;
     registred_path current;
     stack          top;
 
+    i32  priority;
     bool read_name;
     bool read_path;
-    i32  priority;
 
-    component_setting_handler(application* app_) noexcept
+    settings_handler(application& app_) noexcept
       : app(app_)
       , top(stack::empty)
+      , priority(0)
       , read_name(false)
       , read_path(false)
-      , priority(0)
     {
     }
 
@@ -71,8 +70,8 @@ struct component_setting_handler
     bool Bool(bool b)
     {
         if (top == stack::is_fixed_window_placement) {
-            app->mod_init.is_fixed_window_placement = b;
-            top                                     = stack::top;
+            app.mod_init.is_fixed_window_placement = b;
+            top                                    = stack::top;
             return true;
         }
 
@@ -129,33 +128,33 @@ struct component_setting_handler
         bool ret = false;
 
         if (top == stack::binary_file_source_capacity)
-            ret = affect(app->mod_init.binary_file_source_capacity, value);
+            ret = affect(app.mod_init.binary_file_source_capacity, value);
         else if (top == stack::children_capacity)
-            ret = affect(app->mod_init.children_capacity, value);
+            ret = affect(app.mod_init.children_capacity, value);
         else if (top == stack::component_capacity)
-            ret = affect(app->mod_init.component_capacity, value);
+            ret = affect(app.mod_init.component_capacity, value);
         else if (top == stack::connection_capacity)
-            ret = affect(app->mod_init.connection_capacity, value);
+            ret = affect(app.mod_init.connection_capacity, value);
         else if (top == stack::constant_source_capacity)
-            ret = affect(app->mod_init.constant_source_capacity, value);
+            ret = affect(app.mod_init.constant_source_capacity, value);
         else if (top == stack::description_capacity)
-            ret = affect(app->mod_init.description_capacity, value);
+            ret = affect(app.mod_init.description_capacity, value);
         else if (top == stack::file_path_capacity)
-            ret = affect(app->mod_init.file_path_capacity, value);
+            ret = affect(app.mod_init.file_path_capacity, value);
         else if (top == stack::model_capacity)
-            ret = affect(app->mod_init.model_capacity, value);
+            ret = affect(app.mod_init.model_capacity, value);
         else if (top == stack::parameter_capacity)
-            ret = affect(app->mod_init.parameter_capacity, value);
+            ret = affect(app.mod_init.parameter_capacity, value);
         else if (top == stack::port_capacity)
-            ret = affect(app->mod_init.port_capacity, value);
+            ret = affect(app.mod_init.port_capacity, value);
         else if (top == stack::random_source_capacity)
-            ret = affect(app->mod_init.random_source_capacity, value);
+            ret = affect(app.mod_init.random_source_capacity, value);
         else if (top == stack::random_generator_seed)
-            ret = affect(app->mod_init.random_generator_seed, value);
+            ret = affect(app.mod_init.random_generator_seed, value);
         else if (top == stack::text_file_source_capacity)
-            ret = affect(app->mod_init.text_file_source_capacity, value);
+            ret = affect(app.mod_init.text_file_source_capacity, value);
         else if (top == stack::tree_capacity)
-            ret = affect(app->mod_init.tree_capacity, value);
+            ret = affect(app.mod_init.tree_capacity, value);
         else if (top == stack::priority) {
             ret = affect(priority, value);
             top = stack::path_object;
@@ -251,7 +250,7 @@ struct component_setting_handler
         if (top == stack::path_object) {
             bool            found   = false;
             registred_path* reg_dir = nullptr;
-            while (app->mod.registred_paths.next(reg_dir)) {
+            while (app.mod.registred_paths.next(reg_dir)) {
                 if (reg_dir->path == current.path) {
                     found = true;
                     break;
@@ -259,14 +258,14 @@ struct component_setting_handler
             }
 
             if (!found) {
-                auto& new_reg    = app->mod.registred_paths.alloc();
-                auto  id         = app->mod.registred_paths.get_id(new_reg);
+                auto& new_reg    = app.mod.registred_paths.alloc();
+                auto  id         = app.mod.registred_paths.get_id(new_reg);
                 new_reg.name     = current.name;
                 new_reg.path     = current.path;
                 new_reg.priority = static_cast<i8>(priority);
                 new_reg.status   = registred_path::state::unread;
 
-                app->mod.component_repertories.emplace_back(id);
+                app.mod.component_repertories.emplace_back(id);
             }
 
             top = stack::paths_array;
@@ -308,140 +307,237 @@ struct component_setting_handler
     }
 };
 
-status application::load_settings() noexcept
+struct settings_parser
 {
-    status ret = status::success;
+    application& app;
 
-    component_setting_handler handler{ this };
-
-    if (auto path = get_settings_filename(); path) {
-        auto u8str    = path->u8string();
-        auto filename = reinterpret_cast<const char*>(u8str.c_str());
-
-        if (file f{ filename, open_mode::read }; f.is_open()) {
-            auto* fp = reinterpret_cast<FILE*>(f.get_handle());
-            char  buffer[4096];
-            rapidjson::FileReadStream is(fp, buffer, sizeof(buffer));
-            rapidjson::Reader         reader;
-
-            if (!reader.Parse(is, handler)) {
-                const auto error_code   = reader.GetParseErrorCode();
-                const auto error_offset = reader.GetErrorOffset();
-
-                auto  file = path->generic_string();
-                auto& n    = notifications.alloc(log_level::error);
-                n.title    = "Fail to parse settings file";
-                format(n.message,
-                       "Error {} at offset {} in file {}",
-                       rapidjson::GetParseError_En(error_code),
-                       error_offset,
-                       reinterpret_cast<const char*>(file.c_str()));
-                notifications.enable(n);
-                ret = status::io_file_format_error;
-            } else {
-                auto& n = notifications.alloc(log_level::notice);
-                n.title = "Load settings file";
-                notifications.enable(n);
-            }
-        } else {
-            auto& n   = notifications.alloc(log_level::error);
-            n.title   = "Fail to open settings file";
-            n.message = filename;
-            notifications.enable(n);
-            ret = status::io_file_format_error;
-        }
-    } else {
-        auto& n = notifications.alloc(log_level::error);
-        n.title = "Fail to create settings file name";
-        notifications.enable(n);
-        ret = status::io_file_format_error;
+    settings_parser(application& app_) noexcept
+      : app(app_)
+    {
     }
 
-    return ret;
+    bool build_notification_load_success() noexcept
+    {
+        auto& n = app.notifications.alloc(log_level::critical);
+        n.title = "Success to read settings";
+
+        return true;
+    }
+
+    bool build_notification_save_success() noexcept
+    {
+        auto& n = app.notifications.alloc(log_level::critical);
+        n.title = "Success to write settings";
+
+        return true;
+    }
+
+    bool build_notification_bad_access(const std::u8string_view str) noexcept
+    {
+        auto& n = app.notifications.alloc(log_level::critical);
+        n.title = "Fail to access settings";
+        format(n.message,
+               "Fail to access settings file in {}.",
+               std::string_view(reinterpret_cast<const char*>(str.data()),
+                                str.size()));
+
+        return false;
+    }
+
+    bool build_notification_bad_open(const std::u8string_view str) noexcept
+    {
+        auto& n = app.notifications.alloc(log_level::critical);
+        n.title = "Fail to access settings";
+        format(n.message,
+               "Fail to open settings file `{}'.",
+               std::string_view(reinterpret_cast<const char*>(str.data()),
+                                str.size()));
+
+        return false;
+    }
+
+    bool build_notification_bad_parse(const std::u8string_view  str,
+                                      rapidjson::ParseErrorCode error_code,
+                                      size_t error_offset) noexcept
+    {
+        auto& n = app.notifications.alloc(log_level::critical);
+        n.title = "Fail to parse settings";
+        format(n.message,
+               "Fail to parse settings file `{}'. Error `{}' at offset `{}'.",
+               std::string_view(reinterpret_cast<const char*>(str.data()),
+                                str.size()),
+               rapidjson::GetParseError_En(error_code),
+               error_offset);
+
+        return false;
+    }
+
+    bool get_utf8_string_from_path(const std::filesystem::path& p,
+                                   std::u8string&               str) noexcept
+    {
+        try {
+            str = p.u8string();
+        } catch (...) {
+            str.clear();
+        }
+
+        return !str.empty() ? true
+                            : build_notification_bad_access(p.u8string());
+    }
+
+    bool get_settings_filename(std::filesystem::path& p) noexcept
+    {
+        if (auto path = irt::get_settings_filename(); path)
+            p = *path;
+        else
+            p.clear();
+
+        return !p.empty() ? true : build_notification_bad_access(p.u8string());
+    }
+
+    bool get_settings_filename(std::u8string& str) noexcept
+    {
+        std::filesystem::path p;
+
+        return get_settings_filename(p) && get_utf8_string_from_path(p, str);
+    }
+
+    bool open_settings_file(const std::u8string& filename,
+                            file&                f,
+                            open_mode            mode) noexcept
+    {
+        f.open(reinterpret_cast<const char*>(filename.c_str()), mode);
+
+        return f.is_open() ? true : build_notification_bad_open(filename);
+    }
+
+    bool parse_settings_file(const std::u8string&       filename,
+                             rapidjson::FileReadStream& is) noexcept
+    {
+        settings_handler  handler(app);
+        rapidjson::Reader reader;
+
+        return reader.Parse(is, handler)
+                 ? true
+                 : build_notification_bad_parse(filename,
+                                                reader.GetParseErrorCode(),
+                                                reader.GetErrorOffset());
+    }
+
+    bool read_settings_file(const std::u8string& src, file& f) noexcept
+    {
+        auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+        char  buffer[4096];
+
+        rapidjson::FileReadStream is(fp, buffer, sizeof(buffer));
+
+        return parse_settings_file(src, is);
+    }
+
+    bool write_settings_file(
+      rapidjson::PrettyWriter<rapidjson::FileWriteStream>& w) noexcept
+    {
+        w.StartObject();
+        w.Key("paths");
+
+        w.StartArray();
+        registred_path* dir = nullptr;
+        while (app.mod.registred_paths.next(dir)) {
+            w.StartObject();
+            w.Key("name");
+            w.String(dir->name.c_str());
+            w.Key("path");
+            w.String(dir->path.c_str());
+            w.Key("priority");
+            w.Int(dir->priority);
+            w.EndObject();
+        }
+        w.EndArray();
+
+        w.Key("model_capacity");
+        w.Int(app.mod_init.model_capacity);
+        w.Key("tree_capacity");
+        w.Int(app.mod_init.tree_capacity);
+        w.Key("description_capacity");
+        w.Int(app.mod_init.description_capacity);
+        w.Key("component_capacity");
+        w.Int(app.mod_init.component_capacity);
+        w.Key("file_path_capacity");
+        w.Int(app.mod_init.file_path_capacity);
+        w.Key("children_capacity");
+        w.Int(app.mod_init.children_capacity);
+        w.Key("connection_capacity");
+        w.Int(app.mod_init.connection_capacity);
+        w.Key("port_capacity");
+        w.Int(app.mod_init.port_capacity);
+        w.Key("parameter_capacity");
+        w.Int(app.mod_init.parameter_capacity);
+        w.Key("constant_source_capacity");
+        w.Int(app.mod_init.constant_source_capacity);
+        w.Key("binary_file_source_capacity");
+        w.Int(app.mod_init.binary_file_source_capacity);
+        w.Key("text_file_source_capacity");
+        w.Int(app.mod_init.text_file_source_capacity);
+        w.Key("random_source_capacity");
+        w.Int(app.mod_init.random_source_capacity);
+        w.Key("random_generator_seed");
+        w.Uint64(app.mod_init.random_generator_seed);
+
+        w.EndObject();
+
+        return true;
+    }
+
+    bool write_settings_file(const std::u8string& src, file& f) noexcept
+    {
+        auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+        char  buffer[4096];
+
+        rapidjson::FileWriteStream os(fp, buffer, sizeof(buffer));
+        rapidjson::PrettyWriter<rapidjson::FileWriteStream> writer(os);
+
+        rapidjson::FileReadStream is(fp, buffer, sizeof(buffer));
+
+        return parse_settings_file(src, is);
+    }
+
+    bool load_settings() noexcept
+    {
+        std::u8string filename;
+        file          f;
+
+        return get_settings_filename(filename) &&
+               open_settings_file(filename, f, open_mode::read) &&
+               read_settings_file(filename, f) &&
+               build_notification_load_success();
+    }
+
+    bool save_settings() noexcept
+    {
+        std::u8string filename;
+        file          f;
+
+        return get_settings_filename(filename) &&
+               open_settings_file(filename, f, open_mode::write) &&
+               write_settings_file(filename, f) &&
+               build_notification_save_success();
+    }
+};
+
+status application::load_settings() noexcept
+{
+    settings_parser parser(*this);
+
+    return parser.load_settings() ? status::io_file_format_error
+                                  : status::success;
 }
 
 status application::save_settings() noexcept
 {
-    status ret = status::success;
+    settings_parser parser(*this);
 
-    if (auto path = get_settings_filename(); path) {
-        auto  u8str    = path->u8string();
-        auto* filename = reinterpret_cast<const char*>(u8str.c_str());
-
-        if (file f{ filename, open_mode::write }; f.is_open()) {
-            auto* fp = reinterpret_cast<FILE*>(f.get_handle());
-            char  buffer[4096];
-            rapidjson::FileWriteStream os(fp, buffer, sizeof(buffer));
-            rapidjson::PrettyWriter<rapidjson::FileWriteStream> writer(os);
-
-            writer.StartObject();
-            writer.Key("paths");
-
-            writer.StartArray();
-            registred_path* dir = nullptr;
-            while (mod.registred_paths.next(dir)) {
-                writer.StartObject();
-                writer.Key("name");
-                writer.String(dir->name.c_str());
-                writer.Key("path");
-                writer.String(dir->path.c_str());
-                writer.Key("priority");
-                writer.Int(dir->priority);
-                writer.EndObject();
-            }
-            writer.EndArray();
-
-            writer.Key("model_capacity");
-            writer.Int(mod_init.model_capacity);
-            writer.Key("tree_capacity");
-            writer.Int(mod_init.tree_capacity);
-            writer.Key("description_capacity");
-            writer.Int(mod_init.description_capacity);
-            writer.Key("component_capacity");
-            writer.Int(mod_init.component_capacity);
-            writer.Key("file_path_capacity");
-            writer.Int(mod_init.file_path_capacity);
-            writer.Key("children_capacity");
-            writer.Int(mod_init.children_capacity);
-            writer.Key("connection_capacity");
-            writer.Int(mod_init.connection_capacity);
-            writer.Key("port_capacity");
-            writer.Int(mod_init.port_capacity);
-            writer.Key("parameter_capacity");
-            writer.Int(mod_init.parameter_capacity);
-            writer.Key("constant_source_capacity");
-            writer.Int(mod_init.constant_source_capacity);
-            writer.Key("binary_file_source_capacity");
-            writer.Int(mod_init.binary_file_source_capacity);
-            writer.Key("text_file_source_capacity");
-            writer.Int(mod_init.text_file_source_capacity);
-            writer.Key("random_source_capacity");
-            writer.Int(mod_init.random_source_capacity);
-            writer.Key("random_generator_seed");
-            writer.Uint64(mod_init.random_generator_seed);
-
-            writer.EndObject();
-
-            auto& n = notifications.alloc(log_level::notice);
-            n.title = "Save settings file";
-            notifications.enable(n);
-        } else {
-            auto& n   = notifications.alloc(log_level::error);
-            n.title   = "Fail to open settings file";
-            n.message = filename;
-            notifications.enable(n);
-
-            ret = status::io_file_format_error;
-        }
-    } else {
-        auto& n = notifications.alloc(log_level::critical);
-        n.title = "Fail to create settings file name";
-        notifications.enable(n);
-
-        ret = status::io_file_format_error;
-    }
-
-    return ret;
+    return parser.save_settings() ? status::io_file_format_error
+                                  : status::success;
 }
 
 } // irt
