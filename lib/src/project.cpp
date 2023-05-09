@@ -39,10 +39,10 @@ static status make_tree_recursive(simulation_copy& sc,
                                   child_id         id_in_parent,
                                   u64              unique_id) noexcept;
 
-static status make_tree_recursive(simulation_copy& sc,
-                                  tree_node&       parent,
-                                  model&           mod_mdl,
-                                  child&           ch) noexcept
+static status make_tree_leaf(simulation_copy& sc,
+                             tree_node&       parent,
+                             model&           mod_mdl,
+                             child&           ch) noexcept
 {
     irt_return_if_fail(sc.sim.models.can_alloc(),
                        status::simulation_not_enough_model);
@@ -144,7 +144,7 @@ static status make_tree_recursive(simulation_copy&   sc,
                 auto mdl_id = child->id.mdl_id;
                 if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
                     irt_return_if_bad(
-                      make_tree_recursive(sc, new_tree, *mdl, *child));
+                      make_tree_leaf(sc, new_tree, *mdl, *child));
                 }
             }
         }
@@ -173,7 +173,7 @@ static status make_tree_recursive(simulation_copy& sc,
                 auto mdl_id = child->id.mdl_id;
                 if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
                     irt_return_if_bad(
-                      make_tree_recursive(sc, new_tree, *mdl, *child));
+                      make_tree_leaf(sc, new_tree, *mdl, *child));
                 }
             }
         }
