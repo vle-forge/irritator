@@ -1883,6 +1883,7 @@ void simulation_editor::show() noexcept
             }
         }
         ImGui::EndChild();
+
         ImGui::EndTable();
     }
 

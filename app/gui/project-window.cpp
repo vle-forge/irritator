@@ -5,6 +5,7 @@
 #include "application.hpp"
 #include "dialog.hpp"
 #include "editor.hpp"
+#include "imgui.h"
 #include "internal.hpp"
 #include "irritator/io.hpp"
 #include "irritator/modeling.hpp"
@@ -18,13 +19,16 @@ static void show_project_hierarchy(application& app, tree_node& parent) noexcept
     if (auto* compo = app.mod.components.try_to_get(parent.id); compo) {
         ImGui::PushID(&parent);
         small_string<64> str;
+        bool             can_open = false;
 
         switch (compo->type) {
         case component_type::simple:
             format(str, "{} generic", compo->name.sv());
+            can_open = true;
             break;
         case component_type::grid:
             format(str, "{} grid", compo->name.sv());
+            flags |= ImGuiTreeNodeFlags_Leaf;
             break;
         default:
             format(str, "{}", compo->name.sv());
@@ -41,9 +45,10 @@ static void show_project_hierarchy(application& app, tree_node& parent) noexcept
             app.project_wnd.select(parent);
 
         if (is_open) {
-            if (auto* child = parent.tree.get_child(); child)
-                show_project_hierarchy(app, *child);
-
+            if (can_open) {
+                if (auto* child = parent.tree.get_child(); child)
+                    show_project_hierarchy(app, *child);
+            }
             ImGui::TreePop();
         }
 
