@@ -405,8 +405,26 @@ void show_dynamics_inputs(external_source& srcs, generator& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, constant& dyn)
 {
+    static const char* type_names[] = { "constant",
+                                        "incoming_component_all",
+                                        "outcoming_component_all",
+                                        "incoming_component_n",
+                                        "outcoming_component_n" };
+
     ImGui::InputReal("value", &dyn.default_value);
     ImGui::InputReal("offset", &dyn.default_offset);
+
+    int i = ordinal(dyn.type);
+    if (ImGui::Combo("type", &i, type_names, length(type_names)))
+        dyn.type = enum_cast<constant::init_type>(i);
+
+    if (match(dyn.type,
+              constant::init_type::incoming_component_n,
+              constant::init_type::outcoming_component_n)) {
+        int port = dyn.port;
+        if (ImGui::InputInt("port", &port))
+            dyn.port = port < 0 ? 0 : port > 127 ? 127 : static_cast<i8>(port);
+    }
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_cross& dyn)
