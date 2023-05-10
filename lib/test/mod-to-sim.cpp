@@ -361,4 +361,205 @@ int main()
         expect(irt::is_success(mod.fill_components(reg)));
         expect(mod.components.ssize() == irt::internal_component_count * 2);
     };
+
+    "grid-3x3-constant-model-init-port-all"_test = [] {
+        irt::vector<char> buffer;
+        irt::io_cache     cache;
+
+        {
+            irt::modeling_initializer mod_init;
+            irt::modeling             mod;
+            irt::project              pj;
+            irt::simulation           sim;
+
+            mod.init(mod_init);
+            pj.init(mod_init.tree_capacity *= 10);
+            sim.init(256, 4096);
+
+            auto& c1  = mod.alloc_simple_component();
+            auto& s1  = mod.simple_components.get(c1.id.simple_id);
+            auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
+
+            expect(irt::is_success(
+              mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
+
+            auto& c2  = mod.alloc_simple_component();
+            auto& s2  = mod.simple_components.get(c2.id.simple_id);
+            auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
+            expect(irt::is_success(
+              mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
+
+            auto& c3           = mod.alloc_simple_component();
+            auto& s3           = mod.simple_components.get(c3.id.simple_id);
+            auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
+            auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
+            auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);
+            auto& mdl          = mod.models.get(ch5.id.mdl_id);
+            auto& dyn          = irt::get_dyn<irt::constant>(mdl);
+            dyn.default_offset = 0;
+            dyn.type = irt::constant::init_type::incoming_component_all;
+
+            expect(irt::is_success(mod.connect(
+              s3, mod.children.get_id(ch3), 0, mod.children.get_id(ch4), 0)));
+
+            expect(eq(mod.children.ssize(), 5));
+            expect(eq(mod.connections.ssize(), 3));
+
+            auto& cg = mod.alloc_grid_component();
+            auto& g  = mod.grid_components.get(cg.id.grid_id);
+            g.resize(5, 5, mod.components.get_id(c3));
+
+            expect(irt::is_success(pj.set(mod, sim, cg)));
+            expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
+
+            expect(eq(sim.models.ssize(), g.row * g.column * 3));
+
+            int         nb_constant_model = 0;
+            irt::model* cst_mdl           = nullptr;
+            while (sim.models.next(cst_mdl)) {
+                if (cst_mdl->type == irt::dynamics_type::constant) {
+                    ++nb_constant_model;
+                    auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
+                    expect(neq(dyn.default_value, 0.0));
+                }
+            }
+
+            expect(eq(nb_constant_model, g.row * g.column));
+        }
+    };
+
+    "grid-3x3-constant-model-init-port-n"_test = [] {
+        irt::vector<char> buffer;
+        irt::io_cache     cache;
+
+        {
+            irt::modeling_initializer mod_init;
+            irt::modeling             mod;
+            irt::project              pj;
+            irt::simulation           sim;
+
+            mod.init(mod_init);
+            pj.init(mod_init.tree_capacity *= 10);
+            sim.init(256, 4096);
+
+            auto& c1  = mod.alloc_simple_component();
+            auto& s1  = mod.simple_components.get(c1.id.simple_id);
+            auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
+
+            expect(irt::is_success(
+              mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
+
+            auto& c2  = mod.alloc_simple_component();
+            auto& s2  = mod.simple_components.get(c2.id.simple_id);
+            auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
+            expect(irt::is_success(
+              mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
+
+            auto& c3           = mod.alloc_simple_component();
+            auto& s3           = mod.simple_components.get(c3.id.simple_id);
+            auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
+            auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
+            auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);
+            auto& mdl          = mod.models.get(ch5.id.mdl_id);
+            auto& dyn          = irt::get_dyn<irt::constant>(mdl);
+            dyn.default_offset = 0;
+            dyn.type           = irt::constant::init_type::incoming_component_n;
+            dyn.port           = 0;
+
+            expect(irt::is_success(mod.connect(
+              s3, mod.children.get_id(ch3), 0, mod.children.get_id(ch4), 0)));
+
+            expect(eq(mod.children.ssize(), 5));
+            expect(eq(mod.connections.ssize(), 3));
+
+            auto& cg = mod.alloc_grid_component();
+            auto& g  = mod.grid_components.get(cg.id.grid_id);
+            g.resize(5, 5, mod.components.get_id(c3));
+            g.connection_type = irt::grid_component::type::number;
+
+            expect(irt::is_success(pj.set(mod, sim, cg)));
+            expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
+
+            expect(eq(sim.models.ssize(), g.row * g.column * 3));
+
+            int         nb_constant_model = 0;
+            irt::model* cst_mdl           = nullptr;
+            while (sim.models.next(cst_mdl)) {
+                if (cst_mdl->type == irt::dynamics_type::constant) {
+                    ++nb_constant_model;
+                    auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
+                    expect(neq(dyn.default_value, 0.0));
+                }
+            }
+
+            expect(eq(nb_constant_model, g.row * g.column));
+        }
+    };
+
+    "grid-3x3-constant-model-init-port-empty"_test = [] {
+        irt::vector<char> buffer;
+        irt::io_cache     cache;
+
+        {
+            irt::modeling_initializer mod_init;
+            irt::modeling             mod;
+            irt::project              pj;
+            irt::simulation           sim;
+
+            mod.init(mod_init);
+            pj.init(mod_init.tree_capacity *= 10);
+            sim.init(256, 4096);
+
+            auto& c1  = mod.alloc_simple_component();
+            auto& s1  = mod.simple_components.get(c1.id.simple_id);
+            auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
+
+            expect(irt::is_success(
+              mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
+
+            auto& c2  = mod.alloc_simple_component();
+            auto& s2  = mod.simple_components.get(c2.id.simple_id);
+            auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
+            expect(irt::is_success(
+              mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
+
+            auto& c3           = mod.alloc_simple_component();
+            auto& s3           = mod.simple_components.get(c3.id.simple_id);
+            auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
+            auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
+            auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);
+            auto& mdl          = mod.models.get(ch5.id.mdl_id);
+            auto& dyn          = irt::get_dyn<irt::constant>(mdl);
+            dyn.default_offset = 0;
+            dyn.type           = irt::constant::init_type::incoming_component_n;
+            dyn.port           = 17; // Impossible port
+
+            expect(irt::is_success(mod.connect(
+              s3, mod.children.get_id(ch3), 0, mod.children.get_id(ch4), 0)));
+
+            expect(eq(mod.children.ssize(), 5));
+            expect(eq(mod.connections.ssize(), 3));
+
+            auto& cg = mod.alloc_grid_component();
+            auto& g  = mod.grid_components.get(cg.id.grid_id);
+            g.resize(5, 5, mod.components.get_id(c3));
+
+            expect(irt::is_success(pj.set(mod, sim, cg)));
+            expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
+
+            expect(eq(sim.models.ssize(), g.row * g.column * 3));
+
+            int         nb_constant_model = 0;
+            irt::model* cst_mdl           = nullptr;
+            while (sim.models.next(cst_mdl)) {
+                if (cst_mdl->type == irt::dynamics_type::constant) {
+                    ++nb_constant_model;
+                    auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
+                    expect(eq(dyn.default_value, 0.0));
+                }
+            }
+
+            expect(eq(nb_constant_model, g.row * g.column));
+        }
+    };
 }
