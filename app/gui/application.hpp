@@ -379,6 +379,8 @@ struct grid_editor_dialog
 {
     constexpr static inline const char* name = "Grid generator";
 
+    grid_editor_dialog() noexcept;
+
     grid_component     grid;
     application*       app        = nullptr;
     generic_component* compo      = nullptr;

@@ -1428,31 +1428,47 @@ child& modeling::alloc(generic_component& parent, model_id id) noexcept
     return child;
 }
 
-status modeling::build_grid_component_cache(grid_component& grid) noexcept
+status modeling::build_grid_children_and_connections(
+  grid_component&        grid,
+  vector<child_id>&      ids,
+  vector<connection_id>& cnts,
+  i32                    upper_limit,
+  i32                    left_limit,
+  i32                    space_x,
+  i32                    space_y) noexcept
 {
-    clear_grid_component_cache(grid);
-
     irt_return_if_fail(grid.row && grid.column, status::io_project_file_error);
     irt_return_if_fail(children.can_alloc(grid.row * grid.column),
                        status::data_array_not_enough_memory);
     irt_return_if_fail(connections.can_alloc(grid.row * grid.column * 4),
                        status::data_array_not_enough_memory);
 
-    const auto size = grid.row * grid.column;
-    grid.cache.resize(size);
+    const auto old_size = ids.ssize(); // Use to compute grid access with
+                                       // existing children in ids vector.
+
+    ids.reserve(grid.row * grid.column + old_size);
 
     for (int i = 0, e = grid.children.ssize(); i != e; ++i) {
+        child_id new_id = undefined<child_id>();
+
         if (components.try_to_get(grid.children[i])) {
-            auto& new_ch    = children.alloc(grid.children[i]);
-            auto  new_ch_id = children.get_id(new_ch);
-            grid.cache[i]   = new_ch_id;
+            auto& new_ch = children.alloc(grid.children[i]);
+            new_id       = children.get_id(new_ch);
+
+            children_positions[get_index(new_id)] =
+              child_position{ .x = static_cast<float>(
+                                ((space_x * i) / grid.row) + left_limit),
+                              .y = static_cast<float>(
+                                ((space_y * i) % grid.row) + upper_limit) };
         }
+
+        ids.emplace_back(new_id);
     }
 
     if (grid.connection_type == grid_component::type::number) {
         for (int row = 0; row < grid.row; ++row) {
             for (int col = 0; col < grid.column; ++col) {
-                const auto src_id = grid.cache[grid.pos(row, col)];
+                const auto src_id = ids[old_size + grid.pos(row, col)];
                 if (src_id == undefined<child_id>())
                     continue;
 
@@ -1464,7 +1480,7 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
                 for (int i = row_min; i <= row_max; ++i) {
                     for (int j = col_min; j <= col_max; ++j) {
                         if (!(i == row && j == col)) {
-                            const auto dst_id = grid.cache[grid.pos(i, j)];
+                            const auto dst_id = ids[old_size + grid.pos(i, j)];
                             if (dst_id == undefined<child_id>())
                                 continue;
 
@@ -1475,7 +1491,7 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
                             c.internal.index_src = 0;
                             c.internal.dst       = dst_id;
                             c.internal.index_dst = 0;
-                            grid.cache_connections.emplace_back(c_id);
+                            cnts.emplace_back(c_id);
                         }
                     }
                 }
@@ -1484,7 +1500,7 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
     } else {
         for (int row = 0; row < grid.row; ++row) {
             for (int col = 0; col < grid.column; ++col) {
-                const auto src_id = grid.cache[grid.pos(row, col)];
+                const auto src_id = ids[old_size + grid.pos(row, col)];
                 if (src_id == undefined<child_id>())
                     continue;
 
@@ -1496,7 +1512,7 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
                 for (int i = row_min; i <= row_max; ++i) {
                     for (int j = col_min; j <= col_max; ++j) {
                         if (!(i == row && j == col)) {
-                            const auto dst_id = grid.cache[grid.pos(i, j)];
+                            const auto dst_id = ids[old_size + grid.pos(i, j)];
                             if (dst_id == undefined<child_id>())
                                 continue;
 
@@ -1509,7 +1525,7 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
                             c.internal.index_src = port;
                             c.internal.dst       = dst_id;
                             c.internal.index_dst = port;
-                            grid.cache_connections.emplace_back(c_id);
+                            cnts.emplace_back(c_id);
                         }
                     }
                 }
@@ -1523,11 +1539,11 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
 
     if (use_row_cylinder) {
         for (int row = 0; row < grid.row; ++row) {
-            const auto src_id = grid.cache[grid.pos(row, 0)];
-            const auto dst_id = grid.cache[grid.pos(row, grid.column - 1)];
+            const auto src_id = ids[old_size + grid.pos(row, 0)];
+            const auto dst_id = ids[old_size + grid.pos(row, grid.column - 1)];
 
             auto& c1 = connections.alloc();
-            grid.cache_connections.emplace_back(connections.get_id(c1));
+            cnts.emplace_back(connections.get_id(c1));
             c1.type               = connection::connection_type::internal;
             c1.internal.src       = src_id;
             c1.internal.index_src = 0;
@@ -1535,7 +1551,7 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
             c1.internal.index_dst = 0;
 
             auto& c2 = connections.alloc();
-            grid.cache_connections.emplace_back(connections.get_id(c2));
+            cnts.emplace_back(connections.get_id(c2));
             c2.type               = connection::connection_type::internal;
             c2.internal.src       = dst_id;
             c2.internal.index_src = 0;
@@ -1551,18 +1567,18 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
 
     if (use_column_cylinder) {
         for (int col = 0; col < grid.column; ++col) {
-            const auto src_id = grid.cache[grid.pos(0, col)];
-            const auto dst_id = grid.cache[grid.pos(grid.row - 1, col)];
+            const auto src_id = ids[old_size + grid.pos(0, col)];
+            const auto dst_id = ids[old_size + grid.pos(grid.row - 1, col)];
 
             auto& c1 = connections.alloc();
-            grid.cache_connections.emplace_back(connections.get_id(c1));
+            cnts.emplace_back(connections.get_id(c1));
             c1.internal.src       = src_id;
             c1.internal.index_src = 0;
             c1.internal.dst       = dst_id;
             c1.internal.index_dst = 0;
 
             auto& c2 = connections.alloc();
-            grid.cache_connections.emplace_back(connections.get_id(c2));
+            cnts.emplace_back(connections.get_id(c2));
             c2.internal.src       = dst_id;
             c2.internal.index_src = 0;
             c2.internal.dst       = src_id;
@@ -1571,6 +1587,14 @@ status modeling::build_grid_component_cache(grid_component& grid) noexcept
     }
 
     return status::success;
+}
+
+status modeling::build_grid_component_cache(grid_component& grid) noexcept
+{
+    clear_grid_component_cache(grid);
+
+    return build_grid_children_and_connections(
+      grid, grid.cache, grid.cache_connections);
 }
 
 void modeling::clear_grid_component_cache(grid_component& grid) noexcept
@@ -1654,23 +1678,7 @@ status modeling::copy(const generic_component& src,
 
 status modeling::copy(grid_component& grid, generic_component& s) noexcept
 {
-    irt_return_if_bad(build_grid_component_cache(grid));
-
-    const auto children_size = s.children.size();
-    s.children.resize(children_size + grid.cache.size());
-    std::copy_n(
-      grid.cache.data(), grid.cache.size(), s.children.data() + children_size);
-
-    const auto connection_size = s.connections.size();
-    s.connections.resize(connection_size + grid.cache_connections.size());
-    std::copy_n(grid.cache_connections.data(),
-                grid.cache_connections.size(),
-                s.connections.data() + connection_size);
-
-    grid.cache.clear();
-    grid.cache_connections.clear();
-
-    return status::success;
+    return build_grid_children_and_connections(grid, s.children, s.connections);
 }
 
 status modeling::copy(internal_component src, component& dst) noexcept

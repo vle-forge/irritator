@@ -62,12 +62,12 @@ static void show_default_grid(application&    app,
                               float           height) noexcept
 {
     ImGui::BeginChild("Editor", ImVec2(0, height));
-    auto default_children = undefined<component_id>();
 
-    if (app.component_sel.combobox("default children", &default_children)) {
+    if (app.component_sel.combobox("default children",
+                                   &data.children.front())) {
         data.children.resize(data.row * data.column);
         std::fill_n(
-          data.children.data(), data.children.size(), default_children);
+          data.children.data(), data.children.size(), data.children.front());
     }
 
     ImGui::EndChild();
@@ -147,6 +147,11 @@ void grid_editor_data::show(component_editor& ed) noexcept
     }
 }
 
+grid_editor_dialog::grid_editor_dialog() noexcept
+{
+    grid.resize(5, 5, undefined<component_id>());
+}
+
 void grid_editor_dialog::load(application*       app_,
                               generic_component* compo_) noexcept
 {
@@ -179,15 +184,22 @@ void grid_editor_dialog::show() noexcept
         const auto child_size =
           region_height - ImGui::GetFrameHeightWithSpacing();
 
-        int row    = grid.row;
-        int column = grid.column;
-
         ImGui::BeginChild("##dialog", ImVec2(0.f, child_size), true);
 
-        if (ImGui::InputInt("row", &row))
-            grid.row = std::clamp(row, 1, 256);
-        if (ImGui::InputInt("column", &column))
-            grid.column = std::clamp(column, 1, 256);
+        bool have_changed = false;
+
+        if (ImGui::InputInt("row", &grid.row)) {
+            grid.row     = std::clamp(grid.row, 1, 256);
+            have_changed = true;
+        }
+
+        if (ImGui::InputInt("column", &grid.column)) {
+            grid.column  = std::clamp(grid.column, 1, 256);
+            have_changed = true;
+        }
+
+        if (have_changed)
+            grid.resize(grid.row, grid.column, grid.children.front());
 
         int selected_options = ordinal(grid.opts);
         int selected_type    = ordinal(grid.connection_type);
@@ -205,12 +217,12 @@ void grid_editor_dialog::show() noexcept
                   enum_cast<grid_component::type>(selected_type);
         }
 
-        auto default_children = undefined<component_id>();
         if (app->component_sel.combobox("Default component",
-                                        &default_children)) {
+                                        &grid.children.front())) {
             grid.children.resize(grid.row * grid.column);
-            std::fill_n(
-              grid.children.data(), grid.children.ssize(), default_children);
+            std::fill_n(grid.children.data(),
+                        grid.children.ssize(),
+                        grid.children.front());
         }
 
         ImGui::EndChild();

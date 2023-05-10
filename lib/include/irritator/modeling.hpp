@@ -257,10 +257,10 @@ struct grid_component
     {
         irt_assert(row_ > 0 && col_ > 0);
 
-        row = row_;
+        row    = row_;
         column = col_;
 
-        children.resize(row_ * col_ );
+        children.resize(row_ * col_);
         std::fill_n(children.data(), children.size(), id);
     }
 
@@ -522,6 +522,18 @@ struct modeling
 
     component& alloc_grid_component() noexcept;
     component& alloc_simple_component() noexcept;
+
+    //! For grid_component, build the children and connections
+    //! based on children vectors and grid_component options (torus, cylinder
+    //! etc.). The newly allocated child and connection are append to the output
+    //! vectors. The vectors are not cleared.
+    status build_grid_children_and_connections(grid_component&        grid,
+                                               vector<child_id>&      ids,
+                                               vector<connection_id>& cnts,
+                                               i32 upper_limit = 0,
+                                               i32 left_limit  = 0,
+                                               i32 space_x     = 30,
+                                               i32 space_y     = 50) noexcept;
 
     //! For grid_component, build the real children and connections grid
     //! based on default_chidren and specific_children vectors and
