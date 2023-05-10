@@ -259,6 +259,7 @@ enum class error_id
     missing_grid_component_type,
     missing_model_child_type_error,
     missing_mandatory_arg,
+    missing_constant_init_type,
     file_system_not_enough_memory,
     integer_to_i8_error,
     integer_to_u8_error,
@@ -321,6 +322,7 @@ static inline constexpr std::string_view error_id_names[] = {
     "missing_grid_component_type",
     "missing_model_child_type_error",
     "missing_mandatory_arg",
+    "missing_constant_init_type",
     "file_system_not_enough_memory",
     "integer_to_i8_error",
     "integer_to_u8_error",
@@ -468,6 +470,24 @@ struct reader
             report_json_error(error_id::missing_string);
 
         temp_string = val.GetString();
+
+        return true;
+    }
+
+    bool copy_to(constant::init_type& type) noexcept
+    {
+        if (temp_string == "constant"sv)
+            type = constant::init_type::constant;
+        else if (temp_string == "incoming_component_all"sv)
+            type = constant::init_type::incoming_component_all;
+        else if (temp_string == "outcoming_component_all"sv)
+            type = constant::init_type::outcoming_component_all;
+        else if (temp_string == "incoming_component_n"sv)
+            type = constant::init_type::incoming_component_n;
+        else if (temp_string == "outcoming_component_n"sv)
+            type = constant::init_type::outcoming_component_n;
+        else
+            report_json_error(error_id::missing_constant_init_type);
 
         return true;
     }
@@ -1284,7 +1304,11 @@ struct reader
               if ("offset"sv == name)
                   return read_temp_real(value) &&
                          is_double_greater_equal_than(0.0) &&
-                         copy_to(dyn.default_value);
+                         copy_to(dyn.default_offset);
+              if ("type"sv == name)
+                  return read_temp_string(value) && copy_to(dyn.type);
+              if ("port"sv == name)
+                  return read_temp_integer(value) && copy_to(dyn.port);
 
               report_json_error(error_id::unknown_element);
           });
@@ -3788,6 +3812,30 @@ void write(Writer& writer, const constant& dyn) noexcept
     writer.Double(dyn.default_value);
     writer.Key("offset");
     writer.Double(dyn.default_offset);
+    writer.Key("type");
+
+    switch (dyn.type) {
+    case constant::init_type::constant:
+        writer.String("constant");
+        break;
+    case constant::init_type::incoming_component_all:
+        writer.String("incoming_component_all");
+        break;
+    case constant::init_type::outcoming_component_all:
+        writer.String("outcoming_component_all");
+        break;
+    case constant::init_type::incoming_component_n:
+        writer.String("incoming_component_n");
+        writer.Key("port");
+        writer.Double(dyn.port);
+        break;
+    case constant::init_type::outcoming_component_n:
+        writer.String("outcoming_component_n");
+        writer.Key("port");
+        writer.Double(dyn.port);
+        break;
+    }
+
     writer.EndObject();
 }
 
