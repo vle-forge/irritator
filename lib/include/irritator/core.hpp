@@ -2927,53 +2927,54 @@ status send_message(simulation&  sim,
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::convertible_to<status>;
-};
+                                  {
+                                      t.lambda(sim)
+                                      } -> std::convertible_to<status>;
+                              };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-      } -> std::convertible_to<status>;
+          } -> std::convertible_to<status>;
   };
 
 template<typename T>
-concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::convertible_to<observation_message>;
-};
+concept has_observation_function =
+  requires(T t, time s, time e) {
+      {
+          t.observation(s, e)
+          } -> std::convertible_to<observation_message>;
+  };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::convertible_to<status>;
-};
+                                      {
+                                          t.initialize(sim)
+                                          } -> std::convertible_to<status>;
+                                  };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::convertible_to<status>;
-};
+                                    {
+                                        t.finalize(sim)
+                                        } -> std::convertible_to<status>;
+                                };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
-};
+                             {
+                                 t.x
+                             };
+                         };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
-};
+                              {
+                                  t.y
+                              };
+                          };
 
 constexpr observation_message qss_observation(real X,
                                               real u,
@@ -5250,7 +5251,38 @@ struct constant
     real default_value  = 0.0;
     time default_offset = time_domain<time>::zero;
 
-    real value = 0.0;
+    enum class init_type : i8
+    {
+        // A constant value initialized at startup of the simulation. Use the @c
+        // default_value.
+        constant,
+
+        // The numbers of incoming connections on all input ports of the
+        // component. The @c default_value is filled via the component to
+        // simulation algorithm. Otherwise, the default value is unmodified.
+        incoming_component_all,
+
+        // The number of outcoming connections on all output ports of the
+        // component. The @c default_value is filled via the component to
+        // simulation algorithm. Otherwise, the default value is unmodified.
+        outcoming_component_all,
+
+        // The number of incoming connections on the nth input port of the
+        // component. Use the @c port attribute to specify the identifier of the
+        // port. The @c default_value is filled via the component to
+        // simulation algorithm. Otherwise, the default value is unmodified.
+        incoming_component_n,
+
+        // The number of incoming connections on the nth output ports of the
+        // component. Use the @c port attribute to specify the identifier of the
+        // port. The @c default_value is filled via the component to
+        // simulation algorithm. Otherwise, the default value is unmodified.
+        outcoming_component_n,
+    };
+
+    real      value = 0.0;
+    init_type type  = init_type::constant;
+    i8        port  = 0;
 
     constant() noexcept = default;
 
@@ -5259,13 +5291,14 @@ struct constant
       , default_value(other.default_value)
       , default_offset(other.default_offset)
       , value(other.value)
+      , type(other.type)
+      , port(other.port)
     {
     }
 
     status initialize(simulation& /*sim*/) noexcept
     {
         sigma = default_offset;
-
         value = default_value;
 
         return status::success;
