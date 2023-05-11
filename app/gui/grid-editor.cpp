@@ -36,10 +36,26 @@ static void show_parameters(grid_component& grid) noexcept
     int row    = grid.row;
     int column = grid.column;
 
-    if (ImGui::InputInt("row", &row))
-        grid.row = std::clamp(row, 1, 256);
-    if (ImGui::InputInt("column", &column))
-        grid.column = std::clamp(column, 1, 256);
+    bool is_changed = false;
+
+    if (ImGui::InputInt("row", &row)) {
+        row        = std::clamp(row, 1, 256);
+        is_changed = row != grid.row;
+        grid.row   = row;
+    }
+
+    if (ImGui::InputInt("column", &column)) {
+        column      = std::clamp(column, 1, 256);
+        is_changed  = is_changed || column != grid.column;
+        grid.column = column;
+    }
+
+    if (is_changed) {
+        auto id = grid.children.empty() ? undefined<component_id>()
+                                        : grid.children.front();
+
+        grid.resize(grid.row, grid.column, id);
+    }
 
     int selected_options = ordinal(grid.opts);
     int selected_type    = ordinal(grid.connection_type);

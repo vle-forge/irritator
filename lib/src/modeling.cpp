@@ -939,7 +939,8 @@ component& modeling::alloc_grid_component() noexcept
     new_compo.type  = component_type::grid;
     new_compo.state = component_status::modified;
 
-    auto& grid           = grid_components.alloc();
+    auto& grid = grid_components.alloc();
+    grid.resize(4, 4, undefined<component_id>());
     new_compo.id.grid_id = grid_components.get_id(grid);
 
     return new_compo;
