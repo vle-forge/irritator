@@ -453,10 +453,10 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
 
-    irt_return_if_bad(models.init(p.component_capacity * 16));
+    irt_return_if_bad(models.init(p.model_capacity));
     irt_return_if_bad(hsms.init(p.component_capacity));
-    irt_return_if_bad(children.init(p.component_capacity * 16));
-    irt_return_if_bad(connections.init(p.component_capacity * 32));
+    irt_return_if_bad(children.init(p.children_capacity));
+    irt_return_if_bad(connections.init(p.connection_capacity));
 
     children_positions.resize(children.capacity());
     children_names.resize(children.capacity());
