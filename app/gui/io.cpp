@@ -496,9 +496,7 @@ struct settings_parser
         rapidjson::FileWriteStream os(fp, buffer, sizeof(buffer));
         rapidjson::PrettyWriter<rapidjson::FileWriteStream> writer(os);
 
-        rapidjson::FileReadStream is(fp, buffer, sizeof(buffer));
-
-        return parse_settings_file(src, is);
+        return write_settings_file(writer);
     }
 
     bool load_settings() noexcept
@@ -528,16 +526,16 @@ status application::load_settings() noexcept
 {
     settings_parser parser(*this);
 
-    return parser.load_settings() ? status::io_file_format_error
-                                  : status::success;
+    return parser.load_settings() ? status::success
+                                  : status::io_file_format_error;
 }
 
 status application::save_settings() noexcept
 {
     settings_parser parser(*this);
 
-    return parser.save_settings() ? status::io_file_format_error
-                                  : status::success;
+    return parser.save_settings() ? status::success
+                                  : status::io_file_format_error;
 }
 
 } // irt

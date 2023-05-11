@@ -51,10 +51,19 @@ bool application::init() noexcept
           *this, log_level::alert, "Fail to initialize registred dir paths");
     }
 
-    if (auto ret = load_settings(); is_bad(ret))
+    if (auto ret = load_settings(); is_bad(ret)) {
         log_w(*this,
               log_level::alert,
               "Fail to read settings files. Default parameters used\n");
+
+        mod_init = modeling_initializer{};
+
+        if (auto ret = save_settings(); is_bad(ret)) {
+            log_w(*this,
+                  log_level::alert,
+                  "Fail to save settings files. Default parameters used\n");
+        }
+    }
 
     if (auto ret = mod.init(mod_init); is_bad(ret)) {
         log_w(*this,
@@ -64,7 +73,7 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = pj.init(mod_init.component_capacity); is_bad(ret)) {
+    if (auto ret = pj.init(mod_init.tree_capacity); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize project: {}\n",
