@@ -2689,7 +2689,7 @@ struct reader
     bool grid_children_add(vector<component_id>& out,
                            component_id          c_id) noexcept
     {
-        auto& new_elem = out.emplace_back(c_id);
+        out.emplace_back(c_id);
 
         return true;
     }

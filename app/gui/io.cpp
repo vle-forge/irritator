@@ -488,7 +488,7 @@ struct settings_parser
         return true;
     }
 
-    bool write_settings_file(const std::u8string& src, file& f) noexcept
+    bool write_settings_file(file& f) noexcept
     {
         auto* fp = reinterpret_cast<FILE*>(f.get_handle());
         char  buffer[4096];
@@ -517,8 +517,7 @@ struct settings_parser
 
         return get_settings_filename(filename) &&
                open_settings_file(filename, f, open_mode::write) &&
-               write_settings_file(filename, f) &&
-               build_notification_save_success();
+               write_settings_file(f) && build_notification_save_success();
     }
 };
 

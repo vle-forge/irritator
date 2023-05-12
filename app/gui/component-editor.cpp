@@ -204,8 +204,8 @@ static void show(component_editor&      ed,
                  component_editor_data& data,
                  component&             parent,
                  model&                 mdl,
-                 child&                 c,
-                 child_id               id) noexcept
+                 child& /*c*/,
+                 child_id id) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
@@ -261,8 +261,8 @@ static void show(component_editor&      ed,
 static void show(component_editor& ed,
                  component_editor_data& /*data*/,
                  component& compo,
-                 child&     c,
-                 child_id   id) noexcept
+                 child& /*c*/,
+                 child_id id) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
@@ -309,8 +309,8 @@ static void show(component_editor& ed,
                  component_editor_data& /*data*/,
                  component&         compo,
                  generic_component& s_compo,
-                 child&             c,
-                 child_id           id) noexcept
+                 child& /*c*/,
+                 child_id id) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
@@ -381,8 +381,8 @@ static void show(component_editor& ed,
                  component_editor_data& /*data*/,
                  component&      compo,
                  grid_component& grid,
-                 child&          c,
-                 child_id        id) noexcept
+                 child& /*c*/,
+                 child_id id) noexcept
 {
     auto* app      = container_of(&ed, &application::component_ed);
     auto& settings = app->settings_wnd;
@@ -636,7 +636,6 @@ static void compute_grid_layout(settings_window&   settings,
     const auto panning = ImNodes::EditorContextGetPanning();
     auto       new_pos = panning;
 
-    child*   c       = nullptr;
     child_id c_id    = undefined<child_id>();
     int      c_index = 0;
 
@@ -648,7 +647,6 @@ static void compute_grid_layout(settings_window&   settings,
                 break;
 
             c_id = s_compo.children[c_index++];
-            c    = app->mod.children.try_to_get(c_id);
 
             new_pos.x = panning.x + j * settings.grid_layout_x_distance;
             ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
@@ -665,7 +663,6 @@ static void compute_grid_layout(settings_window&   settings,
             break;
 
         c_id = s_compo.children[c_index++];
-        c    = app->mod.children.try_to_get(c_id);
 
         new_pos.x = panning.x + j * settings.grid_layout_x_distance;
         ImNodes::SetNodeGridSpacePos(pack_node(c_id), new_pos);
