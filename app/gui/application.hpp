@@ -371,6 +371,13 @@ public:
 
     void show(component_editor& ed) noexcept;
 
+    vector<bool> selected;
+    ImVec2       disp{ 1000.f   , 1000.f };
+    float        scale = 10.f;
+
+    bool         start_selection = false;
+    component_id selected_id     = undefined<component_id>();
+
     grid_component_id grid_id = undefined<grid_component_id>();
     component_id      id      = undefined<component_id>();
 };

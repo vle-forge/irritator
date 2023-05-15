@@ -9,11 +9,16 @@
 #include <irritator/core.hpp>
 #include <irritator/modeling.hpp>
 
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <algorithm>
 
 namespace irt {
+
+constinit ImU32 undefined_color = IM_COL32(0, 0, 0, 255);
+constinit ImU32 selected_col    = IM_COL32(255, 0, 0, 255);
 
 static const char* grid_options[] = {
     "none",
@@ -37,7 +42,7 @@ constexpr inline auto get_default_component_id(const grid_component& g) noexcept
     return g.children.empty() ? undefined<component_id>() : g.children.front();
 }
 
-static void show_row_column_widgets(grid_component& grid) noexcept
+static bool show_row_column_widgets(grid_component& grid) noexcept
 {
     bool is_changed = false;
 
@@ -55,8 +60,7 @@ static void show_row_column_widgets(grid_component& grid) noexcept
         grid.column = column;
     }
 
-    if (is_changed)
-        grid.resize(grid.row, grid.column, get_default_component_id(grid));
+    return is_changed;
 }
 
 static void show_type_widgets(grid_component& grid) noexcept
@@ -84,42 +88,153 @@ void show_default_component_widgets(application& app, grid_component& grid)
     }
 }
 
-static void show_parameters(application& app, grid_component& grid) noexcept
+/**
+ * @brief Retrieves the selected @c component_id.
+ * @details If the selection have several different @c component_id then the
+ * function return @c std::nullopt otherwise, returns the @c component_id or @c
+ * undefined<component_id>() if element is empty.
+ *
+ * @return The unique @c component_id or @c undefined<component_id>() if
+ * selection is multiple.
+ */
+static auto get_selected_id(const vector<component_id>& ids,
+                            const vector<bool>&         selected) noexcept
+  -> std::optional<component_id>
 {
-    show_row_column_widgets(grid);
-    show_type_widgets(grid);
-    show_default_component_widgets(app, grid);
+    irt_assert(ids.size() == selected.size());
+
+    auto found      = undefined<component_id>();
+    auto have_value = false;
+
+    for (sz i = 0, e = ids.size(); i != e; ++i) {
+        if (selected[i]) {
+            if (have_value) {
+                if (found != ids[i])
+                    return std::nullopt;
+            } else {
+                found      = ids[i];
+                have_value = true;
+            }
+        }
+    }
+
+    return std::make_optional(found);
 }
 
-static void show_grid(grid_component& data, float height) noexcept
+static void assign_selection(const vector<bool>&   selected,
+                             vector<component_id>& ids,
+                             component_id          value) noexcept
 {
-    ImGui::BeginChild("Editor", ImVec2(0, height));
+    irt_assert(ids.size() == selected.size());
 
-    constexpr ImU32 empty_col   = IM_COL32(127, 127, 127, 255);
-    constexpr ImU32 default_col = IM_COL32(255, 255, 255, 255);
+    for (sz i = 0, e = ids.size(); i != e; ++i)
+        if (selected[i])
+            ids[i] = value;
+}
 
-    auto  p  = ImGui::GetCursorScreenPos();
-    auto* dl = ImGui::GetWindowDrawList();
+static void show_selection(application&      app,
+                           grid_editor_data& ed,
+                           grid_component&   grid) noexcept
+{
+    if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) {
+        app.component_sel.combobox("component paint", &ed.selected_id);
+    }
+
+    if (ImGui::CollapsingHeader("Selected", ImGuiTreeNodeFlags_DefaultOpen)) {
+        for (int row = 0; row < grid.row; ++row) {
+            for (int col = 0; col < grid.column; ++col) {
+                if (ed.selected[grid.pos(row, col)]) {
+                    ImGui::Text("%d %d", row, col);
+                }
+            }
+        }
+    }
+}
+
+static void show_grid(application&      app,
+                      grid_editor_data& ed,
+                      grid_component&   data) noexcept
+{
+    ImGui::BeginChild("Editor",
+                      ed.disp,
+                      true,
+                      ImGuiWindowFlags_AlwaysVerticalScrollbar |
+                        ImGuiWindowFlags_AlwaysHorizontalScrollbar);
+
+    auto* w  = ImGui::GetCurrentWindow();
+    auto& io = ImGui::GetIO();
+
+    if (w->InnerClipRect.Contains(io.MousePos)) {
+        if (io.MouseWheel > 0.0f) {
+            ed.scale *= 1.1f;
+            ed.disp *= 1.1f;
+        } else if (io.MouseWheel < 0.0f) {
+            ed.scale *= 0.9f;
+            ed.disp *= 0.9f;
+        }
+    }
+
+    auto* draw_list = ImGui::GetWindowDrawList();
+    auto  p         = ImGui::GetCursorScreenPos();
+    auto  mouse     = io.MousePos - p;
 
     ImVec2 upper_left;
     ImVec2 lower_right;
 
     for (int row = 0; row < data.row; ++row) {
-        upper_left.x  = p.x + 10.f * static_cast<float>(row);
-        lower_right.x = p.x + 10.f * static_cast<float>(row) + 8.f;
+        upper_left.x  = p.x + static_cast<float>(row) * ed.scale;
+        lower_right.x = p.x + static_cast<float>(row) * ed.scale + ed.scale;
 
         for (int col = 0; col < data.column; ++col) {
-            upper_left.y  = p.y + 10.f * static_cast<float>(col);
-            lower_right.y = p.y + 10.f * static_cast<float>(col) + 8.f;
+            upper_left.y  = p.y + static_cast<float>(col) * ed.scale;
+            lower_right.y = p.y + static_cast<float>(col) * ed.scale + ed.scale;
 
-            dl->AddRectFilled(upper_left,
-                              lower_right,
-                              is_defined(data.children[data.pos(row, col)])
-                                ? default_col
-                                : empty_col,
-                              0.f);
+            const bool under_mouse =
+              upper_left.x <= io.MousePos.x && io.MousePos.x <= lower_right.x &&
+              upper_left.y <= io.MousePos.y && io.MousePos.y <= lower_right.y;
+
+            if (under_mouse && io.MouseDown[0]) {
+                if (ed.start_selection == true) {
+                    ed.start_selection = false;
+                }
+
+                data.children[data.pos(row, col)] = ed.selected_id;
+            }
+
+            if (under_mouse && !ed.start_selection && io.MouseDown[1]) {
+                ed.start_selection = true;
+                std::fill_n(ed.selected.data(), ed.selected.size(), false);
+            }
+
+            if (under_mouse && ed.start_selection && io.MouseDown[1])
+                ed.selected[data.pos(row, col)] = true;
+
+            if (under_mouse && ed.start_selection && io.MouseReleased[1])
+                ed.start_selection = false;
+
+            ImU32 color = is_undefined(data.children[data.pos(row, col)])
+                            ? undefined_color
+                            : ImGui::ColorConvertFloat4ToU32(
+                                to_ImVec4(app.mod.component_colors[get_index(
+                                  data.children[data.pos(row, col)])]));
+
+            draw_list->AddRectFilled(upper_left, lower_right, color, 0.f);
+            if (ed.selected[data.pos(row, col)])
+                draw_list->AddRect(upper_left,
+                                   lower_right,
+                                   selected_col,
+                                   0.f,
+                                   ImDrawFlags_None,
+                                   1.f);
         }
     }
+
+    if (!ed.start_selection && io.MouseClicked[1])
+        std::fill_n(ed.selected.data(), ed.selected.size(), false);
+
+    ImGuiContext& g = *GImGui;
+    ImGui::SetCursorPos({ 0, w->InnerClipRect.GetHeight() - g.FontSize });
+    ImGui::Text("mouse x:%.3f  y:%.3f", mouse.x, mouse.y);
 
     ImGui::EndChild();
 }
@@ -133,23 +248,42 @@ grid_editor_data::grid_editor_data(const component_id      id_,
 
 void grid_editor_data::clear() noexcept
 {
+    selected.clear();
+    scale = 10.f;
+
     grid_id = undefined<grid_component_id>();
     id      = undefined<component_id>();
 }
 
 void grid_editor_data::show(component_editor& ed) noexcept
 {
-    const auto child_height = ImGui::GetContentRegionAvail().y -
-                              ImGui::GetFrameHeightWithSpacing() * 5.f;
-
     auto* app   = container_of(&ed, &application::component_ed);
     auto* compo = app->mod.components.try_to_get(id);
     auto* grid  = app->mod.grid_components.try_to_get(grid_id);
 
     irt_assert(compo && grid);
+    if (selected.capacity() == 0) {
+        selected.resize(grid->row * grid->column);
+        std::fill_n(selected.data(), selected.size(), false);
+    }
 
-    show_parameters(*app, *grid);
-    show_grid(*grid, child_height);
+    if (show_row_column_widgets(*grid)) {
+        grid->resize(grid->row, grid->column, get_default_component_id(*grid));
+        selected.resize(grid->row * grid->column);
+        std::fill_n(selected.data(), selected.size(), false);
+    }
+
+    show_type_widgets(*grid);
+    show_default_component_widgets(*app, *grid);
+
+    if (ImGui::BeginTable("##array", 2)) {
+        ImGui::TableNextColumn();
+        show_grid(*app, *this, *grid);
+        ImGui::TableNextColumn();
+        show_selection(*app, *this, *grid);
+
+        ImGui::EndTable();
+    }
 }
 
 grid_editor_dialog::grid_editor_dialog() noexcept
@@ -190,7 +324,12 @@ void grid_editor_dialog::show() noexcept
           region_height - ImGui::GetFrameHeightWithSpacing();
 
         ImGui::BeginChild("##dialog", ImVec2(0.f, child_size), true);
-        show_parameters(*container_of(this, &application::grid_dlg), grid);
+        if (show_row_column_widgets(grid))
+            grid.resize(grid.row, grid.column, get_default_component_id(grid));
+
+        show_type_widgets(grid);
+        show_default_component_widgets(
+          *container_of(this, &application::grid_dlg), grid);
         ImGui::EndChild();
 
         if (ImGui::Button("Ok", button_size)) {

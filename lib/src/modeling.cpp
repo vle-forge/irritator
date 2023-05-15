@@ -443,6 +443,8 @@ modeling::modeling() noexcept
 {
 }
 
+constinit component_color c = { 0.5f, 0.5f, 0.5f, 1.0f };
+
 status modeling::init(modeling_initializer& p) noexcept
 {
     irt_return_if_bad(descriptions.init(p.description_capacity));
@@ -460,6 +462,9 @@ status modeling::init(modeling_initializer& p) noexcept
 
     children_positions.resize(children.capacity());
     children_names.resize(children.capacity());
+    component_colors.resize(components.capacity());
+
+    std::fill_n(component_colors.data(), component_colors.size(), c);
 
     return status::success;
 }

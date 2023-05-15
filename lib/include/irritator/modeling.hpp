@@ -289,6 +289,8 @@ struct grid_component
     type    connection_type = type::name;
 };
 
+using component_color = std::array<float, 4>;
+
 struct component
 {
     static inline constexpr int port_number = 8;
@@ -466,6 +468,7 @@ struct modeling
 
     vector<child_position>   children_positions;
     vector<small_string<31>> children_names;
+    vector<component_color>  component_colors;
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     external_source                                     srcs;

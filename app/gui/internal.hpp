@@ -16,6 +16,26 @@
 
 namespace irt {
 
+inline ImVec4& to_ImVec4(std::array<float, 4>& array) noexcept
+{
+    return reinterpret_cast<ImVec4&>(array);
+}
+
+inline const ImVec4& to_ImVec4(const std::array<float, 4>& array) noexcept
+{
+    return reinterpret_cast<const ImVec4&>(array);
+}
+
+inline float* to_float_ptr(std::array<float, 4>& array) noexcept
+{
+    return &array[0];
+}
+
+inline const float* to_float_ptr(const std::array<float, 4>& array) noexcept
+{
+    return &array[0];
+}
+
 //! Helper to display a little (?) mark which shows a tooltip when hovered.
 //! In your own code you may want to display an actual icon if you are using
 //! a merged icon fonts (see docs/FONTS.md)

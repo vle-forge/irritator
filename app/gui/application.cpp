@@ -2,11 +2,21 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#define IM_VEC4_CLASS_EXTRA                                                    \
+    constexpr ImVec4(std::array<float, 4> _array) noexcept                     \
+      : x{ _array[0] }                                                         \
+      , y{ _array[1] }                                                         \
+      , z{ _array[2] }                                                         \
+      , w{ _array[3] }                                                         \
+    {                                                                          \
+    }
+
 #include <irritator/core.hpp>
 #include <irritator/io.hpp>
 
 #include "application.hpp"
 #include "dialog.hpp"
+#include "imgui.h"
 #include "internal.hpp"
 
 #include <imgui_internal.h>
@@ -588,6 +598,8 @@ void component_selector::update() noexcept
 bool component_selector::combobox(const char*   label,
                                   component_id* new_selected) noexcept
 {
+    auto& mod = container_of(this, &application::component_sel)->mod;
+
     if (*new_selected != selected_id) {
         auto* app   = container_of(this, &application::component_sel);
         selected_id = *new_selected;
@@ -598,7 +610,17 @@ bool component_selector::combobox(const char*   label,
     bool ret = false;
 
     if (ImGui::BeginCombo(label, selected_name.c_str())) {
-        for (sz i = 0, e = ids.size(); i != e; ++i) {
+        ImGui::ColorButton("Undefined color", ImVec4(0.f, 0.f, 0.f, 0.f));
+        ImGui::SameLine(50.f);
+        if (ImGui::Selectable(names[0].c_str(), ids[0] == *new_selected)) {
+            *new_selected = ids[0];
+            ret           = true;
+        }
+
+        for (sz i = 1, e = ids.size(); i != e; ++i) {
+            ImVec4 color{ mod.component_colors[get_index(ids[i])] };
+            ImGui::ColorButton("Component", color);
+            ImGui::SameLine(50.f);
             if (ImGui::Selectable(names[i].c_str(), ids[i] == *new_selected)) {
                 *new_selected = ids[i];
                 ret           = true;
@@ -615,10 +637,24 @@ bool component_selector::combobox(const char*   label,
                                   component_id* new_selected,
                                   bool*         hyphen) noexcept
 {
+    auto& mod = container_of(this, &application::component_sel)->mod;
+
     bool ret = false;
 
     if (ImGui::BeginCombo(label, selected_name.c_str())) {
-        for (sz i = 0, e = ids.size(); i != e; ++i) {
+        ImGui::ColorButton("Undefined color", ImVec4(0.f, 0.f, 0.f, 0.f));
+        ImGui::SameLine(50.f);
+        if (ImGui::Selectable(names[0].c_str(),
+                              *hyphen == false && ids[0] == *new_selected)) {
+            *new_selected = ids[0];
+            *hyphen       = false;
+            ret           = true;
+        }
+
+        for (sz i = 1, e = ids.size(); i != e; ++i) {
+            ImVec4 color{ mod.component_colors[get_index(ids[i])] };
+            ImGui::ColorButton("#color", color);
+            ImGui::SameLine(50.f);
             if (ImGui::Selectable(names[i].c_str(),
                                   *hyphen == false &&
                                     ids[i] == *new_selected)) {
@@ -627,6 +663,7 @@ bool component_selector::combobox(const char*   label,
                 ret           = true;
             }
         }
+
         if (ImGui::Selectable("-", *hyphen == true)) {
             ret = true;
         }
