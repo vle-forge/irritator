@@ -236,6 +236,9 @@ struct generic_component
 
 struct grid_component
 {
+    static inline constexpr i32 row_max    = 1024;
+    static inline constexpr i32 column_max = 1024;
+
     i32 row    = 1;
     i32 column = 1;
 

@@ -31,41 +31,44 @@ static const char* grid_type[] = {
 
 constexpr auto grid_type_count = 2;
 
-static void show_parameters(grid_component& grid) noexcept
+constexpr inline auto get_default_component_id(const grid_component& g) noexcept
+  -> component_id
 {
-    int row    = grid.row;
-    int column = grid.column;
+    return g.children.empty() ? undefined<component_id>() : g.children.front();
+}
 
+static void show_row_column_widgets(grid_component& grid) noexcept
+{
     bool is_changed = false;
 
+    int row = grid.row;
     if (ImGui::InputInt("row", &row)) {
         row        = std::clamp(row, 1, 256);
         is_changed = row != grid.row;
         grid.row   = row;
     }
 
+    int column = grid.column;
     if (ImGui::InputInt("column", &column)) {
         column      = std::clamp(column, 1, 256);
         is_changed  = is_changed || column != grid.column;
         grid.column = column;
     }
 
-    if (is_changed) {
-        auto id = grid.children.empty() ? undefined<component_id>()
-                                        : grid.children.front();
+    if (is_changed)
+        grid.resize(grid.row, grid.column, get_default_component_id(grid));
+}
 
-        grid.resize(grid.row, grid.column, id);
-    }
-
+static void show_type_widgets(grid_component& grid) noexcept
+{
     int selected_options = ordinal(grid.opts);
-    int selected_type    = ordinal(grid.connection_type);
-
     if (ImGui::Combo(
           "Options", &selected_options, grid_options, grid_options_count)) {
         if (selected_options != ordinal(grid.opts))
             grid.opts = static_cast<grid_component::options>(selected_options);
     }
 
+    int selected_type = ordinal(grid.connection_type);
     if (ImGui::Combo("Type", &selected_type, grid_type, grid_type_count)) {
         if (selected_type != ordinal(grid.connection_type))
             grid.connection_type =
@@ -73,20 +76,19 @@ static void show_parameters(grid_component& grid) noexcept
     }
 }
 
-static void show_default_grid(application&    app,
-                              grid_component& data,
-                              float           height) noexcept
+void show_default_component_widgets(application& app, grid_component& grid)
 {
-    ImGui::BeginChild("Editor", ImVec2(0, height));
-
-    if (app.component_sel.combobox("default children",
-                                   &data.children.front())) {
-        data.children.resize(data.row * data.column);
-        std::fill_n(
-          data.children.data(), data.children.size(), data.children.front());
+    auto id = get_default_component_id(grid);
+    if (app.component_sel.combobox("Default component", &id)) {
+        std::fill_n(grid.children.data(), grid.children.ssize(), id);
     }
+}
 
-    ImGui::EndChild();
+static void show_parameters(application& app, grid_component& grid) noexcept
+{
+    show_row_column_widgets(grid);
+    show_type_widgets(grid);
+    show_default_component_widgets(app, grid);
 }
 
 static void show_grid(grid_component& data, float height) noexcept
@@ -146,21 +148,8 @@ void grid_editor_data::show(component_editor& ed) noexcept
 
     irt_assert(compo && grid);
 
-    show_parameters(*grid);
-
-    if (ImGui::BeginTabBar("Editor")) {
-        if (ImGui::BeginTabItem("Default")) {
-            show_default_grid(*app, *grid, child_height);
-            ImGui::EndTabItem();
-        }
-
-        if (ImGui::BeginTabItem("Nodes")) {
-            show_grid(*grid, child_height);
-            ImGui::EndTabItem();
-        }
-
-        ImGui::EndTabBar();
-    }
+    show_parameters(*app, *grid);
+    show_grid(*grid, child_height);
 }
 
 grid_editor_dialog::grid_editor_dialog() noexcept
@@ -201,46 +190,7 @@ void grid_editor_dialog::show() noexcept
           region_height - ImGui::GetFrameHeightWithSpacing();
 
         ImGui::BeginChild("##dialog", ImVec2(0.f, child_size), true);
-
-        bool have_changed = false;
-
-        if (ImGui::InputInt("row", &grid.row)) {
-            grid.row     = std::clamp(grid.row, 1, 256);
-            have_changed = true;
-        }
-
-        if (ImGui::InputInt("column", &grid.column)) {
-            grid.column  = std::clamp(grid.column, 1, 256);
-            have_changed = true;
-        }
-
-        if (have_changed)
-            grid.resize(grid.row, grid.column, grid.children.front());
-
-        int selected_options = ordinal(grid.opts);
-        int selected_type    = ordinal(grid.connection_type);
-
-        if (ImGui::Combo(
-              "Options", &selected_options, grid_options, grid_options_count)) {
-            if (selected_options != ordinal(grid.opts))
-                grid.opts =
-                  static_cast<grid_component::options>(selected_options);
-        }
-
-        if (ImGui::Combo("Type", &selected_type, grid_type, grid_type_count)) {
-            if (selected_type != ordinal(grid.connection_type))
-                grid.connection_type =
-                  enum_cast<grid_component::type>(selected_type);
-        }
-
-        if (app->component_sel.combobox("Default component",
-                                        &grid.children.front())) {
-            grid.children.resize(grid.row * grid.column);
-            std::fill_n(grid.children.data(),
-                        grid.children.ssize(),
-                        grid.children.front());
-        }
-
+        show_parameters(*container_of(this, &application::grid_dlg), grid);
         ImGui::EndChild();
 
         if (ImGui::Button("Ok", button_size)) {

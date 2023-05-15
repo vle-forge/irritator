@@ -276,6 +276,7 @@ enum class error_id
     modeling_internal_component_missing,
     modeling_component_missing,
     modeling_hsm_id_error,
+    grid_component_size_error,
     srcs_constant_sources_buffer_not_enough,
     srcs_constant_sources_not_enough,
     srcs_text_file_sources_not_enough,
@@ -339,6 +340,7 @@ static inline constexpr std::string_view error_id_names[] = {
     "modeling_internal_component_missing",
     "modeling_component_missing",
     "modeling_hsm_id_error",
+    "grid_component_size_error",
     "srcs_constant_sources_buffer_not_enough",
     "srcs_constant_sources_not_enough",
     "srcs_text_file_sources_not_enough",
@@ -2710,6 +2712,14 @@ struct reader
                  });
     }
 
+    bool is_grid_valid(const grid_component& grid) noexcept
+    {
+        if (grid.row * grid.column == grid.children.ssize())
+            return true;
+
+        report_json_error(error_id::grid_component_size_error);
+    }
+
     bool read_grid_component(const rapidjson::Value& val,
                              component&              compo) noexcept
     {
@@ -2720,24 +2730,30 @@ struct reader
         compo.id.grid_id = mod().grid_components.get_id(grid);
 
         return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("rows"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(1) && copy_to(grid.row);
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("rows"sv == name)
+                         return read_temp_integer(value) &&
+                                is_int_greater_equal_than(1) &&
+                                is_int_less_than(grid_component::row_max) &&
+                                copy_to(grid.row);
 
-              if ("columns"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(1) && copy_to(grid.column);
+                     if ("columns"sv == name)
+                         return read_temp_integer(value) &&
+                                is_int_greater_equal_than(1) &&
+                                is_int_less_than(grid_component::row_max) &&
+                                copy_to(grid.column);
 
-              if ("connection-type"sv == name)
-                  return read_temp_integer(value) &&
-                         copy_to(grid.connection_type);
+                     if ("connection-type"sv == name)
+                         return read_temp_integer(value) &&
+                                copy_to(grid.connection_type);
 
-              if ("children"sv == name)
-                  return read_grid_children(value, grid);
+                     if ("children"sv == name)
+                         return read_grid_children(value, grid);
 
-              return true;
-          });
+                     return true;
+                 }) &&
+               is_grid_valid(grid);
     }
 
     bool dispatch_component_type(const rapidjson::Value& val,
