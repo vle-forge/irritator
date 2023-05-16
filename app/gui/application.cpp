@@ -611,6 +611,32 @@ bool component_selector::combobox(const char*   label,
     return ret;
 }
 
+bool component_selector::combobox(const char*   label,
+                                  component_id* new_selected,
+                                  bool*         hyphen) noexcept
+{
+    bool ret = false;
+
+    if (ImGui::BeginCombo(label, selected_name.c_str())) {
+        for (sz i = 0, e = ids.size(); i != e; ++i) {
+            if (ImGui::Selectable(names[i].c_str(),
+                                  *hyphen == false &&
+                                    ids[i] == *new_selected)) {
+                *new_selected = ids[i];
+                *hyphen       = false;
+                ret           = true;
+            }
+        }
+        if (ImGui::Selectable("-", *hyphen == true)) {
+            ret = true;
+        }
+
+        ImGui::EndCombo();
+    }
+
+    return ret;
+}
+
 bool component_selector::menu(const char*   label,
                               component_id* new_selected) noexcept
 {

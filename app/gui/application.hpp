@@ -673,7 +673,31 @@ class component_selector
 {
 public:
     void update() noexcept;
+
+    /**
+     * @brief Show @c ImGui::ComboBox for all @c component_id
+     * @details Show all @c component_id in @c modeling.
+     *
+     * @param label The ImGui::ComboBox label.
+     * @param new_selected Output parameters.
+     * @return The underlying ImGui::ComboBox return.
+     */
     bool combobox(const char* label, component_id* new_selected) noexcept;
+
+    /**
+     * @brief Show @c ImGui::ComboBox for all @c component_id plus hyphen.
+     * @details Show all @c component_id in @c modeling plus the hyphen symbol.
+     * This symbol means user let the @c component_id value untouch.
+     *
+     * @param label The ImGui::ComboBox label.
+     * @param[out] new_selected Store the selected @c component_id.
+     * @param[out] hyphen Store if the user select the hyphen
+     * @return The underlying ImGui::ComboBox return.
+     */
+    bool combobox(const char*   label,
+                  component_id* new_selected,
+                  bool*         hyphen) noexcept;
+
     bool menu(const char* label, component_id* new_selected) noexcept;
 
 private:
