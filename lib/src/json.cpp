@@ -1675,13 +1675,6 @@ struct reader
 
     ////
 
-    bool add_child_to_model_mapping(u64 unique_id, child_id c_id) noexcept
-    {
-        cache().model_mapping.data.emplace_back(unique_id, ordinal(c_id));
-
-        return true;
-    }
-
     bool read_child(const rapidjson::Value& val,
                     child&                  c,
                     child_id                c_id) noexcept
@@ -1722,8 +1715,7 @@ struct reader
                  }) &&
                optional_has_value(id) &&
                cache_model_mapping_add(*id, ordinal(c_id)) &&
-               optional_has_value(unique_id) &&
-               add_child_to_model_mapping(unique_id.value(), c_id);
+               optional_has_value(unique_id);
     }
 
     bool read_child_model_dynamics(const rapidjson::Value& val,
