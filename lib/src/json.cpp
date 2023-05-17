@@ -50,6 +50,7 @@ enum class stack_id
     internal_component,
 
     component,
+    component_color,
     component_ports,
     component_grid,
     component_grid_children,
@@ -155,6 +156,7 @@ static inline constexpr std::string_view stack_id_names[] = {
     "children",
     "internal_component",
     "component",
+    "component_color",
     "component_ports",
     "component_grid",
     "component_grid_children",
@@ -2791,6 +2793,18 @@ struct reader
                  });
     }
 
+    bool read_component_colors(const rapidjson::Value& val,
+                               std::array<float, 4>&   color) noexcept
+    {
+        auto_stack s(this, stack_id::component_color);
+
+        return is_value_array(val) && is_value_array_size_equal(val, 4) &&
+               for_each_array(
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     return read_temp_real(value) && copy_to(color[i]);
+                 });
+    }
+
     bool read_component(const rapidjson::Value& val, component& compo) noexcept
     {
         auto_stack s(this, stack_id::component);
@@ -2811,6 +2825,11 @@ struct reader
                   return read_temp_string(value) &&
                          convert_to_component(compo) &&
                          dispatch_component_type(val, compo);
+              if ("colors"sv == name)
+                  return read_component_colors(
+                    value,
+                    mod().component_colors[get_index(
+                      mod().components.get_id(compo))]);
               if ("x"sv == name)
                   return read_ports(value, compo.x_names);
               if ("y"sv == name)
@@ -4730,6 +4749,15 @@ static status do_component_save(Writer&          w,
 
     w.Key("type");
     w.String(component_type_names[ordinal(compo.type)]);
+
+    w.Key("colors");
+    w.StartArray();
+    auto& color = mod.component_colors[get_index(mod.components.get_id(compo))];
+    w.Double(color[0]);
+    w.Double(color[1]);
+    w.Double(color[2]);
+    w.Double(color[3]);
+    w.EndArray();
 
     write_component_ports(cache, mod, compo, w);
 
