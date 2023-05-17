@@ -80,7 +80,7 @@ static std::optional<std::filesystem::path> get_local_home_directory() noexcept
 }
 #endif
 
-std::optional<std::filesystem::path> get_home_directory()
+std::optional<std::filesystem::path> get_home_directory() noexcept
 {
     try {
         std::error_code ec;
@@ -109,7 +109,7 @@ std::optional<std::filesystem::path> get_home_directory()
 }
 
 #if defined(__linux__)
-std::optional<std::filesystem::path> get_executable_directory()
+std::optional<std::filesystem::path> get_executable_directory() noexcept
 {
     std::vector<char> buf(PATH_MAX, '\0');
     const auto        ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
@@ -122,7 +122,7 @@ std::optional<std::filesystem::path> get_executable_directory()
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(__APPLE__)
-std::optional<std::filesystem::path> get_executable_directory()
+std::optional<std::filesystem::path> get_executable_directory() noexcept
 {
     std::vector<char> buf(MAXPATHLEN, '\0');
     uint32_t          size{ 0 };
@@ -133,7 +133,7 @@ std::optional<std::filesystem::path> get_executable_directory()
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path> get_executable_directory()
+std::optional<std::filesystem::path> get_executable_directory() noexcept
 {
     std::wstring filepath;
     auto         size = ::GetModuleFileNameW(NULL, &filepath[0], 0u);
@@ -152,7 +152,7 @@ std::optional<std::filesystem::path> get_executable_directory()
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-std::optional<std::filesystem::path> get_system_component_dir()
+std::optional<std::filesystem::path> get_system_component_dir() noexcept
 {
     if (auto executable_path = get_executable_directory(); executable_path) {
         auto install_path = executable_path.value().parent_path();
@@ -172,7 +172,7 @@ std::optional<std::filesystem::path> get_system_component_dir()
     return std::nullopt;
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path> get_system_component_dir()
+std::optional<std::filesystem::path> get_system_component_dir() noexcept
 {
     if (auto executable_path = get_executable_directory(); executable_path) {
         auto install_path = executable_path.value().parent_path();
@@ -191,7 +191,7 @@ std::optional<std::filesystem::path> get_system_component_dir()
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-std::optional<std::filesystem::path> get_default_user_component_dir()
+std::optional<std::filesystem::path> get_default_user_component_dir() noexcept
 {
     if (auto home_path = get_home_directory(); home_path) {
         auto compo_path = home_path.value();
@@ -208,7 +208,7 @@ std::optional<std::filesystem::path> get_default_user_component_dir()
     return std::nullopt;
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path> get_default_user_component_dir()
+std::optional<std::filesystem::path> get_default_user_component_dir() noexcept
 {
     if (auto home_path = get_home_directory(); home_path) {
         auto compo_path = home_path.value();
@@ -267,7 +267,7 @@ char* get_imgui_filename() noexcept
 }
 
 #ifdef _WIN32
-uint32_t fill_drives(file_dialog& fd)
+uint32_t fill_drives(file_dialog& fd) noexcept
 {
     DWORD    mask = ::GetLogicalDrives();
     uint32_t ret  = { 0 };
@@ -373,7 +373,7 @@ void show_drives(const std::filesystem::path& current,
                  std::filesystem::path&       selected,
                  const uint32_t               drives,
                  bool*                        path_click,
-                 std::filesystem::path*       next)
+                 std::filesystem::path*       next) noexcept
 {
     char current_drive  = static_cast<char>(current.c_str()[0]);
     char drive_string[] = { current_drive, ':', '\0' };
@@ -410,7 +410,7 @@ void     show_drives(const std::filesystem::path& /*current*/,
                      std::filesystem::path& /*selected*/,
                      const uint32_t /*drives*/,
                      bool* /*path_click*/,
-                     std::filesystem::path* /*next*/)
+                     std::filesystem::path* /*next*/) noexcept
 {
 }
 #endif
