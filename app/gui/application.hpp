@@ -175,28 +175,24 @@ private:
     bool scroll_to_bottom = false;
 };
 
-struct raw_observation
+class plot_observation
 {
-    raw_observation() noexcept = default;
-    raw_observation(const observation_message& msg_, const real t_) noexcept;
+public:
+    plot_observation(model_id mdl, i32 buffer_capacity) noexcept;
 
-    observation_message msg;
-    real                t;
-};
+    void clear() noexcept;
 
-struct simulation_observation
-{
-    using value_type = irt::real;
+    void update(observer& obs) noexcept;
+    void flush(observer& obs) noexcept;
+    void write(const observer&              obs,
+               const std::filesystem::path& file_path) noexcept;
 
     model_id         model  = undefined<model_id>();
     interpolate_type i_type = interpolate_type::none;
 
-    irt::small_vector<double, 2> output_vec;
-
     u64               plot_id;
     small_string<16u> name;
 
-    ring_buffer<ImPlotPoint> linear_outputs;
     ImPlotRange limits; //! use in preview output simulation observation.
 
     std::filesystem::path file;
@@ -206,23 +202,42 @@ struct simulation_observation
     real time_step     = to_real(0.01L);
 
     simulation_plot_type plot_type = simulation_plot_type::none;
+};
 
-    simulation_observation(model_id mdl, i32 buffer_capacity) noexcept;
+class grid_observation
+{
+public:
+    //! Assign a new size to children and remove all @c observer_id.
+    bool resize(int row, int col) noexcept;
 
-    void clear() noexcept;
+    //! Assign @c undefined<observer_id> to all children.
+    bool clear() noexcept;
 
-    void update(observer& obs) noexcept;
-    void flush(observer& obs) noexcept;
-    void push_back(real r) noexcept;
+    //! Display the grid using @c ImGui code.
+    bool show(application& app) noexcept;
 
-    void write(const std::filesystem::path& file_path) noexcept;
+    template<typename Function, typename... Args>
+    inline void for_each(Function&& f, Args... args) noexcept
+    {
+        for (int r = 0, er = rows; r != er; ++r)
+            for (int c = 0, ec = cols; r != ec; ++r)
+                f(r, c, children[r * cols + c], args...);
+    }
+
+private:
+    small_string<31>    name;
+    vector<observer_id> children;
+
+    // float none_value = 0.f;
+    int rows = 0;
+    int cols = 0;
 };
 
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
 // to read a large buffer instead of a vector.
 inline ImPlotPoint ring_buffer_getter(void* data, int idx) noexcept
 {
-    auto* ring  = reinterpret_cast<ring_buffer<ImPlotPoint>*>(data);
+    auto* ring  = reinterpret_cast<ring_buffer<observation>*>(data);
     auto  index = ring->index_from_begin(idx);
 
     return ImPlotPoint{ (*ring)[index].x, (*ring)[index].y };
@@ -231,7 +246,7 @@ inline ImPlotPoint ring_buffer_getter(void* data, int idx) noexcept
 struct simulation_observation_copy
 {
     small_string<16u>        name;
-    ring_buffer<ImPlotPoint> linear_outputs;
+    ring_buffer<observation> linear_outputs;
     simulation_plot_type     plot_type = simulation_plot_type::none;
 };
 
@@ -372,7 +387,7 @@ public:
     void show(component_editor& ed) noexcept;
 
     vector<bool> selected;
-    ImVec2       disp{ 1000.f   , 1000.f };
+    ImVec2       disp{ 1000.f, 1000.f };
     float        scale = 10.f;
 
     bool         start_selection = false;
@@ -478,7 +493,7 @@ struct simulation_editor
 
     simulation_status simulation_state = simulation_status::not_started;
 
-    data_array<simulation_observation, simulation_observation_id> sim_obs;
+    data_array<plot_observation, simulation_observation_id> sim_obs;
     data_array<simulation_observation_copy, simulation_observation_copy_id>
       copy_obs;
 
@@ -835,13 +850,6 @@ inline tree_node_id project_window::selected_tn() noexcept
 inline child_id project_window::selected_child() noexcept
 {
     return m_selected_child;
-}
-
-inline raw_observation::raw_observation(const observation_message& msg_,
-                                        const real                 t_) noexcept
-  : msg(msg_)
-  , t(t_)
-{
 }
 
 inline bool simulation_editor::can_edit() const noexcept

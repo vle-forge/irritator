@@ -112,8 +112,7 @@ auto write_raw_data(observer& obs, OutputIterator it) noexcept -> void
     auto tail = obs.buffer.tail();
 
     while (head != tail) {
-        *it++ = head->data[0];
-        *it++ = head->data[1];
+        *it++ = { head->data[0], head->data[1] };
 
         obs.buffer.pop_front();
         head = obs.buffer.head();
@@ -128,8 +127,7 @@ auto flush_raw_data(observer& obs, OutputIterator it) noexcept -> void
 
     if (!obs.buffer.empty()) {
         auto head = obs.buffer.head();
-        *it++     = head->data[0];
-        *it++     = head->data[1];
+        *it++     = { head->data[0], head->data[1] };
     }
 
     obs.clear();
@@ -138,26 +136,23 @@ auto flush_raw_data(observer& obs, OutputIterator it) noexcept -> void
 template<int QssLevel, typename OutputIterator>
 auto compute_interpolate(const observation_message& msg,
                          OutputIterator             it,
-                         time                       until,
-                         time                       time_step) noexcept -> void
+                         const time                 until,
+                         const time                 time_step) noexcept -> void
 {
     static_assert(1 <= QssLevel && QssLevel <= 3);
 
-    *it++ = msg[0];
-    *it++ = compute_value<QssLevel>(msg, 0);
+    *it++ = { msg[0], compute_value<QssLevel>(msg, 0) };
 
     auto duration = until - msg[0] - time_step;
     if (duration > 0) {
         time elapsed = time_step;
         for (; elapsed < duration; elapsed += time_step) {
-            *it++ = msg[0] + elapsed;
-            *it++ = compute_value<QssLevel>(msg, elapsed);
+            *it++ = { msg[0] + elapsed, compute_value<QssLevel>(msg, elapsed) };
         }
 
         if (duration < elapsed) {
             auto limit = duration - std::numeric_limits<real>::epsilon();
-            *it++      = msg[0] + limit;
-            *it++      = compute_value<QssLevel>(msg, limit);
+            *it++ = { msg[0] + limit, compute_value<QssLevel>(msg, limit) };
         }
     }
 }
@@ -175,8 +170,7 @@ auto write_interpolate_data(observer&      obs,
     switch (get_interpolate_type(obs.type)) {
     case interpolate_type::none:
         while (head != tail) {
-            *it++ = head->data[0];
-            *it++ = head->data[1];
+            *it++ = observation(head->data[0], head->data[1]);
             obs.buffer.pop_front();
             head = obs.buffer.head();
         }

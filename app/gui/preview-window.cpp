@@ -42,6 +42,38 @@ void task_add_simulation_observation(void* param) noexcept
     g_task->state = task_status::finished;
 }
 
+static auto get_model(application&      app,
+                      plot_observation& plot,
+                      model*&           out) noexcept -> bool
+{
+    if (auto* mdl = app.mod.models.try_to_get(plot.model); mdl) {
+        out = mdl;
+        return true;
+    }
+
+    return false;
+}
+
+static auto get_observer(application& app, model& mdl, observer*& out) noexcept
+  -> bool
+{
+    if (auto* obs = app.sim.observers.try_to_get(mdl.obs_id); obs) {
+        out = obs;
+        return true;
+    }
+
+    return false;
+}
+
+static auto get_observer(application&      app,
+                         plot_observation& plot,
+                         observer*&        out) noexcept -> bool
+{
+    model* mdl = nullptr;
+
+    return get_model(app, plot, mdl) && get_observer(app, *mdl, out);
+}
+
 void preview_window::show() noexcept
 {
     if (!ImGui::Begin(preview_window::name, &is_open)) {
@@ -69,11 +101,14 @@ void preview_window::show() noexcept
         ImGui::TableHeadersRow();
         ImPlot::PushColormap(ImPlotColormap_Pastel);
 
-        simulation_observation* obs = nullptr;
-        int                     row = -1;
+        plot_observation* obs = nullptr;
+        int               row = -1;
         while (s_editor.sim_obs.next(obs)) {
+            observer* o = nullptr;
+            irt_assert(get_observer(*app, *obs, o));
+
             ++row;
-            if (obs->linear_outputs.empty())
+            if (o->linearized_buffer.empty())
                 continue;
 
             ImGui::TableNextRow();
@@ -108,8 +143,8 @@ void preview_window::show() noexcept
 
                     ImPlot::PlotLineG(obs->name.c_str(),
                                       ring_buffer_getter,
-                                      &obs->linear_outputs,
-                                      obs->linear_outputs.ssize());
+                                      &o->linearized_buffer,
+                                      o->linearized_buffer.ssize());
 
                     ImPlot::PopStyleColor();
                 }
@@ -144,8 +179,8 @@ void preview_window::show() noexcept
                 const auto mdl_id = app->sim.models.get_id(*mdl);
                 ImGui::PushID(i);
 
-                bool                    already_observed = false;
-                simulation_observation* obs              = nullptr;
+                bool              already_observed = false;
+                plot_observation* obs              = nullptr;
                 while (s_editor.sim_obs.next(obs)) {
                     if (obs->model == mdl_id) {
                         already_observed = true;

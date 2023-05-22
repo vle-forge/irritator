@@ -97,40 +97,40 @@ void show_default_component_widgets(application& app, grid_component& grid)
  * @return The unique @c component_id or @c undefined<component_id>() if
  * selection is multiple.
  */
-static auto get_selected_id(const vector<component_id>& ids,
-                            const vector<bool>&         selected) noexcept
-  -> std::optional<component_id>
-{
-    irt_assert(ids.size() == selected.size());
+// static auto get_selected_id(const vector<component_id>& ids,
+//                             const vector<bool>&         selected) noexcept
+//   -> std::optional<component_id>
+// {
+//     irt_assert(ids.size() == selected.size());
 
-    auto found      = undefined<component_id>();
-    auto have_value = false;
+//     auto found      = undefined<component_id>();
+//     auto have_value = false;
 
-    for (sz i = 0, e = ids.size(); i != e; ++i) {
-        if (selected[i]) {
-            if (have_value) {
-                if (found != ids[i])
-                    return std::nullopt;
-            } else {
-                found      = ids[i];
-                have_value = true;
-            }
-        }
-    }
+//     for (sz i = 0, e = ids.size(); i != e; ++i) {
+//         if (selected[i]) {
+//             if (have_value) {
+//                 if (found != ids[i])
+//                     return std::nullopt;
+//             } else {
+//                 found      = ids[i];
+//                 have_value = true;
+//             }
+//         }
+//     }
 
-    return std::make_optional(found);
-}
+//     return std::make_optional(found);
+// }
 
-static void assign_selection(const vector<bool>&   selected,
-                             vector<component_id>& ids,
-                             component_id          value) noexcept
-{
-    irt_assert(ids.size() == selected.size());
+// static void assign_selection(const vector<bool>&   selected,
+//                              vector<component_id>& ids,
+//                              component_id          value) noexcept
+// {
+//     irt_assert(ids.size() == selected.size());
 
-    for (sz i = 0, e = ids.size(); i != e; ++i)
-        if (selected[i])
-            ids[i] = value;
-}
+//     for (sz i = 0, e = ids.size(); i != e; ++i)
+//         if (selected[i])
+//             ids[i] = value;
+// }
 
 static void show_selection(application&      app,
                            grid_editor_data& ed,

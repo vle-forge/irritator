@@ -25,15 +25,13 @@
 
 struct file_output
 {
-    using value_type = irt::real;
+    using value_type = irt::observation;
 
     std::FILE*            os = nullptr;
     irt::observer&        obs;
     irt::interpolate_type type        = irt::interpolate_type::none;
     irt::real             time_step   = 1e-3;
     bool                  interpolate = true;
-
-    irt::small_vector<irt::real, 2> vec;
 
     file_output(irt::observer& obs_, const char* filename) noexcept
       : os{ nullptr }
@@ -44,26 +42,20 @@ struct file_output
             fmt::print(os, "t,{}\n", obs_.name.c_str());
     }
 
-    void push_back(irt::real r) noexcept
+    void push_back(const irt::observation& vec) noexcept
     {
-        if (vec.size() >= 2) {
-            fmt::print(os, "{},{}\n", vec[0], vec[1]);
-            vec.clear();
-        }
-
-        vec.emplace_back(r);
+        fmt::print(os, "{},{}\n", vec.x, vec.y);
     }
 
     void write() noexcept
     {
-        if (obs.buffer.ssize() > 2) {
-            auto it = std::back_insert_iterator<file_output>(*this);
+        auto it = std::back_insert_iterator<file_output>(*this);
 
-            if (interpolate) {
+        if (interpolate) {
+            if (obs.buffer.ssize() >= 2)
                 write_interpolate_data(obs, it, time_step);
-            } else {
-                write_raw_data(obs, it);
-            }
+        } else {
+            write_raw_data(obs, it);
         }
     }
 

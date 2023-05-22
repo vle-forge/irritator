@@ -160,7 +160,7 @@ static void simulation_init(component_editor&  ed,
         return;
     }
 
-    simulation_observation* mem = nullptr;
+    plot_observation* mem = nullptr;
     while (sim_ed.sim_obs.next(mem)) {
         mem->clear();
     }
@@ -171,7 +171,6 @@ static void simulation_init(component_editor&  ed,
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
-
 
     if (auto ret = app->mod.srcs.prepare(); is_bad(ret)) {
         make_init_error_msg(

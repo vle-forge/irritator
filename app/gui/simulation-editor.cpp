@@ -695,7 +695,7 @@ simulation_editor::~simulation_editor() noexcept
 void simulation_editor::remove_simulation_observation_from(
   model_id mdl_id) noexcept
 {
-    simulation_observation* obs = nullptr;
+    plot_observation* obs = nullptr;
     while (sim_obs.next(obs)) {
         if (obs->model == mdl_id) {
             obs->clear();

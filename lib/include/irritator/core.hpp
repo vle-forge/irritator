@@ -2832,12 +2832,28 @@ constexpr sz dynamics_type_size() noexcept
     return static_cast<sz>(dynamics_type_last() + 1);
 }
 
+struct observation
+{
+    observation() noexcept = default;
+    observation(const real x_, const real y_) noexcept
+      : x{ x_ }
+      , y{ y_ }
+    {
+    }
+
+    real x{};
+    real y{};
+};
+
 struct observer
 {
-    static constexpr u8 flags_none           = 0;
-    static constexpr u8 flags_data_available = 1 << 0;
-    static constexpr u8 flags_buffer_full    = 1 << 1;
-    static constexpr u8 flags_data_lost      = 1 << 2;
+    using value_type = observation;
+
+    static constexpr u8 flags_none              = 0;
+    static constexpr u8 flags_data_available    = 1 << 0;
+    static constexpr u8 flags_buffer_full       = 1 << 1;
+    static constexpr u8 flags_data_lost         = 1 << 2;
+    static constexpr u8 flags_use_linear_buffer = 1 << 3;
 
     observer(std::string_view name_,
              u64              user_id_   = 0,
@@ -2846,17 +2862,19 @@ struct observer
     void reset() noexcept;
     void clear() noexcept;
     void update(observation_message msg) noexcept;
-
     bool full() const noexcept;
+    void push_back(const observation& vec) noexcept;
 
     ring_buffer<observation_message> buffer;
+    ring_buffer<observation>         linearized_buffer;
 
-    model_id      model     = undefined<model_id>();
-    u64           user_id   = 0;
-    i32           user_type = 0;
-    dynamics_type type      = dynamics_type::qss1_integrator;
+    model_id              model     = undefined<model_id>();
+    u64                   user_id   = 0;
+    i32                   user_type = 0;
+    dynamics_type         type      = dynamics_type::qss1_integrator;
+    std::pair<real, real> limits;
 
-    small_string<15> name;
+    small_string<14> name;
     u8               flags;
 };
 
@@ -2927,54 +2945,53 @@ status send_message(simulation&  sim,
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-                                  {
-                                      t.lambda(sim)
-                                      } -> std::convertible_to<status>;
-                              };
+    {
+        t.lambda(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-          } -> std::convertible_to<status>;
+      } -> std::convertible_to<status>;
   };
 
 template<typename T>
-concept has_observation_function =
-  requires(T t, time s, time e) {
-      {
-          t.observation(s, e)
-          } -> std::convertible_to<observation_message>;
-  };
+concept has_observation_function = requires(T t, time s, time e) {
+    {
+        t.observation(s, e)
+    } -> std::convertible_to<observation_message>;
+};
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-                                      {
-                                          t.initialize(sim)
-                                          } -> std::convertible_to<status>;
-                                  };
+    {
+        t.initialize(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-                                    {
-                                        t.finalize(sim)
-                                        } -> std::convertible_to<status>;
-                                };
+    {
+        t.finalize(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_input_port = requires(T t) {
-                             {
-                                 t.x
-                             };
-                         };
+    {
+        t.x
+    };
+};
 
 template<typename T>
 concept has_output_port = requires(T t) {
-                              {
-                                  t.y
-                              };
-                          };
+    {
+        t.y
+    };
+};
 
 constexpr observation_message qss_observation(real X,
                                               real u,
@@ -9976,12 +9993,19 @@ inline observer::observer(std::string_view name_,
 inline void observer::reset() noexcept
 {
     buffer.clear();
-    flags = flags_none;
+    linearized_buffer.clear();
+    limits = std::make_pair(-std::numeric_limits<real>::infinity(),
+                            +std::numeric_limits<real>::infinity());
+    flags  = flags_none;
 }
 
 inline void observer::clear() noexcept
 {
     buffer.clear();
+    linearized_buffer.clear();
+    limits = std::make_pair(-std::numeric_limits<real>::infinity(),
+                            +std::numeric_limits<real>::infinity());
+
     flags = (flags & flags_data_lost) ? flags_data_lost : flags_none;
 }
 
@@ -9997,10 +10021,22 @@ inline void observer::update(observation_message msg) noexcept
     else
         buffer.force_enqueue(msg);
 
+    if (flags & flags_use_linear_buffer) {
+        if (linearized_buffer.ssize() >= 1) {
+            limits.first  = linearized_buffer.front().x;
+            limits.second = linearized_buffer.back().y;
+        }
+    }
+
     if (buffer.full())
         new_flags |= flags_buffer_full;
 
     flags = new_flags;
+}
+
+inline void observer::push_back(const observation& vec) noexcept
+{
+    linearized_buffer.push_back(vec);
 }
 
 inline bool observer::full() const noexcept

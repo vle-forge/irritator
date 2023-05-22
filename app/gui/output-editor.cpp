@@ -8,6 +8,7 @@
 #include "internal.hpp"
 #include "irritator/core.hpp"
 
+#include <optional>
 #include <utility>
 
 namespace irt {
@@ -25,6 +26,38 @@ output_editor::~output_editor() noexcept
 {
     if (implot_context)
         ImPlot::DestroyContext(implot_context);
+}
+
+static auto get_model(application&      app,
+                      plot_observation& plot,
+                      model*&           out) noexcept -> bool
+{
+    if (auto* mdl = app.mod.models.try_to_get(plot.model); mdl) {
+        out = mdl;
+        return true;
+    }
+
+    return false;
+}
+
+static auto get_observer(application& app, model& mdl, observer*& out) noexcept
+  -> bool
+{
+    if (auto* obs = app.sim.observers.try_to_get(mdl.obs_id); obs) {
+        out = obs;
+        return true;
+    }
+
+    return false;
+}
+
+static auto get_observer(application&      app,
+                         plot_observation& plot,
+                         observer*&        out) noexcept -> bool
+{
+    model* mdl = nullptr;
+
+    return get_model(app, plot, mdl) && get_observer(app, *mdl, out);
 }
 
 static void show_observation_table(application& app) noexcept
@@ -48,8 +81,11 @@ static void show_observation_table(application& app) noexcept
                                 ImGuiTableColumnFlags_WidthStretch);
 
         ImGui::TableHeadersRow();
-        simulation_observation* out = nullptr;
+        plot_observation* out = nullptr;
         while (app.simulation_ed.sim_obs.next(out)) {
+            observer* o = nullptr;
+            irt_assert(get_observer(app, *out, o));
+
             const auto id = app.simulation_ed.sim_obs.get_id(*out);
             ImGui::PushID(out);
             ImGui::TableNextRow();
@@ -70,9 +106,9 @@ static void show_observation_table(application& app) noexcept
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->linear_outputs.size());
+            // ImGui::TextFormat("{}", out->linear_outputs.size());
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->linear_outputs.capacity());
+            // ImGui::TextFormat("{}", out->linear_outputs.capacity());
 
             ImGui::TableNextColumn();
 
@@ -88,7 +124,7 @@ static void show_observation_table(application& app) noexcept
                 if (app.simulation_ed.copy_obs.can_alloc(1)) {
                     auto& new_obs          = app.simulation_ed.copy_obs.alloc();
                     new_obs.name           = out->name;
-                    new_obs.linear_outputs = out->linear_outputs;
+                    new_obs.linear_outputs = o->linearized_buffer;
                 }
             }
 
@@ -98,7 +134,7 @@ static void show_observation_table(application& app) noexcept
                 app.output_ed.write_output         = true;
                 auto err                           = std::error_code{};
                 auto file_path = std::filesystem::current_path(err);
-                out->write(file_path);
+                out->write(*o, file_path);
             }
 
             ImGui::SameLine();
@@ -163,22 +199,25 @@ static void show_observation_plot(application& app) noexcept
         ImPlot::SetupAxes(
           nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
 
-        simulation_observation* obs = nullptr;
+        plot_observation* obs = nullptr;
         while (app.simulation_ed.sim_obs.next(obs)) {
-            if (obs->linear_outputs.size() > 0) {
+            observer* o = nullptr;
+            irt_assert(get_observer(app, *obs, o));
+
+            if (o->linearized_buffer.size() > 0) {
                 switch (obs->plot_type) {
                 case simulation_plot_type::plotlines:
                     ImPlot::PlotLineG(obs->name.c_str(),
                                       ring_buffer_getter,
-                                      &obs->linear_outputs,
-                                      obs->linear_outputs.ssize());
+                                      &o->linearized_buffer,
+                                      o->linearized_buffer.ssize());
                     break;
 
                 case simulation_plot_type::plotscatters:
                     ImPlot::PlotScatterG(obs->name.c_str(),
                                          ring_buffer_getter,
-                                         &obs->linear_outputs,
-                                         obs->linear_outputs.ssize());
+                                         &o->linearized_buffer,
+                                         o->linearized_buffer.ssize());
                     break;
 
                 default:

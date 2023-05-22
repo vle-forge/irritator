@@ -4,6 +4,7 @@
 
 #include "application.hpp"
 #include "internal.hpp"
+#include "irritator/core.hpp"
 
 #include <irritator/io.hpp>
 
@@ -12,30 +13,25 @@
 
 namespace irt {
 
-simulation_observation::simulation_observation(model_id mdl_,
-                                               i32 buffer_capacity) noexcept
+plot_observation::plot_observation(model_id mdl_, i32 buffer_capacity) noexcept
   : model{ mdl_ }
-  , linear_outputs{ buffer_capacity }
 {
     irt_assert(buffer_capacity > 0);
 }
 
-void simulation_observation::clear() noexcept
+void plot_observation::clear() noexcept
 {
-    output_vec.clear();
-    linear_outputs.clear();
-
     limits.Min = -std::numeric_limits<double>::infinity();
     limits.Max = +std::numeric_limits<double>::infinity();
 }
 
-void simulation_observation::write(
-  const std::filesystem::path& file_path) noexcept
+void plot_observation::write(const observer&              obs,
+                             const std::filesystem::path& file_path) noexcept
 {
     try {
         if (auto ofs = std::ofstream{ file_path }; ofs.is_open()) {
-            auto it = linear_outputs.head();
-            auto et = linear_outputs.end();
+            auto it = obs.linearized_buffer.head();
+            auto et = obs.linearized_buffer.end();
 
             for (; it != et; ++it)
                 ofs << it->x << ',' << it->y << '\n';
@@ -44,39 +40,63 @@ void simulation_observation::write(
     }
 }
 
-void simulation_observation::update(observer& obs) noexcept
+void plot_observation::update(observer& obs) noexcept
 {
     while (obs.buffer.ssize() > 2) {
-        auto it = std::back_insert_iterator<simulation_observation>(*this);
+        auto it = std::back_insert_iterator<observer>(obs);
         write_interpolate_data(obs, it, time_step);
     }
 
-    if (linear_outputs.ssize() >= 1) {
-        limits.Min = linear_outputs.head()->x;
-        limits.Max = linear_outputs.tail()->x;
+    if (obs.linearized_buffer.ssize() >= 1) {
+        limits.Min = obs.linearized_buffer.head()->x;
+        limits.Max = obs.linearized_buffer.tail()->x;
     }
 }
 
-void simulation_observation::flush(observer& obs) noexcept
+void plot_observation::flush(observer& obs) noexcept
 {
-    auto it = std::back_insert_iterator<simulation_observation>(*this);
+    auto it = std::back_insert_iterator<observer>(obs);
     flush_interpolate_data(obs, it, time_step);
 
-    if (linear_outputs.ssize() >= 1) {
-        limits.Min = linear_outputs.head()->x;
-        limits.Max = linear_outputs.tail()->x;
+    if (obs.linearized_buffer.ssize() >= 1) {
+        limits.Min = obs.linearized_buffer.head()->x;
+        limits.Max = obs.linearized_buffer.tail()->x;
     }
 }
 
-void simulation_observation::push_back(real r) noexcept
+inline bool grid_observation::resize(int rows_, int cols_) noexcept
 {
-    if (output_vec.size() >= 2) {
-        linear_outputs.force_enqueue(
-          ImPlotPoint{ output_vec[0], output_vec[1] });
-        output_vec.clear();
-    }
+    const auto len = rows_ * cols_;
+    rows           = rows_;
+    cols           = cols_;
 
-    output_vec.emplace_back(r);
+    irt_assert(len > 0);
+
+    children.resize(len);
+
+    return clear();
+}
+
+inline bool grid_observation::clear() noexcept
+{
+    std::fill_n(children.data(), children.size(), undefined<observer_id>());
+
+    return true;
+}
+
+inline bool grid_observation::show(application& /*app*/) noexcept
+{
+    // irt_assert(!children.empty() && rows > 0 && cols > 0);
+
+    // for_each([&](int r, int c, observer_id id) {
+    //     const auto  obs_id = children[r * cols + c];
+    //     const auto* obs    = observers.try_to_get(obs_id);
+    //     // float       value  = obs ? obs->last_value() : none_value;
+
+    //     // to display in ImGui widget.
+    // });
+
+    return true;
 }
 
 struct simulation_observation_job
