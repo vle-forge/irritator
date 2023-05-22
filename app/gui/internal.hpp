@@ -46,6 +46,11 @@ inline int portable_filename_dirname_callback(
 {
     ImWchar c = data->EventChar;
 
+    if (data->BufTextLen <= 1 &&
+        ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9') || c == '_'))
+        return 0;
+
     return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
             (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.')
              ? 0

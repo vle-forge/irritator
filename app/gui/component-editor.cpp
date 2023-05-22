@@ -2,15 +2,17 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/core.hpp>
+#include <irritator/format.hpp>
+#include <irritator/modeling.hpp>
+
 #include "application.hpp"
 #include "dialog.hpp"
 #include "editor.hpp"
-#include "fmt/core.h"
 #include "imgui.h"
 #include "imnodes.h"
 #include "internal.hpp"
-#include "irritator/core.hpp"
-#include "irritator/modeling.hpp"
+
 #include <cstring>
 
 namespace irt {
@@ -1496,12 +1498,49 @@ bool exist(data_array<T, Identifier>& data,
     return find(data, container, name) != nullptr;
 }
 
+void add_extension(file_path& file) noexcept
+{
+    const auto          sv = file.path.sv();
+    decltype(file.path) tmp;
+
+    if (auto last = sv.find_last_of('.'); last == std::string_view::npos) {
+        irt_assert(last != 0);
+        tmp.assign(sv.substr(0, last - 1));
+    } else {
+        tmp.assign(sv);
+    }
+
+    format(file.path, "{}.irt", tmp.sv());
+}
+
+static bool all_char_valid(std::string_view v) noexcept
+{
+    for (auto c : v)
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.'))
+            return false;
+
+    return true;
+}
+
+static bool end_with_irt(std::string_view v) noexcept
+{
+    return v.ends_with(".irt");
+}
+
+static bool is_valid_irt_filename(std::string_view v) noexcept
+{
+    return !v.empty() && v[0] != '.' && v[0] != '-' && all_char_valid(v) &&
+           end_with_irt(v);
+}
+
 static void show_file_access(application& app, component& compo) noexcept
 {
     static constexpr const char* empty = "";
 
     auto*       reg_dir = app.mod.registred_paths.try_to_get(compo.reg_path);
-    const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
+    const char* reg_preview     = reg_dir ? reg_dir->path.c_str() : empty;
+    bool        is_save_enabled = false;
 
     if (ImGui::BeginCombo("Path", reg_preview)) {
         registred_path* list = nullptr;
@@ -1578,11 +1617,11 @@ static void show_file_access(application& app, component& compo) noexcept
                 file = &f;
             }
 
-            if (ImGui::InputFilteredString("File##text", file->path)) {
-                if (!exist(
-                      app.mod.file_paths, dir->children, file->path.sv())) {
-                }
-            }
+            if (ImGui::InputFilteredString("File##text", file->path))
+                if (!end_with_irt(file->path.sv()))
+                    add_extension(*file);
+
+            is_save_enabled = is_valid_irt_filename(file->path.sv());
 
             auto* desc = app.mod.descriptions.try_to_get(compo.desc);
             if (!desc) {
@@ -1607,14 +1646,13 @@ static void show_file_access(application& app, component& compo) noexcept
                 }
             }
 
-            if (file && dir) {
-                if (ImGui::Button("Save")) {
-                    auto id = ordinal(app.mod.components.get_id(compo));
-
-                    app.add_simulation_task(task_save_component, id);
-                    app.add_simulation_task(task_save_description, id);
-                }
+            ImGui::BeginDisabled(!is_save_enabled);
+            if (ImGui::Button("Save")) {
+                auto id = ordinal(app.mod.components.get_id(compo));
+                app.add_simulation_task(task_save_component, id);
+                app.add_simulation_task(task_save_description, id);
             }
+            ImGui::EndDisabled();
         }
     }
 }
