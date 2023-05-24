@@ -5719,7 +5719,7 @@ struct abstract_logical
                     std::size(default_values),
                     std::data(values));
 
-        AbstractLogicalTester tester;
+        AbstractLogicalTester tester{};
         is_valid      = tester(std::begin(values), std::end(values));
         sigma         = time_domain<time>::zero;
         value_changed = true;
@@ -5756,7 +5756,7 @@ struct abstract_logical
             }
         }
 
-        AbstractLogicalTester tester;
+        AbstractLogicalTester tester{};
         is_valid = tester(std::begin(values), std::end(values));
 
         if (is_valid != old_is_value) {
