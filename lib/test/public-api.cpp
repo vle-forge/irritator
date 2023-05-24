@@ -3318,13 +3318,13 @@ int main()
           ofs_b, gen, dist, 1024, irt::random_file_type::binary);
 
         auto str_b = ofs_b.str();
-        expect(str_b.size() == 1024 * 8);
+        expect(str_b.size() == static_cast<size_t>(1024) * 8);
 
         irt::generate_random_file(
           ofs_t, gen, dist, 1024, irt::random_file_type::text);
 
         auto str_t = ofs_b.str();
-        expect(str_t.size() > 1024 * 2);
+        expect(str_t.size() > static_cast<size_t>(1024) * 2);
     };
 
     "binary-memory-io"_test = [] {
