@@ -177,7 +177,7 @@ auto write_interpolate_data(observer&      obs,
         break;
     case interpolate_type::qss1:
         while (head != tail) {
-            auto next = head;
+            auto next{ head };
             ++next;
             compute_interpolate<1>(*head, it, next->data[0], time_step);
             obs.buffer.pop_front();
@@ -186,7 +186,7 @@ auto write_interpolate_data(observer&      obs,
         break;
     case interpolate_type::qss2:
         while (head != tail) {
-            auto next = head;
+            auto next{ head };
             ++next;
             compute_interpolate<2>(*head, it, next->data[0], time_step);
             obs.buffer.pop_front();
@@ -195,7 +195,7 @@ auto write_interpolate_data(observer&      obs,
         break;
     case interpolate_type::qss3:
         while (head != tail) {
-            auto next = head;
+            auto next{ head };
             ++next;
             compute_interpolate<3>(*head, it, next->data[0], time_step);
             obs.buffer.pop_front();
@@ -203,6 +203,13 @@ auto write_interpolate_data(observer&      obs,
         }
         break;
     }
+}
+
+template<typename OutputIterator>
+auto write_interpolate_data(observer& obs, real time_step) noexcept -> void
+{
+    return write_interpolate_data(
+      obs, std::back_inserter(obs.linearized_buffer), time_step);
 }
 
 template<typename OutputIterator>
@@ -216,7 +223,15 @@ constexpr auto flush_interpolate_data(observer&      obs,
     if (!obs.buffer.empty())
         flush_raw_data(obs, it);
 
-    obs.clear();
+    obs.buffer.clear();
+}
+
+template<typename OutputIterator>
+constexpr auto flush_interpolate_data(observer& obs, real time_step) noexcept
+  -> void
+{
+    flush_interpolate_data(
+      obs, std::back_inserter(obs.linearized_buffer), time_step);
 }
 
 } // namespace irt
