@@ -1091,7 +1091,8 @@ public:
 
     constexpr void swap(ring_buffer& rhs) noexcept;
     constexpr void clear() noexcept;
-    constexpr void reset(std::integral auto capacity) noexcept;
+    constexpr void destroy() noexcept;
+    constexpr void reserve(std::integral auto capacity) noexcept;
 
     template<typename... Args>
     constexpr bool emplace_front(Args&&... args) noexcept;
@@ -2946,54 +2947,53 @@ status send_message(simulation&  sim,
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-                                  {
-                                      t.lambda(sim)
-                                      } -> std::convertible_to<status>;
-                              };
+    {
+        t.lambda(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-          } -> std::convertible_to<status>;
+      } -> std::convertible_to<status>;
   };
 
 template<typename T>
-concept has_observation_function =
-  requires(T t, time s, time e) {
-      {
-          t.observation(s, e)
-          } -> std::convertible_to<observation_message>;
-  };
+concept has_observation_function = requires(T t, time s, time e) {
+    {
+        t.observation(s, e)
+    } -> std::convertible_to<observation_message>;
+};
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-                                      {
-                                          t.initialize(sim)
-                                          } -> std::convertible_to<status>;
-                                  };
+    {
+        t.initialize(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-                                    {
-                                        t.finalize(sim)
-                                        } -> std::convertible_to<status>;
-                                };
+    {
+        t.finalize(sim)
+    } -> std::convertible_to<status>;
+};
 
 template<typename T>
 concept has_input_port = requires(T t) {
-                             {
-                                 t.x
-                             };
-                         };
+    {
+        t.x
+    };
+};
 
 template<typename T>
 concept has_output_port = requires(T t) {
-                              {
-                                  t.y
-                              };
-                          };
+    {
+        t.y
+    };
+};
 
 constexpr observation_message qss_observation(real X,
                                               real u,
@@ -9365,9 +9365,7 @@ constexpr ring_buffer<T>& ring_buffer<T>::operator=(ring_buffer&& rhs) noexcept
 template<class T>
 constexpr ring_buffer<T>::~ring_buffer() noexcept
 {
-    clear();
-
-    g_free_fn(buffer);
+    destroy();
 }
 
 template<class T>
@@ -9389,6 +9387,35 @@ constexpr void ring_buffer<T>::clear() noexcept
 
     m_head = 0;
     m_tail = 0;
+}
+
+template<class T>
+constexpr void ring_buffer<T>::destroy() noexcept
+{
+    clear();
+    g_free_fn(buffer);
+
+    buffer = nullptr;
+}
+
+template<class T>
+constexpr void ring_buffer<T>::reserve(std::integral auto capacity) noexcept
+{
+    irt_assert(std::cmp_less(capacity,
+                             std::numeric_limits<decltype(m_capacity)>::max()));
+
+    if (m_capacity < capacity) {
+        ring_buffer<T> tmp(capacity);
+
+        if constexpr (std::is_move_constructible_v<T>)
+            for (auto it = begin(), et = end(); it != et; ++it)
+                tmp.emplace_back(std::move(*it));
+        else
+            for (auto it = begin(), et = end(); it != et; ++it)
+                tmp.push_back(*it);
+
+        swap(tmp);
+    }
 }
 
 template<class T>
