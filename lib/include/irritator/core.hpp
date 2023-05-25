@@ -6,7 +6,17 @@
 #define ORG_VLEPROJECT_IRRITATOR_2020
 
 #include <algorithm>
+#include <array>
+#include <concepts>
+#include <filesystem>
+#include <fstream>
+#include <functional>
 #include <limits>
+#include <memory>
+#include <span>
+#include <string_view>
+#include <type_traits>
+#include <utility>
 
 #ifdef __has_include
 #if __has_include(<numbers>)
@@ -17,21 +27,10 @@
 #endif
 #endif
 
-#include <array>
 #include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-
-#include <concepts>
-#include <filesystem>
-#include <fstream>
-#include <functional>
-#include <memory>
-#include <span>
-#include <string_view>
-#include <type_traits>
-#include <utility>
 
 /*****************************************************************************
  *
@@ -8925,7 +8924,7 @@ inline constexpr void vector<T>::swap_pop_back(
 {
     irt_assert(std::cmp_less(index, m_size));
 
-    if (index == m_size - 1) {
+    if (std::cmp_equal(index, m_size - 1)) {
         pop_back();
     } else {
         auto to_delete = data() + index;
