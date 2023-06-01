@@ -155,87 +155,93 @@ static void show_grid(application&      app,
                       grid_editor_data& ed,
                       grid_component&   data) noexcept
 {
+    static const float item_width  = 100.0f;
+    static const float item_height = 100.0f;
+
+    static float zoom         = 1.0f;
+    static float new_zoom     = 1.0f;
+    static bool  zoom_changed = false;
+
     ImGui::BeginChild("Editor",
-                      ed.disp,
-                      true,
-                      ImGuiWindowFlags_AlwaysVerticalScrollbar |
+                      ImVec2(0.f, 0.f),
+                      false,
+                      ImGuiWindowFlags_NoScrollWithMouse |
+                        ImGuiWindowFlags_AlwaysVerticalScrollbar |
                         ImGuiWindowFlags_AlwaysHorizontalScrollbar);
 
-    auto* w  = ImGui::GetCurrentWindow();
-    auto& io = ImGui::GetIO();
+    if (zoom_changed) {
+        zoom         = new_zoom;
+        zoom_changed = false;
+    } else {
+        if (ImGui::IsWindowHovered()) {
+            const float zoom_step = 2.0f;
 
-    if (w->InnerClipRect.Contains(io.MousePos)) {
-        if (io.MouseWheel > 0.0f) {
-            ed.scale *= 1.1f;
-            ed.disp *= 1.1f;
-        } else if (io.MouseWheel < 0.0f) {
-            ed.scale *= 0.9f;
-            ed.disp *= 0.9f;
+            auto& io = ImGui::GetIO();
+            if (io.MouseWheel > 0.0f) {
+                new_zoom     = zoom * zoom_step * io.MouseWheel;
+                zoom_changed = true;
+            } else if (io.MouseWheel < 0.0f) {
+                new_zoom     = zoom / (zoom_step * -io.MouseWheel);
+                zoom_changed = true;
+            }
+        }
+
+        if (zoom_changed) {
+            auto mouse_position_on_window =
+              ImGui::GetMousePos() - ImGui::GetWindowPos();
+
+            auto mouse_position_on_list =
+              (ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY()) +
+               mouse_position_on_window) /
+              (data.row * zoom);
+
+            {
+                auto origin = ImGui::GetCursorScreenPos();
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                                    ImVec2(0.0f, 0.0f));
+                ImGui::Dummy(
+                  ImVec2(data.row * ImFloor(item_width * new_zoom),
+                         data.column * ImFloor(item_height * new_zoom)));
+                ImGui::PopStyleVar();
+                ImGui::SetCursorScreenPos(origin);
+            }
+
+            auto new_mouse_position_on_list =
+              mouse_position_on_list * (item_height * new_zoom);
+            auto new_scroll =
+              new_mouse_position_on_list - mouse_position_on_window;
+
+            ImGui::SetScrollX(new_scroll.x);
+            ImGui::SetScrollY(new_scroll.y);
         }
     }
 
-    auto* draw_list = ImGui::GetWindowDrawList();
-    auto  p         = ImGui::GetCursorScreenPos();
-    auto  mouse     = io.MousePos - p;
-
-    ImVec2 upper_left;
-    ImVec2 lower_right;
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 
     for (int row = 0; row < data.row; ++row) {
-        upper_left.x  = p.x + static_cast<float>(row) * ed.scale;
-        lower_right.x = p.x + static_cast<float>(row) * ed.scale + ed.scale;
-
         for (int col = 0; col < data.column; ++col) {
-            upper_left.y  = p.y + static_cast<float>(col) * ed.scale;
-            lower_right.y = p.y + static_cast<float>(col) * ed.scale + ed.scale;
+            ImGui::SetCursorPos(
+              ImFloor(ImVec2(item_width, item_height) * zoom) *
+              ImVec2(static_cast<float>(row), static_cast<float>(col)));
 
-            const bool under_mouse =
-              upper_left.x <= io.MousePos.x && io.MousePos.x <= lower_right.x &&
-              upper_left.y <= io.MousePos.y && io.MousePos.y <= lower_right.y;
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  to_ImVec4(app.mod.component_colors[get_index(
+                                    data.children[data.pos(row, col)])]));
 
-            if (under_mouse && io.MouseDown[0]) {
-                if (ed.start_selection == true) {
-                    ed.start_selection = false;
-                }
+            small_string<32> x;
+            format(x, "{}x{}", row, col);
 
+            if (ImGui::Button(x.c_str(),
+                              ImVec2(ImFloor(item_width * zoom),
+                                     ImFloor(item_height * zoom)))) {
                 data.children[data.pos(row, col)] = ed.selected_id;
             }
 
-            if (under_mouse && !ed.start_selection && io.MouseDown[1]) {
-                ed.start_selection = true;
-                std::fill_n(ed.selected.data(), ed.selected.size(), false);
-            }
-
-            if (under_mouse && ed.start_selection && io.MouseDown[1])
-                ed.selected[data.pos(row, col)] = true;
-
-            if (under_mouse && ed.start_selection && io.MouseReleased[1])
-                ed.start_selection = false;
-
-            ImU32 color = is_undefined(data.children[data.pos(row, col)])
-                            ? undefined_color
-                            : ImGui::ColorConvertFloat4ToU32(
-                                to_ImVec4(app.mod.component_colors[get_index(
-                                  data.children[data.pos(row, col)])]));
-
-            draw_list->AddRectFilled(upper_left, lower_right, color, 0.f);
-            if (ed.selected[data.pos(row, col)])
-                draw_list->AddRect(upper_left,
-                                   lower_right,
-                                   selected_col,
-                                   0.f,
-                                   ImDrawFlags_None,
-                                   1.f);
+            ImGui::PopStyleColor();
         }
     }
 
-    if (!ed.start_selection && io.MouseClicked[1])
-        std::fill_n(ed.selected.data(), ed.selected.size(), false);
-
-    ImGuiContext& g = *GImGui;
-    ImGui::SetCursorPos({ 0, w->InnerClipRect.GetHeight() - g.FontSize });
-    ImGui::Text("mouse x:%.3f  y:%.3f", mouse.x, mouse.y);
-
+    ImGui::PopStyleVar();
     ImGui::EndChild();
 }
 

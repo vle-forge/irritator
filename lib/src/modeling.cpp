@@ -1461,6 +1461,9 @@ status modeling::build_grid_children_and_connections(
             auto& new_ch = children.alloc(grid.children[i]);
             new_id       = children.get_id(new_ch);
 
+            auto pos         = grid.pos(i);
+            new_ch.unique_id = grid.unique_id(pos.first, pos.second);
+
             children_positions[get_index(new_id)] =
               child_position{ .x = static_cast<float>(
                                 ((space_x * i) / grid.row) + left_limit),

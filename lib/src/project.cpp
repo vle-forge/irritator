@@ -376,7 +376,6 @@ static status make_tree_leaf(simulation_copy& sc,
         auto& x     = parent.observables.emplace_back();
         x.unique_id = ch.unique_id;
         x.mdl_id    = new_mdl_id;
-        x.param     = observable_type::single;
     }
 
     return status::success;
@@ -416,14 +415,14 @@ static status make_tree_recursive(simulation_copy& sc,
                                   tree_node&       new_tree,
                                   grid_component&  src) noexcept
 {
-    for (auto child_id : src.cache) {
-        if (auto* child = sc.mod.children.try_to_get(child_id); child) {
+    for (int i = 0, e = src.cache.ssize(); i != e; ++i) {
+        if (auto* child = sc.mod.children.try_to_get(src.cache[i]); child) {
             if (child->type == child_type::component) {
                 auto compo_id = child->id.compo_id;
                 if (auto* compo = sc.mod.components.try_to_get(compo_id);
                     compo) {
                     irt_return_if_bad(make_tree_recursive(
-                      sc, new_tree, *compo, child_id, child->unique_id));
+                      sc, new_tree, *compo, src.cache[i], child->unique_id));
                 }
             } else {
                 auto mdl_id = child->id.mdl_id;

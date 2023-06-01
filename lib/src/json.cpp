@@ -3192,7 +3192,7 @@ struct reader
 
         for (auto& elem : tn.observables) {
             if (elem.unique_id == model_unique_id) {
-                elem.param = observable_type::single;
+                elem.type = observable_type::none;
                 return true;
             }
         }

@@ -198,45 +198,65 @@ constexpr static inline real three = to_real(3.L);
 constexpr static inline real four  = to_real(4.L);
 constexpr static inline real zero  = to_real(0.L);
 
-inline u16 make_halfword(u8 a, u8 b) noexcept
+inline constexpr u16 make_halfword(u8 a, u8 b) noexcept
 {
     return static_cast<u16>((a << 8) | b);
 }
 
-inline void unpack_halfword(u16 halfword, u8* a, u8* b) noexcept
+inline constexpr void unpack_halfword(u16 halfword, u8* a, u8* b) noexcept
 {
     *a = static_cast<u8>((halfword >> 8) & 0xff);
     *b = static_cast<u8>(halfword & 0xff);
 }
 
-inline u32 make_word(u16 a, u16 b) noexcept
+inline constexpr auto unpack_halfword(u16 halfword) noexcept
+  -> std::pair<u8, u8>
+{
+    return std::make_pair(static_cast<u8>((halfword >> 8) & 0xff),
+                          static_cast<u8>(halfword & 0xff));
+}
+
+inline constexpr u32 make_word(u16 a, u16 b) noexcept
 {
     return (static_cast<u32>(a) << 16) | static_cast<u32>(b);
 }
 
-inline void unpack_word(u32 word, u16* a, u16* b) noexcept
+inline constexpr void unpack_word(u32 word, u16* a, u16* b) noexcept
 {
     *a = static_cast<u16>((word >> 16) & 0xffff);
     *b = static_cast<u16>(word & 0xffff);
 }
 
-inline u64 make_doubleword(u32 a, u32 b) noexcept
+inline constexpr auto unpack_word(u32 word) noexcept -> std::pair<u16, u16>
+{
+    return std::make_pair(static_cast<u16>((word >> 16) & 0xffff),
+                          static_cast<u16>(word & 0xffff));
+}
+
+inline constexpr u64 make_doubleword(u32 a, u32 b) noexcept
 {
     return (static_cast<u64>(a) << 32) | static_cast<u64>(b);
 }
 
-inline void unpack_doubleword(u64 doubleword, u32* a, u32* b) noexcept
+inline constexpr void unpack_doubleword(u64 doubleword, u32* a, u32* b) noexcept
 {
     *a = static_cast<u32>((doubleword >> 32) & 0xffffffff);
     *b = static_cast<u32>(doubleword & 0xffffffff);
 }
 
-inline u32 unpack_doubleword_left(u64 doubleword) noexcept
+inline constexpr auto unpack_doubleword(u64 doubleword) noexcept
+  -> std::pair<u32, u32>
+{
+    return std::make_pair(static_cast<u32>((doubleword >> 32) & 0xffffffff),
+                          static_cast<u32>(doubleword & 0xffffffff));
+}
+
+inline constexpr u32 unpack_doubleword_left(u64 doubleword) noexcept
 {
     return static_cast<u32>((doubleword >> 32) & 0xffffffff);
 }
 
-inline u32 unpack_doubleword_right(u64 doubleword) noexcept
+inline constexpr u32 unpack_doubleword_right(u64 doubleword) noexcept
 {
     return static_cast<u32>(doubleword & 0xffffffff);
 }
@@ -2946,53 +2966,54 @@ status send_message(simulation&  sim,
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::convertible_to<status>;
-};
+                                  {
+                                      t.lambda(sim)
+                                      } -> std::convertible_to<status>;
+                              };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-      } -> std::convertible_to<status>;
+          } -> std::convertible_to<status>;
   };
 
 template<typename T>
-concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::convertible_to<observation_message>;
-};
+concept has_observation_function =
+  requires(T t, time s, time e) {
+      {
+          t.observation(s, e)
+          } -> std::convertible_to<observation_message>;
+  };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::convertible_to<status>;
-};
+                                      {
+                                          t.initialize(sim)
+                                          } -> std::convertible_to<status>;
+                                  };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::convertible_to<status>;
-};
+                                    {
+                                        t.finalize(sim)
+                                        } -> std::convertible_to<status>;
+                                };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
-};
+                             {
+                                 t.x
+                             };
+                         };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
-};
+                              {
+                                  t.y
+                              };
+                          };
 
 constexpr observation_message qss_observation(real X,
                                               real u,

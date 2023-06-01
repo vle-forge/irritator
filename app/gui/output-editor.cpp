@@ -7,6 +7,7 @@
 #include "editor.hpp"
 #include "internal.hpp"
 #include "irritator/core.hpp"
+#include "irritator/helpers.hpp"
 
 #include <optional>
 #include <utility>
@@ -28,38 +29,6 @@ output_editor::~output_editor() noexcept
         ImPlot::DestroyContext(implot_context);
 }
 
-static auto get_model(application&      app,
-                      plot_observation& plot,
-                      model*&           out) noexcept -> bool
-{
-    if (auto* mdl = app.mod.models.try_to_get(plot.model); mdl) {
-        out = mdl;
-        return true;
-    }
-
-    return false;
-}
-
-static auto get_observer(application& app, model& mdl, observer*& out) noexcept
-  -> bool
-{
-    if (auto* obs = app.sim.observers.try_to_get(mdl.obs_id); obs) {
-        out = obs;
-        return true;
-    }
-
-    return false;
-}
-
-static auto get_observer(application&      app,
-                         plot_observation& plot,
-                         observer*&        out) noexcept -> bool
-{
-    model* mdl = nullptr;
-
-    return get_model(app, plot, mdl) && get_observer(app, *mdl, out);
-}
-
 static void show_observation_table(application& app) noexcept
 {
     static const ImGuiTableFlags flags =
@@ -67,14 +36,12 @@ static void show_observation_table(application& app) noexcept
       ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
       ImGuiTableFlags_Reorderable;
 
-    if (ImGui::BeginTable("Observations", 7, flags)) {
+    if (ImGui::BeginTable("Observations", 6, flags)) {
         ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthFixed, 80.f);
         ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn(
           "time-step", ImGuiTableColumnFlags_WidthFixed, 80.f);
         ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthFixed, 60.f);
-        ImGui::TableSetupColumn(
-          "capacity", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn(
           "plot", ImGuiTableColumnFlags_WidthFixed, 180.f);
         ImGui::TableSetupColumn("export as",
@@ -82,11 +49,7 @@ static void show_observation_table(application& app) noexcept
 
         ImGui::TableHeadersRow();
         plot_observation* out = nullptr;
-        while (app.simulation_ed.sim_obs.next(out)) {
-            observer* o = nullptr;
-            irt_assert(get_observer(app, *out, o));
-
-            const auto id = app.simulation_ed.sim_obs.get_id(*out);
+        while (app.simulation_ed.plot_obs.next(out)) {
             ImGui::PushID(out);
             ImGui::TableNextRow();
 
@@ -97,19 +60,17 @@ static void show_observation_table(application& app) noexcept
 
             ImGui::TableNextColumn();
             ImGui::TextFormat("{}",
-                              ordinal(app.simulation_ed.sim_obs.get_id(*out)));
+                              ordinal(app.simulation_ed.plot_obs.get_id(*out)));
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
-            if (ImGui::InputReal("##ts", &out->time_step))
-                out->time_step = std::clamp(
-                  out->time_step, out->min_time_step, out->max_time_step);
+            if (ImGui::InputReal("##ts", &app.sim_obs.time_step))
+                app.sim_obs.time_step = std::clamp(app.sim_obs.time_step,
+                                                   app.sim_obs.min_time_step,
+                                                   app.sim_obs.max_time_step);
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
-            // ImGui::TextFormat("{}", out->linear_outputs.size());
-            ImGui::TableNextColumn();
-            // ImGui::TextFormat("{}", out->linear_outputs.capacity());
-
+            ImGui::TextFormat("{}", out->children.size());
             ImGui::TableNextColumn();
 
             int plot_type = ordinal(out->plot_type);
@@ -121,20 +82,30 @@ static void show_observation_table(application& app) noexcept
 
             ImGui::TableNextColumn();
             if (ImGui::Button("copy")) {
-                if (app.simulation_ed.copy_obs.can_alloc(1)) {
-                    auto& new_obs          = app.simulation_ed.copy_obs.alloc();
-                    new_obs.name           = out->name;
-                    new_obs.linear_outputs = o->linearized_buffer;
+                if (app.simulation_ed.copy_obs.can_alloc(
+                      out->children.ssize())) {
+                    for_specified_data(
+                      app.sim.models, out->children, [&](auto& mdl) {
+                          if_data_exists_do(
+                            app.sim.observers,
+                            mdl.obs_id,
+                            [&](auto& obs) noexcept {
+                                auto& new_obs =
+                                  app.simulation_ed.copy_obs.alloc();
+                                new_obs.name           = out->name.sv();
+                                new_obs.linear_outputs = obs.linearized_buffer;
+                            });
+                      });
                 }
             }
 
             ImGui::SameLine();
             if (ImGui::Button("write")) {
-                app.simulation_ed.selected_sim_obs = id;
-                app.output_ed.write_output         = true;
-                auto err                           = std::error_code{};
-                auto file_path = std::filesystem::current_path(err);
-                out->write(*o, file_path);
+                // app.simulation_ed.selected_sim_obs = id;
+                app.output_ed.write_output = true;
+                auto err                   = std::error_code{};
+                auto file_path             = std::filesystem::current_path(err);
+                out->write(app, file_path);
             }
 
             ImGui::SameLine();
@@ -144,7 +115,7 @@ static void show_observation_table(application& app) noexcept
             ImGui::PopID();
         }
 
-        simulation_observation_copy *copy = nullptr, *prev = nullptr;
+        plot_copy *copy = nullptr, *prev = nullptr;
         while (app.simulation_ed.copy_obs.next(copy)) {
             const auto id = app.simulation_ed.copy_obs.get_id(*copy);
             ImGui::PushID(copy);
@@ -192,67 +163,12 @@ static void show_observation_table(application& app) noexcept
 static void show_observation_plot(application& app) noexcept
 {
     ImPlot::SetCurrentContext(app.output_ed.implot_context);
-    if (ImPlot::BeginPlot("Plot", ImVec2(-1, -1))) {
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-        ImPlot::SetupAxes(
-          nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+    for_each_data(app.simulation_ed.plot_obs,
+                  [&](auto& plot) noexcept -> void { plot.show(app); });
 
-        plot_observation* obs = nullptr;
-        while (app.simulation_ed.sim_obs.next(obs)) {
-            observer* o = nullptr;
-            irt_assert(get_observer(app, *obs, o));
-
-            if (o->linearized_buffer.size() > 0) {
-                switch (obs->plot_type) {
-                case simulation_plot_type::plotlines:
-                    ImPlot::PlotLineG(obs->name.c_str(),
-                                      ring_buffer_getter,
-                                      &o->linearized_buffer,
-                                      o->linearized_buffer.ssize());
-                    break;
-
-                case simulation_plot_type::plotscatters:
-                    ImPlot::PlotScatterG(obs->name.c_str(),
-                                         ring_buffer_getter,
-                                         &o->linearized_buffer,
-                                         o->linearized_buffer.ssize());
-                    break;
-
-                default:
-                    break;
-                }
-            }
-        }
-
-        simulation_observation_copy* copy = nullptr;
-        while (app.simulation_ed.copy_obs.next(copy)) {
-            if (copy->linear_outputs.size() > 0) {
-                switch (copy->plot_type) {
-                case simulation_plot_type::plotlines:
-                    ImPlot::PlotLineG(copy->name.c_str(),
-                                      ring_buffer_getter,
-                                      &copy->linear_outputs,
-                                      copy->linear_outputs.ssize());
-                    break;
-
-                case simulation_plot_type::plotscatters:
-                    ImPlot::PlotScatterG(copy->name.c_str(),
-                                         ring_buffer_getter,
-                                         &copy->linear_outputs,
-                                         copy->linear_outputs.ssize());
-                    break;
-
-                default:
-                    break;
-                }
-            }
-        }
-
-        ImPlot::PopStyleVar(2);
-        ImPlot::EndPlot();
-    }
+    for_each_data(app.simulation_ed.copy_obs,
+                  [&](auto& plot) noexcept -> void { plot.show(app); });
 }
 
 void output_editor::show() noexcept

@@ -36,7 +36,6 @@ static status simulation_init_observation(simulation_editor& sim_ed,
                                           tree_node&         head) noexcept
 {
     auto* app = container_of(&sim_ed, &application::simulation_ed);
-    sim_ed.sim_obs.clear();
     app->sim.observers.clear();
 
     vector<tree_node*> stack;
@@ -160,9 +159,18 @@ static void simulation_init(component_editor&  ed,
         return;
     }
 
-    plot_observation* mem = nullptr;
-    while (sim_ed.sim_obs.next(mem)) {
-        mem->clear();
+    {
+        plot_observation* mem = nullptr;
+        while (sim_ed.plot_obs.next(mem)) {
+            mem->clear();
+        }
+    }
+
+    {
+        grid_observation* mem = nullptr;
+        while (sim_ed.grid_obs.next(mem)) {
+            mem->clear();
+        }
     }
 
     if (auto ret = simulation_init_observation(sim_ed, *head); is_bad(ret)) {
@@ -289,7 +297,7 @@ static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
         }
 
         if (!app->sim.immediate_observers.empty())
-            sim_ed.build_observation_output();
+            app->sim_obs.update();
 
         if (!sim_ed.infinity_simulation &&
             sim_ed.simulation_current >= sim_ed.simulation_end) {
@@ -355,7 +363,7 @@ static void task_simulation_live_run(simulation_editor& sim_ed) noexcept
         }
 
         if (!app->sim.immediate_observers.empty())
-            sim_ed.build_observation_output();
+            app->sim_obs.update();
 
         const auto sim_end_at   = sim_ed.simulation_current;
         const auto sim_duration = sim_end_at - sim_start_at;
@@ -439,7 +447,7 @@ static void task_simulation_finish(component_editor& /*ed*/,
     sim_ed.simulation_state = simulation_status::finishing;
 
     app->sim.immediate_observers.clear();
-    sim_ed.build_observation_output();
+    app->sim_obs.update();
 
     if (sim_ed.store_all_changes)
         finalize(sim_ed.tl, app->sim, sim_ed.simulation_current);

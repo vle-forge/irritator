@@ -127,10 +127,18 @@ bool application::init() noexcept
 
     simulation_ed.displacements.resize(mod_init.model_capacity);
 
-    if (auto ret = simulation_ed.sim_obs.init(16); is_bad(ret)) {
+    if (auto ret = simulation_ed.plot_obs.init(16); is_bad(ret)) {
         log_w(*this,
               log_level::error,
-              "Fail to initialize simulation observation: {}\n",
+              "Fail to initialize simulation plot observation: {}\n",
+              status_string(ret));
+        return false;
+    }
+
+    if (auto ret = simulation_ed.grid_obs.init(16); is_bad(ret)) {
+        log_w(*this,
+              log_level::error,
+              "Fail to initialize simulation grid observation: {}\n",
               status_string(ret));
         return false;
     }
@@ -350,33 +358,33 @@ static void application_manage_menu_action(application& app) noexcept
     }
 
     if (app.output_ed.write_output) {
-        auto* obs = app.simulation_ed.sim_obs.try_to_get(
-          app.simulation_ed.selected_sim_obs);
+        // auto* obs = app.simulation_ed.plot_obs.try_to_get(
+        //   app.simulation_ed.selected_sim_obs);
 
-        if (obs) {
-            if (auto* mdl = app.sim.models.try_to_get(obs->model); mdl) {
-                if (auto* o = app.sim.observers.try_to_get(mdl->obs_id); o) {
-                    const char* title = "Select raw file path to save";
-                    const std::u8string_view default_filename =
-                      u8"filename.txt";
-                    const char8_t* filters[] = { u8".txt", nullptr };
+        // if (obs) {
+        //     if (auto* mdl = app.sim.models.try_to_get(obs->model); mdl) {
+        //         if (auto* o = app.sim.observers.try_to_get(mdl->obs_id); o) {
+        //             const char* title = "Select raw file path to save";
+        //             const std::u8string_view default_filename =
+        //               u8"filename.txt";
+        //             const char8_t* filters[] = { u8".txt", nullptr };
 
-                    ImGui::OpenPopup(title);
-                    if (app.f_dialog.show_save_file(
-                          title, default_filename, filters)) {
-                        if (app.f_dialog.state == file_dialog::status::ok) {
-                            obs->file = app.f_dialog.result;
-                            obs->write(*o, obs->file);
-                        }
+        //             ImGui::OpenPopup(title);
+        //             if (app.f_dialog.show_save_file(
+        //                   title, default_filename, filters)) {
+        //                 if (app.f_dialog.state == file_dialog::status::ok) {
+        //                     obs->file = app.f_dialog.result;
+        //                     obs->write(*o, obs->file);
+        //                 }
 
-                        app.simulation_ed.selected_sim_obs =
-                          undefined<simulation_observation_id>();
-                        app.output_ed.write_output = false;
-                        app.f_dialog.clear();
-                    }
-                }
-            }
-        }
+        //                 app.simulation_ed.selected_sim_obs =
+        //                   undefined<simulation_observation_id>();
+        //                 app.output_ed.write_output = false;
+        //                 app.f_dialog.clear();
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 

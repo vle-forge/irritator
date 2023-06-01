@@ -205,8 +205,8 @@ auto write_interpolate_data(observer&      obs,
     }
 }
 
-template<typename OutputIterator>
-auto write_interpolate_data(observer& obs, real time_step) noexcept -> void
+inline auto write_interpolate_data(observer& obs, real time_step) noexcept
+  -> void
 {
     return write_interpolate_data(
       obs, std::back_inserter(obs.linearized_buffer), time_step);
@@ -226,9 +226,8 @@ constexpr auto flush_interpolate_data(observer&      obs,
     obs.buffer.clear();
 }
 
-template<typename OutputIterator>
-constexpr auto flush_interpolate_data(observer& obs, real time_step) noexcept
-  -> void
+inline constexpr auto flush_interpolate_data(observer& obs,
+                                             real time_step) noexcept -> void
 {
     flush_interpolate_data(
       obs, std::back_inserter(obs.linearized_buffer), time_step);

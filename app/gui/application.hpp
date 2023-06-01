@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_APPLICATION_2021
 
 #include <irritator/core.hpp>
+#include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/observation.hpp>
 #include <irritator/thread.hpp>
@@ -56,9 +57,11 @@ constexpr T* container_of(M* ptr, const M T::*member)
 struct application;
 struct component_editor;
 
-enum class notification_id : u64;
-enum class simulation_observation_id : u64;
-enum class simulation_observation_copy_id : u64;
+enum class notification_id : u32;
+enum class plot_observation_id : u32;
+enum class grid_observation_id : u32;
+enum class plot_copy_id : u32;
+
 enum class simulation_task_id : u64;
 enum class gui_task_id : u64;
 
@@ -175,46 +178,77 @@ private:
     bool scroll_to_bottom = false;
 };
 
-class plot_observation
+//! @brief Manage simulation observer interpolation compuation
+class simulation_observation
 {
 public:
-    plot_observation(model_id mdl, i32 buffer_capacity) noexcept;
+    static inline constexpr limiter<i32> raw_buffer_limits{ 32, 32768 };
+    static inline constexpr limiter<i32> linearized_buffer_limits{ 1024,
+                                                                   1048576 };
 
-    void clear() noexcept;
-
-    void update(observer& obs) noexcept;
-    void flush(observer& obs) noexcept;
-    void write(const observer&              obs,
-               const std::filesystem::path& file_path) noexcept;
-
-    model_id         model  = undefined<model_id>();
-    interpolate_type i_type = interpolate_type::none;
-
-    u64               plot_id;
-    small_string<16u> name;
+    real min_time_step          = to_real(1.f / 1000.f);
+    real max_time_step          = to_real(1.f);
+    real time_step              = to_real(1.f / 100.f);
+    i32  raw_buffer_size        = 64;
+    i32  linearized_buffer_size = 32768;
 
     ImPlotRange limits; //! use in preview output simulation observation.
 
+    //! Clear and reinitialize/resizing buffer and linearized buffers for all
+    //! simulation observers according to the raw_buffer_size and
+    //! linearized_buffer_size buffer sizes.
+    void init() noexcept;
+
+    //! Clear buffer and linearized buffers for all simulation observers.
+    void clear() noexcept;
+
+    //! For all simulation observers in the simulation, computes the
+    //! interpolate data according to the @c time_step.
+    //!
+    //! @warning This function starts computation using a @c task_list
+    //! from @c application and wait until all computation are finish. Prefers
+    //! call this function from a class @c task.
+    void update() noexcept;
+};
+
+class plot_observation
+{
+public:
+    plot_observation() noexcept = default;
+
+    //! Clear the children vector.
+    void clear() noexcept;
+
+    //! Display plots using @c ImGui code.
+    void show(application& app) noexcept;
+
+    //! Write interpolate data
+    void write(application&                 app,
+               const std::filesystem::path& file_path) noexcept;
+
+    interpolate_type i_type = interpolate_type::none;
+
+    u64              plot_id = 0;
+    small_string<31> name;
+
     std::filesystem::path file;
 
-    real min_time_step = to_real(0.0001L);
-    real max_time_step = to_real(1.L);
-    real time_step     = to_real(0.01L);
-
     simulation_plot_type plot_type = simulation_plot_type::none;
+
+    vector<model_id> children;
 };
 
 class grid_observation
 {
 public:
-    //! Assign a new size to children and remove all @c observer_id.
-    bool resize(int row, int col) noexcept;
+    //! Assign a new size to children and remove all @c model_id.
+    void resize(int row, int col) noexcept;
 
-    //! Assign @c undefined<observer_id> to all children.
-    bool clear() noexcept;
+    //! Assign @c undefined<model_id> to all children.
+    void clear() noexcept;
 
     //! Display the grid using @c ImGui code.
-    bool show(application& app) noexcept;
+    void show(application& app) noexcept;
 
     template<typename Function, typename... Args>
     inline void for_each(Function&& f, Args... args) noexcept
@@ -224,13 +258,14 @@ public:
                 f(r, c, children[r * cols + c], args...);
     }
 
-private:
-    small_string<31>    name;
-    vector<observer_id> children;
+    small_string<31> name;
+    vector<model_id> children;
+    vector<real>     values;
 
-    // float none_value = 0.f;
-    int rows = 0;
-    int cols = 0;
+private:
+    real none_value = 0.f;
+    int  rows       = 0;
+    int  cols       = 0;
 };
 
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
@@ -243,11 +278,13 @@ inline ImPlotPoint ring_buffer_getter(void* data, int idx) noexcept
     return ImPlotPoint{ (*ring)[index].x, (*ring)[index].y };
 };
 
-struct simulation_observation_copy
+struct plot_copy
 {
     small_string<16u>        name;
     ring_buffer<observation> linear_outputs;
     simulation_plot_type     plot_type = simulation_plot_type::none;
+
+    void show(application& app) noexcept;
 };
 
 void task_save_component(void* param) noexcept;
@@ -258,7 +295,6 @@ void task_simulation_model_add(void* param) noexcept;
 void task_simulation_model_del(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
-void task_build_observation_output(void* param) noexcept;
 void task_remove_simulation_observation(application& app, model_id id) noexcept;
 void task_add_simulation_observation(application& app, model_id id) noexcept;
 
@@ -397,6 +433,37 @@ public:
     component_id      id      = undefined<component_id>();
 };
 
+struct grid_simulation
+{
+    ImVec2            show_position{ 0.f, 0.f };
+    ImVec2            disp{ 1000.f, 1000.f };
+    float             scale           = 10.f;
+    bool              start_selection = false;
+    grid_component_id current_id      = undefined<grid_component_id>();
+
+    component_id selected_setting_component = undefined<component_id>();
+    model_id     selected_setting_model     = undefined<model_id>();
+
+    component_id selected_observation_component = undefined<component_id>();
+    model_id     selected_observation_model     = undefined<model_id>();
+    tree_node*   selected_tn                    = nullptr;
+
+    std::optional<std::pair<int, int>> selected_position;
+
+    vector<bool>         selected;
+    vector<component_id> children_class;
+
+    void clear() noexcept;
+
+    bool show_settings(tree_node&      tn,
+                       component&      compo,
+                       grid_component& grid) noexcept;
+
+    bool show_observations(tree_node&      tn,
+                           component&      compo,
+                           grid_component& grid) noexcept;
+};
+
 struct grid_editor_dialog
 {
     constexpr static inline const char* name = "Grid generator";
@@ -453,10 +520,6 @@ struct simulation_editor
     void add_simulation_observation_for(std::string_view name,
                                         model_id         id) noexcept;
 
-    // Used to add GUI task @c task_build_observation_output, one per
-    // observer_id, from the simulation immediate observers.
-    void build_observation_output() noexcept;
-
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
 
@@ -492,12 +555,12 @@ struct simulation_editor
     visualization_mode mode = visualization_mode::flat;
 
     simulation_status simulation_state = simulation_status::not_started;
+    data_array<plot_copy, plot_copy_id> copy_obs;
 
-    data_array<plot_observation, simulation_observation_id> sim_obs;
-    data_array<simulation_observation_copy, simulation_observation_copy_id>
-      copy_obs;
+    data_array<plot_observation, plot_observation_id> plot_obs;
+    data_array<grid_observation, grid_observation_id> grid_obs;
 
-    simulation_observation_id selected_sim_obs;
+    grid_simulation grid_sim;
 
     ImNodesEditorContext* context        = nullptr;
     ImPlotContext*        output_context = nullptr;
@@ -743,7 +806,8 @@ struct application
     simulation sim;
     project    pj;
 
-    component_selector component_sel;
+    component_selector     component_sel;
+    simulation_observation sim_obs;
 
     project_window project_wnd;
 

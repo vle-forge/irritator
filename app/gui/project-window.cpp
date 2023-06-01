@@ -28,7 +28,8 @@ static void show_project_hierarchy(application& app, tree_node& parent) noexcept
             break;
         case component_type::grid:
             format(str, "{} grid", compo->name.sv());
-            flags |= ImGuiTreeNodeFlags_Leaf;
+            // flags |= ImGuiTreeNodeFlags_Leaf;
+            can_open = true;
             break;
         default:
             format(str, "{}", compo->name.sv());

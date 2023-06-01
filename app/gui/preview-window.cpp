@@ -4,6 +4,7 @@
 
 #include "application.hpp"
 #include "internal.hpp"
+#include "irritator/helpers.hpp"
 
 #include <irritator/io.hpp>
 
@@ -42,38 +43,6 @@ void task_add_simulation_observation(void* param) noexcept
     g_task->state = task_status::finished;
 }
 
-static auto get_model(application&      app,
-                      plot_observation& plot,
-                      model*&           out) noexcept -> bool
-{
-    if (auto* mdl = app.mod.models.try_to_get(plot.model); mdl) {
-        out = mdl;
-        return true;
-    }
-
-    return false;
-}
-
-static auto get_observer(application& app, model& mdl, observer*& out) noexcept
-  -> bool
-{
-    if (auto* obs = app.sim.observers.try_to_get(mdl.obs_id); obs) {
-        out = obs;
-        return true;
-    }
-
-    return false;
-}
-
-static auto get_observer(application&      app,
-                         plot_observation& plot,
-                         observer*&        out) noexcept -> bool
-{
-    model* mdl = nullptr;
-
-    return get_model(app, plot, mdl) && get_observer(app, *mdl, out);
-}
-
 void preview_window::show() noexcept
 {
     if (!ImGui::Begin(preview_window::name, &is_open)) {
@@ -81,13 +50,13 @@ void preview_window::show() noexcept
         return;
     }
 
-    auto* app      = container_of(this, &application::preview_wnd);
-    auto& s_editor = app->simulation_ed;
+    // auto* app = container_of(this, &application::preview_wnd);
+    // auto& s_editor = app->simulation_ed;
 
-    const ImGuiTableFlags flags =
-      ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
-      ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
-      ImGuiTableFlags_Reorderable;
+    // const ImGuiTableFlags flags =
+    //   ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
+    //   ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
+    //   ImGuiTableFlags_Reorderable;
 
     ImGui::Checkbox("Enable history", &preview_scrolling);
 
@@ -96,125 +65,132 @@ void preview_window::show() noexcept
         preview_history = preview_history <= 0.0 ? 1.0 : preview_history;
     ImGui::EndDisabled();
 
-    if (ImGui::BeginTable("##table", 1, flags, ImVec2(-1, 0))) {
-        ImGui::TableSetupColumn("preview");
-        ImGui::TableHeadersRow();
-        ImPlot::PushColormap(ImPlotColormap_Pastel);
+    // if (ImGui::BeginTable("##table", 1, flags, ImVec2(-1, 0))) {
+    //     ImGui::TableSetupColumn("preview");
+    //     ImGui::TableHeadersRow();
+    //     ImPlot::PushColormap(ImPlotColormap_Pastel);
 
-        plot_observation* obs = nullptr;
-        int               row = -1;
-        while (s_editor.sim_obs.next(obs)) {
-            observer* o = nullptr;
-            irt_assert(get_observer(*app, *obs, o));
+    //     plot_observation* obs = nullptr;
+    //     int               row = -1;
+    //     while (s_editor.plot_obs.next(obs)) {
+    //         if_data_exists_do(app->sim.observers, obs)
+    //         observer* o = nullptr;
+    //         irt_assert(get_observer(*app, *obs, o));
 
-            ++row;
-            if (o->linearized_buffer.empty())
-                continue;
+    //         ++row;
+    //         if (o->linearized_buffer.empty())
+    //             continue;
 
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
+    //         ImGui::TableNextRow();
+    //         ImGui::TableSetColumnIndex(0);
 
-            ImGui::PushID(obs);
+    //         ImGui::PushID(obs);
 
-            ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0, 0));
-            if (ImPlot::BeginPlot("##Plot",
-                                  ImVec2(-1, 70),
-                                  ImPlotFlags_NoTitle | ImPlotFlags_NoMenus |
-                                    ImPlotFlags_NoBoxSelect |
-                                    ImPlotFlags_NoChild)) {
-                ImPlot::SetupAxes(nullptr,
-                                  nullptr,
-                                  ImPlotAxisFlags_NoDecorations,
-                                  ImPlotAxisFlags_NoDecorations);
+    //         ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0, 0));
+    //         if (ImPlot::BeginPlot("##Plot",
+    //                               ImVec2(-1, 70),
+    //                               ImPlotFlags_NoTitle | ImPlotFlags_NoMenus |
+    //                                 ImPlotFlags_NoBoxSelect |
+    //                                 ImPlotFlags_NoChild)) {
+    //             ImPlot::SetupAxes(nullptr,
+    //                               nullptr,
+    //                               ImPlotAxisFlags_NoDecorations,
+    //                               ImPlotAxisFlags_NoDecorations);
 
-                auto start_t = obs->limits.Min;
-                if (preview_scrolling) {
-                    start_t = obs->limits.Max - preview_history;
-                    if (start_t < obs->limits.Min)
-                        start_t = obs->limits.Min;
-                }
+    //             auto start_t = app->sim_obs.limits.Min;
+    //             if (preview_scrolling) {
+    //                 start_t = app->sim_obs.limits.Max - preview_history;
+    //                 if (start_t < app->sim_obs.limits.Min)
+    //                     start_t = app->sim_obs.limits.Min;
+    //             }
 
-                if (std::isfinite(start_t)) {
-                    ImPlot::SetupAxisLimits(
-                      ImAxis_X1, start_t, obs->limits.Max, ImPlotCond_Always);
+    //             if (std::isfinite(start_t)) {
+    //                 ImPlot::SetupAxisLimits(ImAxis_X1,
+    //                                         start_t,
+    //                                         app->sim_obs.limits.Max,
+    //                                         ImPlotCond_Always);
 
-                    ImPlot::PushStyleColor(ImPlotCol_Line,
-                                           ImPlot::GetColormapColor(row));
+    //                 ImPlot::PushStyleColor(ImPlotCol_Line,
+    //                                        ImPlot::GetColormapColor(row));
 
-                    ImPlot::PlotLineG(obs->name.c_str(),
-                                      ring_buffer_getter,
-                                      &o->linearized_buffer,
-                                      o->linearized_buffer.ssize());
+    //                 ImPlot::PlotLineG(obs->name.c_str(),
+    //                                   ring_buffer_getter,
+    //                                   &o->linearized_buffer,
+    //                                   o->linearized_buffer.ssize());
 
-                    ImPlot::PopStyleColor();
-                }
+    //                 ImPlot::PopStyleColor();
+    //             }
 
-                ImPlot::EndPlot();
-            }
+    //             ImPlot::EndPlot();
+    //         }
 
-            ImPlot::PopStyleVar();
-            ImGui::PopID();
-        }
+    //         ImPlot::PopStyleVar();
+    //         ImGui::PopID();
+    //     }
 
-        ImPlot::PopColormap();
-    }
+    //     ImPlot::PopColormap();
+    // }
 
-    ImGui::EndTable();
+    // ImGui::EndTable();
 
-    if (ImGui::CollapsingHeader("Selected", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::BeginTable("models", 3)) {
-            ImGui::TableSetupColumn("type");
-            ImGui::TableSetupColumn("name");
-            ImGui::TableSetupColumn("action");
-            ImGui::TableHeadersRow();
+    // if (ImGui::CollapsingHeader("Selected", ImGuiTreeNodeFlags_DefaultOpen))
+    // {
+    //     if (ImGui::BeginTable("models", 3)) {
+    //         ImGui::TableSetupColumn("type");
+    //         ImGui::TableSetupColumn("name");
+    //         ImGui::TableSetupColumn("action");
+    //         ImGui::TableHeadersRow();
 
-            for (int i = 0, e = s_editor.selected_nodes.size(); i != e; ++i) {
-                const auto index = s_editor.selected_nodes[i];
-                auto* mdl = app->sim.models.try_to_get(static_cast<u32>(index));
-                if (!mdl)
-                    continue;
+    //         for (int i = 0, e = s_editor.selected_nodes.size(); i != e; ++i)
+    //         {
+    //             const auto index = s_editor.selected_nodes[i];
+    //             auto* mdl =
+    //             app->sim.models.try_to_get(static_cast<u32>(index)); if
+    //             (!mdl)
+    //                 continue;
 
-                ImGui::TableNextRow();
+    //             ImGui::TableNextRow();
 
-                const auto mdl_id = app->sim.models.get_id(*mdl);
-                ImGui::PushID(i);
+    //             const auto mdl_id = app->sim.models.get_id(*mdl);
+    //             ImGui::PushID(i);
 
-                bool              already_observed = false;
-                plot_observation* obs              = nullptr;
-                while (s_editor.sim_obs.next(obs)) {
-                    if (obs->model == mdl_id) {
-                        already_observed = true;
-                        break;
-                    }
-                }
+    //             bool              already_observed = false;
+    //             plot_observation* obs              = nullptr;
+    //             while (s_editor.plot_obs.next(obs)) {
+    //                 if (obs->model == mdl_id) {
+    //                     already_observed = true;
+    //                     break;
+    //                 }
+    //             }
 
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl->type)]);
-                ImGui::TableNextColumn();
+    //             ImGui::TableNextColumn();
+    //             ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl->type)]);
+    //             ImGui::TableNextColumn();
 
-                if (already_observed) {
-                    ImGui::PushItemWidth(-1);
-                    ImGui::InputSmallString("##name", obs->name);
-                    ImGui::PopItemWidth();
-                }
+    //             if (already_observed) {
+    //                 ImGui::PushItemWidth(-1);
+    //                 ImGui::InputSmallString("##name", obs->name);
+    //                 ImGui::PopItemWidth();
+    //             }
 
-                ImGui::TableNextColumn();
+    //             ImGui::TableNextColumn();
 
-                if (already_observed) {
-                    if (ImGui::Button("remove"))
-                        app->add_simulation_task(
-                          task_remove_simulation_observation, ordinal(mdl_id));
-                } else {
-                    if (ImGui::Button("observe"))
-                        app->add_simulation_task(
-                          task_add_simulation_observation, ordinal(mdl_id));
-                }
+    //             if (already_observed) {
+    //                 if (ImGui::Button("remove"))
+    //                     app->add_simulation_task(
+    //                       task_remove_simulation_observation,
+    //                       ordinal(mdl_id));
+    //             } else {
+    //                 if (ImGui::Button("observe"))
+    //                     app->add_simulation_task(
+    //                       task_add_simulation_observation, ordinal(mdl_id));
+    //             }
 
-                ImGui::PopID();
-            }
-            ImGui::EndTable();
-        }
-    }
+    //             ImGui::PopID();
+    //         }
+    //         ImGui::EndTable();
+    //     }
+    // }
 
     ImGui::End();
 }

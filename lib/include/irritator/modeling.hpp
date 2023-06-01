@@ -95,9 +95,10 @@ enum class modeling_status
 enum class observable_type
 {
     none,
-    single,
-    multiple,
-    space,
+    file,
+    plot,
+    graph,
+    grid,
 };
 
 class project;
@@ -271,13 +272,31 @@ struct grid_component
 
     constexpr int pos(int row_, int col_) noexcept { return col_ * row + row_; }
 
-    u64 make_next_unique_id(std::integral auto row,
-                            std::integral auto col) const noexcept
+    constexpr std::pair<int, int> pos(int pos_) noexcept
+    {
+        return std::make_pair(pos_ / row, pos_ % row);
+    }
+
+    constexpr std::pair<int, int> unique_id(u64 id) noexcept
+    {
+        auto unpack = unpack_doubleword(id);
+
+        return std::make_pair(static_cast<int>(unpack.first),
+                              static_cast<int>(unpack.second));
+    }
+
+    constexpr u64 unique_id(int row, int col) noexcept
+    {
+        return make_doubleword(static_cast<u32>(row), static_cast<u32>(col));
+    }
+
+    constexpr u64 make_next_unique_id(std::integral auto row,
+                                      std::integral auto col) const noexcept
     {
         irt_assert(is_numeric_castable<u32>(row));
         irt_assert(is_numeric_castable<u32>(col));
 
-        return static_cast<u64>(row) << 32 | static_cast<u64>(col);
+        return make_doubleword(static_cast<u32>(row), static_cast<u32>(col));
     }
 
     vector<component_id> children;
@@ -400,18 +419,19 @@ struct tree_node
 
     struct parameter
     {
-        u64      unique_id;
-        model_id mdl_id; // model in simulation models
-        model    param;  // @TODO to replace with parameters union
-        bool     enable;
+        u64      unique_id = 0;
+        model_id mdl_id = undefined<model_id>(); // model in simulation models
+        model    param; // @TODO to replace with parameters union
+        bool     enable = false;
     };
 
     struct observation
     {
-        u64             unique_id;
-        model_id        mdl_id; // model in simulation models
-        observable_type param;
-        bool            enable;
+        u64             unique_id  = 0;
+        model_id        mdl_id     = undefined<model_id>();
+        observable_type type       = observable_type::none;
+        u64             identifier = 0;
+        u64             data       = 0;
     };
 
     //! Map unique_id or simulation model to parameters.
