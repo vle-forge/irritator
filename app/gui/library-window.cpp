@@ -290,34 +290,33 @@ static void show_component_library(component_editor& c_editor,
                                    irt::tree_node*   tree) noexcept
 {
     auto* app = container_of(&c_editor, &application::component_ed);
-    if (ImGui::Button("+grid")) {
-        auto& compo    = app->mod.alloc_grid_component();
-        auto  compo_id = app->mod.components.get_id(compo);
 
-        if (app->grids.can_alloc()) {
-            auto& wnd = app->grids.alloc(compo_id, compo.id.grid_id);
-            app->component_ed.request_to_open = wnd.id;
-            app->component_sel.update();
-        }
-    }
-
-    ImGui::SameLine();
-
-    if (ImGui::Button("+component")) {
-        auto& compo = app->mod.alloc_simple_component();
-
-        if (app->generics.can_alloc()) {
-            auto& wnd = app->generics.alloc();
-            wnd.id    = app->mod.components.get_id(compo);
-            app->component_ed.request_to_open = wnd.id;
-            app->component_sel.update();
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Component library",
-                                ImGuiTreeNodeFlags_CollapsingHeader |
+    if (ImGui::CollapsingHeader("Components",
+                                ImGuiTreeNodeFlags_AllowItemOverlap |
+                                  ImGuiTreeNodeFlags_CollapsingHeader |
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
-        auto* app = container_of(&c_editor, &application::component_ed);
+        ImGui::SameLine();
+        if (ImGui::Button("+grid")) {
+            auto& compo    = app->mod.alloc_grid_component();
+            auto  compo_id = app->mod.components.get_id(compo);
+
+            if (app->grids.can_alloc()) {
+                auto& wnd = app->grids.alloc(compo_id, compo.id.grid_id);
+                app->component_ed.request_to_open = wnd.id;
+                app->component_sel.update();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("+generic")) {
+            auto& compo = app->mod.alloc_simple_component();
+
+            if (app->generics.can_alloc()) {
+                auto& wnd = app->generics.alloc();
+                wnd.id    = app->mod.components.get_id(compo);
+                app->component_ed.request_to_open = wnd.id;
+                app->component_sel.update();
+            }
+        }
 
         for (auto id : app->mod.component_repertories) {
             small_string<32>  s;
