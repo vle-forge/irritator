@@ -12,6 +12,7 @@
 #include <array>
 #include <optional>
 #include <utility>
+#include <variant>
 
 namespace irt {
 
@@ -444,6 +445,36 @@ struct tree_node
     //! project::set or @c project::rebuild functions.
     table<child_id, model_id> child_to_sim;
 
+    using node_v = std::variant<tree_node_id, model_id>;
+
+    table<u64, node_v> nodes_v;
+
+    auto get_model_id(const node_v v) const noexcept -> std::optional<model_id>
+    {
+        auto* ptr = std::get_if<model_id>(&v);
+        return ptr ? std::make_optional(*ptr) : std::nullopt;
+    }
+
+    auto get_model_id(u64 unique_id) const noexcept -> std::optional<model_id>
+    {
+        auto* ptr = nodes_v.get(unique_id);
+        return ptr ? get_model_id(*ptr) : std::nullopt;
+    }
+
+    auto get_tree_node_id(const node_v v) const noexcept
+      -> std::optional<tree_node_id>
+    {
+        auto* ptr = std::get_if<tree_node_id>(&v);
+        return ptr ? std::make_optional(*ptr) : std::nullopt;
+    }
+
+    auto get_tree_node_id(u64 unique_id) const noexcept
+      -> std::optional<tree_node_id>
+    {
+        auto* ptr = nodes_v.get(unique_id);
+        return ptr ? get_tree_node_id(*ptr) : std::nullopt;
+    }
+
     union node
     {
         node() noexcept = default;
@@ -680,8 +711,7 @@ public:
     auto head() const noexcept -> component_id;
     auto tn_head() const noexcept -> tree_node*;
 
-    auto node(tree_node_id id) noexcept -> tree_node*;
-    auto cnode(tree_node_id id) const noexcept -> const tree_node*;
+    auto node(tree_node_id id) const noexcept -> tree_node*;
     auto node(tree_node& node) const noexcept -> tree_node_id;
 
     template<typename Function, typename... Args>
@@ -715,6 +745,41 @@ public:
         table<u64, binary_file_source_id> binary_files;
         table<u64, text_file_source_id>   text_files;
         table<u64, random_source_id>      randoms;
+    };
+
+    enum class parameter_id : u32;
+    enum class observation_id : u32;
+
+    /// Stores the path from the head of the project to the model by following
+    /// the path of tree_node and/or component @c unique_id.
+    using unique_id_path = small_vector<u64, 16>;
+
+    void build_unique_id_path(const tree_node& model_unique_id_parent,
+                              const u64        model_unique_id,
+                              unique_id_path&  out) noexcept;
+
+    auto get_model_path(u64 id) noexcept
+      -> std::optional<std::pair<tree_node_id, model_id>>;
+
+    auto get_model_path(const unique_id_path& path) noexcept
+      -> std::optional<std::pair<tree_node_id, model_id>>;
+
+    struct parameter
+    {
+        tree_node_id tn_id  = undefined<tree_node_id>();
+        model_id     mdl_id = undefined<model_id>();
+
+        model data;
+    };
+
+    struct observation
+    {
+        tree_node_id    tn_id   = undefined<tree_node_id>();
+        model_id        mdl_id  = undefined<model_id>();
+        observable_type type    = observable_type::none;
+        u64             id      = 0;
+        u64             param_0 = 0;
+        u64             param_1 = 0;
     };
 
 private:
@@ -789,12 +854,7 @@ inline auto project::tn_head() const noexcept -> tree_node*
     return m_tree_nodes.try_to_get(m_tn_head);
 }
 
-inline auto project::node(tree_node_id id) noexcept -> tree_node*
-{
-    return m_tree_nodes.try_to_get(id);
-}
-
-inline auto project::cnode(tree_node_id id) const noexcept -> const tree_node*
+inline auto project::node(tree_node_id id) const noexcept -> tree_node*
 {
     return m_tree_nodes.try_to_get(id);
 }

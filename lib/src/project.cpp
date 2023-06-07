@@ -1030,4 +1030,108 @@ status project::save(modeling&   mod,
     return project_save(*this, mod, sim, cache, filename);
 }
 
+static void project_build_unique_id_path(const u64 model_unique_id,
+                                         project::unique_id_path& out) noexcept
+{
+    out.clear();
+    out.emplace_back(model_unique_id);
+}
+
+static void project_build_unique_id_path(
+  const tree_node&         model_unique_id_parent,
+  const u64                model_unique_id,
+  project::unique_id_path& out) noexcept
+{
+    out.clear();
+    out.emplace_back(model_unique_id);
+
+    auto* parent = &model_unique_id_parent;
+
+    do {
+        out.emplace_back(parent->unique_id);
+        parent = parent->tree.get_parent();
+    } while (parent);
+
+    std::reverse(out.begin(), out.end());
+}
+
+void project::build_unique_id_path(const tree_node& model_unique_id_parent,
+                                   const u64        model_unique_id,
+                                   unique_id_path&  out) noexcept
+{
+    return m_tree_nodes.get_id(model_unique_id_parent) == m_tn_head
+             ? project_build_unique_id_path(model_unique_id, out)
+             : project_build_unique_id_path(
+                 model_unique_id_parent, model_unique_id, out);
+}
+
+auto project::get_model_path(u64 id) noexcept
+  -> std::optional<std::pair<tree_node_id, model_id>>
+{
+    auto model_id_opt = tn_head()->get_model_id(id);
+
+    return model_id_opt.has_value()
+             ? std::make_optional(std::make_pair(m_tn_head, *model_id_opt))
+             : std::nullopt;
+}
+
+static auto project_get_model_path(const project&                 pj,
+                                   const project::unique_id_path& path) noexcept
+  -> std::optional<std::pair<tree_node_id, model_id>>
+{
+    std::optional<tree_node_id> tn_id_opt;
+    std::optional<model_id>     mdl_id_opt;
+    bool                        error = false;
+
+    auto* tn   = pj.tn_head();
+    u64   last = path.back();
+
+    irt_assert(tn);
+
+    for (int i = 0, e = path.size() - 1; i != e; ++i) {
+        tn_id_opt = tn->get_tree_node_id(path[i]);
+
+        if (!tn_id_opt.has_value()) {
+            error = true;
+            break;
+        }
+
+        tn = pj.node(*tn_id_opt);
+
+        if (!tn) {
+            error = true;
+            break;
+        }
+    }
+
+    if (!error) {
+        tn_id_opt  = pj.node(*tn);
+        mdl_id_opt = tn->get_model_id(last);
+
+        if (!mdl_id_opt.has_value()) {
+            error = true;
+        }
+    }
+
+    return !error ? std::make_optional(std::make_pair(*tn_id_opt, *mdl_id_opt))
+                  : std::nullopt;
+}
+
+auto project::get_model_path(const unique_id_path& path) noexcept
+  -> std::optional<std::pair<tree_node_id, model_id>>
+{
+    switch (path.ssize()) {
+    case 0:
+        return std::nullopt;
+
+    case 1:
+        return get_model_path(path.front());
+
+    default:
+        return project_get_model_path(*this, path);
+    }
+
+    irt_unreachable();
+}
+
 } // namespace irt
