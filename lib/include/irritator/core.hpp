@@ -9096,7 +9096,7 @@ constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::front() noexcept
 {
     irt_assert(m_size > 0);
-    return data();
+    return data()[0];
 }
 
 template<typename T, int length>
@@ -9104,7 +9104,7 @@ constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::front() const noexcept
 {
     irt_assert(m_size > 0);
-    return data();
+    return data()[0];
 }
 
 template<typename T, int length>
