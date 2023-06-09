@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
+#include <algorithm>
 #include <cwchar>
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
@@ -26,6 +27,8 @@ enum class file_path_id : u64;
 enum class child_id : u64;
 enum class connection_id : u64;
 enum class registred_path_id : u64;
+enum class plot_observer_id : u32;
+enum class grid_observer_id : u32;
 
 constexpr i32 max_component_dirs = 64;
 
@@ -110,6 +113,9 @@ struct generic_component;
 struct modeling;
 struct description;
 struct io_cache;
+struct tree_node;
+struct plot_observer;
+struct grid_observer;
 
 //! A structure use to cache data when read or write json component.
 //! - @c buffer is used to store the full file content or output buffer.
@@ -309,6 +315,7 @@ struct grid_component
     type    connection_type = type::name;
 };
 
+using color           = std::array<u8, 4>;
 using component_color = std::array<float, 4>;
 
 struct component
@@ -408,7 +415,6 @@ struct tree_node
     tree_node(component_id id_, u64 unique_id_) noexcept;
 
     bool have_configuration() const noexcept;
-    bool have_observation() const noexcept;
 
     //! Reference the current component
     component_id id = undefined<component_id>();
@@ -426,20 +432,11 @@ struct tree_node
         bool     enable = false;
     };
 
-    struct observation
-    {
-        u64             unique_id  = 0;
-        model_id        mdl_id     = undefined<model_id>();
-        observable_type type       = observable_type::none;
-        u64             identifier = 0;
-        u64             data       = 0;
-    };
-
     //! Map unique_id or simulation model to parameters.
     vector<parameter> parameters;
 
-    //! Map unique_id or simulation model to observables.
-    vector<observation> observables;
+    //! Cache of model-id with observable tag.
+    vector<u64> observables;
 
     //! Map component children into simulation model. Table build in @c
     //! project::set or @c project::rebuild functions.
@@ -475,6 +472,26 @@ struct tree_node
         return ptr ? get_tree_node_id(*ptr) : std::nullopt;
     }
 
+    auto get_unique_id(const model_id mdl_id) const noexcept -> u64
+    {
+        for (auto x : nodes_v.data)
+            if (auto* ptr = std::get_if<model_id>(&x.value);
+                ptr && *ptr == mdl_id)
+                return x.id;
+
+        return 0;
+    }
+
+    auto get_unique_id(const tree_node_id tn_id) const noexcept -> u64
+    {
+        for (auto x : nodes_v.data)
+            if (auto* ptr = std::get_if<tree_node_id>(&x.value);
+                ptr && *ptr == tn_id)
+                return x.id;
+
+        return 0;
+    }
+
     union node
     {
         node() noexcept = default;
@@ -489,6 +506,39 @@ struct tree_node
     //! tree_node. This variable allows to quickly build the connection
     //! network at build time.
     table<child_id, node> child_to_node;
+};
+
+struct observed_node
+{
+    tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
+    model_id     mdl_id; //< @c model to observe.
+
+    observed_node() noexcept = default;
+
+    void clear() noexcept;
+    bool is_defined() const noexcept;
+};
+
+struct grid_observer
+{
+    small_string<31> name;
+
+    tree_node_id  grid_parent;
+    observed_node child;
+};
+
+struct plot_observer
+{
+    enum class type
+    {
+        line,
+        dash,
+    };
+
+    small_string<31>      name;
+    vector<observed_node> children;
+    vector<color>         colors;
+    vector<type>          types;
 };
 
 struct log_entry
@@ -713,6 +763,7 @@ public:
 
     auto node(tree_node_id id) const noexcept -> tree_node*;
     auto node(tree_node& node) const noexcept -> tree_node_id;
+    auto node(const tree_node& node) const noexcept -> tree_node_id;
 
     template<typename Function, typename... Args>
     auto for_all_tree_nodes(Function&& f, Args... args) noexcept;
@@ -754,6 +805,12 @@ public:
     /// the path of tree_node and/or component @c unique_id.
     using unique_id_path = small_vector<u64, 16>;
 
+    void build_unique_id_path(const observed_node node,
+                              unique_id_path&     out) noexcept;
+
+    void build_unique_id_path(const tree_node_id tn_id,
+                              unique_id_path&    out) noexcept;
+
     void build_unique_id_path(const tree_node& model_unique_id_parent,
                               const u64        model_unique_id,
                               unique_id_path&  out) noexcept;
@@ -764,32 +821,31 @@ public:
     auto get_model_path(const unique_id_path& path) noexcept
       -> std::optional<std::pair<tree_node_id, model_id>>;
 
-    struct parameter
-    {
-        tree_node_id tn_id  = undefined<tree_node_id>();
-        model_id     mdl_id = undefined<model_id>();
+    auto get_tn_id(const unique_id_path& path) noexcept
+      -> std::optional<tree_node_id>;
 
-        model data;
-    };
-
-    struct observation
-    {
-        tree_node_id    tn_id   = undefined<tree_node_id>();
-        model_id        mdl_id  = undefined<model_id>();
-        observable_type type    = observable_type::none;
-        u64             id      = 0;
-        u64             param_0 = 0;
-        u64             param_1 = 0;
-    };
+    data_array<tree_node, tree_node_id>         m_tree_nodes;
+    data_array<plot_observer, plot_observer_id> plot_observers;
+    data_array<grid_observer, grid_observer_id> grid_observers;
 
 private:
-    data_array<tree_node, tree_node_id> m_tree_nodes;
-
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();
 
     cache m_cache;
 };
+
+inline void observed_node::clear() noexcept
+{
+    tn_id  = undefined<tree_node_id>();
+    mdl_id = undefined<model_id>();
+}
+
+inline bool observed_node::is_defined() const noexcept
+{
+    return tn_id != undefined<tree_node_id>() and
+           mdl_id != undefined<model_id>();
+}
 
 /* ------------------------------------------------------------------
    Child part
@@ -838,11 +894,6 @@ inline bool tree_node::have_configuration() const noexcept
     return !parameters.empty();
 }
 
-inline bool tree_node::have_observation() const noexcept
-{
-    return !observables.empty();
-}
-
 /*
    Project part
  */
@@ -860,6 +911,11 @@ inline auto project::node(tree_node_id id) const noexcept -> tree_node*
 }
 
 inline auto project::node(tree_node& node) const noexcept -> tree_node_id
+{
+    return m_tree_nodes.get_id(node);
+}
+
+inline auto project::node(const tree_node& node) const noexcept -> tree_node_id
 {
     return m_tree_nodes.get_id(node);
 }

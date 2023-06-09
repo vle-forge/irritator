@@ -5,7 +5,9 @@
 #include "application.hpp"
 #include "implot.h"
 #include "internal.hpp"
+#include "irritator/modeling.hpp"
 
+#include <algorithm>
 #include <irritator/core.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
@@ -13,6 +15,7 @@
 
 #include <cmath>
 #include <limits>
+#include <locale>
 #include <optional>
 #include <type_traits>
 
@@ -131,99 +134,249 @@ void simulation_observation::update() noexcept
     }
 }
 
-void plot_observation::clear() noexcept { children.clear(); }
-
-void plot_observation::show(application& app) noexcept
+status plot_observation_widget::init(application&   app,
+                                     plot_observer& plot) noexcept
 {
-    ImGui::PushID(this);
+    const auto len = plot.children.size();
 
-    if (ImPlot::BeginPlot(name.c_str(), ImVec2(-1, -1))) {
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+    observers.resize(len);
+    plot_types.resize(len);
 
-        ImPlot::SetupAxes(
-          nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+    std::fill_n(observers.data(), len, undefined<observer_id>());
+    std::fill_n(plot_types.data(), len, simulation_plot_type::plotlines);
 
-        for_specified_data(app.sim.models, children, [&](auto& mdl) noexcept {
-            if_data_exists_do(
-              app.sim.observers, mdl.obs_id, [&](auto& obs) noexcept {
-                  if (obs.linearized_buffer.size() > 0) {
-                      switch (plot_type) {
-                      case simulation_plot_type::plotlines:
-                          ImPlot::PlotLineG(obs.name.c_str(),
-                                            ring_buffer_getter,
-                                            &obs.linearized_buffer,
-                                            obs.linearized_buffer.ssize());
-                          break;
+    id = app.pj.plot_observers.get_id(plot);
 
-                      case simulation_plot_type::plotscatters:
-                          ImPlot::PlotScatterG(obs.name.c_str(),
-                                               ring_buffer_getter,
-                                               &obs.linearized_buffer,
-                                               obs.linearized_buffer.ssize());
-                          break;
-
-                      default:
-                          break;
-                      }
-                  }
-              });
-        });
-
-        ImPlot::PopStyleVar(2);
-        ImPlot::EndPlot();
+    for (int i = 0, e = plot.children.ssize(); i != e; ++i) {
+        if_data_exists_do(
+          app.sim.models, plot.children[i].mdl_id, [&](auto& mdl) noexcept {
+              observers.emplace_back(mdl.obs_id);
+          });
     }
 
-    ImGui::PopID();
+    return status::success;
 }
 
-void plot_observation::write(application&                 app,
-                             const std::filesystem::path& file_path) noexcept
+void plot_observation_widget::clear() noexcept
 {
-    if (auto ofs = std::ofstream{ file_path }; ofs.is_open()) {
-        bool first_column = true;
-        int  size         = std::numeric_limits<int>::max();
+    observers.clear();
+    plot_types.clear();
+}
 
-        for_specified_data(app.sim.models, children, [&](auto& mdl) noexcept {
-            if_data_exists_do(
-              app.sim.observers, mdl.obs_id, [&](auto& obs) noexcept {
-                  if (first_column) {
-                      ofs << "t," << obs.name.sv();
-                      first_column = false;
-                  } else {
-                      ofs << "," << obs.name.sv();
-                  }
+void plot_observation_widget::show(application& app) noexcept
+{
+    if_data_exists_do(app.pj.plot_observers, id, [&](auto& plot_obs) noexcept {
+        ImGui::PushID(this);
+        if (ImPlot::BeginPlot(plot_obs.name.c_str(), ImVec2(-1, -1))) {
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-                  size = std::min(size, obs.linearized_buffer.ssize());
-              });
-        });
+            ImPlot::SetupAxes(nullptr,
+                              nullptr,
+                              ImPlotAxisFlags_AutoFit,
+                              ImPlotAxisFlags_AutoFit);
+
+            for (int i = 0, e = observers.ssize(); i != e; ++i) {
+                if_data_exists_do(
+                  app.sim.observers, observers[i], [&](auto& obs) noexcept {
+                      if (obs.linearized_buffer.size() > 0) {
+                          switch (plot_types[i]) {
+                          case simulation_plot_type::plotlines:
+                              ImPlot::PlotLineG(obs.name.c_str(),
+                                                ring_buffer_getter,
+                                                &obs.linearized_buffer,
+                                                obs.linearized_buffer.ssize());
+                              break;
+
+                          case simulation_plot_type::plotscatters:
+                              ImPlot::PlotScatterG(
+                                obs.name.c_str(),
+                                ring_buffer_getter,
+                                &obs.linearized_buffer,
+                                obs.linearized_buffer.ssize());
+                              break;
+
+                          default:
+                              break;
+                          }
+                      }
+                  });
+
+                ImPlot::PopStyleVar(2);
+                ImPlot::EndPlot();
+            }
+        }
+        ImGui::PopID();
+    });
+}
+
+static void plot_observation_widget_write(plot_observation_widget& plot_widget,
+                                          application&             app,
+                                          std::ofstream&           ofs) noexcept
+{
+    ofs.imbue(std::locale::classic());
+
+    bool first_column = true;
+    int  size         = std::numeric_limits<int>::max();
+
+    for_specified_data(
+      app.sim.observers, plot_widget.observers, [&](auto& obs) noexcept {
+          if (first_column) {
+              ofs << "t," << obs.name.sv();
+              first_column = false;
+          } else {
+              ofs << "," << obs.name.sv();
+          }
+
+          size = std::min(size, obs.linearized_buffer.ssize());
+      });
+
+    ofs << '\n';
+
+    for (int i = 0; i < size; ++i) {
+        first_column = true;
+
+        for_specified_data(
+          app.sim.observers, plot_widget.observers, [&](auto& obs) noexcept {
+              auto idx = obs.linearized_buffer.index_from_begin(i);
+              if (first_column) {
+                  ofs << obs.linearized_buffer[idx].x << ","
+                      << obs.linearized_buffer[idx].y;
+                  first_column = false;
+              } else {
+                  ofs << "," << obs.linearized_buffer[idx].y;
+              }
+          });
 
         ofs << '\n';
-
-        for (int i = 0; i < size; ++i) {
-            first_column = true;
-
-            for_specified_data(
-              app.sim.models, children, [&](auto& mdl) noexcept {
-                  if_data_exists_do(
-                    app.sim.observers, mdl.obs_id, [&](auto& obs) noexcept {
-                        auto idx = obs.linearized_buffer.index_from_begin(i);
-                        if (first_column) {
-                            ofs << obs.linearized_buffer[idx].x << ","
-                                << obs.linearized_buffer[idx].y;
-                            first_column = false;
-                        } else {
-                            ofs << "," << obs.linearized_buffer[idx].y;
-                        }
-                    });
-
-                  ofs << '\n';
-              });
-        }
     }
 }
 
-void grid_observation::resize(int rows_, int cols_) noexcept
+static void notification_fail_open_file(application&                 app,
+                                        const std::filesystem::path& file_path,
+                                        std::string_view title) noexcept
+{
+    auto& n = app.notifications.alloc(log_level::error);
+    n.title = title;
+    format(
+      n.message, "The file `{}` is not openable", file_path.generic_string());
+    app.notifications.enable(n);
+}
+
+void plot_observation_widget::write(
+  application&                 app,
+  const std::filesystem::path& file_path) noexcept
+{
+    auto ofs = std::ofstream{ file_path };
+
+    return ofs.is_open()
+             ? plot_observation_widget_write(*this, app, ofs)
+             : notification_fail_open_file(
+                 app, file_path, "Fail to open plot observation file");
+}
+
+static observer_id get_observer_id(application&         app,
+                                   const tree_node&     tn,
+                                   const std::span<u64> unique_ids,
+                                   const model_id       mdl_id) noexcept
+{
+    const tree_node* ptr = &tn;
+
+    for (const auto unique_id : unique_ids) {
+        if (auto tree_node_id_opt = ptr->get_tree_node_id(unique_id);
+            tree_node_id_opt.has_value()) {
+            ptr = app.pj.m_tree_nodes.try_to_get(*tree_node_id_opt);
+        }
+    }
+
+    if (auto mdl_id_opt = ptr->get_model_id(mdl_id); mdl_id_opt.has_value())
+        if (auto* mdl = app.sim.models.try_to_get(*mdl_id_opt); mdl)
+            return mdl->obs_id;
+
+    return undefined<observer_id>();
+}
+
+status grid_observation_widget_init(grid_observation_widget& grid_widget,
+                                    application&             app,
+                                    grid_observer&           grid,
+                                    grid_component&          compo,
+                                    tree_node& grid_parent) noexcept
+{
+    return if_data_exists_return(
+      app.pj.m_tree_nodes,
+      grid.child.tn_id,
+      [&](auto& tn) noexcept {
+          small_vector<u64, 16> stack;
+
+          // First step, build the stack with unique_id from parent to
+          // grid_parent.
+          stack.emplace_back(tn.unique_id);
+          auto* parent = tn.tree.get_parent();
+          while (parent && parent != &grid_parent) {
+              stack.emplace_back(parent->unique_id);
+              parent = parent->tree.get_parent();
+          }
+
+          // Second step, from grid parent, search child
+          if (const auto* child = grid_parent.tree.get_child(); child) {
+              do {
+                  if (child->unique_id == stack.back()) {
+                      auto [row, col] = unpack_doubleword(child->unique_id);
+
+                      grid_widget.observers[row * compo.column + col] =
+                        get_observer_id(
+                          app,
+                          *child,
+                          std::span(stack.begin(), stack.end() - 1),
+                          grid.child.mdl_id);
+                  }
+              } while (child);
+          }
+
+          return status::success;
+      },
+      status::unknown_dynamics);
+}
+
+status grid_observation_widget::init(application&   app,
+                                     grid_observer& grid) noexcept
+{
+    return if_data_exists_return(
+      app.pj.m_tree_nodes,
+      grid.grid_parent,
+      [&](auto& grid_tn) noexcept {
+          return if_data_exists_return(
+            app.mod.components,
+            grid_tn.id,
+            [&](auto& compo) noexcept {
+                irt_assert(compo.type == component_type::grid);
+
+                return if_data_exists_return(
+                  app.mod.grid_components,
+                  compo.id.grid_id,
+                  [&](auto& grid_compo) noexcept {
+                      const auto len = grid_compo.row * grid_compo.column;
+
+                      observers.resize(len);
+                      values.resize(len);
+
+                      std::fill_n(
+                        observers.data(), len, undefined<observer_id>());
+                      std::fill_n(values.data(), len, none_value);
+
+                      id = app.pj.grid_observers.get_id(grid);
+
+                      return grid_observation_widget_init(
+                        *this, app, grid, grid_compo, grid_tn);
+                  },
+                  status::unknown_dynamics); // unknown grid-compo
+            },
+            status::unknown_dynamics); // unknown compo
+      },
+      status::unknown_dynamics); // unknown_grid
+}
+
+void grid_observation_widget::resize(int rows_, int cols_) noexcept
 {
     const auto len = rows_ * cols_;
     rows           = rows_;
@@ -231,50 +384,50 @@ void grid_observation::resize(int rows_, int cols_) noexcept
 
     irt_assert(len > 0);
 
-    children.resize(len);
+    observers.resize(len);
     values.resize(len);
     clear();
 }
 
-void grid_observation::clear() noexcept
+void grid_observation_widget::clear() noexcept
 {
-    std::fill_n(children.data(), children.size(), undefined<model_id>());
+    std::fill_n(observers.data(), observers.size(), undefined<observer_id>());
     std::fill_n(values.data(), values.size(), none_value);
 }
 
-void grid_observation::show(application& app) noexcept
+void grid_observation_widget::update(application& app) noexcept
 {
-    irt_assert(rows * cols == children.ssize());
+    irt_assert(rows * cols == observers.ssize());
 
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
             values[row * cols + col] = if_data_exists_return(
-              app.sim.models,
-              children[row * cols + col],
-              [&](auto& mdl) noexcept -> real {
-                  return if_data_exists_return(
-                    app.sim.observers,
-                    mdl.obs_id,
-                    [&](auto& obs) noexcept {
-                        return obs.linearized_buffer.back().y;
-                    },
-                    none_value);
+              app.sim.observers,
+              observers[row * cols + col],
+              [&](auto& obs) noexcept -> real {
+                  return obs.linearized_buffer.back().y;
               },
               none_value);
         }
     }
+}
 
-    ImGui::PushID(this);
-    if (ImPlot::BeginPlot(name.c_str(), ImVec2(-1, -1))) {
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+void grid_observation_widget::show(application& app) noexcept
+{
+    if_data_exists_do(app.pj.grid_observers, id, [&](auto& grid_obs) noexcept {
+        ImGui::PushID(this);
+        if (ImPlot::BeginPlot(grid_obs.name.c_str(), ImVec2(-1, -1))) {
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-        ImPlot::PlotHeatmap(name.c_str(), values.data(), rows, cols);
+            ImPlot::PlotHeatmap(
+              grid_obs.name.c_str(), values.data(), rows, cols);
 
-        ImPlot::PopStyleVar(2);
-        ImPlot::EndPlot();
-    }
-    ImGui::PopID();
+            ImPlot::PopStyleVar(2);
+            ImPlot::EndPlot();
+        }
+        ImGui::PopID();
+    });
 }
 
 void plot_copy::show(application& /*app*/) noexcept

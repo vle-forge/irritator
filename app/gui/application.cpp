@@ -126,22 +126,8 @@ bool application::init() noexcept
     }
 
     simulation_ed.displacements.resize(mod_init.model_capacity);
-
-    if (auto ret = simulation_ed.plot_obs.init(16); is_bad(ret)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize simulation plot observation: {}\n",
-              status_string(ret));
-        return false;
-    }
-
-    if (auto ret = simulation_ed.grid_obs.init(16); is_bad(ret)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize simulation grid observation: {}\n",
-              status_string(ret));
-        return false;
-    }
+    simulation_ed.plot_obs.resize(pj.plot_observers.size());
+    simulation_ed.grid_obs.resize(pj.grid_observers.size());
 
     if (auto ret = simulation_ed.copy_obs.init(16); is_bad(ret)) {
         log_w(*this,

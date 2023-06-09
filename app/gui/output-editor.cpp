@@ -48,72 +48,75 @@ static void show_observation_table(application& app) noexcept
                                 ImGuiTableColumnFlags_WidthStretch);
 
         ImGui::TableHeadersRow();
-        plot_observation* out = nullptr;
-        while (app.simulation_ed.plot_obs.next(out)) {
-            ImGui::PushID(out);
-            ImGui::TableNextRow();
+        // plot_observation_widget* out = nullptr;
 
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1);
-            ImGui::InputFilteredString("##name", out->name);
-            ImGui::PopItemWidth();
+        // while (app.simulation_ed.plot_obs.next(out)) {
+        //     ImGui::PushID(out);
+        //     ImGui::TableNextRow();
 
-            ImGui::TableNextColumn();
-            ImGui::TextFormat("{}",
-                              ordinal(app.simulation_ed.plot_obs.get_id(*out)));
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1);
-            if (ImGui::InputReal("##ts", &app.sim_obs.time_step))
-                app.sim_obs.time_step = std::clamp(app.sim_obs.time_step,
-                                                   app.sim_obs.min_time_step,
-                                                   app.sim_obs.max_time_step);
-            ImGui::PopItemWidth();
+        //    ImGui::TableNextColumn();
+        //    ImGui::PushItemWidth(-1);
+        //    ImGui::InputFilteredString("##name", out->name);
+        //    ImGui::PopItemWidth();
 
-            ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", out->children.size());
-            ImGui::TableNextColumn();
+        //    ImGui::TableNextColumn();
+        //    ImGui::TextFormat("{}",
+        //                      ordinal(app.simulation_ed.plot_obs.get_id(*out)));
+        //    ImGui::TableNextColumn();
+        //    ImGui::PushItemWidth(-1);
+        //    if (ImGui::InputReal("##ts", &app.sim_obs.time_step))
+        //        app.sim_obs.time_step = std::clamp(app.sim_obs.time_step,
+        //                                           app.sim_obs.min_time_step,
+        //                                           app.sim_obs.max_time_step);
+        //    ImGui::PopItemWidth();
 
-            int plot_type = ordinal(out->plot_type);
-            if (ImGui::Combo("##plot",
-                             &plot_type,
-                             simulation_plot_type_string,
-                             IM_ARRAYSIZE(simulation_plot_type_string)))
-                out->plot_type = enum_cast<simulation_plot_type>(plot_type);
+        //    ImGui::TableNextColumn();
+        //    ImGui::TextFormat("{}", out->children.size());
+        //    ImGui::TableNextColumn();
 
-            ImGui::TableNextColumn();
-            if (ImGui::Button("copy")) {
-                if (app.simulation_ed.copy_obs.can_alloc(
-                      out->children.ssize())) {
-                    for_specified_data(
-                      app.sim.models, out->children, [&](auto& mdl) {
-                          if_data_exists_do(
-                            app.sim.observers,
-                            mdl.obs_id,
-                            [&](auto& obs) noexcept {
-                                auto& new_obs =
-                                  app.simulation_ed.copy_obs.alloc();
-                                new_obs.name           = out->name.sv();
-                                new_obs.linear_outputs = obs.linearized_buffer;
-                            });
-                      });
-                }
-            }
+        //    int plot_type = ordinal(out->plot_type);
+        //    if (ImGui::Combo("##plot",
+        //                     &plot_type,
+        //                     simulation_plot_type_string,
+        //                     IM_ARRAYSIZE(simulation_plot_type_string)))
+        //        out->plot_type = enum_cast<simulation_plot_type>(plot_type);
 
-            ImGui::SameLine();
-            if (ImGui::Button("write")) {
-                // app.simulation_ed.selected_sim_obs = id;
-                app.output_ed.write_output = true;
-                auto err                   = std::error_code{};
-                auto file_path             = std::filesystem::current_path(err);
-                out->write(app, file_path);
-            }
+        //    ImGui::TableNextColumn();
+        //    if (ImGui::Button("copy")) {
+        //        if (app.simulation_ed.copy_obs.can_alloc(
+        //              out->children.ssize())) {
+        //            for_specified_data(
+        //              app.sim.models, out->children, [&](auto& mdl) {
+        //                  if_data_exists_do(
+        //                    app.sim.observers,
+        //                    mdl.obs_id,
+        //                    [&](auto& obs) noexcept {
+        //                        auto& new_obs =
+        //                          app.simulation_ed.copy_obs.alloc();
+        //                        new_obs.name           = out->name.sv();
+        //                        new_obs.linear_outputs =
+        //                        obs.linearized_buffer;
+        //                    });
+        //              });
+        //        }
+        //    }
 
-            ImGui::SameLine();
-            ImGui::TextUnformatted(reinterpret_cast<const char*>(
-              out->file.generic_string().c_str()));
+        //    ImGui::SameLine();
+        //    if (ImGui::Button("write")) {
+        //        // app.simulation_ed.selected_sim_obs = id;
+        //        app.output_ed.write_output = true;
+        //        auto err                   = std::error_code{};
+        //        auto file_path             =
+        //        std::filesystem::current_path(err); out->write(app,
+        //        file_path);
+        //    }
 
-            ImGui::PopID();
-        }
+        //    ImGui::SameLine();
+        //    ImGui::TextUnformatted(reinterpret_cast<const char*>(
+        //      out->file.generic_string().c_str()));
+
+        //    ImGui::PopID();
+        //}
 
         plot_copy *copy = nullptr, *prev = nullptr;
         while (app.simulation_ed.copy_obs.next(copy)) {
@@ -164,8 +167,8 @@ static void show_observation_plot(application& app) noexcept
 {
     ImPlot::SetCurrentContext(app.output_ed.implot_context);
 
-    for_each_data(app.simulation_ed.plot_obs,
-                  [&](auto& plot) noexcept -> void { plot.show(app); });
+    for (auto& plot : app.simulation_ed.plot_obs)
+        plot.show(app);
 
     for_each_data(app.simulation_ed.copy_obs,
                   [&](auto& plot) noexcept -> void { plot.show(app); });

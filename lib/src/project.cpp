@@ -2,10 +2,12 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/helpers.hpp"
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
+#include <optional>
 
 namespace irt {
 
@@ -372,11 +374,8 @@ static status make_tree_leaf(simulation_copy& sc,
         copy(mod_mdl, x.param);
     }
 
-    if (ch.flags & child_flags_observable) {
-        auto& x     = parent.observables.emplace_back();
-        x.unique_id = ch.unique_id;
-        x.mdl_id    = new_mdl_id;
-    }
+    if (ch.flags & child_flags_observable)
+        parent.observables.emplace_back(ch.unique_id);
 
     return status::success;
 }
@@ -945,6 +944,8 @@ static status make_tree_from(simulation_copy&                     sc,
 status project::init(int size) noexcept
 {
     irt_return_if_bad(m_tree_nodes.init(size));
+    irt_return_if_bad(plot_observers.init(size));
+    irt_return_if_bad(grid_observers.init(size));
 
     return status::success;
 }
@@ -1037,28 +1038,58 @@ static void project_build_unique_id_path(const u64 model_unique_id,
     out.emplace_back(model_unique_id);
 }
 
-static void project_build_unique_id_path(
-  const tree_node&         model_unique_id_parent,
-  const u64                model_unique_id,
-  project::unique_id_path& out) noexcept
+static void project_build_unique_id_path(const tree_node&         tn,
+                                         project::unique_id_path& out) noexcept
 {
     out.clear();
-    out.emplace_back(model_unique_id);
 
-    auto* parent = &model_unique_id_parent;
+    auto* parent = &tn;
 
     do {
         out.emplace_back(parent->unique_id);
         parent = parent->tree.get_parent();
     } while (parent);
+}
 
-    std::reverse(out.begin(), out.end());
+static void project_build_unique_id_path(
+  const tree_node&         model_unique_id_parent,
+  const u64                model_unique_id,
+  project::unique_id_path& out) noexcept
+{
+    project_build_unique_id_path(model_unique_id_parent, out);
+    out.emplace_back(model_unique_id);
+}
+
+void project::build_unique_id_path(const observed_node node,
+                                   unique_id_path&     out) noexcept
+{
+    out.clear();
+
+    if_data_exists_do(m_tree_nodes, node.tn_id, [&](const auto& tn) noexcept {
+        auto model_unique_id = tn.get_unique_id(node.mdl_id);
+        if (model_unique_id != 0)
+            build_unique_id_path(tn, model_unique_id, out);
+    });
+}
+
+void project::build_unique_id_path(const tree_node_id tn_id,
+                                   unique_id_path&    out) noexcept
+{
+    out.clear();
+
+    if (tn_id != m_tn_head) {
+        if_data_exists_do(m_tree_nodes, tn_id, [&](const auto& tn) noexcept {
+            project_build_unique_id_path(tn, out);
+        });
+    };
 }
 
 void project::build_unique_id_path(const tree_node& model_unique_id_parent,
                                    const u64        model_unique_id,
                                    unique_id_path&  out) noexcept
 {
+    out.clear();
+
     return m_tree_nodes.get_id(model_unique_id_parent) == m_tn_head
              ? project_build_unique_id_path(model_unique_id, out)
              : project_build_unique_id_path(
@@ -1132,6 +1163,74 @@ auto project::get_model_path(const unique_id_path& path) noexcept
     }
 
     irt_unreachable();
+}
+
+static auto project_get_first_tn_id_from(const project&   pj,
+                                         const tree_node& from,
+                                         u64              id) noexcept
+  -> std::optional<tree_node_id>
+{
+    if (auto* child = from.tree.get_child(); child) {
+        do {
+            if (child->unique_id == id)
+                return std::make_optional(pj.node(*child));
+
+            child = child->tree.get_sibling();
+        } while (child);
+    }
+
+    return std::nullopt;
+}
+
+static auto project_get_first_tn_id(const project& pj, u64 id) noexcept
+  -> std::optional<tree_node_id>
+{
+    if (const auto* head = pj.tn_head(); head)
+        return project_get_first_tn_id_from(pj, *head, id);
+
+    return std::nullopt;
+}
+
+static auto project_get_tn_id(const project&             pj,
+                              const std::span<const u64> ids) noexcept
+  -> std::optional<tree_node_id>
+{
+    if (const auto* tn = pj.tn_head(); tn) {
+        for (auto id : ids) {
+            auto child_opt = project_get_first_tn_id_from(pj, *tn, id);
+            if (!child_opt.has_value())
+                return std::nullopt;
+
+            tn = pj.node(*child_opt);
+            if (!tn)
+                return std::nullopt;
+
+            if (ids.size() == 1)
+                return std::make_optional(pj.node(*tn));
+        }
+    }
+
+    return std::nullopt;
+}
+
+auto project::get_tn_id(const project::unique_id_path& path) noexcept
+  -> std::optional<tree_node_id>
+{
+    if (const auto* head = tn_head(); head) {
+        switch (path.ssize()) {
+        case 0:
+            return m_tn_head;
+
+        case 1:
+            return project_get_first_tn_id(*this, path.front());
+
+        default:
+            return project_get_tn_id(
+              *this, std::span<const u64>(path.data(), path.size()));
+        }
+    }
+
+    return std::nullopt;
 }
 
 } // namespace irt

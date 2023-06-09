@@ -1730,6 +1730,9 @@ static void show_selected_children(application&           app,
                 if (ImGui::Checkbox("configurable", &configurable)) {
                     if (configurable)
                         child->flags |= child_flags_configurable;
+                    else
+                        child->flags &= ~child_flags_configurable;
+
                     is_modified = true;
                 }
 
@@ -1737,6 +1740,9 @@ static void show_selected_children(application&           app,
                 if (ImGui::Checkbox("observables", &observable)) {
                     if (observable)
                         child->flags |= child_flags_observable;
+                    else
+                        child->flags &= ~child_flags_observable;
+
                     is_modified = true;
                 }
 

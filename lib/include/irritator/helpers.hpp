@@ -40,6 +40,36 @@ void for_each_data(Data& d, Function&& f, Args... args) noexcept
 }
 
 template<typename Data, typename Function, typename... Args>
+auto try_for_each_data(Data& d, Function&& f) noexcept
+  -> std::invoke_result_t<Function, typename Data::value_type&>
+{
+    using return_type =
+      std::invoke_result_t<Function, typename Data::value_type&>;
+    using value_type = typename Data::value_type;
+
+    static_assert(std::is_same_v<return_type, bool> ||
+                  std::is_same_v<return_type, irt::status>);
+
+    if constexpr (std::is_same_v<return_type, bool>) {
+        value_type* ptr = nullptr;
+        while (d.next(ptr)) {
+            if (!f(*ptr)) {
+                return false;
+            }
+        }
+        return true;
+    } else if constexpr (std::is_same_v<return_type, irt::status>) {
+        value_type* ptr = nullptr;
+        while (d.next(ptr)) {
+            if (auto ret = f(*ptr); is_bad(ret)) {
+                return ret;
+            }
+        }
+        return status::success;
+    }
+}
+
+template<typename Data, typename Function, typename... Args>
 void for_each_data(const Data& d, Function&& f, Args... args) noexcept
 {
     using value_type = typename Data::value_type;

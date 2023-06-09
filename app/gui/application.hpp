@@ -58,8 +58,6 @@ struct application;
 struct component_editor;
 
 enum class notification_id : u32;
-enum class plot_observation_id : u32;
-enum class grid_observation_id : u32;
 enum class plot_copy_id : u32;
 
 enum class simulation_task_id : u64;
@@ -211,10 +209,18 @@ public:
     void update() noexcept;
 };
 
-class plot_observation
+class plot_observation_widget
 {
 public:
-    plot_observation() noexcept = default;
+    plot_observation_widget() noexcept = default;
+
+    //! @brief Clear, initialize the plot and connect to @c observer_id.
+    //! @details Clear the @c plot_observation_widget and use the @c
+    //!  plot_observer data to initialize all @c observer_id from the
+    //!  simulation layer.
+    //!
+    //! @return The status.
+    status init(application& app, plot_observer& plot) noexcept;
 
     //! Clear the children vector.
     void clear() noexcept;
@@ -226,46 +232,46 @@ public:
     void write(application&                 app,
                const std::filesystem::path& file_path) noexcept;
 
-    interpolate_type i_type = interpolate_type::none;
-
-    u64              plot_id = 0;
-    small_string<31> name;
-
     std::filesystem::path file;
 
-    simulation_plot_type plot_type = simulation_plot_type::none;
+    vector<observer_id>          observers;
+    vector<simulation_plot_type> plot_types;
 
-    vector<model_id> children;
+    plot_observer_id id = undefined<plot_observer_id>();
 };
 
-class grid_observation
+class grid_observation_widget
 {
 public:
+    //! @brief Clear, initialize the grid and connect to @c observer_id.
+    //! @details Clear the @c grid_observation_widget and use the @c
+    //!  grid_observer data to initialize all @c observer_id from the
+    //!  simulation layer.
+    //!
+    //! @return The status.
+    status init(application& app, grid_observer& grid) noexcept;
+
     //! Assign a new size to children and remove all @c model_id.
     void resize(int row, int col) noexcept;
 
     //! Assign @c undefined<model_id> to all children.
     void clear() noexcept;
 
-    //! Display the grid using @c ImGui code.
+    //! Display the values vector using the ImGui::PlotHeatMap function.
     void show(application& app) noexcept;
 
-    template<typename Function, typename... Args>
-    inline void for_each(Function&& f, Args... args) noexcept
-    {
-        for (int r = 0, er = rows; r != er; ++r)
-            for (int c = 0, ec = cols; r != ec; ++r)
-                f(r, c, children[r * cols + c], args...);
-    }
+    //! Update the values vector with observation values from the simulation
+    //! observers object.
+    void update(application& app) noexcept;
 
-    small_string<31> name;
-    vector<model_id> children;
-    vector<real>     values;
+    vector<observer_id> observers;
+    vector<real>        values;
 
-private:
     real none_value = 0.f;
     int  rows       = 0;
     int  cols       = 0;
+
+    grid_observer_id id = undefined<grid_observer_id>();
 };
 
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
@@ -557,8 +563,8 @@ struct simulation_editor
     simulation_status simulation_state = simulation_status::not_started;
     data_array<plot_copy, plot_copy_id> copy_obs;
 
-    data_array<plot_observation, plot_observation_id> plot_obs;
-    data_array<grid_observation, grid_observation_id> grid_obs;
+    vector<plot_observation_widget> plot_obs;
+    vector<grid_observation_widget> grid_obs;
 
     grid_simulation grid_sim;
 

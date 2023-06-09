@@ -296,6 +296,7 @@ int main()
         }
 
         expect(buffer.size() > 0u);
+        fmt::print("{}\n", std::string_view(buffer.data(), buffer.size()));
 
         {
             irt::modeling_initializer mod_init;

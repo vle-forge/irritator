@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/helpers.hpp"
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
@@ -124,6 +125,8 @@ enum class stack_id
     simulation,
 
     project,
+    project_convert_to_tn_model_ids,
+    project_convert_to_tn_id,
     project_access,
     project_parameters,
     project_parameter_assign,
@@ -135,6 +138,15 @@ enum class stack_id
     project_observation,
     project_top_component,
     project_set_components,
+    project_unique_id_path,
+    project_plot_observation_child,
+    project_plot_observation_children,
+    project_plot_observation,
+    project_plot_observations,
+    project_grid_observation,
+    project_grid_observations,
+
+    load_color,
 
     undefined,
 
@@ -225,18 +237,28 @@ static inline constexpr std::string_view stack_id_names[] = {
     "simulation_connect",
     "simulation",
     "project",
+    "project_convert_to_tn_model_ids",
+    "project_convert_to_tn_id",
     "project_access",
     "project_parameters",
     "project_parameter_assign",
     "project_parameter_type",
     "project_parameter",
-    "project_observation",
+    "project_observations",
     "project_observation_assign",
     "project_observation_type",
     "project_observation",
     "project_top_component",
     "project_set_components",
-    "undefined"
+    "project_unique_id_path",
+    "project_plot_observation_child",
+    "project_plot_observation_children",
+    "project_plot_observation",
+    "project_plot_observations",
+    "project_grid_observation",
+    "project_grid_observations",
+    "load_color",
+    "undefined",
 };
 
 static_assert(std::cmp_equal(std::size(stack_id_names),
@@ -304,6 +326,11 @@ enum class error_id
     project_access_parameter_error,
     project_access_observable_error,
     project_access_tree_error,
+    project_plot_observers_not_enough,
+    project_grid_observers_not_enough,
+    project_fail_convert_access_to_tn_model_ids,
+    project_fail_convert_access_to_tn_id,
+
     COUNT
 };
 
@@ -368,6 +395,10 @@ static inline constexpr std::string_view error_id_names[] = {
     "project_access_parameter_error",
     "project_access_observable_error",
     "project_access_tree_error",
+    "project_plot_observers_not_enough",
+    "project_grid_observers_not_enough",
+    "project_fail_convert_access_to_tn_model_ids",
+    "project_fail_convert_access_to_tn_id",
 };
 
 static_assert(std::cmp_equal(std::size(error_id_names),
@@ -765,6 +796,22 @@ struct reader
     bool copy_to(source::source_type& dst) noexcept
     {
         dst = enum_cast<source::source_type>(temp_integer);
+
+        return true;
+    }
+
+    bool project_plot_observers_can_alloc(std::integral auto i) noexcept
+    {
+        if (!pj().plot_observers.can_alloc(i))
+            report_json_error(error_id::project_plot_observers_not_enough);
+
+        return true;
+    }
+
+    bool project_grid_observers_can_alloc(std::integral auto i) noexcept
+    {
+        if (!pj().grid_observers.can_alloc(i))
+            report_json_error(error_id::project_grid_observers_not_enough);
 
         return true;
     }
@@ -3185,21 +3232,6 @@ struct reader
         report_json_error(error_id::project_access_parameter_error);
     }
 
-    bool project_assign_observation(const u64  model_unique_id,
-                                    tree_node& tn) noexcept
-    {
-        auto_stack s(this, stack_id::project_observation_assign);
-
-        for (auto& elem : tn.observables) {
-            if (elem.unique_id == model_unique_id) {
-                elem.type = observable_type::none;
-                return true;
-            }
-        }
-
-        report_json_error(error_id::project_access_observable_error);
-    }
-
     bool read_project_parameters(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, stack_id::project_parameters);
@@ -3218,20 +3250,173 @@ struct reader
           });
     }
 
-    bool read_project_observations(const rapidjson::Value& val) noexcept
+    bool convert_to_tn_model_ids(const project::unique_id_path& path,
+                                 observed_node&                 node) noexcept
     {
-        auto_stack s(this, stack_id::project_observations);
+        auto_stack s(this, stack_id::project_convert_to_tn_model_ids);
 
-        model       mdl;
-        vector<u64> access;
-        tree_node*  tn = nullptr;
+        if (auto ret_opt = pj().get_model_path(path); ret_opt.has_value()) {
+            node.tn_id  = ret_opt->first;
+            node.mdl_id = ret_opt->second;
+            return true;
+        }
 
-        return for_first_member(
-          val, "access"sv, [&](const auto& value) noexcept -> bool {
-              return read_project_access(value, access) &&
-                     project_access_search_tree_node(access, tn) &&
-                     project_assign_observation(access.back(), *tn);
+        report_json_error(
+          error_id::project_fail_convert_access_to_tn_model_ids);
+    }
+
+    bool convert_to_tn_id(const project::unique_id_path& path,
+                          tree_node_id&                  tn_id) noexcept
+    {
+        auto_stack s(this, stack_id::project_convert_to_tn_id);
+
+        if (auto ret_opt = pj().get_tn_id(path); ret_opt.has_value()) {
+            tn_id = *ret_opt;
+            return true;
+        }
+
+        report_json_error(error_id::project_fail_convert_access_to_tn_id);
+    }
+
+    bool read_project_unique_id_path(const rapidjson::Value&  val,
+                                     project::unique_id_path& out) noexcept
+    {
+        auto_stack s(this, stack_id::project_unique_id_path);
+
+        return is_value_array_size_less(val, length(out) + 1) &&
+               for_each_array(
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     return read_temp_unsigned_integer(value) &&
+                            copy_to(out[i]);
+                 });
+    }
+
+    bool read_color(const rapidjson::Value& val, color& c) noexcept
+    {
+        auto_stack s(this, stack_id::load_color);
+
+        return is_value_array_size_equal(val, 4) &&
+               for_each_array(
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     return read_temp_unsigned_integer(value) && copy_to(c[i]);
+                 });
+    }
+
+    bool read_project_plot_observation_child(const rapidjson::Value& val,
+                                             plot_observer& plot) noexcept
+    {
+        auto_stack s(this, stack_id::project_plot_observation_child);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              project::unique_id_path path;
+
+              if ("access"sv == name)
+                  return read_project_unique_id_path(val, path) &&
+                         convert_to_tn_model_ids(path, plot.children.back());
+
+              if ("color"sv == name)
+                  return read_color(value, plot.colors.back());
+
+              if ("type"sv == name)
+                  return read_temp_string(value) && copy_to(plot.types.back());
+
+              return false;
           });
+    }
+
+    bool copy_to(plot_observer::type& type) noexcept
+    {
+        if (temp_string == "line")
+            type = plot_observer::type::line;
+
+        if (temp_string == "dash")
+            type = plot_observer::type::dash;
+
+        return false;
+    }
+
+    bool read_project_plot_observation_children(const rapidjson::Value& val,
+                                                plot_observer& plot) noexcept
+    {
+        auto_stack s(this, stack_id::project_plot_observation_children);
+
+        return for_each_array(
+          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+              plot.children.emplace_back();
+              plot.colors.emplace_back();
+              plot.types.emplace_back();
+              return read_project_plot_observation_child(value, plot);
+          });
+    }
+
+    bool read_project_plot_observation(const rapidjson::Value& val,
+                                       plot_observer&          plot) noexcept
+    {
+        auto_stack s(this, stack_id::project_plot_observation);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("name"sv == name)
+                  return read_temp_string(value) && copy_to(plot.name);
+
+              if ("models"sv == name)
+                  return read_project_plot_observation_children(value, plot);
+
+              return true;
+          });
+    }
+
+    bool read_project_plot_observations(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::project_plot_observations);
+
+        return project_plot_observers_can_alloc(val.GetArray().Size()) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& plot = pj().plot_observers.alloc();
+
+                     return read_project_plot_observation(value, plot);
+                 });
+    }
+
+    bool read_project_grid_observation(const rapidjson::Value& val,
+                                       grid_observer&          grid) noexcept
+    {
+        auto_stack s(this, stack_id::project_grid_observation);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              project::unique_id_path path;
+
+              if ("name"sv == name)
+                  return read_temp_string(value) && copy_to(grid.name);
+
+              if ("grid"sv == name)
+                  return read_project_unique_id_path(val, path) &&
+                         convert_to_tn_id(path, grid.grid_parent);
+
+              if ("access"sv == name)
+                  return read_project_unique_id_path(val, path) &&
+                         convert_to_tn_model_ids(path, grid.child);
+
+              return true;
+          });
+    }
+
+    bool read_project_grid_observations(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::project_plot_observations);
+
+        return project_grid_observers_can_alloc(val.GetArray().Size()) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& grid = pj().grid_observers.alloc();
+
+                     return read_project_grid_observation(value, grid);
+                 });
     }
 
     bool read_project(const rapidjson::Value& val) noexcept
@@ -3242,7 +3427,7 @@ struct reader
 
         return read_project_top_component(val, c_id) &&
                for_first_member(val,
-                                "component-parameters"sv,
+                                "parameters"sv,
                                 [&](const auto& value) noexcept -> bool {
                                     return for_each_array(
                                       value,
@@ -3252,13 +3437,19 @@ struct reader
                                       });
                                 }) &&
                for_first_member(
-                 val,
-                 "component-observables"sv,
-                 [&](const auto& value) noexcept -> bool {
-                     return for_each_array(
-                       value,
-                       [&](const auto /* i */, const auto& value) noexcept
-                       -> bool { return read_project_observations(value); });
+                 val, "observations"sv, [&](const auto& val) noexcept -> bool {
+                     return for_each_member(
+                       val,
+                       [&](const auto  name,
+                           const auto& value) noexcept -> bool {
+                           if ("plots"sv == name)
+                               return read_project_plot_observations(value);
+
+                           if ("grids"sv == name)
+                               return read_project_grid_observations(value);
+
+                           return true;
+                       });
                  });
     }
 
@@ -5239,35 +5430,134 @@ void write_tree_node(Writer& w, const tree_node& tree, modeling& mod) noexcept
         }
         w.EndArray();
     }
-
-    if (!tree.parameters.empty()) {
-        w.Key("observables");
-        w.StartArray();
-
-        for (auto& elem : tree.observables) {
-            w.StartObject();
-            w.Key("unique-id");
-            w.Uint64(elem.unique_id);
-            w.Key("type");
-            w.String("single");
-        }
-
-        w.EndArray();
-    }
 }
 
 template<typename Writer>
-static status do_project_save(Writer&    w,
-                              project&   pj,
-                              modeling&  mod,
-                              component& compo,
-                              io_cache& /* cache */) noexcept
+static void write_color(Writer& w, std::array<u8, 4> color) noexcept
 {
-    auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
-    auto* dir  = mod.dir_paths.try_to_get(compo.dir);
-    auto* file = mod.file_paths.try_to_get(compo.file);
+    w.StartArray();
+    w.Uint(color[0]);
+    w.Uint(color[1]);
+    w.Uint(color[2]);
+    w.Uint(color[3]);
+    w.EndArray();
+}
+
+template<typename Writer>
+static void write_project_unique_id_path(
+  Writer&                        w,
+  const project::unique_id_path& path) noexcept
+{
+    w.StartArray();
+    for (auto elem : path)
+        w.Uint64(elem);
+    w.EndArray();
+}
+
+constexpr static std::array<u8, 4> color_white{ 255, 255, 255, 0 };
+
+template<typename Writer>
+static status do_project_save_parameters(Writer&   w,
+                                         project&  pj,
+                                         modeling& mod) noexcept
+{
+    w.Key("parameters");
+    w.StartArray();
+
+    pj.for_all_tree_nodes([&w, &mod](const tree_node& tn) {
+        if (tn.have_configuration())
+            write_tree_node(w, tn, mod);
+    });
+
+    w.EndArray();
+
+    return status::success;
+}
+
+template<typename Writer>
+static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
+{
+    w.Key("plots");
+    w.StartArray();
+
+    for_each_data(pj.plot_observers, [&](auto& plot) noexcept {
+        w.StartObject();
+        w.Key("name");
+        w.String(plot.name.begin(), plot.name.size());
+        w.Key("models");
+        w.StartArray();
+
+        project::unique_id_path path;
+        for (auto node : plot.children) {
+            w.StartObject();
+            w.Key("access");
+            pj.build_unique_id_path(node, path);
+            write_project_unique_id_path(w, path);
+
+            w.Key("color");
+            write_color(w, color_white);
+
+            w.Key("type");
+            w.String("line");
+            w.EndObject();
+        }
+
+        w.EndArray();
+        w.EndObject();
+    });
+
+    w.EndArray();
+
+    return status::success;
+}
+
+template<typename Writer>
+static status do_project_save_grid_observations(Writer& w, project& pj) noexcept
+{
+    w.Key("grids");
+    w.StartArray();
+
+    for_each_data(pj.grid_observers, [&](auto& grid) noexcept {
+        w.StartObject();
+        w.Key("name");
+        w.String(grid.name.begin(), grid.name.size());
+
+        project::unique_id_path path;
+        w.Key("grid");
+        write_project_unique_id_path(w, path);
+        pj.build_unique_id_path(grid.grid_parent, path);
+
+        w.Key("access");
+        pj.build_unique_id_path(grid.child, path);
+
+        w.EndObject();
+    });
+
+    w.EndArray();
+
+    return status::success;
+}
+
+template<typename Writer>
+static status do_project_save_observations(Writer& w, project& pj) noexcept
+{
+    w.Key("observations");
 
     w.StartObject();
+    irt_return_if_bad(do_project_save_plot_observations(w, pj));
+    irt_return_if_bad(do_project_save_grid_observations(w, pj));
+    w.EndObject();
+
+    return status::success;
+}
+
+template<typename Writer>
+static status do_project_save_component(Writer&               w,
+                                        component&            compo,
+                                        const registred_path* reg,
+                                        const dir_path*       dir,
+                                        const file_path*      file) noexcept
+{
     w.Key("component-type");
     w.String(component_type_names[ordinal(compo.type)]);
 
@@ -5303,26 +5593,24 @@ static status do_project_save(Writer&    w,
         break;
     };
 
-    w.Key("component-parameters");
-    w.StartArray();
+    return status::success;
+}
 
-    pj.for_all_tree_nodes([&w, &mod](const tree_node& tn) {
-        if (tn.have_configuration())
-            write_tree_node(w, tn, mod);
-    });
+template<typename Writer>
+static status do_project_save(Writer&    w,
+                              project&   pj,
+                              modeling&  mod,
+                              component& compo,
+                              io_cache& /* cache */) noexcept
+{
+    auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
+    auto* dir  = mod.dir_paths.try_to_get(compo.dir);
+    auto* file = mod.file_paths.try_to_get(compo.file);
 
-    w.EndArray();
-
-    w.Key("component-observables");
-    w.StartArray();
-
-    pj.for_all_tree_nodes([&w, &mod](const tree_node& tn) {
-        if (tn.have_observation())
-            write_tree_node(w, tn, mod);
-    });
-
-    w.EndArray();
-
+    w.StartObject();
+    irt_return_if_bad(do_project_save_component(w, compo, reg, dir, file));
+    irt_return_if_bad(do_project_save_parameters(w, pj, mod));
+    irt_return_if_bad(do_project_save_observations(w, pj));
     w.EndObject();
 
     return status::success;
