@@ -519,6 +519,22 @@ struct observed_node
     bool is_defined() const noexcept;
 };
 
+struct parameter
+{
+    std::array<real, 4> reals;
+    std::array<i64, 4>  integers;
+
+    //! Copy data from the vectors of this parameter to the simulation model.
+    status init(model& mdl) const noexcept;
+
+    //! Copy data from model to the vectors of this parameter.
+    void init(const model& mdl) noexcept;
+
+    void clear() noexcept;
+};
+
+enum class parameter_id : u32;
+
 struct grid_observer
 {
     small_string<31> name;
@@ -798,7 +814,6 @@ public:
         table<u64, random_source_id>      randoms;
     };
 
-    enum class parameter_id : u32;
     enum class observation_id : u32;
 
     /// Stores the path from the head of the project to the model by following
@@ -825,6 +840,7 @@ public:
       -> std::optional<tree_node_id>;
 
     data_array<tree_node, tree_node_id>         m_tree_nodes;
+    data_array<parameter, parameter_id>         parameters;
     data_array<plot_observer, plot_observer_id> plot_observers;
     data_array<grid_observer, grid_observer_id> grid_observers;
 
