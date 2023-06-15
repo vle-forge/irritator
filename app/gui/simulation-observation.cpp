@@ -343,7 +343,7 @@ status grid_observation_widget::init(application&   app,
 {
     return if_data_exists_return(
       app.pj.m_tree_nodes,
-      grid.grid_parent,
+      grid.child.parent_id,
       [&](auto& grid_tn) noexcept {
           return if_data_exists_return(
             app.mod.components,

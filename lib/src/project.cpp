@@ -945,9 +945,10 @@ static status make_tree_from(simulation_copy&                     sc,
 status project::init(int size) noexcept
 {
     irt_return_if_bad(m_tree_nodes.init(size));
-    irt_return_if_bad(parameters.init(size));
     irt_return_if_bad(plot_observers.init(size));
     irt_return_if_bad(grid_observers.init(size));
+    irt_return_if_bad(global_parameters.init(size));
+    irt_return_if_bad(grid_parameters.init(size));
 
     return status::success;
 }
@@ -1062,13 +1063,14 @@ static void project_build_unique_id_path(
     out.emplace_back(model_unique_id);
 }
 
-void project::build_unique_id_path(const observed_node node,
-                                   unique_id_path&     out) noexcept
+void project::build_unique_id_path(const tree_node_id tn_id,
+                                   const model_id     mdl_id,
+                                   unique_id_path&    out) noexcept
 {
     out.clear();
 
-    if_data_exists_do(m_tree_nodes, node.tn_id, [&](const auto& tn) noexcept {
-        auto model_unique_id = tn.get_unique_id(node.mdl_id);
+    if_data_exists_do(m_tree_nodes, tn_id, [&](const auto& tn) noexcept {
+        auto model_unique_id = tn.get_unique_id(mdl_id);
         if (model_unique_id != 0)
             build_unique_id_path(tn, model_unique_id, out);
     });

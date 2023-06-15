@@ -29,6 +29,8 @@ enum class connection_id : u64;
 enum class registred_path_id : u64;
 enum class plot_observer_id : u32;
 enum class grid_observer_id : u32;
+enum class global_parameter_id : u32;
+enum class grid_parameter_id : u32;
 
 constexpr i32 max_component_dirs = 64;
 
@@ -508,12 +510,24 @@ struct tree_node
     table<child_id, node> child_to_node;
 };
 
-struct observed_node
+struct global_access
 {
     tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
     model_id     mdl_id; //< @c model to observe.
 
-    observed_node() noexcept = default;
+    global_access() noexcept = default;
+
+    void clear() noexcept;
+    bool is_defined() const noexcept;
+};
+
+struct parent_access
+{
+    tree_node_id parent_id; //< @c tree_node identifier ancestor of the model.
+    tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
+    model_id     mdl_id;    //< @c model to observe.
+
+    parent_access() noexcept = default;
 
     void clear() noexcept;
     bool is_defined() const noexcept;
@@ -533,14 +547,11 @@ struct parameter
     void clear() noexcept;
 };
 
-enum class parameter_id : u32;
-
 struct grid_observer
 {
     small_string<31> name;
 
-    tree_node_id  grid_parent;
-    observed_node child;
+    parent_access child;
 };
 
 struct plot_observer
@@ -552,9 +563,25 @@ struct plot_observer
     };
 
     small_string<31>      name;
-    vector<observed_node> children;
+    vector<global_access> children;
     vector<color>         colors;
     vector<type>          types;
+};
+
+struct grid_parameter
+{
+    small_string<31> name;
+    parameter        param;
+
+    parent_access child;
+};
+
+struct global_parameter
+{
+    small_string<31> name;
+
+    vector<global_access> children;
+    vector<parameter>     params;
 };
 
 struct log_entry
@@ -820,8 +847,9 @@ public:
     /// the path of tree_node and/or component @c unique_id.
     using unique_id_path = small_vector<u64, 16>;
 
-    void build_unique_id_path(const observed_node node,
-                              unique_id_path&     out) noexcept;
+    void build_unique_id_path(const tree_node_id tn_id,
+                              const model_id     mdl_id,
+                              unique_id_path&    out) noexcept;
 
     void build_unique_id_path(const tree_node_id tn_id,
                               unique_id_path&    out) noexcept;
@@ -839,10 +867,11 @@ public:
     auto get_tn_id(const unique_id_path& path) noexcept
       -> std::optional<tree_node_id>;
 
-    data_array<tree_node, tree_node_id>         m_tree_nodes;
-    data_array<parameter, parameter_id>         parameters;
-    data_array<plot_observer, plot_observer_id> plot_observers;
-    data_array<grid_observer, grid_observer_id> grid_observers;
+    data_array<tree_node, tree_node_id>               m_tree_nodes;
+    data_array<plot_observer, plot_observer_id>       plot_observers;
+    data_array<grid_observer, grid_observer_id>       grid_observers;
+    data_array<global_parameter, global_parameter_id> global_parameters;
+    data_array<grid_parameter, grid_parameter_id>     grid_parameters;
 
 private:
     component_id m_head    = undefined<component_id>();
@@ -851,15 +880,29 @@ private:
     cache m_cache;
 };
 
-inline void observed_node::clear() noexcept
+inline void global_access::clear() noexcept
 {
     tn_id  = undefined<tree_node_id>();
     mdl_id = undefined<model_id>();
 }
 
-inline bool observed_node::is_defined() const noexcept
+inline bool global_access::is_defined() const noexcept
 {
     return tn_id != undefined<tree_node_id>() and
+           mdl_id != undefined<model_id>();
+}
+
+inline void parent_access::clear() noexcept
+{
+    parent_id = undefined<tree_node_id>();
+    tn_id     = undefined<tree_node_id>();
+    mdl_id    = undefined<model_id>();
+}
+
+inline bool parent_access::is_defined() const noexcept
+{
+    return parent_id != undefined<tree_node_id>() and
+           tn_id != undefined<tree_node_id>() and
            mdl_id != undefined<model_id>();
 }
 

@@ -1923,9 +1923,10 @@ static bool grid_simulation_show_settings(application&     app,
     return ret;
 }
 
-static void show_observable_model_box(application&   app,
-                                      tree_node&     tn,
-                                      observed_node& select) noexcept
+static void show_observable_model_box(application&  app,
+                                      tree_node&    tn,
+                                      tree_node_id& selected_tn_id,
+                                      model_id&     selected_mdl_id) noexcept
 {
     constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -1958,11 +1959,11 @@ static void show_observable_model_box(application&   app,
                                  dynamics_type_names[ordinal(mdl.type)]);
                           if (ImGui::Selectable(
                                 str.c_str(),
-                                select.tn_id == current_tn_id &&
-                                  select.mdl_id == *mdl_opt,
+                                selected_tn_id == current_tn_id &&
+                                  selected_mdl_id == *mdl_opt,
                                 ImGuiSelectableFlags_DontClosePopups)) {
-                              select.tn_id  = current_tn_id;
-                              select.mdl_id = *mdl_opt;
+                              selected_tn_id  = current_tn_id;
+                              selected_mdl_id = *mdl_opt;
                           }
                       });
                 }
@@ -1971,13 +1972,15 @@ static void show_observable_model_box(application&   app,
             }
 
             if (auto* child = tn.tree.get_child(); child)
-                show_observable_model_box(app, *child, select);
+                show_observable_model_box(
+                  app, *child, selected_tn_id, selected_mdl_id);
 
             ImGui::TreePop();
         }
 
         if (auto* sibling = tn.tree.get_sibling(); sibling)
-            show_observable_model_box(app, *sibling, select);
+            show_observable_model_box(
+              app, *sibling, selected_tn_id, selected_mdl_id);
 
         ImGui::PopID();
     });
@@ -2304,7 +2307,7 @@ static bool show_simulation_plot_observations(application& app) noexcept
     std::optional<plot_observer_id> to_delete;
     bool                            is_modified = false;
 
-    static observed_node selected;
+    static global_access selected;
 
     for_each_data(app.pj.plot_observers, [&](auto& plot) noexcept {
         ImGui::PushID(&plot);
@@ -2337,7 +2340,8 @@ static bool show_simulation_plot_observations(application& app) noexcept
                                    ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Select the model to observe");
 
-            show_observable_model_box(app, *app.pj.tn_head(), selected);
+            show_observable_model_box(
+              app, *app.pj.tn_head(), selected.tn_id, selected.mdl_id);
 
             if (ImGui::Button("OK", ImVec2(120, 0))) {
                 if (selected.is_defined())
@@ -2454,7 +2458,7 @@ void show_choose_grid_to_observe_dlg(application&   app,
 
         if (ImGui::Button("OK", ImVec2(120, 0))) {
             if (is_defined(selected))
-                grid_obs.grid_parent = selected;
+                grid_obs.child.parent_id = selected;
             ImGui::CloseCurrentPopup();
         }
 
@@ -2473,8 +2477,7 @@ static bool show_simulation_grid_observations(application& app) noexcept
     std::optional<grid_observer_id> to_delete;
     bool                            is_modified = false;
 
-    static tree_node_id  parent_grid;
-    static observed_node selected;
+    static parent_access selected;
 
     for_each_data(app.pj.grid_observers, [&](auto& grid) noexcept {
         ImGui::PushID(&grid);
@@ -2495,15 +2498,15 @@ static bool show_simulation_grid_observations(application& app) noexcept
             is_modified = true;
 
         if (ImGui::Button("Select grid")) {
-            parent_grid = undefined<tree_node_id>();
+            selected.parent_id = undefined<tree_node_id>();
             ImGui::OpenPopup("Choose grid to observe");
         }
 
-        show_choose_grid_to_observe_dlg(app, grid, parent_grid);
+        show_choose_grid_to_observe_dlg(app, grid, selected.parent_id);
 
         if (ImGui::CollapsingHeader("children")) {
             // std::optional<int> to_del;
-            auto parent_idx = ordinal(grid.grid_parent);
+            auto parent_idx = ordinal(grid.child.parent_id);
             auto tn_idx     = ordinal(grid.child.tn_id);
             auto mdl_idx    = ordinal(grid.child.mdl_id);
 
@@ -2517,11 +2520,11 @@ static bool show_simulation_grid_observations(application& app) noexcept
 
             ImGui::SameLine();
             if (ImGui::Button("del")) {
-                grid.grid_parent = undefined<tree_node_id>();
+                grid.child.parent_id = undefined<tree_node_id>();
                 grid.child.clear();
             }
 
-            if (app.pj.node(grid.grid_parent)) {
+            if (app.pj.node(grid.child.parent_id)) {
                 if (ImGui::Button("Select model to observe")) {
                     selected.clear();
                     ImGui::OpenPopup("Choose model to observe");
@@ -2536,7 +2539,10 @@ static bool show_simulation_grid_observations(application& app) noexcept
                     ImGui::Text("Select the model to observe");
 
                     show_observable_model_box(
-                      app, *app.pj.node(grid.grid_parent), selected);
+                      app,
+                      *app.pj.node(grid.child.parent_id),
+                      selected.tn_id,
+                      selected.mdl_id);
 
                     if (ImGui::Button("OK", ImVec2(120, 0))) {
                         if (selected.is_defined())

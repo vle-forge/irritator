@@ -3251,13 +3251,14 @@ struct reader
     }
 
     bool convert_to_tn_model_ids(const project::unique_id_path& path,
-                                 observed_node&                 node) noexcept
+                                 tree_node_id&                  parent_id,
+                                 model_id&                      mdl_id) noexcept
     {
         auto_stack s(this, stack_id::project_convert_to_tn_model_ids);
 
         if (auto ret_opt = pj().get_model_path(path); ret_opt.has_value()) {
-            node.tn_id  = ret_opt->first;
-            node.mdl_id = ret_opt->second;
+            parent_id = ret_opt->first;
+            mdl_id    = ret_opt->second;
             return true;
         }
 
@@ -3313,7 +3314,9 @@ struct reader
 
               if ("access"sv == name)
                   return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(path, plot.children.back());
+                         convert_to_tn_model_ids(path,
+                                                 plot.children.back().tn_id,
+                                                 plot.children.back().mdl_id);
 
               if ("color"sv == name)
                   return read_color(value, plot.colors.back());
@@ -3395,11 +3398,12 @@ struct reader
 
               if ("grid"sv == name)
                   return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_id(path, grid.grid_parent);
+                         convert_to_tn_id(path, grid.child.parent_id);
 
               if ("access"sv == name)
                   return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(path, grid.child);
+                         convert_to_tn_model_ids(
+                           path, grid.child.tn_id, grid.child.mdl_id);
 
               return true;
           });
@@ -5491,7 +5495,7 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
         for (auto node : plot.children) {
             w.StartObject();
             w.Key("access");
-            pj.build_unique_id_path(node, path);
+            pj.build_unique_id_path(node.tn_id, node.mdl_id, path);
             write_project_unique_id_path(w, path);
 
             w.Key("color");
@@ -5525,10 +5529,10 @@ static status do_project_save_grid_observations(Writer& w, project& pj) noexcept
         project::unique_id_path path;
         w.Key("grid");
         write_project_unique_id_path(w, path);
-        pj.build_unique_id_path(grid.grid_parent, path);
+        pj.build_unique_id_path(grid.child.parent_id, path);
 
         w.Key("access");
-        pj.build_unique_id_path(grid.child, path);
+        pj.build_unique_id_path(grid.child.tn_id, grid.child.mdl_id, path);
 
         w.EndObject();
     });
