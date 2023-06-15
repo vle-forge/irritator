@@ -4178,7 +4178,7 @@ void write(Writer& writer, const cross& dyn) noexcept
     writer.EndObject();
 }
 
-template<typename Writer, size_t PortNumber>
+template<typename Writer, int PortNumber>
 void write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
 {
     writer.StartObject();
