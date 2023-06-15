@@ -2,9 +2,9 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/helpers.hpp"
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
+#include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
@@ -22,12 +22,12 @@
 #include <string_view>
 #include <utility>
 
-#include <climits>
-#include <cstdint>
-
 #ifdef IRRITATOR_ENABLE_DEBUG
 #include <fmt/format.h>
 #endif
+
+#include <climits>
+#include <cstdint>
 
 using namespace std::literals;
 
@@ -47,23 +47,19 @@ enum class stack_id
     child_component_or_model,
     children_array,
     children,
-
     internal_component,
-
     component,
     component_color,
     component_ports,
     component_grid,
     component_grid_children,
     component_children,
-
     component_generic,
     component_generic_connections,
     component_generic_dispatch_connection,
     component_generic_internal_connection,
     component_generic_output_connection,
     component_generic_input_connection,
-
     srcs_constant_source,
     srcs_constant_sources,
     srcs_text_file_source,
@@ -73,7 +69,6 @@ enum class stack_id
     srcs_random_source,
     srcs_random_source_distribution,
     srcs_random_sources,
-
     dynamics,
     dynamics_qss_integrator,
     dynamics_qss_multiplier,
@@ -115,7 +110,6 @@ enum class stack_id
     dynamics_hsm_output,
     dynamics_hsm_outputs,
     dynamics_hsm,
-
     simulation_model_dynamics,
     simulation_model,
     simulation_models,
@@ -123,15 +117,20 @@ enum class stack_id
     simulation_connection,
     simulation_connect,
     simulation,
-
     project,
     project_convert_to_tn_model_ids,
     project_convert_to_tn_id,
     project_access,
-    project_parameters,
-    project_parameter_assign,
-    project_parameter_type,
+    project_real_parameter,
+    project_integer_parameter,
     project_parameter,
+    project_global_parameters,
+    project_global_parameter,
+    project_global_parameter_children,
+    project_global_parameter_child,
+    project_grid_parameters,
+    project_grid_parameter,
+    project_parameters,
     project_observations,
     project_observation_assign,
     project_observation_type,
@@ -145,11 +144,8 @@ enum class stack_id
     project_plot_observations,
     project_grid_observation,
     project_grid_observations,
-
     load_color,
-
     undefined,
-
     COUNT
 };
 
@@ -240,10 +236,16 @@ static inline constexpr std::string_view stack_id_names[] = {
     "project_convert_to_tn_model_ids",
     "project_convert_to_tn_id",
     "project_access",
-    "project_parameters",
-    "project_parameter_assign",
-    "project_parameter_type",
+    "project_real_parameter",
+    "project_integer_parameter",
     "project_parameter",
+    "project_global_parameters",
+    "project_global_parameter",
+    "project_global_parameter_children",
+    "project_global_parameter_child",
+    "project_grid_parameters",
+    "project_grid_parameter",
+    "project_parameters",
     "project_observations",
     "project_observation_assign",
     "project_observation_type",
@@ -258,7 +260,7 @@ static inline constexpr std::string_view stack_id_names[] = {
     "project_grid_observation",
     "project_grid_observations",
     "load_color",
-    "undefined",
+    "undefined"
 };
 
 static_assert(std::cmp_equal(std::size(stack_id_names),
@@ -268,6 +270,7 @@ enum class error_id
 {
     none,
     object_name_not_found,
+    filesystem_error,
     missing_integer,
     missing_bool,
     missing_u64,
@@ -328,15 +331,17 @@ enum class error_id
     project_access_tree_error,
     project_plot_observers_not_enough,
     project_grid_observers_not_enough,
+    project_global_parameters_not_enough,
+    project_grid_parameters_not_enough,
     project_fail_convert_access_to_tn_model_ids,
     project_fail_convert_access_to_tn_id,
-
     COUNT
 };
 
 static inline constexpr std::string_view error_id_names[] = {
     "none",
     "object_name_not_found",
+    "filesystem_error",
     "missing_integer",
     "missing_bool",
     "missing_u64",
@@ -397,6 +402,8 @@ static inline constexpr std::string_view error_id_names[] = {
     "project_access_tree_error",
     "project_plot_observers_not_enough",
     "project_grid_observers_not_enough",
+    "project_global_parameters_not_enough",
+    "project_grid_parameters_not_enough",
     "project_fail_convert_access_to_tn_model_ids",
     "project_fail_convert_access_to_tn_id",
 };
@@ -421,9 +428,11 @@ struct reader
             report_json_error(error_id::value_not_array);
 
         rapidjson::SizeType i = 0, e = array.GetArray().Size();
-        for (; i != e; ++i)
+        for (; i != e; ++i) {
+            // fmt::print("for-array: {}/{}\n", i, e);
             if (!f(i, array.GetArray()[i], args...))
                 return false;
+        }
 
         return true;
     }
@@ -436,9 +445,12 @@ struct reader
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
 
-        for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et; ++it)
+        for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et;
+             ++it) {
+            // fmt::print("for-member: {}\n", it->name.GetString());
             if (!f(it->name.GetString(), it->value, args...))
                 return false;
+        }
 
         return true;
     }
@@ -507,6 +519,17 @@ struct reader
         temp_string = val.GetString();
 
         return true;
+    }
+
+    bool copy_to(std::filesystem::path& path) noexcept
+    {
+        try {
+            path = temp_string;
+            return true;
+        } catch (...) {
+        }
+
+        report_json_error(error_id::filesystem_error);
     }
 
     bool copy_to(constant::init_type& type) noexcept
@@ -630,18 +653,6 @@ struct reader
         dst.assign(temp_string);
 
         return true;
-    }
-
-    bool copy_to(std::filesystem::path& dst) noexcept
-    {
-        try {
-            dst.assign(temp_string);
-            return true;
-        } catch (...) {
-            report_json_error(error_id::file_system_not_enough_memory);
-        }
-
-        return false;
     }
 
     bool copy_to(bool& dst) noexcept
@@ -778,12 +789,12 @@ struct reader
 
     bool copy_to(std::optional<i8>& dst) noexcept
     {
-        i8 tmp;
+        if (!(0 <= temp_integer && temp_integer < INT8_MAX))
+            report_json_error(error_id::integer_to_i8_error);
 
-        if (copy_to(tmp))
-            dst = tmp;
+        dst = static_cast<i8>(temp_integer);
 
-        return false;
+        return true;
     }
 
     bool copy_to(float& dst) noexcept
@@ -796,6 +807,22 @@ struct reader
     bool copy_to(source::source_type& dst) noexcept
     {
         dst = enum_cast<source::source_type>(temp_integer);
+
+        return true;
+    }
+
+    bool project_global_parameters_can_alloc(std::integral auto i) noexcept
+    {
+        if (!pj().global_parameters.can_alloc(i))
+            report_json_error(error_id::project_global_parameters_not_enough);
+
+        return true;
+    }
+
+    bool project_grid_parameters_can_alloc(std::integral auto i) noexcept
+    {
+        if (!pj().grid_parameters.can_alloc(i))
+            report_json_error(error_id::project_grid_parameters_not_enough);
 
         return true;
     }
@@ -866,9 +893,10 @@ struct reader
 
     bool is_value_array_size_equal(const rapidjson::Value& val, int to) noexcept
     {
-        if (is_value_array(val))
-            if (std::cmp_equal(val.GetArray().Size(), to))
-                return true;
+        irt_assert(val.IsArray());
+
+        if (std::cmp_equal(val.GetArray().Size(), to))
+            return true;
 
         report_json_error(error_id::value_array_bad_size);
     }
@@ -883,18 +911,17 @@ struct reader
 
     bool copy_array_size(const rapidjson::Value& val, i64& dst) noexcept
     {
-        if (!is_value_array(val))
-            return false;
+        irt_assert(val.IsArray());
 
         dst = static_cast<i64>(val.GetArray().Size());
+
         return true;
     }
 
     bool is_value_array_size_less(const rapidjson::Value& val,
                                   std::integral auto      i) noexcept
     {
-        if (!is_value_array(val))
-            return false;
+        irt_assert(val.IsArray());
 
         if (std::cmp_less(val.GetArray().Size(), i))
             return true;
@@ -1585,7 +1612,7 @@ struct reader
               if ("mask"sv == name)
                   return read_temp_integer(value) && copy_to(s.mask);
 
-              return true;
+              report_json_error(error_id::unknown_element);
           });
     }
 
@@ -1621,7 +1648,7 @@ struct reader
                            hierarchical_state_machine::action_type_count) &&
                          copy_to(s.type);
 
-              return true;
+              report_json_error(error_id::unknown_element);
           });
     }
 
@@ -1701,7 +1728,7 @@ struct reader
                         return read_temp_integer(value) &&
                                copy_to(outputs[i].value);
 
-                    return true;
+                    report_json_error(error_id::unknown_element);
                 });
           });
     }
@@ -1912,30 +1939,31 @@ struct reader
         return nullptr;
     }
 
-    bool modeling_copy_component_id(const std::filesystem::path& reg,
-                                    const std::filesystem::path& dir,
-                                    const std::filesystem::path& file,
-                                    component_id&                c_id)
+    bool modeling_copy_component_id(
+      const small_string<31>&                         reg,
+      const small_string<dir_path::path_buffer_len>&  dir,
+      const small_string<file_path::path_buffer_len>& file,
+      component_id&                                   c_id)
     {
-        registred_path* reg_ptr  = search_reg(reg.string());
+        registred_path* reg_ptr  = search_reg(reg.sv());
         dir_path*       dir_ptr  = nullptr;
         file_path*      file_ptr = nullptr;
 
         if (reg_ptr)
-            dir_ptr = search_dir_in_reg(*reg_ptr, dir.string());
+            dir_ptr = search_dir_in_reg(*reg_ptr, dir.sv());
 
         if (!dir_ptr)
-            dir_ptr = search_dir(dir.string());
+            dir_ptr = search_dir(dir.sv());
 
         if (dir_ptr)
-            file_ptr = search_file(*dir_ptr, file.string());
+            file_ptr = search_file(*dir_ptr, file.sv());
 
         if (file_ptr) {
             c_id = file_ptr->component;
             return true;
         }
 
-        auto* c = search_component(file.string());
+        auto* c = search_component(file.sv());
         if (c) {
             c_id = mod().components.get_id(*c);
             return true;
@@ -1949,25 +1977,25 @@ struct reader
     {
         auto_stack a(this, stack_id::child_simple_or_grid_component);
 
-        std::filesystem::path reg;
-        std::filesystem::path dir;
-        std::filesystem::path file;
+        small_string<31>                         reg_name;
+        small_string<dir_path::path_buffer_len>  dir_path;
+        small_string<file_path::path_buffer_len> file_path;
 
         return for_each_member(
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("path"sv == name)
-                         return read_temp_string(value) && copy_to(reg);
+                         return read_temp_string(value) && copy_to(reg_name);
 
                      if ("directory"sv == name)
-                         return read_temp_string(value) && copy_to(dir);
+                         return read_temp_string(value) && copy_to(dir_path);
 
                      if ("file"sv == name)
-                         return read_temp_string(value) && copy_to(file);
+                         return read_temp_string(value) && copy_to(file_path);
 
                      return true;
                  }) &&
-               modeling_copy_component_id(reg, dir, file, c_id);
+               modeling_copy_component_id(reg_name, dir_path, file_path, c_id);
     }
 
     bool dispatch_child_component_type(const rapidjson::Value& val,
@@ -2086,7 +2114,10 @@ struct reader
     {
         auto_stack a(this, stack_id::children_array);
 
-        return modeling_can_alloc(val.GetArray().Size()) &&
+        i64 size = 0;
+
+        return is_value_array(val) && copy_array_size(val, size) &&
+               modeling_can_alloc(size) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
@@ -2165,7 +2196,7 @@ struct reader
 
         i64 len = 0;
 
-        return copy_array_size(val, len) &&
+        return is_value_array(val) && copy_array_size(val, len) &&
                constant_buffer_size_can_alloc(len) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
@@ -2189,7 +2220,7 @@ struct reader
 
         i64 len = 0;
 
-        return copy_array_size(val, len),
+        return is_value_array(val) && copy_array_size(val, len),
                constant_sources_can_alloc(srcs, len) &&
                  for_each_array(
                    val,
@@ -2232,7 +2263,7 @@ struct reader
 
         i64 len = 0;
 
-        return copy_array_size(val, len) &&
+        return is_value_array(val) && copy_array_size(val, len) &&
                text_file_sources_can_alloc(srcs, len) &&
                for_each_array(
                  val,
@@ -2278,7 +2309,7 @@ struct reader
 
         i64 len = 0;
 
-        return copy_array_size(val, len) &&
+        return is_value_array(val) && copy_array_size(val, len) &&
                binary_file_sources_can_alloc(srcs, len) &&
                for_each_array(
                  val,
@@ -2491,7 +2522,7 @@ struct reader
 
         i64 len = 0;
 
-        return copy_array_size(val, len) &&
+        return is_value_array(val) && copy_array_size(val, len) &&
                random_sources_can_alloc(srcs, len) &&
                for_each_array(
                  val,
@@ -2542,11 +2573,16 @@ struct reader
                           child_id           dst_id,
                           i8                 dst_port) noexcept
     {
-        auto ret = mod().connect(compo, src_id, src_port, dst_id, dst_port);
-        if (is_success(ret))
-            return true;
+        auto& con              = mod().connections.alloc();
+        auto  con_id           = mod().connections.get_id(con);
+        con.internal.src       = src_id;
+        con.internal.dst       = dst_id;
+        con.internal.index_src = src_port;
+        con.internal.index_dst = dst_port;
+        con.type               = connection::connection_type::internal;
+        compo.connections.emplace_back(con_id);
 
-        report_json_error(error_id::modeling_connect_error);
+        return true;
     }
 
     bool modeling_connect_input(generic_component& compo,
@@ -2554,11 +2590,15 @@ struct reader
                                 child_id           dst_id,
                                 i8                 port) noexcept
     {
-        auto ret = mod().connect_input(compo, src_port, dst_id, port);
-        if (is_success(ret))
-            return true;
+        auto& con           = mod().connections.alloc();
+        auto  con_id        = mod().connections.get_id(con);
+        con.input.dst       = dst_id;
+        con.input.index     = src_port;
+        con.input.index_dst = port;
+        con.type            = connection::connection_type::input;
+        compo.connections.emplace_back(con_id);
 
-        report_json_error(error_id::modeling_connect_input_error);
+        return true;
     }
 
     bool modeling_connect_output(generic_component& compo,
@@ -2566,11 +2606,15 @@ struct reader
                                  i8                 src_port,
                                  i8                 port) noexcept
     {
-        auto ret = mod().connect_output(compo, src_id, src_port, port);
-        if (is_success(ret))
-            return true;
+        auto& con            = mod().connections.alloc();
+        auto  con_id         = mod().connections.get_id(con);
+        con.output.src       = src_id;
+        con.output.index_src = src_port;
+        con.output.index     = port;
+        con.type             = connection::connection_type::output;
+        compo.connections.emplace_back(con_id);
 
-        report_json_error(error_id::modeling_connect_output_error);
+        return true;
     }
 
     bool cache_model_mapping_to(child_id& dst) noexcept
@@ -2588,10 +2632,10 @@ struct reader
     {
         auto_stack s(this, stack_id::component_generic_internal_connection);
 
-        child_id src_id   = undefined<child_id>();
-        child_id dst_id   = undefined<child_id>();
-        i8       src_port = 0;
-        i8       dst_port = 0;
+        child_id          src_id;
+        child_id          dst_id;
+        std::optional<i8> src_port;
+        std::optional<i8> dst_port;
 
         return for_each_member(
                  val,
@@ -2599,18 +2643,46 @@ struct reader
                      if ("source"sv == name)
                          return read_temp_unsigned_integer(value) &&
                                 cache_model_mapping_to(src_id);
+
                      if ("destination"sv == name)
                          return read_temp_unsigned_integer(value) &&
                                 cache_model_mapping_to(dst_id);
 
                      if ("port-source"sv == name)
                          return read_temp_integer(value) && copy_to(src_port);
+
                      if ("port-destination"sv == name)
                          return read_temp_integer(value) && copy_to(dst_port);
 
                      return true;
                  }) &&
-               modeling_connect(compo, src_id, src_port, dst_id, dst_port);
+               optional_has_value(src_port) && optional_has_value(dst_port) &&
+               modeling_connect_internal_can_alloc() &&
+               modeling_connect(compo, src_id, *src_port, dst_id, *dst_port);
+    }
+
+    bool modeling_connect_internal_can_alloc() noexcept
+    {
+        if (mod().connections.can_alloc())
+            return true;
+
+        report_json_error(error_id::modeling_connect_error);
+    }
+
+    bool modeling_connect_output_can_alloc() noexcept
+    {
+        if (mod().connections.can_alloc())
+            return true;
+
+        report_json_error(error_id::modeling_connect_output_error);
+    }
+
+    bool modeling_connect_input_can_alloc() noexcept
+    {
+        if (mod().connections.can_alloc())
+            return true;
+
+        report_json_error(error_id::modeling_connect_input_error);
     }
 
     bool read_output_connection(const rapidjson::Value& val,
@@ -2635,6 +2707,7 @@ struct reader
 
                      return true;
                  }) &&
+               modeling_connect_output_can_alloc() &&
                modeling_connect_output(compo, src_id, src_port, port);
     }
 
@@ -2661,6 +2734,7 @@ struct reader
 
                      return true;
                  }) &&
+               modeling_connect_input_can_alloc() &&
                modeling_connect_input(compo, port, dst_id, dst_port);
     }
 
@@ -2687,21 +2761,26 @@ struct reader
     {
         auto_stack s(this, stack_id::component_generic_connections);
 
-        return for_each_array(
-          val, [&](const auto /*i*/, const auto& val_con) noexcept -> bool {
-              return for_each_member(
-                val_con,
-                [&](const auto name, const auto& value) noexcept -> bool {
-                    if ("type"sv == name) {
-                        connection::connection_type type =
-                          connection::connection_type::internal;
-                        return read_temp_string(value) && copy_to(type) &&
-                               dispatch_connection_type(val_con, type, compo);
-                    }
+        return is_value_array(val) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& val_con) noexcept -> bool {
+                     return for_each_member(
+                       val_con,
+                       [&](const auto  name,
+                           const auto& value) noexcept -> bool {
+                           if ("type"sv == name) {
+                               connection::connection_type type =
+                                 connection::connection_type::internal;
+                               return read_temp_string(value) &&
+                                      copy_to(type) &&
+                                      dispatch_connection_type(
+                                        val_con, type, compo);
+                           }
 
-                    return true;
-                });
-          });
+                           return true;
+                       });
+                 });
     }
 
     bool read_simple_component(const rapidjson::Value& val,
@@ -2742,7 +2821,8 @@ struct reader
     {
         auto_stack s(this, stack_id::component_grid_children);
 
-        return is_value_array_size_equal(val, compo.row * compo.column) &&
+        return is_value_array(val) &&
+               is_value_array_size_equal(val, compo.row * compo.column) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
@@ -2833,7 +2913,8 @@ struct reader
     {
         auto_stack s(this, stack_id::component_ports);
 
-        return is_value_array_size_equal(val, component::port_number) &&
+        return is_value_array(val) &&
+               is_value_array_size_equal(val, component::port_number) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      return read_temp_string(value) && copy_to(names[i]);
@@ -2969,7 +3050,8 @@ struct reader
 
         i64 len = 0;
 
-        return copy_array_size(val, len) && sim_models_can_alloc(len) &&
+        return is_value_array(val) && copy_array_size(val, len) &&
+               sim_models_can_alloc(len) &&
                for_each_array(
                  val,
                  [&](const auto /* i */, const auto& value) noexcept -> bool {
@@ -3054,10 +3136,12 @@ struct reader
     {
         auto_stack s(this, stack_id::simulation_connections);
 
-        return for_each_array(
-          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
-              return read_simulation_connection(value);
-          });
+        return is_value_array(val) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     return read_simulation_connection(value);
+                 });
     }
 
     bool read_simulation(const rapidjson::Value& val) noexcept
@@ -3096,30 +3180,31 @@ struct reader
             report_json_error(error_id::project_set_no_head);
     }
 
-    bool read_project_top_component(const rapidjson::Value& val,
-                                    component_id&           c_id) noexcept
+    bool read_project_top_component(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, stack_id::project_top_component);
 
-        std::filesystem::path reg;
-        std::filesystem::path dir;
-        std::filesystem::path file;
+        small_string<31>                         reg_name;
+        small_string<dir_path::path_buffer_len>  dir_path;
+        small_string<file_path::path_buffer_len> file_path;
+        component_id c_id = undefined<component_id>();
 
         return for_each_member(
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("component-path"sv == name)
-                         return read_temp_string(value) && copy_to(reg);
+                         return read_temp_string(value) && copy_to(reg_name);
 
                      if ("component-directory"sv == name)
-                         return read_temp_string(value) && copy_to(dir);
+                         return read_temp_string(value) && copy_to(dir_path);
 
-                     if ("component-path"sv == name)
-                         return read_temp_string(value) && copy_to(file);
+                     if ("component-file"sv == name)
+                         return read_temp_string(value) && copy_to(file_path);
 
                      return true;
                  }) &&
-               modeling_copy_component_id(reg, dir, file, c_id) &&
+               modeling_copy_component_id(
+                 reg_name, dir_path, file_path, c_id) &&
                project_set(c_id);
     }
 
@@ -3136,117 +3221,188 @@ struct reader
         return !vec.empty();
     }
 
-    bool read_project_access(const rapidjson::Value& val,
-                             vector<u64>&            access) noexcept
+    bool read_real_parameter(const rapidjson::Value& val,
+                             std::array<real, 4>&    reals) noexcept
     {
-        auto_stack s(this, stack_id::project_access);
+        auto_stack s(this, stack_id::project_real_parameter);
 
-        return for_each_array(
-                 val,
-                 [&](const auto /* i */, const auto& elem) noexcept -> bool {
-                     u64 id = 0;
-                     return read_temp_unsigned_integer(elem) && copy_to(id) &&
-                            vector_add(access, id);
-                 }) &&
-               vector_not_empty(access);
+        return is_value_array(val) && is_value_array_size_equal(val, 4) &&
+               for_each_array(
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     return read_temp_real(value) && copy_to(reals[i]);
+                 });
     }
 
-    bool read_project_parameter(const rapidjson::Value& val,
-                                model&                  mdl) noexcept
+    bool read_integer_parameter(const rapidjson::Value& val,
+                                std::array<i64, 4>&     integers) noexcept
+    {
+        auto_stack s(this, stack_id::project_integer_parameter);
+
+        return is_value_array(val) && is_value_array_size_equal(val, 4) &&
+               for_each_array(
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     return read_temp_unsigned_integer(value) &&
+                            copy_to(integers[i]);
+                 });
+    }
+
+    bool read_parameter(const rapidjson::Value& val, parameter& param) noexcept
     {
         auto_stack s(this, stack_id::project_parameter);
 
-        return for_first_member(
-          val, "parameter"sv, [&](const auto& value) noexcept -> bool {
-              return dispatch(
-                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                        if (auto* hsm = sim().hsms.try_to_get(dyn.id); hsm)
-                            return read_dynamics(value, *hsm);
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("real"sv == name)
+                  return read_real_parameter(value, param.reals);
+              if ("integer"sv == name)
+                  return read_integer_parameter(value, param.integers);
 
-                        report_json_error(error_id::modeling_hsm_id_error);
-                    } else {
-                        return read_dynamics(value, dyn);
-                    }
-                });
+              return true;
           });
     }
 
-    bool read_project_parameter_type(const rapidjson::Value& val,
-                                     dynamics_type&          type) noexcept
+    bool read_global_parameter_child(const rapidjson::Value& val,
+                                     global_parameter&       param) noexcept
     {
-        auto_stack s(this, stack_id::project_parameter_type);
+        auto_stack s(this, stack_id::project_global_parameter_child);
 
-        return for_first_member(
-          val, "type"sv, [&](const auto& value) noexcept -> bool {
-              return read_temp_string(value) && copy_to(type);
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              project::unique_id_path path;
+
+              if ("access"sv == name)
+                  return read_project_unique_id_path(val, path) &&
+                         convert_to_tn_model_ids(path,
+                                                 param.children.back().tn_id,
+                                                 param.children.back().mdl_id);
+
+              if ("parameter"sv == name)
+                  return read_parameter(value, param.params.back());
+
+              return false;
           });
     }
 
-    bool project_access_search_tree_node(const vector<u64>& access,
-                                         tree_node*&        out) noexcept
+    bool read_global_parameter_children(const rapidjson::Value& val,
+                                        global_parameter&       param) noexcept
     {
-        auto_stack s(this, stack_id::project_access);
-        irt_assert(access.ssize() > 0);
+        auto_stack s(this, stack_id::project_global_parameter_children);
 
-        tree_node* tn = pj().tn_head();
-        irt_assert(tn);
-
-        if (access.ssize() > 1) {
-            for (auto i = 0, e = access.ssize() - 1; i != e; ++i) {
-                u64  unique_id = access[i];
-                bool found     = false;
-
-                for (auto* tn_child = tn->tree.get_child(); tn_child;
-                     tn_child       = tn_child->tree.get_sibling()) {
-                    if (tn_child->unique_id == unique_id) {
-                        found = true;
-                        tn    = tn_child;
-                        break;
-                    }
-                }
-
-                if (!found)
-                    report_json_error(error_id::project_access_tree_error);
-            }
-        }
-
-        out = tn;
-
-        return true;
+        return is_value_array(val) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     param.children.emplace_back();
+                     param.params.emplace_back();
+                     return read_global_parameter_child(value, param);
+                 });
     }
 
-    bool project_assign_parameter(const u64    model_unique_id,
-                                  tree_node&   tn,
-                                  const model& mdl) noexcept
+    bool read_global_parameter(const rapidjson::Value& val,
+                               global_parameter&       param) noexcept
     {
-        auto_stack s(this, stack_id::project_parameter_assign);
+        auto_stack s(this, stack_id::project_global_parameter);
 
-        for (auto& elem : tn.parameters) {
-            if (elem.unique_id == model_unique_id) {
-                copy(mdl, elem.param);
-                return true;
-            }
-        }
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("name"sv == name)
+                  return read_temp_string(value) && copy_to(param.name);
 
-        report_json_error(error_id::project_access_parameter_error);
+              if ("models"sv == name)
+                  return read_global_parameter_children(value, param);
+
+              return true;
+          });
+    }
+
+    bool read_global_parameters(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::project_global_parameters);
+
+        i64 size = 0;
+
+        return is_value_array(val) && copy_array_size(val, size) &&
+               project_global_parameters_can_alloc(size) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& param = pj().global_parameters.alloc();
+                     return read_global_parameter(value, param);
+                 });
+    }
+
+    bool read_grid_parameter(const rapidjson::Value& val,
+                             grid_parameter&         param) noexcept
+    {
+        auto_stack s(this, stack_id::project_grid_parameter);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              project::unique_id_path path;
+              if ("name"sv == name)
+                  return read_temp_string(value) && copy_to(param.name);
+
+              if ("grid"sv == name)
+                  return read_project_unique_id_path(val, path) &&
+                         convert_to_tn_id(path, param.child.parent_id);
+
+              if ("access"sv == name)
+                  return read_project_unique_id_path(val, path) &&
+                         convert_to_tn_model_ids(
+                           path, param.child.tn_id, param.child.mdl_id);
+
+              if ("param"sv == name)
+                  return read_parameter(value, param.param);
+
+              return true;
+          });
+    }
+
+    bool read_grid_parameters(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::project_grid_parameters);
+
+        i64 size = 0;
+
+        return is_value_array(val) && copy_array_size(val, size) &&
+               project_grid_parameters_can_alloc(size) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& param = pj().grid_parameters.alloc();
+                     return read_grid_parameter(value, param);
+                 });
     }
 
     bool read_project_parameters(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, stack_id::project_parameters);
 
-        model       parameter;
-        vector<u64> access;
-        tree_node*  tn = nullptr;
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("global"sv == name)
+                  return read_global_parameters(value);
 
-        return for_first_member(
-          val, "access"sv, [&](const auto& value) noexcept -> bool {
-              return read_project_access(value, access) &&
-                     read_project_parameter_type(val, parameter.type) &&
-                     read_project_parameter(val, parameter) &&
-                     project_access_search_tree_node(access, tn) &&
-                     project_assign_parameter(access.back(), *tn, parameter);
+              if ("grid"sv == name)
+                  return read_grid_parameters(value);
+
+              return false;
+          });
+    }
+
+    bool read_project_observations(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::project_parameters);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("global"sv == name)
+                  return read_project_plot_observations(value);
+
+              if ("grid"sv == name)
+                  return read_project_grid_observations(value);
+
+              return false;
           });
     }
 
@@ -3284,7 +3440,8 @@ struct reader
     {
         auto_stack s(this, stack_id::project_unique_id_path);
 
-        return is_value_array_size_less(val, length(out) + 1) &&
+        return is_value_array(val) &&
+               is_value_array_size_less(val, length(out) + 1) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      return read_temp_unsigned_integer(value) &&
@@ -3296,7 +3453,7 @@ struct reader
     {
         auto_stack s(this, stack_id::load_color);
 
-        return is_value_array_size_equal(val, 4) &&
+        return is_value_array(val) && is_value_array_size_equal(val, 4) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      return read_temp_unsigned_integer(value) && copy_to(c[i]);
@@ -3344,13 +3501,15 @@ struct reader
     {
         auto_stack s(this, stack_id::project_plot_observation_children);
 
-        return for_each_array(
-          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
-              plot.children.emplace_back();
-              plot.colors.emplace_back();
-              plot.types.emplace_back();
-              return read_project_plot_observation_child(value, plot);
-          });
+        return is_value_array(val) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     plot.children.emplace_back();
+                     plot.colors.emplace_back();
+                     plot.types.emplace_back();
+                     return read_project_plot_observation_child(value, plot);
+                 });
     }
 
     bool read_project_plot_observation(const rapidjson::Value& val,
@@ -3374,12 +3533,14 @@ struct reader
     {
         auto_stack s(this, stack_id::project_plot_observations);
 
-        return project_plot_observers_can_alloc(val.GetArray().Size()) &&
+        i64 size = 0;
+
+        return is_value_array(val) && copy_array_size(val, size) &&
+               project_plot_observers_can_alloc(size) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
                      auto& plot = pj().plot_observers.alloc();
-
                      return read_project_plot_observation(value, plot);
                  });
     }
@@ -3411,14 +3572,16 @@ struct reader
 
     bool read_project_grid_observations(const rapidjson::Value& val) noexcept
     {
-        auto_stack s(this, stack_id::project_plot_observations);
+        auto_stack s(this, stack_id::project_grid_observations);
 
-        return project_grid_observers_can_alloc(val.GetArray().Size()) &&
+        i64 size = 0;
+
+        return is_value_array(val) && copy_array_size(val, size) &&
+               project_grid_observers_can_alloc(size) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
                      auto& grid = pj().grid_observers.alloc();
-
                      return read_project_grid_observation(value, grid);
                  });
     }
@@ -3427,33 +3590,16 @@ struct reader
     {
         auto_stack s(this, stack_id::project);
 
-        component_id c_id = undefined<component_id>();
+        return read_project_top_component(val) &&
+               for_each_member(
+                 val, [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("parameters"sv == name)
+                         return read_project_parameters(value);
 
-        return read_project_top_component(val, c_id) &&
-               for_first_member(val,
-                                "parameters"sv,
-                                [&](const auto& value) noexcept -> bool {
-                                    return for_each_array(
-                                      value,
-                                      [&](const auto /* i */,
-                                          const auto& value) noexcept -> bool {
-                                          return read_project_parameters(value);
-                                      });
-                                }) &&
-               for_first_member(
-                 val, "observations"sv, [&](const auto& val) noexcept -> bool {
-                     return for_each_member(
-                       val,
-                       [&](const auto  name,
-                           const auto& value) noexcept -> bool {
-                           if ("plots"sv == name)
-                               return read_project_plot_observations(value);
+                     if ("observations"sv == name)
+                         return read_project_observations(value);
 
-                           if ("grids"sv == name)
-                               return read_project_grid_observations(value);
-
-                           return true;
-                       });
+                     return true;
                  });
     }
 
@@ -3633,7 +3779,7 @@ static bool parse_json_data(const std::span<char>& buffer,
 //
 
 template<typename Writer, int QssLevel>
-void write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
+status write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("X");
@@ -3641,86 +3787,29 @@ void write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
     writer.Key("dQ");
     writer.Double(dyn.default_dQ);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer, int QssLevel>
-void write(Writer& writer,
-           const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+status write(Writer& writer,
+             const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer, int QssLevel, int PortNumber>
-void write(Writer& writer,
-           const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
+status write(Writer& writer,
+             const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss1_wsum_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-void write(Writer& writer, const qss1_wsum_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-void write(Writer& writer, const qss1_wsum_4& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.Key("coeff-3");
-    writer.Double(dyn.default_input_coeffs[3]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-void write(Writer& writer, const qss2_sum_2& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-}
-
-template<typename Writer>
-void write(Writer& writer, const qss2_sum_3& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-}
-
-template<typename Writer>
-void write(Writer& writer, const qss2_sum_4& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-}
-
-template<typename Writer>
-void write(Writer& writer, const qss2_wsum_2& dyn) noexcept
+status write(Writer& writer, const qss1_wsum_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -3728,10 +3817,11 @@ void write(Writer& writer, const qss2_wsum_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss2_wsum_3& dyn) noexcept
+status write(Writer& writer, const qss1_wsum_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -3741,10 +3831,11 @@ void write(Writer& writer, const qss2_wsum_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss2_wsum_4& dyn) noexcept
+status write(Writer& writer, const qss1_wsum_4& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -3756,31 +3847,35 @@ void write(Writer& writer, const qss2_wsum_4& dyn) noexcept
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_sum_2& /*dyn*/) noexcept
+status write(Writer& writer, const qss2_sum_2& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_sum_3& /*dyn*/) noexcept
+status write(Writer& writer, const qss2_sum_3& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_sum_4& /*dyn*/) noexcept
+status write(Writer& writer, const qss2_sum_4& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_wsum_2& dyn) noexcept
+status write(Writer& writer, const qss2_wsum_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -3788,10 +3883,11 @@ void write(Writer& writer, const qss3_wsum_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_wsum_3& dyn) noexcept
+status write(Writer& writer, const qss2_wsum_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -3801,10 +3897,11 @@ void write(Writer& writer, const qss3_wsum_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_wsum_4& dyn) noexcept
+status write(Writer& writer, const qss2_wsum_4& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -3816,10 +3913,77 @@ void write(Writer& writer, const qss3_wsum_4& dyn) noexcept
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const integrator& dyn) noexcept
+status write(Writer& writer, const qss3_sum_2& /*dyn*/) noexcept
+{
+    writer.StartObject();
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(Writer& writer, const qss3_sum_3& /*dyn*/) noexcept
+{
+    writer.StartObject();
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(Writer& writer, const qss3_sum_4& /*dyn*/) noexcept
+{
+    writer.StartObject();
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(Writer& writer, const qss3_wsum_2& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("coeff-0");
+    writer.Double(dyn.default_input_coeffs[0]);
+    writer.Key("coeff-1");
+    writer.Double(dyn.default_input_coeffs[1]);
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(Writer& writer, const qss3_wsum_3& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("coeff-0");
+    writer.Double(dyn.default_input_coeffs[0]);
+    writer.Key("coeff-1");
+    writer.Double(dyn.default_input_coeffs[1]);
+    writer.Key("coeff-2");
+    writer.Double(dyn.default_input_coeffs[2]);
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(Writer& writer, const qss3_wsum_4& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("coeff-0");
+    writer.Double(dyn.default_input_coeffs[0]);
+    writer.Key("coeff-1");
+    writer.Double(dyn.default_input_coeffs[1]);
+    writer.Key("coeff-2");
+    writer.Double(dyn.default_input_coeffs[2]);
+    writer.Key("coeff-3");
+    writer.Double(dyn.default_input_coeffs[3]);
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(Writer& writer, const integrator& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value");
@@ -3827,10 +3991,11 @@ void write(Writer& writer, const integrator& dyn) noexcept
     writer.Key("reset");
     writer.Double(dyn.default_reset_value);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const quantifier& dyn) noexcept
+status write(Writer& writer, const quantifier& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("step-size");
@@ -3847,10 +4012,11 @@ void write(Writer& writer, const quantifier& dyn) noexcept
     writer.Key("zero-init-offset");
     writer.Bool(dyn.default_zero_init_offset);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const adder_2& dyn) noexcept
+status write(Writer& writer, const adder_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -3862,10 +4028,11 @@ void write(Writer& writer, const adder_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const adder_3& dyn) noexcept
+status write(Writer& writer, const adder_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -3881,10 +4048,11 @@ void write(Writer& writer, const adder_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const adder_4& dyn) noexcept
+status write(Writer& writer, const adder_4& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -3904,10 +4072,11 @@ void write(Writer& writer, const adder_4& dyn) noexcept
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const mult_2& dyn) noexcept
+status write(Writer& writer, const mult_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -3919,10 +4088,11 @@ void write(Writer& writer, const mult_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_values[1]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const mult_3& dyn) noexcept
+status write(Writer& writer, const mult_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -3938,10 +4108,11 @@ void write(Writer& writer, const mult_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_values[2]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const mult_4& dyn) noexcept
+status write(Writer& writer, const mult_4& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -3961,26 +4132,29 @@ void write(Writer& writer, const mult_4& dyn) noexcept
     writer.Key("coeff-3");
     writer.Double(dyn.default_values[3]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const counter& /*dyn*/) noexcept
+status write(Writer& writer, const counter& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const queue& dyn) noexcept
+status write(Writer& writer, const queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("ta");
     writer.Double(dyn.default_ta);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const dynamic_queue& dyn) noexcept
+status write(Writer& writer, const dynamic_queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("source-ta-type");
@@ -3990,10 +4164,11 @@ void write(Writer& writer, const dynamic_queue& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const priority_queue& dyn) noexcept
+status write(Writer& writer, const priority_queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("ta");
@@ -4005,10 +4180,11 @@ void write(Writer& writer, const priority_queue& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const generator& dyn) noexcept
+status write(Writer& writer, const generator& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("offset");
@@ -4024,10 +4200,11 @@ void write(Writer& writer, const generator& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const constant& dyn) noexcept
+status write(Writer& writer, const constant& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value");
@@ -4057,12 +4234,12 @@ void write(Writer& writer, const constant& dyn) noexcept
         writer.Double(dyn.port);
         break;
     }
-
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss1_cross& dyn) noexcept
+status write(Writer& writer, const qss1_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4070,10 +4247,11 @@ void write(Writer& writer, const qss1_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss2_cross& dyn) noexcept
+status write(Writer& writer, const qss2_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4081,10 +4259,11 @@ void write(Writer& writer, const qss2_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_cross& dyn) noexcept
+status write(Writer& writer, const qss3_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4092,10 +4271,11 @@ void write(Writer& writer, const qss3_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss1_filter& dyn) noexcept
+status write(Writer& writer, const qss1_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4107,10 +4287,11 @@ void write(Writer& writer, const qss1_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss2_filter& dyn) noexcept
+status write(Writer& writer, const qss2_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4122,10 +4303,11 @@ void write(Writer& writer, const qss2_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_filter& dyn) noexcept
+status write(Writer& writer, const qss3_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4137,60 +4319,67 @@ void write(Writer& writer, const qss3_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss1_power& dyn) noexcept
+status write(Writer& writer, const qss1_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss2_power& dyn) noexcept
+status write(Writer& writer, const qss2_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const qss3_power& dyn) noexcept
+status write(Writer& writer, const qss3_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer, int QssLevel>
-void write(Writer& writer, const abstract_square<QssLevel>& /*dyn*/) noexcept
+status write(Writer& writer, const abstract_square<QssLevel>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const cross& dyn) noexcept
+status write(Writer& writer, const cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
     writer.Double(dyn.default_threshold);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer, int PortNumber>
-void write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
+status write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const time_func& dyn) noexcept
+status write(Writer& writer, const time_func& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("function");
@@ -4198,10 +4387,11 @@ void write(Writer& writer, const time_func& dyn) noexcept
                   : dyn.default_f == &square_time_function ? "square"
                                                            : "sin");
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const filter& dyn) noexcept
+status write(Writer& writer, const filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4209,10 +4399,11 @@ void write(Writer& writer, const filter& dyn) noexcept
     writer.Key("upper-threshold");
     writer.Double(dyn.default_upper_threshold);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const logical_and_2& dyn) noexcept
+status write(Writer& writer, const logical_and_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4220,34 +4411,11 @@ void write(Writer& writer, const logical_and_2& dyn) noexcept
     writer.Key("value-1");
     writer.Bool(dyn.default_values[1]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const logical_and_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Bool(dyn.default_values[2]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-void write(Writer& writer, const logical_or_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-void write(Writer& writer, const logical_or_3& dyn) noexcept
+status write(Writer& writer, const logical_and_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4257,19 +4425,47 @@ void write(Writer& writer, const logical_or_3& dyn) noexcept
     writer.Key("value-2");
     writer.Bool(dyn.default_values[2]);
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer, const logical_invert& /*dyn*/) noexcept
+status write(Writer& writer, const logical_or_2& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("value-0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Bool(dyn.default_values[1]);
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(Writer& writer, const logical_or_3& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("value-0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Bool(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Bool(dyn.default_values[2]);
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(Writer& writer, const logical_invert& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer&                                         writer,
-           std::string_view                                name,
-           const hierarchical_state_machine::state_action& state) noexcept
+status write(Writer&                                         writer,
+             std::string_view                                name,
+             const hierarchical_state_machine::state_action& state) noexcept
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
@@ -4282,12 +4478,13 @@ void write(Writer&                                         writer,
     writer.Key("type");
     writer.Int(static_cast<int>(state.type));
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer&                                             writer,
-           std::string_view                                    name,
-           const hierarchical_state_machine::condition_action& state) noexcept
+status write(Writer&                                             writer,
+             std::string_view                                    name,
+             const hierarchical_state_machine::condition_action& state) noexcept
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
@@ -4300,12 +4497,13 @@ void write(Writer&                                             writer,
     writer.Key("mask");
     writer.Int(static_cast<int>(state.mask));
     writer.EndObject();
+    return status::success;
 }
 
 template<typename Writer>
-void write(Writer& writer,
-           const hsm_wrapper& /*dyn*/,
-           const hierarchical_state_machine& machine) noexcept
+status write(Writer& writer,
+             const hsm_wrapper& /*dyn*/,
+             const hierarchical_state_machine& machine) noexcept
 {
     writer.StartObject();
     writer.Key("states");
@@ -4364,6 +4562,8 @@ void write(Writer& writer,
 
     writer.EndArray();
     writer.EndObject();
+
+    return status::success;
 }
 
 void io_cache::clear() noexcept
@@ -4652,30 +4852,51 @@ static void write_random_sources(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_child_component_path(const modeling&  mod,
-                                       const component& compo,
-                                       Writer&          w) noexcept
+static status write_child_component_path(Writer&               w,
+                                         const registred_path& reg,
+                                         const dir_path&       dir,
+                                         const file_path&      file) noexcept
 {
-    if (auto* reg = mod.registred_paths.try_to_get(compo.reg_path); reg) {
-        w.Key("path");
-        w.String(reg->path.c_str());
-    }
+    w.Key("name");
+    w.String(reg.name.begin(), reg.name.size());
 
-    if (auto* dir = mod.dir_paths.try_to_get(compo.dir); dir) {
-        w.Key("directory");
-        w.String(dir->path.c_str());
-    }
+    w.Key("directory");
+    w.String(dir.path.begin(), dir.path.size());
 
-    if (auto* file = mod.file_paths.try_to_get(compo.file); file) {
-        w.Key("file");
-        w.String(file->path.c_str());
-    }
+    w.Key("file");
+    w.String(file.path.begin(), file.path.size());
+
+    return status::success;
 }
 
 template<typename Writer>
-static void write_child_component(const modeling&    mod,
-                                  const component_id compo_id,
-                                  Writer&            w) noexcept
+static status write_child_component_path(const modeling&  mod,
+                                         const component& compo,
+                                         Writer&          w) noexcept
+{
+    auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
+    irt_return_if_fail(reg, status::io_project_file_component_directory_error);
+    irt_return_if_fail(!reg->path.empty(),
+                       status::io_project_file_component_directory_error);
+    irt_return_if_fail(!reg->name.empty(),
+                       status::io_project_file_component_directory_error);
+
+    auto* dir = mod.dir_paths.try_to_get(compo.dir);
+    irt_return_if_fail(dir, status::io_project_file_component_directory_error);
+    irt_return_if_fail(!dir->path.empty(),
+                       status::io_project_file_component_directory_error);
+
+    auto* file = mod.file_paths.try_to_get(compo.file);
+    irt_return_if_fail(file, status::io_project_file_error);
+    irt_return_if_fail(!file->path.empty(), status::io_project_file_error);
+
+    return write_child_component_path(w, *reg, *dir, *file);
+}
+
+template<typename Writer>
+static status write_child_component(const modeling&    mod,
+                                    const component_id compo_id,
+                                    Writer&            w) noexcept
 {
     if (auto* compo = mod.components.try_to_get(compo_id); compo) {
         w.Key("component-type");
@@ -4683,61 +4904,54 @@ static void write_child_component(const modeling&    mod,
 
         switch (compo->type) {
         case component_type::none:
-            break;
+            w.Key("component-type");
+            w.String(component_type_names[ordinal(component_type::none)]);
+            return status::success;
 
         case component_type::internal:
             w.Key("parameter");
             w.String(internal_component_names[ordinal(compo->id.internal_id)]);
-            break;
+            return status::success;
 
         case component_type::grid:
-            write_child_component_path(mod, *compo, w);
-            break;
+            return write_child_component_path(mod, *compo, w);
 
         case component_type::simple:
-            write_child_component_path(mod, *compo, w);
-            break;
-
-        default:
-            break;
+            return write_child_component_path(mod, *compo, w);
         }
+        irt_unreachable();
+
     } else {
         w.Key("component-type");
         w.String(component_type_names[ordinal(component_type::none)]);
+        return status::success;
     }
 }
 
 template<typename Writer>
-static void write_child_model(const modeling& mod,
-                              model&          mdl,
-                              Writer&         w) noexcept
+static status write_child_model(const modeling& mod,
+                                model&          mdl,
+                                Writer&         w) noexcept
 {
     w.Key("dynamics");
-    dispatch(mdl, [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> void {
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            auto* hsm = mod.hsms.try_to_get(dyn.id);
-            irt_assert(hsm);
-            write(w, dyn, *hsm);
-        } else {
-            write(w, dyn);
-        }
-    });
+
+    return dispatch(mdl,
+                    [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> status {
+                        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                            auto* hsm = mod.hsms.try_to_get(dyn.id);
+                            irt_assert(hsm);
+                            return write(w, dyn, *hsm);
+                        } else {
+                            return write(w, dyn);
+                        }
+                    });
 }
 
 template<typename Writer>
-static void write_empty_child(Writer& w) noexcept
-{
-    w.StartObject();
-    w.Key("type");
-    w.String("");
-    w.EndObject();
-}
-
-template<typename Writer>
-static void write_child(const modeling& mod,
-                        const child&    ch,
-                        const u64       unique_id,
-                        Writer&         w) noexcept
+static status write_child(const modeling& mod,
+                          const child&    ch,
+                          const u64       unique_id,
+                          Writer&         w) noexcept
 {
     const auto child_id = mod.children.get_id(ch);
 
@@ -4750,16 +4964,12 @@ static void write_child(const modeling& mod,
     w.Double(mod.children_positions[get_index(child_id)].x);
     w.Key("y");
     w.Double(mod.children_positions[get_index(child_id)].y);
+    w.Key("name");
+    w.String(mod.children_names[get_index(child_id)].c_str());
     w.Key("configurable");
     w.Bool(ch.flags & child_flags_configurable);
     w.Key("observable");
     w.Bool(ch.flags & child_flags_observable);
-    w.Key("input");
-    w.Bool(false);
-    w.Key("output");
-    w.Bool(false);
-    w.Key("name");
-    w.String(mod.children_names[get_index(child_id)].c_str());
 
     if (ch.type == child_type::component) {
         const auto compo_id = ch.id.compo_id;
@@ -4767,7 +4977,7 @@ static void write_child(const modeling& mod,
             w.Key("type");
             w.String("component");
 
-            write_child_component(mod, compo_id, w);
+            irt_return_if_bad(write_child_component(mod, compo_id, w));
         }
     } else {
         const auto mdl_id = ch.id.mdl_id;
@@ -4775,15 +4985,17 @@ static void write_child(const modeling& mod,
             w.Key("type");
             w.String(dynamics_type_names[ordinal(mdl->type)]);
 
-            write_child_model(mod, *mdl, w);
+            irt_return_if_bad(write_child_model(mod, *mdl, w));
         }
     }
 
     w.EndObject();
+
+    return status::success;
 }
 
 template<typename Writer>
-static void write_simple_component_children(
+static status write_simple_component_children(
   io_cache& /*cache*/,
   const modeling&          mod,
   const generic_component& simple_compo,
@@ -4794,20 +5006,23 @@ static void write_simple_component_children(
 
     for (auto child_id : simple_compo.children)
         if (auto* c = mod.children.try_to_get(child_id); c)
-            write_child(mod,
-                        *c,
-                        c->unique_id == 0 ? simple_compo.make_next_unique_id()
-                                          : c->unique_id,
-                        w);
+            irt_return_if_bad(write_child(mod,
+                                          *c,
+                                          c->unique_id == 0
+                                            ? simple_compo.make_next_unique_id()
+                                            : c->unique_id,
+                                          w));
 
     w.EndArray();
+
+    return status::success;
 }
 
 template<typename Writer>
-static void write_component_ports(io_cache& /*cache*/,
-                                  const modeling& /*mod*/,
-                                  const component& compo,
-                                  Writer&          w) noexcept
+static status write_component_ports(io_cache& /*cache*/,
+                                    const modeling& /*mod*/,
+                                    const component& compo,
+                                    Writer&          w) noexcept
 {
     w.Key("x");
     w.StartArray();
@@ -4824,13 +5039,15 @@ static void write_component_ports(io_cache& /*cache*/,
         w.String(compo.y_names[static_cast<unsigned>(i)].c_str());
 
     w.EndArray();
+
+    return status::success;
 }
 
 template<typename Writer>
-static void write_simple_component_connections(io_cache& /*cache*/,
-                                               const modeling&          mod,
-                                               const generic_component& compo,
-                                               Writer& w) noexcept
+static status write_simple_component_connections(io_cache& /*cache*/,
+                                                 const modeling&          mod,
+                                                 const generic_component& compo,
+                                                 Writer& w) noexcept
 {
     w.Key("connections");
     w.StartArray();
@@ -4878,26 +5095,30 @@ static void write_simple_component_connections(io_cache& /*cache*/,
     }
 
     w.EndArray();
+
+    return status::success;
 }
 
 template<typename Writer>
-static void write_simple_component(io_cache&                cache,
-                                   const modeling&          mod,
-                                   const generic_component& s_compo,
-                                   Writer&                  w) noexcept
+static status write_simple_component(io_cache&                cache,
+                                     const modeling&          mod,
+                                     const generic_component& s_compo,
+                                     Writer&                  w) noexcept
 {
     w.String("next-unique-id");
     w.Uint64(s_compo.next_unique_id);
 
     write_simple_component_children(cache, mod, s_compo, w);
     write_simple_component_connections(cache, mod, s_compo, w);
+
+    return status::success;
 }
 
 template<typename Writer>
-static void write_grid_component(io_cache& /*cache*/,
-                                 const modeling&       mod,
-                                 const grid_component& grid,
-                                 Writer&               w) noexcept
+static status write_grid_component(io_cache& /*cache*/,
+                                   const modeling&       mod,
+                                   const grid_component& grid,
+                                   Writer&               w) noexcept
 {
     w.Key("rows");
     w.Int(grid.row);
@@ -4914,6 +5135,8 @@ static void write_grid_component(io_cache& /*cache*/,
         w.EndObject();
     }
     w.EndArray();
+
+    return status::success;
 }
 
 template<typename Writer>
@@ -4932,6 +5155,8 @@ static status do_component_save(Writer&          w,
                                 const component& compo,
                                 io_cache&        cache) noexcept
 {
+    status ret = status::success;
+
     w.StartObject();
 
     w.Key("name");
@@ -4962,15 +5187,23 @@ static status do_component_save(Writer&          w,
         break;
 
     case component_type::simple: {
-        const auto id = compo.id.simple_id;
-        if (auto* s = mod.simple_components.try_to_get(id); s)
-            write_simple_component(cache, mod, *s, w);
+        ret = if_data_exists_return(
+          mod.simple_components,
+          compo.id.simple_id,
+          [&](auto& generic) noexcept -> status {
+              return write_simple_component(cache, mod, generic, w);
+          },
+          status::unknown_dynamics); // @TODO undefined component.
     } break;
 
     case component_type::grid: {
-        const auto id = compo.id.grid_id;
-        if (auto* g = mod.grid_components.try_to_get(id); g)
-            write_grid_component(cache, mod, *g, w);
+        ret = if_data_exists_return(
+          mod.grid_components,
+          compo.id.grid_id,
+          [&](auto& grid) noexcept -> status {
+              return write_grid_component(cache, mod, grid, w);
+          },
+          status::unknown_dynamics); // @TODO undefined component
     } break;
 
     default:
@@ -4979,7 +5212,7 @@ static status do_component_save(Writer&          w,
 
     w.EndObject();
 
-    return status::success;
+    return ret;
 }
 
 status component_save(const modeling&   mod,
@@ -5391,52 +5624,6 @@ status project_load(project&        pj,
  ****************************************************************************/
 
 template<typename Writer>
-void write_node_access(Writer& w, const tree_node& tn) noexcept
-{
-    if (auto* parent = tn.tree.get_parent(); parent)
-        write_node_access(w, *parent);
-
-    w.Uint64(tn.unique_id);
-}
-
-template<typename Writer>
-void write_tree_node(Writer& w, const tree_node& tree, modeling& mod) noexcept
-{
-    w.Key("access");
-    w.StartArray();
-    write_node_access(w, tree);
-    w.EndArray();
-
-    if (!tree.parameters.empty()) {
-        w.Key("parameters");
-        w.StartArray();
-        for (const auto& elem : tree.parameters) {
-            w.StartObject();
-
-            w.Key("unique-id");
-            w.Uint64(elem.unique_id);
-
-            w.Key("dynamics");
-            w.String(dynamics_type_names[ordinal(elem.param.type)]);
-
-            dispatch(
-              elem.param,
-              [&w, &mod]<typename Dynamics>(const Dynamics& dyn) -> void {
-                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                      if (auto* machine = mod.hsms.try_to_get(dyn.id);
-                          machine) {
-                          write(w, dyn, *machine);
-                      }
-                  } else {
-                      write(w, dyn);
-                  }
-              });
-        }
-        w.EndArray();
-    }
-}
-
-template<typename Writer>
 static void write_color(Writer& w, std::array<u8, 4> color) noexcept
 {
     w.StartArray();
@@ -5461,19 +5648,14 @@ static void write_project_unique_id_path(
 constexpr static std::array<u8, 4> color_white{ 255, 255, 255, 0 };
 
 template<typename Writer>
-static status do_project_save_parameters(Writer&   w,
-                                         project&  pj,
-                                         modeling& mod) noexcept
+static status do_project_save_parameters(Writer& w, project& pj) noexcept
 {
     w.Key("parameters");
-    w.StartArray();
 
-    pj.for_all_tree_nodes([&w, &mod](const tree_node& tn) {
-        if (tn.have_configuration())
-            write_tree_node(w, tn, mod);
-    });
-
-    w.EndArray();
+    w.StartObject();
+    irt_return_if_bad(do_project_save_global_parameters(w, pj));
+    irt_return_if_bad(do_project_save_grid_parameters(w, pj));
+    w.EndObject();
 
     return status::success;
 }
@@ -5481,7 +5663,7 @@ static status do_project_save_parameters(Writer&   w,
 template<typename Writer>
 static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
 {
-    w.Key("plots");
+    w.Key("global");
     w.StartArray();
 
     for_each_data(pj.plot_observers, [&](auto& plot) noexcept {
@@ -5518,7 +5700,7 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
 template<typename Writer>
 static status do_project_save_grid_observations(Writer& w, project& pj) noexcept
 {
-    w.Key("grids");
+    w.Key("grid");
     w.StartArray();
 
     for_each_data(pj.grid_observers, [&](auto& grid) noexcept {
@@ -5556,11 +5738,102 @@ static status do_project_save_observations(Writer& w, project& pj) noexcept
 }
 
 template<typename Writer>
+static status write_parameter(Writer& w, const parameter& param) noexcept
+{
+    w.Key("parameter");
+    w.StartObject();
+    w.Key("real");
+    w.StartArray();
+    for (auto elem : param.reals)
+        w.Double(elem);
+    w.EndArray();
+    w.Key("integer");
+    w.StartArray();
+    for (auto elem : param.integers)
+        w.Int64(elem);
+    w.EndArray();
+
+    return status::success;
+}
+
+template<typename Writer>
+static status do_project_save_global_parameter(Writer&           w,
+                                               project&          pj,
+                                               global_parameter& param) noexcept
+{
+    w.StartObject();
+    w.Key("name");
+    w.String(param.name.begin(), param.name.size());
+
+    w.Key("models");
+    w.StartArray();
+    for (int i = 0, e = param.children.ssize(); i != e; ++i) {
+        w.StartObject();
+        project::unique_id_path path;
+        w.Key("access");
+        pj.build_unique_id_path(
+          param.children[i].tn_id, param.children[i].mdl_id, path);
+        write_project_unique_id_path(w, path);
+
+        write_parameter(w, param.params[i]);
+        w.EndObject();
+    }
+    w.EndArray();
+    w.EndObject();
+
+    return status::success;
+}
+
+template<typename Writer>
+static status do_project_save_global_parameters(Writer& w, project& pj) noexcept
+{
+    w.Key("global");
+    w.StartArray();
+
+    for_each_data(pj.global_parameters, [&](auto& param) noexcept {
+        do_project_save_global_parameter(w, pj, param);
+    });
+
+    w.EndArray();
+
+    return status::success;
+}
+
+template<typename Writer>
+static status do_project_save_grid_parameters(Writer& w, project& pj) noexcept
+{
+    w.Key("grid");
+    w.StartArray();
+
+    for_each_data(pj.grid_parameters, [&](auto& param) noexcept {
+        w.StartObject();
+        w.Key("name");
+        w.String(param.name.begin(), param.name.size());
+
+        project::unique_id_path path;
+        w.Key("grid");
+        write_project_unique_id_path(w, path);
+        pj.build_unique_id_path(param.child.parent_id, path);
+
+        w.Key("access");
+        pj.build_unique_id_path(param.child.tn_id, param.child.mdl_id, path);
+
+        write_parameter(w, param.param);
+
+        w.EndObject();
+    });
+
+    w.EndArray();
+
+    return status::success;
+}
+
+template<typename Writer>
 static status do_project_save_component(Writer&               w,
                                         component&            compo,
-                                        const registred_path* reg,
-                                        const dir_path*       dir,
-                                        const file_path*      file) noexcept
+                                        const registred_path& reg,
+                                        const dir_path&       dir,
+                                        const file_path&      file) noexcept
 {
     w.Key("component-type");
     w.String(component_type_names[ordinal(compo.type)]);
@@ -5572,25 +5845,13 @@ static status do_project_save_component(Writer&               w,
     case component_type::simple:
     case component_type::grid:
         w.Key("component-path");
-        if (reg)
-            w.String(
-              reg->name.c_str(), static_cast<u32>(reg->name.size()), false);
-        else
-            w.String("");
+        w.String(reg.name.c_str(), reg.name.size(), false);
 
         w.Key("component-directory");
-        if (dir)
-            w.String(
-              dir->path.c_str(), static_cast<u32>(dir->path.size()), false);
-        else
-            w.String("");
+        w.String(dir.path.c_str(), dir.path.size(), false);
 
         w.Key("component-file");
-        if (file)
-            w.String(
-              file->path.c_str(), static_cast<u32>(file->path.size()), false);
-        else
-            w.String(compo.name.c_str());
+        w.String(file.path.c_str(), file.path.size(), false);
         break;
 
     default:
@@ -5607,13 +5868,25 @@ static status do_project_save(Writer&    w,
                               component& compo,
                               io_cache& /* cache */) noexcept
 {
-    auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
-    auto* dir  = mod.dir_paths.try_to_get(compo.dir);
+    auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
+    irt_return_if_fail(reg, status::io_project_file_component_directory_error);
+    irt_return_if_fail(!reg->path.empty(),
+                       status::io_project_file_component_directory_error);
+    irt_return_if_fail(!reg->name.empty(),
+                       status::io_project_file_component_directory_error);
+
+    auto* dir = mod.dir_paths.try_to_get(compo.dir);
+    irt_return_if_fail(dir, status::io_project_file_component_directory_error);
+    irt_return_if_fail(!dir->path.empty(),
+                       status::io_project_file_component_directory_error);
+
     auto* file = mod.file_paths.try_to_get(compo.file);
+    irt_return_if_fail(file, status::io_project_file_error);
+    irt_return_if_fail(!file->path.empty(), status::io_project_file_error);
 
     w.StartObject();
-    irt_return_if_bad(do_project_save_component(w, compo, reg, dir, file));
-    irt_return_if_bad(do_project_save_parameters(w, pj, mod));
+    irt_return_if_bad(do_project_save_component(w, compo, *reg, *dir, *file));
+    irt_return_if_bad(do_project_save_parameters(w, pj));
     irt_return_if_bad(do_project_save_observations(w, pj));
     w.EndObject();
 

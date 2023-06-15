@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <cstdint>
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
@@ -454,6 +455,7 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(simple_components.init(p.component_capacity));
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
+    irt_return_if_bad(registred_paths.init(p.dir_path_capacity));
 
     irt_return_if_bad(models.init(p.model_capacity));
     irt_return_if_bad(hsms.init(p.component_capacity));
@@ -748,8 +750,15 @@ status modeling::fill_components() noexcept
             to_del = nullptr;
         }
 
-        if (is_bad(load_component(*this, *compo)))
+        if (auto ret = load_component(*this, *compo); is_bad(ret)) {
+            log_warning(*this,
+                        log_level::warning,
+                        ret,
+                        "Fail to read component {} - {}",
+                        compo->name.sv(),
+                        static_cast<u64>(components.get_id(*compo)));
             to_del = compo;
+        }
     }
 
     if (to_del)
@@ -825,9 +834,17 @@ dir_path& modeling::alloc_dir(registred_path& reg) noexcept
     return dir;
 }
 
-registred_path& modeling::alloc_registred() noexcept
+registred_path& modeling::alloc_registred(std::string_view name,
+                                          int              priority) noexcept
 {
-    return registred_paths.alloc();
+    auto& reg    = registred_paths.alloc();
+    auto  reg_id = registred_paths.get_id(reg);
+
+    reg.name     = name;
+    reg.priority = static_cast<i8>(std::clamp(priority, INT8_MIN, INT8_MAX));
+    component_repertories.emplace_back(reg_id);
+
+    return reg;
 }
 
 bool modeling::exists(const registred_path& reg) noexcept
@@ -1847,7 +1864,6 @@ status modeling::save(component& c) noexcept
     }
 
     c.state = component_status::unmodified;
-    c.type  = component_type::simple;
 
     return status::success;
 }

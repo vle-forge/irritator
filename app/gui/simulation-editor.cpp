@@ -1696,27 +1696,28 @@ static bool show_generic_simulation_settings(application& app,
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::Checkbox("##enable", &tn.parameters[i].enable);
-                ImGui::TableNextColumn();
+                // ImGui::Checkbox("##enable", &tn.parameters[i].enable);
+                // ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}", tn.parameters[i].unique_id);
-                ImGui::TableNextColumn();
+                // ImGui::TextFormat("{}", tn.parameters[i].unique_id);
+                // ImGui::TableNextColumn();
 
-                auto* mdl = app.sim.models.try_to_get(tn.parameters[i].mdl_id);
-                if (mdl)
-                    ImGui::TextFormat("{}",
-                                      dynamics_type_names[ordinal(mdl->type)]);
-                ImGui::TableNextColumn();
+                // auto* mdl =
+                // app.sim.models.try_to_get(tn.parameters[i].mdl_id); if (mdl)
+                //     ImGui::TextFormat("{}",
+                //                       dynamics_type_names[ordinal(mdl->type)]);
+                // ImGui::TableNextColumn();
 
-                if (tn.parameters[i].enable) {
-                    dispatch(tn.parameters[i].param,
-                             [&]<typename Dynamics>(Dynamics& dyn) {
-                                 if constexpr (!std::is_same_v<Dynamics,
-                                                               hsm_wrapper>) {
-                                     show_dynamics_inputs(app.sim.srcs, dyn);
-                                 }
-                             });
-                }
+                // if (tn.parameters[i].enable) {
+                //     dispatch(tn.parameters[i].param,
+                //              [&]<typename Dynamics>(Dynamics& dyn) {
+                //                  if constexpr (!std::is_same_v<Dynamics,
+                //                                                hsm_wrapper>)
+                //                                                {
+                //                      show_dynamics_inputs(app.sim.srcs, dyn);
+                //                  }
+                //              });
+                // }
                 ImGui::TableNextColumn();
 
                 ImGui::PopID();

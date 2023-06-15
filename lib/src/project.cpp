@@ -368,12 +368,8 @@ static status make_tree_leaf(simulation_copy& sc,
         x.value = new_mdl_id;
     }
 
-    if (ch.flags & child_flags_configurable) {
-        auto& x     = parent.parameters.emplace_back();
-        x.unique_id = ch.unique_id;
-        x.mdl_id    = new_mdl_id;
-        copy(mod_mdl, x.param);
-    }
+    if (ch.flags & child_flags_configurable)
+        parent.parameters.emplace_back(ch.unique_id);
 
     if (ch.flags & child_flags_observable)
         parent.observables.emplace_back(ch.unique_id);
@@ -1263,7 +1259,7 @@ static auto model_init(const parameter& param, quantifier& dyn) noexcept
   -> status
 {
     dyn.default_step_size   = param.reals[0];
-    dyn.default_past_length = param.integers[0];
+    dyn.default_past_length = static_cast<int>(param.integers[0]);
 
     return status::success;
 }

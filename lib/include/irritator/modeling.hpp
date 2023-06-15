@@ -335,7 +335,7 @@ struct component
     registred_path_id reg_path = registred_path_id{ 0 };
     dir_path_id       dir      = dir_path_id{ 0 };
     file_path_id      file     = file_path_id{ 0 };
-    small_string<32>  name;
+    small_string<31>  name;
 
     union id
     {
@@ -350,6 +350,8 @@ struct component
 
 struct registred_path
 {
+    static inline constexpr int path_buffer_len = 256 * 16 - 2;
+
     enum class state
     {
         none,
@@ -358,16 +360,18 @@ struct registred_path
         error,
     };
 
-    small_string<256 * 16> path;
-    small_string<32>       name;
-    state                  status   = state::unread;
-    i8                     priority = 0;
+    small_string<path_buffer_len> path;
+    small_string<31>              name;
+    state                         status   = state::unread;
+    i8                            priority = 0;
 
     vector<dir_path_id> children;
 };
 
 struct dir_path
 {
+    static inline constexpr int path_buffer_len = 256 - 1;
+
     enum class state
     {
         none,
@@ -376,18 +380,20 @@ struct dir_path
         error,
     };
 
-    small_string<256> path;
-    state             status = state::unread;
-    registred_path_id parent{ 0 };
+    small_string<path_buffer_len> path;
+    state                         status = state::unread;
+    registred_path_id             parent{ 0 };
 
     vector<file_path_id> children;
 };
 
 struct file_path
 {
-    small_string<256> path;
-    dir_path_id       parent{ 0 };
-    component_id      component{ 0 };
+    static inline constexpr int path_buffer_len = 256 - 1;
+
+    small_string<path_buffer_len> path;
+    dir_path_id                   parent{ 0 };
+    component_id                  component{ 0 };
 };
 
 struct modeling_initializer
@@ -416,8 +422,6 @@ struct tree_node
 {
     tree_node(component_id id_, u64 unique_id_) noexcept;
 
-    bool have_configuration() const noexcept;
-
     //! Reference the current component
     component_id id = undefined<component_id>();
 
@@ -426,16 +430,8 @@ struct tree_node
 
     hierarchy<tree_node> tree;
 
-    struct parameter
-    {
-        u64      unique_id = 0;
-        model_id mdl_id = undefined<model_id>(); // model in simulation models
-        model    param; // @TODO to replace with parameters union
-        bool     enable = false;
-    };
-
-    //! Map unique_id or simulation model to parameters.
-    vector<parameter> parameters;
+    //! Cache of model-id with observable tag.
+    vector<u64> parameters;
 
     //! Cache of model-id with observable tag.
     vector<u64> observables;
@@ -571,9 +567,9 @@ struct plot_observer
 struct grid_parameter
 {
     small_string<31> name;
-    parameter        param;
 
     parent_access child;
+    parameter     param;
 };
 
 struct global_parameter
@@ -647,7 +643,8 @@ struct modeling
 
     file_path&      alloc_file(dir_path& dir) noexcept;
     dir_path&       alloc_dir(registred_path& reg) noexcept;
-    registred_path& alloc_registred() noexcept;
+    registred_path& alloc_registred(std::string_view name,
+                                    int              priority) noexcept;
 
     bool exists(const registred_path& dir) noexcept;
     bool exists(const dir_path& dir) noexcept;
@@ -942,15 +939,6 @@ inline tree_node::node::node(tree_node* tn_) noexcept
 inline tree_node::node::node(model* mdl_) noexcept
   : mdl(mdl_)
 {
-}
-
-/*
-   Project part
- */
-
-inline bool tree_node::have_configuration() const noexcept
-{
-    return !parameters.empty();
 }
 
 /*

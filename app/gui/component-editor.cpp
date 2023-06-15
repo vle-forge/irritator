@@ -724,8 +724,8 @@ static void show_popup_all_component_menuitem(
     //}
 
     for (auto id : app->mod.component_repertories) {
-        static small_string<32> s; //! @TODO remove this variable
-        small_string<32>*       select;
+        static small_string<31> s; //! @TODO remove this variable
+        small_string<31>*       select;
 
         auto& reg_dir = app->mod.registred_paths.get(id);
         if (reg_dir.name.empty()) {
@@ -1579,7 +1579,7 @@ static void show_file_access(application& app, component& compo) noexcept
         }
 
         if (dir == nullptr) {
-            small_string<256> dir_name{};
+            small_string<dir_path::path_buffer_len> dir_name{};
 
             if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
                 if (!exist(

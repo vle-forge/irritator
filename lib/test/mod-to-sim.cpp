@@ -242,8 +242,11 @@ int main()
     };
 
     "grid-3x3"_test = [] {
-        irt::vector<char> buffer;
-        irt::io_cache     cache;
+        irt::vector<char>                                       buffer;
+        irt::io_cache                                           cache;
+        irt::small_string<irt::registred_path::path_buffer_len> temp_path;
+
+        expect(get_temp_registred_path(temp_path) == true);
 
         {
             irt::modeling_initializer mod_init;
@@ -281,6 +284,50 @@ int main()
             auto& g  = mod.grid_components.get(cg.id.grid_id);
             g.resize(5, 5, mod.components.get_id(c3));
 
+            auto& reg     = mod.alloc_registred("temp", 0);
+            auto& dir     = mod.alloc_dir(reg);
+            auto& file_c1 = mod.alloc_file(dir);
+            auto& file_c2 = mod.alloc_file(dir);
+            auto& file_c3 = mod.alloc_file(dir);
+            auto& file_cg = mod.alloc_file(dir);
+            reg.path      = temp_path;
+            dir.path      = "test";
+
+            mod.create_directories(reg);
+            mod.create_directories(dir);
+
+            file_c1.path = "c1.irt";
+            file_c2.path = "c2.irt";
+            file_c3.path = "c3.irt";
+            file_cg.path = "cg.irt";
+
+            const auto reg_id = mod.registred_paths.get_id(reg);
+            const auto dir_id = mod.dir_paths.get_id(dir);
+
+            expect(mod.registred_paths.try_to_get(reg_id) != nullptr);
+            expect(mod.dir_paths.try_to_get(dir_id) != nullptr);
+
+            c1.reg_path = reg_id;
+            c1.dir      = dir_id;
+            c1.file     = mod.file_paths.get_id(file_c1);
+
+            c2.reg_path = reg_id;
+            c2.dir      = dir_id;
+            c2.file     = mod.file_paths.get_id(file_c2);
+
+            c3.reg_path = reg_id;
+            c3.dir      = dir_id;
+            c3.file     = mod.file_paths.get_id(file_c3);
+
+            cg.reg_path = reg_id;
+            cg.dir      = dir_id;
+            cg.file     = mod.file_paths.get_id(file_cg);
+
+            expect(is_success(mod.save(c1)));
+            expect(is_success(mod.save(c2)));
+            expect(is_success(mod.save(c3)));
+            expect(is_success(mod.save(cg)));
+
             expect(irt::is_success(pj.set(mod, sim, cg)));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
@@ -308,59 +355,88 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            expect(irt::is_bad(irt::project_load(
+            auto& reg = mod.alloc_registred("temp", 0);
+            reg.path  = temp_path;
+
+            mod.create_directories(reg);
+            mod.fill_components();
+
+            expect(irt::is_success(irt::project_load(
               pj, mod, sim, cache, std::span(buffer.data(), buffer.size()))));
         }
     };
 
     "internal_component_io"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
 
-        mod.init(mod_init);
-        irt::component_id ids[irt::internal_component_count];
+        {
+            irt::modeling mod;
 
-        mod.registred_paths.init(8);
-        mod.dir_paths.init(32);
-        mod.file_paths.init(256);
+            mod.init(mod_init);
+            irt::component_id ids[irt::internal_component_count];
 
-        expect(mod.components.can_alloc(irt::internal_component_count));
+            mod.registred_paths.init(8);
+            mod.dir_paths.init(32);
+            mod.file_paths.init(256);
 
-        auto& reg    = mod.alloc_registred();
-        auto  reg_id = mod.registred_paths.get_id(reg);
-        get_temp_registred_path(reg.path);
-        mod.create_directories(reg);
+            expect(mod.components.can_alloc(irt::internal_component_count));
 
-        auto& dir    = mod.alloc_dir(reg);
-        auto  dir_id = mod.dir_paths.get_id(dir);
-        dir.path     = "dir-temp";
-        mod.create_directories(dir);
+            auto& reg    = mod.alloc_registred("temp", 0);
+            auto  reg_id = mod.registred_paths.get_id(reg);
+            get_temp_registred_path(reg.path);
+            mod.create_directories(reg);
 
-        for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
-            auto& file     = mod.alloc_file(dir);
-            auto  file_id  = mod.file_paths.get_id(file);
-            file.component = ids[i];
-            irt::format(file.path, "{}.irt", irt::internal_component_names[i]);
+            auto& dir    = mod.alloc_dir(reg);
+            auto  dir_id = mod.dir_paths.get_id(dir);
+            dir.path     = "dir-temp";
+            mod.create_directories(dir);
 
-            auto& c    = mod.components.alloc();
-            auto  c_id = mod.components.get_id(c);
-            c.reg_path = reg_id;
-            c.dir      = dir_id;
-            c.file     = file_id;
+            for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
+                auto& file     = mod.alloc_file(dir);
+                auto  file_id  = mod.file_paths.get_id(file);
+                file.component = ids[i];
+                irt::format(
+                  file.path, "{}.irt", irt::internal_component_names[i]);
 
-            auto ret = mod.copy(irt::enum_cast<irt::internal_component>(i), c);
-            ids[i]   = c_id;
-            expect(is_success(ret));
+                auto& c    = mod.components.alloc();
+                auto  c_id = mod.components.get_id(c);
+                c.reg_path = reg_id;
+                c.dir      = dir_id;
+                c.file     = file_id;
+
+                auto ret =
+                  mod.copy(irt::enum_cast<irt::internal_component>(i), c);
+                ids[i] = c_id;
+                expect(is_success(ret));
+            }
+
+            for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
+                auto* c = mod.components.try_to_get(ids[i]);
+                expect(c != nullptr);
+                expect(irt::is_success(mod.save(*c)));
+            }
+
+            expect(mod.components.ssize() == irt::internal_component_count);
         }
 
-        for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
-            auto* c = mod.components.try_to_get(ids[i]);
-            expect(c != nullptr);
-            expect(irt::is_success(mod.save(*c)));
-        }
+        {
+            irt::modeling mod;
 
-        expect(irt::is_success(mod.fill_components(reg)));
-        expect(mod.components.ssize() == irt::internal_component_count * 2);
+            mod.init(mod_init);
+
+            mod.registred_paths.init(8);
+            mod.dir_paths.init(32);
+            mod.file_paths.init(256);
+
+            expect(mod.components.can_alloc(irt::internal_component_count));
+
+            auto& reg = mod.alloc_registred("temp", 0);
+            get_temp_registred_path(reg.path);
+            mod.create_directories(reg);
+
+            expect(irt::is_success(mod.fill_components(reg)));
+            expect(mod.components.ssize() >= irt::internal_component_count);
+        }
     };
 
     "grid-3x3-constant-model-init-port-all"_test = [] {

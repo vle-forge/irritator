@@ -319,8 +319,8 @@ static void show_component_library(component_editor& c_editor,
         }
 
         for (auto id : app->mod.component_repertories) {
-            small_string<32>  s;
-            small_string<32>* select;
+            small_string<31>  s;
+            small_string<31>* select;
 
             auto* reg_dir = app->mod.registred_paths.try_to_get(id);
             if (!reg_dir || reg_dir->status == registred_path::state::error)
