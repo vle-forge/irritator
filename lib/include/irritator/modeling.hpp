@@ -266,6 +266,12 @@ struct grid_component
         name    //!< One, two, three or four ports according to neighbor.
     };
 
+    enum class neighborhood : i8
+    {
+        four,
+        eight,
+    };
+
     void resize(i32 row_, i32 col_, component_id id) noexcept
     {
         irt_assert(row_ > 0 && col_ > 0);
@@ -313,8 +319,9 @@ struct grid_component
     vector<child_id>      cache;
     vector<connection_id> cache_connections;
 
-    options opts            = options::none;
-    type    connection_type = type::name;
+    options      opts            = options::none;
+    type         connection_type = type::name;
+    neighborhood neighbors       = neighborhood::four;
 };
 
 using color           = std::array<u8, 4>;

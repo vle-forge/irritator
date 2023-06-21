@@ -64,7 +64,7 @@ install(DIRECTORY include/irritator
   ${CMAKE_INSTALL_INCLUDEDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 function(irritator_add_test test_name)
-  add_executable(${test_name} ${ARGN} "src/archiver.cpp;src/external_source.cpp;src/file.cpp;src/hsm.cpp;src/io.cpp;src/json.cpp;src/modeling.cpp;src/project.cpp;src/timeline.cpp")
+  add_executable(${test_name} ${ARGN} "src/archiver.cpp;src/external_source.cpp;src/file.cpp;src/hsm.cpp;src/io.cpp;src/json.cpp;src/modeling.cpp;src/modeling-grid.cpp;src/project.cpp;src/timeline.cpp")
 
   set_target_properties(${test_name} PROPERTIES
     COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"
