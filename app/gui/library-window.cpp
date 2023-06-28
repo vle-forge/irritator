@@ -154,6 +154,17 @@ static void open_component(application& app, component_id id) noexcept
             app.component_ed.request_to_open = id;
         } break;
 
+        case component_type::graph: {
+            if (!is_already_open(app.graphs, id)) {
+                auto* graph =
+                  app.mod.graph_components.try_to_get(compo->id.graph_id);
+                if (graph && app.graphs.can_alloc()) {
+                    app.graphs.alloc(id, compo->id.graph_id);
+                }
+            }
+            app.component_ed.request_to_open = id;
+        } break;
+
         case component_type::internal:
             break;
         }

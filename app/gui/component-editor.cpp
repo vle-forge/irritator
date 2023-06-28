@@ -426,6 +426,53 @@ static void show(component_editor& ed,
     ImNodes::PopColorStyle();
 }
 
+static void show(component_editor& ed,
+                 component_editor_data& /*data*/,
+                 component&      compo,
+                 graph_component& graph,
+                 child& /*c*/,
+                 child_id id) noexcept
+{
+    auto* app      = container_of(&ed, &application::component_ed);
+    auto& settings = app->settings_wnd;
+
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBar,
+      ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
+
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
+                            settings.gui_hovered_component_color);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                            settings.gui_selected_component_color);
+
+    ImNodes::BeginNode(pack_node(id));
+    ImNodes::BeginNodeTitleBar();
+    ImGui::TextFormat("{}\n{}",
+                      app->mod.children_names[get_index(id)].sv(),
+                      compo.name.c_str());
+    ImGui::TextFormat("{}", graph.children.size());
+    ImNodes::EndNodeTitleBar();
+
+    for (u8 i = 0; i < 8; ++i) {
+        auto gid = pack_in(id, static_cast<i8>(i));
+        ImNodes::BeginInputAttribute(gid, ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(compo.x_names[i].c_str());
+        ImNodes::EndInputAttribute();
+    }
+
+    for (u8 i = 0; i < 8; ++i) {
+        auto gid = pack_out(id, static_cast<i8>(i));
+        ImNodes::BeginOutputAttribute(gid, ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(compo.y_names[i].c_str());
+        ImNodes::EndOutputAttribute();
+    }
+
+    ImNodes::EndNode();
+
+    ImNodes::PopColorStyle();
+    ImNodes::PopColorStyle();
+}
+
 static void show_graph(component_editor&      ed,
                        component_editor_data& data,
                        component&             parent,
@@ -530,6 +577,14 @@ static void show_graph(component_editor&      ed,
                 case component_type::grid:
                     if (auto* s_compo = app->mod.grid_components.try_to_get(
                           compo->id.grid_id)) {
+                        show(ed, data, *compo, *s_compo, *c, child_id);
+                        to_place = true;
+                    }
+                    break;
+
+                case component_type::graph:
+                    if (auto* s_compo = app->mod.graph_components.try_to_get(
+                          compo->id.graph_id)) {
                         show(ed, data, *compo, *s_compo, *c, child_id);
                         to_place = true;
                     }
@@ -1382,6 +1437,14 @@ static void show_component_editor(component_editor&      ed,
                     case component_type::grid:
                         if (auto* tmp = app->mod.grid_components.try_to_get(
                               compo->id.grid_id);
+                            tmp)
+                            ImNodes::SetNodeEditorSpacePos(
+                              pack_node(s_compo.children[i]), ImVec2(0.f, 0.f));
+                        break;
+
+                    case component_type::graph:
+                        if (auto* tmp = app->mod.graph_components.try_to_get(
+                              compo->id.graph_id);
                             tmp)
                             ImNodes::SetNodeEditorSpacePos(
                               pack_node(s_compo.children[i]), ImVec2(0.f, 0.f));

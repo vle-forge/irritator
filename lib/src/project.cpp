@@ -61,6 +61,22 @@ static bool get_parent(modeling&   mod,
     return false;
 }
 
+bool get_graph_connections(const modeling&         mod,
+                           const component&        compo,
+                           vector<connection_id>*& out) noexcept
+{
+    irt_assert(compo.type == component_type::graph);
+
+    return if_data_exists_return(
+      mod.graph_components,
+      compo.id.graph_id,
+      [&](auto& graph) noexcept -> bool {
+          out = &graph.cache_connections;
+          return true;
+      },
+      false);
+}
+
 bool get_grid_connections(const modeling&         mod,
                           const component&        compo,
                           vector<connection_id>*& out) noexcept
@@ -96,6 +112,9 @@ bool get_connections(const modeling&         mod,
     switch (compo.type) {
     case component_type::grid:
         return get_grid_connections(mod, compo, out);
+
+    case component_type::graph:
+        return get_graph_connections(mod, compo, out);
 
     case component_type::internal:
         return false;
@@ -437,6 +456,35 @@ static status make_tree_recursive(simulation_copy& sc,
 }
 
 static status make_tree_recursive(simulation_copy& sc,
+                                  tree_node&       new_tree,
+                                  graph_component& src) noexcept
+{
+    for (int i = 0, e = src.cache.ssize(); i != e; ++i) {
+        if (auto* child = sc.mod.children.try_to_get(src.cache[i]); child) {
+            if (child->type == child_type::component) {
+                auto compo_id = child->id.compo_id;
+                if (auto* compo = sc.mod.components.try_to_get(compo_id);
+                    compo) {
+                    irt_return_if_bad(make_tree_recursive(
+                      sc, new_tree, *compo, src.cache[i], child->unique_id));
+                }
+            } else {
+                auto mdl_id = child->id.mdl_id;
+                if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
+                    irt_return_if_bad(
+                      make_tree_leaf(sc, new_tree, *mdl, *child));
+                }
+            }
+        }
+    }
+
+    new_tree.child_to_node.sort();
+    new_tree.child_to_sim.sort();
+
+    return status::success;
+}
+
+static status make_tree_recursive(simulation_copy& sc,
                                   tree_node&       parent,
                                   component&       compo,
                                   child_id         id_in_parent,
@@ -466,6 +514,15 @@ static status make_tree_recursive(simulation_copy& sc,
         if (auto* g = sc.mod.grid_components.try_to_get(g_id); g)
             irt_return_if_bad(make_tree_recursive(sc, new_tree, *g));
     } break;
+
+    case component_type::graph:
+        return if_data_exists_return(
+          sc.mod.graph_components,
+          compo.id.graph_id,
+          [&](auto& graph) noexcept -> status {
+              return make_tree_recursive(sc, new_tree, graph);
+          },
+          status::source_unknown);
 
     case component_type::internal:
         break;
@@ -596,6 +653,7 @@ static status get_input_models(simulation_copy&               sc,
                                tree_node&                     tree,
                                i8                             port_dst)
 {
+
     if (auto* compo = sc.mod.components.try_to_get(tree.id); compo) {
         switch (compo->type) {
         case component_type::simple:
@@ -621,6 +679,27 @@ static status get_input_models(simulation_copy&               sc,
 
         case component_type::grid:
             if (auto* g = sc.mod.grid_components.try_to_get(compo->id.grid_id);
+                g) {
+                for (auto cnx_id : g->cache_connections) {
+                    if (auto* cnx = sc.mod.connections.try_to_get(cnx_id);
+                        cnx) {
+                        if (cnx->type == connection::connection_type::input &&
+                            cnx->input.index == port_dst) {
+                            irt_return_if_bad(
+                              get_input_models(sc,
+                                               inputs,
+                                               tree,
+                                               cnx->output.src,
+                                               cnx->output.index_src));
+                        }
+                    }
+                }
+            }
+            break;
+
+        case component_type::graph:
+            if (auto* g =
+                  sc.mod.graph_components.try_to_get(compo->id.graph_id);
                 g) {
                 for (auto cnx_id : g->cache_connections) {
                     if (auto* cnx = sc.mod.connections.try_to_get(cnx_id);
@@ -680,6 +759,27 @@ static status get_output_models(simulation_copy&               sc,
 
         case component_type::grid:
             if (auto* g = sc.mod.grid_components.try_to_get(compo->id.grid_id);
+                g) {
+                for (auto cnx_id : g->cache_connections) {
+                    if (auto* cnx = sc.mod.connections.try_to_get(cnx_id);
+                        cnx) {
+                        if (cnx->type == connection::connection_type::output &&
+                            cnx->output.index == port_dst) {
+                            irt_return_if_bad(
+                              get_output_models(sc,
+                                                outputs,
+                                                tree,
+                                                cnx->input.dst,
+                                                cnx->input.index_dst));
+                        }
+                    }
+                }
+            }
+            break;
+
+        case component_type::graph:
+            if (auto* g =
+                  sc.mod.graph_components.try_to_get(compo->id.graph_id);
                 g) {
                 for (auto cnx_id : g->cache_connections) {
                     if (auto* cnx = sc.mod.connections.try_to_get(cnx_id);
@@ -793,10 +893,15 @@ static status simulation_copy_connections(simulation_copy& sc,
             return simulation_copy_connections(sc, tree, g->connections);
     } break;
 
-    case component_type::grid: {
+    case component_type::grid:
         if (auto* g = sc.mod.grid_components.try_to_get(compo.id.grid_id); g)
             return simulation_copy_connections(sc, tree, g->cache_connections);
-    } break;
+        break;
+
+    case component_type::graph:
+        if (auto* g = sc.mod.graph_components.try_to_get(compo.id.graph_id); g)
+            return simulation_copy_connections(sc, tree, g->cache_connections);
+        break;
 
     case component_type::internal:
         break;
@@ -926,6 +1031,12 @@ static status make_tree_from(simulation_copy&                     sc,
             irt_return_if_bad(make_tree_recursive(sc, new_tree, *g));
     } break;
 
+    case component_type::graph: {
+        auto g_id = parent.id.graph_id;
+        if (auto* g = sc.mod.graph_components.try_to_get(g_id); g)
+            irt_return_if_bad(make_tree_recursive(sc, new_tree, *g));
+    } break;
+
     case component_type::internal:
         break;
 
@@ -945,6 +1056,7 @@ status project::init(int size) noexcept
     irt_return_if_bad(grid_observers.init(size));
     irt_return_if_bad(global_parameters.init(size));
     irt_return_if_bad(grid_parameters.init(size));
+    irt_return_if_bad(graph_parameters.init(size));
 
     return status::success;
 }

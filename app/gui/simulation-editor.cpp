@@ -2215,6 +2215,38 @@ bool grid_simulation::show_observations(tree_node& tn,
     return grid_simulation_show_observations(*app, *this, tn, grid);
 }
 
+bool graph_simulation::show_settings(tree_node& /* tn */,
+                                     component& /*compo*/,
+                                     graph_component& /* graph */) noexcept
+{
+    // auto* ed  = container_of(this, &simulation_editor::graph_sim);
+    // auto* app = container_of(ed, &application::simulation_ed);
+    //
+    // const auto graph_id = app->mod.graph_components.get_id(graph);
+    // if (graph_id != current_id)
+    //     graph_simulation_rebuild(*this, graph, graph_id);
+    //
+    // return graph_simulation_show_settings(*app, *this, tn, graph);
+
+    return true;
+}
+
+bool graph_simulation::show_observations(tree_node& /* tn */,
+                                         component& /*compo*/,
+                                         graph_component& /* graph */) noexcept
+{
+    // auto* ed  = container_of(this, &simulation_editor::graph_sim);
+    // auto* app = container_of(ed, &application::simulation_ed);
+    //
+    // const auto graph_id = app->mod.graph_components.get_id(graph);
+    // if (graph_id != current_id)
+    //     graph_simulation_rebuild(*this, graph, graph_id);
+    //
+    // return graph_simulation_show_observations(*app, *this, tn, graph);
+
+    return true;
+}
+
 static bool show_grid_simulation_settings(application& app,
                                           tree_node&   tn,
                                           component&   compo) noexcept
@@ -2242,6 +2274,32 @@ static bool show_grid_simulation_settings(application& app,
       false);
 }
 
+static bool show_graph_simulation_settings(application& app,
+                                           tree_node&   tn,
+                                           component&   compo) noexcept
+{
+    ImGui::TextUnformatted("Graph component");
+
+    return if_data_exists_return(
+      app.mod.graph_components,
+      compo.id.graph_id,
+      [&](auto& graph) noexcept {
+          ImGui::TextFormatDisabled("component: {}", compo.name.sv());
+          ImGui::TextFormatDisabled("size: {}", graph.children.size());
+          bool is_modified = false;
+
+          if (ImGui::CollapsingHeader("Parameters")) {
+              ImGui::PushID(0);
+              is_modified =
+                app.simulation_ed.graph_sim.show_settings(tn, compo, graph);
+              ImGui::PopID();
+          }
+
+          return is_modified;
+      },
+      false);
+}
+
 static bool dispatch_simulation_settings(application& app,
                                          tree_node&   tn,
                                          component&   compo) noexcept
@@ -2258,6 +2316,9 @@ static bool dispatch_simulation_settings(application& app,
 
     case component_type::grid:
         return show_grid_simulation_settings(app, tn, compo);
+
+    case component_type::graph:
+        return show_graph_simulation_settings(app, tn, compo);
     }
 
     irt_unreachable();

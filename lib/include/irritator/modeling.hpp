@@ -19,6 +19,7 @@ namespace irt {
 
 enum class component_id : u64;
 enum class simple_component_id : u64;
+enum class graph_component_id : u64;
 enum class grid_component_id : u64;
 enum class tree_node_id : u64;
 enum class description_id : u64;
@@ -29,8 +30,10 @@ enum class connection_id : u64;
 enum class registred_path_id : u64;
 enum class plot_observer_id : u32;
 enum class grid_observer_id : u32;
+enum class graph_observer_id : u32;
 enum class global_parameter_id : u32;
 enum class grid_parameter_id : u32;
+enum class graph_parameter_id : u32;
 
 constexpr i32 max_component_dirs = 64;
 
@@ -75,11 +78,11 @@ constexpr int internal_component_count =
 
 enum class component_type
 {
-    none, //! The component does not reference any container.
-    internal,
-    simple,
-    grid
-    // graph
+    none,     //<! The component does not reference any container.
+    internal, //<! The component reference a c++ code.
+    simple,   //<! A classic component-model graph coupling.
+    grid,     //!< Grid with 4, 8 neighbourhood.
+    graph     //!< Random graph generator
 };
 
 enum class component_status
@@ -118,6 +121,7 @@ struct io_cache;
 struct tree_node;
 struct plot_observer;
 struct grid_observer;
+struct graph_observer;
 
 //! A structure use to cache data when read or write json component.
 //! - @c buffer is used to store the full file content or output buffer.
@@ -324,6 +328,66 @@ struct grid_component
     neighborhood neighbors       = neighborhood::four;
 };
 
+//! random-graph type:
+//! - scale_free: graph typically has a very skewed degree distribution, where
+//!   few vertices have a very high degree and a large number of vertices have a
+//!   very small degree. Many naturally evolving networks, such as the World
+//!   Wide Web, are scale-free graphs, making these graphs a good model for
+//!   certain networking problems.
+//! - small_world: consists of a ring graph (where each vertex is connected to
+//!   its k nearest neighbors). Edges in the graph are randomly rewired to
+//!   different vertices with a probability p.
+struct graph_component
+{
+    static inline constexpr i32 children_max = 4096;
+
+    enum class random_graph_type
+    {
+        dot_file,
+        scale_free,
+        small_world
+    };
+
+    struct dot_file_param
+    {
+        dir_path_id  dir  = undefined<dir_path_id>();
+        file_path_id file = undefined<file_path_id>();
+    };
+
+    struct scale_free_param
+    {
+        double alpha = 2.5;
+        double beta  = 1.e3;
+    };
+
+    struct small_world_param
+    {
+        double probability = 3e-2;
+        i32    k           = 6;
+    };
+
+    using random_graph_param =
+      std::variant<scale_free_param, small_world_param>;
+
+    void resize(const i32 children_size, const component_id id) noexcept
+    {
+        irt_assert(children_size > 0);
+        children.resize(children_size);
+        std::fill_n(children.data(), children.size(), id);
+    }
+
+    auto type() const noexcept -> random_graph_type
+    {
+        return enum_cast<random_graph_type>(param.index());
+    }
+
+    vector<component_id> children;
+    random_graph_param   param = scale_free_param{};
+
+    vector<child_id>      cache;
+    vector<connection_id> cache_connections;
+};
+
 using color           = std::array<u8, 4>;
 using component_color = std::array<float, 4>;
 
@@ -349,6 +413,7 @@ struct component
         internal_component  internal_id;
         simple_component_id simple_id;
         grid_component_id   grid_id;
+        graph_component_id  graph_id;
     } id;
 
     component_type   type  = component_type::none;
@@ -557,6 +622,13 @@ struct grid_observer
     parent_access child;
 };
 
+struct graph_observer
+{
+    small_string<31> name;
+
+    parent_access child;
+};
+
 struct plot_observer
 {
     enum class type
@@ -572,6 +644,14 @@ struct plot_observer
 };
 
 struct grid_parameter
+{
+    small_string<31> name;
+
+    parent_access child;
+    parameter     param;
+};
+
+struct graph_parameter
 {
     small_string<31> name;
 
@@ -603,6 +683,7 @@ struct modeling
     data_array<description, description_id>            descriptions;
     data_array<generic_component, simple_component_id> simple_components;
     data_array<grid_component, grid_component_id>      grid_components;
+    data_array<graph_component, graph_component_id>    graph_components;
     data_array<component, component_id>                components;
     data_array<registred_path, registred_path_id>      registred_paths;
     data_array<dir_path, dir_path_id>                  dir_paths;
@@ -689,14 +770,35 @@ struct modeling
                                                i32 space_x     = 30,
                                                i32 space_y     = 50) noexcept;
 
+    //! For graph_component, build the children and connections
+    //! based on children vectors and graph_component options (torus, cylinder
+    //! etc.). The newly allocated child and connection are append to the output
+    //! vectors. The vectors are not cleared.
+    status build_graph_children_and_connections(graph_component&       graph,
+                                                vector<child_id>&      ids,
+                                                vector<connection_id>& cnts,
+                                                i32 upper_limit = 0,
+                                                i32 left_limit  = 0,
+                                                i32 space_x     = 30,
+                                                i32 space_y     = 50) noexcept;
+
     //! For grid_component, build the real children and connections grid
     //! based on default_chidren and specific_children vectors and
     //! grid_component options (torus, cylinder etc.).
     status build_grid_component_cache(grid_component& grid) noexcept;
 
+    //! For graph_component, build the real children and connections graph
+    //! based on default_chidren and specific_children vectors and
+    //! graph_component options (torus, cylinder etc.).
+    status build_graph_component_cache(graph_component& graph) noexcept;
+
     //! Delete children and connections from @c modeling for the @c
     //! grid_component cache.
     void clear_grid_component_cache(grid_component& grid) noexcept;
+
+    //! Delete children and connections from @c modeling for the @c
+    //! graph_component cache.
+    void clear_graph_component_cache(graph_component& graph) noexcept;
 
     //! Checks if the child can be added to the parent to avoid recursive loop
     //! (ie. a component child which need the same component in sub-child).
@@ -712,6 +814,7 @@ struct modeling
     status copy(const component& src, component& dst) noexcept;
     status copy(grid_component& grid, component& dst) noexcept;
     status copy(grid_component& grid, generic_component& s) noexcept;
+    status copy(graph_component& grid, generic_component& s) noexcept;
 
     /**
      * @brief Try to connect the component input port and a child (model or
@@ -874,8 +977,10 @@ public:
     data_array<tree_node, tree_node_id>               m_tree_nodes;
     data_array<plot_observer, plot_observer_id>       plot_observers;
     data_array<grid_observer, grid_observer_id>       grid_observers;
+    data_array<graph_observer, graph_observer_id>     graph_observers;
     data_array<global_parameter, global_parameter_id> global_parameters;
     data_array<grid_parameter, grid_parameter_id>     grid_parameters;
+    data_array<graph_parameter, graph_parameter_id>   graph_parameters;
 
 private:
     component_id m_head    = undefined<component_id>();

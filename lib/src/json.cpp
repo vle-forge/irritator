@@ -53,6 +53,8 @@ enum class stack_id
     component_ports,
     component_grid,
     component_grid_children,
+    component_graph,
+    component_graph_children,
     component_children,
     component_generic,
     component_generic_connections,
@@ -168,6 +170,8 @@ static inline constexpr std::string_view stack_id_names[] = {
     "component_ports",
     "component_grid",
     "component_grid_children",
+    "component_graph",
+    "component_graph_children",
     "component_children",
     "component_generic",
     "component_generic_connections",
@@ -2016,6 +2020,9 @@ struct reader
 
         case component_type::grid:
             return read_child_simple_or_grid_component(val, c_id);
+
+        case component_type::graph:
+            return read_child_simple_or_grid_component(val, c_id);
         }
 
         report_json_error(error_id::unknown_element);
@@ -2833,6 +2840,22 @@ struct reader
                  });
     }
 
+    bool read_graph_children(const rapidjson::Value& val,
+                             graph_component&        compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_graph_children);
+
+        compo.children.clear();
+
+        return for_each_array(
+          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+              component_id c_id = undefined<component_id>();
+
+              return read_child_component(value, c_id) &&
+                     grid_children_add(compo.children, c_id);
+          });
+    }
+
     bool is_grid_valid(const grid_component& grid) noexcept
     {
         if (grid.row * grid.column == grid.children.ssize())
@@ -2877,6 +2900,24 @@ struct reader
                is_grid_valid(grid);
     }
 
+    bool read_graph_component(const rapidjson::Value& val,
+                              component&              compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_graph);
+
+        auto& graph       = mod().graph_components.alloc();
+        compo.type        = component_type::graph;
+        compo.id.graph_id = mod().graph_components.get_id(graph);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("children"sv == name)
+                  return read_graph_children(value, graph);
+
+              return true;
+          });
+    }
+
     bool dispatch_component_type(const rapidjson::Value& val,
                                  component&              compo) noexcept
     {
@@ -2892,6 +2933,9 @@ struct reader
 
         case component_type::grid:
             return read_grid_component(val, compo);
+
+        case component_type::graph:
+            return read_graph_component(val, compo);
         }
 
         report_json_error(error_id::unknown_element);
@@ -4916,6 +4960,9 @@ static status write_child_component(const modeling&    mod,
         case component_type::grid:
             return write_child_component_path(mod, *compo, w);
 
+        case component_type::graph:
+            return write_child_component_path(mod, *compo, w);
+
         case component_type::simple:
             return write_child_component_path(mod, *compo, w);
         }
@@ -5140,6 +5187,24 @@ static status write_grid_component(io_cache& /*cache*/,
 }
 
 template<typename Writer>
+static status write_graph_component(io_cache& /*cache*/,
+                                    const modeling&        mod,
+                                    const graph_component& graph,
+                                    Writer&                w) noexcept
+{
+    w.Key("children");
+    w.StartArray();
+    for (auto& elem : graph.children) {
+        w.StartObject();
+        write_child_component(mod, elem, w);
+        w.EndObject();
+    }
+    w.EndArray();
+
+    return status::success;
+}
+
+template<typename Writer>
 static void write_internal_component(io_cache& /*cache*/,
                                      const modeling& /* mod */,
                                      const internal_component id,
@@ -5202,6 +5267,16 @@ static status do_component_save(Writer&          w,
           compo.id.grid_id,
           [&](auto& grid) noexcept -> status {
               return write_grid_component(cache, mod, grid, w);
+          },
+          status::unknown_dynamics); // @TODO undefined component
+    } break;
+
+    case component_type::graph: {
+        ret = if_data_exists_return(
+          mod.graph_components,
+          compo.id.graph_id,
+          [&](auto& graph) noexcept -> status {
+              return write_graph_component(cache, mod, graph, w);
           },
           status::unknown_dynamics); // @TODO undefined component
     } break;

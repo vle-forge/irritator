@@ -64,6 +64,7 @@ enum class simulation_task_id : u64;
 enum class gui_task_id : u64;
 
 enum class grid_editor_data_id : u32;
+enum class graph_editor_data_id : u32;
 
 enum class task_status
 {
@@ -274,6 +275,38 @@ public:
     grid_observer_id id = undefined<grid_observer_id>();
 };
 
+class graph_observation_widget
+{
+public:
+    //! @brief Clear, initialize the graph and connect to @c observer_id.
+    //! @details Clear the @c graph_observation_widget and use the @c
+    //!  graph_observer data to initialize all @c observer_id from the
+    //!  simulation layer.
+    //!
+    //! @return The status.
+    status init(application& app, graph_observer& graph) noexcept;
+
+    //! Assign a new size to children and remove all @c model_id.
+    void resize(int row, int col) noexcept;
+
+    //! Assign @c undefined<model_id> to all children.
+    void clear() noexcept;
+
+    //! Display the values vector using the ImGui::PlotHeatMap function.
+    void show(application& app) noexcept;
+
+    //! Update the values vector with observation values from the simulation
+    //! observers object.
+    void update(application& app) noexcept;
+
+    vector<observer_id> observers;
+    vector<real>        values;
+
+    real none_value = 0.0;
+
+    graph_observer_id id = undefined<graph_observer_id>();
+};
+
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
 // to read a large buffer instead of a vector.
 inline ImPlotPoint ring_buffer_getter(void* data, int idx) noexcept
@@ -439,6 +472,27 @@ public:
     component_id      id      = undefined<component_id>();
 };
 
+class graph_editor_data
+{
+public:
+    graph_editor_data(const component_id       id,
+                      const graph_component_id graph) noexcept;
+
+    void clear() noexcept;
+
+    void show(component_editor& ed) noexcept;
+
+    vector<bool> selected;
+    ImVec2       disp{ 1000.f, 1000.f };
+    float        scale = 10.f;
+
+    bool         start_selection = false;
+    component_id selected_id     = undefined<component_id>();
+
+    graph_component_id graph_id = undefined<graph_component_id>();
+    component_id       id       = undefined<component_id>();
+};
+
 struct grid_simulation
 {
     ImVec2            show_position{ 0.f, 0.f };
@@ -470,6 +524,37 @@ struct grid_simulation
                            grid_component& grid) noexcept;
 };
 
+struct graph_simulation
+{
+    ImVec2             show_position{ 0.f, 0.f };
+    ImVec2             disp{ 1000.f, 1000.f };
+    float              scale           = 10.f;
+    bool               start_selection = false;
+    graph_component_id current_id      = undefined<graph_component_id>();
+
+    component_id selected_setting_component = undefined<component_id>();
+    model_id     selected_setting_model     = undefined<model_id>();
+
+    component_id selected_observation_component = undefined<component_id>();
+    model_id     selected_observation_model     = undefined<model_id>();
+    tree_node*   selected_tn                    = nullptr;
+
+    std::optional<std::pair<int, int>> selected_position;
+
+    vector<bool>         selected;
+    vector<component_id> children_class;
+
+    void clear() noexcept;
+
+    bool show_settings(tree_node&       tn,
+                       component&       compo,
+                       graph_component& graph) noexcept;
+
+    bool show_observations(tree_node&       tn,
+                           component&       compo,
+                           graph_component& graph) noexcept;
+};
+
 struct grid_editor_dialog
 {
     constexpr static inline const char* name = "Grid generator";
@@ -477,6 +562,23 @@ struct grid_editor_dialog
     grid_editor_dialog() noexcept;
 
     grid_component     grid;
+    application*       app        = nullptr;
+    generic_component* compo      = nullptr;
+    bool               is_running = false;
+    bool               is_ok      = false;
+
+    void load(application* app, generic_component* compo) noexcept;
+    void save() noexcept;
+    void show() noexcept;
+};
+
+struct graph_editor_dialog
+{
+    constexpr static inline const char* name = "Graph generator";
+
+    graph_editor_dialog() noexcept;
+
+    graph_component    graph;
     application*       app        = nullptr;
     generic_component* compo      = nullptr;
     bool               is_running = false;
@@ -563,10 +665,12 @@ struct simulation_editor
     simulation_status simulation_state = simulation_status::not_started;
     data_array<plot_copy, plot_copy_id> copy_obs;
 
-    vector<plot_observation_widget> plot_obs;
-    vector<grid_observation_widget> grid_obs;
+    vector<plot_observation_widget>  plot_obs;
+    vector<grid_observation_widget>  grid_obs;
+    vector<graph_observation_widget> graph_obs;
 
-    grid_simulation grid_sim;
+    grid_simulation  grid_sim;
+    graph_simulation graph_sim;
 
     ImNodesEditorContext* context        = nullptr;
     ImPlotContext*        output_context = nullptr;
@@ -823,8 +927,9 @@ struct application
     hsm_editor        hsm_ed;
     data_window       data_ed;
 
-    grid_editor_dialog grid_dlg;
-    file_dialog        f_dialog;
+    grid_editor_dialog  grid_dlg;
+    graph_editor_dialog graph_dlg;
+    file_dialog         f_dialog;
 
     settings_window settings_wnd;
     library_window  library_wnd;
@@ -840,6 +945,7 @@ struct application
     task_manager                                    task_mgr;
 
     data_array<grid_editor_data, grid_editor_data_id>           grids;
+    data_array<graph_editor_data, graph_editor_data_id>         graphs;
     data_array<component_editor_data, component_editor_data_id> generics;
 
     std::filesystem::path project_file;

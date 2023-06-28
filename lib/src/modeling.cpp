@@ -40,6 +40,7 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(parameters.init(p.parameter_capacity));
     irt_return_if_bad(components.init(p.component_capacity));
     irt_return_if_bad(grid_components.init(p.component_capacity));
+    irt_return_if_bad(graph_components.init(p.component_capacity));
     irt_return_if_bad(simple_components.init(p.component_capacity));
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
@@ -603,6 +604,15 @@ static bool fill_children(const modeling&       mod,
         }
     } break;
 
+    case component_type::graph: {
+        auto id = compo.id.graph_id;
+        if (auto* g = mod.graph_components.try_to_get(id); g) {
+            for (const auto& ch : g->children)
+                if (fill_child(mod, ch, out, search))
+                    return true;
+        }
+    } break;
+
     case component_type::simple: {
         auto id = compo.id.simple_id;
         if (auto* s = mod.simple_components.try_to_get(id); s) {
@@ -686,12 +696,6 @@ void modeling::free(component& compo) noexcept
                 if (auto* con = connections.try_to_get(connection_id); con)
                     free(*con);
 
-            if (auto* desc = descriptions.try_to_get(compo.desc); desc)
-                descriptions.free(*desc);
-
-            if (auto* path = file_paths.try_to_get(compo.file); path)
-                file_paths.free(*path);
-
             simple_components.free(*s);
         }
         break;
@@ -704,9 +708,23 @@ void modeling::free(component& compo) noexcept
         }
         break;
 
+    case component_type::graph:
+        if (auto* g = graph_components.try_to_get(compo.id.graph_id); g) {
+            g->children.clear();
+
+            graph_components.free(*g);
+        }
+        break;
+
     default:
         break;
     }
+
+    if (auto* desc = descriptions.try_to_get(compo.desc); desc)
+        descriptions.free(*desc);
+
+    if (auto* path = file_paths.try_to_get(compo.file); path)
+        file_paths.free(*path);
 
     components.free(compo);
 }
@@ -817,7 +835,19 @@ status modeling::copy(const component& src, component& dst) noexcept
             dst.type       = component_type::grid;
             d              = *s;
         }
+        break;
 
+    case component_type::graph:
+        if (const auto* s = graph_components.try_to_get(src.id.graph_id); s) {
+            irt_return_if_fail(graph_components.can_alloc(),
+                               status::data_array_not_enough_memory);
+
+            auto& d         = graph_components.alloc();
+            auto  d_id      = graph_components.get_id(d);
+            dst.id.graph_id = d_id;
+            dst.type        = component_type::graph;
+            d               = *s;
+        }
         break;
 
     case component_type::internal:
