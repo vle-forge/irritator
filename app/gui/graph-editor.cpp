@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
+#include "fmt/core.h"
 #include "internal.hpp"
 #include "irritator/format.hpp"
 
@@ -17,7 +18,131 @@
 
 namespace irt {
 
-graph_editor_data::graph_editor_data(
+static const char* random_graph_type_names[] = { "dot-file",
+                                                 "scale-free",
+                                                 "small-world" };
+
+static bool show_size_widget(graph_component& graph) noexcept
+{
+    int size = graph.children.ssize();
+
+    if (ImGui::InputInt("size", &size)) {
+        size = std::clamp(size, 1, graph_component::children_max);
+        if (size != graph.children.ssize()) {
+            graph.resize(size, undefined<component_id>());
+            return true;
+        }
+    }
+
+    return false;
+}
+
+constexpr inline auto get_default_component_id(
+  const vector<component_id>& g) noexcept -> component_id
+{
+    return g.empty() ? undefined<component_id>() : g.front();
+}
+
+static bool show_random_graph_type(graph_component& graph) noexcept
+{
+    bool is_changed = false;
+    auto current    = static_cast<int>(graph.param.index());
+
+    if (ImGui::Combo("type",
+                     &current,
+                     random_graph_type_names,
+                     length(random_graph_type_names))) {
+        if (current != static_cast<int>(graph.param.index())) {
+            switch (current) {
+            case 0:
+                graph.param = graph_component::dot_file_param{};
+                is_changed  = true;
+                break;
+
+            case 1:
+                graph.param = graph_component::scale_free_param{};
+                is_changed  = true;
+                break;
+
+            case 2:
+                graph.param = graph_component::small_world_param{};
+                is_changed  = true;
+                break;
+            }
+        }
+    }
+
+    return is_changed;
+}
+
+static bool show_random_graph_params(graph_component& graph) noexcept
+{
+    bool is_changed = false;
+
+    switch (graph.param.index()) {
+    case 0:
+        break;
+
+    case 1: {
+        auto* param =
+          std::get_if<graph_component::scale_free_param>(&graph.param);
+
+        auto alpha = param->alpha;
+        auto beta  = param->beta;
+
+        if (ImGui::InputDouble("alpha", &alpha)) {
+            param->alpha = std::clamp(alpha, 0.0, 1000.0);
+            is_changed   = true;
+        }
+        if (ImGui::InputDouble("beta", &beta)) {
+            param->beta = std::clamp(beta, 0.0, 1000.0);
+            is_changed  = true;
+        }
+    } break;
+
+    case 2: {
+        auto* param =
+          std::get_if<graph_component::small_world_param>(&graph.param);
+
+        auto probability = param->probability;
+        auto k           = param->k;
+
+        if (ImGui::InputDouble("probability", &probability)) {
+            param->probability = std::clamp(probability, 0.0, 1.0);
+            is_changed         = true;
+        }
+
+        if (ImGui::InputInt("k", &k)) {
+            is_changed = true;
+            param->k   = std::clamp(k, 1, 8);
+        }
+    } break;
+    }
+
+    return is_changed;
+}
+
+static bool show_default_component_widgets(application&     app,
+                                           graph_component& graph) noexcept
+{
+    bool is_changed = false;
+
+    if (show_random_graph_type(graph))
+        is_changed = true;
+
+    if (show_random_graph_params(graph))
+        is_changed = true;
+
+    auto id = get_default_component_id(graph.children);
+    if (app.component_sel.combobox("Default component", &id)) {
+        std::fill_n(graph.children.data(), graph.children.ssize(), id);
+        is_changed = true;
+    }
+
+    return is_changed;
+}
+
+graph_component_editor_data::graph_component_editor_data(
   const component_id       id_,
   const graph_component_id graph_id_) noexcept
   : graph_id(graph_id_)
@@ -25,7 +150,7 @@ graph_editor_data::graph_editor_data(
 {
 }
 
-void graph_editor_data::clear() noexcept
+void graph_component_editor_data::clear() noexcept
 {
     selected.clear();
     scale = 10.f;
@@ -34,7 +159,7 @@ void graph_editor_data::clear() noexcept
     id       = undefined<component_id>();
 }
 
-void graph_editor_data::show(component_editor& ed) noexcept
+void graph_component_editor_data::show(component_editor& ed) noexcept
 {
     auto* app   = container_of(&ed, &application::component_ed);
     auto* compo = app->mod.components.try_to_get(id);
@@ -44,6 +169,9 @@ void graph_editor_data::show(component_editor& ed) noexcept
 
     ImGui::TextFormatDisabled("graph-editor-data size: {}",
                               graph->children.size());
+
+    show_size_widget(*graph);
+    show_default_component_widgets(*app, *graph);
 }
 
 graph_editor_dialog::graph_editor_dialog() noexcept
@@ -65,38 +193,6 @@ void graph_editor_dialog::save() noexcept
     irt_assert(app && compo);
 
     app->mod.copy(graph, *compo);
-}
-
-static bool show_size_widget(graph_component& graph) noexcept
-{
-    int size = graph.children.ssize();
-
-    if (ImGui::InputInt("size", &size)) {
-        size = std::clamp(size, 1, graph_component::children_max);
-        if (size != graph.children.ssize()) {
-            graph.resize(size, undefined<component_id>());
-            return true;
-        }
-    }
-    return false;
-}
-
-constexpr inline auto get_default_component_id(const vector<component_id>& g) noexcept
-  -> component_id
-{
-    return g.empty() ? undefined<component_id>() : g.front();
-}
-
-static bool show_default_component_widgets(application&     app,
-                                           graph_component& graph) noexcept
-{
-    auto id = get_default_component_id(graph.children);
-    if (app.component_sel.combobox("Default component", &id)) {
-        std::fill_n(graph.children.data(), graph.children.ssize(), id);
-        return true;
-    }
-
-    return false;
 }
 
 void graph_editor_dialog::show() noexcept

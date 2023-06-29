@@ -54,6 +54,8 @@ enum class stack_id
     component_grid,
     component_grid_children,
     component_graph,
+    component_graph_param,
+    component_graph_type,
     component_graph_children,
     component_children,
     component_generic,
@@ -147,6 +149,8 @@ enum class stack_id
     project_grid_observation,
     project_grid_observations,
     load_color,
+    search_directory,
+    search_file_in_directory,
     undefined,
     COUNT
 };
@@ -171,6 +175,8 @@ static inline constexpr std::string_view stack_id_names[] = {
     "component_grid",
     "component_grid_children",
     "component_graph",
+    "component_graph_param",
+    "component_graph_type",
     "component_graph_children",
     "component_children",
     "component_generic",
@@ -264,6 +270,8 @@ static inline constexpr std::string_view stack_id_names[] = {
     "project_grid_observation",
     "project_grid_observations",
     "load_color",
+    "search_directory",
+    "search_file_in_directory",
     "undefined"
 };
 
@@ -274,6 +282,8 @@ enum class error_id
 {
     none,
     object_name_not_found,
+    directory_not_found,
+    file_not_found,
     filesystem_error,
     missing_integer,
     missing_bool,
@@ -308,6 +318,7 @@ enum class error_id
     modeling_component_missing,
     modeling_hsm_id_error,
     grid_component_size_error,
+    graph_component_type_error,
     srcs_constant_sources_buffer_not_enough,
     srcs_constant_sources_not_enough,
     srcs_text_file_sources_not_enough,
@@ -345,6 +356,8 @@ enum class error_id
 static inline constexpr std::string_view error_id_names[] = {
     "none",
     "object_name_not_found",
+    "directory_not_found",
+    "file_not_found",
     "filesystem_error",
     "missing_integer",
     "missing_bool",
@@ -379,6 +392,7 @@ static inline constexpr std::string_view error_id_names[] = {
     "modeling_component_missing",
     "modeling_hsm_id_error",
     "grid_component_size_error",
+    "graph_component_type_error",
     "srcs_constant_sources_buffer_not_enough",
     "srcs_constant_sources_not_enough",
     "srcs_text_file_sources_not_enough",
@@ -1905,6 +1919,47 @@ struct reader
         return nullptr;
     }
 
+    bool search_dir(std::string_view name, dir_path_id& out) noexcept
+    {
+        auto_stack s(this, stack_id::search_directory);
+
+        for (auto reg_id : mod().component_repertories) {
+            if (auto* reg = mod().registred_paths.try_to_get(reg_id); reg) {
+                for (auto dir_id : reg->children) {
+                    if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
+                        if (dir->path.sv() == name) {
+                            out = dir_id;
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        report_json_error(error_id::directory_not_found);
+    }
+
+    bool search_file(dir_path_id      id,
+                     std::string_view file_name,
+                     file_path_id&    out) noexcept
+    {
+        auto_stack s(this, stack_id::search_file_in_directory);
+
+        if (auto* dir = mod().dir_paths.try_to_get(id); dir) {
+            for (int i = 0, e = dir->children.ssize(); i != e; ++i) {
+                if (auto* f = mod().file_paths.try_to_get(dir->children[i]);
+                    f) {
+                    if (f->path.sv() == file_name) {
+                        out = dir->children[i];
+                        return true;
+                    }
+                }
+            }
+        }
+
+        report_json_error(error_id::file_not_found);
+    }
+
     auto search_dir(std::string_view name) noexcept -> dir_path*
     {
         for (auto reg_id : mod().component_repertories) {
@@ -2840,6 +2895,98 @@ struct reader
                  });
     }
 
+    bool dispatch_graph_type(const rapidjson::Value& val,
+                             const rapidjson::Value& name,
+                             graph_component&        graph) noexcept
+    {
+        auto_stack s(this, stack_id::component_graph_type);
+
+        irt_assert(name.IsString());
+
+        if ("dot-file"sv == name.GetString()) {
+            graph.param = graph_component::dot_file_param{};
+            return read_graph_param(
+              val, *std::get_if<graph_component::dot_file_param>(&graph.param));
+        }
+
+        if ("scale-free"sv == name.GetString()) {
+            graph.param = graph_component::scale_free_param{};
+            return read_graph_param(
+              val,
+              *std::get_if<graph_component::scale_free_param>(&graph.param));
+        }
+
+        if ("small-world"sv == name.GetString()) {
+            graph.param = graph_component::small_world_param{};
+            return read_graph_param(
+              val,
+              *std::get_if<graph_component::small_world_param>(&graph.param));
+        }
+
+        report_json_error(error_id::graph_component_type_error);
+    }
+
+    bool read_graph_param(const rapidjson::Value&          val,
+                          graph_component::dot_file_param& p) noexcept
+    {
+        auto_stack s(this, stack_id::component_graph_param);
+
+        small_string<dir_path::path_buffer_len>  dir_path;
+        small_string<file_path::path_buffer_len> file_path;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("dir"sv == name)
+                         return read_temp_string(value) && copy_to(dir_path);
+
+                     if ("file"sv == name)
+                         return read_temp_string(value) && copy_to(file_path);
+
+                     return true;
+                 }) &&
+               search_dir(dir_path.sv(), p.dir) &&
+               search_file(p.dir, file_path.sv(), p.file);
+    }
+
+    bool read_graph_param(const rapidjson::Value&            val,
+                          graph_component::scale_free_param& p) noexcept
+    {
+        auto_stack s(this, stack_id::component_graph_param);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("alpha"sv == name)
+                  return read_temp_real(value) && is_double_greater_than(0) &&
+                         copy_to(p.alpha);
+
+              if ("beta"sv == name)
+                  return read_temp_real(value) && is_double_greater_than(0) &&
+                         copy_to(p.beta);
+
+              return true;
+          });
+    }
+
+    bool read_graph_param(const rapidjson::Value&             val,
+                          graph_component::small_world_param& p) noexcept
+    {
+        auto_stack s(this, stack_id::component_graph_param);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("probability"sv == name)
+                  return read_temp_real(value) && is_double_greater_than(0) &&
+                         copy_to(p.probability);
+
+              if ("k"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(1) && copy_to(p.k);
+
+              return true;
+          });
+    }
+
     bool read_graph_children(const rapidjson::Value& val,
                              graph_component&        compo) noexcept
     {
@@ -2911,6 +3058,10 @@ struct reader
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("type"sv == name)
+                  return value.IsString() &&
+                         dispatch_graph_type(val, value, graph);
+
               if ("children"sv == name)
                   return read_graph_children(value, graph);
 
@@ -5192,6 +5343,50 @@ static status write_graph_component(io_cache& /*cache*/,
                                     const graph_component& graph,
                                     Writer&                w) noexcept
 {
+    w.Key("type");
+    const auto idx = graph.param.index();
+
+    switch (graph.param.index()) {
+    case 0: {
+        w.String("dot-file");
+        auto* p = std::get_if<graph_component::dot_file_param>(&graph.param);
+
+        if (auto* dir = mod.dir_paths.try_to_get(p->dir); dir) {
+            w.Key("dir");
+            w.String(dir->path.begin(), dir->path.size());
+        }
+
+        if (auto* file = mod.file_paths.try_to_get(p->file); file) {
+            w.Key("file");
+            w.String(file->path.begin(), file->path.size());
+        }
+        break;
+    }
+
+    case 1: {
+        w.String("scale-free");
+        auto* p = std::get_if<graph_component::scale_free_param>(&graph.param);
+        w.Key("alpha");
+        w.Double(p->alpha);
+        w.Key("beta");
+        w.Double(p->beta);
+        break;
+    }
+
+    case 2: {
+        w.String("small-world");
+        auto* p = std::get_if<graph_component::small_world_param>(&graph.param);
+        w.Key("probability");
+        w.Double(p->probability);
+        w.Key("k");
+        w.Int(p->k);
+        break;
+    }
+
+    default:
+        irt_unreachable();
+    }
+
     w.Key("children");
     w.StartArray();
     for (auto& elem : graph.children) {

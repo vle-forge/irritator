@@ -1004,6 +1004,10 @@ static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
     while (mod.grid_components.next(grid))
         irt_return_if_bad(mod.build_grid_component_cache(*grid));
 
+    graph_component* graph = nullptr;
+    while (mod.graph_components.next(graph))
+        irt_return_if_bad(mod.build_graph_component_cache(*graph));
+
     return status::success;
 }
 

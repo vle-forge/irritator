@@ -2,9 +2,10 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <cstdint>
 #include <irritator/core.hpp>
+#include <irritator/file.hpp>
 #include <irritator/format.hpp>
+#include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
@@ -14,9 +15,78 @@
 #include <math.h>
 #include <numeric>
 #include <optional>
+#include <random>
 #include <utility>
 
+#ifndef R123_USE_CXX11
+#define R123_USE_CXX11 1
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+
+#include <Random123/philox.h>
+#include <Random123/uniform.hpp>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
+#include <cstdint>
+
 namespace irt {
+
+struct local_rng
+{
+    using rng          = r123::Philox4x64;
+    using counter_type = r123::Philox4x64::ctr_type;
+    using key_type     = r123::Philox4x64::key_type;
+    using result_type  = counter_type::value_type;
+
+    static_assert(counter_type::static_size == 4);
+    static_assert(key_type::static_size == 2);
+
+    result_type operator()() noexcept
+    {
+        if (last_elem == 0) {
+            c.incr();
+
+            rng b;
+            rdata = b(c, k);
+
+            n++;
+            last_elem = rdata.size();
+        }
+
+        return rdata[--last_elem];
+    }
+
+    local_rng(const std::span<u64>& c0, const std::span<u64>& uk) noexcept
+      : n(0)
+      , last_elem(0)
+    {
+        std::copy_n(c0.data(), c0.size(), c.data());
+        std::copy_n(uk.data(), uk.size(), k.data());
+    }
+
+    constexpr static result_type min R123_NO_MACRO_SUBST() noexcept
+    {
+        return std::numeric_limits<result_type>::min();
+    }
+
+    constexpr static result_type max R123_NO_MACRO_SUBST() noexcept
+    {
+        return std::numeric_limits<result_type>::max();
+    }
+
+    counter_type c;
+    key_type     k;
+    counter_type rdata;
+    u64          n;
+    sz           last_elem;
+};
 
 static auto build_graph_children(modeling&         mod,
                                  graph_component&  graph,
@@ -63,31 +133,223 @@ static auto build_graph_children(modeling&         mod,
     return status::success;
 }
 
-// static void connection_add(modeling&              mod,
-//                            vector<connection_id>& cnts,
-//                            child_id               src,
-//                            i8                     port_src,
-//                            child_id               dst,
-//                            i8                     port_dst) noexcept
-// {
-//     auto& c              = mod.connections.alloc();
-//     auto  c_id           = mod.connections.get_id(c);
-//     c.type               = connection::connection_type::internal;
-//     c.internal.src       = src;
-//     c.internal.index_src = port_src;
-//     c.internal.dst       = dst;
-//     c.internal.index_dst = port_dst;
-//     cnts.emplace_back(c_id);
-// }
-
-static auto build_graph_connections(modeling&        mod,
-                                    graph_component& graph,
-                                    vector<child_id>& /* ids */,
-                                    vector<connection_id>& /* cnts */,
-                                    int /* old_size */) noexcept -> status
+static void connection_add(modeling&              mod,
+                           vector<connection_id>& cnts,
+                           child_id               src,
+                           i8                     port_src,
+                           child_id               dst,
+                           i8                     port_dst) noexcept
 {
-    irt_return_if_fail(mod.connections.can_alloc(graph.children.size() * 4),
-                       status::data_array_not_enough_memory);
+    auto& c              = mod.connections.alloc();
+    auto  c_id           = mod.connections.get_id(c);
+    c.type               = connection::connection_type::internal;
+    c.internal.src       = src;
+    c.internal.index_src = port_src;
+    c.internal.dst       = dst;
+    c.internal.index_dst = port_dst;
+    cnts.emplace_back(c_id);
+}
+
+static bool get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
+{
+    return if_data_exists_return(
+      mod.dir_paths,
+      id,
+      [&](auto& dir) noexcept {
+          out = &dir;
+          return true;
+      },
+      false);
+}
+
+static bool get_file(modeling& mod, file_path_id id, file_path*& out) noexcept
+{
+    return if_data_exists_return(
+      mod.file_paths,
+      id,
+      [&](auto& file) noexcept {
+          out = &file;
+          return true;
+      },
+      false);
+}
+
+static bool open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
+{
+    try {
+        std::filesystem::path p = dir_p.path.u8sv();
+        p /= file_p.path.u8sv();
+
+        std::u8string u8str = p.u8string();
+        const char*   cstr  = reinterpret_cast<const char*>(u8str.c_str());
+
+        out.open(cstr, open_mode::read);
+        if (out.is_open())
+            return true;
+    } catch (...) {
+    }
+
+    return false;
+}
+
+static bool read_dot_file(modeling& /* mod */,
+                          file& /* f */,
+                          graph_component& /* graph */,
+                          std::span<child_id> /* ids */,
+                          vector<connection_id>& /* cnts */) noexcept
+{
+    return false;
+}
+
+static status build_dot_file_connections(
+  modeling&                              mod,
+  graph_component&                       graph,
+  const graph_component::dot_file_param& params,
+  std::span<child_id>                    ids,
+  vector<connection_id>&                 cnts) noexcept
+{
+    dir_path*  dir_p  = nullptr;
+    file_path* file_p = nullptr;
+    file       f;
+
+    return get_dir(mod, params.dir, dir_p) &&
+               get_file(mod, params.file, file_p) &&
+               open_file(*dir_p, *file_p, f) &&
+               read_dot_file(mod, f, graph, ids, cnts)
+             ? status::success
+             : status::io_file_format_error;
+}
+
+static auto build_scale_free_connections(
+  modeling&                                mod,
+  graph_component&                         graph,
+  const graph_component::scale_free_param& params,
+  std::span<child_id>                      ids,
+  vector<connection_id>&                   cnts) noexcept -> status
+{
+    const unsigned n = graph.children.size();
+    irt_assert(n > 1);
+
+    local_rng r(std::span<u64>(graph.seed), std::span<u64>(graph.key));
+    std::uniform_int_distribution<unsigned> d(0u, n - 1);
+
+    unsigned first{};
+    unsigned second{};
+
+    for (;;) {
+        unsigned xv = d(r);
+        unsigned degree =
+          (xv == 0 ? 0 : unsigned(params.beta * std::pow(xv, -params.alpha)));
+
+        while (degree == 0) {
+            if (++first >= n)
+                return status::success;
+
+            xv = d(r);
+            degree =
+              (xv == 0 ? 0
+                       : unsigned(params.beta * std::pow(xv, -params.alpha)));
+        }
+
+        do {
+            second = d(r);
+        } while (first == second);
+        --degree;
+
+        irt_return_if_fail(mod.connections.can_alloc(),
+                           status::data_array_not_enough_memory);
+
+        connection_add(mod, cnts, ids[first], 0, ids[second], 0);
+    }
+
+    return status::success;
+}
+
+static auto build_small_world_connections(
+  modeling&                                 mod,
+  graph_component&                          graph,
+  const graph_component::small_world_param& params,
+  std::span<child_id>                       ids,
+  vector<connection_id>&                    cnts) noexcept -> status
+{
+    const int n = graph.children.ssize();
+    irt_assert(n > 1);
+
+    local_rng r(std::span<u64>(graph.seed), std::span<u64>(graph.key));
+    std::uniform_real_distribution<>   dr(0.0, 1.0);
+    std::uniform_int_distribution<int> di(0, n - 1);
+
+    int first  = 0;
+    int second = 1;
+    int source = 0;
+    int target = 1;
+
+    do {
+        target = (target + 1) % n;
+        if (target == (source + params.k / 2 + 1) % n) {
+            ++source;
+            target = (source + 1) % n;
+        }
+        first = source;
+
+        double x = dr(r);
+        if (x < params.probability) {
+            auto lower = (source + n - params.k / 2) % n;
+            auto upper = (source + params.k / 2) % n;
+            do {
+                second = di(r);
+            } while ((second >= lower && second <= upper) ||
+                     (upper < lower && (second >= lower || second <= upper)));
+        } else {
+            second = target;
+        }
+
+        irt_return_if_fail(mod.connections.can_alloc(),
+                           status::data_array_not_enough_memory);
+
+        irt_assert(first >= 0 && first < n);
+        irt_assert(second >= 0 && second < n);
+
+        connection_add(mod,
+                       cnts,
+                       ids[static_cast<unsigned>(first)],
+                       0,
+                       ids[static_cast<unsigned>(second)],
+                       0);
+    } while (source + 1 < n);
+
+    return status::success;
+}
+
+static auto build_graph_connections(modeling&              mod,
+                                    graph_component&       graph,
+                                    std::span<child_id>    ids,
+                                    vector<connection_id>& cnts) noexcept
+  -> status
+{
+    switch (graph.param.index()) {
+    case 0:
+        return build_dot_file_connections(
+          mod,
+          graph,
+          *std::get_if<graph_component::dot_file_param>(&graph.param),
+          ids,
+          cnts);
+    case 1:
+        return build_scale_free_connections(
+          mod,
+          graph,
+          *std::get_if<graph_component::scale_free_param>(&graph.param),
+          ids,
+          cnts);
+    case 2:
+        return build_small_world_connections(
+          mod,
+          graph,
+          *std::get_if<graph_component::small_world_param>(&graph.param),
+          ids,
+          cnts);
+    };
 
     return status::success;
 }
@@ -107,8 +369,12 @@ status modeling::build_graph_children_and_connections(
 
     irt_return_if_bad(build_graph_children(
       *this, graph, ids, upper_limit, left_limit, space_x, space_y));
-    irt_return_if_bad(
-      build_graph_connections(*this, graph, ids, cnts, old_size));
+
+    irt_return_if_bad(build_graph_connections(
+      *this,
+      graph,
+      std::span<child_id>(ids.begin() + old_size, ids.end()),
+      cnts));
 
     return status::success;
 }

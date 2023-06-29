@@ -184,6 +184,60 @@ int main()
         }
     };
 
+    "graph-small-world"_test = [] {
+        irt::modeling_initializer mod_init;
+        irt::modeling             mod;
+        irt::project              pj;
+        irt::simulation           sim;
+
+        mod.init(mod_init);
+        pj.init(mod_init.tree_capacity *= 10);
+        sim.init(256, 4096);
+
+        auto& c = mod.alloc_simple_component();
+        auto& s = mod.simple_components.get(c.id.simple_id);
+        mod.alloc(s, irt::dynamics_type::counter);
+
+        expect(eq(mod.children.ssize(), 1));
+        expect(eq(mod.connections.ssize(), 0));
+
+        auto& cg = mod.alloc_graph_component();
+        auto& g  = mod.graph_components.get(cg.id.graph_id);
+        g.resize(25, mod.components.get_id(c));
+        g.param = irt::graph_component::small_world_param{};
+
+        expect(irt::is_success(pj.set(mod, sim, cg)));
+        expect(eq(pj.tree_nodes_size().first, g.children.ssize() + 1));
+        expect(eq(sim.models.ssize(), g.children.ssize()));
+    };
+
+    "graph-scale-free"_test = [] {
+        irt::modeling_initializer mod_init;
+        irt::modeling             mod;
+        irt::project              pj;
+        irt::simulation           sim;
+
+        mod.init(mod_init);
+        pj.init(mod_init.tree_capacity *= 10);
+        sim.init(256, 4096);
+
+        auto& c = mod.alloc_simple_component();
+        auto& s = mod.simple_components.get(c.id.simple_id);
+        mod.alloc(s, irt::dynamics_type::counter);
+
+        expect(eq(mod.children.ssize(), 1));
+        expect(eq(mod.connections.ssize(), 0));
+
+        auto& cg = mod.alloc_graph_component();
+        auto& g  = mod.graph_components.get(cg.id.graph_id);
+        g.resize(25, mod.components.get_id(c));
+        g.param = irt::graph_component::scale_free_param{};
+
+        expect(irt::is_success(pj.set(mod, sim, cg)));
+        expect(eq(pj.tree_nodes_size().first, g.children.ssize() + 1));
+        expect(eq(sim.models.ssize(), g.children.ssize()));
+    };
+
     "grid-3x3-empty-con"_test = [] {
         irt::modeling_initializer mod_init;
         irt::modeling             mod;

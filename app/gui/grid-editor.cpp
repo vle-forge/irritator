@@ -132,9 +132,9 @@ void show_default_component_widgets(application& app, grid_component& grid)
 //             ids[i] = value;
 // }
 
-static void show_selection(application&      app,
-                           grid_editor_data& ed,
-                           grid_component&   grid) noexcept
+static void show_selection(application&                app,
+                           grid_component_editor_data& ed,
+                           grid_component&             grid) noexcept
 {
     if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) {
         app.component_sel.combobox("component paint", &ed.selected_id);
@@ -151,9 +151,9 @@ static void show_selection(application&      app,
     }
 }
 
-static void show_grid(application&      app,
-                      grid_editor_data& ed,
-                      grid_component&   data) noexcept
+static void show_grid(application&                app,
+                      grid_component_editor_data& ed,
+                      grid_component&             data) noexcept
 {
     static const float item_width  = 100.0f;
     static const float item_height = 100.0f;
@@ -245,14 +245,15 @@ static void show_grid(application&      app,
     ImGui::EndChild();
 }
 
-grid_editor_data::grid_editor_data(const component_id      id_,
-                                   const grid_component_id grid_id_) noexcept
+grid_component_editor_data::grid_component_editor_data(
+  const component_id      id_,
+  const grid_component_id grid_id_) noexcept
   : grid_id(grid_id_)
   , id(id_)
 {
 }
 
-void grid_editor_data::clear() noexcept
+void grid_component_editor_data::clear() noexcept
 {
     selected.clear();
     scale = 10.f;
@@ -261,7 +262,7 @@ void grid_editor_data::clear() noexcept
     id      = undefined<component_id>();
 }
 
-void grid_editor_data::show(component_editor& ed) noexcept
+void grid_component_editor_data::show(component_editor& ed) noexcept
 {
     auto* app   = container_of(&ed, &application::component_ed);
     auto* compo = app->mod.components.try_to_get(id);

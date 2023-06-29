@@ -48,25 +48,6 @@ application::~application() noexcept
 
 bool application::init() noexcept
 {
-    if (auto ret = mod.registred_paths.init(max_component_dirs); is_bad(ret)) {
-        log_w(
-          *this, log_level::alert, "Fail to initialize registred dir paths");
-    }
-
-    if (auto ret = load_settings(); is_bad(ret)) {
-        log_w(*this,
-              log_level::alert,
-              "Fail to read settings files. Default parameters used\n");
-
-        mod_init = modeling_initializer{};
-
-        if (auto ret = save_settings(); is_bad(ret)) {
-            log_w(*this,
-                  log_level::alert,
-                  "Fail to save settings files. Default parameters used\n");
-        }
-    }
-
     if (auto ret = mod.init(mod_init); is_bad(ret)) {
         log_w(*this,
               log_level::error,
@@ -81,6 +62,20 @@ bool application::init() noexcept
               "Fail to initialize project: {}\n",
               status_string(ret));
         return false;
+    }
+
+    if (auto ret = load_settings(); is_bad(ret)) {
+        log_w(*this,
+              log_level::alert,
+              "Fail to read settings files. Default parameters used\n");
+
+        mod_init = modeling_initializer{};
+
+        if (auto ret = save_settings(); is_bad(ret)) {
+            log_w(*this,
+                  log_level::alert,
+                  "Fail to save settings files. Default parameters used\n");
+        }
     }
 
     if (mod.registred_paths.size() == 0) {
@@ -150,6 +145,14 @@ bool application::init() noexcept
               log_level::error,
               "Fail to fill internal component list: {}\n",
               status_string(ret));
+    }
+
+    if (auto ret = graphs.init(32); is_bad(ret)) {
+        log_w(*this,
+              log_level::error,
+              "Fail to initialize graph component editors: {}\n",
+              status_string(ret));
+        return false;
     }
 
     if (auto ret = grids.init(32); is_bad(ret)) {

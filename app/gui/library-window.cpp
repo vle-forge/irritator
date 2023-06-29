@@ -307,6 +307,17 @@ static void show_component_library(component_editor& c_editor,
                                   ImGuiTreeNodeFlags_CollapsingHeader |
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::SameLine();
+        if (ImGui::Button("+generic")) {
+            auto& compo = app->mod.alloc_simple_component();
+
+            if (app->generics.can_alloc()) {
+                auto& wnd = app->generics.alloc();
+                wnd.id    = app->mod.components.get_id(compo);
+                app->component_ed.request_to_open = wnd.id;
+                app->component_sel.update();
+            }
+        }
+        ImGui::SameLine();
         if (ImGui::Button("+grid")) {
             auto& compo    = app->mod.alloc_grid_component();
             auto  compo_id = app->mod.components.get_id(compo);
@@ -318,12 +329,12 @@ static void show_component_library(component_editor& c_editor,
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("+generic")) {
-            auto& compo = app->mod.alloc_simple_component();
+        if (ImGui::Button("+graph")) {
+            auto& compo    = app->mod.alloc_graph_component();
+            auto  compo_id = app->mod.components.get_id(compo);
 
-            if (app->generics.can_alloc()) {
-                auto& wnd = app->generics.alloc();
-                wnd.id    = app->mod.components.get_id(compo);
+            if (app->graphs.can_alloc()) {
+                auto& wnd = app->graphs.alloc(compo_id, compo.id.graph_id);
                 app->component_ed.request_to_open = wnd.id;
                 app->component_sel.update();
             }

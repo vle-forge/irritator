@@ -1730,7 +1730,7 @@ static bool show_generic_simulation_settings(application& app,
     return is_modified > 0;
 }
 
-void grid_simulation::clear() noexcept
+void grid_simulation_editor::clear() noexcept
 {
     show_position   = ImVec2{ 0.f, 0.f };
     disp            = ImVec2{ 1000.f, 1000.f };
@@ -1748,9 +1748,9 @@ void grid_simulation::clear() noexcept
     children_class.clear();
 }
 
-static void grid_simulation_rebuild(grid_simulation&  grid_sim,
-                                    grid_component&   grid,
-                                    grid_component_id id) noexcept
+static void grid_simulation_rebuild(grid_simulation_editor& grid_sim,
+                                    grid_component&         grid,
+                                    grid_component_id       id) noexcept
 {
     grid_sim.clear();
     grid_sim.current_id = id;
@@ -1774,8 +1774,8 @@ static void grid_simulation_rebuild(grid_simulation&  grid_sim,
     }
 }
 
-static bool grid_simulation_combobox_component(application&     app,
-                                               grid_simulation& grid_sim,
+static bool grid_simulation_combobox_component(application&            app,
+                                               grid_simulation_editor& grid_sim,
                                                component_id& selected) noexcept
 {
     small_string<31> preview = if_data_exists_return(
@@ -1811,10 +1811,10 @@ static bool grid_simulation_combobox_component(application&     app,
     return ret;
 }
 
-static bool grid_simulation_show_settings(application&     app,
-                                          grid_simulation& grid_sim,
-                                          tree_node&       tn,
-                                          grid_component&  grid) noexcept
+static bool grid_simulation_show_settings(application&            app,
+                                          grid_simulation_editor& grid_sim,
+                                          tree_node&              tn,
+                                          grid_component&         grid) noexcept
 {
     static const float item_width  = 100.0f;
     static const float item_height = 100.0f;
@@ -1987,10 +1987,10 @@ static void show_observable_model_box(application&  app,
     });
 }
 
-static void show_select_observation_model(application&     app,
-                                          grid_simulation& grid_sim,
-                                          tree_node&       tn,
-                                          model_id*        select) noexcept
+static void show_select_observation_model(application&            app,
+                                          grid_simulation_editor& grid_sim,
+                                          tree_node&              tn,
+                                          model_id* select) noexcept
 {
     constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -2041,10 +2041,10 @@ static void show_select_observation_model(application&     app,
     });
 }
 
-static bool grid_simulation_show_observations(application&     app,
-                                              grid_simulation& grid_sim,
-                                              tree_node&       tn,
-                                              grid_component&  grid) noexcept
+static bool grid_simulation_show_observations(application&            app,
+                                              grid_simulation_editor& grid_sim,
+                                              tree_node&              tn,
+                                              grid_component& grid) noexcept
 {
     static const float item_width  = 100.0f;
     static const float item_height = 100.0f;
@@ -2187,9 +2187,9 @@ static bool grid_simulation_show_observations(application&     app,
     return ret;
 }
 
-bool grid_simulation::show_settings(tree_node& tn,
-                                    component& /*compo*/,
-                                    grid_component& grid) noexcept
+bool grid_simulation_editor::show_settings(tree_node& tn,
+                                           component& /*compo*/,
+                                           grid_component& grid) noexcept
 {
     auto* ed  = container_of(this, &simulation_editor::grid_sim);
     auto* app = container_of(ed, &application::simulation_ed);
@@ -2201,9 +2201,9 @@ bool grid_simulation::show_settings(tree_node& tn,
     return grid_simulation_show_settings(*app, *this, tn, grid);
 }
 
-bool grid_simulation::show_observations(tree_node& tn,
-                                        component& /*compo*/,
-                                        grid_component& grid) noexcept
+bool grid_simulation_editor::show_observations(tree_node& tn,
+                                               component& /*compo*/,
+                                               grid_component& grid) noexcept
 {
     auto* ed  = container_of(this, &simulation_editor::grid_sim);
     auto* app = container_of(ed, &application::simulation_ed);
@@ -2215,9 +2215,10 @@ bool grid_simulation::show_observations(tree_node& tn,
     return grid_simulation_show_observations(*app, *this, tn, grid);
 }
 
-bool graph_simulation::show_settings(tree_node& /* tn */,
-                                     component& /*compo*/,
-                                     graph_component& /* graph */) noexcept
+bool graph_simulation_editor::show_settings(
+  tree_node& /* tn */,
+  component& /*compo*/,
+  graph_component& /* graph */) noexcept
 {
     // auto* ed  = container_of(this, &simulation_editor::graph_sim);
     // auto* app = container_of(ed, &application::simulation_ed);
@@ -2231,9 +2232,10 @@ bool graph_simulation::show_settings(tree_node& /* tn */,
     return true;
 }
 
-bool graph_simulation::show_observations(tree_node& /* tn */,
-                                         component& /*compo*/,
-                                         graph_component& /* graph */) noexcept
+bool graph_simulation_editor::show_observations(
+  tree_node& /* tn */,
+  component& /*compo*/,
+  graph_component& /* graph */) noexcept
 {
     // auto* ed  = container_of(this, &simulation_editor::graph_sim);
     // auto* app = container_of(ed, &application::simulation_ed);

@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/helpers.hpp"
 #include <cstdint>
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
@@ -430,7 +431,7 @@ registred_path& modeling::alloc_registred(std::string_view name,
     auto  reg_id = registred_paths.get_id(reg);
 
     reg.name     = name;
-    reg.priority = static_cast<i8>(std::clamp(priority, INT8_MIN, INT8_MAX));
+    reg.priority = static_cast<i8>(std::clamp<int>(priority, INT8_MIN, INT8_MAX));
     component_repertories.emplace_back(reg_id);
 
     return reg;
@@ -535,6 +536,11 @@ bool modeling::can_alloc_grid_component() const noexcept
     return components.can_alloc() && grid_components.can_alloc();
 }
 
+bool modeling::can_alloc_graph_component() const noexcept
+{
+    return components.can_alloc() && graph_components.can_alloc();
+}
+
 bool modeling::can_alloc_simple_component() const noexcept
 {
     return components.can_alloc() && simple_components.can_alloc();
@@ -553,6 +559,23 @@ component& modeling::alloc_grid_component() noexcept
     auto& grid = grid_components.alloc();
     grid.resize(4, 4, undefined<component_id>());
     new_compo.id.grid_id = grid_components.get_id(grid);
+
+    return new_compo;
+}
+
+component& modeling::alloc_graph_component() noexcept
+{
+    irt_assert(can_alloc_graph_component());
+
+    auto& new_compo    = components.alloc();
+    auto  new_compo_id = components.get_id(new_compo);
+    format(new_compo.name, "graph {}", get_index(new_compo_id));
+    new_compo.type  = component_type::graph;
+    new_compo.state = component_status::modified;
+
+    auto& graph = graph_components.alloc();
+    graph.resize(20, undefined<component_id>());
+    new_compo.id.graph_id = graph_components.get_id(graph);
 
     return new_compo;
 }

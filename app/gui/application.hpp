@@ -451,11 +451,11 @@ private:
     state       m_state = state::hide;
 };
 
-class grid_editor_data
+class grid_component_editor_data
 {
 public:
-    grid_editor_data(const component_id      id,
-                     const grid_component_id grid) noexcept;
+    grid_component_editor_data(const component_id      id,
+                               const grid_component_id grid) noexcept;
 
     void clear() noexcept;
 
@@ -472,11 +472,11 @@ public:
     component_id      id      = undefined<component_id>();
 };
 
-class graph_editor_data
+class graph_component_editor_data
 {
 public:
-    graph_editor_data(const component_id       id,
-                      const graph_component_id graph) noexcept;
+    graph_component_editor_data(const component_id       id,
+                                const graph_component_id graph) noexcept;
 
     void clear() noexcept;
 
@@ -493,7 +493,7 @@ public:
     component_id       id       = undefined<component_id>();
 };
 
-struct grid_simulation
+struct grid_simulation_editor
 {
     ImVec2            show_position{ 0.f, 0.f };
     ImVec2            disp{ 1000.f, 1000.f };
@@ -524,7 +524,7 @@ struct grid_simulation
                            grid_component& grid) noexcept;
 };
 
-struct graph_simulation
+struct graph_simulation_editor
 {
     ImVec2             show_position{ 0.f, 0.f };
     ImVec2             disp{ 1000.f, 1000.f };
@@ -669,8 +669,8 @@ struct simulation_editor
     vector<grid_observation_widget>  grid_obs;
     vector<graph_observation_widget> graph_obs;
 
-    grid_simulation  grid_sim;
-    graph_simulation graph_sim;
+    grid_simulation_editor  grid_sim;
+    graph_simulation_editor graph_sim;
 
     ImNodesEditorContext* context        = nullptr;
     ImPlotContext*        output_context = nullptr;
@@ -944,9 +944,9 @@ struct application
     data_array<gui_task, gui_task_id>               gui_tasks;
     task_manager                                    task_mgr;
 
-    data_array<grid_editor_data, grid_editor_data_id>           grids;
-    data_array<graph_editor_data, graph_editor_data_id>         graphs;
-    data_array<component_editor_data, component_editor_data_id> generics;
+    data_array<grid_component_editor_data, grid_editor_data_id>   grids;
+    data_array<graph_component_editor_data, graph_editor_data_id> graphs;
+    data_array<component_editor_data, component_editor_data_id>   generics;
 
     std::filesystem::path project_file;
     std::filesystem::path select_directory;

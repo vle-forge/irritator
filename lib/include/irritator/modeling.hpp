@@ -28,12 +28,12 @@ enum class file_path_id : u64;
 enum class child_id : u64;
 enum class connection_id : u64;
 enum class registred_path_id : u64;
-enum class plot_observer_id : u32;
-enum class grid_observer_id : u32;
-enum class graph_observer_id : u32;
-enum class global_parameter_id : u32;
-enum class grid_parameter_id : u32;
-enum class graph_parameter_id : u32;
+enum class plot_observer_id : u64;
+enum class grid_observer_id : u64;
+enum class graph_observer_id : u64;
+enum class global_parameter_id : u64;
+enum class grid_parameter_id : u64;
+enum class graph_parameter_id : u64;
 
 constexpr i32 max_component_dirs = 64;
 
@@ -367,7 +367,7 @@ struct graph_component
     };
 
     using random_graph_param =
-      std::variant<scale_free_param, small_world_param>;
+      std::variant<dot_file_param, scale_free_param, small_world_param>;
 
     void resize(const i32 children_size, const component_id id) noexcept
     {
@@ -383,6 +383,8 @@ struct graph_component
 
     vector<component_id> children;
     random_graph_param   param = scale_free_param{};
+    std::array<u64, 4>   seed;
+    std::array<u64, 2>   key;
 
     vector<child_id>      cache;
     vector<connection_id> cache_connections;
@@ -754,9 +756,11 @@ struct modeling
 
     bool can_alloc_grid_component() const noexcept;
     bool can_alloc_simple_component() const noexcept;
+    bool can_alloc_graph_component() const noexcept;
 
     component& alloc_grid_component() noexcept;
     component& alloc_simple_component() noexcept;
+    component& alloc_graph_component() noexcept;
 
     //! For grid_component, build the children and connections
     //! based on children vectors and grid_component options (torus, cylinder
