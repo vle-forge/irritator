@@ -10,30 +10,47 @@
 
 namespace irt {
 
+static void add_generic_component_data(application& app) noexcept
+{
+    auto& compo    = app.mod.alloc_simple_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+    app.generics.alloc(compo_id);
+    app.component_ed.request_to_open = compo_id;
+    app.component_sel.update();
+}
+
+static void add_grid_component_data(application& app) noexcept
+{
+    auto& compo    = app.mod.alloc_grid_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+    app.grids.alloc(compo_id, compo.id.grid_id);
+    app.component_ed.request_to_open = compo_id;
+    app.component_sel.update();
+}
+
+static void add_graph_component_data(application& app) noexcept
+{
+    auto& compo    = app.mod.alloc_graph_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+    app.graphs.alloc(compo_id, compo.id.graph_id);
+    app.component_ed.request_to_open = compo_id;
+    app.component_sel.update();
+}
+
 static void show_component_popup_menu(application& app, component& sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
-        if (ImGui::MenuItem("New generic component")) {
-            auto& compo = app.mod.alloc_simple_component();
+        if (app.mod.can_alloc_simple_component() && app.generics.can_alloc() &&
+            ImGui::MenuItem("New generic component"))
+            add_generic_component_data(app);
 
-            if (app.generics.can_alloc()) {
-                auto& wnd = app.generics.alloc();
-                wnd.id    = app.mod.components.get_id(compo);
-                app.component_ed.request_to_open = wnd.id;
-                app.component_sel.update();
-            }
-        }
+        if (app.mod.can_alloc_grid_component() && app.grids.can_alloc() &&
+            ImGui::MenuItem("New grid component"))
+            add_grid_component_data(app);
 
-        if (ImGui::MenuItem("New grid component")) {
-            auto& compo    = app.mod.alloc_grid_component();
-            auto  compo_id = app.mod.components.get_id(compo);
-
-            if (app.grids.can_alloc()) {
-                auto& wnd = app.grids.alloc(compo_id, compo.id.grid_id);
-                app.component_ed.request_to_open = wnd.id;
-                app.component_sel.update();
-            }
-        }
+        if (app.mod.can_alloc_graph_component() && app.graphs.can_alloc() &&
+            ImGui::MenuItem("New graph component"))
+            add_graph_component_data(app);
 
         ImGui::Separator();
 
@@ -118,7 +135,7 @@ static bool is_already_open(const data_array<T, ID>& data,
     const typename data_array<T, ID>::value_type* g = nullptr;
 
     while (data.next(g))
-        if (g->id == id)
+        if (g->get_id() == id)
             return true;
 
     return false;
@@ -135,10 +152,8 @@ static void open_component(application& app, component_id id) noexcept
             if (!is_already_open(app.generics, id)) {
                 auto* gen =
                   app.mod.simple_components.try_to_get(compo->id.simple_id);
-                if (gen && app.generics.can_alloc()) {
-                    auto& g = app.generics.alloc();
-                    g.id    = id;
-                }
+                if (gen && app.generics.can_alloc())
+                    app.generics.alloc(id);
             }
             app.component_ed.request_to_open = id;
         } break;
@@ -147,9 +162,8 @@ static void open_component(application& app, component_id id) noexcept
             if (!is_already_open(app.grids, id)) {
                 auto* grid =
                   app.mod.grid_components.try_to_get(compo->id.grid_id);
-                if (grid && app.grids.can_alloc()) {
+                if (grid && app.grids.can_alloc())
                     app.grids.alloc(id, compo->id.grid_id);
-                }
             }
             app.component_ed.request_to_open = id;
         } break;
@@ -158,9 +172,8 @@ static void open_component(application& app, component_id id) noexcept
             if (!is_already_open(app.graphs, id)) {
                 auto* graph =
                   app.mod.graph_components.try_to_get(compo->id.graph_id);
-                if (graph && app.graphs.can_alloc()) {
+                if (graph && app.graphs.can_alloc())
                     app.graphs.alloc(id, compo->id.graph_id);
-                }
             }
             app.component_ed.request_to_open = id;
         } break;
@@ -307,38 +320,16 @@ static void show_component_library(component_editor& c_editor,
                                   ImGuiTreeNodeFlags_CollapsingHeader |
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::SameLine();
-        if (ImGui::Button("+generic")) {
-            auto& compo = app->mod.alloc_simple_component();
+        if (ImGui::Button("+generic"))
+            add_generic_component_data(*app);
 
-            if (app->generics.can_alloc()) {
-                auto& wnd = app->generics.alloc();
-                wnd.id    = app->mod.components.get_id(compo);
-                app->component_ed.request_to_open = wnd.id;
-                app->component_sel.update();
-            }
-        }
         ImGui::SameLine();
-        if (ImGui::Button("+grid")) {
-            auto& compo    = app->mod.alloc_grid_component();
-            auto  compo_id = app->mod.components.get_id(compo);
+        if (ImGui::Button("+grid"))
+            add_grid_component_data(*app);
 
-            if (app->grids.can_alloc()) {
-                auto& wnd = app->grids.alloc(compo_id, compo.id.grid_id);
-                app->component_ed.request_to_open = wnd.id;
-                app->component_sel.update();
-            }
-        }
         ImGui::SameLine();
-        if (ImGui::Button("+graph")) {
-            auto& compo    = app->mod.alloc_graph_component();
-            auto  compo_id = app->mod.components.get_id(compo);
-
-            if (app->graphs.can_alloc()) {
-                auto& wnd = app->graphs.alloc(compo_id, compo.id.graph_id);
-                app->component_ed.request_to_open = wnd.id;
-                app->component_sel.update();
-            }
-        }
+        if (ImGui::Button("+graph"))
+            add_graph_component_data(*app);
 
         for (auto id : app->mod.component_repertories) {
             small_string<31>  s;

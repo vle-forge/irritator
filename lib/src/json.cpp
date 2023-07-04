@@ -21,6 +21,7 @@
 #include <optional>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 #ifdef IRRITATOR_ENABLE_DEBUG
 #include <fmt/format.h>
@@ -5338,54 +5339,65 @@ static status write_grid_component(io_cache& /*cache*/,
 }
 
 template<typename Writer>
+static status write_graph_component_param(
+  const modeling&                            mod,
+  const graph_component::random_graph_param& param,
+  Writer&                                    w) noexcept
+{
+    switch (param.index()) {
+    case 0: {
+        w.String("dot-file");
+        auto& p = *std::get_if<graph_component::dot_file_param>(&param);
+
+        if (auto* dir = mod.dir_paths.try_to_get(p.dir); dir) {
+            w.Key("dir");
+            w.String(dir->path.begin(), dir->path.size());
+        }
+
+        if (auto* file = mod.file_paths.try_to_get(p.file); file) {
+            w.Key("file");
+            w.String(file->path.begin(), file->path.size());
+        }
+
+        return status::success;
+    }
+
+    case 1: {
+        w.String("scale-free");
+        auto& p = *std::get_if<graph_component::scale_free_param>(&param);
+        w.Key("alpha");
+        w.Double(p.alpha);
+        w.Key("beta");
+        w.Double(p.beta);
+
+        return status::success;
+    }
+
+    case 2: {
+        w.String("small-world");
+        auto& p = *std::get_if<graph_component::small_world_param>(&param);
+        w.Key("probability");
+        w.Double(p.probability);
+        w.Key("k");
+        w.Int(p.k);
+
+        return status::success;
+    }
+    }
+
+    static_assert(std::variant_size_v<graph_component::random_graph_param> ==
+                  3);
+    irt_unreachable();
+}
+
+template<typename Writer>
 static status write_graph_component(io_cache& /*cache*/,
                                     const modeling&        mod,
                                     const graph_component& graph,
                                     Writer&                w) noexcept
 {
     w.Key("type");
-    const auto idx = graph.param.index();
-
-    switch (graph.param.index()) {
-    case 0: {
-        w.String("dot-file");
-        auto* p = std::get_if<graph_component::dot_file_param>(&graph.param);
-
-        if (auto* dir = mod.dir_paths.try_to_get(p->dir); dir) {
-            w.Key("dir");
-            w.String(dir->path.begin(), dir->path.size());
-        }
-
-        if (auto* file = mod.file_paths.try_to_get(p->file); file) {
-            w.Key("file");
-            w.String(file->path.begin(), file->path.size());
-        }
-        break;
-    }
-
-    case 1: {
-        w.String("scale-free");
-        auto* p = std::get_if<graph_component::scale_free_param>(&graph.param);
-        w.Key("alpha");
-        w.Double(p->alpha);
-        w.Key("beta");
-        w.Double(p->beta);
-        break;
-    }
-
-    case 2: {
-        w.String("small-world");
-        auto* p = std::get_if<graph_component::small_world_param>(&graph.param);
-        w.Key("probability");
-        w.Double(p->probability);
-        w.Key("k");
-        w.Int(p->k);
-        break;
-    }
-
-    default:
-        irt_unreachable();
-    }
+    write_graph_component_param(mod, graph.param, w);
 
     w.Key("children");
     w.StartArray();

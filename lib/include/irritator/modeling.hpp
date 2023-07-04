@@ -5,14 +5,10 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
-#include <algorithm>
-#include <cwchar>
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
-#include <array>
 #include <optional>
-#include <utility>
 #include <variant>
 
 namespace irt {
@@ -341,7 +337,7 @@ struct graph_component
 {
     static inline constexpr i32 children_max = 4096;
 
-    enum class random_graph_type
+    enum class graph_type
     {
         dot_file,
         scale_free,
@@ -374,11 +370,6 @@ struct graph_component
         irt_assert(children_size > 0);
         children.resize(children_size);
         std::fill_n(children.data(), children.size(), id);
-    }
-
-    auto type() const noexcept -> random_graph_type
-    {
-        return enum_cast<random_graph_type>(param.index());
     }
 
     vector<component_id> children;

@@ -65,6 +65,7 @@ enum class gui_task_id : u64;
 
 enum class grid_editor_data_id : u32;
 enum class graph_editor_data_id : u32;
+enum class generic_editor_data_id : u32;
 
 enum class task_status
 {
@@ -461,6 +462,9 @@ public:
 
     void show(component_editor& ed) noexcept;
 
+    //! Get the underlying component_id.
+    component_id get_id() const noexcept { return m_id; }
+
     vector<bool> selected;
     ImVec2       disp{ 1000.f, 1000.f };
     float        scale = 10.f;
@@ -469,7 +473,9 @@ public:
     component_id selected_id     = undefined<component_id>();
 
     grid_component_id grid_id = undefined<grid_component_id>();
-    component_id      id      = undefined<component_id>();
+
+private:
+    component_id m_id = undefined<component_id>();
 };
 
 class graph_component_editor_data
@@ -482,6 +488,9 @@ public:
 
     void show(component_editor& ed) noexcept;
 
+    //! Get the underlying component_id.
+    component_id get_id() const noexcept { return m_id; }
+
     vector<bool> selected;
     ImVec2       disp{ 1000.f, 1000.f };
     float        scale = 10.f;
@@ -490,7 +499,39 @@ public:
     component_id selected_id     = undefined<component_id>();
 
     graph_component_id graph_id = undefined<graph_component_id>();
-    component_id       id       = undefined<component_id>();
+
+private:
+    component_id m_id = undefined<component_id>();
+};
+
+struct generic_component_editor_data
+{
+    generic_component_editor_data(const component_id id_) noexcept;
+    ~generic_component_editor_data() noexcept;
+
+    void show(component_editor& ed) noexcept;
+
+    //! Before running any ImNodes functions, pre-move all children to force
+    //! position for all new children.
+    void update_position() noexcept;
+
+    //! Get the underlying component_id.
+    component_id get_id() const noexcept { return m_id; }
+
+    ImNodesEditorContext* context = nullptr;
+
+public:
+    bool show_minimap            = true;
+    bool show_input_output       = true;
+    bool first_show_input_output = true;
+    bool fix_input_output        = false;
+    bool force_update_position   = false;
+
+    ImVector<int> selected_links;
+    ImVector<int> selected_nodes;
+
+private:
+    component_id m_id = undefined<component_id>();
 };
 
 struct grid_simulation_editor
@@ -715,9 +756,6 @@ struct data_window
     bool is_open          = true;
 };
 
-enum class component_editor_data_id : u32;
-struct component_editor_data;
-
 struct component_editor
 {
     constexpr static inline const char* name = "Component editor";
@@ -731,27 +769,6 @@ struct component_editor
 
     component_id request_to_open = undefined<component_id>();
     bool         is_open         = true;
-};
-
-struct component_editor_data
-{
-    component_editor_data() noexcept;
-    ~component_editor_data() noexcept;
-
-    void show(component_editor& ed) noexcept;
-
-    ImNodesEditorContext* context = nullptr;
-    component_id          id      = undefined<component_id>();
-
-    bool is_saved                = true;
-    bool show_minimap            = true;
-    bool force_node_position     = false;
-    bool show_input_output       = true;
-    bool first_show_input_output = true;
-    bool fix_input_output        = false;
-
-    ImVector<int> selected_links;
-    ImVector<int> selected_nodes;
 };
 
 struct library_window
@@ -944,9 +961,9 @@ struct application
     data_array<gui_task, gui_task_id>               gui_tasks;
     task_manager                                    task_mgr;
 
-    data_array<grid_component_editor_data, grid_editor_data_id>   grids;
-    data_array<graph_component_editor_data, graph_editor_data_id> graphs;
-    data_array<component_editor_data, component_editor_data_id>   generics;
+    data_array<grid_component_editor_data, grid_editor_data_id>       grids;
+    data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
+    data_array<generic_component_editor_data, generic_editor_data_id> generics;
 
     std::filesystem::path project_file;
     std::filesystem::path select_directory;

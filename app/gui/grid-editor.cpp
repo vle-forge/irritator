@@ -249,7 +249,7 @@ grid_component_editor_data::grid_component_editor_data(
   const component_id      id_,
   const grid_component_id grid_id_) noexcept
   : grid_id(grid_id_)
-  , id(id_)
+  , m_id(id_)
 {
 }
 
@@ -259,13 +259,13 @@ void grid_component_editor_data::clear() noexcept
     scale = 10.f;
 
     grid_id = undefined<grid_component_id>();
-    id      = undefined<component_id>();
+    m_id    = undefined<component_id>();
 }
 
 void grid_component_editor_data::show(component_editor& ed) noexcept
 {
     auto* app   = container_of(&ed, &application::component_ed);
-    auto* compo = app->mod.components.try_to_get(id);
+    auto* compo = app->mod.components.try_to_get(m_id);
     auto* grid  = app->mod.grid_components.try_to_get(grid_id);
 
     irt_assert(compo && grid);

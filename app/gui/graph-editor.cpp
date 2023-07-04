@@ -146,7 +146,7 @@ graph_component_editor_data::graph_component_editor_data(
   const component_id       id_,
   const graph_component_id graph_id_) noexcept
   : graph_id(graph_id_)
-  , id(id_)
+  , m_id(id_)
 {
 }
 
@@ -156,13 +156,13 @@ void graph_component_editor_data::clear() noexcept
     scale = 10.f;
 
     graph_id = undefined<graph_component_id>();
-    id       = undefined<component_id>();
+    m_id     = undefined<component_id>();
 }
 
 void graph_component_editor_data::show(component_editor& ed) noexcept
 {
     auto* app   = container_of(&ed, &application::component_ed);
-    auto* compo = app->mod.components.try_to_get(id);
+    auto* compo = app->mod.components.try_to_get(m_id);
     auto* graph = app->mod.graph_components.try_to_get(graph_id);
 
     irt_assert(compo && graph);
