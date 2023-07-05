@@ -764,11 +764,16 @@ struct component_editor
     void add_generic_component() noexcept;
     void add_grid_component() noexcept;
 
+    void request_to_open(const component_id id) noexcept;
+    bool need_to_open(const component_id id) const noexcept;
+    void clear_request_to_open() noexcept;
+
     small_string<31> title;
     small_string<31> component_name;
+    bool             is_open = true;
 
-    component_id request_to_open = undefined<component_id>();
-    bool         is_open         = true;
+private:
+    component_id m_request_to_open = undefined<component_id>();
 };
 
 struct library_window
@@ -1058,6 +1063,21 @@ inline bool simulation_editor::can_edit() const noexcept
 inline bool simulation_editor::can_display_graph_editor() const noexcept
 {
     return display_graph;
+}
+
+inline void component_editor::request_to_open(const component_id id) noexcept
+{
+    m_request_to_open = id;
+}
+
+inline bool component_editor::need_to_open(const component_id id) const noexcept
+{
+    return m_request_to_open == id;
+};
+
+inline void component_editor::clear_request_to_open() noexcept
+{
+    m_request_to_open = undefined<component_id>();
 }
 
 } // namespace irt

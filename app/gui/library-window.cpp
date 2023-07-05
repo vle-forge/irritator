@@ -15,7 +15,7 @@ static void add_generic_component_data(application& app) noexcept
     auto& compo    = app.mod.alloc_simple_component();
     auto  compo_id = app.mod.components.get_id(compo);
     app.generics.alloc(compo_id);
-    app.component_ed.request_to_open = compo_id;
+    app.component_ed.request_to_open(compo_id);
     app.component_sel.update();
 }
 
@@ -24,7 +24,7 @@ static void add_grid_component_data(application& app) noexcept
     auto& compo    = app.mod.alloc_grid_component();
     auto  compo_id = app.mod.components.get_id(compo);
     app.grids.alloc(compo_id, compo.id.grid_id);
-    app.component_ed.request_to_open = compo_id;
+    app.component_ed.request_to_open(compo_id);
     app.component_sel.update();
 }
 
@@ -33,7 +33,7 @@ static void add_graph_component_data(application& app) noexcept
     auto& compo    = app.mod.alloc_graph_component();
     auto  compo_id = app.mod.components.get_id(compo);
     app.graphs.alloc(compo_id, compo.id.graph_id);
-    app.component_ed.request_to_open = compo_id;
+    app.component_ed.request_to_open(compo_id);
     app.component_sel.update();
 }
 
@@ -155,7 +155,7 @@ static void open_component(application& app, component_id id) noexcept
                 if (gen && app.generics.can_alloc())
                     app.generics.alloc(id);
             }
-            app.component_ed.request_to_open = id;
+            app.component_ed.request_to_open(id);
         } break;
 
         case component_type::grid: {
@@ -165,7 +165,7 @@ static void open_component(application& app, component_id id) noexcept
                 if (grid && app.grids.can_alloc())
                     app.grids.alloc(id, compo->id.grid_id);
             }
-            app.component_ed.request_to_open = id;
+            app.component_ed.request_to_open(id);
         } break;
 
         case component_type::graph: {
@@ -175,7 +175,7 @@ static void open_component(application& app, component_id id) noexcept
                 if (graph && app.graphs.can_alloc())
                     app.graphs.alloc(id, compo->id.graph_id);
             }
-            app.component_ed.request_to_open = id;
+            app.component_ed.request_to_open(id);
         } break;
 
         case component_type::internal:

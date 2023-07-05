@@ -341,9 +341,9 @@ static void show_data(application&       app,
                    title,
                    get_index(app.mod.components.get_id(c)));
 
-            if (ed.request_to_open == app.mod.components.get_id(c)) {
-                tab_item_flags     = ImGuiTabItemFlags_SetSelected;
-                ed.request_to_open = undefined<component_id>();
+            if (ed.need_to_open(app.mod.components.get_id(c))) {
+                tab_item_flags = ImGuiTabItemFlags_SetSelected;
+                ed.clear_request_to_open();
             }
 
             bool open = true;
