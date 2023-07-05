@@ -512,8 +512,8 @@ static void component_selector_select(modeling&          mod,
 
 void component_selector::update() noexcept
 {
-    auto* app = container_of(this, &application::component_sel);
-    auto& mod = app->mod;
+    auto& app = container_of(this, &application::component_sel);
+    auto& mod = app.mod;
 
     ids.clear();
     names.clear();
@@ -593,13 +593,13 @@ void component_selector::update() noexcept
 bool component_selector::combobox(const char*   label,
                                   component_id* new_selected) noexcept
 {
-    auto& mod = container_of(this, &application::component_sel)->mod;
+    auto& mod = container_of(this, &application::component_sel).mod;
 
     if (*new_selected != selected_id) {
-        auto* app   = container_of(this, &application::component_sel);
+        auto& app   = container_of(this, &application::component_sel);
         selected_id = *new_selected;
 
-        component_selector_select(app->mod, selected_id, selected_name);
+        component_selector_select(app.mod, selected_id, selected_name);
     }
 
     bool ret = false;
@@ -632,7 +632,7 @@ bool component_selector::combobox(const char*   label,
                                   component_id* new_selected,
                                   bool*         hyphen) noexcept
 {
-    auto& mod = container_of(this, &application::component_sel)->mod;
+    auto& mod = container_of(this, &application::component_sel).mod;
 
     bool ret = false;
 
@@ -673,10 +673,10 @@ bool component_selector::menu(const char*   label,
                               component_id* new_selected) noexcept
 {
     if (*new_selected != selected_id) {
-        auto* app   = container_of(this, &application::component_sel);
+        auto& app   = container_of(this, &application::component_sel);
         selected_id = *new_selected;
 
-        component_selector_select(app->mod, selected_id, selected_name);
+        component_selector_select(app.mod, selected_id, selected_name);
     }
 
     bool ret = false;

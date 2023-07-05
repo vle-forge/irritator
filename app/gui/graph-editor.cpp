@@ -161,9 +161,9 @@ void graph_component_editor_data::clear() noexcept
 
 void graph_component_editor_data::show(component_editor& ed) noexcept
 {
-    auto* app   = container_of(&ed, &application::component_ed);
-    auto* compo = app->mod.components.try_to_get(m_id);
-    auto* graph = app->mod.graph_components.try_to_get(graph_id);
+    auto& app   = container_of(&ed, &application::component_ed);
+    auto* compo = app.mod.components.try_to_get(m_id);
+    auto* graph = app.mod.graph_components.try_to_get(graph_id);
 
     irt_assert(compo && graph);
 
@@ -171,7 +171,7 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                               graph->children.size());
 
     show_size_widget(*graph);
-    show_default_component_widgets(*app, *graph);
+    show_default_component_widgets(app, *graph);
 }
 
 graph_editor_dialog::graph_editor_dialog() noexcept
@@ -179,10 +179,10 @@ graph_editor_dialog::graph_editor_dialog() noexcept
     graph.resize(30, undefined<component_id>());
 }
 
-void graph_editor_dialog::load(application*       app_,
+void graph_editor_dialog::load(application&       app_,
                                generic_component* compo_) noexcept
 {
-    app        = app_;
+    app        = &app_;
     compo      = compo_;
     is_running = true;
     is_ok      = false;
@@ -215,7 +215,7 @@ void graph_editor_dialog::show() noexcept
         show_size_widget(graph);
 
         show_default_component_widgets(
-          *container_of(this, &application::graph_dlg), graph);
+          container_of(this, &application::graph_dlg), graph);
         ImGui::EndChild();
 
         if (ImGui::Button("Ok", button_size)) {

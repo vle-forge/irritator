@@ -181,15 +181,15 @@ void output_editor::show() noexcept
         return;
     }
 
-    auto* app = container_of(this, &application::output_ed);
+    auto& app = container_of(this, &application::output_ed);
 
     static const ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Observations list", flags))
-        show_observation_table(*app);
+        show_observation_table(app);
 
     if (ImGui::CollapsingHeader("Plots outputs", flags))
-        show_observation_plot(*app);
+        show_observation_plot(app);
 
     ImGui::End();
 }

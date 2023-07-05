@@ -9,12 +9,12 @@ namespace irt {
 
 void task_window::show_widgets() noexcept
 {
-    auto* app = container_of(this, &application::task_wnd);
+    auto& app = container_of(this, &application::task_wnd);
 
-    int workers = app->task_mgr.temp_workers.ssize();
+    int workers = app.task_mgr.temp_workers.ssize();
     ImGui::InputInt("workers", &workers, 1, 100, ImGuiInputTextFlags_ReadOnly);
 
-    int lists = app->task_mgr.temp_task_lists.ssize();
+    int lists = app.task_mgr.temp_task_lists.ssize();
     ImGui::InputInt("lists", &lists, 1, 100, ImGuiInputTextFlags_ReadOnly);
 
     if (ImGui::CollapsingHeader("Tasks list", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -29,22 +29,22 @@ void task_window::show_widgets() noexcept
             ImGui::Text("simulation");
             ImGui::TableNextColumn();
             ImGui::TextFormat(
-              "{}", app->task_mgr.main_task_lists_stats[0].num_submitted_tasks);
+              "{}", app.task_mgr.main_task_lists_stats[0].num_submitted_tasks);
             ImGui::TableNextColumn();
             ImGui::TextFormat(
-              "{}", app->task_mgr.main_task_lists_stats[0].num_executed_tasks);
+              "{}", app.task_mgr.main_task_lists_stats[0].num_executed_tasks);
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::Text("gui");
             ImGui::TableNextColumn();
             ImGui::TextFormat(
-              "{}", app->task_mgr.main_task_lists_stats[1].num_submitted_tasks);
+              "{}", app.task_mgr.main_task_lists_stats[1].num_submitted_tasks);
             ImGui::TableNextColumn();
             ImGui::TextFormat(
-              "{}", app->task_mgr.main_task_lists_stats[1].num_executed_tasks);
+              "{}", app.task_mgr.main_task_lists_stats[1].num_executed_tasks);
 
-            for (int i = 0, e = app->task_mgr.temp_task_lists.ssize(); i != e;
+            for (int i = 0, e = app.task_mgr.temp_task_lists.ssize(); i != e;
                  ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
@@ -52,11 +52,11 @@ void task_window::show_widgets() noexcept
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
                   "{}",
-                  app->task_mgr.temp_task_lists_stats[i].num_submitted_tasks);
+                  app.task_mgr.temp_task_lists_stats[i].num_submitted_tasks);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
                   "{}",
-                  app->task_mgr.temp_task_lists_stats[i].num_executed_tasks);
+                  app.task_mgr.temp_task_lists_stats[i].num_executed_tasks);
             }
             ImGui::EndTable();
         }
@@ -71,26 +71,26 @@ void task_window::show_widgets() noexcept
             ImGui::TableHeadersRow();
 
             int i = 0;
-            for (int e = app->task_mgr.main_workers.ssize(); i != e; ++i) {
+            for (int e = app.task_mgr.main_workers.ssize(); i != e; ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("main-{}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
                   "{} ms",
-                  app->task_mgr.main_workers[i].exec_time.count() / 1000);
+                  app.task_mgr.main_workers[i].exec_time.count() / 1000);
                 ImGui::TableNextColumn();
             }
 
             int j = 0;
-            for (int e = app->task_mgr.temp_workers.ssize(); j != e; ++j, ++i) {
+            for (int e = app.task_mgr.temp_workers.ssize(); j != e; ++j, ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("generic-{}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
                   "{} ms",
-                  app->task_mgr.temp_workers[j].exec_time.count() / 1000);
+                  app.task_mgr.temp_workers[j].exec_time.count() / 1000);
                 ImGui::TableNextColumn();
             }
 

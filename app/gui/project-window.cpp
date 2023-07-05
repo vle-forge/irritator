@@ -62,9 +62,9 @@ static void show_project_hierarchy(application& app, tree_node& parent) noexcept
 
 void project_window::clear() noexcept
 {
-    auto* app = container_of(this, &application::project_wnd);
+    auto& app = container_of(this, &application::project_wnd);
 
-    app->pj.clear();
+    app.pj.clear();
 }
 
 bool project_window::is_selected(tree_node_id id) const noexcept
@@ -80,10 +80,10 @@ bool project_window::is_selected(child_id id) const noexcept
 void project_window::select(tree_node_id id) noexcept
 {
     if (id != m_selected_tree_node) {
-        auto* app = container_of(this, &application::project_wnd);
+        auto& app = container_of(this, &application::project_wnd);
 
-        if (auto* tree = app->pj.node(id); tree) {
-            if (auto* compo = app->mod.components.try_to_get(tree->id); compo) {
+        if (auto* tree = app.pj.node(id); tree) {
+            if (auto* compo = app.mod.components.try_to_get(tree->id); compo) {
                 m_selected_tree_node = id;
                 m_selected_child     = undefined<child_id>();
             }
@@ -93,11 +93,11 @@ void project_window::select(tree_node_id id) noexcept
 
 void project_window::select(tree_node& node) noexcept
 {
-    auto* app = container_of(this, &application::project_wnd);
-    auto  id  = app->pj.node(node);
+    auto& app = container_of(this, &application::project_wnd);
+    auto  id  = app.pj.node(node);
 
     if (id != m_selected_tree_node) {
-        if (auto* compo = app->mod.components.try_to_get(node.id); compo) {
+        if (auto* compo = app.mod.components.try_to_get(node.id); compo) {
             m_selected_tree_node = id;
             m_selected_child     = undefined<child_id>();
         }
@@ -112,9 +112,9 @@ void project_window::select(child_id id) noexcept
 
 void project_window::show() noexcept
 {
-    auto* app = container_of(this, &application::project_wnd);
+    auto& app = container_of(this, &application::project_wnd);
 
-    auto* parent = app->pj.tn_head();
+    auto* parent = app.pj.tn_head();
     if (!parent) {
         clear();
         return;
@@ -124,55 +124,55 @@ void project_window::show() noexcept
       ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Hierarchy", flags))
-        show_project_hierarchy(*app, *parent);
+        show_project_hierarchy(app, *parent);
 }
 
 void project_window::save(const char* filename) noexcept
 {
-    auto* app = container_of(this, &application::project_wnd);
+    auto& app = container_of(this, &application::project_wnd);
 
-    app->cache.clear();
+    app.cache.clear();
 
-    auto* head  = app->pj.tn_head();
-    auto* compo = app->mod.components.try_to_get(app->pj.head());
+    auto* head  = app.pj.tn_head();
+    auto* compo = app.mod.components.try_to_get(app.pj.head());
 
     if (!head || !compo) {
-        auto& n = app->notifications.alloc(log_level::error);
+        auto& n = app.notifications.alloc(log_level::error);
         n.title = "Empty project";
-        app->notifications.enable(n);
+        app.notifications.enable(n);
     } else {
-        if (auto ret = app->pj.save(app->mod, app->sim, app->cache, filename);
+        if (auto ret = app.pj.save(app.mod, app.sim, app.cache, filename);
             is_bad(ret)) {
-            auto& n = app->notifications.alloc(log_level::error);
+            auto& n = app.notifications.alloc(log_level::error);
             n.title = "Save project fail";
             format(n.message, "Can not access file `{}'", filename);
-            app->notifications.enable(n);
+            app.notifications.enable(n);
         } else {
-            app->mod.state = modeling_status::unmodified;
-            auto& n        = app->notifications.alloc(log_level::notice);
-            n.title        = "The file was saved successfully.";
-            app->notifications.enable(n);
+            app.mod.state = modeling_status::unmodified;
+            auto& n       = app.notifications.alloc(log_level::notice);
+            n.title       = "The file was saved successfully.";
+            app.notifications.enable(n);
         }
     }
 }
 
 void project_window::load(const char* filename) noexcept
 {
-    auto* app = container_of(this, &application::project_wnd);
+    auto& app = container_of(this, &application::project_wnd);
 
-    app->cache.clear();
+    app.cache.clear();
 
-    if (auto ret = app->pj.load(app->mod, app->sim, app->cache, filename);
+    if (auto ret = app.pj.load(app.mod, app.sim, app.cache, filename);
         is_bad(ret)) {
-        auto& n = app->notifications.alloc(log_level::error);
+        auto& n = app.notifications.alloc(log_level::error);
         n.title = "Load project fail";
         format(n.message, "Can not access file `{}'", filename);
-        app->notifications.enable(n);
+        app.notifications.enable(n);
     } else {
-        auto& n = app->notifications.alloc(log_level::notice);
+        auto& n = app.notifications.alloc(log_level::notice);
         n.title = "The file was loaded successfully.";
-        app->notifications.enable(n);
-        app->mod.state = modeling_status::unmodified;
+        app.notifications.enable(n);
+        app.mod.state = modeling_status::unmodified;
     }
 }
 

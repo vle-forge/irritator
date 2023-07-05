@@ -185,15 +185,14 @@ static void show_random_distribution_input(random_source& src) noexcept
 
 static void try_init_source(data_window& data, source& src) noexcept
 {
-    auto* app = container_of(&data, &application::data_ed);
+    auto& app = container_of(&data, &application::data_ed);
 
-    status ret =
-      app->sim.srcs.dispatch(src, source::operation_type::initialize);
+    status ret = app.sim.srcs.dispatch(src, source::operation_type::initialize);
 
     if (is_bad(ret)) {
-        auto& n = app->notifications.alloc(log_level::error);
+        auto& n = app.notifications.alloc(log_level::error);
         n.title = "Fail to initialize data";
-        app->notifications.enable(n);
+        app.notifications.enable(n);
 
         return;
     }
@@ -205,7 +204,7 @@ static void try_init_source(data_window& data, source& src) noexcept
           ImVec2{ static_cast<float>(i), static_cast<float>(src.buffer[i]) });
     data.plot_available = true;
 
-    app->mod.srcs.prepare();
+    app.mod.srcs.prepare();
 }
 
 static void task_try_finalize_source(application&        app,
@@ -256,7 +255,7 @@ void data_window::show() noexcept
         return;
     }
 
-    auto* app = container_of(this, &application::data_ed);
+    auto& app = container_of(this, &application::data_ed);
 
     auto* old_constant_ptr      = constant_ptr;
     auto* old_text_file_ptr     = text_file_ptr;
@@ -275,8 +274,8 @@ void data_window::show() noexcept
         small_string<32> label;
 
         constant_source* cst_src = nullptr;
-        while (app->mod.srcs.constant_sources.next(cst_src)) {
-            const auto id    = app->mod.srcs.constant_sources.get_id(cst_src);
+        while (app.mod.srcs.constant_sources.next(cst_src)) {
+            const auto id    = app.mod.srcs.constant_sources.get_id(cst_src);
             const auto index = get_index(id);
             const bool item_is_selected = cst_src == constant_ptr;
 
@@ -317,8 +316,8 @@ void data_window::show() noexcept
         }
 
         text_file_source* txt_src = nullptr;
-        while (app->mod.srcs.text_file_sources.next(txt_src)) {
-            const auto id    = app->mod.srcs.text_file_sources.get_id(txt_src);
+        while (app.mod.srcs.text_file_sources.next(txt_src)) {
+            const auto id    = app.mod.srcs.text_file_sources.get_id(txt_src);
             const auto index = get_index(id);
             const bool item_is_selected = txt_src == text_file_ptr;
 
@@ -345,9 +344,9 @@ void data_window::show() noexcept
         }
 
         binary_file_source* bin_src = nullptr;
-        while (app->mod.srcs.binary_file_sources.next(bin_src)) {
-            const auto id = app->mod.srcs.binary_file_sources.get_id(bin_src);
-            const auto index            = get_index(id);
+        while (app.mod.srcs.binary_file_sources.next(bin_src)) {
+            const auto id    = app.mod.srcs.binary_file_sources.get_id(bin_src);
+            const auto index = get_index(id);
             const bool item_is_selected = bin_src == binary_file_ptr;
 
             ImGui::TableNextRow();
@@ -373,8 +372,8 @@ void data_window::show() noexcept
         }
 
         random_source* rnd_src = nullptr;
-        while (app->mod.srcs.random_sources.next(rnd_src)) {
-            const auto id    = app->mod.srcs.random_sources.get_id(rnd_src);
+        while (app.mod.srcs.random_sources.next(rnd_src)) {
+            const auto id    = app.mod.srcs.random_sources.get_id(rnd_src);
             const auto index = get_index(id);
             const bool item_is_selected = rnd_src == random_source_ptr;
 
@@ -408,7 +407,7 @@ void data_window::show() noexcept
         ImGui::Spacing();
         ImGui::InputScalarN("seed",
                             ImGuiDataType_U64,
-                            &app->mod.srcs.seed,
+                            &app.mod.srcs.seed,
                             2,
                             nullptr,
                             nullptr,
@@ -416,8 +415,8 @@ void data_window::show() noexcept
                             ImGuiInputTextFlags_CharsHexadecimal);
 
         if (ImGui::Button("+constant", button_sz)) {
-            if (app->mod.srcs.constant_sources.can_alloc(1u)) {
-                auto& new_src = app->mod.srcs.constant_sources.alloc();
+            if (app.mod.srcs.constant_sources.can_alloc(1u)) {
+                auto& new_src = app.mod.srcs.constant_sources.alloc();
                 new_src.init();
                 new_src.length    = 3;
                 new_src.buffer[0] = 0.0;
@@ -428,24 +427,24 @@ void data_window::show() noexcept
 
         ImGui::SameLine();
         if (ImGui::Button("+text file", button_sz)) {
-            if (app->mod.srcs.text_file_sources.can_alloc(1u)) {
-                auto& new_src = app->mod.srcs.text_file_sources.alloc();
+            if (app.mod.srcs.text_file_sources.can_alloc(1u)) {
+                auto& new_src = app.mod.srcs.text_file_sources.alloc();
                 new_src.init();
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+binary file", button_sz)) {
-            if (app->mod.srcs.binary_file_sources.can_alloc(1u)) {
-                auto& new_src = app->mod.srcs.binary_file_sources.alloc();
+            if (app.mod.srcs.binary_file_sources.can_alloc(1u)) {
+                auto& new_src = app.mod.srcs.binary_file_sources.alloc();
                 new_src.init();
             }
         }
 
         ImGui::SameLine();
         if (ImGui::Button("+random", button_sz)) {
-            if (app->mod.srcs.random_sources.can_alloc(1u)) {
-                auto& new_src = app->mod.srcs.random_sources.alloc();
+            if (app.mod.srcs.random_sources.can_alloc(1u)) {
+                auto& new_src = app.mod.srcs.random_sources.alloc();
                 new_src.init();
                 new_src.a32          = 0;
                 new_src.b32          = 100;
@@ -456,22 +455,22 @@ void data_window::show() noexcept
         ImGui::SameLine();
         if (ImGui::Button("delete", button_sz)) {
             if (constant_ptr) {
-                app->mod.srcs.constant_sources.free(*constant_ptr);
+                app.mod.srcs.constant_sources.free(*constant_ptr);
                 constant_ptr     = nullptr;
                 old_constant_ptr = nullptr;
             }
             if (text_file_ptr) {
-                app->mod.srcs.text_file_sources.free(*text_file_ptr);
+                app.mod.srcs.text_file_sources.free(*text_file_ptr);
                 text_file_ptr     = nullptr;
                 old_text_file_ptr = nullptr;
             }
             if (binary_file_ptr) {
-                app->mod.srcs.binary_file_sources.free(*binary_file_ptr);
+                app.mod.srcs.binary_file_sources.free(*binary_file_ptr);
                 binary_file_ptr     = nullptr;
                 old_binary_file_ptr = nullptr;
             }
             if (random_source_ptr) {
-                app->mod.srcs.random_sources.free(*random_source_ptr);
+                app.mod.srcs.random_sources.free(*random_source_ptr);
                 random_source_ptr     = nullptr;
                 old_random_source_ptr = nullptr;
             }
@@ -485,7 +484,7 @@ void data_window::show() noexcept
     if (ImGui::CollapsingHeader("Source editor",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         if (constant_ptr) {
-            const auto id = app->mod.srcs.constant_sources.get_id(constant_ptr);
+            const auto id = app.mod.srcs.constant_sources.get_id(constant_ptr);
             auto       index = get_index(id);
 
             unsigned new_size = constant_ptr->length;
@@ -517,7 +516,7 @@ void data_window::show() noexcept
 
         if (text_file_ptr) {
             const auto id =
-              app->mod.srcs.text_file_sources.get_id(text_file_ptr);
+              app.mod.srcs.text_file_sources.get_id(text_file_ptr);
             auto index = get_index(id);
 
             ImGui::InputScalar("id",
@@ -540,7 +539,7 @@ void data_window::show() noexcept
 
         if (binary_file_ptr) {
             const auto id =
-              app->mod.srcs.binary_file_sources.get_id(binary_file_ptr);
+              app.mod.srcs.binary_file_sources.get_id(binary_file_ptr);
             auto index = get_index(id);
 
             ImGui::InputScalar("id",
@@ -570,7 +569,7 @@ void data_window::show() noexcept
 
         if (random_source_ptr) {
             const auto id =
-              app->mod.srcs.random_sources.get_id(random_source_ptr);
+              app.mod.srcs.random_sources.get_id(random_source_ptr);
             auto index = get_index(id);
 
             ImGui::InputScalar("id",
@@ -602,17 +601,17 @@ void data_window::show() noexcept
             const char8_t* filters[] = { u8".dat", nullptr };
 
             ImGui::OpenPopup(title);
-            if (app->f_dialog.show_load_file(title, filters)) {
-                if (app->f_dialog.state == file_dialog::status::ok) {
-                    binary_file_ptr->file_path = app->f_dialog.result;
+            if (app.f_dialog.show_load_file(title, filters)) {
+                if (app.f_dialog.state == file_dialog::status::ok) {
+                    binary_file_ptr->file_path = app.f_dialog.result;
 
-                    app->add_simulation_task(
+                    app.add_simulation_task(
                       task_try_init_source,
-                      ordinal(app->mod.srcs.binary_file_sources.get_id(
+                      ordinal(app.mod.srcs.binary_file_sources.get_id(
                         binary_file_ptr)),
                       ordinal(source::source_type::binary_file));
                 }
-                app->f_dialog.clear();
+                app.f_dialog.clear();
                 binary_file_ptr  = nullptr;
                 show_file_dialog = false;
             }
@@ -623,11 +622,11 @@ void data_window::show() noexcept
             const char8_t* filters[] = { u8".txt", nullptr };
 
             ImGui::OpenPopup(title);
-            if (app->f_dialog.show_load_file(title, filters)) {
-                if (app->f_dialog.state == file_dialog::status::ok) {
-                    text_file_ptr->file_path = app->f_dialog.result;
+            if (app.f_dialog.show_load_file(title, filters)) {
+                if (app.f_dialog.state == file_dialog::status::ok) {
+                    text_file_ptr->file_path = app.f_dialog.result;
                 }
-                app->f_dialog.clear();
+                app.f_dialog.clear();
                 text_file_ptr    = nullptr;
                 show_file_dialog = false;
             }
@@ -646,44 +645,43 @@ void data_window::show() noexcept
 
         if (old_text_file_ptr) {
             id = ordinal(
-              app->mod.srcs.text_file_sources.get_id(*old_text_file_ptr));
+              app.mod.srcs.text_file_sources.get_id(*old_text_file_ptr));
             type = source::source_type::text_file;
         } else if (old_random_source_ptr) {
             id = ordinal(
-              app->mod.srcs.random_sources.get_id(*old_random_source_ptr));
+              app.mod.srcs.random_sources.get_id(*old_random_source_ptr));
             type = source::source_type::random;
         } else if (old_binary_file_ptr) {
             id = ordinal(
-              app->mod.srcs.binary_file_sources.get_id(*old_binary_file_ptr));
+              app.mod.srcs.binary_file_sources.get_id(*old_binary_file_ptr));
             type = source::source_type::binary_file;
         } else if (old_constant_ptr) {
             id =
-              ordinal(app->mod.srcs.constant_sources.get_id(*old_constant_ptr));
+              ordinal(app.mod.srcs.constant_sources.get_id(*old_constant_ptr));
             type = source::source_type::constant;
         }
 
         if (id != 0 && type != source::source_type::none)
-            task_try_finalize_source(*app, id, type);
+            task_try_finalize_source(app, id, type);
 
         if (text_file_ptr) {
-            id =
-              ordinal(app->mod.srcs.text_file_sources.get_id(*text_file_ptr));
+            id = ordinal(app.mod.srcs.text_file_sources.get_id(*text_file_ptr));
             type = source::source_type::text_file;
         } else if (random_source_ptr) {
             id =
-              ordinal(app->mod.srcs.random_sources.get_id(*random_source_ptr));
+              ordinal(app.mod.srcs.random_sources.get_id(*random_source_ptr));
             type = source::source_type::random;
         } else if (binary_file_ptr) {
             id = ordinal(
-              app->mod.srcs.binary_file_sources.get_id(*binary_file_ptr));
+              app.mod.srcs.binary_file_sources.get_id(*binary_file_ptr));
             type = source::source_type::binary_file;
         } else if (constant_ptr) {
-            id = ordinal(app->mod.srcs.constant_sources.get_id(*constant_ptr));
+            id   = ordinal(app.mod.srcs.constant_sources.get_id(*constant_ptr));
             type = source::source_type::constant;
         }
 
         if (id && type != source::source_type::none) {
-            app->add_simulation_task(
+            app.add_simulation_task(
               task_try_init_source, id, static_cast<u64>(type));
         }
     }

@@ -402,12 +402,12 @@ void component_editor::show() noexcept
         return;
     }
 
-    auto* app = container_of(this, &application::component_ed);
+    auto& app = container_of(this, &application::component_ed);
 
     if (ImGui::BeginTabBar("Editors")) {
-        show_data(*app, *this, app->generics, "generic");
-        show_data(*app, *this, app->grids, "grid");
-        show_data(*app, *this, app->graphs, "graph");
+        show_data(app, *this, app.generics, "generic");
+        show_data(app, *this, app.grids, "grid");
+        show_data(app, *this, app.graphs, "graph");
         ImGui::EndTabBar();
     }
 

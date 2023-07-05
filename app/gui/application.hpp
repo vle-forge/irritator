@@ -43,15 +43,15 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
 //! ..
 //!
 //! void fn(point& p) {
-//!     line *ptr = container_of(&p, &line::p1);
+//!     line& ptr = container_of(&p, &line::p1);
 //!     ...
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T* container_of(M* ptr, const M T::*member)
+constexpr T& container_of(M* ptr, const M T::*member)
 {
-    return reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
-                                offset_of(member));
+    return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
+                                 offset_of(member));
 }
 
 struct application;
@@ -608,7 +608,7 @@ struct grid_editor_dialog
     bool               is_running = false;
     bool               is_ok      = false;
 
-    void load(application* app, generic_component* compo) noexcept;
+    void load(application& app, generic_component* compo) noexcept;
     void save() noexcept;
     void show() noexcept;
 };
@@ -625,7 +625,7 @@ struct graph_editor_dialog
     bool               is_running = false;
     bool               is_ok      = false;
 
-    void load(application* app, generic_component* compo) noexcept;
+    void load(application& app, generic_component* compo) noexcept;
     void save() noexcept;
     void show() noexcept;
 };

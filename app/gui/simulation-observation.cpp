@@ -26,7 +26,7 @@ void simulation_observation::init() noexcept
     irt_assert(raw_buffer_limits.is_valid(raw_buffer_size));
     irt_assert(linearized_buffer_limits.is_valid(linearized_buffer_size));
 
-    auto& sim = container_of(this, &application::sim_obs)->sim;
+    auto& sim = container_of(this, &application::sim_obs).sim;
 
     for_each_data(sim.observers, [&](observer& obs) {
         obs.clear();
@@ -37,7 +37,7 @@ void simulation_observation::init() noexcept
 
 void simulation_observation::clear() noexcept
 {
-    auto& sim = container_of(this, &application::sim_obs)->sim;
+    auto& sim = container_of(this, &application::sim_obs).sim;
 
     for_each_data(sim.observers, [&](observer& obs) { obs.clear(); });
 }
@@ -78,25 +78,25 @@ static void simulation_observation_job_finish(void* param) noexcept
    immediate_observers is empty then all observers are update. */
 void simulation_observation::update() noexcept
 {
-    auto* app = container_of(this, &application::sim_obs);
+    auto& app = container_of(this, &application::sim_obs);
 
     constexpr int              capacity = 255;
     simulation_observation_job jobs[capacity];
 
-    auto& task_list = app->get_unordered_task_list(0);
+    auto& task_list = app.get_unordered_task_list(0);
 
-    if (app->sim.immediate_observers.empty()) {
-        int       obs_max = app->sim.observers.ssize();
+    if (app.sim.immediate_observers.empty()) {
+        int       obs_max = app.sim.observers.ssize();
         observer* obs     = nullptr;
 
-        while (app->sim.observers.next(obs)) {
+        while (app.sim.observers.next(obs)) {
             int loop = std::min(obs_max, capacity);
 
             for (int i = 0; i != loop; ++i) {
-                auto obs_id = app->sim.observers.get_id(*obs);
-                app->sim.observers.next(obs);
+                auto obs_id = app.sim.observers.get_id(*obs);
+                app.sim.observers.next(obs);
 
-                jobs[i] = { .app = app, .id = obs_id };
+                jobs[i] = { .app = &app, .id = obs_id };
                 task_list.add(simulation_observation_job_update, &jobs[i]);
             }
 
@@ -109,16 +109,16 @@ void simulation_observation::update() noexcept
                 obs_max = 0;
         }
     } else {
-        int obs_max = app->sim.immediate_observers.ssize();
+        int obs_max = app.sim.immediate_observers.ssize();
         int current = 0;
 
         while (obs_max > 0) {
             int loop = std::min(obs_max, capacity);
 
             for (int i = 0; i != loop; ++i) {
-                auto obs_id = app->sim.immediate_observers[i + current];
+                auto obs_id = app.sim.immediate_observers[i + current];
 
-                jobs[i] = { .app = app, .id = obs_id };
+                jobs[i] = { .app = &app, .id = obs_id };
                 task_list.add(simulation_observation_job_finish, &jobs[i]);
             }
 

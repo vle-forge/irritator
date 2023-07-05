@@ -155,15 +155,15 @@ static void add_input_attribute(simulation_editor& ed,
                                 const Dynamics&    dyn) noexcept
 {
     if constexpr (has_input_port<Dynamics>) {
-        auto* app = container_of(&ed, &application::simulation_ed);
+        auto& app = container_of(&ed, &application::simulation_ed);
 
         const auto** names  = get_input_port_names<Dynamics>();
         const auto&  mdl    = get_model(dyn);
-        const auto   mdl_id = app->sim.models.get_id(mdl);
+        const auto   mdl_id = app.sim.models.get_id(mdl);
         const auto   e      = length(dyn.x);
 
         irt_assert(names != nullptr);
-        irt_assert(app->sim.models.try_to_get(mdl_id) == &mdl);
+        irt_assert(app.sim.models.try_to_get(mdl_id) == &mdl);
         irt_assert(0 <= e && e < 8);
 
         for (int i = 0; i != e; ++i) {
@@ -180,15 +180,15 @@ static void add_output_attribute(simulation_editor& ed,
                                  const Dynamics&    dyn) noexcept
 {
     if constexpr (has_output_port<Dynamics>) {
-        auto* app = container_of(&ed, &application::simulation_ed);
+        auto& app = container_of(&ed, &application::simulation_ed);
 
         const auto** names  = get_output_port_names<Dynamics>();
         const auto&  mdl    = get_model(dyn);
-        const auto   mdl_id = app->sim.models.get_id(mdl);
+        const auto   mdl_id = app.sim.models.get_id(mdl);
         const auto   e      = length(dyn.y);
 
         irt_assert(names != nullptr);
-        irt_assert(app->sim.models.try_to_get(mdl_id) == &mdl);
+        irt_assert(app.sim.models.try_to_get(mdl_id) == &mdl);
         irt_assert(0 <= e && e < 8);
 
         for (int i = 0; i != e; ++i) {
@@ -637,28 +637,27 @@ static void show_dynamics_values(simulation& /*sim*/,
 
 static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
 {
-    auto* app = container_of(&ed, &application::simulation_ed);
+    auto& app = container_of(&ed, &application::simulation_ed);
 
     dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
         add_input_attribute(ed, dyn);
         if (ed.show_internal_values) {
             ImGui::PushItemWidth(120.0f);
-            show_dynamics_values(app->sim, dyn);
+            show_dynamics_values(app.sim, dyn);
             ImGui::PopItemWidth();
         }
 
         if (ed.allow_user_changes) {
-            auto* app = container_of(&ed, &application::simulation_ed);
+            auto& app = container_of(&ed, &application::simulation_ed);
             ImGui::PushItemWidth(120.0f);
 
             if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                auto* machine = app->sim.hsms.try_to_get(dyn.id);
+                auto* machine = app.sim.hsms.try_to_get(dyn.id);
                 irt_assert(machine != nullptr);
 
-                show_dynamics_inputs(
-                  *app, app->sim.models.get_id(mdl), *machine);
+                show_dynamics_inputs(app, app.sim.models.get_id(mdl), *machine);
             } else {
-                show_dynamics_inputs(app->mod.srcs, dyn);
+                show_dynamics_inputs(app.mod.srcs, dyn);
             }
 
             ImGui::PopItemWidth();
@@ -718,12 +717,12 @@ static void add_popup_menuitem(simulation_editor& ed,
                         nullptr,
                         nullptr,
                         enable_menu_item)) {
-        auto* app = container_of(&ed, &application::simulation_ed);
+        auto& app = container_of(&ed, &application::simulation_ed);
 
-        app->add_simulation_task(task_simulation_model_add,
-                                 ordinal(type),
-                                 static_cast<u64>(click_pos.x),
-                                 static_cast<u64>(click_pos.y));
+        app.add_simulation_task(task_simulation_model_add,
+                                ordinal(type),
+                                static_cast<u64>(click_pos.x),
+                                static_cast<u64>(click_pos.y));
     }
 }
 
@@ -761,7 +760,7 @@ simulation_editor::~simulation_editor() noexcept
 void simulation_editor::remove_simulation_observation_from(
   model_id mdl_id) noexcept
 {
-    auto& sim = container_of(this, &application::simulation_ed)->sim;
+    auto& sim = container_of(this, &application::simulation_ed).sim;
 
     if_data_exists_do(sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
         sim.unobserve(mdl);
@@ -771,41 +770,41 @@ void simulation_editor::remove_simulation_observation_from(
 void simulation_editor::add_simulation_observation_for(std::string_view name,
                                                        model_id mdl_id) noexcept
 {
-    application* app = container_of(this, &application::simulation_ed);
+    auto& app = container_of(this, &application::simulation_ed);
 
-    if_data_exists_do(app->sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
-        if (app->sim.observers.can_alloc(1)) {
-            auto& obs = app->sim.observers.alloc(name, 0, 0);
-            app->sim.observe(mdl, obs);
+    if_data_exists_do(app.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
+        if (app.sim.observers.can_alloc(1)) {
+            auto& obs = app.sim.observers.alloc(name, 0, 0);
+            app.sim.observe(mdl, obs);
         } else {
-            auto* app = container_of(this, &application::simulation_ed);
-            auto& n   = app->notifications.alloc(log_level::error);
+            auto& app = container_of(this, &application::simulation_ed);
+            auto& n   = app.notifications.alloc(log_level::error);
             n.title   = "Too many observer in simulation";
-            app->notifications.enable(n);
+            app.notifications.enable(n);
         }
     });
 
-    // if (auto* mdl = app->sim.models.try_to_get(mdl_id); mdl) {
-    //     if (app->sim.observers.can_alloc(1) && sim_obs.can_alloc(1)) {
+    // if (auto* mdl = app.sim.models.try_to_get(mdl_id); mdl) {
+    //     if (app.sim.observers.can_alloc(1) && sim_obs.can_alloc(1)) {
     //         auto& sobs    = sim_obs.alloc(mdl_id, 32768);
     //         auto  sobs_id = sim_obs.get_id(sobs);
     //         sobs.name     = name;
 
-    //         auto& obs = app->sim.observers.alloc(name, ordinal(sobs_id), 0);
-    //         app->sim.observe(*mdl, obs);
+    //         auto& obs = app.sim.observers.alloc(name, ordinal(sobs_id), 0);
+    //         app.sim.observe(*mdl, obs);
     //     } else {
-    //         if (!app->sim.observers.can_alloc(1)) {
-    //             auto* app = container_of(this, &application::simulation_ed);
-    //             auto& n   = app->notifications.alloc(log_level::error);
+    //         if (!app.sim.observers.can_alloc(1)) {
+    //             auto& app = container_of(this, &application::simulation_ed);
+    //             auto& n   = app.notifications.alloc(log_level::error);
     //             n.title   = "Too many observer in simulation";
-    //             app->notifications.enable(n);
+    //             app.notifications.enable(n);
     //         }
 
     //         if (!sim_obs.can_alloc(1)) {
-    //             auto* app = container_of(this, &application::simulation_ed);
-    //             auto& n   = app->notifications.alloc(log_level::error);
+    //             auto& app = container_of(this, &application::simulation_ed);
+    //             auto& n   = app.notifications.alloc(log_level::error);
     //             n.title   = "Too many simulation observation in simulation";
-    //             app->notifications.enable(n);
+    //             app.notifications.enable(n);
     //         }
     //     }
     // }
@@ -813,9 +812,9 @@ void simulation_editor::add_simulation_observation_for(std::string_view name,
 
 void simulation_editor::select(tree_node_id id) noexcept
 {
-    auto* app = container_of(this, &application::simulation_ed);
+    auto& app = container_of(this, &application::simulation_ed);
 
-    if (auto* tree = app->pj.node(id); tree) {
+    if (auto* tree = app.pj.node(id); tree) {
         unselect();
 
         head    = id;
@@ -837,7 +836,7 @@ void simulation_editor::unselect() noexcept
 
 void simulation_editor::clear() noexcept
 {
-    auto* app = container_of(this, &application::simulation_ed);
+    auto& app = container_of(this, &application::simulation_ed);
 
     unselect();
 
@@ -850,7 +849,7 @@ void simulation_editor::clear() noexcept
     real_time             = false;
     have_use_back_advance = false;
 
-    app->sim.clear();
+    app.sim.clear();
     tl.reset();
 
     simulation_begin   = 0;
@@ -913,24 +912,24 @@ static status copy_port(simulation&                      sim,
 
 static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
 {
-    auto* app = container_of(&ed, &application::simulation_ed);
+    auto& app = container_of(&ed, &application::simulation_ed);
 
     table<model_id, model_id> mapping;
     mapping.data.reserve(nodes.size());
 
     for (int i = 0, e = nodes.size(); i != e; ++i) {
-        auto* src_mdl = app->sim.models.try_to_get(nodes[i]);
+        auto* src_mdl = app.sim.models.try_to_get(nodes[i]);
         if (!src_mdl)
             continue;
 
-        irt_return_if_fail(app->sim.can_alloc(1),
+        irt_return_if_fail(app.sim.can_alloc(1),
                            status::simulation_not_enough_model);
 
-        auto& dst_mdl    = app->sim.clone(*src_mdl);
-        auto  src_mdl_id = app->sim.models.get_id(src_mdl);
-        auto  dst_mdl_id = app->sim.models.get_id(dst_mdl);
+        auto& dst_mdl    = app.sim.clone(*src_mdl);
+        auto  src_mdl_id = app.sim.models.get_id(src_mdl);
+        auto  dst_mdl_id = app.sim.models.get_id(dst_mdl);
 
-        app->sim.make_initialize(dst_mdl, ed.simulation_current);
+        app.sim.make_initialize(dst_mdl, ed.simulation_current);
 
         mapping.data.emplace_back(src_mdl_id, dst_mdl_id);
     }
@@ -938,8 +937,8 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
     mapping.sort();
 
     for (int i = 0, e = length(mapping.data); i != e; ++i) {
-        auto& src_mdl = app->sim.models.get(mapping.data[i].id);
-        auto& dst_mdl = app->sim.models.get(mapping.data[i].value);
+        auto& src_mdl = app.sim.models.get(mapping.data[i].id);
+        auto& dst_mdl = app.sim.models.get(mapping.data[i].value);
 
         dispatch(src_mdl,
                  [&app, &mapping, &dst_mdl]<typename Dynamics>(Dynamics& dyn) {
@@ -947,7 +946,7 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
                          for (int i = 0, e = length(dyn.y); i != e; ++i) {
                              auto& dst_dyn = get_dyn<Dynamics>(dst_mdl);
                              irt_return_if_bad(copy_port(
-                               app->sim, mapping, dyn.y[i], dst_dyn.y[i]));
+                               app.sim, mapping, dyn.y[i], dst_dyn.y[i]));
                          }
                      }
                      return status::success;
@@ -960,15 +959,15 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
 static void free_children(simulation_editor&   ed,
                           const ImVector<int>& nodes) noexcept
 {
-    auto* app = container_of(&ed, &application::simulation_ed);
+    auto& app = container_of(&ed, &application::simulation_ed);
 
     const auto tasks = std::min(nodes.size(), task_list_tasks_number);
 
     for (int i = 0; i < tasks; ++i) {
-        if (const auto* mdl = app->sim.models.try_to_get(nodes[i]); mdl) {
-            const auto mdl_id  = app->sim.models.get_id(mdl);
+        if (const auto* mdl = app.sim.models.try_to_get(nodes[i]); mdl) {
+            const auto mdl_id  = app.sim.models.get_id(mdl);
             const auto mdl_idx = ordinal(mdl_id);
-            app->add_simulation_task(task_simulation_model_del, mdl_idx);
+            app.add_simulation_task(task_simulation_model_del, mdl_idx);
         }
     }
 }
@@ -978,18 +977,17 @@ static int show_connection(simulation_editor& ed, model& mdl, int connection_id)
     dispatch(
       mdl, [&ed, &connection_id]<typename Dynamics>(Dynamics& dyn) -> void {
           if constexpr (has_output_port<Dynamics>) {
-              auto* app = container_of(&ed, &application::simulation_ed);
+              auto& app = container_of(&ed, &application::simulation_ed);
 
               for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                  auto list = append_node(app->sim, dyn.y[i]);
+                  auto list = append_node(app.sim, dyn.y[i]);
                   auto it   = list.begin();
                   auto et   = list.end();
 
                   while (it != et) {
-                      if (auto* mdl_dst = app->sim.models.try_to_get(it->model);
+                      if (auto* mdl_dst = app.sim.models.try_to_get(it->model);
                           mdl_dst) {
-                          int out =
-                            make_output_node_id(app->sim.get_id(dyn), i);
+                          int out = make_output_node_id(app.sim.get_id(dyn), i);
                           int in =
                             make_input_node_id(it->model, it->port_index);
                           ImNodes::Link(connection_id++, out, in);
@@ -1007,10 +1005,10 @@ static int show_connection(simulation_editor& ed, model& mdl, int connection_id)
 
 static void show_connections(simulation_editor& ed) noexcept
 {
-    auto* app           = container_of(&ed, &application::simulation_ed);
+    auto& app           = container_of(&ed, &application::simulation_ed);
     auto  connection_id = 0;
 
-    for (model* mdl = nullptr; app->sim.models.next(mdl);)
+    for (model* mdl = nullptr; app.sim.models.next(mdl);)
         connection_id = show_connection(ed, *mdl, connection_id);
 }
 
@@ -1043,14 +1041,14 @@ static void compute_connection_distance(const model&       mdl,
 {
     dispatch(mdl, [&mdl, &ed, k]<typename Dynamics>(Dynamics& dyn) -> void {
         if constexpr (has_output_port<Dynamics>) {
-            auto* app = container_of(&ed, &application::simulation_ed);
+            auto& app = container_of(&ed, &application::simulation_ed);
 
             for (const auto elem : dyn.y) {
-                auto list = get_node(app->sim, elem);
+                auto list = get_node(app.sim, elem);
 
                 for (auto& dst : list)
                     compute_connection_distance(
-                      app->sim.get_id(mdl), dst.model, ed, k);
+                      app.sim.get_id(mdl), dst.model, ed, k);
             }
         }
     });
@@ -1058,15 +1056,15 @@ static void compute_connection_distance(const model&       mdl,
 
 static void compute_automatic_layout(simulation_editor& ed) noexcept
 {
-    auto* app      = container_of(&ed, &application::simulation_ed);
-    auto& settings = app->settings_wnd;
+    auto& app      = container_of(&ed, &application::simulation_ed);
+    auto& settings = app.settings_wnd;
 
     /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
        Fruchterman and Edward M. Reingold in Software--Pratice and
        Experience, Vol. 21(1 1), 1129-1164 (november 1991).
        */
 
-    const auto orig_size = app->sim.models.ssize();
+    const auto orig_size = app.sim.models.ssize();
 
     if (orig_size == 0)
         return;
@@ -1088,7 +1086,7 @@ static void compute_automatic_layout(simulation_editor& ed) noexcept
       static_cast<float>(line) +
       ((remaining > 0) ? settings.automatic_layout_y_distance : 0.f);
     const float area     = W * L;
-    const float k_square = area / static_cast<float>(app->sim.models.size());
+    const float k_square = area / static_cast<float>(app.sim.models.size());
     const float k        = std::sqrt(k_square);
 
     // float t = 1.f - static_cast<float>(iteration) /
@@ -1126,13 +1124,13 @@ static void compute_automatic_layout(simulation_editor& ed) noexcept
         }
     }
 
-    for_each_data(app->sim.models, [&](auto& mdl) noexcept -> void {
+    for_each_data(app.sim.models, [&](auto& mdl) noexcept -> void {
         compute_connection_distance(mdl, ed, k);
     });
 
     model* mdl = nullptr;
     for (int i_v = 0; i_v < size; ++i_v) {
-        irt_assert(app->sim.models.next(mdl));
+        irt_assert(app.sim.models.next(mdl));
         const int v = i_v;
 
         const float d2 = ed.displacements[v].x * ed.displacements[v].x +
@@ -1149,7 +1147,7 @@ static void compute_automatic_layout(simulation_editor& ed) noexcept
         v_pos.x += ed.displacements[v].x;
         v_pos.y += ed.displacements[v].y;
 
-        const auto mdl_id    = app->sim.models.get_id(mdl);
+        const auto mdl_id    = app.sim.models.get_id(mdl);
         const auto mdl_index = static_cast<u32>(get_index(mdl_id));
 
         ImNodes::SetNodeEditorSpacePos(mdl_index, v_pos);
@@ -1158,10 +1156,10 @@ static void compute_automatic_layout(simulation_editor& ed) noexcept
 
 static void compute_grid_layout(simulation_editor& ed) noexcept
 {
-    auto* app      = container_of(&ed, &application::simulation_ed);
-    auto& settings = app->settings_wnd;
+    auto& app      = container_of(&ed, &application::simulation_ed);
+    auto& settings = app.settings_wnd;
 
-    const auto size  = app->sim.models.max_size();
+    const auto size  = app.sim.models.max_size();
     const auto fsize = static_cast<float>(size);
 
     if (size == 0)
@@ -1179,10 +1177,10 @@ static void compute_grid_layout(simulation_editor& ed) noexcept
         new_pos.y = panning.y + i * settings.grid_layout_y_distance;
 
         for (float j = 0.f; j < column; ++j) {
-            if (!app->sim.models.next(mdl))
+            if (!app.sim.models.next(mdl))
                 break;
 
-            const auto mdl_id    = app->sim.models.get_id(mdl);
+            const auto mdl_id    = app.sim.models.get_id(mdl);
             const auto mdl_index = static_cast<u32>(get_index(mdl_id));
 
             new_pos.x = panning.x + j * settings.grid_layout_x_distance;
@@ -1194,10 +1192,10 @@ static void compute_grid_layout(simulation_editor& ed) noexcept
     new_pos.y = panning.y + column * settings.grid_layout_y_distance;
 
     for (float j = 0.f; j < remaining; ++j) {
-        if (!app->sim.models.next(mdl))
+        if (!app.sim.models.next(mdl))
             break;
 
-        const auto mdl_id    = app->sim.models.get_id(mdl);
+        const auto mdl_id    = app.sim.models.get_id(mdl);
         const auto mdl_index = static_cast<u32>(get_index(mdl_id));
 
         new_pos.x = panning.x + j * settings.grid_layout_x_distance;
@@ -2191,28 +2189,28 @@ bool grid_simulation_editor::show_settings(tree_node& tn,
                                            component& /*compo*/,
                                            grid_component& grid) noexcept
 {
-    auto* ed  = container_of(this, &simulation_editor::grid_sim);
-    auto* app = container_of(ed, &application::simulation_ed);
+    auto& ed  = container_of(this, &simulation_editor::grid_sim);
+    auto& app = container_of(&ed, &application::simulation_ed);
 
-    const auto grid_id = app->mod.grid_components.get_id(grid);
+    const auto grid_id = app.mod.grid_components.get_id(grid);
     if (grid_id != current_id)
         grid_simulation_rebuild(*this, grid, grid_id);
 
-    return grid_simulation_show_settings(*app, *this, tn, grid);
+    return grid_simulation_show_settings(app, *this, tn, grid);
 }
 
 bool grid_simulation_editor::show_observations(tree_node& tn,
                                                component& /*compo*/,
                                                grid_component& grid) noexcept
 {
-    auto* ed  = container_of(this, &simulation_editor::grid_sim);
-    auto* app = container_of(ed, &application::simulation_ed);
+    auto& ed  = container_of(this, &simulation_editor::grid_sim);
+    auto& app = container_of(&ed, &application::simulation_ed);
 
-    const auto grid_id = app->mod.grid_components.get_id(grid);
+    const auto grid_id = app.mod.grid_components.get_id(grid);
     if (grid_id != current_id)
         grid_simulation_rebuild(*this, grid, grid_id);
 
-    return grid_simulation_show_observations(*app, *this, tn, grid);
+    return grid_simulation_show_observations(app, *this, tn, grid);
 }
 
 bool graph_simulation_editor::show_settings(
@@ -2221,9 +2219,9 @@ bool graph_simulation_editor::show_settings(
   graph_component& /* graph */) noexcept
 {
     // auto* ed  = container_of(this, &simulation_editor::graph_sim);
-    // auto* app = container_of(ed, &application::simulation_ed);
+    // auto& app = container_of(ed, &application::simulation_ed);
     //
-    // const auto graph_id = app->mod.graph_components.get_id(graph);
+    // const auto graph_id = app.mod.graph_components.get_id(graph);
     // if (graph_id != current_id)
     //     graph_simulation_rebuild(*this, graph, graph_id);
     //
@@ -2238,9 +2236,9 @@ bool graph_simulation_editor::show_observations(
   graph_component& /* graph */) noexcept
 {
     // auto* ed  = container_of(this, &simulation_editor::graph_sim);
-    // auto* app = container_of(ed, &application::simulation_ed);
+    // auto& app = container_of(ed, &application::simulation_ed);
     //
-    // const auto graph_id = app->mod.graph_components.get_id(graph);
+    // const auto graph_id = app.mod.graph_components.get_id(graph);
     // if (graph_id != current_id)
     //     graph_simulation_rebuild(*this, graph, graph_id);
     //
@@ -2739,29 +2737,29 @@ void simulation_editor::show() noexcept
         ImGui::TableSetupColumn(
           "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
 
-        auto* app = container_of(this, &application::simulation_ed);
+        auto& app = container_of(this, &application::simulation_ed);
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
-        app->project_wnd.show();
+        app.project_wnd.show();
 
         ImGui::TableSetColumnIndex(1);
         if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
             if (ImGui::BeginTabBar("##SimulationTabBar")) {
                 if (ImGui::BeginTabItem("Parameters")) {
-                    show_main_simulation_settings(*app);
-                    show_local_simulation_settings(*app);
+                    show_main_simulation_settings(app);
+                    show_local_simulation_settings(app);
                     ImGui::EndTabItem();
                 }
 
                 if (ImGui::BeginTabItem("Observations")) {
-                    show_main_simulation_observations(*app);
+                    show_main_simulation_observations(app);
                     ImGui::EndTabItem();
                 }
 
                 if (ImGui::BeginTabItem("graph")) {
-                    if (app->simulation_ed.can_display_graph_editor())
-                        show_simulation_graph_editor(*app);
+                    if (app.simulation_ed.can_display_graph_editor())
+                        show_simulation_graph_editor(app);
                     ImGui::EndTabItem();
                 }
 

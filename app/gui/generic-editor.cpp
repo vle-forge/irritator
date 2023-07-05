@@ -210,8 +210,8 @@ static void show(component_editor&              ed,
                  child& /*c*/,
                  child_id id) noexcept
 {
-    auto* app      = container_of(&ed, &application::component_ed);
-    auto& settings = app->settings_wnd;
+    auto& app      = container_of(&ed, &application::component_ed);
+    auto& settings = app.settings_wnd;
 
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -225,7 +225,7 @@ static void show(component_editor&              ed,
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}",
-                      app->mod.children_names[get_index(id)].sv(),
+                      app.mod.children_names[get_index(id)].sv(),
                       dynamics_type_names[ordinal(mdl.type)]);
     ImNodes::EndNodeTitleBar();
 
@@ -236,19 +236,19 @@ static void show(component_editor&              ed,
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
               auto  s_compo_id = parent.id.simple_id;
-              auto* s_compo = app->mod.simple_components.try_to_get(s_compo_id);
+              auto* s_compo = app.mod.simple_components.try_to_get(s_compo_id);
               if (s_compo) {
-                  if (auto* machine = app->mod.hsms.try_to_get(dyn.id);
+                  if (auto* machine = app.mod.hsms.try_to_get(dyn.id);
                       machine) {
-                      show_dynamics_inputs(*app,
-                                           app->mod.components.get_id(parent),
-                                           app->mod.models.get_id(mdl),
+                      show_dynamics_inputs(app,
+                                           app.mod.components.get_id(parent),
+                                           app.mod.models.get_id(mdl),
                                            *machine);
                       ImNodes::EditorContextSet(data.context);
                   }
               }
           } else {
-              show_dynamics_inputs(app->mod.srcs, dyn);
+              show_dynamics_inputs(app.mod.srcs, dyn);
           }
 
           ImGui::PopItemWidth();
@@ -268,8 +268,8 @@ static void show_generic(component_editor& ed,
                          child& /*c*/,
                          child_id id) noexcept
 {
-    auto* app      = container_of(&ed, &application::component_ed);
-    auto& settings = app->settings_wnd;
+    auto& app      = container_of(&ed, &application::component_ed);
+    auto& settings = app.settings_wnd;
 
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -282,9 +282,8 @@ static void show_generic(component_editor& ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}",
-                      app->mod.children_names[get_index(id)].sv(),
-                      compo.name.c_str());
+    ImGui::TextFormat(
+      "{}\n{}", app.mod.children_names[get_index(id)].sv(), compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
     for (u8 i = 0; i < 8; ++i) {
@@ -314,8 +313,8 @@ static void show_grid(component_editor& ed,
                       child& /*c*/,
                       child_id id) noexcept
 {
-    auto* app      = container_of(&ed, &application::component_ed);
-    auto& settings = app->settings_wnd;
+    auto& app      = container_of(&ed, &application::component_ed);
+    auto& settings = app.settings_wnd;
 
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -328,9 +327,8 @@ static void show_grid(component_editor& ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}",
-                      app->mod.children_names[get_index(id)].sv(),
-                      compo.name.c_str());
+    ImGui::TextFormat(
+      "{}\n{}", app.mod.children_names[get_index(id)].sv(), compo.name.c_str());
     ImGui::TextFormat("{}x{}", grid.row, grid.column);
     ImNodes::EndNodeTitleBar();
 
@@ -361,8 +359,8 @@ static void show_graph(component_editor& ed,
                        child& /*c*/,
                        child_id id) noexcept
 {
-    auto* app      = container_of(&ed, &application::component_ed);
-    auto& settings = app->settings_wnd;
+    auto& app      = container_of(&ed, &application::component_ed);
+    auto& settings = app.settings_wnd;
 
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
@@ -375,9 +373,8 @@ static void show_graph(component_editor& ed,
 
     ImNodes::BeginNode(pack_node(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat("{}\n{}",
-                      app->mod.children_names[get_index(id)].sv(),
-                      compo.name.c_str());
+    ImGui::TextFormat(
+      "{}\n{}", app.mod.children_names[get_index(id)].sv(), compo.name.c_str());
     ImGui::TextFormat("{}", graph.children.size());
     ImNodes::EndNodeTitleBar();
 
@@ -451,8 +448,8 @@ static void show_graph(component_editor&              ed,
                        component&                     parent,
                        generic_component&             s_parent) noexcept
 {
-    auto* app      = container_of(&ed, &application::component_ed);
-    auto& settings = app->settings_wnd;
+    auto& app      = container_of(&ed, &application::component_ed);
+    auto& settings = app.settings_wnd;
 
     const auto width  = ImGui::GetContentRegionAvail().x;
     const auto pos    = ImNodes::EditorContextGetPanning();
@@ -460,7 +457,7 @@ static void show_graph(component_editor&              ed,
     const auto pos_x2 = pos.x + width - 50.f;
 
     if (data.force_update_position)
-        update_position(*app, data, s_parent);
+        update_position(app, data, s_parent);
 
     if (data.show_input_output) {
         update_input_output_draggable(data.fix_input_output);
@@ -508,37 +505,37 @@ static void show_graph(component_editor&              ed,
     }
 
     for (auto child_id : s_parent.children) {
-        auto* c = app->mod.children.try_to_get(child_id);
+        auto* c = app.mod.children.try_to_get(child_id);
         if (!c)
             continue;
 
         if (c->type == child_type::model) {
             auto id = c->id.mdl_id;
-            if (auto* mdl = app->mod.models.try_to_get(id); mdl)
+            if (auto* mdl = app.mod.models.try_to_get(id); mdl)
                 show(ed, data, parent, *mdl, *c, child_id);
         } else {
             auto id = c->id.compo_id;
-            if (auto* compo = app->mod.components.try_to_get(id); compo) {
+            if (auto* compo = app.mod.components.try_to_get(id); compo) {
                 switch (compo->type) {
                 case component_type::none:
                     break;
 
                 case component_type::simple:
-                    if (auto* s_compo = app->mod.simple_components.try_to_get(
+                    if (auto* s_compo = app.mod.simple_components.try_to_get(
                           compo->id.simple_id)) {
                         show_generic(ed, data, *compo, *s_compo, *c, child_id);
                     }
                     break;
 
                 case component_type::grid:
-                    if (auto* s_compo = app->mod.grid_components.try_to_get(
+                    if (auto* s_compo = app.mod.grid_components.try_to_get(
                           compo->id.grid_id)) {
                         show_grid(ed, data, *compo, *s_compo, *c, child_id);
                     }
                     break;
 
                 case component_type::graph:
-                    if (auto* s_compo = app->mod.graph_components.try_to_get(
+                    if (auto* s_compo = app.mod.graph_components.try_to_get(
                           compo->id.graph_id)) {
                         show_graph(ed, data, *compo, *s_compo, *c, child_id);
                     }
@@ -552,11 +549,11 @@ static void show_graph(component_editor&              ed,
     }
 
     for_specified_data(
-      app->mod.connections, s_parent.connections, [&](auto& con) noexcept {
-          auto connection_id = app->mod.connections.get_id(con);
+      app.mod.connections, s_parent.connections, [&](auto& con) noexcept {
+          auto connection_id = app.mod.connections.get_id(con);
 
-          if (!show_connection(app->mod, con, connection_id))
-              app->mod.connections.free(con);
+          if (!show_connection(app.mod, con, connection_id))
+              app.mod.connections.free(con);
       });
 }
 
@@ -567,27 +564,27 @@ static void add_popup_menuitem(component_editor&              ed,
                                dynamics_type                  type,
                                ImVec2                         click_pos)
 {
-    auto* app = container_of(&ed, &application::component_ed);
+    auto& app = container_of(&ed, &application::component_ed);
 
-    if (!app->mod.models.can_alloc(1)) {
-        auto* app = container_of(&ed, &application::component_ed);
-        auto& n   = app->notifications.alloc();
+    if (!app.mod.models.can_alloc(1)) {
+        auto& app = container_of(&ed, &application::component_ed);
+        auto& n   = app.notifications.alloc();
         n.level   = log_level::error;
         n.title   = "can not allocate a new model";
         return;
     }
 
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)])) {
-        auto& child    = app->mod.alloc(s_parent, type);
-        auto  child_id = app->mod.children.get_id(child);
+        auto& child    = app.mod.alloc(s_parent, type);
+        auto  child_id = app.mod.children.get_id(child);
 
         parent.state = component_status::modified;
-        app->mod.children_positions[get_index(child_id)].x = click_pos.x;
-        app->mod.children_positions[get_index(child_id)].y = click_pos.y;
+        app.mod.children_positions[get_index(child_id)].x = click_pos.x;
+        app.mod.children_positions[get_index(child_id)].y = click_pos.y;
         data.update_position();
 
-        auto* app = container_of(&ed, &application::component_ed);
-        auto& n   = app->notifications.alloc();
+        auto& app = container_of(&ed, &application::component_ed);
+        auto& n   = app.notifications.alloc();
         n.level   = log_level::debug;
         format(n.title, "new model {} added", ordinal(child_id));
     }
@@ -608,7 +605,7 @@ static void compute_grid_layout(settings_window&               settings,
                                 generic_component_editor_data& data,
                                 generic_component&             s_compo) noexcept
 {
-    auto*      app   = container_of(&settings, &application::settings_wnd);
+    auto&      app   = container_of(&settings, &application::settings_wnd);
     const auto size  = s_compo.children.ssize();
     const auto fsize = static_cast<float>(size);
 
@@ -635,8 +632,8 @@ static void compute_grid_layout(settings_window&               settings,
             c_id = s_compo.children[c_index++];
 
             new_pos.x = panning.x + j * settings.grid_layout_x_distance;
-            app->mod.children_positions[get_index(c_id)].x = new_pos.x;
-            app->mod.children_positions[get_index(c_id)].y = new_pos.y;
+            app.mod.children_positions[get_index(c_id)].x = new_pos.x;
+            app.mod.children_positions[get_index(c_id)].y = new_pos.y;
         }
     }
 
@@ -650,8 +647,8 @@ static void compute_grid_layout(settings_window&               settings,
         c_id = s_compo.children[c_index++];
 
         new_pos.x = panning.x + j * settings.grid_layout_x_distance;
-        app->mod.children_positions[get_index(c_id)].x = new_pos.x;
-        app->mod.children_positions[get_index(c_id)].y = new_pos.y;
+        app.mod.children_positions[get_index(c_id)].x = new_pos.x;
+        app.mod.children_positions[get_index(c_id)].y = new_pos.y;
     }
 
     data.update_position();
@@ -664,26 +661,25 @@ static status add_component_to_current(component_editor&              ed,
                                        component&         compo_to_add,
                                        ImVec2             click_pos = ImVec2())
 {
-    auto*      app             = container_of(&ed, &application::component_ed);
-    const auto compo_to_add_id = app->mod.components.get_id(compo_to_add);
+    auto&      app             = container_of(&ed, &application::component_ed);
+    const auto compo_to_add_id = app.mod.components.get_id(compo_to_add);
 
-    if (app->mod.can_add(parent, compo_to_add)) {
-        auto* app   = container_of(&ed, &application::component_ed);
-        auto& notif = app->notifications.alloc(log_level::error);
+    if (app.mod.can_add(parent, compo_to_add)) {
+        auto& notif = app.notifications.alloc(log_level::error);
         notif.title = "Fail to add component";
         format(notif.message,
                "Irritator does not accept recursive component {}",
                compo_to_add.name.sv());
-        app->notifications.enable(notif);
+        app.notifications.enable(notif);
         return status::gui_not_enough_memory; //! @TODO replace with correct
                                               //! error
     }
 
-    auto& c    = app->mod.alloc(parent_compo, compo_to_add_id);
-    auto  c_id = app->mod.children.get_id(c);
+    auto& c    = app.mod.alloc(parent_compo, compo_to_add_id);
+    auto  c_id = app.mod.children.get_id(c);
 
-    app->mod.children_positions[get_index(c_id)].x = click_pos.x;
-    app->mod.children_positions[get_index(c_id)].y = click_pos.y;
+    app.mod.children_positions[get_index(c_id)].x = click_pos.x;
+    app.mod.children_positions[get_index(c_id)].y = click_pos.y;
     data.update_position();
 
     return status::success;
@@ -695,13 +691,13 @@ static void show_popup_all_component_menuitem(
   component&                     parent,
   generic_component&             s_parent) noexcept
 {
-    auto* app = container_of(&ed, &application::component_ed);
+    auto& app = container_of(&ed, &application::component_ed);
 
-    for (auto id : app->mod.component_repertories) {
+    for (auto id : app.mod.component_repertories) {
         static small_string<31> s; //! @TODO remove this variable
         small_string<31>*       select;
 
-        auto& reg_dir = app->mod.registred_paths.get(id);
+        auto& reg_dir = app.mod.registred_paths.get(id);
         if (reg_dir.name.empty()) {
             format(s, "{}", ordinal(id));
             select = &s;
@@ -712,18 +708,18 @@ static void show_popup_all_component_menuitem(
         ImGui::PushID(&reg_dir);
         if (ImGui::BeginMenu(select->c_str())) {
             for (auto dir_id : reg_dir.children) {
-                auto* dir = app->mod.dir_paths.try_to_get(dir_id);
+                auto* dir = app.mod.dir_paths.try_to_get(dir_id);
                 if (!dir)
                     break;
 
                 if (ImGui::BeginMenu(dir->path.c_str())) {
                     for (auto file_id : dir->children) {
-                        auto* file = app->mod.file_paths.try_to_get(file_id);
+                        auto* file = app.mod.file_paths.try_to_get(file_id);
                         if (!file)
                             break;
 
                         auto* compo =
-                          app->mod.components.try_to_get(file->component);
+                          app.mod.components.try_to_get(file->component);
                         if (!compo)
                             break;
 
@@ -742,7 +738,7 @@ static void show_popup_all_component_menuitem(
 
     if (ImGui::BeginMenu("Not saved")) {
         component* compo = nullptr;
-        while (app->mod.components.next(compo)) {
+        while (app.mod.components.next(compo)) {
             if (compo->state == component_status::modified) {
                 ImGui::PushID(compo);
                 if (ImGui::MenuItem(compo->name.c_str())) {
@@ -785,28 +781,28 @@ static void show_popup_menuitem(component_editor&              ed,
         ImGui::Separator();
 
         if (ImGui::MenuItem("Force grid layout")) {
-            auto* app = container_of(&ed, &application::component_ed);
-            compute_grid_layout(app->settings_wnd, data, s_parent);
+            auto& app = container_of(&ed, &application::component_ed);
+            compute_grid_layout(app.settings_wnd, data, s_parent);
         }
 
         ImGui::Separator();
 
-        auto* app = container_of(&ed, &application::component_ed);
+        auto& app = container_of(&ed, &application::component_ed);
         if (ImGui::MenuItem("Add grid component")) {
-            if (!app->mod.grid_components.can_alloc() ||
-                !app->mod.components.can_alloc() ||
-                !app->mod.children.can_alloc()) {
-                auto* app = container_of(&ed, &application::component_ed);
-                auto& n   = app->notifications.alloc();
+            if (!app.mod.grid_components.can_alloc() ||
+                !app.mod.components.can_alloc() ||
+                !app.mod.children.can_alloc()) {
+                auto& app = container_of(&ed, &application::component_ed);
+                auto& n   = app.notifications.alloc();
                 n.level   = log_level::error;
                 n.title   = "can not allocate a new grid component";
             } else {
-                auto& grid    = app->mod.grid_components.alloc();
-                auto  grid_id = app->mod.grid_components.get_id(grid);
+                auto& grid    = app.mod.grid_components.alloc();
+                auto  grid_id = app.mod.grid_components.get_id(grid);
                 grid.row      = 4;
                 grid.column   = 4;
 
-                auto& compo      = app->mod.components.alloc();
+                auto& compo      = app.mod.components.alloc();
                 compo.name       = "Grid";
                 compo.type       = component_type::grid;
                 compo.id.grid_id = grid_id;
@@ -823,9 +819,9 @@ static void show_popup_menuitem(component_editor&              ed,
         ImGui::Separator();
 
         if (ImGui::MenuItem("Grid generator"))
-            app->grid_dlg.load(app, &s_parent);
+            app.grid_dlg.load(app, &s_parent);
         if (ImGui::MenuItem("Graph generator"))
-            app->graph_dlg.load(app, &s_parent);
+            app.graph_dlg.load(app, &s_parent);
 
         ImGui::Separator();
 
@@ -1089,59 +1085,53 @@ static void show_component_editor(component_editor&              ed,
                                   component&                     compo,
                                   generic_component& s_compo) noexcept
 {
-    auto* app = container_of(&ed, &application::component_ed);
+    auto& app = container_of(&ed, &application::component_ed);
 
     ImNodes::EditorContextSet(data.context);
     ImNodes::BeginNodeEditor();
 
-    if (app->grid_dlg.is_running) {
-        app->grid_dlg.show();
+    if (app.grid_dlg.is_running) {
+        app.grid_dlg.show();
 
-        if (app->grid_dlg.is_ok && !app->grid_dlg.is_running) {
+        if (app.grid_dlg.is_ok && !app.grid_dlg.is_running) {
             auto size = s_compo.children.size();
-            app->grid_dlg.save();
-            app->grid_dlg.is_ok = false;
+            app.grid_dlg.save();
+            app.grid_dlg.is_ok = false;
             data.update_position();
 
             for (sz i = size, e = s_compo.children.size(); i != e; ++i) {
                 if_data_exists_do(
-                  app->mod.children,
-                  s_compo.children[i],
-                  [&](auto& c) noexcept {
+                  app.mod.children, s_compo.children[i], [&](auto& c) noexcept {
                       if ((c.type == child_type::model &&
-                           app->mod.models.try_to_get(c.id.mdl_id) !=
-                             nullptr) ||
+                           app.mod.models.try_to_get(c.id.mdl_id) != nullptr) ||
                           (c.type == child_type::component &&
-                           app->mod.components.try_to_get(c.id.compo_id) !=
+                           app.mod.components.try_to_get(c.id.compo_id) !=
                              nullptr))
-                          app->mod.children_positions[get_index(
+                          app.mod.children_positions[get_index(
                             s_compo.children[i])] = { i * 30.f, i * 10.f };
                   });
             }
         }
     }
 
-    if (app->graph_dlg.is_running) {
-        app->graph_dlg.show();
+    if (app.graph_dlg.is_running) {
+        app.graph_dlg.show();
 
-        if (app->graph_dlg.is_ok && !app->graph_dlg.is_running) {
+        if (app.graph_dlg.is_ok && !app.graph_dlg.is_running) {
             auto size = s_compo.children.size();
-            app->graph_dlg.save();
-            app->graph_dlg.is_ok = false;
+            app.graph_dlg.save();
+            app.graph_dlg.is_ok = false;
             data.update_position();
 
             for (sz i = size, e = s_compo.children.size(); i != e; ++i) {
                 if_data_exists_do(
-                  app->mod.children,
-                  s_compo.children[i],
-                  [&](auto& c) noexcept {
+                  app.mod.children, s_compo.children[i], [&](auto& c) noexcept {
                       if ((c.type == child_type::model &&
-                           app->mod.models.try_to_get(c.id.mdl_id) !=
-                             nullptr) ||
+                           app.mod.models.try_to_get(c.id.mdl_id) != nullptr) ||
                           (c.type == child_type::component &&
-                           app->mod.components.try_to_get(c.id.compo_id) !=
+                           app.mod.components.try_to_get(c.id.compo_id) !=
                              nullptr))
-                          app->mod.children_positions[get_index(
+                          app.mod.children_positions[get_index(
                             s_compo.children[i])] = { i * 30.f, i * 10.f };
                   });
             }
@@ -1156,8 +1146,8 @@ static void show_component_editor(component_editor&              ed,
 
     ImNodes::EndNodeEditor();
 
-    is_link_created(*app, data, compo, s_compo);
-    is_link_destroyed(app->mod, compo, s_compo);
+    is_link_created(app, data, compo, s_compo);
+    is_link_destroyed(app.mod, compo, s_compo);
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
@@ -1178,9 +1168,9 @@ static void show_component_editor(component_editor&              ed,
 
     if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
         if (num_selected_nodes > 0)
-            remove_nodes(app->mod, data, compo);
+            remove_nodes(app.mod, data, compo);
         else if (num_selected_links > 0)
-            remove_links(app->mod, data, compo, s_compo);
+            remove_links(app.mod, data, compo, s_compo);
     }
 }
 
@@ -1220,12 +1210,12 @@ void generic_component_editor_data::update_position() noexcept
 
 void generic_component_editor_data::show(component_editor& ed) noexcept
 {
-    auto* app = container_of(&ed, &application::component_ed);
+    auto& app = container_of(&ed, &application::component_ed);
 
-    if (auto* compo = app->mod.components.try_to_get(get_id()); compo) {
+    if (auto* compo = app.mod.components.try_to_get(get_id()); compo) {
         const auto s_id = compo->id.simple_id;
 
-        if (auto* s = app->mod.simple_components.try_to_get(s_id); s)
+        if (auto* s = app.mod.simple_components.try_to_get(s_id); s)
             show_component_editor(ed, *this, *compo, *s);
     }
 }

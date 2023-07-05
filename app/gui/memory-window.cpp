@@ -17,73 +17,69 @@ void memory_window::show() noexcept
         return;
     }
 
-    auto* app = container_of(this, &application::memory_wnd);
+    auto& app = container_of(this, &application::memory_wnd);
 
     if (ImGui::CollapsingHeader("Component usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        // ImGui::TextFormat("tree_nodes: {} / {} / {}",
-        //                   app->pj.tree_nodes.size(),
-        //                   app->pj.tree_nodes.max_used(),
-        //                   app->pj.tree_nodes.capacity());
         ImGui::TextFormat("descriptions: {} / {} / {}",
-                          app->mod.descriptions.size(),
-                          app->mod.descriptions.max_used(),
-                          app->mod.descriptions.capacity());
+                          app.mod.descriptions.size(),
+                          app.mod.descriptions.max_used(),
+                          app.mod.descriptions.capacity());
         ImGui::TextFormat("components: {} / {} / {}",
-                          app->mod.components.size(),
-                          app->mod.components.max_used(),
-                          app->mod.components.capacity());
+                          app.mod.components.size(),
+                          app.mod.components.max_used(),
+                          app.mod.components.capacity());
         ImGui::TextFormat("registred_paths: {} / {} / {}",
-                          app->mod.registred_paths.size(),
-                          app->mod.registred_paths.max_used(),
-                          app->mod.registred_paths.capacity());
+                          app.mod.registred_paths.size(),
+                          app.mod.registred_paths.max_used(),
+                          app.mod.registred_paths.capacity());
         ImGui::TextFormat("dir_paths: {} / {} / {}",
-                          app->mod.dir_paths.size(),
-                          app->mod.dir_paths.max_used(),
-                          app->mod.dir_paths.capacity());
+                          app.mod.dir_paths.size(),
+                          app.mod.dir_paths.max_used(),
+                          app.mod.dir_paths.capacity());
         ImGui::TextFormat("file_paths: {} / {} / {}",
-                          app->mod.file_paths.size(),
-                          app->mod.file_paths.max_used(),
-                          app->mod.file_paths.capacity());
+                          app.mod.file_paths.size(),
+                          app.mod.file_paths.max_used(),
+                          app.mod.file_paths.capacity());
     }
 
     if (ImGui::CollapsingHeader("Simulation usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::TextFormat("models: {}", app->sim.models.size());
-        ImGui::TextFormat("hsms: {}", app->sim.hsms.size());
-        ImGui::TextFormat("observers: {}", app->sim.observers.size());
+        ImGui::TextFormat("models: {}", app.sim.models.size());
+        ImGui::TextFormat("hsms: {}", app.sim.hsms.size());
+        ImGui::TextFormat("observers: {}", app.sim.observers.size());
 
         ImGui::TextFormat("immediate_models: {}",
-                          app->sim.immediate_models.size());
+                          app.sim.immediate_models.size());
         ImGui::TextFormat("immediate_observers: {}",
-                          app->sim.immediate_observers.size());
+                          app.sim.immediate_observers.size());
 
-        ImGui::TextFormat("message_alloc: {}", app->sim.message_alloc.size());
-        ImGui::TextFormat("node: {}", app->sim.node_alloc.size());
-        ImGui::TextFormat("record: {}", app->sim.record_alloc.size());
+        ImGui::TextFormat("message_alloc: {}", app.sim.message_alloc.size());
+        ImGui::TextFormat("node: {}", app.sim.node_alloc.size());
+        ImGui::TextFormat("record: {}", app.sim.record_alloc.size());
 
         ImGui::TextFormat("dated_message_alloc: {}",
-                          app->sim.dated_message_alloc.size());
+                          app.sim.dated_message_alloc.size());
         ImGui::TextFormat("emitting_output_ports: {}",
-                          app->sim.emitting_output_ports.size());
+                          app.sim.emitting_output_ports.size());
 
         ImGui::TextFormat("contant sources: {}",
-                          app->sim.srcs.constant_sources.size());
+                          app.sim.srcs.constant_sources.size());
         ImGui::TextFormat("text sources: {}",
-                          app->sim.srcs.text_file_sources.size());
+                          app.sim.srcs.text_file_sources.size());
         ImGui::TextFormat("binary sources: {}",
-                          app->sim.srcs.binary_file_sources.size());
+                          app.sim.srcs.binary_file_sources.size());
         ImGui::TextFormat("random sources: {}",
-                          app->sim.srcs.random_sources.size());
+                          app.sim.srcs.random_sources.size());
     }
 
     if (ImGui::CollapsingHeader("Components")) {
         component* compo = nullptr;
-        while (app->mod.components.next(compo)) {
+        while (app.mod.components.next(compo)) {
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {
-                if (auto* s_compo = app->mod.simple_components.try_to_get(
-                      compo->id.simple_id);
+                if (auto* s_compo =
+                      app.mod.simple_components.try_to_get(compo->id.simple_id);
                     s_compo) {
                     ImGui::TextFormat("children: {}/{}",
                                       s_compo->children.size(),
@@ -102,7 +98,7 @@ void memory_window::show() noexcept
                     int x = 0, y = 0;
                     for (auto connection_id : s_compo->connections) {
                         auto* con =
-                          app->mod.connections.try_to_get(connection_id);
+                          app.mod.connections.try_to_get(connection_id);
                         if (!con)
                             continue;
 
@@ -136,12 +132,12 @@ void memory_window::show() noexcept
 
             ImGui::TableHeadersRow();
             registred_path* dir = nullptr;
-            while (app->mod.registred_paths.next(dir)) {
+            while (app.mod.registred_paths.next(dir)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
                 ImGui::TextFormat(
-                  "{}", ordinal(app->mod.registred_paths.get_id(*dir)));
+                  "{}", ordinal(app.mod.registred_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -158,12 +154,12 @@ void memory_window::show() noexcept
 
             ImGui::TableHeadersRow();
             dir_path* dir = nullptr;
-            while (app->mod.dir_paths.next(dir)) {
+            while (app.mod.dir_paths.next(dir)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
                 ImGui::TextFormat("{}",
-                                  ordinal(app->mod.dir_paths.get_id(*dir)));
+                                  ordinal(app.mod.dir_paths.get_id(*dir)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dir->path.c_str());
             }
@@ -180,12 +176,12 @@ void memory_window::show() noexcept
 
             ImGui::TableHeadersRow();
             file_path* file = nullptr;
-            while (app->mod.file_paths.next(file)) {
+            while (app.mod.file_paths.next(file)) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
                 ImGui::TextFormat("{}",
-                                  ordinal(app->mod.file_paths.get_id(*file)));
+                                  ordinal(app.mod.file_paths.get_id(*file)));
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(file->path.c_str());
             }

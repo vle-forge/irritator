@@ -755,8 +755,8 @@ void hsm_editor::show_panel() noexcept
     ImGui::TextFormat("status: {}", test_status_string[ordinal(m_test)]);
     ImGui::BeginDisabled(match(m_test, test_status::being_processed));
     if (ImGui::Button("test")) {
-        auto* app = container_of(this, &application::hsm_ed);
-        app->add_gui_task(task_hsm_test_start);
+        auto& app = container_of(this, &application::hsm_ed);
+        app.add_gui_task(task_hsm_test_start);
     }
     ImGui::EndDisabled();
 }
@@ -810,10 +810,10 @@ bool hsm_editor::valid() noexcept
 static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
   -> hierarchical_state_machine*
 {
-    auto* app = container_of(&ed, &application::hsm_ed);
+    auto& app = container_of(&ed, &application::hsm_ed);
 
     if (is_defined(cid)) {
-        auto& mod = app->mod;
+        auto& mod = app.mod;
 
         if (auto* compo = mod.components.try_to_get(cid); compo) {
             auto s_compo_id = compo->id.simple_id;
@@ -830,7 +830,7 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
             }
         }
     } else {
-        auto& sim = app->sim;
+        auto& sim = app.sim;
 
         if (auto* mdl = sim.models.try_to_get(mid); mdl) {
             if (mdl->type == dynamics_type::hsm_wrapper) {

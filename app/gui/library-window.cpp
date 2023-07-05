@@ -231,10 +231,10 @@ static void show_file_component(application& app,
 
 static void show_internal_components(component_editor& ed) noexcept
 {
-    auto* app = container_of(&ed, &application::component_ed);
+    auto& app = container_of(&ed, &application::component_ed);
 
     component* compo = nullptr;
-    while (app->mod.components.next(compo)) {
+    while (app.mod.components.next(compo)) {
         const auto is_internal = compo->type == component_type::internal;
 
         if (is_internal) {
@@ -243,7 +243,7 @@ static void show_internal_components(component_editor& ed) noexcept
               internal_component_names[ordinal(compo->id.internal_id)]);
             ImGui::PopID();
 
-            show_component_popup_menu(*app, *compo);
+            show_component_popup_menu(app, *compo);
         }
     }
 }
@@ -251,33 +251,33 @@ static void show_internal_components(component_editor& ed) noexcept
 static void show_notsaved_components(irt::component_editor& ed,
                                      irt::tree_node*        head) noexcept
 {
-    auto* app = container_of(&ed, &application::component_ed);
+    auto& app = container_of(&ed, &application::component_ed);
 
     component* compo = nullptr;
-    while (app->mod.components.next(compo)) {
+    while (app.mod.components.next(compo)) {
         const auto is_not_saved =
           compo->type != component_type::internal &&
-          app->mod.file_paths.try_to_get(compo->file) == nullptr;
+          app.mod.file_paths.try_to_get(compo->file) == nullptr;
 
         if (is_not_saved) {
-            const auto id       = app->mod.components.get_id(*compo);
+            const auto id       = app.mod.components.get_id(*compo);
             const bool selected = head ? id == head->id : false;
 
             ImGui::PushID(compo);
 
             ImGui::ColorEdit4(
               "Color selection",
-              to_float_ptr(app->mod.component_colors[get_index(id)]),
+              to_float_ptr(app.mod.component_colors[get_index(id)]),
               ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
 
             ImGui::SameLine(50.f);
             if (ImGui::Selectable(compo->name.c_str(), selected)) {
-                open_component(*app, id);
+                open_component(app, id);
             }
 
             ImGui::PopID();
 
-            show_component_popup_menu(*app, *compo);
+            show_component_popup_menu(app, *compo);
         }
     }
 }
@@ -286,20 +286,20 @@ static void show_dirpath_component(irt::component_editor& ed,
                                    dir_path&              dir,
                                    irt::tree_node*        head) noexcept
 {
-    auto* app = container_of(&ed, &application::component_ed);
+    auto& app = container_of(&ed, &application::component_ed);
 
     if (ImGui::TreeNodeEx(dir.path.c_str())) {
         int j = 0;
         while (j < dir.children.ssize()) {
             auto file_id = dir.children[j];
-            if (auto* file = app->mod.file_paths.try_to_get(file_id); file) {
+            if (auto* file = app.mod.file_paths.try_to_get(file_id); file) {
                 auto compo_id = file->component;
-                if (auto* compo = app->mod.components.try_to_get(compo_id);
+                if (auto* compo = app.mod.components.try_to_get(compo_id);
                     compo) {
-                    show_file_component(*app, *file, *compo, head);
+                    show_file_component(app, *file, *compo, head);
                     ++j;
                 } else {
-                    app->mod.file_paths.free(*file);
+                    app.mod.file_paths.free(*file);
                     dir.children.swap_pop_back(j);
                 }
             } else {
@@ -313,7 +313,7 @@ static void show_dirpath_component(irt::component_editor& ed,
 static void show_component_library(component_editor& c_editor,
                                    irt::tree_node*   tree) noexcept
 {
-    auto* app = container_of(&c_editor, &application::component_ed);
+    auto& app = container_of(&c_editor, &application::component_ed);
 
     if (ImGui::CollapsingHeader("Components",
                                 ImGuiTreeNodeFlags_AllowItemOverlap |
@@ -321,21 +321,21 @@ static void show_component_library(component_editor& c_editor,
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::SameLine();
         if (ImGui::Button("+generic"))
-            add_generic_component_data(*app);
+            add_generic_component_data(app);
 
         ImGui::SameLine();
         if (ImGui::Button("+grid"))
-            add_grid_component_data(*app);
+            add_grid_component_data(app);
 
         ImGui::SameLine();
         if (ImGui::Button("+graph"))
-            add_graph_component_data(*app);
+            add_graph_component_data(app);
 
-        for (auto id : app->mod.component_repertories) {
+        for (auto id : app.mod.component_repertories) {
             small_string<31>  s;
             small_string<31>* select;
 
-            auto* reg_dir = app->mod.registred_paths.try_to_get(id);
+            auto* reg_dir = app.mod.registred_paths.try_to_get(id);
             if (!reg_dir || reg_dir->status == registred_path::state::error)
                 continue;
 
@@ -352,7 +352,7 @@ static void show_component_library(component_editor& c_editor,
                 int i = 0;
                 while (i != reg_dir->children.ssize()) {
                     auto  dir_id = reg_dir->children[i];
-                    auto* dir    = app->mod.dir_paths.try_to_get(dir_id);
+                    auto* dir    = app.mod.dir_paths.try_to_get(dir_id);
 
                     if (dir) {
                         show_dirpath_component(c_editor, *dir, tree);
@@ -380,16 +380,16 @@ static void show_component_library(component_editor& c_editor,
 
 void library_window::show() noexcept
 {
-    auto* app = container_of(this, &application::library_wnd);
+    auto& app = container_of(this, &application::library_wnd);
 
     if (!ImGui::Begin(library_window::name, &is_open)) {
         ImGui::End();
         return;
     }
 
-    auto* tree = app->pj.tn_head();
+    auto* tree = app.pj.tn_head();
 
-    show_component_library(app->component_ed, tree);
+    show_component_library(app.component_ed, tree);
 
     // @TODO hidden part. Need to be fix to enable configure/observation
     // of project. ImGui::Separator(); show_input_output(*this);

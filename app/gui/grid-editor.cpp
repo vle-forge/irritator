@@ -264,9 +264,9 @@ void grid_component_editor_data::clear() noexcept
 
 void grid_component_editor_data::show(component_editor& ed) noexcept
 {
-    auto* app   = container_of(&ed, &application::component_ed);
-    auto* compo = app->mod.components.try_to_get(m_id);
-    auto* grid  = app->mod.grid_components.try_to_get(grid_id);
+    auto& app   = container_of(&ed, &application::component_ed);
+    auto* compo = app.mod.components.try_to_get(m_id);
+    auto* grid  = app.mod.grid_components.try_to_get(grid_id);
 
     irt_assert(compo && grid);
     if (selected.capacity() == 0) {
@@ -281,13 +281,13 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
     }
 
     show_type_widgets(*grid);
-    show_default_component_widgets(*app, *grid);
+    show_default_component_widgets(app, *grid);
 
     if (ImGui::BeginTable("##array", 2)) {
         ImGui::TableNextColumn();
-        show_grid(*app, *this, *grid);
+        show_grid(app, *this, *grid);
         ImGui::TableNextColumn();
-        show_selection(*app, *this, *grid);
+        show_selection(app, *this, *grid);
 
         ImGui::EndTable();
     }
@@ -298,10 +298,10 @@ grid_editor_dialog::grid_editor_dialog() noexcept
     grid.resize(5, 5, undefined<component_id>());
 }
 
-void grid_editor_dialog::load(application*       app_,
+void grid_editor_dialog::load(application&       app_,
                               generic_component* compo_) noexcept
 {
-    app        = app_;
+    app        = &app_;
     compo      = compo_;
     is_running = true;
     is_ok      = false;
@@ -336,7 +336,7 @@ void grid_editor_dialog::show() noexcept
 
         show_type_widgets(grid);
         show_default_component_widgets(
-          *container_of(this, &application::grid_dlg), grid);
+          container_of(this, &application::grid_dlg), grid);
         ImGui::EndChild();
 
         if (ImGui::Button("Ok", button_size)) {
