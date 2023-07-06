@@ -315,21 +315,26 @@ static void show_component_library(component_editor& c_editor,
 {
     auto& app = container_of(&c_editor, &application::component_ed);
 
+    const float item_spacing(ImGui::GetStyle().ItemSpacing.x);
+    const float region_width(ImGui::GetContentRegionAvail().x);
+    const ImVec2 button_size((region_width - item_spacing) / 3.f, 0);
+
+    if (ImGui::Button("+generic", button_size))
+        add_generic_component_data(app);
+
+    ImGui::SameLine();
+    if (ImGui::Button("+grid", button_size))
+        add_grid_component_data(app);
+
+    ImGui::SameLine();
+    if (ImGui::Button("+graph", button_size))
+        add_graph_component_data(app);
+
+
     if (ImGui::CollapsingHeader("Components",
-                                ImGuiTreeNodeFlags_AllowItemOverlap |
                                   ImGuiTreeNodeFlags_CollapsingHeader |
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::SameLine();
-        if (ImGui::Button("+generic"))
-            add_generic_component_data(app);
 
-        ImGui::SameLine();
-        if (ImGui::Button("+grid"))
-            add_grid_component_data(app);
-
-        ImGui::SameLine();
-        if (ImGui::Button("+graph"))
-            add_graph_component_data(app);
 
         for (auto id : app.mod.component_repertories) {
             small_string<31>  s;
