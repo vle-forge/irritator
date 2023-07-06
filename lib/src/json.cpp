@@ -3059,7 +3059,7 @@ struct reader
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("type"sv == name)
+              if ("graph-type"sv == name)
                   return value.IsString() &&
                          dispatch_graph_type(val, value, graph);
 
@@ -5396,7 +5396,7 @@ static status write_graph_component(io_cache& /*cache*/,
                                     const graph_component& graph,
                                     Writer&                w) noexcept
 {
-    w.Key("type");
+    w.Key("graph-type");
     write_graph_component_param(mod, graph.param, w);
 
     w.Key("children");

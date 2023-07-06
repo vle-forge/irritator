@@ -157,7 +157,8 @@ static inline constexpr const std::string_view log_level_names[] = {
 static constexpr inline const char* component_type_names[] = { "none",
                                                                "internal",
                                                                "simple",
-                                                               "grid" };
+                                                               "grid",
+                                                               "graph" };
 
 //! Try to get the component type from a string. If the string is unknown,
 //! optional returns \c std::nullopt.

@@ -74,6 +74,7 @@ auto get_component_type(std::string_view name) noexcept
     };
 
     static constexpr string_to_type table[] = {
+        { "graph", component_type::graph },
         { "grid", component_type::grid },
         { "internal", component_type::internal },
         { "none", component_type::none },
