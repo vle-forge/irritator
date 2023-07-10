@@ -193,6 +193,8 @@ static void show_file_component(application& app,
     const bool selected = head ? id == head->id : false;
     const auto state    = c.state;
 
+    small_string<254> buffer;
+
     ImGui::PushID(&c);
 
     ImGui::ColorEdit4("Color selection",
@@ -200,12 +202,17 @@ static void show_file_component(application& app,
                       ImGuiColorEditFlags_NoInputs |
                         ImGuiColorEditFlags_NoLabel);
 
+    format(buffer, "{} ({})", c.name.sv(), file.path.sv());
+
     ImGui::SameLine(75.f);
-    if (ImGui::Selectable(file.path.c_str(), selected))
+    if (ImGui::Selectable(buffer.c_str(), selected))
         open_component(app, id);
     ImGui::PopID();
 
     show_component_popup_menu(app, c);
+
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
 
     switch (state) {
     case component_status::unread:
@@ -221,12 +228,16 @@ static void show_file_component(application& app,
         ImGui::TextUnformatted(" (not-saved)");
         break;
     case component_status::unmodified:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (modified)");
         break;
     case component_status::unreadable:
         ImGui::SameLine();
         ImGui::TextUnformatted(" (unreadable)");
         break;
     }
+
+    ImGui::PopStyleColor();
 }
 
 static void show_internal_components(component_editor& ed) noexcept
@@ -315,8 +326,8 @@ static void show_component_library(component_editor& c_editor,
 {
     auto& app = container_of(&c_editor, &application::component_ed);
 
-    const float item_spacing(ImGui::GetStyle().ItemSpacing.x);
-    const float region_width(ImGui::GetContentRegionAvail().x);
+    const float  item_spacing(ImGui::GetStyle().ItemSpacing.x);
+    const float  region_width(ImGui::GetContentRegionAvail().x);
     const ImVec2 button_size((region_width - item_spacing) / 3.f, 0);
 
     if (ImGui::Button("+generic", button_size))
@@ -330,11 +341,9 @@ static void show_component_library(component_editor& c_editor,
     if (ImGui::Button("+graph", button_size))
         add_graph_component_data(app);
 
-
     if (ImGui::CollapsingHeader("Components",
-                                  ImGuiTreeNodeFlags_CollapsingHeader |
+                                ImGuiTreeNodeFlags_CollapsingHeader |
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
-
 
         for (auto id : app.mod.component_repertories) {
             small_string<31>  s;
