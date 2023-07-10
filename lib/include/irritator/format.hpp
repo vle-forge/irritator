@@ -44,7 +44,7 @@ constexpr void log_warning(modeling& mod,
                            const S&  fmt,
                            Args&&... args) noexcept
 {
-    using size_type = typename log_entry::string_t::size_type;
+    using size_type = typename log_str::size_type;
 
     if (mod.log_entries.full())
         mod.log_entries.pop_front();

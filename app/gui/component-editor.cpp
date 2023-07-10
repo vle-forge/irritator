@@ -130,7 +130,7 @@ static void show_file_access(application& app, component& compo) noexcept
         }
 
         if (dir == nullptr) {
-            small_string<dir_path::path_buffer_len> dir_name{};
+            directory_path_str dir_name;
 
             if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
                 if (!exist(

@@ -17,9 +17,6 @@
 
 namespace irt {
 
-constinit ImU32 undefined_color = IM_COL32(0, 0, 0, 255);
-constinit ImU32 selected_col    = IM_COL32(255, 0, 0, 255);
-
 static const char* grid_options[] = {
     "none",
     "row_cylinder",

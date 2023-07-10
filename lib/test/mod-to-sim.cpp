@@ -296,9 +296,9 @@ int main()
     };
 
     "grid-3x3"_test = [] {
-        irt::vector<char>                                       buffer;
-        irt::io_cache                                           cache;
-        irt::small_string<irt::registred_path::path_buffer_len> temp_path;
+        irt::vector<char>       buffer;
+        irt::io_cache           cache;
+        irt::registred_path_str temp_path;
 
         expect(get_temp_registred_path(temp_path) == true);
 

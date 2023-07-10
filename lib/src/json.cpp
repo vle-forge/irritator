@@ -1999,11 +1999,10 @@ struct reader
         return nullptr;
     }
 
-    bool modeling_copy_component_id(
-      const small_string<31>&                         reg,
-      const small_string<dir_path::path_buffer_len>&  dir,
-      const small_string<file_path::path_buffer_len>& file,
-      component_id&                                   c_id)
+    bool modeling_copy_component_id(const small_string<31>&   reg,
+                                    const directory_path_str& dir,
+                                    const file_path_str&      file,
+                                    component_id&             c_id)
     {
         registred_path* reg_ptr  = search_reg(reg.sv());
         dir_path*       dir_ptr  = nullptr;
@@ -2037,9 +2036,9 @@ struct reader
     {
         auto_stack a(this, stack_id::child_simple_or_grid_component);
 
-        small_string<31>                         reg_name;
-        small_string<dir_path::path_buffer_len>  dir_path;
-        small_string<file_path::path_buffer_len> file_path;
+        name_str           reg_name;
+        directory_path_str dir_path;
+        file_path_str      file_path;
 
         return for_each_member(
                  val,
@@ -2932,8 +2931,8 @@ struct reader
     {
         auto_stack s(this, stack_id::component_graph_param);
 
-        small_string<dir_path::path_buffer_len>  dir_path;
-        small_string<file_path::path_buffer_len> file_path;
+        directory_path_str dir_path;
+        file_path_str      file_path;
 
         return for_each_member(
                  val,
@@ -3380,10 +3379,10 @@ struct reader
     {
         auto_stack s(this, stack_id::project_top_component);
 
-        small_string<31>                         reg_name;
-        small_string<dir_path::path_buffer_len>  dir_path;
-        small_string<file_path::path_buffer_len> file_path;
-        component_id c_id = undefined<component_id>();
+        small_string<31>   reg_name;
+        directory_path_str dir_path;
+        file_path_str      file_path;
+        component_id       c_id = undefined<component_id>();
 
         return for_each_member(
                  val,

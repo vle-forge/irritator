@@ -33,6 +33,14 @@ enum class graph_parameter_id : u64;
 
 constexpr i32 max_component_dirs = 64;
 
+using port_str           = small_string<7>;
+using name_str           = small_string<31>;
+using description_str    = small_string<1022>;
+using registred_path_str = small_string<256 * 16 - 2>;
+using directory_path_str = small_string<512 - 2>;
+using file_path_str      = small_string<512 - 2>;
+using log_str            = small_string<512 - 2>;
+
 enum class child_type : i8
 {
     model,
@@ -148,7 +156,7 @@ struct io_cache
 //! @note  The size of the buffer is static for now
 struct description
 {
-    small_string<1022> data;
+    description_str    data;
     description_status status = description_status::unread;
 };
 
@@ -390,8 +398,8 @@ struct component
 
     component() noexcept;
 
-    std::array<small_string<7>, port_number> x_names;
-    std::array<small_string<7>, port_number> y_names;
+    std::array<port_str, port_number> x_names;
+    std::array<port_str, port_number> y_names;
 
     table<i32, child_id> child_mapping_io;
 
@@ -399,7 +407,7 @@ struct component
     registred_path_id reg_path = registred_path_id{ 0 };
     dir_path_id       dir      = dir_path_id{ 0 };
     file_path_id      file     = file_path_id{ 0 };
-    small_string<31>  name;
+    name_str          name;
 
     union id
     {
@@ -415,8 +423,6 @@ struct component
 
 struct registred_path
 {
-    static inline constexpr int path_buffer_len = 256 * 16 - 2;
-
     enum class state
     {
         none,
@@ -425,18 +431,19 @@ struct registred_path
         error,
     };
 
-    small_string<path_buffer_len> path;
-    small_string<31>              name;
-    state                         status   = state::unread;
-    i8                            priority = 0;
+    //! Use to store a absolute path in utf8.
+    registred_path_str path;
+
+    name_str name;
+
+    state status   = state::unread;
+    i8    priority = 0;
 
     vector<dir_path_id> children;
 };
 
 struct dir_path
 {
-    static inline constexpr int path_buffer_len = 256 - 1;
-
     enum class state
     {
         none,
@@ -445,20 +452,22 @@ struct dir_path
         error,
     };
 
-    small_string<path_buffer_len> path;
-    state                         status = state::unread;
-    registred_path_id             parent{ 0 };
+    //! use to store a directory name in utf8.
+    directory_path_str path;
+
+    state             status = state::unread;
+    registred_path_id parent{ 0 };
 
     vector<file_path_id> children;
 };
 
 struct file_path
 {
-    static inline constexpr int path_buffer_len = 256 - 1;
+    //! use to store a file name in utf8.
+    file_path_str path;
 
-    small_string<path_buffer_len> path;
-    dir_path_id                   parent{ 0 };
-    component_id                  component{ 0 };
+    dir_path_id  parent{ 0 };
+    component_id component{ 0 };
 };
 
 struct modeling_initializer
@@ -610,14 +619,14 @@ struct parameter
 
 struct grid_observer
 {
-    small_string<31> name;
+    name_str name;
 
     parent_access child;
 };
 
 struct graph_observer
 {
-    small_string<31> name;
+    name_str name;
 
     parent_access child;
 };
@@ -630,7 +639,7 @@ struct plot_observer
         dash,
     };
 
-    small_string<31>      name;
+    name_str              name;
     vector<global_access> children;
     vector<color>         colors;
     vector<type>          types;
@@ -638,7 +647,7 @@ struct plot_observer
 
 struct grid_parameter
 {
-    small_string<31> name;
+    name_str name;
 
     parent_access child;
     parameter     param;
@@ -646,7 +655,7 @@ struct grid_parameter
 
 struct graph_parameter
 {
-    small_string<31> name;
+    name_str name;
 
     parent_access child;
     parameter     param;
@@ -654,7 +663,7 @@ struct graph_parameter
 
 struct global_parameter
 {
-    small_string<31> name;
+    name_str name;
 
     vector<global_access> children;
     vector<parameter>     params;
@@ -662,11 +671,7 @@ struct global_parameter
 
 struct log_entry
 {
-    constexpr static int buffer_size = 254;
-
-    using string_t = small_string<buffer_size>;
-
-    string_t  buffer;
+    log_str   buffer;
     log_level level;
     status    st;
 };
@@ -687,9 +692,9 @@ struct modeling
     data_array<child, child_id>                        children;
     data_array<connection, connection_id>              connections;
 
-    vector<child_position>   children_positions;
-    vector<small_string<31>> children_names;
-    vector<component_color>  component_colors;
+    vector<child_position>  children_positions;
+    vector<name_str>        children_names;
+    vector<component_color> component_colors;
 
     small_vector<registred_path_id, max_component_dirs> component_repertories;
     external_source                                     srcs;
