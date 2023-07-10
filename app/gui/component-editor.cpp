@@ -323,7 +323,7 @@ template<typename T, typename ID>
 static void show_data(application&       app,
                       component_editor&  ed,
                       data_array<T, ID>& data,
-                      std::string_view   title) noexcept
+                      std::string_view /*title*/) noexcept
 {
     T* del     = nullptr;
     T* element = nullptr;
@@ -337,8 +337,8 @@ static void show_data(application&       app,
         auto tab_item_flags = ImGuiTabItemFlags_None;
         if (auto* c = app.mod.components.try_to_get(element->get_id()); c) {
             format(ed.title,
-                   "{} {}",
-                   title,
+                   "{}##{}",
+                   c->name.c_str(),
                    get_index(app.mod.components.get_id(c)));
 
             if (ed.need_to_open(app.mod.components.get_id(c))) {
@@ -363,8 +363,9 @@ static void show_data(application&       app,
                     ImGui::TableNextRow();
 
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::InputFilteredString(
-                      "Name", c->name, ImGuiInputTextFlags_EnterReturnsTrue);
+                    auto copy_name = c->name;
+                    if (ImGui::InputFilteredString("Name", copy_name))
+                        c->name = copy_name;
 
                     if (ImGui::CollapsingHeader("path"))
                         show_file_access(app, *c);
