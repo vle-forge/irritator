@@ -16,8 +16,12 @@
 
 namespace irt {
 
-constexpr static inline i32    simulation_task_number = 64;
-constexpr static inline ImVec4 black_color(0.f, 0.f, 0.f, 0.f);
+constexpr static inline i32                  simulation_task_number = 64;
+constexpr static inline std::array<float, 4> black_color{ 0.f, 0.f, 0.f, 0.f };
+constexpr static inline std::array<float, 4> default_component_color{ 0.5f,
+                                                                      0.5f,
+                                                                      0.5f,
+                                                                      0.0f };
 
 inline ImVec4& to_ImVec4(std::array<float, 4>& array) noexcept
 {

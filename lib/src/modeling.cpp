@@ -33,8 +33,6 @@ modeling::modeling() noexcept
 {
 }
 
-constinit component_color c = { 0.5f, 0.5f, 0.5f, 1.0f };
-
 status modeling::init(modeling_initializer& p) noexcept
 {
     irt_return_if_bad(descriptions.init(p.description_capacity));
@@ -55,8 +53,6 @@ status modeling::init(modeling_initializer& p) noexcept
     children_positions.resize(children.capacity());
     children_names.resize(children.capacity());
     component_colors.resize(components.capacity());
-
-    std::fill_n(component_colors.data(), component_colors.size(), c);
 
     return status::success;
 }
@@ -430,8 +426,9 @@ registred_path& modeling::alloc_registred(std::string_view name,
     auto& reg    = registred_paths.alloc();
     auto  reg_id = registred_paths.get_id(reg);
 
-    reg.name     = name;
-    reg.priority = static_cast<i8>(std::clamp<int>(priority, INT8_MIN, INT8_MAX));
+    reg.name = name;
+    reg.priority =
+      static_cast<i8>(std::clamp<int>(priority, INT8_MIN, INT8_MAX));
     component_repertories.emplace_back(reg_id);
 
     return reg;
