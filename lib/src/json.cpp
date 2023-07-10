@@ -958,14 +958,20 @@ struct reader
 
     bool affect_configurable_to(child_flags& flag) noexcept
     {
-        flag |= child_flags_configurable;
+        if (temp_bool)
+            flag |= child_flags_configurable;
+        else
+            flag &= ~child_flags_configurable;
 
         return true;
     }
 
     bool affect_observable_to(child_flags& flag) noexcept
     {
-        flag |= child_flags_observable;
+        if (temp_bool)
+            flag |= child_flags_observable;
+        else
+            flag &= ~child_flags_observable;
 
         return true;
     }
