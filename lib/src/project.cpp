@@ -387,12 +387,6 @@ static status make_tree_leaf(simulation_copy& sc,
         x.value = new_mdl_id;
     }
 
-    if (ch.flags & child_flags_configurable)
-        parent.parameters.emplace_back(ch.unique_id);
-
-    if (ch.flags & child_flags_observable)
-        parent.observables.emplace_back(ch.unique_id);
-
     return status::success;
 }
 

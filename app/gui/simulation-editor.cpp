@@ -37,62 +37,104 @@
 
 namespace irt {
 
+template<typename Function>
+void for_each_child(modeling&          mod,
+                    component&         compo,
+                    generic_component& generic,
+                    Function&&         f) noexcept
+{
+    for_each_data(mod.children, generic.children, [&](auto& child) noexcept {
+        f(compo, generic, child);
+    });
+}
+
+template<typename Function>
+void for_each_child(modeling&       mod,
+                    component&      compo,
+                    grid_component& grid,
+                    Function&&      f) noexcept
+{
+    for_each_data(mod.children, grid.cache, [&](auto& child) noexcept {
+        f(compo, grid, child);
+    });
+}
+
+template<typename Function>
+void for_each_child(modeling&        mod,
+                    component&       compo,
+                    graph_component& graph,
+                    Function&&       f) noexcept
+{
+    for_each_data(mod.children, graph.children, [&](auto& child) noexcept {
+        f(compo, graph, child);
+    });
+}
+
+template<typename Function>
+void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
+{
+    switch (compo.type) {
+    case component_type::simple:
+        if_data_exists_do(mod.simple_components,
+                          compo.id.simple_id,
+                          [&](auto& generic) noexcept {
+                              for_each_child(mod, compo, generic, f);
+                          });
+        break;
+
+    case component_type::internal:
+        break;
+
+    case component_type::grid:
+        if_data_exists_do(
+          mod.grid_components, compo.id.grid_id, [&](auto& grid) noexcept {
+              for_each_child(mod, compo, grid, f);
+          });
+        break;
+
+    case component_type::graph:
+        if_data_exists_do(
+          mod.graph_components, compo.id.graph_id, [&](auto& graph) noexcept {
+              for_each_child(mod, compo, graph, f);
+          });
+        break;
+
+    default:
+        irt_unreachable();
+    }
+}
+
+template<typename Function>
+void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
+{
+    if_data_exists_do(mod.components, tn.id, [&](auto& compo) noexcept {
+        for_each_child(mod, compo, f);
+    });
+}
+
+template<typename Function>
+void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
+{
+    for (int i = 0, e = tn.nodes_v.data.ssize(); i != e; ++i) {
+        switch (tn.nodes_v.data[i].value.index()) {
+        case 0:
+            break;
+
+        case 1: {
+            auto& mdl_id = *std::get_if<model_id>(&tn.nodes_v.data[i].value);
+            if_data_exists_do(
+              sim.models, mdl_id, [&](auto& mdl) { f(sim, tn, mdl); });
+        } break;
+
+        default:
+            irt_unreachable();
+        }
+    }
+}
+
 const char* observable_type_names[] = {
     "none", "file", "plot", "graph", "grid",
 };
-
-/**
- * @brief Show ImGui::ComboBox for observable type enumeration.
- * @return A pair of @c true and new @c observable_type or @c false and
- * undefined @c observable_type.
- */
-// static auto showComboBox(const char* label, const observable_type type)
-// noexcept
-//   -> std::pair<bool, observable_type>
-// {
-//     auto i   = ordinal(type);
-//     auto ret = ImGui::Combo(
-//       label, &i, observable_type_names, length(observable_type_names));
-
-//     return std::make_pair(ret, enum_cast<observable_type>(i));
-// }
-
-// bool ComboBox(application&         app,
-//               const char*          label,
-//               plot_observation_id* new_selected) noexcept
-// {
-//     auto selected_name = if_data_exists_return(
-//       app.simulation_ed.plot_obs,
-//       *new_selected,
-//       [&](auto& plot) noexcept -> std::string_view { return plot.name.sv();
-//       }, std::string_view{ "-" });
-
-//     small_string<31> name{ selected_name };
-//     bool             ret = false;
-
-//     if (ImGui::BeginCombo(label, name.c_str())) {
-//         if (ImGui::Selectable("-", is_undefined(*new_selected))) {
-//             *new_selected = undefined<plot_observation_id>();
-//             ret           = true;
-//         }
-
-//         for_each_data(
-//           app.simulation_ed.plot_obs, [&](auto& plot) noexcept -> void {
-//               ImGui::PushID(&plot);
-//               auto id = app.simulation_ed.plot_obs.get_id(plot);
-//               if (ImGui::Selectable(plot.name.c_str(), id == *new_selected))
-//               {
-//                   *new_selected = id;
-//                   ret           = true;
-//               }
-//               ImGui::PopID();
-//           });
-
-//         ImGui::EndCombo();
-//     }
-
-//     return ret;
-// }
 
 static int make_input_node_id(const irt::model_id mdl, const int port) noexcept
 {
@@ -1689,37 +1731,36 @@ static bool show_generic_simulation_settings(application& app,
             ImGui::TableSetupColumn("parameter");
             ImGui::TableHeadersRow();
 
-            for (int i = 0, e = tn.parameters.ssize(); i != e; ++i) {
-                ImGui::PushID(i);
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+            for_each_model(
+              app.sim, tn, [&](auto& sim, auto& tn, auto& mdl) noexcept {
+                  const auto mdl_id = sim.get_id(mdl);
 
-                // ImGui::Checkbox("##enable", &tn.parameters[i].enable);
-                // ImGui::TableNextColumn();
+                  ImGui::PushID(get_index(mdl_id));
 
-                // ImGui::TextFormat("{}", tn.parameters[i].unique_id);
-                // ImGui::TableNextColumn();
+                  ImGui::TableNextRow();
+                  ImGui::TableNextColumn();
 
-                // auto* mdl =
-                // app.sim.models.try_to_get(tn.parameters[i].mdl_id); if (mdl)
-                //     ImGui::TextFormat("{}",
-                //                       dynamics_type_names[ordinal(mdl->type)]);
-                // ImGui::TableNextColumn();
+                  bool enable = true;
+                  ImGui::Checkbox("##enable", &enable);
+                  ImGui::TableNextColumn();
 
-                // if (tn.parameters[i].enable) {
-                //     dispatch(tn.parameters[i].param,
-                //              [&]<typename Dynamics>(Dynamics& dyn) {
-                //                  if constexpr (!std::is_same_v<Dynamics,
-                //                                                hsm_wrapper>)
-                //                                                {
-                //                      show_dynamics_inputs(app.sim.srcs, dyn);
-                //                  }
-                //              });
-                // }
-                ImGui::TableNextColumn();
+                  ImGui::TextFormat("{}", ordinal(mdl_id));
+                  ImGui::TableNextColumn();
 
-                ImGui::PopID();
-            }
+                  ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl_id)]);
+                  ImGui::TableNextColumn();
+
+                  if (enable)
+                      dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+                          if constexpr (!std::is_same_v<Dynamics,
+                                                        hsm_wrapper>) {
+                              show_dynamics_inputs(app.sim.srcs, dyn);
+                          }
+                      });
+                  ImGui::TableNextColumn();
+
+                  ImGui::PopID();
+              });
 
             ImGui::EndTable();
         }
@@ -1945,30 +1986,23 @@ static void show_observable_model_box(application&  app,
         }
 
         if (ImGui::TreeNodeEx(str.c_str(), flags)) {
-            for (auto i = 0, e = tn.observables.ssize(); i != e; ++i) {
-                ImGui::PushID(i);
-                if (auto mdl_opt = tn.get_model_id(tn.observables[i]);
-                    mdl_opt.has_value()) {
-                    if_data_exists_do(
-                      app.sim.models, *mdl_opt, [&](model& mdl) noexcept {
-                          const auto current_tn_id = app.pj.node(tn);
-                          format(str,
-                                 "{} type {}",
-                                 tn.observables[i],
-                                 dynamics_type_names[ordinal(mdl.type)]);
-                          if (ImGui::Selectable(
-                                str.c_str(),
-                                selected_tn_id == current_tn_id &&
-                                  selected_mdl_id == *mdl_opt,
-                                ImGuiSelectableFlags_DontClosePopups)) {
-                              selected_tn_id  = current_tn_id;
-                              selected_mdl_id = *mdl_opt;
-                          }
-                      });
-                }
+            for_each_model(
+              app.sim, tn, [&](auto& sim, auto& tn, auto& mdl) noexcept {
+                  const auto mdl_id = sim.models.get_id(mdl);
+                  ImGui::PushID(get_index(mdl_id));
 
-                ImGui::PopID();
-            }
+                  const auto current_tn_id = app.pj.node(tn);
+                  str = dynamics_type_names[ordinal(mdl.type)];
+                  if (ImGui::Selectable(str.c_str(),
+                                        selected_tn_id == current_tn_id &&
+                                          selected_mdl_id == mdl_id,
+                                        ImGuiSelectableFlags_DontClosePopups)) {
+                      selected_tn_id  = current_tn_id;
+                      selected_mdl_id = mdl_id;
+                  }
+
+                  ImGui::PopID();
+              });
 
             if (auto* child = tn.tree.get_child(); child)
                 show_observable_model_box(
@@ -2008,27 +2042,17 @@ static void show_select_observation_model(application&            app,
         }
 
         if (ImGui::TreeNodeEx(str.c_str(), flags)) {
-            for (auto i = 0, e = tn.observables.ssize(); i != e; ++i) {
-                if (auto mdl_opt = tn.get_model_id(tn.observables[i]);
-                    mdl_opt.has_value()) {
+            for_each_model(
+              app.sim, tn, [&](auto& sim, auto& tn, auto& mdl) noexcept {
+                  const auto mdl_id = sim.models.get_id(mdl);
 
-                    if_data_exists_do(
-                      app.sim.models, *mdl_opt, [&](model& mdl) noexcept {
-                          format(str,
-                                 "{} type {}",
-                                 tn.observables[i],
-                                 dynamics_type_names[ordinal(mdl.type)]);
-                          if (ImGui::Selectable(str.c_str(),
-                                                *select == *mdl_opt))
-                              *select = *mdl_opt;
-                      });
+                  str = dynamics_type_names[ordinal(mdl.type)];
+                  if (ImGui::Selectable(str.c_str(), *select == mdl_id))
+                      *select = mdl_id;
+              });
 
-                    if (auto* child = tn.tree.get_child(); child)
-                        show_select_observation_model(
-                          app, grid_sim, *child, select);
-                }
-            }
-
+            if (auto* child = tn.tree.get_child(); child)
+                show_select_observation_model(app, grid_sim, *child, select);
             ImGui::TreePop();
         }
 
@@ -2408,7 +2432,6 @@ static bool show_simulation_plot_observations(application& app) noexcept
             if (ImGui::Button("OK", ImVec2(120, 0))) {
                 if (selected.is_defined())
                     plot.children.emplace_back(selected);
-                fmt::print("ok\n");
                 ImGui::CloseCurrentPopup();
             }
 

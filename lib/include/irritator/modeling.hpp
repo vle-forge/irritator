@@ -496,19 +496,14 @@ struct tree_node
 {
     tree_node(component_id id_, u64 unique_id_) noexcept;
 
+    //! Intrusive hierarchy to the children, sibling and parent @c tree_node.
+    hierarchy<tree_node> tree;
+
     //! Reference the current component
     component_id id = undefined<component_id>();
 
     //! A unique identifier provided by component parent.
     u64 unique_id = 0;
-
-    hierarchy<tree_node> tree;
-
-    //! Cache of model-id with observable tag.
-    vector<u64> parameters;
-
-    //! Cache of model-id with observable tag.
-    vector<u64> observables;
 
     //! Map component children into simulation model. Table build in @c
     //! project::set or @c project::rebuild functions.
