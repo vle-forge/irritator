@@ -685,74 +685,6 @@ static status add_component_to_current(component_editor&              ed,
     return status::success;
 }
 
-static void show_popup_all_component_menuitem(
-  component_editor&              ed,
-  generic_component_editor_data& data,
-  component&                     parent,
-  generic_component&             s_parent) noexcept
-{
-    auto& app = container_of(&ed, &application::component_ed);
-
-    for (auto id : app.mod.component_repertories) {
-        static small_string<31> s; //! @TODO remove this variable
-        small_string<31>*       select;
-
-        auto& reg_dir = app.mod.registred_paths.get(id);
-        if (reg_dir.name.empty()) {
-            format(s, "{}", ordinal(id));
-            select = &s;
-        } else {
-            select = &reg_dir.name;
-        }
-
-        ImGui::PushID(&reg_dir);
-        if (ImGui::BeginMenu(select->c_str())) {
-            for (auto dir_id : reg_dir.children) {
-                auto* dir = app.mod.dir_paths.try_to_get(dir_id);
-                if (!dir)
-                    break;
-
-                if (ImGui::BeginMenu(dir->path.c_str())) {
-                    for (auto file_id : dir->children) {
-                        auto* file = app.mod.file_paths.try_to_get(file_id);
-                        if (!file)
-                            break;
-
-                        auto* compo =
-                          app.mod.components.try_to_get(file->component);
-                        if (!compo)
-                            break;
-
-                        if (ImGui::MenuItem(file->path.c_str())) {
-                            add_component_to_current(
-                              ed, data, parent, s_parent, *compo);
-                        }
-                    }
-                    ImGui::EndMenu();
-                }
-            }
-            ImGui::EndMenu();
-        }
-        ImGui::PopID();
-    }
-
-    if (ImGui::BeginMenu("Not saved")) {
-        component* compo = nullptr;
-        while (app.mod.components.next(compo)) {
-            if (compo->state == component_status::modified) {
-                ImGui::PushID(compo);
-                if (ImGui::MenuItem(compo->name.c_str())) {
-                    add_component_to_current(
-                      ed, data, parent, s_parent, *compo);
-                }
-                ImGui::PopID();
-            }
-        }
-
-        ImGui::EndMenu();
-    }
-}
-
 static void show_popup_menuitem(component_editor&              ed,
                                 generic_component_editor_data& data,
                                 component&                     parent,
@@ -814,7 +746,13 @@ static void show_popup_menuitem(component_editor&              ed,
 
         ImGui::Separator();
 
-        show_popup_all_component_menuitem(ed, data, parent, s_parent);
+        component_id c_id = undefined<component_id>();
+        app.component_sel.menu("Component?", &c_id);
+        if (c_id != undefined<component_id>())
+            if_data_exists_do(
+              app.mod.components, c_id, [&](auto& compo) noexcept {
+                  add_component_to_current(ed, data, parent, s_parent, compo);
+              });
 
         ImGui::Separator();
 
