@@ -12,6 +12,7 @@
 #include "application.hpp"
 
 #include <imgui.h>
+
 #include <utility>
 
 namespace irt {

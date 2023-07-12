@@ -2,6 +2,8 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/modeling-helpers.hpp>
+
 #include "application.hpp"
 #include "dialog.hpp"
 #include "editor.hpp"
@@ -77,13 +79,6 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     n.level = log_level::error;
                     n.title = "Fail to build tree";
                     app.notifications.enable(n);
-                    // } else {
-                    // @TODO replace with:
-                    // if (can_initialize_project) {
-                    //     app.simulation_ed.simulation_copy_modeling();
-                    //     } else {
-                    //      ...
-                    // }
                 }
             }
 
@@ -143,45 +138,46 @@ static bool is_already_open(const data_array<T, ID>& data,
 
 static void open_component(application& app, component_id id) noexcept
 {
-    if (auto* compo = app.mod.components.try_to_get(id); compo) {
-        switch (compo->type) {
+    if_data_exists_do(app.mod.components, id, [&](auto& compo) noexcept {
+        switch (compo.type) {
         case component_type::none:
             break;
 
-        case component_type::simple: {
-            if (!is_already_open(app.generics, id)) {
-                auto* gen =
-                  app.mod.generic_components.try_to_get(compo->id.generic_id);
-                if (gen && app.generics.can_alloc())
-                    app.generics.alloc(id);
-            }
-            app.component_ed.request_to_open(id);
-        } break;
+        case component_type::simple:
+            if (!is_already_open(app.generics, id) && app.generics.can_alloc())
+                if_data_exists_do(
+                  app.mod.generic_components,
+                  compo.id.generic_id,
+                  [&](auto& generic) noexcept { app.generics.alloc(id); });
+            break;
 
-        case component_type::grid: {
-            if (!is_already_open(app.grids, id)) {
-                auto* grid =
-                  app.mod.grid_components.try_to_get(compo->id.grid_id);
-                if (grid && app.grids.can_alloc())
-                    app.grids.alloc(id, compo->id.grid_id);
-            }
-            app.component_ed.request_to_open(id);
-        } break;
+        case component_type::grid:
+            if (!is_already_open(app.grids, id) && app.grids.can_alloc())
+                if_data_exists_do(app.mod.grid_components,
+                                  compo.id.grid_id,
+                                  [&](auto& grid) noexcept {
+                                      app.grids.alloc(id, compo.id.grid_id);
+                                  });
+            break;
 
-        case component_type::graph: {
-            if (!is_already_open(app.graphs, id)) {
-                auto* graph =
-                  app.mod.graph_components.try_to_get(compo->id.graph_id);
-                if (graph && app.graphs.can_alloc())
-                    app.graphs.alloc(id, compo->id.graph_id);
-            }
-            app.component_ed.request_to_open(id);
-        } break;
+        case component_type::graph:
+            if (!is_already_open(app.graphs, id) && app.graphs.can_alloc())
+                if_data_exists_do(app.mod.graph_components,
+                                  compo.id.graph_id,
+                                  [&](auto& grid) noexcept {
+                                      app.graphs.alloc(id, compo.id.graph_id);
+                                  });
+            break;
 
         case component_type::internal:
             break;
+
+        default:
+            irt_unreachable();
         }
-    }
+
+        app.component_ed.request_to_open(id);
+    });
 }
 
 static void show_file_component(application& app,
@@ -244,19 +240,18 @@ static void show_internal_components(component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    component* compo = nullptr;
-    while (app.mod.components.next(compo)) {
-        const auto is_internal = compo->type == component_type::internal;
+    for_each_data(app.mod.components, [&app](auto& compo) noexcept {
+        const auto is_internal = compo.type == component_type::internal;
 
         if (is_internal) {
-            ImGui::PushID(compo);
+            ImGui::PushID(reinterpret_cast<const void*>(&compo));
             ImGui::Selectable(
-              internal_component_names[ordinal(compo->id.internal_id)]);
+              internal_component_names[ordinal(compo.id.internal_id)]);
             ImGui::PopID();
 
-            show_component_popup_menu(app, *compo);
+            show_component_popup_menu(app, compo);
         }
-    }
+    });
 }
 
 static void show_notsaved_components(irt::component_editor& ed,
@@ -264,33 +259,29 @@ static void show_notsaved_components(irt::component_editor& ed,
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    component* compo = nullptr;
-    while (app.mod.components.next(compo)) {
+    for_each_data(app.mod.components, [&](auto& compo) noexcept {
         const auto is_not_saved =
-          compo->type != component_type::internal &&
-          app.mod.file_paths.try_to_get(compo->file) == nullptr;
+          compo.type != component_type::internal &&
+          app.mod.file_paths.try_to_get(compo.file) == nullptr;
 
         if (is_not_saved) {
-            const auto id       = app.mod.components.get_id(*compo);
+            const auto id       = app.mod.components.get_id(compo);
             const bool selected = head ? id == head->id : false;
 
-            ImGui::PushID(compo);
-
+            ImGui::PushID(reinterpret_cast<const void*>(&compo));
             ImGui::ColorEdit4(
               "Color selection",
               to_float_ptr(app.mod.component_colors[get_index(id)]),
               ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
 
             ImGui::SameLine(50.f);
-            if (ImGui::Selectable(compo->name.c_str(), selected)) {
+            if (ImGui::Selectable(compo.name.c_str(), selected))
                 open_component(app, id);
-            }
-
             ImGui::PopID();
 
-            show_component_popup_menu(app, *compo);
+            show_component_popup_menu(app, compo);
         }
-    }
+    });
 }
 
 static void show_dirpath_component(irt::component_editor& ed,
@@ -300,23 +291,11 @@ static void show_dirpath_component(irt::component_editor& ed,
     auto& app = container_of(&ed, &application::component_ed);
 
     if (ImGui::TreeNodeEx(dir.path.c_str())) {
-        int j = 0;
-        while (j < dir.children.ssize()) {
-            auto file_id = dir.children[j];
-            if (auto* file = app.mod.file_paths.try_to_get(file_id); file) {
-                auto compo_id = file->component;
-                if (auto* compo = app.mod.components.try_to_get(compo_id);
-                    compo) {
-                    show_file_component(app, *file, *compo, head);
-                    ++j;
-                } else {
-                    app.mod.file_paths.free(*file);
-                    dir.children.swap_pop_back(j);
-                }
-            } else {
-                dir.children.swap_pop_back(j);
-            }
-        }
+        for_each_component(
+          app.mod, dir, [&](auto& dir, auto& file, auto& compo) noexcept {
+              show_file_component(app, file, compo, head);
+          });
+
         ImGui::TreePop();
     }
 }
@@ -326,9 +305,7 @@ static void show_component_library(component_editor& c_editor,
 {
     auto& app = container_of(&c_editor, &application::component_ed);
 
-    const float  item_spacing(ImGui::GetStyle().ItemSpacing.x);
-    const float  region_width(ImGui::GetContentRegionAvail().x);
-    const ImVec2 button_size((region_width - item_spacing) / 3.f, 0);
+    const ImVec2 button_size = ImGui::ComputeButtonSize(3);
 
     if (ImGui::Button("+generic", button_size))
         add_generic_component_data(app);
