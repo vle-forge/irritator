@@ -7,8 +7,45 @@
 
 #include <irritator/core.hpp>
 #include <irritator/helpers.hpp>
+#include <irritator/modeling.hpp>
 
 namespace irt {
+
+template<typename Function>
+void for_each_component(modeling&       mod,
+                        registred_path& reg_path,
+                        dir_path&       dir_path,
+                        Function&&      f) noexcept
+{
+    for_specified_data(
+      mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
+          if_data_exists_do(
+            mod.components, file_path.component, [&](auto& compo) noexcept {
+                f(reg_path, dir_path, file_path, compo);
+            });
+      });
+}
+
+template<typename Function>
+void for_each_component(modeling&       mod,
+                        registred_path& reg_path,
+                        Function&&      f) noexcept
+{
+    for_specified_data(
+      mod.dir_paths, reg_path.children, [&](auto& dir_path) noexcept {
+          return for_each_component(mod, reg_path, dir_path, f);
+      });
+}
+
+template<typename Function>
+void for_each_component(modeling&                  mod,
+                        vector<registred_path_id>& dirs,
+                        Function&&                 f) noexcept
+{
+    for_specified_data(mod.registred_paths, dirs, [&](auto& reg_path) noexcept {
+        return for_each_component(mod, reg_path, f);
+    });
+}
 
 template<typename Function>
 void for_each_child(modeling&          mod,
