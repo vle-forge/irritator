@@ -2296,14 +2296,14 @@ static bool show_local_simulation_settings(application& app) noexcept
 
 static bool show_simulation_plot_observations(application& app) noexcept
 {
-    std::optional<plot_observer_id> to_delete;
-    bool                            is_modified = false;
+    std::optional<variable_observer_id> to_delete;
+    bool                                is_modified = false;
 
     static global_access selected;
 
-    for_each_data(app.pj.plot_observers, [&](auto& plot) noexcept {
+    for_each_data(app.pj.variable_observers, [&](auto& plot) noexcept {
         ImGui::PushID(&plot);
-        const auto id  = app.pj.plot_observers.get_id(plot);
+        const auto id  = app.pj.variable_observers.get_id(plot);
         auto       idx = static_cast<u64>(ordinal(id));
         ImGui::InputScalar("id",
                            ImGuiDataType_U64,
@@ -2388,7 +2388,7 @@ static bool show_simulation_plot_observations(application& app) noexcept
     });
 
     if (to_delete.has_value()) {
-        app.pj.plot_observers.free(*to_delete);
+        app.pj.variable_observers.free(*to_delete);
         is_modified = true;
     }
 
@@ -2589,11 +2589,11 @@ static bool show_main_simulation_observations(application& app) noexcept
         ImGui::SameLine();
 
         if (ImGui::Button("+##plots")) {
-            if (app.pj.plot_observers.can_alloc()) {
-                auto& plot = app.pj.plot_observers.alloc();
+            if (app.pj.variable_observers.can_alloc()) {
+                auto& plot = app.pj.variable_observers.alloc();
                 format(plot.name,
                        "rename-{}",
-                       get_index(app.pj.plot_observers.get_id(plot)));
+                       get_index(app.pj.variable_observers.get_id(plot)));
             }
         }
 

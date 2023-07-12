@@ -345,7 +345,7 @@ enum class error_id
     project_access_parameter_error,
     project_access_observable_error,
     project_access_tree_error,
-    project_plot_observers_not_enough,
+    project_variable_observers_not_enough,
     project_grid_observers_not_enough,
     project_global_parameters_not_enough,
     project_grid_parameters_not_enough,
@@ -419,7 +419,7 @@ static inline constexpr std::string_view error_id_names[] = {
     "project_access_parameter_error",
     "project_access_observable_error",
     "project_access_tree_error",
-    "project_plot_observers_not_enough",
+    "project_variable_observers_not_enough",
     "project_grid_observers_not_enough",
     "project_global_parameters_not_enough",
     "project_grid_parameters_not_enough",
@@ -846,10 +846,10 @@ struct reader
         return true;
     }
 
-    bool project_plot_observers_can_alloc(std::integral auto i) noexcept
+    bool project_variable_observers_can_alloc(std::integral auto i) noexcept
     {
-        if (!pj().plot_observers.can_alloc(i))
-            report_json_error(error_id::project_plot_observers_not_enough);
+        if (!pj().variable_observers.can_alloc(i))
+            report_json_error(error_id::project_variable_observers_not_enough);
 
         return true;
     }
@@ -3662,7 +3662,7 @@ struct reader
     }
 
     bool read_project_plot_observation_child(const rapidjson::Value& val,
-                                             plot_observer& plot) noexcept
+                                             variable_observer& plot) noexcept
     {
         auto_stack s(this, stack_id::project_plot_observation_child);
 
@@ -3686,19 +3686,20 @@ struct reader
           });
     }
 
-    bool copy_to(plot_observer::type& type) noexcept
+    bool copy_to(variable_observer::type& type) noexcept
     {
         if (temp_string == "line")
-            type = plot_observer::type::line;
+            type = variable_observer::type::line;
 
         if (temp_string == "dash")
-            type = plot_observer::type::dash;
+            type = variable_observer::type::dash;
 
         return false;
     }
 
-    bool read_project_plot_observation_children(const rapidjson::Value& val,
-                                                plot_observer& plot) noexcept
+    bool read_project_plot_observation_children(
+      const rapidjson::Value& val,
+      variable_observer&      plot) noexcept
     {
         auto_stack s(this, stack_id::project_plot_observation_children);
 
@@ -3714,7 +3715,7 @@ struct reader
     }
 
     bool read_project_plot_observation(const rapidjson::Value& val,
-                                       plot_observer&          plot) noexcept
+                                       variable_observer&      plot) noexcept
     {
         auto_stack s(this, stack_id::project_plot_observation);
 
@@ -3737,11 +3738,11 @@ struct reader
         i64 size = 0;
 
         return is_value_array(val) && copy_array_size(val, size) &&
-               project_plot_observers_can_alloc(size) &&
+               project_variable_observers_can_alloc(size) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& plot = pj().plot_observers.alloc();
+                     auto& plot = pj().variable_observers.alloc();
                      return read_project_plot_observation(value, plot);
                  });
     }
@@ -5953,7 +5954,7 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
     w.Key("global");
     w.StartArray();
 
-    for_each_data(pj.plot_observers, [&](auto& plot) noexcept {
+    for_each_data(pj.variable_observers, [&](auto& plot) noexcept {
         w.StartObject();
         w.Key("name");
         w.String(plot.name.begin(), plot.name.size());

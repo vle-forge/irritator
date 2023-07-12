@@ -28,7 +28,8 @@ static status simulation_init_observation(application& app) noexcept
     app.simulation_ed.grid_obs.clear();
 
     irt_return_if_bad(try_for_each_data(
-      app.pj.plot_observers, [&](plot_observer& obs) noexcept -> status {
+      app.pj.variable_observers,
+      [&](variable_observer& obs) noexcept -> status {
           auto& plot_ed = app.simulation_ed.plot_obs.emplace_back();
           return plot_ed.init(app, obs);
       }));
@@ -140,9 +141,9 @@ static void simulation_init(component_editor&  ed,
     }
 
     {
-        plot_observer* plot = nullptr;
-        while (app.pj.plot_observers.next(plot)) {
-            const auto id  = app.pj.plot_observers.get_id(plot);
+        variable_observer* plot = nullptr;
+        while (app.pj.variable_observers.next(plot)) {
+            const auto id  = app.pj.variable_observers.get_id(plot);
             const auto idx = get_index(id);
 
             app.simulation_ed.plot_obs[idx].init(app, *plot);

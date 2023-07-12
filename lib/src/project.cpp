@@ -1050,7 +1050,7 @@ static status make_tree_from(simulation_copy&                     sc,
 status project::init(int size) noexcept
 {
     irt_return_if_bad(m_tree_nodes.init(size));
-    irt_return_if_bad(plot_observers.init(size));
+    irt_return_if_bad(variable_observers.init(size));
     irt_return_if_bad(grid_observers.init(size));
     irt_return_if_bad(global_parameters.init(size));
     irt_return_if_bad(grid_parameters.init(size));

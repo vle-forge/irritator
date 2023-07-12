@@ -218,11 +218,11 @@ public:
 
     //! @brief Clear, initialize the plot and connect to @c observer_id.
     //! @details Clear the @c plot_observation_widget and use the @c
-    //!  plot_observer data to initialize all @c observer_id from the
+    //!  variable_observer data to initialize all @c observer_id from the
     //!  simulation layer.
     //!
     //! @return The status.
-    status init(application& app, plot_observer& plot) noexcept;
+    status init(application& app, variable_observer& plot) noexcept;
 
     //! Clear the children vector.
     void clear() noexcept;
@@ -239,7 +239,7 @@ public:
     vector<observer_id>          observers;
     vector<simulation_plot_type> plot_types;
 
-    plot_observer_id id = undefined<plot_observer_id>();
+    variable_observer_id id = undefined<variable_observer_id>();
 };
 
 class grid_observation_widget

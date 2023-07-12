@@ -24,7 +24,7 @@ enum class file_path_id : u64;
 enum class child_id : u64;
 enum class connection_id : u64;
 enum class registred_path_id : u64;
-enum class plot_observer_id : u64;
+enum class variable_observer_id : u64;
 enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
@@ -123,7 +123,7 @@ struct modeling;
 struct description;
 struct io_cache;
 struct tree_node;
-struct plot_observer;
+struct variable_observer;
 struct grid_observer;
 struct graph_observer;
 
@@ -626,7 +626,7 @@ struct graph_observer
     parent_access child;
 };
 
-struct plot_observer
+struct variable_observer
 {
     enum class type
     {
@@ -969,13 +969,13 @@ public:
     auto get_tn_id(const unique_id_path& path) noexcept
       -> std::optional<tree_node_id>;
 
-    data_array<tree_node, tree_node_id>               m_tree_nodes;
-    data_array<plot_observer, plot_observer_id>       plot_observers;
-    data_array<grid_observer, grid_observer_id>       grid_observers;
-    data_array<graph_observer, graph_observer_id>     graph_observers;
-    data_array<global_parameter, global_parameter_id> global_parameters;
-    data_array<grid_parameter, grid_parameter_id>     grid_parameters;
-    data_array<graph_parameter, graph_parameter_id>   graph_parameters;
+    data_array<tree_node, tree_node_id>                 m_tree_nodes;
+    data_array<variable_observer, variable_observer_id> variable_observers;
+    data_array<grid_observer, grid_observer_id>         grid_observers;
+    data_array<graph_observer, graph_observer_id>       graph_observers;
+    data_array<global_parameter, global_parameter_id>   global_parameters;
+    data_array<grid_parameter, grid_parameter_id>       grid_parameters;
+    data_array<graph_parameter, graph_parameter_id>     graph_parameters;
 
 private:
     component_id m_head    = undefined<component_id>();
