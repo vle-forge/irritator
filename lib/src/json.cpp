@@ -2851,14 +2851,14 @@ struct reader
                  });
     }
 
-    bool read_simple_component(const rapidjson::Value& val,
-                               component&              compo) noexcept
+    bool read_generic_component(const rapidjson::Value& val,
+                                component&              compo) noexcept
     {
         auto_stack s(this, stack_id::component_generic);
 
-        auto& generic      = mod().simple_components.alloc();
+        auto& generic      = mod().generic_components.alloc();
         compo.type         = component_type::simple;
-        compo.id.simple_id = mod().simple_components.get_id(generic);
+        compo.id.simple_id = mod().generic_components.get_id(generic);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
@@ -3086,7 +3086,7 @@ struct reader
             return read_internal_component(val, compo);
 
         case component_type::simple:
-            return read_simple_component(val, compo);
+            return read_generic_component(val, compo);
 
         case component_type::grid:
             return read_grid_component(val, compo);
@@ -5200,7 +5200,7 @@ static status write_child(const modeling& mod,
 }
 
 template<typename Writer>
-static status write_simple_component_children(
+static status write_generic_component_children(
   io_cache& /*cache*/,
   const modeling&          mod,
   const generic_component& simple_compo,
@@ -5249,10 +5249,11 @@ static status write_component_ports(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static status write_simple_component_connections(io_cache& /*cache*/,
-                                                 const modeling&          mod,
-                                                 const generic_component& compo,
-                                                 Writer& w) noexcept
+static status write_generic_component_connections(
+  io_cache& /*cache*/,
+  const modeling&          mod,
+  const generic_component& compo,
+  Writer&                  w) noexcept
 {
     w.Key("connections");
     w.StartArray();
@@ -5305,16 +5306,16 @@ static status write_simple_component_connections(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static status write_simple_component(io_cache&                cache,
-                                     const modeling&          mod,
-                                     const generic_component& s_compo,
-                                     Writer&                  w) noexcept
+static status write_generic_component(io_cache&                cache,
+                                      const modeling&          mod,
+                                      const generic_component& s_compo,
+                                      Writer&                  w) noexcept
 {
     w.String("next-unique-id");
     w.Uint64(s_compo.next_unique_id);
 
-    write_simple_component_children(cache, mod, s_compo, w);
-    write_simple_component_connections(cache, mod, s_compo, w);
+    write_generic_component_children(cache, mod, s_compo, w);
+    write_generic_component_connections(cache, mod, s_compo, w);
 
     return status::success;
 }
@@ -5466,10 +5467,10 @@ static status do_component_save(Writer&          w,
 
     case component_type::simple: {
         ret = if_data_exists_return(
-          mod.simple_components,
+          mod.generic_components,
           compo.id.simple_id,
           [&](auto& generic) noexcept -> status {
-              return write_simple_component(cache, mod, generic, w);
+              return write_generic_component(cache, mod, generic, w);
           },
           status::unknown_dynamics); // @TODO undefined component.
     } break;

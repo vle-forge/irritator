@@ -40,7 +40,7 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(components.init(p.component_capacity));
     irt_return_if_bad(grid_components.init(p.component_capacity));
     irt_return_if_bad(graph_components.init(p.component_capacity));
-    irt_return_if_bad(simple_components.init(p.component_capacity));
+    irt_return_if_bad(generic_components.init(p.component_capacity));
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
     irt_return_if_bad(registred_paths.init(p.dir_path_capacity));
@@ -538,9 +538,9 @@ bool modeling::can_alloc_graph_component() const noexcept
     return components.can_alloc() && graph_components.can_alloc();
 }
 
-bool modeling::can_alloc_simple_component() const noexcept
+bool modeling::can_alloc_generic_component() const noexcept
 {
-    return components.can_alloc() && simple_components.can_alloc();
+    return components.can_alloc() && generic_components.can_alloc();
 }
 
 component& modeling::alloc_grid_component() noexcept
@@ -577,9 +577,9 @@ component& modeling::alloc_graph_component() noexcept
     return new_compo;
 }
 
-component& modeling::alloc_simple_component() noexcept
+component& modeling::alloc_generic_component() noexcept
 {
-    irt_assert(can_alloc_simple_component());
+    irt_assert(can_alloc_generic_component());
 
     auto& new_compo    = components.alloc();
     auto  new_compo_id = components.get_id(new_compo);
@@ -587,8 +587,8 @@ component& modeling::alloc_simple_component() noexcept
     new_compo.type  = component_type::simple;
     new_compo.state = component_status::modified;
 
-    auto& new_s_compo      = simple_components.alloc();
-    new_compo.id.simple_id = simple_components.get_id(new_s_compo);
+    auto& new_s_compo      = generic_components.alloc();
+    new_compo.id.simple_id = generic_components.get_id(new_s_compo);
 
     return new_compo;
 }
@@ -635,7 +635,7 @@ static bool fill_children(const modeling&       mod,
 
     case component_type::simple: {
         auto id = compo.id.simple_id;
-        if (auto* s = mod.simple_components.try_to_get(id); s) {
+        if (auto* s = mod.generic_components.try_to_get(id); s) {
             for (auto id : s->children)
                 if (auto* ch = mod.children.try_to_get(id); ch)
                     if (fill_child(mod, *ch, out, search))
@@ -707,7 +707,7 @@ void modeling::free(component& compo) noexcept
 {
     switch (compo.type) {
     case component_type::simple:
-        if (auto* s = simple_components.try_to_get(compo.id.simple_id); s) {
+        if (auto* s = generic_components.try_to_get(compo.id.simple_id); s) {
             for (auto child_id : s->children)
                 if (auto* child = children.try_to_get(child_id); child)
                     free(*child);
@@ -716,7 +716,7 @@ void modeling::free(component& compo) noexcept
                 if (auto* con = connections.try_to_get(connection_id); con)
                     free(*con);
 
-            simple_components.free(*s);
+            generic_components.free(*s);
         }
         break;
 
@@ -830,13 +830,13 @@ status modeling::copy(const component& src, component& dst) noexcept
         break;
 
     case component_type::simple:
-        if (const auto* s_src = simple_components.try_to_get(src.id.simple_id);
+        if (const auto* s_src = generic_components.try_to_get(src.id.simple_id);
             s_src) {
-            irt_return_if_fail(simple_components.can_alloc(),
+            irt_return_if_fail(generic_components.can_alloc(),
                                status::data_array_not_enough_memory);
 
-            auto& s_dst      = simple_components.alloc();
-            auto  s_dst_id   = simple_components.get_id(s_dst);
+            auto& s_dst      = generic_components.alloc();
+            auto  s_dst_id   = generic_components.get_id(s_dst);
             dst.id.simple_id = s_dst_id;
             dst.type         = component_type::simple;
 

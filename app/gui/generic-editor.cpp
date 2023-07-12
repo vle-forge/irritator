@@ -236,7 +236,7 @@ static void show(component_editor&              ed,
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
               auto  s_compo_id = parent.id.simple_id;
-              auto* s_compo = app.mod.simple_components.try_to_get(s_compo_id);
+              auto* s_compo = app.mod.generic_components.try_to_get(s_compo_id);
               if (s_compo) {
                   if (auto* machine = app.mod.hsms.try_to_get(dyn.id);
                       machine) {
@@ -521,7 +521,7 @@ static void show_graph(component_editor&              ed,
                     break;
 
                 case component_type::simple:
-                    if (auto* s_compo = app.mod.simple_components.try_to_get(
+                    if (auto* s_compo = app.mod.generic_components.try_to_get(
                           compo->id.simple_id)) {
                         show_generic(ed, data, *compo, *s_compo, *c, child_id);
                     }
@@ -1153,7 +1153,7 @@ void generic_component_editor_data::show(component_editor& ed) noexcept
     if (auto* compo = app.mod.components.try_to_get(get_id()); compo) {
         const auto s_id = compo->id.simple_id;
 
-        if (auto* s = app.mod.simple_components.try_to_get(s_id); s)
+        if (auto* s = app.mod.generic_components.try_to_get(s_id); s)
             show_component_editor(ed, *this, *compo, *s);
     }
 }

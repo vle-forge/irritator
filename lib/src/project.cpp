@@ -97,7 +97,8 @@ bool get_generic_connections(const modeling&         mod,
 {
     irt_assert(compo.type == component_type::simple);
 
-    if (auto* ptr = mod.simple_components.try_to_get(compo.id.simple_id); ptr) {
+    if (auto* ptr = mod.generic_components.try_to_get(compo.id.simple_id);
+        ptr) {
         out = &ptr->connections;
         return true;
     }
@@ -499,7 +500,7 @@ static status make_tree_recursive(simulation_copy& sc,
     switch (compo.type) {
     case component_type::simple: {
         auto s_id = compo.id.simple_id;
-        if (auto* s = sc.mod.simple_components.try_to_get(s_id); s)
+        if (auto* s = sc.mod.generic_components.try_to_get(s_id); s)
             irt_return_if_bad(make_tree_recursive(sc, new_tree, *s));
     } break;
 
@@ -652,7 +653,7 @@ static status get_input_models(simulation_copy&               sc,
         switch (compo->type) {
         case component_type::simple:
             if (auto* g =
-                  sc.mod.simple_components.try_to_get(compo->id.simple_id);
+                  sc.mod.generic_components.try_to_get(compo->id.simple_id);
                 g) {
                 for (auto cnx_id : g->connections) {
                     if (auto* cnx = sc.mod.connections.try_to_get(cnx_id);
@@ -732,7 +733,7 @@ static status get_output_models(simulation_copy&               sc,
         switch (compo->type) {
         case component_type::simple:
             if (auto* g =
-                  sc.mod.simple_components.try_to_get(compo->id.simple_id);
+                  sc.mod.generic_components.try_to_get(compo->id.simple_id);
                 g) {
                 for (auto cnx_id : g->connections) {
                     if (auto* cnx = sc.mod.connections.try_to_get(cnx_id);
@@ -882,7 +883,7 @@ static status simulation_copy_connections(simulation_copy& sc,
 {
     switch (compo.type) {
     case component_type::simple: {
-        if (auto* g = sc.mod.simple_components.try_to_get(compo.id.simple_id);
+        if (auto* g = sc.mod.generic_components.try_to_get(compo.id.simple_id);
             g)
             return simulation_copy_connections(sc, tree, g->connections);
     } break;
@@ -1019,7 +1020,7 @@ static status make_tree_from(simulation_copy&                     sc,
     switch (parent.type) {
     case component_type::simple: {
         auto s_id = parent.id.simple_id;
-        if (auto* s = sc.mod.simple_components.try_to_get(s_id); s)
+        if (auto* s = sc.mod.generic_components.try_to_get(s_id); s)
             irt_return_if_bad(make_tree_recursive(sc, new_tree, *s));
     } break;
 

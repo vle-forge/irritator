@@ -563,7 +563,7 @@ static bool is_ports_compatible(modeling& mod,
             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
             irt_assert(compo_dst);
             auto* s_compo_dst =
-              mod.simple_components.try_to_get(compo_dst->id.simple_id);
+              mod.generic_components.try_to_get(compo_dst->id.simple_id);
             irt_assert(s_compo_dst);
 
             return is_ports_compatible(
@@ -574,7 +574,7 @@ static bool is_ports_compatible(modeling& mod,
         auto* compo_src    = mod.components.try_to_get(compo_src_id);
         irt_assert(compo_src);
         auto* s_compo_src =
-          mod.simple_components.try_to_get(compo_src->id.simple_id);
+          mod.generic_components.try_to_get(compo_src->id.simple_id);
         irt_assert(s_compo_src);
 
         if (child_dst->type == child_type::model) {
@@ -589,7 +589,7 @@ static bool is_ports_compatible(modeling& mod,
             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
             irt_assert(compo_dst);
             auto* s_compo_dst =
-              mod.simple_components.try_to_get(compo_dst->id.simple_id);
+              mod.generic_components.try_to_get(compo_dst->id.simple_id);
             irt_assert(s_compo_dst);
 
             return is_ports_compatible(
@@ -759,11 +759,11 @@ status modeling::copy(const generic_component& src,
 
 status modeling::copy(internal_component src, component& dst) noexcept
 {
-    irt_return_if_fail(simple_components.can_alloc(),
+    irt_return_if_fail(generic_components.can_alloc(),
                        status::data_array_not_enough_memory);
 
-    auto& s_compo    = simple_components.alloc();
-    auto  s_compo_id = simple_components.get_id(s_compo);
+    auto& s_compo    = generic_components.alloc();
+    auto  s_compo_id = generic_components.get_id(s_compo);
     dst.type         = component_type::simple;
     dst.id.simple_id = s_compo_id;
 

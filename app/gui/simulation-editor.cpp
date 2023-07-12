@@ -1623,7 +1623,7 @@ static bool show_generic_simulation_settings(application& app,
     ImGui::TextUnformatted("Generic component");
 
     int   is_modified = 0;
-    auto* g = app.mod.simple_components.try_to_get(compo.id.simple_id);
+    auto* g = app.mod.generic_components.try_to_get(compo.id.simple_id);
 
     ImGui::TextFormatDisabled("{} children", g->children.ssize());
     ImGui::TextFormatDisabled("{} connections", g->connections.ssize());

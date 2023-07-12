@@ -85,7 +85,7 @@ void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
 {
     switch (compo.type) {
     case component_type::simple:
-        if_data_exists_do(mod.simple_components,
+        if_data_exists_do(mod.generic_components,
                           compo.id.simple_id,
                           [&](auto& generic) noexcept {
                               for_each_child(mod, compo, generic, f);

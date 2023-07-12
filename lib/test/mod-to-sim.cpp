@@ -44,20 +44,20 @@ int main()
         pj.init(32);
         sim.init(256, 4096);
 
-        auto& c1  = mod.alloc_simple_component();
-        auto& s1  = mod.simple_components.get(c1.id.simple_id);
+        auto& c1  = mod.alloc_generic_component();
+        auto& s1  = mod.generic_components.get(c1.id.simple_id);
         auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
         expect(irt::is_success(
           mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
 
-        auto& c2  = mod.alloc_simple_component();
-        auto& s2  = mod.simple_components.get(c2.id.simple_id);
+        auto& c2  = mod.alloc_generic_component();
+        auto& s2  = mod.generic_components.get(c2.id.simple_id);
         auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
         expect(irt::is_success(
           mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
 
-        auto& c3   = mod.alloc_simple_component();
-        auto& s3   = mod.simple_components.get(c3.id.simple_id);
+        auto& c3   = mod.alloc_generic_component();
+        auto& s3   = mod.generic_components.get(c3.id.simple_id);
         auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
         expect(irt::is_success(mod.connect(
@@ -94,16 +94,16 @@ int main()
         pj.init(32);
         sim.init(256, 4096);
 
-        auto& c1 = mod.alloc_simple_component();
-        auto& s1 = mod.simple_components.get(c1.id.simple_id);
+        auto& c1 = mod.alloc_generic_component();
+        auto& s1 = mod.generic_components.get(c1.id.simple_id);
         mod.alloc(s1, irt::dynamics_type::counter);
 
-        auto& c2 = mod.alloc_simple_component();
-        auto& s2 = mod.simple_components.get(c2.id.simple_id);
+        auto& c2 = mod.alloc_generic_component();
+        auto& s2 = mod.generic_components.get(c2.id.simple_id);
         mod.alloc(s2, irt::dynamics_type::time_func);
 
-        auto& c3 = mod.alloc_simple_component();
-        auto& s3 = mod.simple_components.get(c3.id.simple_id);
+        auto& c3 = mod.alloc_generic_component();
+        auto& s3 = mod.generic_components.get(c3.id.simple_id);
         mod.alloc(s3, mod.components.get_id(c2));
         mod.alloc(s3, mod.components.get_id(c1));
 
@@ -131,32 +131,32 @@ int main()
         pj.init(32);
         sim.init(256, 4096);
 
-        auto& c1  = mod.alloc_simple_component();
-        auto& s1  = mod.simple_components.get(c1.id.simple_id);
+        auto& c1  = mod.alloc_generic_component();
+        auto& s1  = mod.generic_components.get(c1.id.simple_id);
         auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
         expect(irt::is_success(
           mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
 
-        auto& c11  = mod.alloc_simple_component();
-        auto& s11  = mod.simple_components.get(c11.id.simple_id);
+        auto& c11  = mod.alloc_generic_component();
+        auto& s11  = mod.generic_components.get(c11.id.simple_id);
         auto& ch11 = mod.alloc(s11, mod.components.get_id(c1));
         expect(irt::is_success(
           mod.connect_input(s11, 0, mod.children.get_id(ch11), 0)));
 
-        auto& c2  = mod.alloc_simple_component();
-        auto& s2  = mod.simple_components.get(c2.id.simple_id);
+        auto& c2  = mod.alloc_generic_component();
+        auto& s2  = mod.generic_components.get(c2.id.simple_id);
         auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
         expect(irt::is_success(
           mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
 
-        auto& c22  = mod.alloc_simple_component();
-        auto& s22  = mod.simple_components.get(c22.id.simple_id);
+        auto& c22  = mod.alloc_generic_component();
+        auto& s22  = mod.generic_components.get(c22.id.simple_id);
         auto& ch22 = mod.alloc(s22, mod.components.get_id(c2));
         expect(irt::is_success(
           mod.connect_output(s22, mod.children.get_id(ch22), 0, 0)));
 
-        auto& c3   = mod.alloc_simple_component();
-        auto& s3   = mod.simple_components.get(c3.id.simple_id);
+        auto& c3   = mod.alloc_generic_component();
+        auto& s3   = mod.generic_components.get(c3.id.simple_id);
         auto& ch31 = mod.alloc(s3, mod.components.get_id(c22));
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c11));
         expect(irt::is_success(mod.connect(
@@ -194,8 +194,8 @@ int main()
         pj.init(mod_init.tree_capacity *= 10);
         sim.init(256, 4096);
 
-        auto& c = mod.alloc_simple_component();
-        auto& s = mod.simple_components.get(c.id.simple_id);
+        auto& c = mod.alloc_generic_component();
+        auto& s = mod.generic_components.get(c.id.simple_id);
         mod.alloc(s, irt::dynamics_type::counter);
 
         expect(eq(mod.children.ssize(), 1));
@@ -221,8 +221,8 @@ int main()
         pj.init(mod_init.tree_capacity *= 10);
         sim.init(256, 4096);
 
-        auto& c = mod.alloc_simple_component();
-        auto& s = mod.simple_components.get(c.id.simple_id);
+        auto& c = mod.alloc_generic_component();
+        auto& s = mod.generic_components.get(c.id.simple_id);
         mod.alloc(s, irt::dynamics_type::counter);
 
         expect(eq(mod.children.ssize(), 1));
@@ -248,8 +248,8 @@ int main()
         pj.init(mod_init.tree_capacity *= 10);
         sim.init(256, 4096);
 
-        auto& c = mod.alloc_simple_component();
-        auto& s = mod.simple_components.get(c.id.simple_id);
+        auto& c = mod.alloc_generic_component();
+        auto& s = mod.generic_components.get(c.id.simple_id);
         mod.alloc(s, irt::dynamics_type::counter);
 
         expect(eq(mod.children.ssize(), 1));
@@ -274,8 +274,8 @@ int main()
         pj.init(mod_init.tree_capacity *= 10);
         sim.init(256, 4096);
 
-        auto& c = mod.alloc_simple_component();
-        auto& s = mod.simple_components.get(c.id.simple_id);
+        auto& c = mod.alloc_generic_component();
+        auto& s = mod.generic_components.get(c.id.simple_id);
         mod.alloc(s, irt::dynamics_type::counter);
 
         expect(eq(mod.children.ssize(), 1));
@@ -312,20 +312,20 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            auto& c1  = mod.alloc_simple_component();
-            auto& s1  = mod.simple_components.get(c1.id.simple_id);
+            auto& c1  = mod.alloc_generic_component();
+            auto& s1  = mod.generic_components.get(c1.id.simple_id);
             auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
             expect(irt::is_success(
               mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
 
-            auto& c2  = mod.alloc_simple_component();
-            auto& s2  = mod.simple_components.get(c2.id.simple_id);
+            auto& c2  = mod.alloc_generic_component();
+            auto& s2  = mod.generic_components.get(c2.id.simple_id);
             auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
             expect(irt::is_success(
               mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
 
-            auto& c3   = mod.alloc_simple_component();
-            auto& s3   = mod.simple_components.get(c3.id.simple_id);
+            auto& c3   = mod.alloc_generic_component();
+            auto& s3   = mod.generic_components.get(c3.id.simple_id);
             auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
             expect(irt::is_success(mod.connect(
@@ -507,21 +507,21 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            auto& c1  = mod.alloc_simple_component();
-            auto& s1  = mod.simple_components.get(c1.id.simple_id);
+            auto& c1  = mod.alloc_generic_component();
+            auto& s1  = mod.generic_components.get(c1.id.simple_id);
             auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
 
             expect(irt::is_success(
               mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
 
-            auto& c2  = mod.alloc_simple_component();
-            auto& s2  = mod.simple_components.get(c2.id.simple_id);
+            auto& c2  = mod.alloc_generic_component();
+            auto& s2  = mod.generic_components.get(c2.id.simple_id);
             auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
             expect(irt::is_success(
               mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
 
-            auto& c3           = mod.alloc_simple_component();
-            auto& s3           = mod.simple_components.get(c3.id.simple_id);
+            auto& c3           = mod.alloc_generic_component();
+            auto& s3           = mod.generic_components.get(c3.id.simple_id);
             auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
             auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);
@@ -573,21 +573,21 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            auto& c1  = mod.alloc_simple_component();
-            auto& s1  = mod.simple_components.get(c1.id.simple_id);
+            auto& c1  = mod.alloc_generic_component();
+            auto& s1  = mod.generic_components.get(c1.id.simple_id);
             auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
 
             expect(irt::is_success(
               mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
 
-            auto& c2  = mod.alloc_simple_component();
-            auto& s2  = mod.simple_components.get(c2.id.simple_id);
+            auto& c2  = mod.alloc_generic_component();
+            auto& s2  = mod.generic_components.get(c2.id.simple_id);
             auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
             expect(irt::is_success(
               mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
 
-            auto& c3           = mod.alloc_simple_component();
-            auto& s3           = mod.simple_components.get(c3.id.simple_id);
+            auto& c3           = mod.alloc_generic_component();
+            auto& s3           = mod.generic_components.get(c3.id.simple_id);
             auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
             auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);
@@ -641,21 +641,21 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            auto& c1  = mod.alloc_simple_component();
-            auto& s1  = mod.simple_components.get(c1.id.simple_id);
+            auto& c1  = mod.alloc_generic_component();
+            auto& s1  = mod.generic_components.get(c1.id.simple_id);
             auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
 
             expect(irt::is_success(
               mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
 
-            auto& c2  = mod.alloc_simple_component();
-            auto& s2  = mod.simple_components.get(c2.id.simple_id);
+            auto& c2  = mod.alloc_generic_component();
+            auto& s2  = mod.generic_components.get(c2.id.simple_id);
             auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
             expect(irt::is_success(
               mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
 
-            auto& c3           = mod.alloc_simple_component();
-            auto& s3           = mod.simple_components.get(c3.id.simple_id);
+            auto& c3           = mod.alloc_generic_component();
+            auto& s3           = mod.generic_components.get(c3.id.simple_id);
             auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
             auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);

@@ -14,7 +14,7 @@
 namespace irt {
 
 enum class component_id : u64;
-enum class simple_component_id : u64;
+enum class generic_component_id : u64;
 enum class graph_component_id : u64;
 enum class grid_component_id : u64;
 enum class tree_node_id : u64;
@@ -411,10 +411,10 @@ struct component
 
     union id
     {
-        internal_component  internal_id;
-        simple_component_id simple_id;
-        grid_component_id   grid_id;
-        graph_component_id  graph_id;
+        internal_component   internal_id;
+        generic_component_id simple_id;
+        grid_component_id    grid_id;
+        graph_component_id   graph_id;
     } id;
 
     component_type   type  = component_type::none;
@@ -673,19 +673,19 @@ struct log_entry
 
 struct modeling
 {
-    data_array<description, description_id>            descriptions;
-    data_array<generic_component, simple_component_id> simple_components;
-    data_array<grid_component, grid_component_id>      grid_components;
-    data_array<graph_component, graph_component_id>    graph_components;
-    data_array<component, component_id>                components;
-    data_array<registred_path, registred_path_id>      registred_paths;
-    data_array<dir_path, dir_path_id>                  dir_paths;
-    data_array<file_path, file_path_id>                file_paths;
-    data_array<model, model_id>                        parameters;
-    data_array<model, model_id>                        models;
-    data_array<hierarchical_state_machine, hsm_id>     hsms;
-    data_array<child, child_id>                        children;
-    data_array<connection, connection_id>              connections;
+    data_array<description, description_id>             descriptions;
+    data_array<generic_component, generic_component_id> generic_components;
+    data_array<grid_component, grid_component_id>       grid_components;
+    data_array<graph_component, graph_component_id>     graph_components;
+    data_array<component, component_id>                 components;
+    data_array<registred_path, registred_path_id>       registred_paths;
+    data_array<dir_path, dir_path_id>                   dir_paths;
+    data_array<file_path, file_path_id>                 file_paths;
+    data_array<model, model_id>                         parameters;
+    data_array<model, model_id>                         models;
+    data_array<hierarchical_state_machine, hsm_id>      hsms;
+    data_array<child, child_id>                         children;
+    data_array<connection, connection_id>               connections;
 
     vector<child_position>  children_positions;
     vector<name_str>        children_names;
@@ -746,11 +746,11 @@ struct modeling
     void free(registred_path& dir) noexcept;
 
     bool can_alloc_grid_component() const noexcept;
-    bool can_alloc_simple_component() const noexcept;
+    bool can_alloc_generic_component() const noexcept;
     bool can_alloc_graph_component() const noexcept;
 
     component& alloc_grid_component() noexcept;
-    component& alloc_simple_component() noexcept;
+    component& alloc_generic_component() noexcept;
     component& alloc_graph_component() noexcept;
 
     //! For grid_component, build the children and connections

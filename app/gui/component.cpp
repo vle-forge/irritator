@@ -70,8 +70,8 @@ void component_editor::add_generic_component() noexcept
 {
     auto& app = container_of(this, &application::component_ed);
 
-    if (app.mod.can_alloc_simple_component()) {
-        auto& compo = app.mod.alloc_simple_component();
+    if (app.mod.can_alloc_generic_component()) {
+        auto& compo = app.mod.alloc_generic_component();
 
         auto& notif = app.notifications.alloc(log_level::notice);
         notif.title = "Component";

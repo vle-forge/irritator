@@ -817,7 +817,7 @@ static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
 
         if (auto* compo = mod.components.try_to_get(cid); compo) {
             auto s_compo_id = compo->id.simple_id;
-            if (auto* s_compo = mod.simple_components.try_to_get(s_compo_id);
+            if (auto* s_compo = mod.generic_components.try_to_get(s_compo_id);
                 s_compo) {
                 if (auto* mdl = mod.models.try_to_get(mid); mdl) {
                     if (mdl->type == dynamics_type::hsm_wrapper) {
