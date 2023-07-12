@@ -924,9 +924,9 @@ private:
     component_id      selected_id   = undefined<component_id>();
     small_string<254> selected_name = "undefined";
 
-    i16 files     = 0; //! Number of component in registred directories
-    i16 internals = 0; //! Number of internal component
-    i16 unsaved   = 0; //! Number of unsaved component
+    int files     = 0; //! Number of component in registred directories
+    int internals = 0; //! Number of internal component
+    int unsaved   = 0; //! Number of unsaved component
 };
 
 struct application

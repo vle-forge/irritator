@@ -4,6 +4,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 
 #include "application.hpp"
 #include "imgui.h"
@@ -85,6 +86,7 @@ void component_selector::update() noexcept
 
     ids.clear();
     names.clear();
+
     files     = 0;
     internals = 0;
     unsaved   = 0;
@@ -92,68 +94,48 @@ void component_selector::update() noexcept
     ids.emplace_back(undefined<component_id>());
     cs_make_selected_name(names.emplace_back());
 
-    for (auto id : mod.component_repertories) {
-        if (auto* reg = mod.registred_paths.try_to_get(id); reg) {
-            for (auto dir_id : reg->children) {
-                if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
-                    for (auto file_id : dir->children) {
-                        if (auto* file = mod.file_paths.try_to_get(file_id);
-                            file) {
-                            if (auto* compo =
-                                  mod.components.try_to_get(file->component);
-                                compo) {
-                                ids.emplace_back(file->component);
-                                auto& str = names.emplace_back();
+    for_each_component(
+      mod,
+      mod.component_repertories,
+      [&](auto& reg, auto& dir, auto& file, auto& compo) noexcept {
+          ids.emplace_back(file.component);
+          auto& str = names.emplace_back();
 
-                                cs_make_selected_name(reg->name.sv(),
-                                                      dir->path.sv(),
-                                                      file->path.sv(),
-                                                      *compo,
-                                                      file->component,
-                                                      str);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+          cs_make_selected_name(reg.name.sv(),
+                                dir.path.sv(),
+                                file.path.sv(),
+                                compo,
+                                file.component,
+                                str);
+      });
 
     files = ids.size();
 
-    {
-        component* compo = nullptr;
-        while (mod.components.next(compo)) {
-            if (compo->type == component_type::internal) {
-                auto id = mod.components.get_id(*compo);
-                ids.emplace_back(id);
-                auto& str = names.emplace_back();
-                cs_make_selected_name(
-                  internal_component_names[ordinal(compo->id.internal_id)],
-                  str);
-            }
+    for_each_data(mod.components, [&](auto& compo) noexcept {
+        if (compo.type == component_type::internal) {
+            ids.emplace_back(mod.components.get_id(compo));
+            auto& str = names.emplace_back();
+
+            cs_make_selected_name(
+              internal_component_names[ordinal(compo.id.internal_id)], str);
         }
-    }
+    });
 
-    internals = ids.size() - files;
+    internals = ids.size();
 
-    {
-        component* compo = nullptr;
-        while (mod.components.next(compo)) {
-            const auto is_not_saved =
-              compo->type != component_type::internal &&
-              mod.file_paths.try_to_get(compo->file) == nullptr;
+    for_each_data(mod.components, [&](auto& compo) noexcept {
+        if (compo.type != component_type::internal &&
+            mod.file_paths.try_to_get(compo.file) == nullptr) {
 
-            if (is_not_saved) {
-                auto id = mod.components.get_id(*compo);
-                ids.emplace_back(id);
-                auto& str = names.emplace_back();
-                cs_make_selected_name(compo->name.sv(), id, str);
-            }
+            const auto id = mod.components.get_id(compo);
+            ids.emplace_back(id);
+            auto& str = names.emplace_back();
+
+            cs_make_selected_name(compo.name.sv(), id, str);
         }
-    }
+    });
 
-    unsaved = ids.size() - internals - files;
+    unsaved = ids.size();
 }
 
 bool component_selector::combobox(const char*   label,
@@ -259,7 +241,7 @@ bool component_selector::menu(const char*   label,
         }
 
         if (ImGui::BeginMenu("Internal components")) {
-            for (int i = files, e = files + internals; i < e; ++i) {
+            for (int i = files, e = internals; i < e; ++i) {
                 if (ImGui::MenuItem(names[i].c_str())) {
                     ret           = true;
                     *new_selected = ids[i];
@@ -269,7 +251,7 @@ bool component_selector::menu(const char*   label,
         }
 
         if (ImGui::BeginMenu("Unsaved components")) {
-            for (int i = files + internals, e = ids.size(); i < e; ++i) {
+            for (int i = internals, e = unsaved; i < e; ++i) {
                 if (ImGui::MenuItem(names[i].c_str())) {
                     ret           = true;
                     *new_selected = ids[i];
