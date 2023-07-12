@@ -28,8 +28,6 @@ enum class variable_observer_id : u64;
 enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
-enum class grid_parameter_id : u64;
-enum class graph_parameter_id : u64;
 
 constexpr i32 max_component_dirs = 64;
 
@@ -640,22 +638,6 @@ struct variable_observer
     vector<type>          types;
 };
 
-struct grid_parameter
-{
-    name_str name;
-
-    parent_access child;
-    parameter     param;
-};
-
-struct graph_parameter
-{
-    name_str name;
-
-    parent_access child;
-    parameter     param;
-};
-
 struct global_parameter
 {
     name_str name;
@@ -969,13 +951,13 @@ public:
     auto get_tn_id(const unique_id_path& path) noexcept
       -> std::optional<tree_node_id>;
 
-    data_array<tree_node, tree_node_id>                 tree_nodes;
+    data_array<tree_node, tree_node_id> tree_nodes;
+
     data_array<variable_observer, variable_observer_id> variable_observers;
     data_array<grid_observer, grid_observer_id>         grid_observers;
     data_array<graph_observer, graph_observer_id>       graph_observers;
-    data_array<global_parameter, global_parameter_id>   global_parameters;
-    data_array<grid_parameter, grid_parameter_id>       grid_parameters;
-    data_array<graph_parameter, graph_parameter_id>     graph_parameters;
+
+    data_array<global_parameter, global_parameter_id> global_parameters;
 
 private:
     component_id m_head    = undefined<component_id>();

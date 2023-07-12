@@ -838,14 +838,6 @@ struct reader
         return true;
     }
 
-    bool project_grid_parameters_can_alloc(std::integral auto i) noexcept
-    {
-        if (!pj().grid_parameters.can_alloc(i))
-            report_json_error(error_id::project_grid_parameters_not_enough);
-
-        return true;
-    }
-
     bool project_variable_observers_can_alloc(std::integral auto i) noexcept
     {
         if (!pj().variable_observers.can_alloc(i))
@@ -3532,49 +3524,6 @@ struct reader
                  });
     }
 
-    bool read_grid_parameter(const rapidjson::Value& val,
-                             grid_parameter&         param) noexcept
-    {
-        auto_stack s(this, stack_id::project_grid_parameter);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              project::unique_id_path path;
-              if ("name"sv == name)
-                  return read_temp_string(value) && copy_to(param.name);
-
-              if ("grid"sv == name)
-                  return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_id(path, param.child.parent_id);
-
-              if ("access"sv == name)
-                  return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(
-                           path, param.child.tn_id, param.child.mdl_id);
-
-              if ("param"sv == name)
-                  return read_parameter(value, param.param);
-
-              return true;
-          });
-    }
-
-    bool read_grid_parameters(const rapidjson::Value& val) noexcept
-    {
-        auto_stack s(this, stack_id::project_grid_parameters);
-
-        i64 size = 0;
-
-        return is_value_array(val) && copy_array_size(val, size) &&
-               project_grid_parameters_can_alloc(size) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& param = pj().grid_parameters.alloc();
-                     return read_grid_parameter(value, param);
-                 });
-    }
-
     bool read_project_parameters(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, stack_id::project_parameters);
@@ -3583,9 +3532,6 @@ struct reader
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("global"sv == name)
                   return read_global_parameters(value);
-
-              if ("grid"sv == name)
-                  return read_grid_parameters(value);
 
               return false;
           });
@@ -5943,7 +5889,6 @@ static status do_project_save_parameters(Writer& w, project& pj) noexcept
 
     w.StartObject();
     irt_return_if_bad(do_project_save_global_parameters(w, pj));
-    irt_return_if_bad(do_project_save_grid_parameters(w, pj));
     w.EndObject();
 
     return status::success;
@@ -6081,35 +6026,6 @@ static status do_project_save_global_parameters(Writer& w, project& pj) noexcept
 
     for_each_data(pj.global_parameters, [&](auto& param) noexcept {
         do_project_save_global_parameter(w, pj, param);
-    });
-
-    w.EndArray();
-
-    return status::success;
-}
-
-template<typename Writer>
-static status do_project_save_grid_parameters(Writer& w, project& pj) noexcept
-{
-    w.Key("grid");
-    w.StartArray();
-
-    for_each_data(pj.grid_parameters, [&](auto& param) noexcept {
-        w.StartObject();
-        w.Key("name");
-        w.String(param.name.begin(), param.name.size());
-
-        project::unique_id_path path;
-        w.Key("grid");
-        write_project_unique_id_path(w, path);
-        pj.build_unique_id_path(param.child.parent_id, path);
-
-        w.Key("access");
-        pj.build_unique_id_path(param.child.tn_id, param.child.mdl_id, path);
-
-        write_parameter(w, param.param);
-
-        w.EndObject();
     });
 
     w.EndArray();
