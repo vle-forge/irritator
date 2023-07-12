@@ -587,8 +587,8 @@ component& modeling::alloc_generic_component() noexcept
     new_compo.type  = component_type::simple;
     new_compo.state = component_status::modified;
 
-    auto& new_s_compo      = generic_components.alloc();
-    new_compo.id.simple_id = generic_components.get_id(new_s_compo);
+    auto& new_s_compo       = generic_components.alloc();
+    new_compo.id.generic_id = generic_components.get_id(new_s_compo);
 
     return new_compo;
 }
@@ -634,7 +634,7 @@ static bool fill_children(const modeling&       mod,
     } break;
 
     case component_type::simple: {
-        auto id = compo.id.simple_id;
+        auto id = compo.id.generic_id;
         if (auto* s = mod.generic_components.try_to_get(id); s) {
             for (auto id : s->children)
                 if (auto* ch = mod.children.try_to_get(id); ch)
@@ -707,7 +707,7 @@ void modeling::free(component& compo) noexcept
 {
     switch (compo.type) {
     case component_type::simple:
-        if (auto* s = generic_components.try_to_get(compo.id.simple_id); s) {
+        if (auto* s = generic_components.try_to_get(compo.id.generic_id); s) {
             for (auto child_id : s->children)
                 if (auto* child = children.try_to_get(child_id); child)
                     free(*child);
@@ -830,15 +830,16 @@ status modeling::copy(const component& src, component& dst) noexcept
         break;
 
     case component_type::simple:
-        if (const auto* s_src = generic_components.try_to_get(src.id.simple_id);
+        if (const auto* s_src =
+              generic_components.try_to_get(src.id.generic_id);
             s_src) {
             irt_return_if_fail(generic_components.can_alloc(),
                                status::data_array_not_enough_memory);
 
-            auto& s_dst      = generic_components.alloc();
-            auto  s_dst_id   = generic_components.get_id(s_dst);
-            dst.id.simple_id = s_dst_id;
-            dst.type         = component_type::simple;
+            auto& s_dst       = generic_components.alloc();
+            auto  s_dst_id    = generic_components.get_id(s_dst);
+            dst.id.generic_id = s_dst_id;
+            dst.type          = component_type::simple;
 
             irt_return_if_bad(copy(*s_src, s_dst));
         }

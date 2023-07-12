@@ -2856,9 +2856,9 @@ struct reader
     {
         auto_stack s(this, stack_id::component_generic);
 
-        auto& generic      = mod().generic_components.alloc();
-        compo.type         = component_type::simple;
-        compo.id.simple_id = mod().generic_components.get_id(generic);
+        auto& generic       = mod().generic_components.alloc();
+        compo.type          = component_type::simple;
+        compo.id.generic_id = mod().generic_components.get_id(generic);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
@@ -5468,7 +5468,7 @@ static status do_component_save(Writer&          w,
     case component_type::simple: {
         ret = if_data_exists_return(
           mod.generic_components,
-          compo.id.simple_id,
+          compo.id.generic_id,
           [&](auto& generic) noexcept -> status {
               return write_generic_component(cache, mod, generic, w);
           },

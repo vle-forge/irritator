@@ -267,7 +267,7 @@ static void show_selected_children(application&                   app,
                                    generic_component_editor_data& data) noexcept
 {
     if (auto* s_compo =
-          app.mod.generic_components.try_to_get(compo.id.simple_id);
+          app.mod.generic_components.try_to_get(compo.id.generic_id);
         s_compo) {
         for (int i = 0, e = data.selected_nodes.size(); i != e; ++i) {
             auto* child = app.mod.children.try_to_get(

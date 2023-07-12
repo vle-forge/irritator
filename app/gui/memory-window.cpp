@@ -79,7 +79,7 @@ void memory_window::show() noexcept
             ImGui::PushID(compo);
             if (ImGui::TreeNode(compo->name.c_str())) {
                 if (auto* s_compo = app.mod.generic_components.try_to_get(
-                      compo->id.simple_id);
+                      compo->id.generic_id);
                     s_compo) {
                     ImGui::TextFormat("children: {}/{}",
                                       s_compo->children.size(),

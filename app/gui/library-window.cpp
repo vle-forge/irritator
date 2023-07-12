@@ -151,7 +151,7 @@ static void open_component(application& app, component_id id) noexcept
         case component_type::simple: {
             if (!is_already_open(app.generics, id)) {
                 auto* gen =
-                  app.mod.generic_components.try_to_get(compo->id.simple_id);
+                  app.mod.generic_components.try_to_get(compo->id.generic_id);
                 if (gen && app.generics.can_alloc())
                     app.generics.alloc(id);
             }

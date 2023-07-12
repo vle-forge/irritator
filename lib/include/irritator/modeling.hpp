@@ -412,7 +412,7 @@ struct component
     union id
     {
         internal_component   internal_id;
-        generic_component_id simple_id;
+        generic_component_id generic_id;
         grid_component_id    grid_id;
         graph_component_id   graph_id;
     } id;

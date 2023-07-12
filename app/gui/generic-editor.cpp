@@ -235,7 +235,7 @@ static void show(component_editor&              ed,
           ImGui::PushItemWidth(120.0f);
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-              auto  s_compo_id = parent.id.simple_id;
+              auto  s_compo_id = parent.id.generic_id;
               auto* s_compo = app.mod.generic_components.try_to_get(s_compo_id);
               if (s_compo) {
                   if (auto* machine = app.mod.hsms.try_to_get(dyn.id);
@@ -522,7 +522,7 @@ static void show_graph(component_editor&              ed,
 
                 case component_type::simple:
                     if (auto* s_compo = app.mod.generic_components.try_to_get(
-                          compo->id.simple_id)) {
+                          compo->id.generic_id)) {
                         show_generic(ed, data, *compo, *s_compo, *c, child_id);
                     }
                     break;
@@ -1151,7 +1151,7 @@ void generic_component_editor_data::show(component_editor& ed) noexcept
     auto& app = container_of(&ed, &application::component_ed);
 
     if (auto* compo = app.mod.components.try_to_get(get_id()); compo) {
-        const auto s_id = compo->id.simple_id;
+        const auto s_id = compo->id.generic_id;
 
         if (auto* s = app.mod.generic_components.try_to_get(s_id); s)
             show_component_editor(ed, *this, *compo, *s);
