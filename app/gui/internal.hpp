@@ -209,7 +209,7 @@ void TextFormatDisabled(const char* fmt, const Args&... args) noexcept
     ImGui::PopStyleColor();
 }
 
-inline auto compute_button_width(int button_number) noexcept -> ImVec2
+inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
 {
     return ImVec2{ (ImGui::GetContentRegionAvail().x -
                     ImGui::GetStyle().ItemSpacing.x) /
