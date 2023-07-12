@@ -5,7 +5,17 @@ option(WITH_DEBUG "enable maximium debug code. [default: ON]" ON)
 
 set(public_irritator_header
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/core.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/io.hpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/examples.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/ext.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/file.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/format.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/helpers.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/io.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/modeling-helpers.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/modeling.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/observation.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/thread.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/timeline.hpp)
 
 add_library(libirritator INTERFACE)
 target_sources(libirritator INTERFACE
