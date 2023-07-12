@@ -27,6 +27,20 @@ void for_each_component(modeling&       mod,
 }
 
 template<typename Function>
+void for_each_component(modeling&  mod,
+                        dir_path&  dir_path,
+                        Function&& f) noexcept
+{
+    for_specified_data(
+      mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
+          if_data_exists_do(
+            mod.components, file_path.component, [&](auto& compo) noexcept {
+                f(dir_path, file_path, compo);
+            });
+      });
+}
+
+template<typename Function>
 void for_each_component(modeling&       mod,
                         registred_path& reg_path,
                         Function&&      f) noexcept
