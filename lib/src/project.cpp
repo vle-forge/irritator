@@ -1049,7 +1049,7 @@ static status make_tree_from(simulation_copy&                     sc,
 
 status project::init(int size) noexcept
 {
-    irt_return_if_bad(m_tree_nodes.init(size));
+    irt_return_if_bad(tree_nodes.init(size));
     irt_return_if_bad(variable_observers.init(size));
     irt_return_if_bad(grid_observers.init(size));
     irt_return_if_bad(global_parameters.init(size));
@@ -1068,9 +1068,9 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
 
     irt_return_if_bad(make_component_cache(*this, mod));
 
-    simulation_copy sc(m_cache, mod, sim, m_tree_nodes);
+    simulation_copy sc(m_cache, mod, sim, tree_nodes);
     tree_node_id    id  = undefined<tree_node_id>();
-    auto            ret = make_tree_from(sc, m_tree_nodes, compo, &id);
+    auto            ret = make_tree_from(sc, tree_nodes, compo, &id);
 
     if (is_success(ret)) {
         m_head    = mod.components.get_id(compo);
@@ -1093,9 +1093,9 @@ status project::rebuild(modeling& mod, simulation& sim) noexcept
     irt_return_if_bad(make_component_cache(*this, mod));
 
     if (auto* compo = mod.components.try_to_get(head()); compo) {
-        simulation_copy sc(m_cache, mod, sim, m_tree_nodes);
+        simulation_copy sc(m_cache, mod, sim, tree_nodes);
         tree_node_id    id  = undefined<tree_node_id>();
-        auto            ret = make_tree_from(sc, m_tree_nodes, *compo, &id);
+        auto            ret = make_tree_from(sc, tree_nodes, *compo, &id);
 
         if (is_success(ret)) {
             m_head    = mod.components.get_id(*compo);
@@ -1113,7 +1113,7 @@ status project::rebuild(modeling& mod, simulation& sim) noexcept
 
 void project::clear() noexcept
 {
-    m_tree_nodes.clear();
+    tree_nodes.clear();
 
     m_head    = undefined<component_id>();
     m_tn_head = undefined<tree_node_id>();
@@ -1175,7 +1175,7 @@ void project::build_unique_id_path(const tree_node_id tn_id,
 {
     out.clear();
 
-    if_data_exists_do(m_tree_nodes, tn_id, [&](const auto& tn) noexcept {
+    if_data_exists_do(tree_nodes, tn_id, [&](const auto& tn) noexcept {
         auto model_unique_id = tn.get_unique_id(mdl_id);
         if (model_unique_id != 0)
             build_unique_id_path(tn, model_unique_id, out);
@@ -1188,7 +1188,7 @@ void project::build_unique_id_path(const tree_node_id tn_id,
     out.clear();
 
     if (tn_id != m_tn_head) {
-        if_data_exists_do(m_tree_nodes, tn_id, [&](const auto& tn) noexcept {
+        if_data_exists_do(tree_nodes, tn_id, [&](const auto& tn) noexcept {
             project_build_unique_id_path(tn, out);
         });
     };
@@ -1200,7 +1200,7 @@ void project::build_unique_id_path(const tree_node& model_unique_id_parent,
 {
     out.clear();
 
-    return m_tree_nodes.get_id(model_unique_id_parent) == m_tn_head
+    return tree_nodes.get_id(model_unique_id_parent) == m_tn_head
              ? project_build_unique_id_path(model_unique_id, out)
              : project_build_unique_id_path(
                  model_unique_id_parent, model_unique_id, out);

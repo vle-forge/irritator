@@ -969,7 +969,7 @@ public:
     auto get_tn_id(const unique_id_path& path) noexcept
       -> std::optional<tree_node_id>;
 
-    data_array<tree_node, tree_node_id>                 m_tree_nodes;
+    data_array<tree_node, tree_node_id>                 tree_nodes;
     data_array<variable_observer, variable_observer_id> variable_observers;
     data_array<grid_observer, grid_observer_id>         grid_observers;
     data_array<graph_observer, graph_observer_id>       graph_observers;
@@ -1056,29 +1056,29 @@ inline auto project::head() const noexcept -> component_id { return m_head; }
 
 inline auto project::tn_head() const noexcept -> tree_node*
 {
-    return m_tree_nodes.try_to_get(m_tn_head);
+    return tree_nodes.try_to_get(m_tn_head);
 }
 
 inline auto project::node(tree_node_id id) const noexcept -> tree_node*
 {
-    return m_tree_nodes.try_to_get(id);
+    return tree_nodes.try_to_get(id);
 }
 
 inline auto project::node(tree_node& node) const noexcept -> tree_node_id
 {
-    return m_tree_nodes.get_id(node);
+    return tree_nodes.get_id(node);
 }
 
 inline auto project::node(const tree_node& node) const noexcept -> tree_node_id
 {
-    return m_tree_nodes.get_id(node);
+    return tree_nodes.get_id(node);
 }
 
 template<typename Function, typename... Args>
 inline auto project::for_all_tree_nodes(Function&& f, Args... args) noexcept
 {
     tree_node* tn = nullptr;
-    while (m_tree_nodes.next(tn))
+    while (tree_nodes.next(tn))
         return f(*tn, args...);
 }
 
@@ -1087,7 +1087,7 @@ inline auto project::for_all_tree_nodes(Function&& f,
                                         Args... args) const noexcept
 {
     const tree_node* tn = nullptr;
-    while (m_tree_nodes.next(tn))
+    while (tree_nodes.next(tn))
         return f(*tn, args...);
 }
 
@@ -1118,7 +1118,7 @@ inline void project::for_each_children(tree_node& tn,
 
 inline auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
 {
-    return std::make_pair(m_tree_nodes.ssize(), m_tree_nodes.capacity());
+    return std::make_pair(tree_nodes.ssize(), tree_nodes.capacity());
 }
 
 } // namespace irt

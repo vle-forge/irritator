@@ -287,7 +287,7 @@ static observer_id get_observer_id(application&         app,
     for (const auto unique_id : unique_ids) {
         if (auto tree_node_id_opt = ptr->get_tree_node_id(unique_id);
             tree_node_id_opt.has_value()) {
-            ptr = app.pj.m_tree_nodes.try_to_get(*tree_node_id_opt);
+            ptr = app.pj.tree_nodes.try_to_get(*tree_node_id_opt);
         }
     }
 
@@ -305,7 +305,7 @@ status grid_observation_widget_init(grid_observation_widget& grid_widget,
                                     tree_node& grid_parent) noexcept
 {
     return if_data_exists_return(
-      app.pj.m_tree_nodes,
+      app.pj.tree_nodes,
       grid.child.tn_id,
       [&](auto& tn) noexcept {
           small_vector<u64, 16> stack;
@@ -344,7 +344,7 @@ status grid_observation_widget::init(application&   app,
                                      grid_observer& grid) noexcept
 {
     return if_data_exists_return(
-      app.pj.m_tree_nodes,
+      app.pj.tree_nodes,
       grid.child.parent_id,
       [&](auto& grid_tn) noexcept {
           return if_data_exists_return(
