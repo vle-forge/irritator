@@ -691,8 +691,8 @@ struct modeling
     vector<name_str>        children_names;
     vector<component_color> component_colors;
 
-    small_vector<registred_path_id, max_component_dirs> component_repertories;
-    external_source                                     srcs;
+    vector<registred_path_id> component_repertories;
+    external_source           srcs;
 
     modeling_status state = modeling_status::unmodified;
 
