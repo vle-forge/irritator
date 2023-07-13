@@ -390,6 +390,8 @@ static status make_tree_leaf(simulation_copy& sc,
     }
 
     {
+        irt_assert(unique_id != 0);
+
         if (ch.flags & child_flags_configurable ||
             ch.flags & child_flags_observable)
             parent.nodes_v.data.emplace_back(unique_id, new_mdl_id);
@@ -424,6 +426,7 @@ static status make_tree_recursive(simulation_copy&   sc,
 
     new_tree.child_to_node.sort();
     new_tree.child_to_sim.sort();
+    new_tree.nodes_v.sort();
 
     return status::success;
 }
@@ -453,6 +456,7 @@ static status make_tree_recursive(simulation_copy& sc,
 
     new_tree.child_to_node.sort();
     new_tree.child_to_sim.sort();
+    new_tree.nodes_v.sort();
 
     return status::success;
 }
@@ -482,6 +486,7 @@ static status make_tree_recursive(simulation_copy& sc,
 
     new_tree.child_to_node.sort();
     new_tree.child_to_sim.sort();
+    new_tree.nodes_v.sort();
 
     return status::success;
 }
@@ -1859,7 +1864,7 @@ static auto parameter_init(parameter& param, const time_func& dyn) noexcept
                                                                  : 2;
 }
 
-status parameter::init(model& mdl) const noexcept
+status parameter::copy_to(model& mdl) const noexcept
 {
     return dispatch(mdl,
                     [&]<typename Dynamics>(Dynamics& dyn) noexcept -> status {
@@ -1867,7 +1872,7 @@ status parameter::init(model& mdl) const noexcept
                     });
 };
 
-void parameter::init(const model& mdl) noexcept
+void parameter::copy_from(const model& mdl) noexcept
 {
     clear();
 

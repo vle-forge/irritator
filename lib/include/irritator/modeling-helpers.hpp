@@ -138,21 +138,20 @@ void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
     });
 }
 
+//! Call @c f for each model found into @c tree_node::nodes_v table.
 template<typename Function>
 void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
 {
     for (int i = 0, e = tn.nodes_v.data.ssize(); i < e; ++i) {
-        fmt::print("for-each-model {}/{}\n", i, e);
-        fmt::print("         index {}\n", tn.nodes_v.data[i].value.index());
-
         switch (tn.nodes_v.data[i].value.index()) {
         case 0:
             break;
 
         case 1: {
             auto& mdl_id = *std::get_if<model_id>(&tn.nodes_v.data[i].value);
-            if_data_exists_do(
-              sim.models, mdl_id, [&](auto& mdl) { f(sim, tn, mdl); });
+            if_data_exists_do(sim.models, mdl_id, [&](auto& mdl) {
+                f(sim, tn, tn.nodes_v.data[i].id, mdl);
+            });
         } break;
 
         default:

@@ -2,9 +2,14 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "editor.hpp"
+#include <irritator/core.hpp>
+
 #include "application.hpp"
+#include "editor.hpp"
+#include "imgui.h"
 #include "internal.hpp"
+
+#include <utility>
 
 namespace irt {
 
@@ -195,18 +200,63 @@ void show_dynamics_inputs(external_source& /*srcs*/, queue& dyn)
     HelpMarker("Delay to resent the first input receives (FIFO queue)");
 }
 
-void show_external_sources_combo(external_source& srcs,
+bool show_external_sources_combo(external_source&     srcs,
+                                 const char*          title,
+                                 u64&                 id,
+                                 source::source_type& type) noexcept;
+
+bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,
-                                 source&          src)
+                                 source&          src) noexcept
 {
+    u64                 id   = src.id;
+    source::source_type type = src.type;
+
+    if (show_external_sources_combo(srcs, title, id, type)) {
+        src.id   = id;
+        src.type = type;
+        return true;
+    }
+
+    return false;
+}
+
+bool show_external_sources_combo(external_source& srcs,
+                                 const char*      title,
+                                 i64&             integer_0,
+                                 i64&             integer_1) noexcept
+{
+    irt_assert(is_numeric_castable<u64>(integer_0));
+    irt_assert(std::cmp_less_equal(0, integer_1) &&
+               std::cmp_less_equal(integer_1, source::source_type_count));
+
+    u64                 id   = static_cast<u64>(integer_0);
+    source::source_type type = enum_cast<source::source_type>(integer_0);
+
+    if (show_external_sources_combo(srcs, title, id, type)) {
+        irt_assert(is_numeric_castable<i64>(id));
+        integer_0 = static_cast<i64>(id);
+        integer_1 = ordinal(type);
+        return true;
+    }
+
+    return false;
+}
+
+bool show_external_sources_combo(external_source&     srcs,
+                                 const char*          title,
+                                 u64&                 src_id,
+                                 source::source_type& src_type) noexcept
+{
+    bool             is_changed = false;
     small_string<63> label("None");
 
-    switch (src.type) {
+    switch (src_type) {
     case source::source_type::none:
         break;
 
     case source::source_type::binary_file: {
-        const auto id    = enum_cast<binary_file_source_id>(src.id);
+        const auto id    = enum_cast<binary_file_source_id>(src_id);
         const auto index = get_index(id);
         if (auto* es = srcs.binary_file_sources.try_to_get(id)) {
             format(label,
@@ -214,13 +264,11 @@ void show_external_sources_combo(external_source& srcs,
                    ordinal(source::source_type::binary_file),
                    index,
                    es->name.c_str());
-        } else {
-            src.reset();
         }
     } break;
 
     case source::source_type::constant: {
-        const auto id    = enum_cast<constant_source_id>(src.id);
+        const auto id    = enum_cast<constant_source_id>(src_id);
         const auto index = get_index(id);
         if (auto* es = srcs.constant_sources.try_to_get(id)) {
             format(label,
@@ -228,13 +276,11 @@ void show_external_sources_combo(external_source& srcs,
                    ordinal(source::source_type::constant),
                    index,
                    es->name.c_str());
-        } else {
-            src.reset();
         }
     } break;
 
     case source::source_type::random: {
-        const auto id    = enum_cast<random_source_id>(src.id);
+        const auto id    = enum_cast<random_source_id>(src_id);
         const auto index = get_index(id);
         if (auto* es = srcs.random_sources.try_to_get(id)) {
             format(label,
@@ -242,13 +288,11 @@ void show_external_sources_combo(external_source& srcs,
                    ordinal(source::source_type::random),
                    index,
                    es->name.c_str());
-        } else {
-            src.reset();
         }
     } break;
 
     case source::source_type::text_file: {
-        const auto id    = enum_cast<text_file_source_id>(src.id);
+        const auto id    = enum_cast<text_file_source_id>(src_id);
         const auto index = get_index(id);
         if (auto* es = srcs.text_file_sources.try_to_get(id)) {
             format(label,
@@ -256,8 +300,6 @@ void show_external_sources_combo(external_source& srcs,
                    ordinal(source::source_type::text_file),
                    index,
                    es->name.c_str());
-        } else {
-            src.reset();
         }
     } break;
     default:
@@ -266,10 +308,8 @@ void show_external_sources_combo(external_source& srcs,
 
     if (ImGui::BeginCombo(title, label.c_str())) {
         {
-            bool is_selected = src.type == source::source_type::none;
-            if (ImGui::Selectable("None", is_selected)) {
-                src.reset();
-            }
+            bool is_selected = src_type == source::source_type::none;
+            ImGui::Selectable("None", is_selected);
         }
 
         {
@@ -284,13 +324,14 @@ void show_external_sources_combo(external_source& srcs,
                        index,
                        s->name.c_str());
 
-                bool is_selected = src.type == source::source_type::constant &&
-                                   src.id == ordinal(id);
+                bool is_selected = src_type == source::source_type::constant &&
+                                   src_id == ordinal(id);
                 if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    src.type = source::source_type::constant;
-                    src.id   = ordinal(id);
+                    src_type   = source::source_type::constant;
+                    src_id     = ordinal(id);
+                    is_changed = true;
                     ImGui::EndCombo();
-                    return;
+                    break;
                 }
             }
         }
@@ -308,13 +349,14 @@ void show_external_sources_combo(external_source& srcs,
                        s->name.c_str());
 
                 bool is_selected =
-                  src.type == source::source_type::binary_file &&
-                  src.id == ordinal(id);
+                  src_type == source::source_type::binary_file &&
+                  src_id == ordinal(id);
                 if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    src.type = source::source_type::binary_file;
-                    src.id   = ordinal(id);
+                    src_type   = source::source_type::binary_file;
+                    src_id     = ordinal(id);
+                    is_changed = true;
                     ImGui::EndCombo();
-                    return;
+                    break;
                 }
             }
         }
@@ -331,13 +373,14 @@ void show_external_sources_combo(external_source& srcs,
                        index,
                        s->name.c_str());
 
-                bool is_selected = src.type == source::source_type::random &&
-                                   src.id == ordinal(id);
+                bool is_selected = src_type == source::source_type::random &&
+                                   src_id == ordinal(id);
                 if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    src.type = source::source_type::random;
-                    src.id   = ordinal(id);
+                    src_type   = source::source_type::random;
+                    src_id     = ordinal(id);
+                    is_changed = true;
                     ImGui::EndCombo();
-                    return;
+                    break;
                 }
             }
         }
@@ -354,19 +397,22 @@ void show_external_sources_combo(external_source& srcs,
                        index,
                        s->name.c_str());
 
-                bool is_selected = src.type == source::source_type::text_file &&
-                                   src.id == ordinal(id);
+                bool is_selected = src_type == source::source_type::text_file &&
+                                   src_id == ordinal(id);
                 if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    src.type = source::source_type::text_file;
-                    src.id   = ordinal(id);
+                    src_type   = source::source_type::text_file;
+                    src_id     = ordinal(id);
+                    is_changed = true;
                     ImGui::EndCombo();
-                    return;
+                    break;
                 }
             }
         }
 
         ImGui::EndCombo();
     }
+
+    return is_changed;
 }
 
 void show_dynamics_inputs(external_source& srcs, dynamic_queue& dyn)
@@ -572,6 +618,676 @@ void show_dynamics_inputs(external_source& /*srcs*/, time_func& dyn)
                                             : sin_time_function;
     }
     ImGui::PopItemWidth();
+}
+
+//
+//
+//
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_integrator& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("value", &p.reals[0]) ||
+           ImGui::InputReal("dQ", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_integrator& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("value", &p.reals[0]) ||
+           ImGui::InputReal("dQ", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_integrator& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("value", &p.reals[0]) ||
+           ImGui::InputReal("dQ", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_multiplier& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_sum_2& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_sum_3& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_sum_4& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_wsum_2& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_wsum_3& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_wsum_4& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]) ||
+           ImGui::InputReal("coeff-3", &p.reals[3]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_multiplier& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_sum_2& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_sum_3& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_sum_4& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_wsum_2& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_wsum_3& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_wsum_4& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]) ||
+           ImGui::InputReal("coeff-3", &p.reals[3]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_multiplier& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_sum_2& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_sum_3& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_sum_4& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_wsum_2& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_wsum_3& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_wsum_4& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]) ||
+           ImGui::InputReal("coeff-3", &p.reals[3]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  integrator& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("value", &p.reals[0]) ||
+           ImGui::InputReal("reset", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  quantifier& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = ImGui::InputReal("quantum", &p.reals[0]);
+    int  value      = static_cast<int>(p.integers[0]);
+    value           = std::clamp(value, 3, 100);
+
+    if (ImGui::InputInt("archive length", &value)) {
+        value         = std::clamp(value, 3, 100);
+        p.integers[0] = value;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  adder_2& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  adder_3& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  adder_4& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]) ||
+           ImGui::InputReal("coeff-3", &p.reals[3]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  mult_2& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  mult_3& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  mult_4& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
+           ImGui::InputReal("coeff-1", &p.reals[1]) ||
+           ImGui::InputReal("coeff-2", &p.reals[2]) ||
+           ImGui::InputReal("coeff-3", &p.reals[3]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  counter& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  queue& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("delay", &p.reals[0]);
+}
+
+static bool show_parameter_editor(application& app,
+                                  dynamic_queue& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value      = p.integers[0] != 0;
+
+    if (ImGui::Checkbox("Stop on error", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (show_external_sources_combo(
+          app.mod.srcs, "time", p.integers[1], p.integers[2])) {
+        is_changed = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& app,
+                                  priority_queue& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value      = p.integers[0] != 0;
+
+    if (ImGui::Checkbox("Stop on error", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (show_external_sources_combo(
+          app.mod.srcs, "time", p.integers[1], p.integers[2])) {
+        is_changed = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& app,
+                                  generator& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value      = p.integers[0] != 0;
+
+    if (ImGui::Checkbox("Stop on error", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (show_external_sources_combo(
+          app.mod.srcs, "source", p.integers[1], p.integers[2])) {
+        is_changed = true;
+    }
+
+    if (show_external_sources_combo(
+          app.mod.srcs, "time", p.integers[3], p.integers[4])) {
+        is_changed = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  constant& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    static const char* type_names[] = { "constant",
+                                        "incoming_component_all",
+                                        "outcoming_component_all",
+                                        "incoming_component_n",
+                                        "outcoming_component_n" };
+
+    bool is_changed = false;
+    irt_assert(
+      std::cmp_equal(std::size(type_names), constant::init_type_count));
+
+    if (ImGui::InputReal("value", &p.reals[0]))
+        is_changed = true;
+
+    if (ImGui::InputReal("offset", &p.reals[1]))
+        is_changed = true;
+
+    irt_assert(std::cmp_less_equal(0, p.integers[0]) &&
+               std::cmp_less(p.integers[0], constant::init_type_count));
+
+    int i = static_cast<int>(p.integers[0]);
+    if (ImGui::Combo("type", &i, type_names, length(type_names))) {
+        p.integers[0] = i;
+        is_changed    = true;
+    }
+
+    if (i == ordinal(constant::init_type::incoming_component_n) ||
+        i == ordinal(constant::init_type::outcoming_component_n)) {
+        int port = static_cast<int>(p.integers[1]);
+        if (ImGui::InputInt("port", &port)) {
+            p.integers[1] = port < 0     ? 0
+                            : port > 127 ? 127
+                                         : static_cast<i8>(port);
+            is_changed    = true;
+        }
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_cross& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
+
+    bool value = p.integers[0] != 0;
+    if (ImGui::Checkbox("up detection", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_cross& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
+
+    bool value = p.integers[0] != 0;
+    if (ImGui::Checkbox("up detection", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_cross& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
+
+    bool value = p.integers[0] != 0;
+    if (ImGui::Checkbox("up detection", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_filter& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("lowe threshold", &p.reals[0]) ||
+           ImGui::InputReal("upper threshold", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_filter& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("lower threshold", &p.reals[0]) ||
+           ImGui::InputReal("upper threshold", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_filter& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("lower threshold", &p.reals[0]) ||
+           ImGui::InputReal("upper threshold", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_power& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("n", &p.reals[0]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_power& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("n", &p.reals[0]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_power& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("n", &p.reals[0]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss1_square& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss2_square& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  qss3_square& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  cross& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("threshold", &p.reals[0]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  accumulator_2& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  filter& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    return ImGui::InputReal("lower threshold", &p.reals[0]) ||
+           ImGui::InputReal("upper threshold", &p.reals[1]);
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  logical_and_2& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  logical_or_2& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  logical_and_3& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+    bool value_2    = p.integers[2] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 3", &value_2)) {
+        p.integers[2] = value_2 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  logical_or_3& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+    bool value_2    = p.integers[2] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 3", &value_2)) {
+        p.integers[2] = value_2 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  logical_invert& /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  hsm_wrapper /*dyn*/,
+                                  parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter_editor(application& /*app*/,
+                                  time_func& /*dyn*/,
+                                  parameter& p) noexcept
+{
+    bool is_changed = false;
+
+    static const char* items[] = { "time", "square", "sin" };
+
+    irt_assert(std::cmp_less_equal(0, p.integers[0]) &&
+               std::cmp_less(p.integers[0], 3));
+
+    auto value = static_cast<int>(p.integers[0]);
+
+    ImGui::PushItemWidth(120.0f);
+
+    if (ImGui::Combo("function", &value, items, IM_ARRAYSIZE(items))) {
+        p.integers[0] = value;
+        is_changed    = true;
+    }
+
+    ImGui::PopItemWidth();
+
+    return is_changed;
+}
+
+bool show_parameter_editor(application& app, model& mdl, parameter& p) noexcept
+{
+    return dispatch(
+      mdl, [&app, &p]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
+          return show_parameter_editor(app, dyn, p);
+      });
 }
 
 } // irt

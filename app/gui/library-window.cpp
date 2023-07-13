@@ -145,28 +145,20 @@ static void open_component(application& app, component_id id) noexcept
 
         case component_type::simple:
             if (!is_already_open(app.generics, id) && app.generics.can_alloc())
-                if_data_exists_do(
-                  app.mod.generic_components,
-                  compo.id.generic_id,
-                  [&](auto& generic) noexcept { app.generics.alloc(id); });
+                if (app.mod.generic_components.try_to_get(compo.id.generic_id))
+                    app.generics.alloc(id);
             break;
 
         case component_type::grid:
             if (!is_already_open(app.grids, id) && app.grids.can_alloc())
-                if_data_exists_do(app.mod.grid_components,
-                                  compo.id.grid_id,
-                                  [&](auto& grid) noexcept {
-                                      app.grids.alloc(id, compo.id.grid_id);
-                                  });
+                if (app.mod.grid_components.try_to_get(compo.id.grid_id))
+                    app.grids.alloc(id, compo.id.grid_id);
             break;
 
         case component_type::graph:
             if (!is_already_open(app.graphs, id) && app.graphs.can_alloc())
-                if_data_exists_do(app.mod.graph_components,
-                                  compo.id.graph_id,
-                                  [&](auto& grid) noexcept {
-                                      app.graphs.alloc(id, compo.id.graph_id);
-                                  });
+                if (app.mod.graph_components.try_to_get(compo.id.graph_id))
+                    app.graphs.alloc(id, compo.id.graph_id);
             break;
 
         case component_type::internal:
@@ -292,7 +284,7 @@ static void show_dirpath_component(irt::component_editor& ed,
 
     if (ImGui::TreeNodeEx(dir.path.c_str())) {
         for_each_component(
-          app.mod, dir, [&](auto& dir, auto& file, auto& compo) noexcept {
+          app.mod, dir, [&](auto& /*dir*/, auto& file, auto& compo) noexcept {
               show_file_component(app, file, compo, head);
           });
 

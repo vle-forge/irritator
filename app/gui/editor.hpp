@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_APP_EDITOR_2021
 #define ORG_VLEPROJECT_IRRITATOR_APP_EDITOR_2021
 
+#include "irritator/modeling.hpp"
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 #include <irritator/io.hpp>
@@ -80,9 +81,26 @@ void show_dynamics_inputs(application&                app,
                           hierarchical_state_machine& machine);
 void show_dynamics_inputs(external_source& srcs, time_func& dyn);
 
-void show_external_sources_combo(external_source& srcs,
+/**
+ * @brief Display ImGui widgets acconding to the dynamics in model.
+ * @details [long description]
+ *
+ * @param app Global application to get settings, external sources, etc.
+ * @param mdl Model to display dynamics widgets.
+ * @param p [in,out] to read/write dynamics parameters.
+ *
+ * @return true is data under the parameter @c p are changed.
+ */
+bool show_parameter_editor(application& app, model& mdl, parameter& p) noexcept;
+
+bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,
-                                 source&          src);
+                                 source&          src) noexcept;
+
+bool show_external_sources_combo(external_source&     srcs,
+                                 const char*          title,
+                                 u64&                 src_id,
+                                 source::source_type& src_type) noexcept;
 
 } // irt
 

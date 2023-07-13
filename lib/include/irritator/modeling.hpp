@@ -524,7 +524,8 @@ struct tree_node
 
     using node_v = std::variant<tree_node_id, model_id>;
 
-    table<u64, node_v> nodes_v;
+    table<u64, node_v>              nodes_v;
+    table<u64, global_parameter_id> parameters;
 
     auto get_model_id(const node_v v) const noexcept -> std::optional<model_id>
     {
@@ -617,10 +618,10 @@ struct parameter
     std::array<i64, 4>  integers;
 
     //! Copy data from the vectors of this parameter to the simulation model.
-    status init(model& mdl) const noexcept;
+    status copy_to(model& mdl) const noexcept;
 
     //! Copy data from model to the vectors of this parameter.
-    void init(const model& mdl) noexcept;
+    void copy_from(const model& mdl) noexcept;
 
     void clear() noexcept;
 };
@@ -657,8 +658,8 @@ struct global_parameter
 {
     name_str name;
 
-    vector<global_access> children;
-    vector<parameter>     params;
+    global_access access;
+    parameter     param;
 };
 
 struct log_entry

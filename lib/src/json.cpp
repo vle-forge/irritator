@@ -1785,7 +1785,7 @@ struct reader
                                 copy_to(id);
                      if ("unique-id"sv == name)
                          return read_temp_unsigned_integer(value) &&
-                                copy_to(unique_id);
+                                copy_to(unique_id) && copy_to(c.unique_id);
                      if ("x"sv == name)
                          return read_temp_real(value) and
                                 copy_to(
@@ -3454,43 +3454,6 @@ struct reader
           });
     }
 
-    bool read_global_parameter_child(const rapidjson::Value& val,
-                                     global_parameter&       param) noexcept
-    {
-        auto_stack s(this, stack_id::project_global_parameter_child);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              project::unique_id_path path;
-
-              if ("access"sv == name)
-                  return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(path,
-                                                 param.children.back().tn_id,
-                                                 param.children.back().mdl_id);
-
-              if ("parameter"sv == name)
-                  return read_parameter(value, param.params.back());
-
-              return false;
-          });
-    }
-
-    bool read_global_parameter_children(const rapidjson::Value& val,
-                                        global_parameter&       param) noexcept
-    {
-        auto_stack s(this, stack_id::project_global_parameter_children);
-
-        return is_value_array(val) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     param.children.emplace_back();
-                     param.params.emplace_back();
-                     return read_global_parameter_child(value, param);
-                 });
-    }
-
     bool read_global_parameter(const rapidjson::Value& val,
                                global_parameter&       param) noexcept
     {
@@ -3498,11 +3461,18 @@ struct reader
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
+              project::unique_id_path path;
+
               if ("name"sv == name)
                   return read_temp_string(value) && copy_to(param.name);
 
-              if ("models"sv == name)
-                  return read_global_parameter_children(value, param);
+              if ("access"sv == name)
+                  return read_project_unique_id_path(val, path) &&
+                         convert_to_tn_model_ids(
+                           path, param.access.tn_id, param.access.mdl_id);
+
+              if ("parameter"sv == name)
+                  return read_parameter(value, param.param);
 
               return true;
           });
@@ -5999,20 +5969,12 @@ static status do_project_save_global_parameter(Writer&           w,
     w.Key("name");
     w.String(param.name.begin(), param.name.size());
 
-    w.Key("models");
-    w.StartArray();
-    for (int i = 0, e = param.children.ssize(); i != e; ++i) {
-        w.StartObject();
-        project::unique_id_path path;
-        w.Key("access");
-        pj.build_unique_id_path(
-          param.children[i].tn_id, param.children[i].mdl_id, path);
-        write_project_unique_id_path(w, path);
+    project::unique_id_path path;
+    w.Key("access");
+    pj.build_unique_id_path(param.access.tn_id, param.access.mdl_id, path);
+    write_project_unique_id_path(w, path);
 
-        write_parameter(w, param.params[i]);
-        w.EndObject();
-    }
-    w.EndArray();
+    write_parameter(w, param.param);
     w.EndObject();
 
     return status::success;

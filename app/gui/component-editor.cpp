@@ -262,6 +262,20 @@ static void show_selected_children(
 {
 }
 
+static void update_unique_id(generic_component& gen, child& ch) noexcept
+{
+    bool configurable = ch.flags & child_flags_configurable;
+    bool observable   = ch.flags & child_flags_observable;
+
+    if (ch.unique_id == 0) {
+        if (configurable || observable)
+            ch.unique_id = gen.make_next_unique_id();
+    } else {
+        if (!configurable && !observable)
+            ch.unique_id = 0;
+    }
+}
+
 static void show_selected_children(application&                   app,
                                    component&                     compo,
                                    generic_component_editor_data& data) noexcept
@@ -308,6 +322,8 @@ static void show_selected_children(application&                   app,
                 if (ImGui::InputSmallString(
                       "name", app.mod.children_names[data.selected_nodes[i]]))
                     is_modified = true;
+
+                update_unique_id(*s_compo, *child);
 
                 if (is_modified)
                     compo.state = component_status::modified;

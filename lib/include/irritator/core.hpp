@@ -5318,6 +5318,8 @@ struct constant
         outcoming_component_n,
     };
 
+    static inline constexpr int init_type_count = 5;
+
     real      value = 0.0;
     init_type type  = init_type::constant;
     i8        port  = 0;
