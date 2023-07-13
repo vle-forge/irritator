@@ -298,6 +298,7 @@ static int compute_outcoming_component(modeling&  mod,
 
 static status make_tree_leaf(simulation_copy& sc,
                              tree_node&       parent,
+                             u64              unique_id,
                              model&           mod_mdl,
                              child&           ch) noexcept
 {
@@ -388,6 +389,12 @@ static status make_tree_leaf(simulation_copy& sc,
         x.value = new_mdl_id;
     }
 
+    {
+        if (ch.flags & child_flags_configurable ||
+            ch.flags & child_flags_observable)
+            parent.nodes_v.data.emplace_back(unique_id, new_mdl_id);
+    }
+
     return status::success;
 }
 
@@ -408,8 +415,8 @@ static status make_tree_recursive(simulation_copy&   sc,
             } else {
                 auto mdl_id = child->id.mdl_id;
                 if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
-                    irt_return_if_bad(
-                      make_tree_leaf(sc, new_tree, *mdl, *child));
+                    irt_return_if_bad(make_tree_leaf(
+                      sc, new_tree, child->unique_id, *mdl, *child));
                 }
             }
         }
@@ -437,8 +444,8 @@ static status make_tree_recursive(simulation_copy& sc,
             } else {
                 auto mdl_id = child->id.mdl_id;
                 if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
-                    irt_return_if_bad(
-                      make_tree_leaf(sc, new_tree, *mdl, *child));
+                    irt_return_if_bad(make_tree_leaf(
+                      sc, new_tree, src.unique_id(i), *mdl, *child));
                 }
             }
         }
@@ -466,8 +473,8 @@ static status make_tree_recursive(simulation_copy& sc,
             } else {
                 auto mdl_id = child->id.mdl_id;
                 if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
-                    irt_return_if_bad(
-                      make_tree_leaf(sc, new_tree, *mdl, *child));
+                    irt_return_if_bad(make_tree_leaf(
+                      sc, new_tree, src.unique_id(i), *mdl, *child));
                 }
             }
         }

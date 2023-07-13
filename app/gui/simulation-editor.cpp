@@ -1637,10 +1637,15 @@ static bool show_generic_simulation_settings(application& app,
             ImGui::TableSetupColumn("parameter");
             ImGui::TableHeadersRow();
 
+            ImGui::TextFormatDisabled("child-to-node {}",
+                                      tn.child_to_node.size());
+            ImGui::TextFormatDisabled("child-to-sim {}",
+                                      tn.child_to_sim.size());
+            ImGui::TextFormatDisabled("nodes-v {}", tn.nodes_v.size());
+
             for_each_model(
               app.sim, tn, [&](auto& sim, auto& /*tn*/, auto& mdl) noexcept {
                   const auto mdl_id = sim.get_id(mdl);
-
                   ImGui::PushID(get_index(mdl_id));
 
                   ImGui::TableNextRow();

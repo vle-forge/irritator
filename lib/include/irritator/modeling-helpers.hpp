@@ -9,6 +9,8 @@
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 
+#include <fmt/format.h>
+
 namespace irt {
 
 template<typename Function>
@@ -139,7 +141,10 @@ void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
 template<typename Function>
 void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
 {
-    for (int i = 0, e = tn.nodes_v.data.ssize(); i != e; ++i) {
+    for (int i = 0, e = tn.nodes_v.data.ssize(); i < e; ++i) {
+        fmt::print("for-each-model {}/{}\n", i, e);
+        fmt::print("         index {}\n", tn.nodes_v.data[i].value.index());
+
         switch (tn.nodes_v.data[i].value.index()) {
         case 0:
             break;

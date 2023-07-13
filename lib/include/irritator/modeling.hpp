@@ -184,7 +184,9 @@ struct child
     child_flags flags = child_flags_none;
 
     //! An identifier provided by the component parent to easily found a child
-    //! in project. The value 0 means unique_id is undefined.
+    //! in project. The value 0 means unique_id is undefined. @c grid-component
+    //! stores a double word (row x column), graph-component stores the nth
+    //! vertex, @c generic-component stores a incremental integer.
     u64 unique_id = 0;
 };
 
@@ -298,6 +300,14 @@ struct grid_component
         return std::make_pair(pos_ / row, pos_ % row);
     }
 
+    constexpr u64 unique_id(int pos_) noexcept
+    {
+        auto pair = pos(pos_);
+
+        return make_doubleword(static_cast<u32>(pair.first),
+                               static_cast<u32>(pair.second));
+    }
+
     constexpr std::pair<int, int> unique_id(u64 id) noexcept
     {
         auto unpack = unpack_doubleword(id);
@@ -376,6 +386,11 @@ struct graph_component
         irt_assert(children_size > 0);
         children.resize(children_size);
         std::fill_n(children.data(), children.size(), id);
+    }
+
+    constexpr u64 unique_id(int pos_) noexcept
+    {
+        return static_cast<u64>(pos_);
     }
 
     vector<component_id> children;
