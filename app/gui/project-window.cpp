@@ -12,10 +12,49 @@
 
 namespace irt {
 
+static void show_project_hierarchy(application& app,
+                                   tree_node&   parent) noexcept;
+
+static void show_tree_node_children(application& app,
+                                    tree_node&   parent,
+                                    const char*  str) noexcept
+{
+    irt_assert(str);
+    irt_assert(parent.tree.get_child() != nullptr);
+
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
+    bool is_selected         = app.project_wnd.is_selected(app.pj.node(parent));
+    if (is_selected)
+        flags |= ImGuiTreeNodeFlags_Selected;
+
+    bool is_open = ImGui::TreeNodeEx(str, flags);
+
+    if (ImGui::IsItemClicked())
+        app.project_wnd.select(parent);
+
+    if (is_open) {
+        if (auto* child = parent.tree.get_child(); child)
+            show_project_hierarchy(app, *child);
+
+        ImGui::TreePop();
+    }
+}
+
+static void show_tree_node_no_children(application& app,
+                                       tree_node&   parent,
+                                       const char*  str) noexcept
+{
+    irt_assert(str);
+    irt_assert(parent.tree.get_child() == nullptr);
+
+    bool is_selected = app.project_wnd.is_selected(app.pj.node(parent));
+
+    if (ImGui::Selectable(str, &is_selected))
+        app.project_wnd.select(parent);
+}
+
 static void show_project_hierarchy(application& app, tree_node& parent) noexcept
 {
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
-
     if (auto* compo = app.mod.components.try_to_get(parent.id); compo) {
         ImGui::PushID(&parent);
         small_string<64> str;
@@ -39,22 +78,11 @@ static void show_project_hierarchy(application& app, tree_node& parent) noexcept
             break;
         }
 
-        bool is_selected = app.project_wnd.is_selected(app.pj.node(parent));
-        if (is_selected)
-            flags |= ImGuiTreeNodeFlags_Selected;
-
-        bool is_open = ImGui::TreeNodeEx(str.c_str(), flags);
-
-        if (ImGui::IsItemClicked())
-            app.project_wnd.select(parent);
-
-        if (is_open) {
-            if (can_open) {
-                if (auto* child = parent.tree.get_child(); child)
-                    show_project_hierarchy(app, *child);
-            }
-            ImGui::TreePop();
-        }
+        bool have_children = parent.tree.get_child() != nullptr;
+        if (have_children)
+            show_tree_node_children(app, parent, str.c_str());
+        else
+            show_tree_node_no_children(app, parent, str.c_str());
 
         ImGui::PopID();
 
