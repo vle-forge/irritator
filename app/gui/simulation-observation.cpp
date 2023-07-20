@@ -134,25 +134,22 @@ void simulation_observation::update() noexcept
     }
 }
 
-status plot_observation_widget::init(application&       app,
-                                     variable_observer& plot) noexcept
+status plot_observation_widget::init(application& app) noexcept
 {
-    const auto len = plot.children.size();
+    const auto len = app.pj.variable_observers.size();
+    clear();
 
-    observers.resize(len);
-    plot_types.resize(len);
+    observers.reserve(len);
+    plot_types.reserve(len);
+    ids.reserve(len);
 
-    std::fill_n(observers.data(), len, undefined<observer_id>());
-    std::fill_n(plot_types.data(), len, simulation_plot_type::plotlines);
-
-    id = app.pj.variable_observers.get_id(plot);
-
-    for (int i = 0, e = plot.children.ssize(); i != e; ++i) {
+    for_each_data(app.pj.variable_observers, [&](auto& var) noexcept {
         if_data_exists_do(
-          app.sim.models, plot.children[i].mdl_id, [&](auto& mdl) noexcept {
+          app.sim.models, var.child.mdl_id, [&](auto& mdl) noexcept {
               observers.emplace_back(mdl.obs_id);
+              ids.emplace_back(app.pj.variable_observers.get_id(var));
           });
-    }
+    });
 
     return status::success;
 }
@@ -161,55 +158,47 @@ void plot_observation_widget::clear() noexcept
 {
     observers.clear();
     plot_types.clear();
+    ids.clear();
 }
 
 void plot_observation_widget::show(application& app) noexcept
 {
-    if_data_exists_do(
-      app.pj.variable_observers, id, [&](auto& plot_obs) noexcept {
-          ImGui::PushID(this);
-          if (ImPlot::BeginPlot(plot_obs.name.c_str(), ImVec2(-1, -1))) {
-              ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-              ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+    if (ImPlot::BeginPlot("variables", ImVec2(-1, -1))) {
+        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-              ImPlot::SetupAxes(nullptr,
-                                nullptr,
-                                ImPlotAxisFlags_AutoFit,
-                                ImPlotAxisFlags_AutoFit);
+        ImPlot::SetupAxes(
+          nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
 
-              for (int i = 0, e = observers.ssize(); i != e; ++i) {
-                  if_data_exists_do(
-                    app.sim.observers, observers[i], [&](auto& obs) noexcept {
-                        if (obs.linearized_buffer.size() > 0) {
-                            switch (plot_types[i]) {
-                            case simulation_plot_type::plotlines:
-                                ImPlot::PlotLineG(
-                                  obs.name.c_str(),
-                                  ring_buffer_getter,
-                                  &obs.linearized_buffer,
-                                  obs.linearized_buffer.ssize());
-                                break;
+        for (int i = 0, e = observers.ssize(); i != e; ++i) {
+            if_data_exists_do(
+              app.sim.observers, observers[i], [&](auto& obs) noexcept {
+                  if (obs.linearized_buffer.size() > 0) {
+                      switch (plot_types[i]) {
+                      case simulation_plot_type::plotlines:
+                          ImPlot::PlotLineG(obs.name.c_str(),
+                                            ring_buffer_getter,
+                                            &obs.linearized_buffer,
+                                            obs.linearized_buffer.ssize());
+                          break;
 
-                            case simulation_plot_type::plotscatters:
-                                ImPlot::PlotScatterG(
-                                  obs.name.c_str(),
-                                  ring_buffer_getter,
-                                  &obs.linearized_buffer,
-                                  obs.linearized_buffer.ssize());
-                                break;
+                      case simulation_plot_type::plotscatters:
+                          ImPlot::PlotScatterG(obs.name.c_str(),
+                                               ring_buffer_getter,
+                                               &obs.linearized_buffer,
+                                               obs.linearized_buffer.ssize());
+                          break;
 
-                            default:
-                                break;
-                            }
-                        }
-                    });
+                      default:
+                          break;
+                      }
+                  }
+              });
+        }
 
-                  ImPlot::PopStyleVar(2);
-                  ImPlot::EndPlot();
-              }
-          }
-          ImGui::PopID();
-      });
+        ImPlot::PopStyleVar(2);
+        ImPlot::EndPlot();
+    }
 }
 
 static void plot_observation_widget_write(plot_observation_widget& plot_widget,

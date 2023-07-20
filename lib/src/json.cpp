@@ -1768,6 +1768,18 @@ struct reader
 
     ////
 
+    template<std::integral T, std::integral R>
+    bool copy(T from, R& to) noexcept
+    {
+        if (std::cmp_greater_equal(from, std::numeric_limits<R>::min()) &&
+            std::cmp_less_equal(from, std::numeric_limits<R>::max())) {
+            to = from;
+            return true;
+        }
+
+        report_json_error(error_id::integer_min_error);
+    }
+
     bool read_child(const rapidjson::Value& val,
                     child&                  c,
                     child_id                c_id) noexcept
@@ -1785,7 +1797,9 @@ struct reader
                                 copy_to(id);
                      if ("unique-id"sv == name)
                          return read_temp_unsigned_integer(value) &&
-                                copy_to(unique_id) && copy_to(c.unique_id);
+                                copy_to(unique_id) &&
+                                std::cmp_greater(unique_id.value(), 0) &&
+                                copy(unique_id.value(), c.unique_id);
                      if ("x"sv == name)
                          return read_temp_real(value) and
                                 copy_to(
@@ -1807,8 +1821,7 @@ struct reader
                      return true;
                  }) &&
                optional_has_value(id) &&
-               cache_model_mapping_add(*id, ordinal(c_id)) &&
-               optional_has_value(unique_id);
+               cache_model_mapping_add(*id, ordinal(c_id));
     }
 
     bool read_child_model_dynamics(const rapidjson::Value& val,
@@ -3586,29 +3599,31 @@ struct reader
           val, [&](const auto name, const auto& value) noexcept -> bool {
               project::unique_id_path path;
 
+              if ("name"sv == name)
+                  return read_temp_string(value) && copy_to(plot.name);
+
               if ("access"sv == name)
                   return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(path,
-                                                 plot.children.back().tn_id,
-                                                 plot.children.back().mdl_id);
+                         convert_to_tn_model_ids(
+                           path, plot.child.tn_id, plot.child.mdl_id);
 
               if ("color"sv == name)
-                  return read_color(value, plot.colors.back());
+                  return read_color(value, plot.color);
 
               if ("type"sv == name)
-                  return read_temp_string(value) && copy_to(plot.types.back());
+                  return read_temp_string(value) && copy_to(plot.type);
 
               return false;
           });
     }
 
-    bool copy_to(variable_observer::type& type) noexcept
+    bool copy_to(variable_observer::type_options& type) noexcept
     {
         if (temp_string == "line")
-            type = variable_observer::type::line;
+            type = variable_observer::type_options::line;
 
         if (temp_string == "dash")
-            type = variable_observer::type::dash;
+            type = variable_observer::type_options::dash;
 
         return false;
     }
@@ -3619,15 +3634,7 @@ struct reader
     {
         auto_stack s(this, stack_id::project_plot_observation_children);
 
-        return is_value_array(val) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     plot.children.emplace_back();
-                     plot.colors.emplace_back();
-                     plot.types.emplace_back();
-                     return read_project_plot_observation_child(value, plot);
-                 });
+        return read_project_plot_observation_child(val, plot);
     }
 
     bool read_project_plot_observation(const rapidjson::Value& val,
@@ -5079,8 +5086,12 @@ static status write_child(const modeling& mod,
     w.StartObject();
     w.Key("id");
     w.Uint64(get_index(child_id));
-    w.Key("unique-id");
-    w.Uint64(unique_id);
+
+    if (unique_id != 0) {
+        w.Key("unique-id");
+        w.Uint64(unique_id);
+    }
+
     w.Key("x");
     w.Double(mod.children_positions[get_index(child_id)].x);
     w.Key("y");
@@ -5871,28 +5882,21 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
     w.StartArray();
 
     for_each_data(pj.variable_observers, [&](auto& plot) noexcept {
+        project::unique_id_path path;
+
         w.StartObject();
         w.Key("name");
         w.String(plot.name.begin(), plot.name.size());
-        w.Key("models");
-        w.StartArray();
 
-        project::unique_id_path path;
-        for (auto node : plot.children) {
-            w.StartObject();
-            w.Key("access");
-            pj.build_unique_id_path(node.tn_id, node.mdl_id, path);
-            write_project_unique_id_path(w, path);
+        w.Key("access");
+        pj.build_unique_id_path(plot.child.tn_id, plot.child.mdl_id, path);
+        write_project_unique_id_path(w, path);
 
-            w.Key("color");
-            write_color(w, color_white);
+        w.Key("color");
+        write_color(w, color_white);
 
-            w.Key("type");
-            w.String("line");
-            w.EndObject();
-        }
-
-        w.EndArray();
+        w.Key("type");
+        w.String("line");
         w.EndObject();
     });
 

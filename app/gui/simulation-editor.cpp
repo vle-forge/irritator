@@ -1637,6 +1637,97 @@ static void grid_simulation_rebuild(grid_simulation_editor& grid_sim,
     }
 }
 
+// @TODO reuse a cache in application or project to de-recursive the function.
+static void show_select_model_box_recursive(application&   app,
+                                            tree_node&     tn,
+                                            global_access& access) noexcept
+{
+    constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
+
+    if_data_exists_do(app.mod.components, tn.id, [&](auto& compo) noexcept {
+        small_string<64> str;
+
+        switch (compo.type) {
+        case component_type::simple:
+            format(str, "{} generic", compo.name.sv());
+            break;
+        case component_type::grid:
+            format(str, "{} grid", compo.name.sv());
+            break;
+        case component_type::graph:
+            format(str, "{} graph", compo.name.sv());
+            break;
+        default:
+            format(str, "{} unknown", compo.name.sv());
+            break;
+        }
+
+        ImGui::PushID(&tn);
+        if (ImGui::TreeNodeEx(str.c_str(), flags)) {
+            for_each_model(
+              app.sim,
+              tn,
+              [&](auto& sim, auto& tn, u64 /*unique_id*/, auto& mdl) noexcept {
+                  const auto mdl_id = sim.models.get_id(mdl);
+                  ImGui::PushID(get_index(mdl_id));
+
+                  const auto current_tn_id = app.pj.node(tn);
+                  str = dynamics_type_names[ordinal(mdl.type)];
+                  if (ImGui::Selectable(str.c_str(),
+                                        access.tn_id == current_tn_id &&
+                                          access.mdl_id == mdl_id,
+                                        ImGuiSelectableFlags_DontClosePopups)) {
+                      access.tn_id  = current_tn_id;
+                      access.mdl_id = mdl_id;
+                  }
+
+                  ImGui::PopID();
+              });
+
+            if (auto* child = tn.tree.get_child(); child)
+                show_select_model_box_recursive(app, *child, access);
+
+            ImGui::TreePop();
+        }
+        ImGui::PopID();
+    });
+
+    if (auto* sibling = tn.tree.get_sibling(); sibling)
+        show_select_model_box_recursive(app, *sibling, access);
+}
+
+void show_select_model_box(const char*    button_label,
+                           const char*    popup_label,
+                           application&   app,
+                           tree_node&     tn,
+                           global_access& access) noexcept
+{
+    static global_access copy;
+
+    if (ImGui::Button(button_label)) {
+        copy = access;
+        ImGui::OpenPopup(popup_label);
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if (ImGui::BeginPopupModal(
+          popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        show_select_model_box_recursive(app, tn, access);
+
+        if (ImGui::Button("OK", ImVec2(120, 0)))
+            ImGui::CloseCurrentPopup();
+
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            access = copy;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+}
 static bool grid_simulation_combobox_component(application&            app,
                                                grid_simulation_editor& grid_sim,
                                                component_id& selected) noexcept
@@ -1785,64 +1876,6 @@ static bool grid_simulation_show_settings(application&            app,
         app.project_wnd.select(**selected_child);
 
     return ret;
-}
-
-static void show_observable_model_box(application&  app,
-                                      tree_node&    tn,
-                                      tree_node_id& selected_tn_id,
-                                      model_id&     selected_mdl_id) noexcept
-{
-    constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
-
-    if_data_exists_do(app.mod.components, tn.id, [&](auto& compo) noexcept {
-        ImGui::PushID(&tn);
-        small_string<64> str;
-
-        switch (compo.type) {
-        case component_type::simple:
-            format(str, "{} generic", compo.name.sv());
-            break;
-        case component_type::grid:
-            format(str, "{} grid", compo.name.sv());
-            break;
-        default:
-            break;
-        }
-
-        if (ImGui::TreeNodeEx(str.c_str(), flags)) {
-            for_each_model(
-              app.sim,
-              tn,
-              [&](auto& sim, auto& tn, u64 /*unique_id*/, auto& mdl) noexcept {
-                  const auto mdl_id = sim.models.get_id(mdl);
-                  ImGui::PushID(get_index(mdl_id));
-
-                  const auto current_tn_id = app.pj.node(tn);
-                  str = dynamics_type_names[ordinal(mdl.type)];
-                  if (ImGui::Selectable(str.c_str(),
-                                        selected_tn_id == current_tn_id &&
-                                          selected_mdl_id == mdl_id,
-                                        ImGuiSelectableFlags_DontClosePopups)) {
-                      selected_tn_id  = current_tn_id;
-                      selected_mdl_id = mdl_id;
-                  }
-
-                  ImGui::PopID();
-              });
-
-            if (auto* child = tn.tree.get_child(); child)
-                show_observable_model_box(
-                  app, *child, selected_tn_id, selected_mdl_id);
-
-            ImGui::TreePop();
-        }
-
-        if (auto* sibling = tn.tree.get_sibling(); sibling)
-            show_observable_model_box(
-              app, *sibling, selected_tn_id, selected_mdl_id);
-
-        ImGui::PopID();
-    });
 }
 
 static void show_select_observation_model(application&            app,
@@ -2173,284 +2206,427 @@ static bool show_local_simulation_settings(application& app,
     return is_modified > 0;
 }
 
-static bool show_simulation_plot_observations(application& app) noexcept
+static auto get_parent_node_id(project& pj, tree_node& tn) noexcept
+  -> tree_node_id
 {
-    std::optional<variable_observer_id> to_delete;
-    bool                                is_modified = false;
+    auto* parent = tn.tree.get_parent();
 
-    static global_access selected;
+    return parent ? pj.tree_nodes.get_id(*parent) : undefined<tree_node_id>();
+}
 
-    for_each_data(app.pj.variable_observers, [&](auto& plot) noexcept {
-        ImGui::PushID(&plot);
-        const auto id  = app.pj.variable_observers.get_id(plot);
-        auto       idx = static_cast<u64>(ordinal(id));
-        ImGui::InputScalar("id",
-                           ImGuiDataType_U64,
-                           &idx,
-                           nullptr,
-                           nullptr,
-                           nullptr,
-                           ImGuiInputTextFlags_ReadOnly);
-        ImGui::SameLine();
-        if (ImGui::Button("del"))
-            to_delete = std::make_optional(id);
+static bool show_local_graph_observations(application& app,
+                                          tree_node&   tn,
+                                          component& /*compo*/,
+                                          graph_component& /*graph*/) noexcept
+{
+    if (ImGui::CollapsingHeader("Local graph observation")) {
+        if (app.pj.graph_observers.can_alloc() && ImGui::Button("+##graph")) {
+            auto& graph = app.pj.graph_observers.alloc();
 
-        if (ImGui::InputFilteredString("name", plot.name))
+            graph.child.parent_id = get_parent_node_id(app.pj, tn);
+            graph.child.tn_id     = app.pj.tree_nodes.get_id(tn);
+            graph.child.mdl_id    = undefined<model_id>();
+            tn.graph_observer_ids.emplace_back(
+              app.pj.graph_observers.get_id(graph));
+
+            format(graph.name,
+                   "rename-{}",
+                   get_index(app.pj.graph_observers.get_id(graph)));
+        }
+
+        std::optional<graph_observer_id> to_delete;
+        bool                             is_modified = false;
+
+        for_specified_data(
+          app.pj.graph_observers,
+          tn.graph_observer_ids,
+          [&](auto& graph) noexcept {
+              ImGui::PushID(&graph);
+
+              if (ImGui::InputFilteredString("name", graph.name))
+                  is_modified = true;
+
+              ImGui::SameLine();
+
+              if (ImGui::Button("del"))
+                  to_delete =
+                    std::make_optional(app.pj.graph_observers.get_id(graph));
+
+              ImGui::TextFormatDisabled(
+                "graph-id {} tree-node-id {} model-id {}",
+                ordinal(graph.child.parent_id),
+                ordinal(graph.child.tn_id),
+                ordinal(graph.child.mdl_id));
+
+              if_data_exists_do(
+                app.sim.models, graph.child.mdl_id, [&](auto& mdl) noexcept {
+                    ImGui::TextUnformatted(
+                      dynamics_type_names[ordinal(mdl.type)]);
+                });
+
+              show_select_model_box("Select model",
+                                    "Choose model to observe",
+                                    app,
+                                    tn,
+                                    graph.child);
+
+              ImGui::PopID();
+          });
+
+        if (to_delete.has_value()) {
             is_modified = true;
+            app.pj.graph_observers.free(*to_delete);
+        }
+    }
 
-        if (ImGui::Button("+")) {
-            selected.clear();
-            ImGui::OpenPopup("Choose model to observe");
+    return false;
+}
+
+static bool show_local_grid_observations(application& app,
+                                         tree_node&   tn,
+                                         component& /*compo*/,
+                                         grid_component& /*grid*/) noexcept
+{
+    if (ImGui::CollapsingHeader("Local grid observation")) {
+        if (app.pj.grid_observers.can_alloc() && ImGui::Button("+##grid")) {
+            auto& grid = app.pj.grid_observers.alloc();
+
+            grid.child.parent_id = get_parent_node_id(app.pj, tn);
+            grid.child.tn_id     = app.pj.tree_nodes.get_id(tn);
+            grid.child.mdl_id    = undefined<model_id>();
+            tn.grid_observer_ids.emplace_back(
+              app.pj.grid_observers.get_id(grid));
+
+            format(grid.name,
+                   "rename-{}",
+                   get_index(app.pj.grid_observers.get_id(grid)));
         }
 
-        ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-        ImGui::SetNextWindowPos(
-          center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        if (ImGui::BeginPopupModal("Choose model to observe",
-                                   nullptr,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Select the model to observe");
+        std::optional<grid_observer_id> to_delete;
+        bool                            is_modified = false;
 
-            show_observable_model_box(
-              app, *app.pj.tn_head(), selected.tn_id, selected.mdl_id);
+        for_specified_data(
+          app.pj.grid_observers,
+          tn.grid_observer_ids,
+          [&](auto& grid) noexcept {
+              ImGui::PushID(&grid);
 
-            if (ImGui::Button("OK", ImVec2(120, 0))) {
-                if (selected.is_defined())
-                    plot.children.emplace_back(selected);
-                ImGui::CloseCurrentPopup();
-            }
+              if (ImGui::InputFilteredString("name", grid.name))
+                  is_modified = true;
 
-            // ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-                ImGui::CloseCurrentPopup();
-            }
+              ImGui::SameLine();
 
-            ImGui::EndPopup();
+              if (ImGui::Button("del"))
+                  to_delete =
+                    std::make_optional(app.pj.grid_observers.get_id(grid));
+
+              ImGui::TextFormatDisabled(
+                "grid-id {} tree-node-id {} model-id {}",
+                ordinal(grid.child.parent_id),
+                ordinal(grid.child.tn_id),
+                ordinal(grid.child.mdl_id));
+
+              if_data_exists_do(
+                app.sim.models, grid.child.mdl_id, [&](auto& mdl) noexcept {
+                    ImGui::TextUnformatted(
+                      dynamics_type_names[ordinal(mdl.type)]);
+                });
+
+              show_select_model_box(
+                "Select model", "Choose model to observe", app, tn, grid.child);
+
+              ImGui::PopID();
+          });
+
+        if (to_delete.has_value()) {
+            is_modified = true;
+            app.pj.grid_observers.free(*to_delete);
+        }
+    }
+
+    return false;
+}
+
+static bool show_local_generic_observations(
+  application& app,
+  tree_node&   tn,
+  component& /*compo*/,
+  generic_component& /*generic*/) noexcept
+{
+    if (ImGui::CollapsingHeader("Local generic observation")) {
+        if (app.pj.variable_observers.can_alloc() && ImGui::Button("+##var")) {
+            auto& var = app.pj.variable_observers.alloc();
+
+            var.child.tn_id  = app.pj.tree_nodes.get_id(tn);
+            var.child.mdl_id = undefined<model_id>();
+            tn.variable_observer_ids.emplace_back(
+              app.pj.variable_observers.get_id(var));
         }
 
-        if (ImGui::CollapsingHeader("children")) {
-            std::optional<int> to_del;
-            for (auto i = 0, e = plot.children.ssize(); i != e; ++i) {
-                ImGui::PushID(i);
-                auto tn_idx  = ordinal(plot.children[i].tn_id);
-                auto mdl_idx = ordinal(plot.children[i].mdl_id);
+        std::optional<variable_observer_id> to_delete;
+        bool                                is_modified = false;
 
-                ImGui::InputScalar("parent",
-                                   ImGuiDataType_U64,
-                                   &tn_idx,
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
-                                   ImGuiInputTextFlags_ReadOnly);
-                ImGui::SameLine();
-                if (ImGui::Button("del"))
-                    to_del = i;
+        for_specified_data(
+          app.pj.variable_observers,
+          tn.variable_observer_ids,
+          [&](auto& var) noexcept {
+              ImGui::PushID(&var);
 
-                ImGui::InputScalar("model",
-                                   ImGuiDataType_U64,
-                                   &mdl_idx,
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
-                                   ImGuiInputTextFlags_ReadOnly);
+              if (ImGui::InputFilteredString("name", var.name))
+                  is_modified = true;
 
-                ImGui::PopID();
-            }
+              ImGui::SameLine();
 
-            if (to_del.has_value())
-                plot.children.swap_pop_back(*to_del);
+              if (ImGui::Button("del"))
+                  to_delete =
+                    std::make_optional(app.pj.variable_observers.get_id(var));
+
+              if_data_exists_do(
+                app.sim.models, var.child.mdl_id, [&](auto& mdl) noexcept {
+                    ImGui::TextUnformatted(
+                      dynamics_type_names[ordinal(mdl.type)]);
+                });
+
+              show_select_model_box(
+                "Select model", "Choose model to observe", app, tn, var.child);
+
+              ImGui::PopID();
+          });
+
+        if (to_delete.has_value()) {
+            is_modified = true;
+            app.pj.variable_observers.free(*to_delete);
         }
+    }
 
-        ImGui::PopID();
-    });
+    return false;
+}
 
-    if (to_delete.has_value()) {
-        app.pj.variable_observers.free(*to_delete);
+static bool show_local_simulation_observations(application& app,
+                                               tree_node&   tn) noexcept
+{
+    return if_data_exists_return(
+      app.mod.components,
+      tn.id,
+      [&](auto& compo) noexcept -> bool {
+          switch (compo.type) {
+          case component_type::graph:
+              return if_data_exists_return(
+                app.mod.graph_components,
+                compo.id.graph_id,
+                [&](auto& graph) noexcept {
+                    return show_local_graph_observations(app, tn, compo, graph);
+                },
+                false);
+              break;
+
+          case component_type::grid:
+              return if_data_exists_return(
+                app.mod.grid_components,
+                compo.id.grid_id,
+                [&](auto& grid) noexcept {
+                    return show_local_grid_observations(app, tn, compo, grid);
+                },
+                false);
+              break;
+
+          case component_type::simple:
+              return if_data_exists_return(
+                app.mod.generic_components,
+                compo.id.generic_id,
+                [&](auto& generic) noexcept {
+                    return show_local_generic_observations(
+                      app, tn, compo, generic);
+                },
+                false);
+              break;
+
+          default:
+              irt_unreachable();
+          }
+
+          return false;
+      },
+      false);
+}
+
+// @TODO merge the three next functions with a template on
+// template<typename DataArray>
+// static bool
+// show_simulation_main_observations(application& app, DataArray& d)
+// noexcept {...}
+
+static bool show_simulation_grid_observations(application& app) noexcept
+{
+    auto to_delete   = undefined<grid_observer_id>();
+    bool is_modified = false;
+
+    if (ImGui::BeginTable("Observers", 5)) {
+        ImGui::TableSetupColumn("id");
+        ImGui::TableSetupColumn("name");
+        ImGui::TableSetupColumn("child");
+        ImGui::TableSetupColumn("enable");
+        ImGui::TableSetupColumn("delete");
+        ImGui::TableHeadersRow();
+
+        for_each_data(app.pj.grid_observers, [&](auto& grid) noexcept {
+            ImGui::PushID(&grid);
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+
+            ImGui::TextFormat("{}",
+                              ordinal(app.pj.grid_observers.get_id(grid)));
+
+            ImGui::TableNextColumn();
+
+            ImGui::PushItemWidth(-1.0f);
+            if (ImGui::InputFilteredString("name", grid.name))
+                is_modified = true;
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+
+            ImGui::TextFormat("{}", ordinal(grid.child.mdl_id));
+
+            ImGui::TableNextColumn();
+
+            bool enable = true;
+            ImGui::PushItemWidth(-1.0f);
+            ImGui::Checkbox("##button", &enable);
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+
+            if (ImGui::Button("del"))
+                to_delete = app.pj.grid_observers.get_id(grid);
+
+            ImGui::PopID();
+        });
+
+        ImGui::EndTable();
+    }
+
+    if (is_defined(to_delete)) {
+        app.pj.grid_observers.free(to_delete);
         is_modified = true;
     }
 
     return is_modified;
 }
 
-void show_choose_grid_to_observe_dlg(application&  app,
-                                     tree_node&    tn,
-                                     tree_node_id& select) noexcept
+static bool show_simulation_graph_observations(application& app) noexcept
 {
-    constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
+    auto to_delete   = undefined<graph_observer_id>();
+    bool is_modified = false;
 
-    if_data_exists_do(app.mod.components, tn.id, [&](auto& compo) noexcept {
-        ImGui::PushID(&tn);
-        small_string<64> str;
+    if (ImGui::BeginTable("Observers", 5)) {
+        ImGui::TableSetupColumn("id");
+        ImGui::TableSetupColumn("name");
+        ImGui::TableSetupColumn("child");
+        ImGui::TableSetupColumn("enable");
+        ImGui::TableSetupColumn("delete");
+        ImGui::TableHeadersRow();
 
-        switch (compo.type) {
-        case component_type::simple:
-            format(str, "{} generic", compo.name.sv());
-            break;
-        case component_type::grid:
-            format(str, "{} grid", compo.name.sv());
-            break;
-        default:
-            break;
-        }
+        for_each_data(app.pj.graph_observers, [&](auto& graph) noexcept {
+            ImGui::PushID(&graph);
 
-        if (ImGui::TreeNodeEx(str.c_str(), flags)) {
-            if (compo.type == component_type::grid && ImGui::IsItemClicked())
-                select = app.pj.node(tn);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
 
-            if (auto* child = tn.tree.get_child(); child)
-                show_choose_grid_to_observe_dlg(app, *child, select);
+            ImGui::TextFormat("{}",
+                              ordinal(app.pj.graph_observers.get_id(graph)));
 
-            ImGui::TreePop();
-        }
+            ImGui::TableNextColumn();
 
-        if (auto* sibling = tn.tree.get_sibling(); sibling)
-            show_choose_grid_to_observe_dlg(app, *sibling, select);
+            ImGui::PushItemWidth(-1.0f);
+            if (ImGui::InputFilteredString("name", graph.name))
+                is_modified = true;
+            ImGui::PopItemWidth();
 
-        ImGui::PopID();
-    });
-}
+            ImGui::TableNextColumn();
 
-void show_choose_grid_to_observe_dlg(application&   app,
-                                     grid_observer& grid_obs,
-                                     tree_node_id&  selected) noexcept
-{
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+            ImGui::TextFormat("{}", ordinal(graph.child.mdl_id));
 
-    if (ImGui::BeginPopupModal("Choose grid to observe",
-                               nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("Select the model to observe");
+            ImGui::TableNextColumn();
 
-        show_choose_grid_to_observe_dlg(app, *app.pj.tn_head(), selected);
+            bool enable = true;
+            ImGui::PushItemWidth(-1.0f);
+            ImGui::Checkbox("##button", &enable);
+            ImGui::PopItemWidth();
 
-        if (ImGui::Button("OK", ImVec2(120, 0))) {
-            if (is_defined(selected))
-                grid_obs.child.parent_id = selected;
-            ImGui::CloseCurrentPopup();
-        }
+            ImGui::TableNextColumn();
 
-        ImGui::SetItemDefaultFocus();
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-            ImGui::CloseCurrentPopup();
-        }
+            if (ImGui::Button("del"))
+                to_delete = app.pj.graph_observers.get_id(graph);
 
-        ImGui::EndPopup();
+            ImGui::PopID();
+        });
+
+        ImGui::EndTable();
     }
+
+    if (is_defined(to_delete)) {
+        app.pj.graph_observers.free(to_delete);
+        is_modified = true;
+    }
+
+    return is_modified;
 }
 
-static bool show_simulation_grid_observations(application& app) noexcept
+static bool show_simulation_variable_observations(application& app) noexcept
 {
-    std::optional<grid_observer_id> to_delete;
-    bool                            is_modified = false;
+    auto to_delete   = undefined<variable_observer_id>();
+    bool is_modified = false;
 
-    static parent_access selected;
+    if (ImGui::BeginTable("Observers", 5)) {
+        ImGui::TableSetupColumn("id");
+        ImGui::TableSetupColumn("name");
+        ImGui::TableSetupColumn("child");
+        ImGui::TableSetupColumn("enable");
+        ImGui::TableSetupColumn("delete");
+        ImGui::TableHeadersRow();
 
-    for_each_data(app.pj.grid_observers, [&](auto& grid) noexcept {
-        ImGui::PushID(&grid);
-        const auto id  = app.pj.grid_observers.get_id(grid);
-        auto       idx = static_cast<u64>(ordinal(id));
-        ImGui::InputScalar("id",
-                           ImGuiDataType_U64,
-                           &idx,
-                           nullptr,
-                           nullptr,
-                           nullptr,
-                           ImGuiInputTextFlags_ReadOnly);
-        ImGui::SameLine();
-        if (ImGui::Button("del"))
-            to_delete = std::make_optional(id);
+        for_each_data(app.pj.variable_observers, [&](auto& variable) noexcept {
+            ImGui::PushID(&variable);
 
-        if (ImGui::InputFilteredString("name", grid.name))
-            is_modified = true;
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
 
-        if (ImGui::Button("Select grid")) {
-            selected.parent_id = undefined<tree_node_id>();
-            ImGui::OpenPopup("Choose grid to observe");
-        }
+            ImGui::TextFormat(
+              "{}", ordinal(app.pj.variable_observers.get_id(variable)));
 
-        show_choose_grid_to_observe_dlg(app, grid, selected.parent_id);
+            ImGui::TableNextColumn();
 
-        if (ImGui::CollapsingHeader("children")) {
-            // std::optional<int> to_del;
-            auto parent_idx = ordinal(grid.child.parent_id);
-            auto tn_idx     = ordinal(grid.child.tn_id);
-            auto mdl_idx    = ordinal(grid.child.mdl_id);
+            ImGui::PushItemWidth(-1.0f);
+            if (ImGui::InputFilteredString("name", variable.name))
+                is_modified = true;
+            ImGui::PopItemWidth();
 
-            ImGui::InputScalar("grid parent",
-                               ImGuiDataType_U64,
-                               &parent_idx,
-                               nullptr,
-                               nullptr,
-                               nullptr,
-                               ImGuiInputTextFlags_ReadOnly);
+            ImGui::TableNextColumn();
 
-            ImGui::SameLine();
-            if (ImGui::Button("del")) {
-                grid.child.parent_id = undefined<tree_node_id>();
-                grid.child.clear();
-            }
+            ImGui::TextFormat("{}", ordinal(variable.child.mdl_id));
 
-            if (app.pj.node(grid.child.parent_id)) {
-                if (ImGui::Button("Select model to observe")) {
-                    selected.clear();
-                    ImGui::OpenPopup("Choose model to observe");
-                }
+            ImGui::TableNextColumn();
 
-                ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-                ImGui::SetNextWindowPos(
-                  center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-                if (ImGui::BeginPopupModal("Choose model to observe",
-                                           nullptr,
-                                           ImGuiWindowFlags_AlwaysAutoResize)) {
-                    ImGui::Text("Select the model to observe");
+            bool enable = true;
+            ImGui::PushItemWidth(-1.0f);
+            ImGui::Checkbox("##button", &enable);
+            ImGui::PopItemWidth();
 
-                    show_observable_model_box(
-                      app,
-                      *app.pj.node(grid.child.parent_id),
-                      selected.tn_id,
-                      selected.mdl_id);
+            ImGui::TableNextColumn();
 
-                    if (ImGui::Button("OK", ImVec2(120, 0))) {
-                        if (selected.is_defined())
-                            grid.child = selected;
-                        ImGui::CloseCurrentPopup();
-                    }
+            if (ImGui::Button("del"))
+                to_delete = app.pj.variable_observers.get_id(variable);
 
-                    ImGui::SetItemDefaultFocus();
-                    ImGui::SameLine();
-                    if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-                        ImGui::CloseCurrentPopup();
-                    }
+            ImGui::PopID();
+        });
 
-                    ImGui::EndPopup();
-                }
+        ImGui::EndTable();
+    }
 
-                ImGui::InputScalar("parent",
-                                   ImGuiDataType_U64,
-                                   &tn_idx,
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
-                                   ImGuiInputTextFlags_ReadOnly);
-
-                ImGui::InputScalar("model",
-                                   ImGuiDataType_U64,
-                                   &mdl_idx,
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
-                                   ImGuiInputTextFlags_ReadOnly);
-            }
-        }
-
-        ImGui::PopID();
-    });
-
-    if (to_delete.has_value()) {
-        app.pj.grid_observers.free(*to_delete);
+    if (is_defined(to_delete)) {
+        app.pj.variable_observers.free(to_delete);
         is_modified = true;
     }
 
@@ -2459,41 +2635,25 @@ static bool show_simulation_grid_observations(application& app) noexcept
 
 static bool show_main_simulation_observations(application& app) noexcept
 {
-    bool plot_updated = false;
-    bool grid_updated = false;
+    bool variable_updated = false;
+    bool grid_updated     = false;
+    bool graph_updated    = false;
 
-    if (ImGui::CollapsingHeader("Plots definitions",
-                                ImGuiTreeNodeFlags_AllowItemOverlap)) {
-        ImGui::SameLine();
+    if (ImGui::CollapsingHeader("Main observations")) {
+        if (app.pj.variable_observers.ssize() > 0 &&
+            ImGui::CollapsingHeader("Variables"))
+            variable_updated = show_simulation_variable_observations(app);
 
-        if (ImGui::Button("+##plots")) {
-            if (app.pj.variable_observers.can_alloc()) {
-                auto& plot = app.pj.variable_observers.alloc();
-                format(plot.name,
-                       "rename-{}",
-                       get_index(app.pj.variable_observers.get_id(plot)));
-            }
-        }
+        if (app.pj.grid_observers.ssize() > 0 &&
+            ImGui::CollapsingHeader("Grids"))
+            grid_updated = show_simulation_grid_observations(app);
 
-        plot_updated = show_simulation_plot_observations(app);
+        if (app.pj.graph_observers.ssize() > 0 &&
+            ImGui::CollapsingHeader("Graphs"))
+            graph_updated = show_simulation_graph_observations(app);
     }
 
-    if (ImGui::CollapsingHeader("Grids definitions",
-                                ImGuiTreeNodeFlags_AllowItemOverlap)) {
-        ImGui::SameLine();
-        if (ImGui::Button("+##grid")) {
-            if (app.pj.grid_observers.can_alloc()) {
-                auto& grid = app.pj.grid_observers.alloc();
-                format(grid.name,
-                       "rename-{}",
-                       get_index(app.pj.grid_observers.get_id(grid)));
-            }
-        }
-
-        grid_updated = show_simulation_grid_observations(app);
-    }
-
-    return plot_updated or grid_updated;
+    return variable_updated or grid_updated or graph_updated;
 }
 
 void simulation_editor::show() noexcept
@@ -2565,6 +2725,11 @@ void simulation_editor::show() noexcept
 
                 if (ImGui::BeginTabItem("Observations")) {
                     show_main_simulation_observations(app);
+
+                    auto selected_tn = app.project_wnd.selected_tn();
+                    if (auto* selected = app.pj.node(selected_tn); selected)
+                        show_local_simulation_observations(app, *selected);
+
                     ImGui::EndTabItem();
                 }
 

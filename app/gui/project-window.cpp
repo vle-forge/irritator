@@ -58,20 +58,16 @@ static void show_project_hierarchy(application& app, tree_node& parent) noexcept
     if (auto* compo = app.mod.components.try_to_get(parent.id); compo) {
         ImGui::PushID(&parent);
         small_string<64> str;
-        bool             can_open = false;
 
         switch (compo->type) {
         case component_type::simple:
             format(str, "{} generic", compo->name.sv());
-            can_open = true;
             break;
         case component_type::grid:
             format(str, "{} grid", compo->name.sv());
-            can_open = true;
             break;
         case component_type::graph:
             format(str, "{} graph", compo->name.sv());
-            can_open = true;
             break;
         default:
             format(str, "{}", compo->name.sv());

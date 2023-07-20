@@ -222,7 +222,7 @@ public:
     //!  simulation layer.
     //!
     //! @return The status.
-    status init(application& app, variable_observer& plot) noexcept;
+    status init(application& app) noexcept;
 
     //! Clear the children vector.
     void clear() noexcept;
@@ -238,8 +238,7 @@ public:
 
     vector<observer_id>          observers;
     vector<simulation_plot_type> plot_types;
-
-    variable_observer_id id = undefined<variable_observer_id>();
+    vector<variable_observer_id> ids;
 };
 
 class grid_observation_widget
@@ -706,7 +705,7 @@ struct simulation_editor
     simulation_status simulation_state = simulation_status::not_started;
     data_array<plot_copy, plot_copy_id> copy_obs;
 
-    vector<plot_observation_widget>  plot_obs;
+    plot_observation_widget          plot_obs;
     vector<grid_observation_widget>  grid_obs;
     vector<graph_observation_widget> graph_obs;
 

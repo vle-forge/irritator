@@ -167,8 +167,7 @@ static void show_observation_plot(application& app) noexcept
 {
     ImPlot::SetCurrentContext(app.output_ed.implot_context);
 
-    for (auto& plot : app.simulation_ed.plot_obs)
-        plot.show(app);
+    app.simulation_ed.plot_obs.show(app);
 
     for_each_data(app.simulation_ed.copy_obs,
                   [&](auto& plot) noexcept -> void { plot.show(app); });

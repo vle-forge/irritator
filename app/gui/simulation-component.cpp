@@ -24,21 +24,22 @@ static void simulation_clear(component_editor&  ed,
 
 static status simulation_init_observation(application& app) noexcept
 {
-    app.simulation_ed.plot_obs.clear();
     app.simulation_ed.grid_obs.clear();
+    app.simulation_ed.graph_obs.clear();
 
-    irt_return_if_bad(try_for_each_data(
-      app.pj.variable_observers,
-      [&](variable_observer& obs) noexcept -> status {
-          auto& plot_ed = app.simulation_ed.plot_obs.emplace_back();
-          return plot_ed.init(app, obs);
-      }));
+    irt_return_if_bad(app.simulation_ed.plot_obs.init(app));
 
     irt_return_if_bad(try_for_each_data(
       app.pj.grid_observers, [&](grid_observer& obs) noexcept -> status {
           auto& grid_ed = app.simulation_ed.grid_obs.emplace_back();
           return grid_ed.init(app, obs);
       }));
+
+    // irt_return_if_bad(try_for_each_data(
+    //   app.pj.graph_observers, [&](graph_observer& obs) noexcept -> status {
+    //       auto& graph_ed = app.simulation_ed.graph_obs.emplace_back();
+    //       return graph_ed.init(app, obs);
+    //   }));
 
     return status::success;
 }
@@ -141,13 +142,9 @@ static void simulation_init(component_editor&  ed,
     }
 
     {
-        variable_observer* plot = nullptr;
-        while (app.pj.variable_observers.next(plot)) {
-            const auto id  = app.pj.variable_observers.get_id(plot);
-            const auto idx = get_index(id);
-
-            app.simulation_ed.plot_obs[idx].init(app, *plot);
-        }
+        app.simulation_ed.plot_obs.init(app);
+        app.simulation_ed.grid_obs.resize(app.pj.grid_observers.size());
+        app.simulation_ed.graph_obs.resize(app.pj.graph_observers.size());
 
         grid_observer* grid = nullptr;
         while (app.pj.grid_observers.next(grid)) {
@@ -156,6 +153,14 @@ static void simulation_init(component_editor&  ed,
 
             app.simulation_ed.grid_obs[idx].init(app, *grid);
         }
+
+        // graph_observer* graph = nullptr;
+        // while (app.pj.graph_observers.next(graph)) {
+        //     const auto id  = app.pj.graph_observers.get_id(graph);
+        //     const auto idx = get_index(id);
+
+        //    app.simulation_ed.graph_obs[idx].init(app, *graph);
+        //}
     }
 
     if (auto ret = simulation_init_observation(app); is_bad(ret)) {

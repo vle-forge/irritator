@@ -527,6 +527,10 @@ struct tree_node
     table<u64, node_v>              nodes_v;
     table<u64, global_parameter_id> parameters;
 
+    vector<variable_observer_id> variable_observer_ids;
+    vector<graph_observer_id>    graph_observer_ids;
+    vector<grid_observer_id>     grid_observer_ids;
+
     auto get_model_id(const node_v v) const noexcept -> std::optional<model_id>
     {
         auto* ptr = std::get_if<model_id>(&v);
@@ -591,22 +595,11 @@ struct tree_node
 
 struct global_access
 {
-    tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
-    model_id     mdl_id; //< @c model to observe.
-
-    global_access() noexcept = default;
-
-    void clear() noexcept;
-    bool is_defined() const noexcept;
-};
-
-struct parent_access
-{
     tree_node_id parent_id; //< @c tree_node identifier ancestor of the model.
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
 
-    parent_access() noexcept = default;
+    global_access() noexcept = default;
 
     void clear() noexcept;
     bool is_defined() const noexcept;
@@ -630,28 +623,30 @@ struct grid_observer
 {
     name_str name;
 
-    parent_access child;
+    global_access child;
+    real          min_range = -1.e4;
+    real          max_range = 1.e4;
 };
 
 struct graph_observer
 {
     name_str name;
 
-    parent_access child;
+    global_access child;
 };
 
 struct variable_observer
 {
-    enum class type
+    name_str name;
+
+    global_access child;
+    color         color;
+
+    enum class type_options
     {
         line,
         dash,
-    };
-
-    name_str              name;
-    vector<global_access> children;
-    vector<color>         colors;
-    vector<type>          types;
+    } type = type_options::line;
 };
 
 struct global_parameter
@@ -984,27 +979,14 @@ private:
 
 inline void global_access::clear() noexcept
 {
-    tn_id  = undefined<tree_node_id>();
-    mdl_id = undefined<model_id>();
-}
-
-inline bool global_access::is_defined() const noexcept
-{
-    return tn_id != undefined<tree_node_id>() and
-           mdl_id != undefined<model_id>();
-}
-
-inline void parent_access::clear() noexcept
-{
     parent_id = undefined<tree_node_id>();
     tn_id     = undefined<tree_node_id>();
     mdl_id    = undefined<model_id>();
 }
 
-inline bool parent_access::is_defined() const noexcept
+inline bool global_access::is_defined() const noexcept
 {
-    return parent_id != undefined<tree_node_id>() and
-           tn_id != undefined<tree_node_id>() and
+    return tn_id != undefined<tree_node_id>() and
            mdl_id != undefined<model_id>();
 }
 

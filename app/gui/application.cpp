@@ -118,7 +118,7 @@ bool application::init() noexcept
     }
 
     simulation_ed.displacements.resize(mod_init.model_capacity);
-    simulation_ed.plot_obs.resize(pj.variable_observers.size());
+    simulation_ed.plot_obs.clear();
     simulation_ed.grid_obs.resize(pj.grid_observers.size());
 
     if (auto ret = simulation_ed.copy_obs.init(16); is_bad(ret)) {
