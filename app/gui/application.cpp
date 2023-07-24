@@ -4,12 +4,13 @@
 
 #include <irritator/core.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 
 #include "application.hpp"
 #include "dialog.hpp"
-#include "imgui.h"
 #include "internal.hpp"
 
+#include <imgui.h>
 #include <imgui_internal.h>
 
 namespace irt {
@@ -526,6 +527,103 @@ void application::show() noexcept
     if (ttf)
         ImGui::PopFont();
 #endif
+}
+
+static void show_select_model_box_recursive(application&   app,
+                                            tree_node&     tn,
+                                            global_access& access) noexcept
+{
+    constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
+
+    if_data_exists_do(app.mod.components, tn.id, [&](auto& compo) noexcept {
+        small_string<64> str;
+
+        switch (compo.type) {
+        case component_type::simple:
+            format(str, "{} generic", compo.name.sv());
+            break;
+        case component_type::grid:
+            format(str, "{} grid", compo.name.sv());
+            break;
+        case component_type::graph:
+            format(str, "{} graph", compo.name.sv());
+            break;
+        default:
+            format(str, "{} unknown", compo.name.sv());
+            break;
+        }
+
+        ImGui::PushID(&tn);
+        if (ImGui::TreeNodeEx(str.c_str(), flags)) {
+            for_each_model(
+              app.sim,
+              tn,
+              [&](auto& sim, auto& tn, u64 /*unique_id*/, auto& mdl) noexcept {
+                  const auto mdl_id = sim.models.get_id(mdl);
+                  ImGui::PushID(get_index(mdl_id));
+
+                  const auto current_tn_id = app.pj.node(tn);
+                  str = dynamics_type_names[ordinal(mdl.type)];
+                  if (ImGui::Selectable(str.c_str(),
+                                        access.tn_id == current_tn_id &&
+                                          access.mdl_id == mdl_id,
+                                        ImGuiSelectableFlags_DontClosePopups)) {
+                      access.tn_id  = current_tn_id;
+                      access.mdl_id = mdl_id;
+                  }
+
+                  ImGui::PopID();
+              });
+
+            if (auto* child = tn.tree.get_child(); child)
+                show_select_model_box_recursive(app, *child, access);
+
+            ImGui::TreePop();
+        }
+        ImGui::PopID();
+    });
+
+    if (auto* sibling = tn.tree.get_sibling(); sibling)
+        show_select_model_box_recursive(app, *sibling, access);
+}
+
+bool show_select_model_box(const char*    button_label,
+                           const char*    popup_label,
+                           application&   app,
+                           tree_node&     tn,
+                           global_access& access) noexcept
+{
+    static global_access copy;
+
+    auto ret = false;
+
+    if (ImGui::Button(button_label)) {
+        copy = access;
+        ImGui::OpenPopup(popup_label);
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if (ImGui::BeginPopupModal(
+          popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        show_select_model_box_recursive(app, tn, access);
+
+        if (ImGui::Button("OK", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+            ret = true;
+        }
+
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            access = copy;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+
+    return ret;
 }
 
 void application::add_simulation_task(task_function fn,

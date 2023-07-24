@@ -4,13 +4,21 @@ project(irritator-gui VERSION 0.1.0.0 LANGUAGES CXX)
 set(gui_sources
     application.cpp application.hpp component.cpp component-editor.cpp component-selector.cpp
     data-window.cpp dialog.cpp dialog.hpp editor.cpp editor.hpp
-    generic-editor.cpp graph-editor.cpp grid-editor.cpp hsm-editor.cpp imnodes.cpp imnodes.h
+    hsm-editor.cpp imnodes.cpp imnodes.h
     imnodes_internal.h implot.cpp implot.h implot_demo.cpp implot_internal.h
     implot_items.cpp internal.cpp internal.hpp io.cpp library-window.cpp
     memory-window.cpp notification.cpp output-editor.cpp preview-window.cpp
     project-window.cpp settings-window.cpp simulation-component.cpp
     simulation-editor.cpp simulation-observation.cpp task-window.cpp
     window-logger.cpp
+
+    generic/modeling.cpp
+    generic/simulation.cpp
+    graph/modeling.cpp
+    graph/simulation.cpp
+    grid/modeling.cpp
+    grid/simulation.cpp
+
     ${PROJECT_SOURCE_DIR}/../../lib/src/archiver.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/external_source.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/hsm.cpp

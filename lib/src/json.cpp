@@ -3608,7 +3608,7 @@ struct reader
                            path, plot.child.tn_id, plot.child.mdl_id);
 
               if ("color"sv == name)
-                  return read_color(value, plot.color);
+                  return read_color(value, plot.default_color);
 
               if ("type"sv == name)
                   return read_temp_string(value) && copy_to(plot.type);

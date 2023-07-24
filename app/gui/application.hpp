@@ -1033,6 +1033,30 @@ struct application
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
 };
 
+//! Display dialog box to choose a @c model in a hierarchy of a @c tree_node.
+bool show_select_model_box(const char*    button_label,
+                           const char*    popup_label,
+                           application&   app,
+                           tree_node&     tn,
+                           global_access& access) noexcept;
+
+bool show_local_observers(application&     app,
+                          tree_node&       tn,
+                          component&       compo,
+                          graph_component& graph) noexcept;
+
+bool show_local_observers(application&       app,
+                          tree_node&         tn,
+                          component&         compo,
+                          generic_component& generic) noexcept;
+
+bool show_local_observers(application&    app,
+                          tree_node&      tn,
+                          component&      compo,
+                          grid_component& grid) noexcept;
+
+void show_simulation_editor(application& app) noexcept;
+
 //! @brief Get the file path of the @c imgui.ini file saved in $HOME.
 //! @return A pointer to a newly allocated memory.
 char* get_imgui_filename() noexcept;

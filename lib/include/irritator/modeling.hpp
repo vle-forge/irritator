@@ -640,7 +640,7 @@ struct variable_observer
     name_str name;
 
     global_access child;
-    color         color;
+    color         default_color;
 
     enum class type_options
     {
