@@ -323,7 +323,8 @@ struct plot_copy
     ring_buffer<observation> linear_outputs;
     simulation_plot_type     plot_type = simulation_plot_type::none;
 
-    void show(application& app) noexcept;
+    //! Display the @c plot_copy data into a ImPlot widget.
+    void show() noexcept;
 };
 
 void task_save_component(void* param) noexcept;

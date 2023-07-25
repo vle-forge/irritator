@@ -134,7 +134,7 @@ void simulation_observation::update() noexcept
     }
 }
 
-void plot_copy::show(application& /*app*/) noexcept
+void plot_copy::show() noexcept
 {
     ImGui::PushID(this);
 
@@ -145,7 +145,7 @@ void plot_copy::show(application& /*app*/) noexcept
         ImPlot::SetupAxes(
           nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
 
-        if (linear_outputs.size() > 0) {
+        if (linear_outputs.ssize() > 0) {
             switch (plot_type) {
             case simulation_plot_type::plotlines:
                 ImPlot::PlotLineG(name.c_str(),

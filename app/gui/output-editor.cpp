@@ -170,7 +170,7 @@ static void show_observation_plot(application& app) noexcept
     app.simulation_ed.plot_obs.show(app);
 
     for_each_data(app.simulation_ed.copy_obs,
-                  [&](auto& plot) noexcept -> void { plot.show(app); });
+                  [](auto& plot) noexcept -> void { plot.show(); });
 }
 
 void output_editor::show() noexcept
