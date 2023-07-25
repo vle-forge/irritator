@@ -16,6 +16,7 @@ set(gui_sources
     graph/modeling.cpp
     graph/simulation.cpp
     grid/modeling.cpp
+    grid/observation.cpp
     grid/simulation.cpp
     hsm/modeling.cpp
 
