@@ -24,6 +24,7 @@ static void simulation_clear(component_editor&  ed,
 
 static status simulation_init_observation(application& app) noexcept
 {
+    app.simulation_ed.plot_obs.init(app);
     app.simulation_ed.grid_obs.clear();
     app.simulation_ed.graph_obs.clear();
 
@@ -40,6 +41,8 @@ static status simulation_init_observation(application& app) noexcept
     //       auto& graph_ed = app.simulation_ed.graph_obs.emplace_back();
     //       return graph_ed.init(app, obs);
     //   }));
+
+    app.sim_obs.init();
 
     return status::success;
 }
@@ -142,25 +145,25 @@ static void simulation_init(component_editor&  ed,
     }
 
     {
-        app.simulation_ed.plot_obs.init(app);
-        app.simulation_ed.grid_obs.resize(app.pj.grid_observers.size());
-        app.simulation_ed.graph_obs.resize(app.pj.graph_observers.size());
+        // app.simulation_ed.plot_obs.init(app);
+        // app.simulation_ed.grid_obs.resize(app.pj.grid_observers.size());
+        // // app.simulation_ed.graph_obs.resize(app.pj.graph_observers.size());
 
-        grid_observer* grid = nullptr;
-        while (app.pj.grid_observers.next(grid)) {
-            const auto id  = app.pj.grid_observers.get_id(grid);
-            const auto idx = get_index(id);
+        // grid_observer* grid = nullptr;
+        // while (app.pj.grid_observers.next(grid)) {
+        //     const auto id  = app.pj.grid_observers.get_id(grid);
+        //     const auto idx = get_index(id);
 
-            app.simulation_ed.grid_obs[idx].init(app, *grid);
-        }
+        //     app.simulation_ed.grid_obs[idx].init(app, *grid);
+        // }
 
         // graph_observer* graph = nullptr;
         // while (app.pj.graph_observers.next(graph)) {
         //     const auto id  = app.pj.graph_observers.get_id(graph);
         //     const auto idx = get_index(id);
 
-        //    app.simulation_ed.graph_obs[idx].init(app, *graph);
-        //}
+        //     app.simulation_ed.graph_obs[idx].init(app, *graph);
+        // }
     }
 
     if (auto ret = simulation_init_observation(app); is_bad(ret)) {
