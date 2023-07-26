@@ -1292,58 +1292,58 @@ void show_simulation_editor(application& app) noexcept
     }
 }
 
-bool show_local_observers(application& app,
-                          tree_node&   tn,
-                          component& /*compo*/,
-                          generic_component& /*generic*/) noexcept
-{
-    if (ImGui::CollapsingHeader("Local generic observation")) {
-        if (app.pj.variable_observers.can_alloc() && ImGui::Button("+##var")) {
-            auto& var = app.pj.variable_observers.alloc();
+//bool show_local_observers(application& app,
+//                          tree_node&   tn,
+//                          component& /*compo*/,
+//                          generic_component& /*generic*/) noexcept
+//{
+    //if (ImGui::CollapsingHeader("Local generic observation")) {
+    //    if (app.pj.variable_observers.can_alloc() && ImGui::Button("+##var")) {
+    //        auto& var = app.pj.variable_observers.alloc();
 
-            var.child.tn_id  = app.pj.tree_nodes.get_id(tn);
-            var.child.mdl_id = undefined<model_id>();
-            tn.variable_observer_ids.emplace_back(
-              app.pj.variable_observers.get_id(var));
-        }
+    //        var.child.tn_id  = app.pj.tree_nodes.get_id(tn);
+    //        var.child.mdl_id = undefined<model_id>();
+    //        tn.variable_observer_ids.emplace_back(
+    //          app.pj.variable_observers.get_id(var));
+    //    }
 
-        std::optional<variable_observer_id> to_delete;
-        bool                                is_modified = false;
+    //    std::optional<variable_observer_id> to_delete;
+    //    bool                                is_modified = false;
 
-        for_specified_data(
-          app.pj.variable_observers,
-          tn.variable_observer_ids,
-          [&](auto& var) noexcept {
-              ImGui::PushID(&var);
+    //    for_specified_data(
+    //      app.pj.variable_observers,
+    //      tn.variable_observer_ids,
+    //      [&](auto& var) noexcept {
+    //          ImGui::PushID(&var);
 
-              if (ImGui::InputFilteredString("name", var.name))
-                  is_modified = true;
+    //          if (ImGui::InputFilteredString("name", var.name))
+    //              is_modified = true;
 
-              ImGui::SameLine();
+    //          ImGui::SameLine();
 
-              if (ImGui::Button("del"))
-                  to_delete =
-                    std::make_optional(app.pj.variable_observers.get_id(var));
+    //          if (ImGui::Button("del"))
+    //              to_delete =
+    //                std::make_optional(app.pj.variable_observers.get_id(var));
 
-              if_data_exists_do(
-                app.sim.models, var.child.mdl_id, [&](auto& mdl) noexcept {
-                    ImGui::TextUnformatted(
-                      dynamics_type_names[ordinal(mdl.type)]);
-                });
+    //          if_data_exists_do(
+    //            app.sim.models, var.child.mdl_id, [&](auto& mdl) noexcept {
+    //                ImGui::TextUnformatted(
+    //                  dynamics_type_names[ordinal(mdl.type)]);
+    //            });
 
-              show_select_model_box(
-                "Select model", "Choose model to observe", app, tn, var.child);
+    //          show_select_model_box(
+    //            "Select model", "Choose model to observe", app, tn, var.child);
 
-              ImGui::PopID();
-          });
+    //          ImGui::PopID();
+    //      });
 
-        if (to_delete.has_value()) {
-            is_modified = true;
-            app.pj.variable_observers.free(*to_delete);
-        }
-    }
+    //    if (to_delete.has_value()) {
+    //        is_modified = true;
+    //        app.pj.variable_observers.free(*to_delete);
+    //    }
+    //}
 
-    return false;
-}
+//    return false;
+//}
 
 } // namespace irt

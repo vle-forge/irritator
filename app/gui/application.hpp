@@ -1046,11 +1046,6 @@ bool show_local_observers(application&     app,
                           component&       compo,
                           graph_component& graph) noexcept;
 
-bool show_local_observers(application&       app,
-                          tree_node&         tn,
-                          component&         compo,
-                          generic_component& generic) noexcept;
-
 bool show_local_observers(application&    app,
                           tree_node&      tn,
                           component&      compo,

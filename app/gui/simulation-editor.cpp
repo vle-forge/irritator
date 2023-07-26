@@ -327,6 +327,105 @@ static bool show_main_simulation_settings(application& app) noexcept
     return is_modified > 0;
 }
 
+static bool show_local_simulation_observers(application& app,
+                                            tree_node&   tn) noexcept
+{
+    int is_modified = 0;
+
+    if (ImGui::CollapsingHeader("Observers", ImGuiTreeNodeFlags_DefaultOpen)) {
+        const auto can_add = app.pj.variable_observers.can_alloc();
+
+        if (!can_add)
+            ImGui::TextFormatDisabled(
+              "Not enough variable observers memory available (default: {})",
+              app.pj.variable_observers.capacity());
+
+        if (ImGui::BeginTable("Observation table", 5)) {
+            ImGui::TableSetupColumn("enable");
+            ImGui::TableSetupColumn("unique id");
+            ImGui::TableSetupColumn("model type");
+            ImGui::TableSetupColumn("type");
+            ImGui::TableSetupColumn("color");
+            ImGui::TableHeadersRow();
+
+            for_each_model(
+              app.sim,
+              tn,
+              [&](auto& sim, auto& /*tn*/, auto unique_id, auto& mdl) noexcept {
+                  const auto mdl_id = sim.get_id(mdl);
+                  auto*      ptr    = tn.variable_observer_ids.get(unique_id);
+                  bool       enable = ptr != nullptr;
+
+                  ImGui::PushID(static_cast<int>(get_index(mdl_id)));
+
+                  ImGui::TableNextRow();
+                  ImGui::TableNextColumn();
+
+                  if (can_add && ImGui::Checkbox("##enable", &enable)) {
+                      if (enable) {
+                          irt_assert(ptr == nullptr);
+                          auto& gp    = app.pj.variable_observers.alloc();
+                          auto  gp_id = app.pj.variable_observers.get_id(gp);
+                          gp.child.parent_id = app.pj.tree_nodes.get_id(tn);
+                          gp.child.tn_id     = app.pj.tree_nodes.get_id(tn);
+                          gp.child.mdl_id    = sim.models.get_id(mdl);
+                          gp.type = variable_observer::type_options::line;
+
+                          tn.variable_observer_ids.data.emplace_back(unique_id,
+                                                                     gp_id);
+                          tn.variable_observer_ids.sort();
+                          ptr = tn.variable_observer_ids.get(unique_id);
+                          irt_assert(ptr != nullptr);
+                      } else {
+                          irt_assert(ptr != nullptr);
+                          app.pj.variable_observers.free(*ptr);
+                          tn.variable_observer_ids.erase(unique_id);
+                          ptr    = nullptr;
+                          enable = false;
+                      }
+                  }
+
+                  ImGui::TableNextColumn();
+                  ImGui::TextFormat("{}", ordinal(mdl_id));
+                  ImGui::TableNextColumn();
+                  ImGui::TextUnformatted(
+                    dynamics_type_names[ordinal(mdl.type)]);
+                  ImGui::TableNextColumn();
+
+                  if (enable) {
+                      irt_assert(ptr != nullptr);
+                      auto& gp = app.pj.variable_observers.get(*ptr);
+
+                      ImGui::TextUnformatted("line");
+                      ImGui::TableNextColumn();
+
+                      auto color =
+                        ImGui::ColorConvertU32ToFloat4(gp.default_color);
+                      if (ImGui::ColorEdit4("Color selection",
+                                            &color.x,
+                                            ImGuiColorEditFlags_NoInputs |
+                                              ImGuiColorEditFlags_NoLabel)) {
+                          gp.default_color =
+                            ImGui::ColorConvertFloat4ToU32(color);
+                      }
+
+                  } else {
+                      ImGui::TextUnformatted("-");
+                      ImGui::TableNextColumn();
+                      ImGui::TextUnformatted("-");
+                  }
+                  ImGui::TableNextColumn();
+
+                  ImGui::PopID();
+              });
+
+            ImGui::EndTable();
+        }
+    }
+
+    return is_modified > 0;
+}
+
 static bool show_local_simulation_settings(application& app,
                                            tree_node&   tn) noexcept
 {
@@ -410,10 +509,9 @@ static bool show_local_observers(application& app, tree_node& tn) noexcept
                 app.mod.graph_components,
                 compo.id.graph_id,
                 [&](auto& graph) noexcept {
-                    return show_local_observers(app, tn, compo, graph);
+                    return show_local_simulation_observers(app, tn);
                 },
                 false);
-              break;
 
           case component_type::grid:
               return if_data_exists_return(
@@ -423,17 +521,16 @@ static bool show_local_observers(application& app, tree_node& tn) noexcept
                     return show_local_observers(app, tn, compo, grid);
                 },
                 false);
-              break;
 
           case component_type::simple:
-              return if_data_exists_return(
-                app.mod.generic_components,
-                compo.id.generic_id,
-                [&](auto& generic) noexcept {
-                    return show_local_observers(app, tn, compo, generic);
-                },
-                false);
-              break;
+              // return if_data_exists_return(
+              //   app.mod.generic_components,
+              //   compo.id.generic_id,
+              //   [&](auto& generic) noexcept {
+              //       return show_local_observers(app, tn, compo, generic);
+              //   },
+              //   false);
+              return true;
 
           default:
               irt_unreachable();
@@ -721,8 +818,10 @@ void simulation_editor::show() noexcept
                     show_main_simulation_observations(app);
 
                     auto selected_tn = app.project_wnd.selected_tn();
-                    if (auto* selected = app.pj.node(selected_tn); selected)
+                    if (auto* selected = app.pj.node(selected_tn); selected) {
+                        show_local_simulation_observers(app, *selected);
                         show_local_observers(app, *selected);
+                    }
 
                     ImGui::EndTabItem();
                 }
