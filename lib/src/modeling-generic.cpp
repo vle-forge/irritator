@@ -66,6 +66,9 @@ status add_integrator_component_port(modeling&          mod,
     irt_return_if_bad(mod.connect_input(com, port, id, 1));
     irt_return_if_bad(mod.connect_output(com, id, 0, port));
 
+    auto& ch = mod.children.get(id);
+    ch.unique_id = com.make_next_unique_id();
+
     return status::success;
 }
 
