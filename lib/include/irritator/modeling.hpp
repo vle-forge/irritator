@@ -402,7 +402,7 @@ struct graph_component
     vector<connection_id> cache_connections;
 };
 
-using color           = std::array<u8, 4>;
+using color           = u32;
 using component_color = std::array<float, 4>;
 
 struct component

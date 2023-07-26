@@ -1006,7 +1006,7 @@ struct reader
 
     template<int QssLevel>
     bool read_dynamics(const rapidjson::Value&    val,
-                       abstract_wsum<QssLevel, 2> dyn) noexcept
+                       abstract_wsum<QssLevel, 2>& dyn) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_2);
 
@@ -1025,7 +1025,7 @@ struct reader
 
     template<int QssLevel>
     bool read_dynamics(const rapidjson::Value&    val,
-                       abstract_wsum<QssLevel, 3> dyn) noexcept
+                       abstract_wsum<QssLevel, 3>& dyn) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_3);
 
@@ -1047,7 +1047,7 @@ struct reader
 
     template<int QssLevel>
     bool read_dynamics(const rapidjson::Value&    val,
-                       abstract_wsum<QssLevel, 4> dyn) noexcept
+                       abstract_wsum<QssLevel, 4>& dyn) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_4);
 
@@ -3579,15 +3579,28 @@ struct reader
                  });
     }
 
+    bool copy(const component_color& cc, color& c) noexcept
+    {
+        c = 0;
+        c = (u32)((int)(std::clamp(cc[0], 0.f, 1.f) * 255.f + 0.5f));
+        c |= ((u32)((int)(std::clamp(cc[1], 0.f, 1.f) * 255.0f + 0.5f)) << 8);
+        c |= ((u32)((int)(std::clamp(cc[2], 0.f, 1.f) * 255.0f + 0.5f)) << 16);
+        c |= ((u32)((int)(std::clamp(cc[3], 0.f, 1.f) * 255.0f + 0.5f)) << 24);
+        return true;
+    }
+
     bool read_color(const rapidjson::Value& val, color& c) noexcept
     {
-        auto_stack s(this, stack_id::load_color);
+        auto_stack      s(this, stack_id::load_color);
+        component_color cc{};
 
         return is_value_array(val) && is_value_array_size_equal(val, 4) &&
                for_each_array(
-                 val, [&](const auto i, const auto& value) noexcept -> bool {
-                     return read_temp_unsigned_integer(value) && copy_to(c[i]);
-                 });
+                 val,
+                 [&](const auto i, const auto& value) noexcept -> bool {
+                     return read_temp_unsigned_integer(value) && copy_to(cc[i]);
+                 }) &&
+               copy(cc, c);
     }
 
     bool read_project_plot_observation_child(const rapidjson::Value& val,
