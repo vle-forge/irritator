@@ -237,8 +237,17 @@ public:
     std::filesystem::path file;
 
     vector<observer_id>          observers;
-    vector<simulation_plot_type> plot_types;
     vector<variable_observer_id> ids;
+
+    template<typename Function>
+    void for_each_observers(Function&& f) noexcept
+    {
+        irt_assert(observers.size() == ids.size());
+
+        for (int i = 0, e = observers.ssize(); i != e; ++i) {
+            f(observers[i], ids[i]);
+        }
+    }
 };
 
 class grid_observation_widget
