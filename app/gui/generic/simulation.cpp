@@ -1147,6 +1147,29 @@ static void show_simulation_graph_editor_edit_menu(application& app,
     ImGui::PopStyleVar();
 }
 
+void try_create_connection(application& app) noexcept
+{
+    int start = 0, end = 0;
+
+    if (ImNodes::IsLinkCreated(&start, &end) && app.simulation_ed.can_edit()) {
+        const gport out = get_out(app.sim, start);
+        const gport in  = get_in(app.sim, end);
+
+        if (out.model && in.model && app.sim.can_connect(1)) {
+            if (is_ports_compatible(
+                  *out.model, out.port_index, *in.model, in.port_index)) {
+                if (auto status = app.sim.connect(
+                      *out.model, out.port_index, *in.model, in.port_index);
+                    is_bad(status)) {
+                    auto& notif = app.notifications.alloc(log_level::warning);
+                    notif.title = "Not enough memory to connect model";
+                    app.notifications.enable(notif);
+                }
+            }
+        }
+    }
+}
+
 void show_simulation_editor(application& app) noexcept
 {
     ImNodes::EditorContextSet(app.simulation_ed.context);
@@ -1169,30 +1192,7 @@ void show_simulation_editor(application& app) noexcept
 
     ImNodes::EndNodeEditor();
 
-    {
-        auto& sim   = app.sim;
-        int   start = 0, end = 0;
-
-        if (ImNodes::IsLinkCreated(&start, &end) &&
-            app.simulation_ed.can_edit()) {
-            const gport out = get_out(sim, start);
-            const gport in  = get_in(sim, end);
-
-            if (out.model && in.model && sim.can_connect(1)) {
-                if (is_ports_compatible(
-                      *out.model, out.port_index, *in.model, in.port_index)) {
-                    if (auto status = sim.connect(
-                          *out.model, out.port_index, *in.model, in.port_index);
-                        is_bad(status)) {
-                        auto& notif =
-                          app.notifications.alloc(log_level::warning);
-                        notif.title = "Not enough memory to connect model";
-                        app.notifications.enable(notif);
-                    }
-                }
-            }
-        }
-    }
+    try_create_connection(app);
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
@@ -1291,59 +1291,5 @@ void show_simulation_editor(application& app) noexcept
         }
     }
 }
-
-//bool show_local_observers(application& app,
-//                          tree_node&   tn,
-//                          component& /*compo*/,
-//                          generic_component& /*generic*/) noexcept
-//{
-    //if (ImGui::CollapsingHeader("Local generic observation")) {
-    //    if (app.pj.variable_observers.can_alloc() && ImGui::Button("+##var")) {
-    //        auto& var = app.pj.variable_observers.alloc();
-
-    //        var.child.tn_id  = app.pj.tree_nodes.get_id(tn);
-    //        var.child.mdl_id = undefined<model_id>();
-    //        tn.variable_observer_ids.emplace_back(
-    //          app.pj.variable_observers.get_id(var));
-    //    }
-
-    //    std::optional<variable_observer_id> to_delete;
-    //    bool                                is_modified = false;
-
-    //    for_specified_data(
-    //      app.pj.variable_observers,
-    //      tn.variable_observer_ids,
-    //      [&](auto& var) noexcept {
-    //          ImGui::PushID(&var);
-
-    //          if (ImGui::InputFilteredString("name", var.name))
-    //              is_modified = true;
-
-    //          ImGui::SameLine();
-
-    //          if (ImGui::Button("del"))
-    //              to_delete =
-    //                std::make_optional(app.pj.variable_observers.get_id(var));
-
-    //          if_data_exists_do(
-    //            app.sim.models, var.child.mdl_id, [&](auto& mdl) noexcept {
-    //                ImGui::TextUnformatted(
-    //                  dynamics_type_names[ordinal(mdl.type)]);
-    //            });
-
-    //          show_select_model_box(
-    //            "Select model", "Choose model to observe", app, tn, var.child);
-
-    //          ImGui::PopID();
-    //      });
-
-    //    if (to_delete.has_value()) {
-    //        is_modified = true;
-    //        app.pj.variable_observers.free(*to_delete);
-    //    }
-    //}
-
-//    return false;
-//}
 
 } // namespace irt
