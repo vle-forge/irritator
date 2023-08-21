@@ -188,6 +188,49 @@ void for_specified_data(const Data&                                   d,
     }
 }
 
+template<typename Data, typename Predicate>
+void remove_data_if(Data& d, Predicate&& pred) noexcept
+{
+    using value_type = typename Data::value_type;
+
+    value_type* to_del = nullptr;
+    value_type* ptr    = nullptr;
+
+    while (d.next(ptr)) {
+        if (to_del) {
+            d.free(*to_del);
+            to_del = nullptr;
+        }
+
+        if (pred(*ptr)) {
+            to_del = ptr;
+        }
+    }
+
+    if (to_del) {
+        d.free(*to_del);
+    }
+}
+
+template<typename Data, typename Predicate>
+void remove_specified_data_if(Data&                                   d,
+                              vector<typename Data::identifier_type>& vec,
+                              Predicate&& pred) noexcept
+{
+    for (unsigned i = 0; i < vec.size(); ++i) {
+        if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+            if (pred(*ptr)) {
+                d.free(*ptr);
+                vec.swap_pop_back(i);
+            } else {
+                ++i;
+            }
+        } else {
+            vec.swap_pop_back(i);
+        }
+    }
+}
+
 } // namespace irt
 
 #endif
