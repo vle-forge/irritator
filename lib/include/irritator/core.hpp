@@ -5322,7 +5322,7 @@ struct constant
 
     real      value = 0.0;
     init_type type  = init_type::constant;
-    i8        port  = 0;
+    u64       port  = 0;
 
     constant() noexcept = default;
 

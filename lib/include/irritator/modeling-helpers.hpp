@@ -138,6 +138,36 @@ void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
     });
 }
 
+//! \brief If child exists and is a component, invoke the function \c f
+//! otherwise do nothing. \param f A invokable with no const \c child and \c
+//! component references.
+template<typename Function>
+void if_child_is_component_do(modeling& mod, child_id id, Function&& f) noexcept
+{
+    if_data_exists_do(mod.children, id, [&](auto& child) noexcept {
+        if (child.type == child_type::component) {
+            if_data_exists_do(mod.components,
+                              child.id.compo_id,
+                              [&](component& compo) { f(child, compo); });
+        }
+    });
+}
+
+//! \brief If child exists and is a component, invoke the function \c f
+//! otherwise do nothing. \param f A invokable with no const \c child and \c
+//! component references.
+template<typename Function>
+void if_child_is_model_do(modeling& mod, child_id id, Function&& f) noexcept
+{
+    if_data_exists_do(mod.children, id, [&](auto& child) noexcept {
+        if (child.type == child_type::component) {
+            if_data_exists_do(mod.components,
+                              child.id.compo_id,
+                              [&](component& compo) { f(child, compo); });
+        }
+    });
+}
+
 //! Call @c f for each model found into @c tree_node::nodes_v table.
 template<typename Function>
 void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept

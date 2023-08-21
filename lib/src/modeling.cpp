@@ -2,10 +2,9 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/helpers.hpp"
-#include <cstdint>
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
+#include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
@@ -15,17 +14,66 @@
 #include <optional>
 #include <utility>
 
+#include <cstdint>
+
 namespace irt {
 
-component::component() noexcept
+static auto get_x_or_y_index(const modeling&        mod,
+                             const vector<port_id>& ports,
+                             std::string_view       name) noexcept -> port_id
 {
-    static const std::string_view port_names[] = { "0", "1", "2", "3",
-                                                   "4", "5", "6", "7" };
+    for (int i = 0, e = ports.ssize(); i != e; ++i)
+        if (auto* port = mod.ports.try_to_get(ports[i]);
+            port && name == port->name.sv())
+            return mod.ports.get_id(*port);
 
-    for (sz i = 0; i < std::size(port_names); ++i) {
-        x_names[i] = port_names[i];
-        y_names[i] = port_names[i];
-    }
+    return undefined<port_id>();
+}
+
+auto modeling::get_x_index(const component& compo,
+                           std::string_view name) const noexcept -> port_id
+{
+    return get_x_or_y_index(*this, compo.x_names, name);
+}
+
+auto modeling::get_y_index(const component& compo,
+                           std::string_view name) const noexcept -> port_id
+{
+    return get_x_or_y_index(*this, compo.y_names, name);
+}
+
+auto modeling::get_or_add_x_index(component&       compo,
+                                  std::string_view name) noexcept -> port_id
+{
+    auto ret = get_x_or_y_index(*this, compo.x_names, name);
+
+    if (is_defined(ret))
+        return ret;
+
+    irt_assert(ports.can_alloc());
+
+    auto& new_p    = ports.alloc(name, components.get_id(compo));
+    auto  new_p_id = ports.get_id(new_p);
+    compo.x_names.emplace_back(new_p_id);
+
+    return new_p_id;
+}
+
+auto modeling::get_or_add_y_index(component&       compo,
+                                  std::string_view name) noexcept -> port_id
+{
+    auto ret = get_x_or_y_index(*this, compo.y_names, name);
+
+    if (is_defined(ret))
+        return ret;
+
+    irt_assert(ports.can_alloc());
+
+    auto& new_p    = ports.alloc(name, components.get_id(compo));
+    auto  new_p_id = ports.get_id(new_p);
+    compo.y_names.emplace_back(new_p_id);
+
+    return new_p_id;
 }
 
 modeling::modeling() noexcept
@@ -37,6 +85,7 @@ status modeling::init(modeling_initializer& p) noexcept
 {
     irt_return_if_bad(descriptions.init(p.description_capacity));
     irt_return_if_bad(parameters.init(p.parameter_capacity));
+    irt_return_if_bad(ports.init(p.model_capacity));
     irt_return_if_bad(components.init(p.component_capacity));
     irt_return_if_bad(grid_components.init(p.component_capacity));
     irt_return_if_bad(graph_components.init(p.component_capacity));
@@ -692,6 +741,70 @@ void modeling::clear(child& c) noexcept
 
     c.id.mdl_id = undefined<model_id>();
     c.type      = child_type::model;
+}
+
+void modeling::free_input_port(component& compo, port& p) noexcept
+{
+    const auto compo_id = components.get_id(compo);
+    const auto port_id  = ports.get_id(p);
+
+    if (compo.type == component_type::simple) {
+        auto* gen = generic_components.try_to_get(compo.id.generic_id);
+        irt_assert(gen);
+
+        remove_specified_data_if(
+          connections, gen->connections, [&](auto& con) -> bool {
+              return con.type == connection::connection_type::input &&
+                     con.input.index == port_id;
+          });
+    }
+
+    remove_data_if(connections, [&](auto& con) -> bool {
+        if (con.type == connection::connection_type::internal) {
+            auto* ch = children.try_to_get(con.internal.dst);
+
+            if (ch)
+                return ch->type == child_type::component &&
+                       ch->id.compo_id == compo_id;
+            else
+                return true;
+        }
+        return false;
+    });
+
+    ports.free(p);
+}
+
+void modeling::free_output_port(component& compo, port& p) noexcept
+{
+    const auto compo_id = components.get_id(compo);
+    const auto port_id  = ports.get_id(p);
+
+    if (compo.type == component_type::simple) {
+        auto* gen = generic_components.try_to_get(compo.id.generic_id);
+        irt_assert(gen);
+
+        remove_specified_data_if(
+          connections, gen->connections, [&](auto& con) -> bool {
+              return con.type == connection::connection_type::output &&
+                     con.output.index == port_id;
+          });
+    }
+
+    remove_data_if(connections, [&](auto& con) -> bool {
+        if (con.type == connection::connection_type::internal) {
+            auto* ch = children.try_to_get(con.internal.src);
+
+            if (ch)
+                return ch->type == child_type::component &&
+                       ch->id.compo_id == compo_id;
+            else
+                return true;
+        }
+        return false;
+    });
+
+    ports.free(p);
 }
 
 void modeling::free(child& c) noexcept

@@ -2,9 +2,9 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <cstdint>
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
+#include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
@@ -14,6 +14,8 @@
 #include <numeric>
 #include <optional>
 #include <utility>
+
+#include <cstdint>
 
 namespace irt {
 
@@ -42,9 +44,9 @@ template<typename DynamicsSrc, typename DynamicsDst>
 status connect(modeling&          mod,
                generic_component& c,
                DynamicsSrc&       src,
-               i8                 port_src,
+               int                port_src,
                DynamicsDst&       dst,
-               i8                 port_dst) noexcept
+               int                port_dst) noexcept
 {
     model& src_model = get_model(*src.first);
     model& dst_model = get_model(*dst.first);
@@ -53,27 +55,67 @@ status connect(modeling&          mod,
       is_ports_compatible(src_model, port_src, dst_model, port_dst),
       status::model_connect_bad_dynamics);
 
-    mod.connect(c, src.second, port_src, dst.second, port_dst);
+    mod.connect(c,
+                mod.children.get(src.second),
+                port_src,
+                mod.children.get(dst.second),
+                port_dst);
 
     return status::success;
 }
 
+static auto get_x_port(modeling&        mod,
+                       component&       dst,
+                       std::string_view port_name) noexcept -> port_id
+{
+    auto port_id = mod.get_x_index(dst, port_name);
+    if (is_defined(port_id))
+        return port_id;
+
+    auto& new_port = mod.ports.alloc(port_name, mod.components.get_id(dst));
+    return mod.ports.get_id(new_port);
+}
+
+static auto get_y_port(modeling&        mod,
+                       component&       dst,
+                       std::string_view port_name) noexcept -> port_id
+{
+    auto port_id = mod.get_y_index(dst, port_name);
+    if (is_defined(port_id))
+        return port_id;
+
+    auto& new_port = mod.ports.alloc(port_name, mod.components.get_id(dst));
+    return mod.ports.get_id(new_port);
+}
+
 status add_integrator_component_port(modeling&          mod,
+                                     component&         dst,
                                      generic_component& com,
                                      child_id           id,
-                                     i8                 port) noexcept
+                                     std::string_view   port) noexcept
 {
-    irt_return_if_bad(mod.connect_input(com, port, id, 1));
-    irt_return_if_bad(mod.connect_output(com, id, 0, port));
+    auto  x_port_id = get_x_port(mod, dst, port);
+    auto  y_port_id = get_y_port(mod, dst, port);
+    auto  x_port    = mod.ports.try_to_get(x_port_id);
+    auto  y_port    = mod.ports.try_to_get(y_port_id);
+    auto* c         = mod.children.try_to_get(id);
 
-    auto& ch = mod.children.get(id);
-    ch.unique_id = com.make_next_unique_id();
+    irt_assert(x_port);
+    irt_assert(y_port);
+    irt_assert(c);
+
+    mod.connect_input(com, *x_port, *c, 1);
+    mod.connect_output(com, *c, 0, *y_port);
+
+    c->unique_id = com.make_next_unique_id();
 
     return status::success;
 }
 
 template<int QssLevel>
-status add_lotka_volterra(modeling& mod, generic_component& com) noexcept
+status add_lotka_volterra(modeling&          mod,
+                          component&         dst,
+                          generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -112,14 +154,14 @@ status add_lotka_volterra(modeling& mod, generic_component& com) noexcept
     connect(mod, com, product, 0, sum_a, 1);
     connect(mod, com, product, 0, sum_b, 1);
 
-    add_integrator_component_port(mod, com, integrator_a.second, 0);
-    add_integrator_component_port(mod, com, integrator_b.second, 1);
+    add_integrator_component_port(mod, dst, com, integrator_a.second, "a");
+    add_integrator_component_port(mod, dst, com, integrator_b.second, "b");
 
     return status::success;
 }
 
 template<int QssLevel>
-status add_lif(modeling& mod, generic_component& com) noexcept
+status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -158,13 +200,15 @@ status add_lif(modeling& mod, generic_component& com) noexcept
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
 
-    add_integrator_component_port(mod, com, integrator.second, 0);
+    add_integrator_component_port(mod, dst, com, integrator.second, "V");
 
     return status::success;
 }
 
 template<int QssLevel>
-status add_izhikevich(modeling& mod, generic_component& com) noexcept
+status add_izhikevich(modeling&          mod,
+                      component&         dst,
+                      generic_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = mod.models.can_alloc(12);
@@ -245,14 +289,16 @@ status add_izhikevich(modeling& mod, generic_component& com) noexcept
     connect(mod, com, integrator_b, 0, sum_d, 0);
     connect(mod, com, cst, 0, sum_d, 1);
 
-    add_integrator_component_port(mod, com, integrator_a.second, 0);
-    add_integrator_component_port(mod, com, integrator_b.second, 1);
+    add_integrator_component_port(mod, dst, com, integrator_a.second, "a");
+    add_integrator_component_port(mod, dst, com, integrator_b.second, "b");
 
     return status::success;
 }
 
 template<int QssLevel>
-status add_van_der_pol(modeling& mod, generic_component& com) noexcept
+status add_van_der_pol(modeling&          mod,
+                       component&         dst,
+                       generic_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = mod.models.can_alloc(5);
@@ -288,14 +334,16 @@ status add_van_der_pol(modeling& mod, generic_component& com) noexcept
     connect(mod, com, product1, 0, product2, 0);
     connect(mod, com, integrator_a, 0, product2, 1);
 
-    add_integrator_component_port(mod, com, integrator_a.second, 0);
-    add_integrator_component_port(mod, com, integrator_b.second, 1);
+    add_integrator_component_port(mod, dst, com, integrator_a.second, "a");
+    add_integrator_component_port(mod, dst, com, integrator_b.second, "b");
 
     return status::success;
 }
 
 template<int QssLevel>
-status add_negative_lif(modeling& mod, generic_component& com) noexcept
+status add_negative_lif(modeling&          mod,
+                        component&         dst,
+                        generic_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = mod.models.can_alloc(5);
@@ -334,13 +382,13 @@ status add_negative_lif(modeling& mod, generic_component& com) noexcept
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
 
-    add_integrator_component_port(mod, com, integrator.second, 0);
+    add_integrator_component_port(mod, dst, com, integrator.second, "V");
 
     return status::success;
 }
 
 template<int QssLevel>
-status add_seirs(modeling& mod, generic_component& com) noexcept
+status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     bool success = mod.models.can_alloc(17);
@@ -424,19 +472,19 @@ status add_seirs(modeling& mod, generic_component& com) noexcept
     connect(mod, com, gamma_I, 0, gamma_I_rho_R, 1);
     connect(mod, com, gamma_I_rho_R, 0, dR, 0);
 
-    add_integrator_component_port(mod, com, dS.second, 0);
-    add_integrator_component_port(mod, com, dE.second, 1);
-    add_integrator_component_port(mod, com, dI.second, 2);
-    add_integrator_component_port(mod, com, dR.second, 3);
+    add_integrator_component_port(mod, dst, com, dS.second, "S");
+    add_integrator_component_port(mod, dst, com, dE.second, "E");
+    add_integrator_component_port(mod, dst, com, dI.second, "I");
+    add_integrator_component_port(mod, dst, com, dR.second, "R");
 
     return status::success;
 }
 
 static bool is_ports_compatible(modeling&          mod,
                                 model&             mdl_src,
-                                i8                 port_src,
+                                int                port_src,
                                 generic_component& compo_dst,
-                                i8                 port_dst) noexcept
+                                port_id            port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -454,8 +502,10 @@ static bool is_ports_compatible(modeling&          mod,
             auto  sub_model_dst_id = sub_child_dst->id.mdl_id;
             auto* sub_model_dst    = mod.models.try_to_get(sub_model_dst_id);
 
-            if (!is_ports_compatible(
-                  mdl_src, port_src, *sub_model_dst, con->output.index_src)) {
+            if (!is_ports_compatible(mdl_src,
+                                     port_src,
+                                     *sub_model_dst,
+                                     con->output.index_src.model)) {
                 is_compatible = false;
                 break;
             }
@@ -467,9 +517,9 @@ static bool is_ports_compatible(modeling&          mod,
 
 static bool is_ports_compatible(modeling&          mod,
                                 generic_component& compo_src,
-                                i8                 port_src,
+                                port_id            port_src,
                                 model&             mdl_dst,
-                                i8                 port_dst) noexcept
+                                int                port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -483,13 +533,12 @@ static bool is_ports_compatible(modeling&          mod,
             auto* sub_child_src = mod.children.try_to_get(con->input.dst);
             irt_assert(sub_child_src);
             if (sub_child_src->type == child_type::model) {
-
                 auto  sub_model_src_id = sub_child_src->id.mdl_id;
                 auto* sub_model_src = mod.models.try_to_get(sub_model_src_id);
                 irt_assert(sub_model_src);
 
                 if (!is_ports_compatible(*sub_model_src,
-                                         con->input.index_dst,
+                                         con->input.index_dst.model,
                                          mdl_dst,
                                          port_dst)) {
                     is_compatible = false;
@@ -504,9 +553,9 @@ static bool is_ports_compatible(modeling&          mod,
 
 static bool is_ports_compatible(modeling&          mod,
                                 generic_component& compo_src,
-                                i8                 port_src,
+                                port_id            port_src,
                                 generic_component& compo_dst,
-                                i8                 port_dst) noexcept
+                                port_id            port_dst) noexcept
 {
     bool is_compatible = true;
 
@@ -527,7 +576,7 @@ static bool is_ports_compatible(modeling&          mod,
 
                 if (!is_ports_compatible(mod,
                                          *sub_model_src,
-                                         con->output.index_src,
+                                         con->output.index_src.model,
                                          compo_dst,
                                          port_dst)) {
                     is_compatible = false;
@@ -540,157 +589,323 @@ static bool is_ports_compatible(modeling&          mod,
     return is_compatible;
 }
 
-static bool is_ports_compatible(modeling& mod,
-                                generic_component& /*parent*/,
-                                child_id src,
-                                i8       port_src,
-                                child_id dst,
-                                i8       port_dst) noexcept
+// static bool is_ports_compatible(modeling& mod,
+//                                 generic_component& /*parent*/,
+//                                 child_id src,
+//                                 i8       port_src,
+//                                 child_id dst,
+//                                 i8       port_dst) noexcept
+//{
+//     auto* child_src = mod.children.try_to_get(src);
+//     auto* child_dst = mod.children.try_to_get(dst);
+//     irt_assert(child_src);
+//     irt_assert(child_dst);
+//
+//     if (child_src->type == child_type::model) {
+//         auto  mdl_src_id = child_src->id.mdl_id;
+//         auto* mdl_src    = mod.models.try_to_get(mdl_src_id);
+//
+//         if (child_dst->type == child_type::model) {
+//             auto  mdl_dst_id = child_dst->id.mdl_id;
+//             auto* mdl_dst    = mod.models.try_to_get(mdl_dst_id);
+//             return is_ports_compatible(*mdl_src, port_src, *mdl_dst,
+//             port_dst);
+//
+//         } else {
+//             auto  compo_dst_id = child_dst->id.compo_id;
+//             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
+//             irt_assert(compo_dst);
+//             auto* s_compo_dst =
+//               mod.generic_components.try_to_get(compo_dst->id.generic_id);
+//             irt_assert(s_compo_dst);
+//
+//             return is_ports_compatible(
+//               mod, *mdl_src, port_src, *s_compo_dst, port_dst);
+//         }
+//     } else {
+//         auto  compo_src_id = child_src->id.compo_id;
+//         auto* compo_src    = mod.components.try_to_get(compo_src_id);
+//         irt_assert(compo_src);
+//         auto* s_compo_src =
+//           mod.generic_components.try_to_get(compo_src->id.generic_id);
+//         irt_assert(s_compo_src);
+//
+//         if (child_dst->type == child_type::model) {
+//             auto  mdl_dst_id = child_dst->id.mdl_id;
+//             auto* mdl_dst    = mod.models.try_to_get(mdl_dst_id);
+//             irt_assert(mdl_dst);
+//
+//             return is_ports_compatible(
+//               mod, *s_compo_src, port_src, *mdl_dst, port_dst);
+//         } else {
+//             auto  compo_dst_id = child_dst->id.compo_id;
+//             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
+//             irt_assert(compo_dst);
+//             auto* s_compo_dst =
+//               mod.generic_components.try_to_get(compo_dst->id.generic_id);
+//             irt_assert(s_compo_dst);
+//
+//             return is_ports_compatible(
+//               mod, *s_compo_src, port_src, *s_compo_dst, port_dst);
+//         }
+//     }
+// }
+
+static bool check_connection_already_exists(
+  const irt::modeling&               mod,
+  const irt::generic_component&      gen,
+  const irt::connection::internal_t& con) noexcept
 {
-    auto* child_src = mod.children.try_to_get(src);
-    auto* child_dst = mod.children.try_to_get(dst);
-    irt_assert(child_src);
-    irt_assert(child_dst);
+    for (auto id : gen.connections) {
+        const auto* c = mod.connections.try_to_get(id);
+        if (!c || c->type != connection::connection_type::internal)
+            continue;
 
-    if (child_src->type == child_type::model) {
-        auto  mdl_src_id = child_src->id.mdl_id;
-        auto* mdl_src    = mod.models.try_to_get(mdl_src_id);
+        const auto* src = mod.children.try_to_get(c->internal.src);
+        const auto* dst = mod.children.try_to_get(c->internal.dst);
+        if (!src || !dst)
+            continue;
 
-        if (child_dst->type == child_type::model) {
-            auto  mdl_dst_id = child_dst->id.mdl_id;
-            auto* mdl_dst    = mod.models.try_to_get(mdl_dst_id);
-            return is_ports_compatible(*mdl_src, port_src, *mdl_dst, port_dst);
-
+        if (src->type == child_type::component) {
+            if (dst->type == child_type::component) {
+                if (c->internal.src == con.src && c->internal.dst == con.dst &&
+                    c->internal.index_src.compo == con.index_src.compo &&
+                    c->internal.index_dst.compo == con.index_dst.compo)
+                    return true;
+            } else {
+                if (c->internal.src == con.src && c->internal.dst == con.dst &&
+                    c->internal.index_src.compo == con.index_src.compo &&
+                    c->internal.index_dst.model == con.index_dst.model)
+                    return true;
+            }
         } else {
-            auto  compo_dst_id = child_dst->id.compo_id;
-            auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
-            irt_assert(compo_dst);
-            auto* s_compo_dst =
-              mod.generic_components.try_to_get(compo_dst->id.generic_id);
-            irt_assert(s_compo_dst);
-
-            return is_ports_compatible(
-              mod, *mdl_src, port_src, *s_compo_dst, port_dst);
-        }
-    } else {
-        auto  compo_src_id = child_src->id.compo_id;
-        auto* compo_src    = mod.components.try_to_get(compo_src_id);
-        irt_assert(compo_src);
-        auto* s_compo_src =
-          mod.generic_components.try_to_get(compo_src->id.generic_id);
-        irt_assert(s_compo_src);
-
-        if (child_dst->type == child_type::model) {
-            auto  mdl_dst_id = child_dst->id.mdl_id;
-            auto* mdl_dst    = mod.models.try_to_get(mdl_dst_id);
-            irt_assert(mdl_dst);
-
-            return is_ports_compatible(
-              mod, *s_compo_src, port_src, *mdl_dst, port_dst);
-        } else {
-            auto  compo_dst_id = child_dst->id.compo_id;
-            auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
-            irt_assert(compo_dst);
-            auto* s_compo_dst =
-              mod.generic_components.try_to_get(compo_dst->id.generic_id);
-            irt_assert(s_compo_dst);
-
-            return is_ports_compatible(
-              mod, *s_compo_src, port_src, *s_compo_dst, port_dst);
+            if (dst->type == child_type::component) {
+                if (c->internal.src == con.src && c->internal.dst == con.dst &&
+                    c->internal.index_src.model == con.index_src.model &&
+                    c->internal.index_dst.compo == con.index_dst.compo)
+                    return true;
+            } else {
+                if (c->internal.src == con.src && c->internal.dst == con.dst &&
+                    c->internal.index_src.model == con.index_src.model &&
+                    c->internal.index_dst.model == con.index_dst.model)
+                    return true;
+            }
         }
     }
+
+    return false;
+}
+
+static bool check_connection_already_exists(
+  const irt::modeling&            mod,
+  const irt::generic_component&   gen,
+  const irt::connection::input_t& con) noexcept
+{
+    for (auto id : gen.connections) {
+        const auto* c = mod.connections.try_to_get(id);
+        if (!c || c->type != connection::connection_type::input)
+            continue;
+
+        const auto* dst = mod.children.try_to_get(c->input.dst);
+        if (!dst)
+            continue;
+
+        if (dst->type == child_type::component) {
+            if (con.dst == c->input.dst &&
+                con.index_dst.compo == c->input.index_dst.compo &&
+                con.index == c->input.index)
+                return true;
+        } else {
+            if (con.dst == c->input.dst &&
+                con.index_dst.model == c->input.index_dst.model &&
+                con.index == c->input.index)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+static bool check_connection_already_exists(
+  const irt::modeling&             mod,
+  const irt::generic_component&    gen,
+  const irt::connection::output_t& con) noexcept
+{
+    for (auto id : gen.connections) {
+        const auto* c = mod.connections.try_to_get(id);
+        if (!c || c->type != connection::connection_type::output)
+            continue;
+
+        const auto* src = mod.children.try_to_get(c->output.src);
+        if (!src)
+            continue;
+
+        if (src->type == child_type::component) {
+            if (con.src == c->output.src &&
+                con.index_src.compo == c->output.index_src.compo &&
+                con.index == c->output.index)
+                return true;
+        } else {
+            if (con.src == c->output.src &&
+                con.index_src.model == c->output.index_src.model &&
+                con.index == c->output.index)
+                return true;
+        }
+    }
+
+    return false;
 }
 
 status modeling::connect_input(generic_component& parent,
-                               i8                 port_src,
-                               child_id           dst,
-                               i8                 port_dst) noexcept
+                               port&              x,
+                               child&             c,
+                               connection::port   p_c) noexcept
 {
     irt_return_if_fail(connections.can_alloc(),
                        status::simulation_not_enough_connection);
 
-    auto* child = children.try_to_get(dst);
-    irt_assert(child);
+    irt_return_if_fail(
+      !check_connection_already_exists(
+        *this,
+        parent,
+        connection::input_t{ children.get_id(c), ports.get_id(x), p_c }),
+      status::model_connect_already_exist);
 
-    if (child->type == child_type::model) {
-        auto  mdl_id  = child->id.mdl_id;
-        auto* mdl_dst = models.try_to_get(mdl_id);
-        irt_assert(mdl_dst);
+    const auto c_id = children.get_id(c);
+    const auto x_id = ports.get_id(x);
 
-        irt_return_if_fail(
-          is_ports_compatible(*this, parent, port_src, *mdl_dst, port_dst),
-          status::model_connect_bad_dynamics);
+    if (c.type == child_type::component) {
+        irt_assert(ports.try_to_get(p_c.compo) != nullptr);
+
+        auto& con    = connections.alloc(x_id, c_id, p_c.compo);
+        auto  con_id = connections.get_id(con);
+        parent.connections.emplace_back(con_id);
+    } else {
+        auto& con    = connections.alloc(x_id, c_id, p_c.model);
+        auto  con_id = connections.get_id(con);
+        parent.connections.emplace_back(con_id);
     }
-
-    auto& con           = connections.alloc();
-    auto  con_id        = connections.get_id(con);
-    con.input.dst       = dst;
-    con.input.index     = port_src;
-    con.input.index_dst = port_dst;
-    con.type            = connection::connection_type::input;
-
-    parent.connections.emplace_back(con_id);
 
     return status::success;
 }
 
 status modeling::connect_output(generic_component& parent,
-                                child_id           src,
-                                i8                 port_src,
-                                i8                 port_dst) noexcept
+                                child&             c,
+                                connection::port   p_c,
+                                port&              y) noexcept
 {
     irt_return_if_fail(connections.can_alloc(),
                        status::simulation_not_enough_connection);
 
-    auto* child = children.try_to_get(src);
-    irt_assert(child);
+    irt_return_if_fail(
+      !check_connection_already_exists(
+        *this,
+        parent,
+        connection::output_t{ children.get_id(c), ports.get_id(y), p_c }),
+      status::model_connect_already_exist);
 
-    if (child->type == child_type::model) {
-        auto  mdl_id  = child->id.mdl_id;
-        auto* mdl_src = models.try_to_get(mdl_id);
-        irt_assert(mdl_src);
+    const auto c_id = children.get_id(c);
+    const auto y_id = ports.get_id(y);
 
-        irt_return_if_fail(
-          is_ports_compatible(*this, *mdl_src, port_src, parent, port_dst),
-          status::model_connect_bad_dynamics);
+    if (c.type == child_type::component) {
+        irt_assert(ports.try_to_get(p_c.compo) != nullptr);
+
+        auto& con    = connections.alloc(c_id, p_c.compo, y_id);
+        auto  con_id = connections.get_id(con);
+        parent.connections.emplace_back(con_id);
+    } else {
+        auto& con    = connections.alloc(c_id, p_c.model, y_id);
+        auto  con_id = connections.get_id(con);
+        parent.connections.emplace_back(con_id);
     }
-
-    auto& con            = connections.alloc();
-    auto  con_id         = connections.get_id(con);
-    con.output.src       = src;
-    con.output.index_src = port_src;
-    con.output.index     = port_dst;
-    con.type             = connection::connection_type::output;
-
-    parent.connections.emplace_back(con_id);
 
     return status::success;
 }
 
 status modeling::connect(generic_component& parent,
-                         child_id           src,
-                         i8                 port_src,
-                         child_id           dst,
-                         i8                 port_dst) noexcept
+                         child&             src,
+                         connection::port   y,
+                         child&             dst,
+                         connection::port   x) noexcept
 {
-    irt_return_if_fail(connections.can_alloc(1),
-                       status::data_array_not_enough_memory);
+    irt_return_if_fail(connections.can_alloc(),
+                       status::simulation_not_enough_connection);
 
-    irt_return_if_fail(
-      is_ports_compatible(*this, parent, src, port_src, dst, port_dst),
-      status::model_connect_bad_dynamics);
+    irt_return_if_fail(!check_connection_already_exists(
+                         *this,
+                         parent,
+                         connection::internal_t{
+                           children.get_id(src), children.get_id(dst), y, x }),
+                       status::model_connect_already_exist);
 
-    auto& con              = connections.alloc();
-    auto  con_id           = connections.get_id(con);
-    con.internal.src       = src;
-    con.internal.dst       = dst;
-    con.internal.index_src = port_src;
-    con.internal.index_dst = port_dst;
-    con.type               = connection::connection_type::internal;
+    const auto src_id = children.get_id(src);
+    const auto dst_id = children.get_id(dst);
 
-    parent.connections.emplace_back(con_id);
+    if (src.type == child_type::component) {
+        irt_assert(ports.try_to_get(y.compo) != nullptr);
+
+        if (dst.type == child_type::component) {
+            irt_assert(ports.try_to_get(x.compo) != nullptr);
+
+            auto& con    = connections.alloc(src_id, y.compo, dst_id, x.compo);
+            auto  con_id = connections.get_id(con);
+            parent.connections.emplace_back(con_id);
+        } else {
+            auto& con    = connections.alloc(src_id, y.compo, dst_id, x.model);
+            auto  con_id = connections.get_id(con);
+            parent.connections.emplace_back(con_id);
+        }
+    } else {
+        irt_assert(ports.try_to_get(y.compo) == nullptr);
+
+        if (dst.type == child_type::component) {
+            irt_assert(ports.try_to_get(x.compo) != nullptr);
+
+            auto& con    = connections.alloc(src_id, y.model, dst_id, x.compo);
+            auto  con_id = connections.get_id(con);
+            parent.connections.emplace_back(con_id);
+        } else {
+            auto& con    = connections.alloc(src_id, y.model, dst_id, x.model);
+            auto  con_id = connections.get_id(con);
+            parent.connections.emplace_back(con_id);
+        }
+    }
 
     return status::success;
+}
+
+static status modeling_connect(modeling&          mod,
+                               generic_component& gen,
+                               child_id           src,
+                               connection::port   p_src,
+                               child_id           dst,
+                               connection::port   p_dst) noexcept
+{
+    status ret = status::unknown_dynamics;
+
+    if_data_exists_do(mod.children, src, [&](auto& child_src) noexcept {
+        if_data_exists_do(mod.children, dst, [&](auto& child_dst) noexcept {
+            if (child_src.type == child_type::component) {
+                if (child_dst.type == child_type::component) {
+                    ret = mod.connect(
+                      gen, child_src, p_src.compo, child_dst, p_dst.compo);
+                } else {
+                    ret = mod.connect(
+                      gen, child_src, p_src.compo, child_dst, p_dst.model);
+                }
+            } else {
+                if (child_dst.type == child_type::component) {
+                    ret = mod.connect(
+                      gen, child_src, p_src.model, child_dst, p_dst.compo);
+                } else {
+                    ret = mod.connect(
+                      gen, child_src, p_src.model, child_dst, p_src.model);
+                }
+            }
+        });
+    });
+
+    return ret;
 }
 
 status modeling::copy(const generic_component& src,
@@ -747,11 +962,13 @@ status modeling::copy(const generic_component& src,
             if (auto* child_src = mapping.get(con->internal.src); child_src) {
                 if (auto* child_dst = mapping.get(con->internal.dst);
                     child_dst) {
-                    irt_return_if_bad(connect(dst,
-                                              *child_src,
-                                              con->internal.index_src,
-                                              *child_dst,
-                                              con->internal.index_dst));
+                    irt_return_if_bad(
+                      modeling_connect(*this,
+                                       dst,
+                                       *child_src,
+                                       con->internal.index_src,
+                                       *child_dst,
+                                       con->internal.index_dst));
                 }
             }
         }
@@ -772,41 +989,41 @@ status modeling::copy(internal_component src, component& dst) noexcept
 
     switch (src) {
     case internal_component::qss1_izhikevich:
-        return add_izhikevich<1>(*this, s_compo);
+        return add_izhikevich<1>(*this, dst, s_compo);
     case internal_component::qss1_lif:
-        return add_lif<1>(*this, s_compo);
+        return add_lif<1>(*this, dst, s_compo);
     case internal_component::qss1_lotka_volterra:
-        return add_lotka_volterra<1>(*this, s_compo);
+        return add_lotka_volterra<1>(*this, dst, s_compo);
     case internal_component::qss1_negative_lif:
-        return add_negative_lif<1>(*this, s_compo);
+        return add_negative_lif<1>(*this, dst, s_compo);
     case internal_component::qss1_seirs:
-        return add_seirs<1>(*this, s_compo);
+        return add_seirs<1>(*this, dst, s_compo);
     case internal_component::qss1_van_der_pol:
-        return add_van_der_pol<1>(*this, s_compo);
+        return add_van_der_pol<1>(*this, dst, s_compo);
     case internal_component::qss2_izhikevich:
-        return add_izhikevich<2>(*this, s_compo);
+        return add_izhikevich<2>(*this, dst, s_compo);
     case internal_component::qss2_lif:
-        return add_lif<2>(*this, s_compo);
+        return add_lif<2>(*this, dst, s_compo);
     case internal_component::qss2_lotka_volterra:
-        return add_lotka_volterra<2>(*this, s_compo);
+        return add_lotka_volterra<2>(*this, dst, s_compo);
     case internal_component::qss2_negative_lif:
-        return add_negative_lif<2>(*this, s_compo);
+        return add_negative_lif<2>(*this, dst, s_compo);
     case internal_component::qss2_seirs:
-        return add_seirs<2>(*this, s_compo);
+        return add_seirs<2>(*this, dst, s_compo);
     case internal_component::qss2_van_der_pol:
-        return add_van_der_pol<2>(*this, s_compo);
+        return add_van_der_pol<2>(*this, dst, s_compo);
     case internal_component::qss3_izhikevich:
-        return add_izhikevich<3>(*this, s_compo);
+        return add_izhikevich<3>(*this, dst, s_compo);
     case internal_component::qss3_lif:
-        return add_lif<3>(*this, s_compo);
+        return add_lif<3>(*this, dst, s_compo);
     case internal_component::qss3_lotka_volterra:
-        return add_lotka_volterra<3>(*this, s_compo);
+        return add_lotka_volterra<3>(*this, dst, s_compo);
     case internal_component::qss3_negative_lif:
-        return add_negative_lif<3>(*this, s_compo);
+        return add_negative_lif<3>(*this, dst, s_compo);
     case internal_component::qss3_seirs:
-        return add_seirs<3>(*this, s_compo);
+        return add_seirs<3>(*this, dst, s_compo);
     case internal_component::qss3_van_der_pol:
-        return add_van_der_pol<3>(*this, s_compo);
+        return add_van_der_pol<3>(*this, dst, s_compo);
     }
 
     irt_unreachable();

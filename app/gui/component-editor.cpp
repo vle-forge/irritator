@@ -208,43 +208,96 @@ static void show_file_access(application& app, component& compo) noexcept
     }
 }
 
-static inline const char* port_labels[] = { "1", "2", "3", "4",
-                                            "5", "6", "7", "8" };
-
-static void show_input_output(component& compo) noexcept
+static void show_input_output(modeling& mod, component& compo) noexcept
 {
-    if (ImGui::BeginTable("##io-table",
+    if (ImGui::BeginTable("X",
                           3,
                           ImGuiTableFlags_Resizable |
                             ImGuiTableFlags_NoSavedSettings |
                             ImGuiTableFlags_Borders)) {
         ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 32.f);
-        ImGui::TableSetupColumn("in");
-        ImGui::TableSetupColumn("out");
-
+        ImGui::TableSetupColumn("name");
+        ImGui::TableSetupColumn("action");
         ImGui::TableHeadersRow();
 
-        for (int i = 0; i < component::port_number; ++i) {
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(port_labels[i]);
+        std::optional<port_id> to_del;
+        for (int i = 0, e = compo.x_names.ssize(); i != e; ++i) {
+            if_data_exists_do(
+              mod.ports, compo.x_names[i], [&](auto& port) noexcept {
+                  ImGui::TableNextRow();
+                  ImGui::TableNextColumn();
+                  ImGui::TextFormat("{}", i);
 
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1.f);
-            ImGui::PushID(i);
-            ImGui::InputFilteredString("##in", compo.x_names[i]);
-            ImGui::PopID();
-            ImGui::PopItemWidth();
+                  ImGui::TableNextColumn();
+                  ImGui::PushItemWidth(-1.f);
+                  ImGui::PushID(i);
 
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1.f);
-            ImGui::PushID(i + 16);
-            ImGui::InputFilteredString("##out", compo.y_names[i]);
-            ImGui::PopID();
-            ImGui::PopItemWidth();
+                  ImGui::InputFilteredString("##in-name", port.name);
+
+                  ImGui::PopID();
+                  ImGui::PopItemWidth();
+
+                  ImGui::TableNextColumn();
+                  if (ImGui::Button("del"))
+                      to_del = compo.x_names[i];
+              });
         }
 
+        if (to_del.has_value())
+            mod.free_input_port(compo, mod.ports.get(*to_del));
+
         ImGui::EndTable();
+
+        if (mod.ports.can_alloc() && ImGui::Button("+##in-port")) {
+            auto& new_port = mod.ports.alloc("-", mod.components.get_id(compo));
+            auto  new_port_id = mod.ports.get_id(new_port);
+            compo.x_names.emplace_back(new_port_id);
+        }
+    }
+
+    if (ImGui::BeginTable("Y",
+                          3,
+                          ImGuiTableFlags_Resizable |
+                            ImGuiTableFlags_NoSavedSettings |
+                            ImGuiTableFlags_Borders)) {
+        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 32.f);
+        ImGui::TableSetupColumn("name");
+        ImGui::TableSetupColumn("action");
+        ImGui::TableHeadersRow();
+
+        std::optional<port_id> to_del;
+        for (int i = 0, e = compo.y_names.ssize(); i != e; ++i) {
+            if_data_exists_do(
+              mod.ports, compo.y_names[i], [&](auto& port) noexcept {
+                  ImGui::TableNextRow();
+                  ImGui::TableNextColumn();
+                  ImGui::TextFormat("{}", i);
+
+                  ImGui::TableNextColumn();
+                  ImGui::PushItemWidth(-1.f);
+                  ImGui::PushID(i);
+
+                  ImGui::InputFilteredString("##out-name", port.name);
+
+                  ImGui::PopID();
+                  ImGui::PopItemWidth();
+
+                  ImGui::TableNextColumn();
+                  if (ImGui::Button("del"))
+                      to_del = compo.y_names[i];
+              });
+        }
+
+        if (to_del.has_value())
+            mod.free_output_port(compo, mod.ports.get(*to_del));
+
+        ImGui::EndTable();
+
+        if (mod.ports.can_alloc() && ImGui::Button("+##out-port")) {
+            auto& new_port = mod.ports.alloc("-", mod.components.get_id(compo));
+            auto  new_port_id = mod.ports.get_id(new_port);
+            compo.y_names.emplace_back(new_port_id);
+        }
     }
 }
 
@@ -387,7 +440,7 @@ static void show_data(application&       app,
                         show_file_access(app, *c);
 
                     if (ImGui::CollapsingHeader("i/o ports names"))
-                        show_input_output(*c);
+                        show_input_output(app.mod, *c);
 
                     if (ImGui::CollapsingHeader("selected"))
                         show_selected_children(app, *c, *element);

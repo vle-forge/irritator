@@ -153,16 +153,17 @@ static bool count_inputs_connections(const modeling&              mod,
 static bool count_inputs_connections(const modeling&              mod,
                                      const vector<connection_id>& cnts,
                                      const child_id               child,
-                                     const int                    port,
+                                     const port_id                port,
                                      int&                         nb) noexcept
 {
     for (const auto c_id : cnts) {
         if (auto* c = mod.connections.try_to_get(c_id); c) {
             if (c->type == connection::connection_type::internal) {
-                if (c->internal.dst == child && c->internal.index_dst == port)
+                if (c->internal.dst == child &&
+                    c->internal.index_dst.compo == port)
                     ++nb;
             } else if (c->type == connection::connection_type::input) {
-                if (c->input.dst == child && c->input.index_dst == port)
+                if (c->input.dst == child && c->input.index_dst.compo == port)
                     ++nb;
             }
         }
@@ -194,16 +195,17 @@ static bool count_outputs_connections(const modeling&              mod,
 static bool count_outputs_connections(const modeling&              mod,
                                       const vector<connection_id>& cnts,
                                       const child_id               child,
-                                      const int                    port,
+                                      const port_id                port,
                                       int&                         nb) noexcept
 {
     for (const auto c_id : cnts) {
         if (auto* c = mod.connections.try_to_get(c_id); c) {
             if (c->type == connection::connection_type::internal) {
-                if (c->internal.src == child && c->internal.index_src == port)
+                if (c->internal.src == child &&
+                    c->internal.index_src.compo == port)
                     ++nb;
             } else if (c->type == connection::connection_type::output) {
-                if (c->output.src == child && c->output.index_src == port)
+                if (c->output.src == child && c->output.index_src.compo == port)
                     ++nb;
             }
         }
@@ -262,7 +264,7 @@ static int compute_outcoming_component(modeling& mod, tree_node& node) noexcept
 
 static int compute_incoming_component(modeling&  mod,
                                       tree_node& node,
-                                      int        port) noexcept
+                                      port_id    port) noexcept
 {
     tree_node*             parent = nullptr;
     component*             compo  = nullptr;
@@ -280,7 +282,7 @@ static int compute_incoming_component(modeling&  mod,
 
 static int compute_outcoming_component(modeling&  mod,
                                        tree_node& node,
-                                       int        port) noexcept
+                                       port_id    port) noexcept
 {
     tree_node*             parent = nullptr;
     component*             compo  = nullptr;
@@ -365,14 +367,23 @@ static status make_tree_leaf(simulation_copy& sc,
             case constant::init_type::outcoming_component_all:
                 dyn.default_value = compute_outcoming_component(sc.mod, parent);
                 break;
-            case constant::init_type::incoming_component_n:
-                dyn.default_value =
-                  compute_incoming_component(sc.mod, parent, dyn.port);
+            case constant::init_type::incoming_component_n: {
+                const auto id          = enum_cast<port_id>(dyn.port);
+                auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
+
+                if (port_id_ptr)
+                    dyn.default_value =
+                      compute_incoming_component(sc.mod, parent, id);
+            } break;
+            case constant::init_type::outcoming_component_n: {
+                const auto id          = enum_cast<port_id>(dyn.port);
+                auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
+
+                if (port_id_ptr)
+                    dyn.default_value =
+                      compute_outcoming_component(sc.mod, parent, id);
                 break;
-            case constant::init_type::outcoming_component_n:
-                dyn.default_value =
-                  compute_outcoming_component(sc.mod, parent, dyn.port);
-                break;
+            }
             }
         }
     });
@@ -601,64 +612,60 @@ void project::destroy_cache() noexcept
     clear();
 }
 
-static status get_input_models(simulation_copy&               sc,
-                               vector<std::pair<model*, i8>>& inputs,
-                               tree_node&                     tree,
-                               i8                             port_dst);
+static status get_input_models(simulation_copy& sc,
+                               tree_node&       tree,
+                               port_id          port_dst);
 
-static status get_output_models(simulation_copy&               sc,
-                                vector<std::pair<model*, i8>>& outputs,
-                                tree_node&                     tree,
-                                i8                             port_dst);
+static status get_output_models(simulation_copy& sc,
+                                tree_node&       tree,
+                                port_id          port_dst);
 
-static status get_input_models(simulation_copy&               sc,
-                               vector<std::pair<model*, i8>>& inputs,
-                               tree_node&                     tree,
-                               child_id                       ch,
-                               i8                             port)
+static status get_input_models(simulation_copy& sc,
+                               tree_node&       tree,
+                               child_id         ch,
+                               connection::port port)
 {
     status ret = status::success;
 
-    if (auto* c = sc.mod.children.try_to_get(ch); c) {
+    if_data_exists_do(sc.mod.children, ch, [&](auto& child) {
         auto* node = tree.child_to_node.get(ch);
         irt_assert(node);
 
-        if (c->type == child_type::model) {
-            inputs.emplace_back(std::make_pair(node->mdl, port));
+        if (child.type == child_type::model) {
+            sc.cache.inputs.emplace_back(std::make_pair(node->mdl, port.model));
         } else {
-            ret = get_input_models(sc, inputs, *node->tn, port);
+            ret = get_input_models(sc, *node->tn, port.compo);
         }
-    }
+    });
 
     return ret;
 }
 
-static status get_output_models(simulation_copy&               sc,
-                                vector<std::pair<model*, i8>>& outputs,
-                                tree_node&                     tree,
-                                child_id                       ch,
-                                i8                             port)
+static status get_output_models(simulation_copy& sc,
+                                tree_node&       tree,
+                                child_id         ch,
+                                connection::port port)
 {
     status ret = status::success;
 
-    if (auto* c = sc.mod.children.try_to_get(ch); c) {
+    if_data_exists_do(sc.mod.children, ch, [&](auto& child) {
         auto* node = tree.child_to_node.get(ch);
         irt_assert(node);
 
-        if (c->type == child_type::model) {
-            outputs.emplace_back(std::make_pair(node->mdl, port));
+        if (child.type == child_type::model) {
+            sc.cache.outputs.emplace_back(
+              std::make_pair(node->mdl, port.model));
         } else {
-            ret = get_output_models(sc, outputs, *node->tn, port);
+            ret = get_output_models(sc, *node->tn, port.compo);
         }
-    }
+    });
 
     return ret;
 }
 
-static status get_input_models(simulation_copy&               sc,
-                               vector<std::pair<model*, i8>>& inputs,
-                               tree_node&                     tree,
-                               i8                             port_dst)
+static status get_input_models(simulation_copy& sc,
+                               tree_node&       tree,
+                               port_id          port_dst)
 {
 
     if (auto* compo = sc.mod.components.try_to_get(tree.id); compo) {
@@ -674,7 +681,6 @@ static status get_input_models(simulation_copy&               sc,
                             cnx->input.index == port_dst) {
                             irt_return_if_bad(
                               get_input_models(sc,
-                                               inputs,
                                                tree,
                                                cnx->output.src,
                                                cnx->output.index_src));
@@ -694,7 +700,6 @@ static status get_input_models(simulation_copy&               sc,
                             cnx->input.index == port_dst) {
                             irt_return_if_bad(
                               get_input_models(sc,
-                                               inputs,
                                                tree,
                                                cnx->output.src,
                                                cnx->output.index_src));
@@ -715,7 +720,6 @@ static status get_input_models(simulation_copy&               sc,
                             cnx->input.index == port_dst) {
                             irt_return_if_bad(
                               get_input_models(sc,
-                                               inputs,
                                                tree,
                                                cnx->output.src,
                                                cnx->output.index_src));
@@ -736,10 +740,9 @@ static status get_input_models(simulation_copy&               sc,
     return status::success;
 }
 
-static status get_output_models(simulation_copy&               sc,
-                                vector<std::pair<model*, i8>>& outputs,
-                                tree_node&                     tree,
-                                i8                             port_dst)
+static status get_output_models(simulation_copy& sc,
+                                tree_node&       tree,
+                                port_id          port_dst)
 {
     if (auto* compo = sc.mod.components.try_to_get(tree.id); compo) {
         switch (compo->type) {
@@ -748,18 +751,14 @@ static status get_output_models(simulation_copy&               sc,
                   sc.mod.generic_components.try_to_get(compo->id.generic_id);
                 g) {
                 for (auto cnx_id : g->connections) {
-                    if (auto* cnx = sc.mod.connections.try_to_get(cnx_id);
-                        cnx) {
-                        if (cnx->type == connection::connection_type::output &&
-                            cnx->output.index == port_dst) {
-                            irt_return_if_bad(
-                              get_output_models(sc,
-                                                outputs,
-                                                tree,
-                                                cnx->input.dst,
-                                                cnx->input.index_dst));
-                        }
-                    }
+                    const auto* cnx = sc.mod.connections.try_to_get(cnx_id);
+                    const bool  is_output =
+                      cnx && cnx->type == connection::connection_type::output &&
+                      cnx->output.index == port_dst;
+
+                    if (is_output)
+                        irt_return_if_bad(get_output_models(
+                          sc, tree, cnx->input.dst, cnx->input.index_dst));
                 }
             }
             break;
@@ -772,12 +771,8 @@ static status get_output_models(simulation_copy&               sc,
                         cnx) {
                         if (cnx->type == connection::connection_type::output &&
                             cnx->output.index == port_dst) {
-                            irt_return_if_bad(
-                              get_output_models(sc,
-                                                outputs,
-                                                tree,
-                                                cnx->input.dst,
-                                                cnx->input.index_dst));
+                            irt_return_if_bad(get_output_models(
+                              sc, tree, cnx->input.dst, cnx->input.index_dst));
                         }
                     }
                 }
@@ -793,12 +788,8 @@ static status get_output_models(simulation_copy&               sc,
                         cnx) {
                         if (cnx->type == connection::connection_type::output &&
                             cnx->output.index == port_dst) {
-                            irt_return_if_bad(
-                              get_output_models(sc,
-                                                outputs,
-                                                tree,
-                                                cnx->input.dst,
-                                                cnx->input.index_dst));
+                            irt_return_if_bad(get_output_models(
+                              sc, tree, cnx->input.dst, cnx->input.index_dst));
                         }
                     }
                 }
@@ -817,9 +808,9 @@ static status get_output_models(simulation_copy&               sc,
 }
 
 static status simulation_copy_connections(
-  const vector<std::pair<model*, i8>>& inputs,
-  const vector<std::pair<model*, i8>>& outputs,
-  simulation&                          sim) noexcept
+  const vector<std::pair<model*, int>>& inputs,
+  const vector<std::pair<model*, int>>& outputs,
+  simulation&                           sim) noexcept
 {
     for (auto src : outputs)
         for (auto dst : inputs)
@@ -838,6 +829,7 @@ static status simulation_copy_connections(simulation_copy&       sc,
         sc.cache.outputs.clear();
 
         auto* cnx = sc.mod.connections.try_to_get(cnx_id);
+        irt_assert(cnx);
 
         const bool is_internal_connection =
           cnx && cnx->type == connection::connection_type::internal;
@@ -853,29 +845,25 @@ static status simulation_copy_connections(simulation_copy&       sc,
 
             if (src->type == child_type::model) {
                 sc.cache.outputs.emplace_back(
-                  std::make_pair(node_src->mdl, cnx->internal.index_src));
+                  std::make_pair(node_src->mdl, cnx->internal.index_src.model));
 
                 if (dst->type == child_type::model) {
-                    sc.cache.inputs.emplace_back(
-                      std::make_pair(node_dst->mdl, cnx->internal.index_dst));
+                    sc.cache.inputs.emplace_back(std::make_pair(
+                      node_dst->mdl, cnx->internal.index_dst.model));
                 } else {
-                    get_input_models(sc,
-                                     sc.cache.inputs,
-                                     *node_dst->tn,
-                                     cnx->internal.index_dst);
+                    get_input_models(
+                      sc, *node_dst->tn, cnx->internal.index_dst.compo);
                 }
             } else {
                 get_output_models(
-                  sc, sc.cache.outputs, *node_src->tn, cnx->internal.index_src);
+                  sc, *node_src->tn, cnx->internal.index_src.compo);
 
                 if (dst->type == child_type::model) {
-                    sc.cache.inputs.emplace_back(
-                      std::make_pair(node_dst->mdl, cnx->internal.index_dst));
+                    sc.cache.inputs.emplace_back(std::make_pair(
+                      node_dst->mdl, cnx->internal.index_dst.model));
                 } else {
-                    get_input_models(sc,
-                                     sc.cache.inputs,
-                                     *node_dst->tn,
-                                     cnx->internal.index_dst);
+                    get_input_models(
+                      sc, *node_dst->tn, cnx->internal.index_dst.compo);
                 }
             }
 

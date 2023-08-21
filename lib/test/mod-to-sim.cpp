@@ -28,9 +28,9 @@ static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
 
 int main()
 {
-    // #if defined(IRRITATOR_ENABLE_DEBUG)
-    //     irt::is_fatal_breakpoint = false;
-    // #endif
+#if defined(IRRITATOR_ENABLE_DEBUG)
+    irt::is_fatal_breakpoint = false;
+#endif
 
     using namespace boost::ut;
 
@@ -44,27 +44,33 @@ int main()
         pj.init(32);
         sim.init(256, 4096);
 
-        auto& c1  = mod.alloc_generic_component();
-        auto& s1  = mod.generic_components.get(c1.id.generic_id);
-        auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
-        expect(irt::is_success(
-          mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
+        auto& c1    = mod.alloc_generic_component();
+        auto& s1    = mod.generic_components.get(c1.id.generic_id);
+        auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
+        auto  p1_id = mod.get_or_add_x_index(c1, "in");
+        auto* p1    = mod.ports.try_to_get(p1_id);
+        expect((p1 != nullptr) >> fatal);
+        expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
 
-        auto& c2  = mod.alloc_generic_component();
-        auto& s2  = mod.generic_components.get(c2.id.generic_id);
-        auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
-        expect(irt::is_success(
-          mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
+        auto& c2    = mod.alloc_generic_component();
+        auto& s2    = mod.generic_components.get(c2.id.generic_id);
+        auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
+        auto  p2_id = mod.get_or_add_y_index(c2, "out");
+        auto* p2    = mod.ports.try_to_get(p2_id);
+        expect((p2 != nullptr) >> fatal);
+        expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
 
         auto& c3   = mod.alloc_generic_component();
         auto& s3   = mod.generic_components.get(c3.id.generic_id);
         auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
-        expect(irt::is_success(mod.connect(
-          s3, mod.children.get_id(ch31), 0, mod.children.get_id(ch32), 0)));
+        expect(irt::is_success(mod.connect(s3, ch31, p2_id, ch32, p1_id)));
 
         expect(eq(mod.children.ssize(), 4));
         expect(eq(mod.connections.ssize(), 3));
+        expect(eq(s1.connections.ssize(), 1));
+        expect(eq(s2.connections.ssize(), 1));
+        expect(eq(s3.connections.ssize(), 1));
 
         expect(irt::is_success(pj.set(mod, sim, c3)));
         expect(eq(pj.tree_nodes_size().first, 3));
@@ -131,36 +137,43 @@ int main()
         pj.init(32);
         sim.init(256, 4096);
 
-        auto& c1  = mod.alloc_generic_component();
-        auto& s1  = mod.generic_components.get(c1.id.generic_id);
-        auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
-        expect(irt::is_success(
-          mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
+        auto& c1    = mod.alloc_generic_component();
+        auto& s1    = mod.generic_components.get(c1.id.generic_id);
+        auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
+        auto  p1_id = mod.get_or_add_x_index(c1, "in");
+        auto* p1    = mod.ports.try_to_get(p1_id);
+        expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
 
-        auto& c11  = mod.alloc_generic_component();
-        auto& s11  = mod.generic_components.get(c11.id.generic_id);
-        auto& ch11 = mod.alloc(s11, mod.components.get_id(c1));
-        expect(irt::is_success(
-          mod.connect_input(s11, 0, mod.children.get_id(ch11), 0)));
+        auto& c11    = mod.alloc_generic_component();
+        auto& s11    = mod.generic_components.get(c11.id.generic_id);
+        auto& ch11   = mod.alloc(s11, mod.components.get_id(c1));
+        auto  p11_id = mod.get_or_add_x_index(c11, "in");
+        auto* p11    = mod.ports.try_to_get(p11_id);
 
-        auto& c2  = mod.alloc_generic_component();
-        auto& s2  = mod.generic_components.get(c2.id.generic_id);
-        auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
-        expect(irt::is_success(
-          mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
+        expect(irt::is_success(mod.connect_input(s11, *p11, ch11, p1_id)));
 
-        auto& c22  = mod.alloc_generic_component();
-        auto& s22  = mod.generic_components.get(c22.id.generic_id);
-        auto& ch22 = mod.alloc(s22, mod.components.get_id(c2));
-        expect(irt::is_success(
-          mod.connect_output(s22, mod.children.get_id(ch22), 0, 0)));
+        auto& c2    = mod.alloc_generic_component();
+        auto& s2    = mod.generic_components.get(c2.id.generic_id);
+        auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
+        auto  p2_id = mod.get_or_add_y_index(c2, "out");
+        auto* p2    = mod.ports.try_to_get(p2_id);
+
+        expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
+
+        auto& c22    = mod.alloc_generic_component();
+        auto& s22    = mod.generic_components.get(c22.id.generic_id);
+        auto& ch22   = mod.alloc(s22, mod.components.get_id(c2));
+        auto  p22_id = mod.get_or_add_y_index(c22, "out");
+        auto* p22    = mod.ports.try_to_get(p22_id);
+
+        expect(irt::is_success(mod.connect_output(s22, ch22, p2_id, *p22)));
 
         auto& c3   = mod.alloc_generic_component();
         auto& s3   = mod.generic_components.get(c3.id.generic_id);
         auto& ch31 = mod.alloc(s3, mod.components.get_id(c22));
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c11));
-        expect(irt::is_success(mod.connect(
-          s3, mod.children.get_id(ch31), 0, mod.children.get_id(ch32), 0)));
+
+        expect(irt::is_success(mod.connect(s3, ch31, p22_id, ch32, p11_id)));
 
         expect(eq(mod.children.ssize(), 6));
         expect(eq(mod.connections.ssize(), 5));
@@ -312,24 +325,27 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            auto& c1  = mod.alloc_generic_component();
-            auto& s1  = mod.generic_components.get(c1.id.generic_id);
-            auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
-            expect(irt::is_success(
-              mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
+            auto& c1    = mod.alloc_generic_component();
+            auto& s1    = mod.generic_components.get(c1.id.generic_id);
+            auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
+            auto  p1_id = mod.get_or_add_x_index(c1, "in");
+            auto* p1    = mod.ports.try_to_get(p1_id);
+            expect(p1 != nullptr);
+            expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
 
-            auto& c2  = mod.alloc_generic_component();
-            auto& s2  = mod.generic_components.get(c2.id.generic_id);
-            auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
-            expect(irt::is_success(
-              mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
+            auto& c2    = mod.alloc_generic_component();
+            auto& s2    = mod.generic_components.get(c2.id.generic_id);
+            auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
+            auto  p2_id = mod.get_or_add_y_index(c2, "out");
+            auto* p2    = mod.ports.try_to_get(p2_id);
+            expect(p2 != nullptr);
+            expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
 
             auto& c3   = mod.alloc_generic_component();
             auto& s3   = mod.generic_components.get(c3.id.generic_id);
             auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
-            expect(irt::is_success(mod.connect(
-              s3, mod.children.get_id(ch31), 0, mod.children.get_id(ch32), 0)));
+            expect(irt::is_success(mod.connect(s3, ch31, p2_id, ch32, p1_id)));
 
             expect(eq(mod.children.ssize(), 4));
             expect(eq(mod.connections.ssize(), 3));
@@ -397,7 +413,6 @@ int main()
         }
 
         expect(buffer.size() > 0u);
-        fmt::print("{}\n", std::string_view(buffer.data(), buffer.size()));
 
         {
             irt::modeling_initializer mod_init;
@@ -507,40 +522,54 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            auto& c1  = mod.alloc_generic_component();
-            auto& s1  = mod.generic_components.get(c1.id.generic_id);
-            auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
+            auto& c1    = mod.alloc_generic_component();
+            auto& s1    = mod.generic_components.get(c1.id.generic_id);
+            auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
+            auto  p1_id = mod.get_or_add_x_index(c1, "in");
+            auto* p1    = mod.ports.try_to_get(p1_id);
+            expect(p1 != nullptr);
+            expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
 
-            expect(irt::is_success(
-              mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
+            auto& c2    = mod.alloc_generic_component();
+            auto& s2    = mod.generic_components.get(c2.id.generic_id);
+            auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
+            auto  p2_id = mod.get_or_add_y_index(c2, "out");
+            auto* p2    = mod.ports.try_to_get(p2_id);
+            expect(p2 != nullptr);
+            expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
 
-            auto& c2  = mod.alloc_generic_component();
-            auto& s2  = mod.generic_components.get(c2.id.generic_id);
-            auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
-            expect(irt::is_success(
-              mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
-
-            auto& c3           = mod.alloc_generic_component();
-            auto& s3           = mod.generic_components.get(c3.id.generic_id);
-            auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
-            auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
-            auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);
+            auto& c3     = mod.alloc_generic_component();
+            auto& s3     = mod.generic_components.get(c3.id.generic_id);
+            auto& ch3    = mod.alloc(s3, mod.components.get_id(c2));
+            auto& ch4    = mod.alloc(s3, mod.components.get_id(c1));
+            auto& ch5    = mod.alloc(s3, irt::dynamics_type::constant);
+            auto  p31_id = mod.get_or_add_x_index(c3, "in");
+            auto* p31    = mod.ports.try_to_get(p31_id);
+            expect(p31 != nullptr);
+            auto  p32_id = mod.get_or_add_y_index(c3, "out");
+            auto* p32    = mod.ports.try_to_get(p32_id);
+            expect(p32 != nullptr);
             auto& mdl          = mod.models.get(ch5.id.mdl_id);
             auto& dyn          = irt::get_dyn<irt::constant>(mdl);
             dyn.default_offset = 0;
             dyn.type = irt::constant::init_type::incoming_component_all;
 
-            expect(irt::is_success(mod.connect(
-              s3, mod.children.get_id(ch3), 0, mod.children.get_id(ch4), 0)));
+            expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
+            expect(irt::is_success(mod.connect_input(s3, *p31, ch4, p1_id)));
+            expect(irt::is_success(mod.connect_output(s3, ch3, p2_id, *p32)));
 
             expect(eq(mod.children.ssize(), 5));
-            expect(eq(mod.connections.ssize(), 3));
+            expect(eq(mod.connections.ssize(), 5));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
             g.resize(5, 5, mod.components.get_id(c3));
+            g.opts            = irt::grid_component::options::none;
+            g.connection_type = irt::grid_component::type::number;
+            g.neighbors       = irt::grid_component::neighborhood::four;
 
             expect(irt::is_success(pj.set(mod, sim, cg)));
+            expect(gt(g.cache_connections.ssize(), 0));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
             expect(eq(sim.models.ssize(), g.row * g.column * 3));
@@ -573,35 +602,45 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            auto& c1  = mod.alloc_generic_component();
-            auto& s1  = mod.generic_components.get(c1.id.generic_id);
-            auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
+            auto& c1    = mod.alloc_generic_component();
+            auto& s1    = mod.generic_components.get(c1.id.generic_id);
+            auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
+            auto  p1_id = mod.get_or_add_x_index(c1, "in");
+            auto* p1    = mod.ports.try_to_get(p1_id);
+            expect(p1 != nullptr);
+            expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
 
-            expect(irt::is_success(
-              mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
+            auto& c2    = mod.alloc_generic_component();
+            auto& s2    = mod.generic_components.get(c2.id.generic_id);
+            auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
+            auto  p2_id = mod.get_or_add_y_index(c2, "out");
+            auto* p2    = mod.ports.try_to_get(p2_id);
+            expect(p2 != nullptr);
+            expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
 
-            auto& c2  = mod.alloc_generic_component();
-            auto& s2  = mod.generic_components.get(c2.id.generic_id);
-            auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
-            expect(irt::is_success(
-              mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
-
-            auto& c3           = mod.alloc_generic_component();
-            auto& s3           = mod.generic_components.get(c3.id.generic_id);
-            auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
-            auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
-            auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);
+            auto& c3     = mod.alloc_generic_component();
+            auto& s3     = mod.generic_components.get(c3.id.generic_id);
+            auto& ch3    = mod.alloc(s3, mod.components.get_id(c2));
+            auto& ch4    = mod.alloc(s3, mod.components.get_id(c1));
+            auto& ch5    = mod.alloc(s3, irt::dynamics_type::constant);
+            auto  p31_id = mod.get_or_add_x_index(c3, "in");
+            auto* p31    = mod.ports.try_to_get(p31_id);
+            expect(p31 != nullptr);
+            auto  p32_id = mod.get_or_add_y_index(c3, "out");
+            auto* p32    = mod.ports.try_to_get(p32_id);
+            expect(p32 != nullptr);
             auto& mdl          = mod.models.get(ch5.id.mdl_id);
             auto& dyn          = irt::get_dyn<irt::constant>(mdl);
             dyn.default_offset = 0;
             dyn.type           = irt::constant::init_type::incoming_component_n;
-            dyn.port           = 0;
+            dyn.port           = ordinal(p31_id);
 
-            expect(irt::is_success(mod.connect(
-              s3, mod.children.get_id(ch3), 0, mod.children.get_id(ch4), 0)));
+            expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
+            expect(irt::is_success(mod.connect_input(s3, *p31, ch4, p1_id)));
+            expect(irt::is_success(mod.connect_output(s3, ch3, p2_id, *p32)));
 
             expect(eq(mod.children.ssize(), 5));
-            expect(eq(mod.connections.ssize(), 3));
+            expect(eq(mod.connections.ssize(), 5));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
@@ -641,18 +680,21 @@ int main()
             pj.init(mod_init.tree_capacity *= 10);
             sim.init(256, 4096);
 
-            auto& c1  = mod.alloc_generic_component();
-            auto& s1  = mod.generic_components.get(c1.id.generic_id);
-            auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
+            auto& c1    = mod.alloc_generic_component();
+            auto& s1    = mod.generic_components.get(c1.id.generic_id);
+            auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
+            auto  p1_id = mod.get_or_add_x_index(c1, "in");
+            auto* p1    = mod.ports.try_to_get(p1_id);
+            expect(p1 != nullptr);
+            expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
 
-            expect(irt::is_success(
-              mod.connect_input(s1, 0, mod.children.get_id(ch1), 0)));
-
-            auto& c2  = mod.alloc_generic_component();
-            auto& s2  = mod.generic_components.get(c2.id.generic_id);
-            auto& ch2 = mod.alloc(s2, irt::dynamics_type::time_func);
-            expect(irt::is_success(
-              mod.connect_output(s2, mod.children.get_id(ch2), 0, 0)));
+            auto& c2    = mod.alloc_generic_component();
+            auto& s2    = mod.generic_components.get(c2.id.generic_id);
+            auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
+            auto  p2_id = mod.get_or_add_y_index(c2, "out");
+            auto* p2    = mod.ports.try_to_get(p2_id);
+            expect(p2 != nullptr);
+            expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
 
             auto& c3           = mod.alloc_generic_component();
             auto& s3           = mod.generic_components.get(c3.id.generic_id);
@@ -665,8 +707,7 @@ int main()
             dyn.type           = irt::constant::init_type::incoming_component_n;
             dyn.port           = 17; // Impossible port
 
-            expect(irt::is_success(mod.connect(
-              s3, mod.children.get_id(ch3), 0, mod.children.get_id(ch4), 0)));
+            expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
 
             expect(eq(mod.children.ssize(), 5));
             expect(eq(mod.connections.ssize(), 3));

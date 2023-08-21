@@ -7,6 +7,7 @@
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
 #include <algorithm>
@@ -136,18 +137,59 @@ static auto build_graph_children(modeling&         mod,
 static void connection_add(modeling&              mod,
                            vector<connection_id>& cnts,
                            child_id               src,
-                           i8                     port_src,
+                           port_id                port_src,
                            child_id               dst,
-                           i8                     port_dst) noexcept
+                           port_id                port_dst) noexcept
 {
-    auto& c              = mod.connections.alloc();
-    auto  c_id           = mod.connections.get_id(c);
-    c.type               = connection::connection_type::internal;
-    c.internal.src       = src;
-    c.internal.index_src = port_src;
-    c.internal.dst       = dst;
-    c.internal.index_dst = port_dst;
+    auto& c    = mod.connections.alloc(src, port_src, dst, port_dst);
+    auto  c_id = mod.connections.get_id(c);
     cnts.emplace_back(c_id);
+}
+
+static void in_out_connection_add(modeling&              mod,
+                                  vector<connection_id>& cnts,
+                                  child_id               src,
+                                  child_id               dst) noexcept
+{
+    port_id p_src = undefined<port_id>();
+    port_id p_dst = undefined<port_id>();
+
+    if_child_is_component_do(mod, src, [&](auto& /* ch */, auto& compo) {
+        p_src = mod.get_y_index(compo, "out");
+    });
+
+    if_child_is_component_do(mod, dst, [&](auto& /* ch */, auto& compo) {
+        p_dst = mod.get_x_index(compo, "in");
+    });
+
+    if (is_defined(p_src) && is_defined(p_dst))
+        connection_add(mod, cnts, src, p_src, dst, p_dst);
+}
+
+static void named_connection_add(modeling&              mod,
+                                 vector<connection_id>& cnts,
+                                 child_id               src,
+                                 child_id               dst) noexcept
+{
+    port_id p_src = undefined<port_id>();
+    port_id p_dst = undefined<port_id>();
+
+    if_child_is_component_do(mod, src, [&](auto& /* ch_src */, auto& compo_src) {
+        if_child_is_component_do(mod, dst, [&](auto& /* ch_dst */, auto& compo_dst) {
+            auto     sz_src = compo_src.x_names.ssize();
+            auto     sz_dst = compo_dst.y_names.ssize();
+            port_str temp;
+
+            format(temp, "{}", sz_src);
+            p_src = mod.get_x_index(compo_src, temp.sv());
+
+            format(temp, "{}", sz_dst);
+            p_dst = mod.get_y_index(compo_dst, temp.sv());
+        });
+    });
+
+    if (is_defined(p_src) && is_defined(p_dst))
+        connection_add(mod, cnts, src, p_src, dst, p_dst);
 }
 
 static bool get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
@@ -259,7 +301,10 @@ static auto build_scale_free_connections(
         irt_return_if_fail(mod.connections.can_alloc(),
                            status::data_array_not_enough_memory);
 
-        connection_add(mod, cnts, ids[first], 0, ids[second], 0);
+        if (graph.type == graph_component::connection_type::name)
+            named_connection_add(mod, cnts, ids[first], ids[second]);
+        else
+            in_out_connection_add(mod, cnts, ids[first], ids[second]);
     }
 
     return status::success;
@@ -310,12 +355,16 @@ static auto build_small_world_connections(
         irt_assert(first >= 0 && first < n);
         irt_assert(second >= 0 && second < n);
 
-        connection_add(mod,
-                       cnts,
-                       ids[static_cast<unsigned>(first)],
-                       0,
-                       ids[static_cast<unsigned>(second)],
-                       0);
+        if (graph.type == graph_component::connection_type::name)
+            named_connection_add(mod,
+                                 cnts,
+                                 ids[static_cast<unsigned>(first)],
+                                 ids[static_cast<unsigned>(second)]);
+        else
+            in_out_connection_add(mod,
+                                  cnts,
+                                  ids[static_cast<unsigned>(first)],
+                                  ids[static_cast<unsigned>(second)]);
     } while (source + 1 < n);
 
     return status::success;

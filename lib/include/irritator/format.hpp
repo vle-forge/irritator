@@ -30,6 +30,25 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
     str.resize(ret.size);
 }
 
+inline void debug_component(const modeling& mod, const component_id id) noexcept
+{
+    constexpr std::string_view empty_path = "empty";
+
+    if (auto* compo = mod.components.try_to_get(id); compo) {
+        auto* reg  = mod.registred_paths.try_to_get(compo->reg_path);
+        auto* dir  = mod.dir_paths.try_to_get(compo->dir);
+        auto* file = mod.file_paths.try_to_get(compo->file);
+
+        fmt::print("component {} in registred path {} directory {} file {}\n",
+                   ordinal(id),
+                   reg ? reg->path.sv() : empty_path,
+                   dir ? dir->path.sv() : empty_path,
+                   file ? file->path.sv() : empty_path);
+    } else {
+        fmt::print("unknwon component {}\n", ordinal(id));
+    }
+}
+
 //! Copy a formatted string into the \c modeling warnings.
 //!
 //! The formatted string in take from the \c modeling \c ring-buffer.

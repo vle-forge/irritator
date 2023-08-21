@@ -78,16 +78,16 @@ status component_load(modeling&       mod,
 
 //! Save a component structure into a json file.
 status component_save(
-  const modeling&   mod,
-  const component&  compo,
+  modeling&         mod,
+  component&        compo,
   io_cache&         cache,
   const char*       filename,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Save a component structure into a json file.
 status component_save(
-  const modeling&   mod,
-  const component&  compo,
+  modeling&         mod,
+  component&        compo,
   io_cache&         cache,
   vector<char>&     out,
   json_pretty_print print_options = json_pretty_print::off) noexcept;

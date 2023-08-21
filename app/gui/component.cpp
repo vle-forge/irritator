@@ -129,8 +129,8 @@ void component_editor::add_grid_component() noexcept
 // task implementation
 //
 
-static status save_component_impl(const modeling&       mod,
-                                  const component&      compo,
+static status save_component_impl(modeling&             mod,
+                                  component&            compo,
                                   const registred_path& reg_path,
                                   const dir_path&       dir,
                                   const file_path&      file) noexcept
