@@ -545,10 +545,10 @@ int main()
             auto& ch5    = mod.alloc(s3, irt::dynamics_type::constant);
             auto  p31_id = mod.get_or_add_x_index(c3, "in");
             auto* p31    = mod.ports.try_to_get(p31_id);
-            expect(p31 != nullptr);
+            expect((p31 != nullptr) >> fatal);
             auto  p32_id = mod.get_or_add_y_index(c3, "out");
             auto* p32    = mod.ports.try_to_get(p32_id);
-            expect(p32 != nullptr);
+            expect((p32 != nullptr) >> fatal);
             auto& mdl          = mod.models.get(ch5.id.mdl_id);
             auto& dyn          = irt::get_dyn<irt::constant>(mdl);
             dyn.default_offset = 0;

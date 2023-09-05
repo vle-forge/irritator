@@ -62,6 +62,11 @@ enum class stack_id
     component_children,
     component_generic,
     component_generic_connections,
+    component_generic_connect,
+    component_generic_x_port,
+    component_generic_y_port,
+    component_generic_connect_input,
+    component_generic_connect_output,
     component_generic_dispatch_connection,
     component_generic_internal_connection,
     component_generic_output_connection,
@@ -183,6 +188,11 @@ static inline constexpr std::string_view stack_id_names[] = {
     "component_children",
     "component_generic",
     "component_generic_connections",
+    "component_generic_connect",
+    "component_generic_x_port",
+    "component_generic_y_port",
+    "component_generic_connect_input",
+    "component_generic_connect_output",
     "component_generic_dispatch_connection",
     "component_generic_internal_connection",
     "component_generic_output_connection",
@@ -319,6 +329,10 @@ enum class error_id
     modeling_internal_component_missing,
     modeling_component_missing,
     modeling_hsm_id_error,
+    generic_component_error_port_identifier,
+    generic_component_unknown_component,
+    generic_component_unknown_component_x_port,
+    generic_component_unknown_component_y_port,
     grid_component_size_error,
     graph_component_type_error,
     srcs_constant_sources_buffer_not_enough,
@@ -393,6 +407,10 @@ static inline constexpr std::string_view error_id_names[] = {
     "modeling_internal_component_missing",
     "modeling_component_missing",
     "modeling_hsm_id_error",
+    "generic_component_error_port_identifier",
+    "generic_component_unknown_component",
+    "generic_component_unknown_component_x_port",
+    "generic_component_unknown_component_y_port",
     "grid_component_size_error",
     "graph_component_type_error",
     "srcs_constant_sources_buffer_not_enough",
@@ -2668,6 +2686,8 @@ struct reader
                           const child_id         dst,
                           const connection::port p_dst) noexcept
     {
+        auto_stack a(this, stack_id::component_generic_connect);
+
         if (auto* c_src = mod().children.try_to_get(src); c_src) {
             if (auto* c_dst = mod().children.try_to_get(dst); c_dst) {
                 return is_success(
@@ -2683,6 +2703,8 @@ struct reader
                                 child_id           dst,
                                 connection::port   p_dst) noexcept
     {
+        auto_stack a(this, stack_id::component_generic_connect_input);
+
         if (auto* c_dst = mod().children.try_to_get(dst); c_dst)
             if (auto* port = mod().ports.try_to_get(src_port); port)
                 return is_success(
@@ -2696,6 +2718,8 @@ struct reader
                                  connection::port   p_src,
                                  port_id            dst_port) noexcept
     {
+        auto_stack a(this, stack_id::component_generic_connect_output);
+
         if (auto* c_src = mod().children.try_to_get(src); c_src)
             if (auto* port = mod().ports.try_to_get(dst_port); port)
                 return is_success(
@@ -2729,20 +2753,25 @@ struct reader
                     const std::optional<int>&         dst_int_port,
                     std::optional<connection::port>   out) noexcept
     {
+        auto_stack a(this, stack_id::component_generic_x_port);
+
         if (auto* child = mod().children.try_to_get(dst_id); child) {
             if (dst_int_port.has_value()) {
                 if (child->type != child_type::model)
-                    return false; // @TODO Better error
+                    report_json_error(
+                      error_id::generic_component_error_port_identifier);
 
                 out->model = *dst_int_port;
                 return true;
             } else if (dst_str_port.has_value()) {
                 if (child->type != child_type::component)
-                    return false; // @TODO Better error
+                    report_json_error(
+                      error_id::generic_component_error_port_identifier);
 
                 auto* compo = mod().components.try_to_get(child->id.compo_id);
                 if (!compo)
-                    return false; // @TODO Better error
+                    report_json_error(
+                      error_id::generic_component_unknown_component);
 
                 if (compo->state == component_status::unread) {
                     debug_component(mod(), child->id.compo_id);
@@ -2752,7 +2781,8 @@ struct reader
 
                 auto p_id = mod().get_x_index(*compo, *dst_str_port);
                 if (is_undefined(p_id))
-                    return false; // @TODO Better error
+                    report_json_error(
+                      error_id::generic_component_unknown_component_x_port);
 
                 out->compo = p_id;
                 return true;
@@ -2769,20 +2799,25 @@ struct reader
                     const std::optional<int>&         src_int_port,
                     std::optional<connection::port>   out) noexcept
     {
+        auto_stack a(this, stack_id::component_generic_y_port);
+
         if (auto* child = mod().children.try_to_get(src_id); child) {
             if (src_int_port.has_value()) {
                 if (child->type != child_type::model)
-                    return false; // @TODO Better error
+                    report_json_error(
+                      error_id::generic_component_error_port_identifier);
 
                 out->model = *src_int_port;
                 return true;
             } else if (src_str_port.has_value()) {
                 if (child->type != child_type::component)
-                    return false; // @TODO Better error
+                    report_json_error(
+                      error_id::generic_component_error_port_identifier);
 
                 auto* compo = mod().components.try_to_get(child->id.compo_id);
                 if (!compo)
-                    return false; // @TODO Better error
+                    report_json_error(
+                      error_id::generic_component_unknown_component);
 
                 if (compo->state == component_status::unread) {
                     debug_component(mod(), child->id.compo_id);
@@ -2792,7 +2827,8 @@ struct reader
 
                 auto p_id = mod().get_y_index(*compo, *src_str_port);
                 if (is_undefined(p_id))
-                    return false; // @TODO Better error
+                    report_json_error(
+                      error_id::generic_component_unknown_component_y_port);
 
                 out->compo = p_id;
                 return true;
