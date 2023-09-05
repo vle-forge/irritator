@@ -32,6 +32,7 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
 
 inline void debug_component(const modeling& mod, const component_id id) noexcept
 {
+#ifdef IRRITATOR_ENABLE_DEBUG
     constexpr std::string_view empty_path = "empty";
 
     if (auto* compo = mod.components.try_to_get(id); compo) {
@@ -47,6 +48,10 @@ inline void debug_component(const modeling& mod, const component_id id) noexcept
     } else {
         fmt::print("unknwon component {}\n", ordinal(id));
     }
+#else
+    (void)mod;
+    (void)id;
+#endif
 }
 
 //! Copy a formatted string into the \c modeling warnings.

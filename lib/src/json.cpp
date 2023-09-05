@@ -2745,9 +2745,7 @@ struct reader
                     return false; // @TODO Better error
 
                 if (compo->state == component_status::unread) {
-#ifdef IRRITATOR_ENABLE_DEBUG
                     debug_component(mod(), child->id.compo_id);
-#endif
                     dependencies.emplace_back(child->id.compo_id);
                     return false;
                 }
@@ -2787,9 +2785,7 @@ struct reader
                     return false; // @TODO Better error
 
                 if (compo->state == component_status::unread) {
-#ifdef IRRITATOR_ENABLE_DEBUG
                     debug_component(mod(), child->id.compo_id);
-#endif
                     dependencies.emplace_back(child->id.compo_id);
                     return false;
                 }
