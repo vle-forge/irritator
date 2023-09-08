@@ -208,95 +208,103 @@ static void show_file_access(application& app, component& compo) noexcept
     }
 }
 
-static void show_input_output(modeling& mod, component& compo) noexcept
+static void show_input_output_ports(modeling& mod, component& compo) noexcept
 {
-    if (ImGui::BeginTable("X",
-                          3,
-                          ImGuiTableFlags_Resizable |
-                            ImGuiTableFlags_NoSavedSettings |
-                            ImGuiTableFlags_Borders)) {
-        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 32.f);
-        ImGui::TableSetupColumn("name");
-        ImGui::TableSetupColumn("action");
-        ImGui::TableHeadersRow();
+    if (ImGui::CollapsingHeader("X ports")) {
+        if (ImGui::BeginTable("X",
+                              3,
+                              ImGuiTableFlags_Resizable |
+                                ImGuiTableFlags_NoSavedSettings |
+                                ImGuiTableFlags_Borders)) {
+            ImGui::TableSetupColumn(
+              "id", ImGuiTableColumnFlags_WidthFixed, 32.f);
+            ImGui::TableSetupColumn("name");
+            ImGui::TableSetupColumn("action");
+            ImGui::TableHeadersRow();
 
-        std::optional<port_id> to_del;
-        for (int i = 0, e = compo.x_names.ssize(); i != e; ++i) {
-            if_data_exists_do(
-              mod.ports, compo.x_names[i], [&](auto& port) noexcept {
-                  ImGui::TableNextRow();
-                  ImGui::TableNextColumn();
-                  ImGui::TextFormat("{}", i);
+            std::optional<port_id> to_del;
+            for (int i = 0, e = compo.x_names.ssize(); i != e; ++i) {
+                if_data_exists_do(
+                  mod.ports, compo.x_names[i], [&](auto& port) noexcept {
+                      ImGui::TableNextRow();
+                      ImGui::TableNextColumn();
+                      ImGui::TextFormat("{}", i);
 
-                  ImGui::TableNextColumn();
-                  ImGui::PushItemWidth(-1.f);
-                  ImGui::PushID(i);
+                      ImGui::TableNextColumn();
+                      ImGui::PushItemWidth(-1.f);
+                      ImGui::PushID(i);
 
-                  ImGui::InputFilteredString("##in-name", port.name);
+                      ImGui::InputFilteredString("##in-name", port.name);
 
-                  ImGui::PopID();
-                  ImGui::PopItemWidth();
+                      ImGui::PopID();
+                      ImGui::PopItemWidth();
 
-                  ImGui::TableNextColumn();
-                  if (ImGui::Button("del"))
-                      to_del = compo.x_names[i];
-              });
-        }
+                      ImGui::TableNextColumn();
+                      if (ImGui::Button("del"))
+                          to_del = compo.x_names[i];
+                  });
+            }
 
-        if (to_del.has_value())
-            mod.free_input_port(compo, mod.ports.get(*to_del));
+            if (to_del.has_value())
+                mod.free_input_port(compo, mod.ports.get(*to_del));
 
-        ImGui::EndTable();
+            ImGui::EndTable();
 
-        if (mod.ports.can_alloc() && ImGui::Button("+##in-port")) {
-            auto& new_port = mod.ports.alloc("-", mod.components.get_id(compo));
-            auto  new_port_id = mod.ports.get_id(new_port);
-            compo.x_names.emplace_back(new_port_id);
+            if (mod.ports.can_alloc() && ImGui::Button("+##in-port")) {
+                auto& new_port =
+                  mod.ports.alloc("-", mod.components.get_id(compo));
+                auto new_port_id = mod.ports.get_id(new_port);
+                compo.x_names.emplace_back(new_port_id);
+            }
         }
     }
 
-    if (ImGui::BeginTable("Y",
-                          3,
-                          ImGuiTableFlags_Resizable |
-                            ImGuiTableFlags_NoSavedSettings |
-                            ImGuiTableFlags_Borders)) {
-        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 32.f);
-        ImGui::TableSetupColumn("name");
-        ImGui::TableSetupColumn("action");
-        ImGui::TableHeadersRow();
+    if (ImGui::CollapsingHeader("Y ports")) {
+        if (ImGui::BeginTable("Y",
+                              3,
+                              ImGuiTableFlags_Resizable |
+                                ImGuiTableFlags_NoSavedSettings |
+                                ImGuiTableFlags_Borders)) {
+            ImGui::TableSetupColumn(
+              "id", ImGuiTableColumnFlags_WidthFixed, 32.f);
+            ImGui::TableSetupColumn("name");
+            ImGui::TableSetupColumn("action");
+            ImGui::TableHeadersRow();
 
-        std::optional<port_id> to_del;
-        for (int i = 0, e = compo.y_names.ssize(); i != e; ++i) {
-            if_data_exists_do(
-              mod.ports, compo.y_names[i], [&](auto& port) noexcept {
-                  ImGui::TableNextRow();
-                  ImGui::TableNextColumn();
-                  ImGui::TextFormat("{}", i);
+            std::optional<port_id> to_del;
+            for (int i = 0, e = compo.y_names.ssize(); i != e; ++i) {
+                if_data_exists_do(
+                  mod.ports, compo.y_names[i], [&](auto& port) noexcept {
+                      ImGui::TableNextRow();
+                      ImGui::TableNextColumn();
+                      ImGui::TextFormat("{}", i);
 
-                  ImGui::TableNextColumn();
-                  ImGui::PushItemWidth(-1.f);
-                  ImGui::PushID(i);
+                      ImGui::TableNextColumn();
+                      ImGui::PushItemWidth(-1.f);
+                      ImGui::PushID(i);
 
-                  ImGui::InputFilteredString("##out-name", port.name);
+                      ImGui::InputFilteredString("##out-name", port.name);
 
-                  ImGui::PopID();
-                  ImGui::PopItemWidth();
+                      ImGui::PopID();
+                      ImGui::PopItemWidth();
 
-                  ImGui::TableNextColumn();
-                  if (ImGui::Button("del"))
-                      to_del = compo.y_names[i];
-              });
-        }
+                      ImGui::TableNextColumn();
+                      if (ImGui::Button("del"))
+                          to_del = compo.y_names[i];
+                  });
+            }
 
-        if (to_del.has_value())
-            mod.free_output_port(compo, mod.ports.get(*to_del));
+            if (to_del.has_value())
+                mod.free_output_port(compo, mod.ports.get(*to_del));
 
-        ImGui::EndTable();
+            ImGui::EndTable();
 
-        if (mod.ports.can_alloc() && ImGui::Button("+##out-port")) {
-            auto& new_port = mod.ports.alloc("-", mod.components.get_id(compo));
-            auto  new_port_id = mod.ports.get_id(new_port);
-            compo.y_names.emplace_back(new_port_id);
+            if (mod.ports.can_alloc() && ImGui::Button("+##out-port")) {
+                auto& new_port =
+                  mod.ports.alloc("-", mod.components.get_id(compo));
+                auto new_port_id = mod.ports.get_id(new_port);
+                compo.y_names.emplace_back(new_port_id);
+            }
         }
     }
 }
@@ -439,8 +447,7 @@ static void show_data(application&       app,
                     if (ImGui::CollapsingHeader("path"))
                         show_file_access(app, *c);
 
-                    if (ImGui::CollapsingHeader("i/o ports names"))
-                        show_input_output(app.mod, *c);
+                    show_input_output_ports(app.mod, *c);
 
                     if (ImGui::CollapsingHeader("selected"))
                         show_selected_children(app, *c, *element);
