@@ -174,6 +174,11 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
     show_default_component_widgets(app, *graph);
 }
 
+void graph_component_editor_data::show_selected_nodes(
+  component_editor& /*ed*/) noexcept
+{
+}
+
 graph_editor_dialog::graph_editor_dialog() noexcept
 {
     graph.resize(30, undefined<component_id>());

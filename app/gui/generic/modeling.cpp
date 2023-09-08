@@ -1309,4 +1309,88 @@ void generic_component_editor_data::show(component_editor& ed) noexcept
     }
 }
 
+static void update_unique_id(generic_component& gen, child& ch) noexcept
+{
+    bool configurable = ch.flags & child_flags_configurable;
+    bool observable   = ch.flags & child_flags_observable;
+
+    if (ch.unique_id == 0) {
+        if (configurable || observable)
+            ch.unique_id = gen.make_next_unique_id();
+    } else {
+        if (!configurable && !observable)
+            ch.unique_id = 0;
+    }
+}
+
+void generic_component_editor_data::show_selected_nodes(
+  component_editor& ed) noexcept
+{
+    if (selected_nodes.empty())
+        return;
+
+    auto& app = container_of(&ed, &application::component_ed);
+
+    if_data_exists_do(app.mod.components, m_id, [&](auto& compo) {
+        if_data_exists_do(
+          app.mod.generic_components, compo.id.generic_id, [&](auto& gen) {
+              for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
+                  if (is_node_X(selected_nodes[i]) ||
+                      is_node_Y(selected_nodes[i]))
+                      continue;
+
+                  auto  id    = unpack_node_child(selected_nodes[i]);
+                  auto* child = app.mod.children.try_to_get(id);
+
+                  if (!child)
+                      continue;
+
+                  if (ImGui::TreeNodeEx(child,
+                                        ImGuiTreeNodeFlags_DefaultOpen,
+                                        "%d",
+                                        selected_nodes[i])) {
+                      bool is_modified = false;
+                      ImGui::TextFormat(
+                        "position {},{}",
+                        app.mod.children_positions[selected_nodes[i]].x,
+                        app.mod.children_positions[selected_nodes[i]].y);
+
+                      bool configurable =
+                        child->flags & child_flags_configurable;
+                      if (ImGui::Checkbox("configurable", &configurable)) {
+                          if (configurable)
+                              child->flags |= child_flags_configurable;
+                          else
+                              child->flags &= ~child_flags_configurable;
+
+                          is_modified = true;
+                      }
+
+                      bool observable = child->flags & child_flags_observable;
+                      if (ImGui::Checkbox("observables", &observable)) {
+                          if (observable)
+                              child->flags |= child_flags_observable;
+                          else
+                              child->flags &= ~child_flags_observable;
+
+                          is_modified = true;
+                      }
+
+                      if (ImGui::InputSmallString(
+                            "name", app.mod.children_names[selected_nodes[i]]))
+                          is_modified = true;
+
+                      update_unique_id(gen, *child);
+
+                      if (is_modified)
+                          compo.state = component_status::modified;
+
+                      ImGui::TextFormat("name: {}", compo.name.sv());
+                      ImGui::TreePop();
+                  }
+              }
+          });
+    });
+}
+
 } // namespace irt

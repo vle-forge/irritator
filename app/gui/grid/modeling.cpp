@@ -290,6 +290,11 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
     }
 }
 
+void grid_component_editor_data::show_selected_nodes(
+  component_editor& /*ed*/) noexcept
+{
+}
+
 grid_editor_dialog::grid_editor_dialog() noexcept
 {
     grid.resize(5, 5, undefined<component_id>());

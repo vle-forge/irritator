@@ -470,6 +470,7 @@ public:
     void clear() noexcept;
 
     void show(component_editor& ed) noexcept;
+    void show_selected_nodes(component_editor& ed) noexcept;
 
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
@@ -496,6 +497,7 @@ public:
     void clear() noexcept;
 
     void show(component_editor& ed) noexcept;
+    void show_selected_nodes(component_editor& ed) noexcept;
 
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
@@ -519,6 +521,7 @@ struct generic_component_editor_data
     ~generic_component_editor_data() noexcept;
 
     void show(component_editor& ed) noexcept;
+    void show_selected_nodes(component_editor& ed) noexcept;
 
     //! Before running any ImNodes functions, pre-move all children to force
     //! position for all new children.

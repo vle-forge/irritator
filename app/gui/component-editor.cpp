@@ -309,93 +309,6 @@ static void show_input_output_ports(modeling& mod, component& compo) noexcept
     }
 }
 
-static void show_selected_children(
-  application& /*app*/,
-  component& /*compo*/,
-  grid_component_editor_data& /*data*/) noexcept
-{
-}
-
-static void show_selected_children(
-  application& /*app*/,
-  component& /*compo*/,
-  graph_component_editor_data& /*data*/) noexcept
-{
-}
-
-static void update_unique_id(generic_component& gen, child& ch) noexcept
-{
-    bool configurable = ch.flags & child_flags_configurable;
-    bool observable   = ch.flags & child_flags_observable;
-
-    if (ch.unique_id == 0) {
-        if (configurable || observable)
-            ch.unique_id = gen.make_next_unique_id();
-    } else {
-        if (!configurable && !observable)
-            ch.unique_id = 0;
-    }
-}
-
-static void show_selected_children(application&                   app,
-                                   component&                     compo,
-                                   generic_component_editor_data& data) noexcept
-{
-    if (auto* s_compo =
-          app.mod.generic_components.try_to_get(compo.id.generic_id);
-        s_compo) {
-        for (int i = 0, e = data.selected_nodes.size(); i != e; ++i) {
-            auto* child = app.mod.children.try_to_get(
-              static_cast<u32>(data.selected_nodes[i]));
-            if (!child)
-                continue;
-
-            if (ImGui::TreeNodeEx(child,
-                                  ImGuiTreeNodeFlags_DefaultOpen,
-                                  "%d",
-                                  data.selected_nodes[i])) {
-                bool is_modified = false;
-                ImGui::TextFormat(
-                  "position {},{}",
-                  app.mod.children_positions[data.selected_nodes[i]].x,
-                  app.mod.children_positions[data.selected_nodes[i]].y);
-
-                bool configurable = child->flags & child_flags_configurable;
-                if (ImGui::Checkbox("configurable", &configurable)) {
-                    if (configurable)
-                        child->flags |= child_flags_configurable;
-                    else
-                        child->flags &= ~child_flags_configurable;
-
-                    is_modified = true;
-                }
-
-                bool observable = child->flags & child_flags_observable;
-                if (ImGui::Checkbox("observables", &observable)) {
-                    if (observable)
-                        child->flags |= child_flags_observable;
-                    else
-                        child->flags &= ~child_flags_observable;
-
-                    is_modified = true;
-                }
-
-                if (ImGui::InputSmallString(
-                      "name", app.mod.children_names[data.selected_nodes[i]]))
-                    is_modified = true;
-
-                update_unique_id(*s_compo, *child);
-
-                if (is_modified)
-                    compo.state = component_status::modified;
-
-                ImGui::TextFormat("name: {}", compo.name.sv());
-                ImGui::TreePop();
-            }
-        }
-    }
-}
-
 template<typename T, typename ID>
 static void show_data(application&       app,
                       component_editor&  ed,
@@ -450,7 +363,7 @@ static void show_data(application&       app,
                     show_input_output_ports(app.mod, *c);
 
                     if (ImGui::CollapsingHeader("selected"))
-                        show_selected_children(app, *c, *element);
+                        element->show_selected_nodes(ed);
 
                     ImGui::TableSetColumnIndex(1);
                     element->show(ed);
