@@ -20,7 +20,7 @@
 namespace irt {
 
 template<typename Dynamics>
-std::pair<Dynamics*, child_id> alloc(
+static std::pair<Dynamics*, child_id> alloc(
   modeling&              mod,
   generic_component&     parent,
   const std::string_view name  = {},
@@ -41,34 +41,30 @@ std::pair<Dynamics*, child_id> alloc(
 }
 
 template<typename DynamicsSrc, typename DynamicsDst>
-status connect(modeling&          mod,
-               generic_component& c,
-               DynamicsSrc&       src,
-               int                port_src,
-               DynamicsDst&       dst,
-               int                port_dst) noexcept
+static void connect(modeling&          mod,
+                    generic_component& c,
+                    DynamicsSrc&       src,
+                    int                port_src,
+                    DynamicsDst&       dst,
+                    int                port_dst) noexcept
 {
     model& src_model = get_model(*src.first);
     model& dst_model = get_model(*dst.first);
 
-    irt_return_if_fail(
-      is_ports_compatible(src_model, port_src, dst_model, port_dst),
-      status::model_connect_bad_dynamics);
+    irt_assert(is_ports_compatible(src_model, port_src, dst_model, port_dst));
 
-    mod.connect(c,
-                mod.children.get(src.second),
-                port_src,
-                mod.children.get(dst.second),
-                port_dst);
-
-    return status::success;
+    irt_assert(is_success(mod.connect(c,
+                                      mod.children.get(src.second),
+                                      port_src,
+                                      mod.children.get(dst.second),
+                                      port_dst)));
 }
 
-status add_integrator_component_port(modeling&          mod,
-                                     component&         dst,
-                                     generic_component& com,
-                                     child_id           id,
-                                     std::string_view   port) noexcept
+static void add_integrator_component_port(modeling&          mod,
+                                          component&         dst,
+                                          generic_component& com,
+                                          child_id           id,
+                                          std::string_view   port) noexcept
 {
     auto  x_port_id = mod.get_or_add_x_index(dst, port);
     auto  y_port_id = mod.get_or_add_y_index(dst, port);
@@ -80,12 +76,10 @@ status add_integrator_component_port(modeling&          mod,
     irt_assert(y_port);
     irt_assert(c);
 
-    mod.connect_input(com, *x_port, *c, 1);
-    mod.connect_output(com, *c, 0, *y_port);
+    irt_assert(is_success(mod.connect_input(com, *x_port, *c, 1)));
+    irt_assert(is_success(mod.connect_output(com, *c, 0, *y_port)));
 
     c->unique_id = com.make_next_unique_id();
-
-    return status::success;
 }
 
 template<int QssLevel>
