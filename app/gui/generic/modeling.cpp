@@ -21,58 +21,60 @@ namespace irt {
 constexpr auto child_tag  = 0b11;
 constexpr auto input_tag  = 0b10;
 constexpr auto output_tag = 0b01;
-constexpr auto shit_tag   = 2;
+constexpr auto shift_tag  = 2;
+constexpr auto mask_tag   = 0b11;
 
 inline bool is_node_child(const int node) noexcept
 {
-    return (0b11 & node) == child_tag;
+    return (mask_tag & node) == child_tag;
 }
 
-inline bool is_node_input(const int node) noexcept
+inline bool is_node_X(const int node) noexcept
 {
-    return (0b11 & node) == input_tag;
+    return (mask_tag & node) == input_tag;
 }
 
-inline bool is_node_output(const int node) noexcept
+inline bool is_node_Y(const int node) noexcept
 {
-    return (0b11 & node) == output_tag;
+    return (mask_tag & node) == output_tag;
 }
 
 inline int pack_node_child(const child_id child) noexcept
 {
-    return static_cast<int>((get_index(child) << shit_tag) | child_tag);
+    return static_cast<int>((get_index(child) << shift_tag) | child_tag);
 }
 
 inline int unpack_node_child(const int node) noexcept
 {
     irt_assert(is_node_child(node));
-    return node >> shit_tag;
+    return node >> shift_tag;
 }
 
-inline int pack_node_input(const port_id port) noexcept
+inline int pack_node_X(const port_id port) noexcept
 {
     irt_assert(get_index(port) <= 0x1fff);
-    return static_cast<int>((get_index(port) << shit_tag) | input_tag);
+    return static_cast<int>((get_index(port) << shift_tag) | input_tag);
 }
 
-inline int unpack_node_input(const int node) noexcept
+inline int unpack_node_X(const int node) noexcept
 {
-    irt_assert(is_node_input(node));
-    return node >> shit_tag;
+    irt_assert(is_node_X(node));
+    return node >> shift_tag;
 }
 
-inline int pack_node_output(const port_id port) noexcept
+inline int pack_node_Y(const port_id port) noexcept
 {
     irt_assert(get_index(port) <= 0x1fff);
-    return static_cast<int>((get_index(port) << shit_tag) | output_tag);
+    return static_cast<int>((get_index(port) << shift_tag) | output_tag);
 }
 
-inline int unpack_node_output(const int node) noexcept
+inline int unpack_node_Y(const int node) noexcept
 {
-    irt_assert(is_node_output(node));
-    return node >> shit_tag;
+    irt_assert(is_node_Y(node));
+    return node >> shift_tag;
 }
 
+constexpr auto mask_port               = 0b111;
 constexpr auto input_component_port    = 0b111;
 constexpr auto input_child_model_port  = 0b110;
 constexpr auto input_child_compo_port  = 0b101;
@@ -84,35 +86,35 @@ constexpr auto shift_child_port        = 16;
 
 inline bool is_input_component(const int attribute) noexcept
 {
-    return (attribute & 0b111) == input_component_port;
+    return (attribute & mask_port) == input_component_port;
 }
 
 inline bool is_output_component(const int attribute) noexcept
 {
-    return (attribute & 0b111) == output_component_port;
+    return (attribute & mask_port) == output_component_port;
 }
 
 inline bool is_input_child_model(const int attribute) noexcept
 {
-    return (attribute & 0b111) == input_child_model_port;
+    return (attribute & mask_port) == input_child_model_port;
 }
 
 inline bool is_input_child_component(const int attribute) noexcept
 {
-    return (attribute & 0b111) == input_child_compo_port;
+    return (attribute & mask_port) == input_child_compo_port;
 }
 
 inline bool is_output_child_model(const int attribute) noexcept
 {
-    return (attribute & 0b111) == output_child_model_port;
+    return (attribute & mask_port) == output_child_model_port;
 }
 
 inline bool is_output_child_component(const int attribute) noexcept
 {
-    return (attribute & 0b111) == output_child_compo_port;
+    return (attribute & mask_port) == output_child_compo_port;
 }
 
-inline int pack_in(const port_id port) noexcept
+inline int pack_X(const port_id port) noexcept
 {
     irt_assert(get_index(port) <= 0x1fff);
 
@@ -126,7 +128,7 @@ inline u32 unpack_X(const int attribute) noexcept
     return static_cast<u32>(attribute >> shift_port);
 }
 
-inline int pack_out(const port_id port) noexcept
+inline int pack_Y(const port_id port) noexcept
 {
     irt_assert(get_index(port) <= 0x1fff);
 
@@ -209,7 +211,7 @@ static void add_input_attribute(const Dynamics& dyn, child_id id) noexcept
         irt_assert(length(dyn.x) < 8);
 
         for (int i = 0; i < length(dyn.x); ++i) {
-            ImNodes::BeginInputAttribute(pack_in(id, static_cast<u32>(i)),
+            ImNodes::BeginInputAttribute(pack_in(id, i),
                                          ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndInputAttribute();
@@ -228,7 +230,7 @@ static void add_output_attribute(const Dynamics& dyn, child_id id) noexcept
         irt_assert(0 <= e && e < 8);
 
         for (int i = 0; i != e; ++i) {
-            ImNodes::BeginOutputAttribute(pack_out(id, static_cast<u32>(i)),
+            ImNodes::BeginOutputAttribute(pack_out(id, i),
                                           ImNodesPinShape_TriangleFilled);
             ImGui::TextUnformatted(names[i]);
             ImNodes::EndOutputAttribute();
@@ -247,17 +249,17 @@ static bool show_connection(modeling&         mod,
     case connection::connection_type::internal:
         if (auto* s = mod.children.try_to_get(con.internal.src); s) {
             if (auto* d = mod.children.try_to_get(con.internal.dst); d) {
-                u32 p_src = s->type == child_type::model
-                              ? con.internal.index_src.model
-                              : get_index(con.internal.index_src.compo);
+                const auto id_src =
+                  s->type == child_type::model
+                    ? pack_out(con.internal.src, con.internal.index_src.model)
+                    : pack_out(con.internal.src, con.internal.index_src.compo);
 
-                u32 p_dst = d->type == child_type::model
-                              ? con.internal.index_dst.model
-                              : get_index(con.internal.index_dst.compo);
+                const auto id_dst =
+                  d->type == child_type::model
+                    ? pack_in(con.internal.dst, con.internal.index_dst.model)
+                    : pack_in(con.internal.dst, con.internal.index_dst.compo);
 
-                ImNodes::Link(con_id,
-                              pack_out(con.internal.src, p_src),
-                              pack_in(con.internal.dst, p_dst));
+                ImNodes::Link(con_id, id_src, id_dst);
                 return true;
             }
         }
@@ -265,25 +267,28 @@ static bool show_connection(modeling&         mod,
 
     case connection::connection_type::input:
         if (auto* d = mod.children.try_to_get(con.input.dst); d) {
-            u32 p_dst = d->type == child_type::model
-                          ? con.input.index_dst.model
-                          : get_index(con.input.index_dst.compo);
+            const auto id_src = pack_X(con.input.index);
 
-            ImNodes::Link(
-              con_id, pack_out(con.input.index), pack_in(con.input.dst, p_dst));
+            const auto id_dst =
+              d->type == child_type::model
+                ? pack_in(con.input.dst, con.input.index_dst.model)
+                : pack_in(con.input.dst, con.input.index_dst.compo);
+
+            ImNodes::Link(con_id, id_src, id_dst);
             return true;
         }
         break;
 
     case connection::connection_type::output:
-        if (auto* s = mod.children.try_to_get(con.internal.src); s) {
-            u32 p_src = s->type == child_type::model
-                          ? con.output.index_src.model
-                          : get_index(con.output.index_src.compo);
+        if (auto* s = mod.children.try_to_get(con.output.src); s) {
+            const auto id_src =
+              s->type == child_type::model
+                ? pack_out(con.output.src, con.output.index_src.model)
+                : pack_out(con.output.src, con.output.index_src.compo);
 
-            ImNodes::Link(con_id,
-                          pack_out(con.output.src, p_src),
-                          pack_in(con.output.index));
+            const auto id_dst = pack_Y(con.output.index);
+
+            ImNodes::Link(con_id, id_src, id_dst);
             return true;
         }
         break;
@@ -354,8 +359,8 @@ static void show_generic(component_editor& ed,
                          generic_component_editor_data& /*data*/,
                          component& compo,
                          generic_component& /*s_compo*/,
-                         child& /*c*/,
-                         child_id id) noexcept
+                         child&   c,
+                         child_id c_id) noexcept
 {
     auto& app      = container_of(&ed, &application::component_ed);
     auto& settings = app.settings_wnd;
@@ -369,25 +374,28 @@ static void show_generic(component_editor& ed,
     ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
                             settings.gui_selected_component_color);
 
-    ImNodes::BeginNode(pack_node_child(id));
+    ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat(
-      "{}\n{}", app.mod.children_names[get_index(id)].sv(), compo.name.c_str());
+    ImGui::TextFormat("{}\n{}",
+                      app.mod.children_names[get_index(c_id)].sv(),
+                      compo.name.c_str());
     ImNodes::EndNodeTitleBar();
 
-    // for (u8 i = 0; i < 8; ++i) {
-    //     auto gid = pack_in(id, static_cast<i8>(i));
-    //     ImNodes::BeginInputAttribute(gid, ImNodesPinShape_TriangleFilled);
-    //     ImGui::TextUnformatted(compo.x_names[i].c_str());
-    //     ImNodes::EndInputAttribute();
-    // }
+    for_specified_data(app.mod.ports, compo.x_names, [&](auto& port) {
+        const auto id = pack_in(c_id, app.mod.ports.get_id(port));
 
-    // for (u8 i = 0; i < 8; ++i) {
-    //     auto gid = pack_out(id, static_cast<i8>(i));
-    //     ImNodes::BeginOutputAttribute(gid, ImNodesPinShape_TriangleFilled);
-    //     ImGui::TextUnformatted(compo.y_names[i].c_str());
-    //     ImNodes::EndOutputAttribute();
-    // }
+        ImNodes::BeginInputAttribute(id, ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(port.name.c_str());
+        ImNodes::EndInputAttribute();
+    });
+
+    for_specified_data(app.mod.ports, compo.y_names, [&](auto& port) {
+        const auto id = pack_out(c_id, app.mod.ports.get_id(port));
+
+        ImNodes::BeginOutputAttribute(id, ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(port.name.c_str());
+        ImNodes::EndOutputAttribute();
+    });
 
     ImNodes::EndNode();
 
@@ -509,10 +517,10 @@ static void update_input_output_draggable(component& parent,
                                           bool       draggable) noexcept
 {
     for (auto& id : parent.x_names)
-        ImNodes::SetNodeDraggable(pack_node_input(id), draggable);
+        ImNodes::SetNodeDraggable(pack_node_X(id), draggable);
 
     for (auto& id : parent.y_names)
-        ImNodes::SetNodeDraggable(pack_node_output(id), draggable);
+        ImNodes::SetNodeDraggable(pack_node_Y(id), draggable);
 }
 
 static void update_input_output_position(component&                     parent,
@@ -524,12 +532,12 @@ static void update_input_output_position(component&                     parent,
     int i = 0;
     for (auto& id : parent.x_names)
         ImNodes::SetNodeEditorSpacePos(
-          pack_node_input(id), ImVec2(x1, static_cast<float>(i++) * 50.f + y));
+          pack_node_X(id), ImVec2(x1, static_cast<float>(i++) * 50.f + y));
 
     i = 0;
     for (auto& id : parent.y_names)
         ImNodes::SetNodeEditorSpacePos(
-          pack_node_output(id), ImVec2(x2, static_cast<float>(i++) * 50.f + y));
+          pack_node_Y(id), ImVec2(x2, static_cast<float>(i++) * 50.f + y));
 
     data.first_show_input_output = false;
 }
@@ -558,41 +566,46 @@ static void show_graph(component_editor&              ed,
     }
 
     if (data.show_input_output) {
-        for (int i = 0, e = parent.x_names.ssize(); i != e; ++i) {
-            ImNodes::PushColorStyle(
-              ImNodesCol_TitleBar,
-              ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
+        for_specified_data(
+          app.mod.ports, parent.x_names, [&](auto& port) noexcept {
+              const auto id = app.mod.ports.get_id(port);
 
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                                    settings.gui_hovered_component_color);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                                    settings.gui_selected_component_color);
+              ImNodes::PushColorStyle(
+                ImNodesCol_TitleBar,
+                ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
 
-            ImNodes::BeginNode(pack_node_input(parent.x_names[i]));
-            ImNodes::BeginOutputAttribute(pack_in(parent.x_names[i]),
-                                          ImNodesPinShape_TriangleFilled);
-            // ImGui::TextUnformatted(parent.x_names[i].c_str());
-            ImNodes::EndOutputAttribute();
-            ImNodes::EndNode();
-        }
+              ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
+                                      settings.gui_hovered_component_color);
+              ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                      settings.gui_selected_component_color);
 
-        for (int i = 0, e = parent.y_names.ssize(); i != e; ++i) {
-            ImNodes::PushColorStyle(
-              ImNodesCol_TitleBar,
-              ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
+              ImNodes::BeginNode(pack_node_X(id));
+              ImNodes::BeginOutputAttribute(pack_X(id),
+                                            ImNodesPinShape_TriangleFilled);
+              ImGui::TextUnformatted(port.name.c_str());
+              ImNodes::EndOutputAttribute();
+              ImNodes::EndNode();
+          });
 
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                                    settings.gui_hovered_component_color);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                                    settings.gui_selected_component_color);
+        for_specified_data(
+          app.mod.ports, parent.y_names, [&](auto& port) noexcept {
+              const auto id = app.mod.ports.get_id(port);
+              ImNodes::PushColorStyle(
+                ImNodesCol_TitleBar,
+                ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
 
-            ImNodes::BeginNode(pack_node_output(parent.y_names[i]));
-            ImNodes::BeginInputAttribute(pack_out(parent.y_names[i]),
-                                         ImNodesPinShape_TriangleFilled);
-            // ImGui::TextUnformatted(parent.y_names[i].c_str());
-            ImNodes::EndInputAttribute();
-            ImNodes::EndNode();
-        }
+              ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
+                                      settings.gui_hovered_component_color);
+              ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                      settings.gui_selected_component_color);
+
+              ImNodes::BeginNode(pack_node_Y(id));
+              ImNodes::BeginInputAttribute(pack_Y(id),
+                                           ImNodesPinShape_TriangleFilled);
+              ImGui::TextUnformatted(port.name.c_str());
+              ImNodes::EndInputAttribute();
+              ImNodes::EndNode();
+          });
     }
 
     for (auto child_id : s_parent.children) {
@@ -991,14 +1004,14 @@ static void is_link_created(application& app,
         }
 
         if (is_output_component(start)) {
+            auto  port_idx = unpack_Y(start);
+            auto* port     = app.mod.ports.try_to_get(port_idx);
+            irt_assert(port);
+
             if (is_input_component(end)) {
                 error_not_connection_auth(app);
                 return;
             }
-
-            auto  port_idx = unpack_Y(start);
-            auto* port     = app.mod.ports.try_to_get(port_idx);
-            irt_assert(port);
 
             auto  child_port = unpack_in(end);
             auto* child      = app.mod.children.try_to_get(child_port.first);
@@ -1046,7 +1059,7 @@ static void is_link_created(application& app,
                         parent.state = component_status::modified;
                 }
             } else {
-                auto  ch_port_dst = unpack_out(end);
+                auto  ch_port_dst = unpack_in(end);
                 auto* ch_dst = app.mod.children.try_to_get(ch_port_dst.first);
                 irt_assert(ch_dst);
 

@@ -64,40 +64,16 @@ status connect(modeling&          mod,
     return status::success;
 }
 
-static auto get_x_port(modeling&        mod,
-                       component&       dst,
-                       std::string_view port_name) noexcept -> port_id
-{
-    auto port_id = mod.get_x_index(dst, port_name);
-    if (is_defined(port_id))
-        return port_id;
-
-    auto& new_port = mod.ports.alloc(port_name, mod.components.get_id(dst));
-    return mod.ports.get_id(new_port);
-}
-
-static auto get_y_port(modeling&        mod,
-                       component&       dst,
-                       std::string_view port_name) noexcept -> port_id
-{
-    auto port_id = mod.get_y_index(dst, port_name);
-    if (is_defined(port_id))
-        return port_id;
-
-    auto& new_port = mod.ports.alloc(port_name, mod.components.get_id(dst));
-    return mod.ports.get_id(new_port);
-}
-
 status add_integrator_component_port(modeling&          mod,
                                      component&         dst,
                                      generic_component& com,
                                      child_id           id,
                                      std::string_view   port) noexcept
 {
-    auto  x_port_id = get_x_port(mod, dst, port);
-    auto  y_port_id = get_y_port(mod, dst, port);
-    auto  x_port    = mod.ports.try_to_get(x_port_id);
-    auto  y_port    = mod.ports.try_to_get(y_port_id);
+    auto  x_port_id = mod.get_or_add_x_index(dst, port);
+    auto  y_port_id = mod.get_or_add_y_index(dst, port);
+    auto* x_port    = mod.ports.try_to_get(x_port_id);
+    auto* y_port    = mod.ports.try_to_get(y_port_id);
     auto* c         = mod.children.try_to_get(id);
 
     irt_assert(x_port);
@@ -154,8 +130,8 @@ status add_lotka_volterra(modeling&          mod,
     connect(mod, com, product, 0, sum_a, 1);
     connect(mod, com, product, 0, sum_b, 1);
 
-    add_integrator_component_port(mod, dst, com, integrator_a.second, "a");
-    add_integrator_component_port(mod, dst, com, integrator_b.second, "b");
+    add_integrator_component_port(mod, dst, com, integrator_a.second, "X");
+    add_integrator_component_port(mod, dst, com, integrator_b.second, "Y");
 
     return status::success;
 }
@@ -289,8 +265,8 @@ status add_izhikevich(modeling&          mod,
     connect(mod, com, integrator_b, 0, sum_d, 0);
     connect(mod, com, cst, 0, sum_d, 1);
 
-    add_integrator_component_port(mod, dst, com, integrator_a.second, "a");
-    add_integrator_component_port(mod, dst, com, integrator_b.second, "b");
+    add_integrator_component_port(mod, dst, com, integrator_a.second, "V");
+    add_integrator_component_port(mod, dst, com, integrator_b.second, "U");
 
     return status::success;
 }
@@ -334,8 +310,8 @@ status add_van_der_pol(modeling&          mod,
     connect(mod, com, product1, 0, product2, 0);
     connect(mod, com, integrator_a, 0, product2, 1);
 
-    add_integrator_component_port(mod, dst, com, integrator_a.second, "a");
-    add_integrator_component_port(mod, dst, com, integrator_b.second, "b");
+    add_integrator_component_port(mod, dst, com, integrator_a.second, "X");
+    add_integrator_component_port(mod, dst, com, integrator_b.second, "Y");
 
     return status::success;
 }
