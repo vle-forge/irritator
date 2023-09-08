@@ -84,12 +84,12 @@ constexpr auto output_child_compo_port = 0b001;
 constexpr auto shift_port              = 3;
 constexpr auto shift_child_port        = 16;
 
-inline bool is_input_component(const int attribute) noexcept
+inline bool is_input_X(const int attribute) noexcept
 {
     return (attribute & mask_port) == input_component_port;
 }
 
-inline bool is_output_component(const int attribute) noexcept
+inline bool is_output_Y(const int attribute) noexcept
 {
     return (attribute & mask_port) == output_component_port;
 }
@@ -124,7 +124,7 @@ inline int pack_X(const port_id port) noexcept
 
 inline u32 unpack_X(const int attribute) noexcept
 {
-    irt_assert(is_input_component(attribute));
+    irt_assert(is_input_X(attribute));
     return static_cast<u32>(attribute >> shift_port);
 }
 
@@ -138,7 +138,7 @@ inline int pack_Y(const port_id port) noexcept
 
 inline u32 unpack_Y(const int attribute) noexcept
 {
-    irt_assert(is_output_component(attribute));
+    irt_assert(is_output_Y(attribute));
     return static_cast<u32>(attribute >> shift_port);
 }
 
@@ -164,6 +164,7 @@ inline int pack_in(const child_id id, const port_id port) noexcept
 
 inline std::pair<u32, u32> unpack_in(const int attribute) noexcept
 {
+    irt_assert(!is_input_X(attribute));
     irt_assert(is_input_child_model(attribute) ||
                is_input_child_component(attribute));
 
@@ -194,6 +195,7 @@ inline int pack_out(const child_id id, const port_id port) noexcept
 
 inline std::pair<u32, u32> unpack_out(const int attribute) noexcept
 {
+    irt_assert(!is_output_Y(attribute));
     irt_assert(is_output_child_model(attribute) ||
                is_output_child_component(attribute));
 
@@ -355,6 +357,27 @@ static void show(component_editor&              ed,
     ImNodes::PopColorStyle();
 }
 
+static void show_input_an_output_ports(modeling&      mod,
+                                       component&     compo,
+                                       const child_id c_id) noexcept
+{
+    for_specified_data(mod.ports, compo.x_names, [&](auto& port) {
+        const auto id = pack_in(c_id, mod.ports.get_id(port));
+
+        ImNodes::BeginInputAttribute(id, ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(port.name.c_str());
+        ImNodes::EndInputAttribute();
+    });
+
+    for_specified_data(mod.ports, compo.y_names, [&](auto& port) {
+        const auto id = pack_out(c_id, mod.ports.get_id(port));
+
+        ImNodes::BeginOutputAttribute(id, ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(port.name.c_str());
+        ImNodes::EndOutputAttribute();
+    });
+}
+
 static void show_generic(component_editor& ed,
                          generic_component_editor_data& /*data*/,
                          component& compo,
@@ -380,23 +403,7 @@ static void show_generic(component_editor& ed,
                       app.mod.children_names[get_index(c_id)].sv(),
                       compo.name.c_str());
     ImNodes::EndNodeTitleBar();
-
-    for_specified_data(app.mod.ports, compo.x_names, [&](auto& port) {
-        const auto id = pack_in(c_id, app.mod.ports.get_id(port));
-
-        ImNodes::BeginInputAttribute(id, ImNodesPinShape_TriangleFilled);
-        ImGui::TextUnformatted(port.name.c_str());
-        ImNodes::EndInputAttribute();
-    });
-
-    for_specified_data(app.mod.ports, compo.y_names, [&](auto& port) {
-        const auto id = pack_out(c_id, app.mod.ports.get_id(port));
-
-        ImNodes::BeginOutputAttribute(id, ImNodesPinShape_TriangleFilled);
-        ImGui::TextUnformatted(port.name.c_str());
-        ImNodes::EndOutputAttribute();
-    });
-
+    show_input_an_output_ports(app.mod, compo, c_id);
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
@@ -408,7 +415,7 @@ static void show_grid(component_editor& ed,
                       component&      compo,
                       grid_component& grid,
                       child& /*c*/,
-                      child_id id) noexcept
+                      child_id c_id) noexcept
 {
     auto& app      = container_of(&ed, &application::component_ed);
     auto& settings = app.settings_wnd;
@@ -422,27 +429,14 @@ static void show_grid(component_editor& ed,
     ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
                             settings.gui_selected_component_color);
 
-    ImNodes::BeginNode(pack_node_child(id));
+    ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat(
-      "{}\n{}", app.mod.children_names[get_index(id)].sv(), compo.name.c_str());
+    ImGui::TextFormat("{}\n{}",
+                      app.mod.children_names[get_index(c_id)].sv(),
+                      compo.name.c_str());
     ImGui::TextFormat("{}x{}", grid.row, grid.column);
     ImNodes::EndNodeTitleBar();
-
-    // for (u8 i = 0; i < 8; ++i) {
-    //     auto gid = pack_in(id, static_cast<i8>(i));
-    //     ImNodes::BeginInputAttribute(gid, ImNodesPinShape_TriangleFilled);
-    //     ImGui::TextUnformatted(compo.x_names[i].c_str());
-    //     ImNodes::EndInputAttribute();
-    // }
-
-    // for (u8 i = 0; i < 8; ++i) {
-    //     auto gid = pack_out(id, static_cast<i8>(i));
-    //     ImNodes::BeginOutputAttribute(gid, ImNodesPinShape_TriangleFilled);
-    //     ImGui::TextUnformatted(compo.y_names[i].c_str());
-    //     ImNodes::EndOutputAttribute();
-    // }
-
+    show_input_an_output_ports(app.mod, compo, c_id);
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
@@ -454,7 +448,7 @@ static void show_graph(component_editor& ed,
                        component&       compo,
                        graph_component& graph,
                        child& /*c*/,
-                       child_id id) noexcept
+                       child_id c_id) noexcept
 {
     auto& app      = container_of(&ed, &application::component_ed);
     auto& settings = app.settings_wnd;
@@ -468,27 +462,14 @@ static void show_graph(component_editor& ed,
     ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
                             settings.gui_selected_component_color);
 
-    ImNodes::BeginNode(pack_node_child(id));
+    ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat(
-      "{}\n{}", app.mod.children_names[get_index(id)].sv(), compo.name.c_str());
+    ImGui::TextFormat("{}\n{}",
+                      app.mod.children_names[get_index(c_id)].sv(),
+                      compo.name.c_str());
     ImGui::TextFormat("{}", graph.children.size());
     ImNodes::EndNodeTitleBar();
-
-    // for (u8 i = 0; i < 8; ++i) {
-    //     auto gid = pack_in(id, static_cast<i8>(i));
-    //     ImNodes::BeginInputAttribute(gid, ImNodesPinShape_TriangleFilled);
-    //     ImGui::TextUnformatted(compo.x_names[i].c_str());
-    //     ImNodes::EndInputAttribute();
-    // }
-
-    // for (u8 i = 0; i < 8; ++i) {
-    //     auto gid = pack_out(id, static_cast<i8>(i));
-    //     ImNodes::BeginOutputAttribute(gid, ImNodesPinShape_TriangleFilled);
-    //     ImGui::TextUnformatted(compo.y_names[i].c_str());
-    //     ImNodes::EndOutputAttribute();
-    // }
-
+    show_input_an_output_ports(app.mod, compo, c_id);
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
@@ -1003,12 +984,12 @@ static void is_link_created(application& app,
             return;
         }
 
-        if (is_output_component(start)) {
-            auto  port_idx = unpack_Y(start);
+        if (is_input_X(start)) {
+            auto  port_idx = unpack_X(start);
             auto* port     = app.mod.ports.try_to_get(port_idx);
             irt_assert(port);
 
-            if (is_input_component(end)) {
+            if (is_output_Y(end)) {
                 error_not_connection_auth(app);
                 return;
             }
@@ -1036,8 +1017,8 @@ static void is_link_created(application& app,
             auto* ch_src      = app.mod.children.try_to_get(ch_port_src.first);
             irt_assert(ch_src);
 
-            if (is_input_component(end)) {
-                auto  port_idx = unpack_X(end);
+            if (is_output_Y(end)) {
+                auto  port_idx = unpack_Y(end);
                 auto* port     = app.mod.ports.try_to_get(port_idx);
                 irt_assert(port);
 
