@@ -508,7 +508,7 @@ static bool show_local_observers(application& app, tree_node& tn) noexcept
               return if_data_exists_return(
                 app.mod.graph_components,
                 compo.id.graph_id,
-                [&](auto& graph) noexcept {
+                [&](auto& /*graph*/) noexcept {
                     return show_local_simulation_observers(app, tn);
                 },
                 false);

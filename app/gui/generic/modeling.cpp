@@ -382,7 +382,7 @@ static void show_generic(component_editor& ed,
                          generic_component_editor_data& /*data*/,
                          component& compo,
                          generic_component& /*s_compo*/,
-                         child&   c,
+                         child&  /*c*/,
                          child_id c_id) noexcept
 {
     auto& app      = container_of(&ed, &application::component_ed);

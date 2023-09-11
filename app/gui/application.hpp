@@ -21,6 +21,7 @@
 
 #include "dialog.hpp"
 
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "imnodes.h"
 #include "implot.h"
 #include <imgui.h>
@@ -318,7 +319,7 @@ public:
 
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
 // to read a large buffer instead of a vector.
-inline ImPlotPoint ring_buffer_getter(void* data, int idx) noexcept
+inline ImPlotPoint ring_buffer_getter(int idx, void* data)
 {
     auto* ring  = reinterpret_cast<ring_buffer<observation>*>(data);
     auto  index = ring->index_from_begin(idx);
