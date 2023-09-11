@@ -229,11 +229,6 @@ struct connection
         {
         }
 
-        port(const port& other) noexcept
-          : compo(other.compo)
-        {
-        }
-
         port_id compo;
         int     model;
     };
@@ -476,7 +471,7 @@ struct component
     } id = {};
 
     component_type   type  = component_type::none;
-    component_status state = component_status::modified;
+    component_status state = component_status::unread;
 };
 
 struct registred_path

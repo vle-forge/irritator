@@ -455,6 +455,19 @@ static_assert(std::cmp_equal(std::size(error_id_names),
         return false;                                                          \
     } while (0)
 
+template<typename T>
+static bool buffer_reserve(std::integral auto len, vector<T>& vec) noexcept
+{
+    vec.reserve(len);
+    return true;
+}
+
+static bool buffer_resive(u64 len, vector<char>& vec) noexcept
+{
+    vec.resize(len);
+    return true;
+}
+
 struct reader
 {
     template<typename Function, typename... Args>
@@ -2751,7 +2764,7 @@ struct reader
     bool get_x_port(const child_id                    dst_id,
                     const std::optional<std::string>& dst_str_port,
                     const std::optional<int>&         dst_int_port,
-                    std::optional<connection::port>   out) noexcept
+                    std::optional<connection::port>&  out) noexcept
     {
         auto_stack a(this, stack_id::component_generic_x_port);
 
@@ -2761,7 +2774,7 @@ struct reader
                     report_json_error(
                       error_id::generic_component_error_port_identifier);
 
-                out->model = *dst_int_port;
+                out = std::make_optional(*dst_int_port);
                 return true;
             } else if (dst_str_port.has_value()) {
                 if (child->type != child_type::component)
@@ -2784,7 +2797,7 @@ struct reader
                     report_json_error(
                       error_id::generic_component_unknown_component_x_port);
 
-                out->compo = p_id;
+                out = std::make_optional(p_id);
                 return true;
             } else {
                 irt_unreachable();
@@ -2797,7 +2810,7 @@ struct reader
     bool get_y_port(const child_id                    src_id,
                     const std::optional<std::string>& src_str_port,
                     const std::optional<int>&         src_int_port,
-                    std::optional<connection::port>   out) noexcept
+                    std::optional<connection::port>&  out) noexcept
     {
         auto_stack a(this, stack_id::component_generic_y_port);
 
@@ -2807,7 +2820,7 @@ struct reader
                     report_json_error(
                       error_id::generic_component_error_port_identifier);
 
-                out->model = *src_int_port;
+                out = std::make_optional(*src_int_port);
                 return true;
             } else if (src_str_port.has_value()) {
                 if (child->type != child_type::component)
@@ -2830,7 +2843,7 @@ struct reader
                     report_json_error(
                       error_id::generic_component_unknown_component_y_port);
 
-                out->compo = p_id;
+                out = std::make_optional(p_id);
                 return true;
             } else {
                 irt_unreachable();
@@ -2845,11 +2858,12 @@ struct reader
                     std::optional<port_id>&           out) noexcept
     {
         if (!str_port.has_value())
-            return false;
+            report_json_error(error_id::missing_mandatory_arg);
 
         auto port_id = mod().get_x_index(compo, *str_port);
         if (is_undefined(port_id))
-            return false;
+            report_json_error(
+              error_id::generic_component_unknown_component_x_port);
 
         out = port_id;
         return true;
@@ -2860,11 +2874,12 @@ struct reader
                     std::optional<port_id>&           out) noexcept
     {
         if (!str_port.has_value())
-            return false;
+            report_json_error(error_id::missing_mandatory_arg);
 
         auto port_id = mod().get_y_index(compo, *str_port);
         if (is_undefined(port_id))
-            return false;
+            report_json_error(
+              error_id::generic_component_unknown_component_y_port);
 
         out = port_id;
         return true;
@@ -3014,9 +3029,9 @@ struct reader
                  }) &&
                get_x_port(compo, str_port, port) &&
                get_x_port(dst_id, dst_str_port, dst_int_port, dst_port) &&
-               modeling_connect_output_can_alloc() &&
+               modeling_connect_input_can_alloc() &&
                optional_has_value(dst_port) && optional_has_value(port) &&
-               modeling_connect_output(gen, dst_id, *dst_port, *port);
+               modeling_connect_input(gen, *port, dst_id, *dst_port);
     }
 
     bool dispatch_connection_type(const rapidjson::Value&     val,
@@ -3330,20 +3345,20 @@ struct reader
         auto_stack s(this, stack_id::component_ports);
 
         return is_value_array(val) &&
+               buffer_reserve(val.GetArray().Size(), names) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& new_port = mod().ports.alloc();
-                     auto  id       = mod().ports.get_id(new_port);
-
-                     if (read_temp_string(value) && copy_to(new_port.name)) {
+                     if (read_temp_string(value)) {
+                         auto& new_port  = mod().ports.alloc();
+                         auto  id        = mod().ports.get_id(new_port);
                          new_port.parent = mod().components.get_id(compo);
                          names.emplace_back(id);
-                         return true;
-                     } else {
-                         mod().ports.free(new_port);
-                         return false;
+
+                         return copy_to(new_port.name);
                      }
+
+                     report_json_error(error_id::missing_string);
                  });
     }
 
@@ -3375,6 +3390,10 @@ struct reader
                   return read_text_file_sources(value, mod().srcs);
               if ("random-sources"sv == name)
                   return read_random_sources(value, mod().srcs);
+              if ("x"sv == name)
+                  return read_ports(value, compo, compo.x_names);
+              if ("y"sv == name)
+                  return read_ports(value, compo, compo.y_names);
               if ("type"sv == name)
                   return read_temp_string(value) &&
                          convert_to_component(compo) &&
@@ -3384,10 +3403,6 @@ struct reader
                     value,
                     mod().component_colors[get_index(
                       mod().components.get_id(compo))]);
-              if ("x"sv == name)
-                  return read_ports(value, compo, compo.x_names);
-              if ("y"sv == name)
-                  return read_ports(value, compo, compo.y_names);
 
               return true;
           });
@@ -4037,6 +4052,23 @@ struct reader
 
     bool have_error() const noexcept { return error != error_id::none; }
 
+    void show_stack() const noexcept
+    {
+        for (int i = 0, e = stack.ssize(); i != e; ++i)
+            fmt::print("{:{}} {}\n", "", i, stack_id_names[ordinal(stack[i])]);
+    }
+
+    void show_state() const noexcept
+    {
+        fmt::print("state: {}\n", error_id_names[ordinal(error)]);
+    }
+
+    void show_error() const noexcept
+    {
+        show_state();
+        show_stack();
+    }
+
     modeling& mod() const noexcept
     {
         irt_assert(m_mod);
@@ -4063,7 +4095,6 @@ struct reader
 };
 
 // Helper functions to read, parse files.
-//
 
 static bool copy_filename_to(const char*            filename,
                              std::filesystem::path& dst) noexcept
@@ -4093,12 +4124,6 @@ static bool file_size(const std::filesystem::path& path, u64& len) noexcept
     }
 
     return false;
-}
-
-static bool buffer_resive(u64 len, vector<char>& vec) noexcept
-{
-    vec.resize(len);
-    return true;
 }
 
 static bool file_open(const std::filesystem::path& path,
@@ -4968,7 +4993,7 @@ static bool parse_json_component(modeling&                  mod,
         auto*      c      = mod.components.try_to_get(id);
 
         irt_assert(c);
-        if (c->state == component_status::unread) {
+        if (c->state == component_status::unmodified) {
             r.dependencies.pop_back();
             continue;
         }
@@ -4977,6 +5002,12 @@ static bool parse_json_component(modeling&                  mod,
             c->state = component_status::unmodified;
             r.dependencies.pop_back();
         } else {
+            c->state = component_status::unreadable;
+
+#ifdef IRRITATOR_ENABLE_DEBUG
+            r.show_error();
+#endif
+
             if (old_sz == r.dependencies.size()) {
                 return false;
             }
@@ -5811,9 +5842,6 @@ static status do_component_save(Writer&    w,
     write_text_file_sources(cache, mod.srcs, w);
     write_random_sources(cache, mod.srcs, w);
 
-    w.Key("type");
-    w.String(component_type_names[ordinal(compo.type)]);
-
     w.Key("colors");
     w.StartArray();
     auto& color = mod.component_colors[get_index(mod.components.get_id(compo))];
@@ -5822,8 +5850,9 @@ static status do_component_save(Writer&    w,
     w.Double(color[2]);
     w.Double(color[3]);
     w.EndArray();
-
     write_component_ports(cache, mod, compo, w);
+    w.Key("type");
+    w.String(component_type_names[ordinal(compo.type)]);
 
     switch (compo.type) {
     case component_type::internal:
