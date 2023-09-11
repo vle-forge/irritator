@@ -2086,9 +2086,15 @@ struct reader
             return true;
         }
 
-        auto* c = search_component(file.sv());
-        if (c) {
-            c_id = mod().components.get_id(*c);
+        if (auto* c = search_component(file.sv()); c) {
+            const auto id = mod().components.get_id(*c);
+            if (c->state == component_status::unread) {
+                append_dependency(id);
+                return false;
+            }
+
+            c_id = id;
+
             return true;
         }
 
@@ -2786,12 +2792,6 @@ struct reader
                     report_json_error(
                       error_id::generic_component_unknown_component);
 
-                if (compo->state == component_status::unread) {
-                    debug_component(mod(), child->id.compo_id);
-                    dependencies.emplace_back(child->id.compo_id);
-                    return false;
-                }
-
                 auto p_id = mod().get_x_index(*compo, *dst_str_port);
                 if (is_undefined(p_id))
                     report_json_error(
@@ -2831,12 +2831,6 @@ struct reader
                 if (!compo)
                     report_json_error(
                       error_id::generic_component_unknown_component);
-
-                if (compo->state == component_status::unread) {
-                    debug_component(mod(), child->id.compo_id);
-                    dependencies.emplace_back(child->id.compo_id);
-                    return false;
-                }
 
                 auto p_id = mod().get_y_index(*compo, *src_str_port);
                 if (is_undefined(p_id))
@@ -3997,6 +3991,13 @@ struct reader
 
     vector<component_id> dependencies;
 
+    void append_dependency(component_id id) noexcept
+    {
+        if (auto i = std::find(dependencies.begin(), dependencies.end(), id);
+            i == dependencies.end())
+            dependencies.emplace_back(id);
+    }
+
     i64         temp_integer = 0;
     u64         temp_u64     = 0;
     double      temp_double  = 0.0;
@@ -4060,7 +4061,7 @@ struct reader
 
     void show_state() const noexcept
     {
-        fmt::print("state: {}\n", error_id_names[ordinal(error)]);
+        fmt::print("error_id: {}\n", error_id_names[ordinal(error)]);
     }
 
     void show_error() const noexcept
@@ -4988,27 +4989,34 @@ static bool parse_json_component(modeling&                  mod,
     while (!r.dependencies.empty()) {
         r.clear();
 
-        const auto old_sz = r.dependencies.size();
-        const auto id     = r.dependencies.back();
-        auto*      c      = mod.components.try_to_get(id);
+        const auto id = r.dependencies.back();
+        auto*      c  = mod.components.try_to_get(id);
+        r.dependencies.pop_back();
 
         irt_assert(c);
-        if (c->state == component_status::unmodified) {
-            r.dependencies.pop_back();
+        if (c->state == component_status::unmodified)
             continue;
-        }
 
+        const auto old_size = r.dependencies.size();
         if (r.read_component(doc.GetObject(), *c)) {
             c->state = component_status::unmodified;
-            r.dependencies.pop_back();
         } else {
-            c->state = component_status::unreadable;
+            c->state = component_status::unread;
+            mod.clear(*c);
+
+            if (old_size != r.dependencies.size()) {
+                const auto new_id = r.dependencies.back();
+                r.dependencies.pop_back();
+                r.dependencies.emplace_back(id);
+                r.dependencies.emplace_back(new_id);
+            }
 
 #ifdef IRRITATOR_ENABLE_DEBUG
             r.show_error();
 #endif
 
-            if (old_sz == r.dependencies.size()) {
+            if (r.dependencies.empty()) {
+                compo.state = component_status::unreadable;
                 return false;
             }
         }

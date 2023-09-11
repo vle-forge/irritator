@@ -375,29 +375,47 @@ status modeling::fill_internal_components() noexcept
 status modeling::fill_components() noexcept
 {
     prepare_component_loading(*this);
+    bool have_unread_component = components.size() > 0u;
 
-    component* compo  = nullptr;
-    component* to_del = nullptr;
+    while (have_unread_component) {
+        have_unread_component = false;
 
-    while (components.next(compo)) {
-        if (to_del) {
-            free(*to_del);
-            to_del = nullptr;
-        }
+        for_each_data(components, [&](auto& compo) {
+            if (auto ret = load_component(*this, compo); is_bad(ret)) {
 
-        if (auto ret = load_component(*this, *compo); is_bad(ret)) {
-            log_warning(*this,
-                        log_level::warning,
-                        ret,
-                        "Fail to read component {} - {}",
-                        compo->name.sv(),
-                        static_cast<u64>(components.get_id(*compo)));
-            to_del = compo;
-        }
+                if (compo.state == component_status::unread) {
+                    log_warning(*this,
+                                log_level::warning,
+                                ret,
+                                "Need to read dependency for component {} - {}",
+                                compo.name.sv(),
+                                static_cast<u64>(components.get_id(compo)));
+
+                    have_unread_component = true;
+                }
+
+                if (compo.state == component_status::unreadable) {
+                    log_warning(*this,
+                                log_level::warning,
+                                ret,
+                                "Fail to read component {} - {}",
+                                compo.name.sv(),
+                                static_cast<u64>(components.get_id(compo)));
+                }
+            }
+        });
     }
 
-    if (to_del)
-        free(*to_del);
+#ifdef IRRITATOR_ENABLE_DEBUG
+    fmt::print("components loaded:\n");
+    for_each_data(components, [&](auto& compo) noexcept {
+        fmt::print("  {} {} - ",
+                   ordinal(components.get_id(compo)),
+                   component_type_names[ordinal(compo.type)]);
+
+        debug_component(*this, compo);
+    });
+#endif
 
     return status::success;
 }
@@ -743,6 +761,38 @@ void modeling::clear(child& c) noexcept
     c.type      = child_type::model;
 }
 
+void modeling::clear(component& compo) noexcept
+{
+    for_specified_data(
+      ports, compo.x_names, [&](auto& port) { ports.free(port); });
+    for_specified_data(
+      ports, compo.y_names, [&](auto& port) { ports.free(port); });
+
+    switch (compo.type) {
+    case component_type::none:
+        break;
+    case component_type::internal:
+        break;
+    case component_type::simple:
+        if_data_exists_do(generic_components,
+                          compo.id.generic_id,
+                          [&](auto& gen) { free(gen); });
+        compo.id.generic_id = undefined<generic_component_id>();
+        break;
+    case component_type::grid:
+        if_data_exists_do(
+          grid_components, compo.id.grid_id, [&](auto& gen) { free(gen); });
+        compo.id.grid_id = undefined<grid_component_id>();
+        break;
+    case component_type::graph:
+        if_data_exists_do(graph_components,
+                          compo.id.graph_id,
+                          [&](auto& graph) { free(graph); });
+        compo.id.graph_id = undefined<graph_component_id>();
+        break;
+    }
+}
+
 void modeling::free_input_port(component& compo, port& p) noexcept
 {
     const auto compo_id = components.get_id(compo);
@@ -816,37 +866,42 @@ void modeling::free(child& c) noexcept
 
 void modeling::free(connection& c) noexcept { connections.free(c); }
 
+void modeling::free(generic_component& gen) noexcept
+{
+    for (auto child_id : gen.children)
+        if (auto* child = children.try_to_get(child_id); child)
+            free(*child);
+
+    for (auto connection_id : gen.connections)
+        if (auto* con = connections.try_to_get(connection_id); con)
+            free(*con);
+
+    generic_components.free(gen);
+}
+
+void modeling::free(grid_component& gen) noexcept { grid_components.free(gen); }
+
+void modeling::free(graph_component& gen) noexcept
+{
+    graph_components.free(gen);
+}
+
 void modeling::free(component& compo) noexcept
 {
     switch (compo.type) {
     case component_type::simple:
-        if (auto* s = generic_components.try_to_get(compo.id.generic_id); s) {
-            for (auto child_id : s->children)
-                if (auto* child = children.try_to_get(child_id); child)
-                    free(*child);
-
-            for (auto connection_id : s->connections)
-                if (auto* con = connections.try_to_get(connection_id); con)
-                    free(*con);
-
-            generic_components.free(*s);
-        }
+        if_data_exists_do(
+          generic_components, compo.id.generic_id, [&](auto& g) { free(g); });
         break;
 
     case component_type::grid:
-        if (auto* g = grid_components.try_to_get(compo.id.grid_id); g) {
-            g->children.clear();
-
-            grid_components.free(*g);
-        }
+        if_data_exists_do(
+          grid_components, compo.id.grid_id, [&](auto& g) { free(g); });
         break;
 
     case component_type::graph:
-        if (auto* g = graph_components.try_to_get(compo.id.graph_id); g) {
-            g->children.clear();
-
-            graph_components.free(*g);
-        }
+        if_data_exists_do(
+          graph_components, compo.id.graph_id, [&](auto& g) { free(g); });
         break;
 
     default:

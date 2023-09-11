@@ -746,9 +746,16 @@ struct modeling
     //! child
     void clear(child& c) noexcept;
 
+    //! Clear and free all dependencies of the component but let the component
+    //! alive.
+    void clear(component& c) noexcept;
+
     //! Deletes the component, the file (@c file_path_id) and the description
     //! (@c description_id) objects attached.
     void free(component& c) noexcept;
+    void free(generic_component& c) noexcept;
+    void free(graph_component& c) noexcept;
+    void free(grid_component& c) noexcept;
     void free(child& c) noexcept;
     void free(connection& c) noexcept;
 

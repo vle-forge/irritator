@@ -154,6 +154,14 @@ static inline constexpr const std::string_view log_level_names[] = {
     "warning",   "notice", "info",     "debug",
 };
 
+static inline constexpr const std::string_view component_status_string[] = {
+    "unread",
+    "read_only",
+    "modified",
+    "unmodified",
+    "unreadable"
+};
+
 static constexpr inline const char* component_type_names[] = { "none",
                                                                "internal",
                                                                "simple",

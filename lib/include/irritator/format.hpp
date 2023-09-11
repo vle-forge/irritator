@@ -7,9 +7,11 @@
 
 #include <irritator/core.hpp>
 #include <irritator/modeling.hpp>
+#include <irritator/io.hpp>
 
 #include <fmt/compile.h>
 #include <fmt/format.h>
+
 
 namespace irt {
 
@@ -30,21 +32,32 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
     str.resize(ret.size);
 }
 
-inline void debug_component(const modeling& mod, const component_id id) noexcept
+inline void debug_component(const modeling& mod, component& c) noexcept
 {
 #ifdef IRRITATOR_ENABLE_DEBUG
     constexpr std::string_view empty_path = "empty";
 
-    if (auto* compo = mod.components.try_to_get(id); compo) {
-        auto* reg  = mod.registred_paths.try_to_get(compo->reg_path);
-        auto* dir  = mod.dir_paths.try_to_get(compo->dir);
-        auto* file = mod.file_paths.try_to_get(compo->file);
+    auto* reg  = mod.registred_paths.try_to_get(c.reg_path);
+    auto* dir  = mod.dir_paths.try_to_get(c.dir);
+    auto* file = mod.file_paths.try_to_get(c.file);
 
-        fmt::print("component {} in registred path {} directory {} file {}\n",
-                   ordinal(id),
-                   reg ? reg->path.sv() : empty_path,
-                   dir ? dir->path.sv() : empty_path,
-                   file ? file->path.sv() : empty_path);
+    fmt::print("component {} in registred path {} directory {} file {} status {}\n",
+               ordinal(mod.components.get_id(c)),
+               reg ? reg->path.sv() : empty_path,
+               dir ? dir->path.sv() : empty_path,
+               file ? file->path.sv() : empty_path,
+               component_status_string[ordinal(c.state)]);
+#else
+    (void)mod;
+    (void)id;
+#endif
+}
+
+inline void debug_component(const modeling& mod, const component_id id) noexcept
+{
+#ifdef IRRITATOR_ENABLE_DEBUG
+    if (auto* compo = mod.components.try_to_get(id); compo) {
+        debug_component(mod, *compo);
     } else {
         fmt::print("unknwon component {}\n", ordinal(id));
     }

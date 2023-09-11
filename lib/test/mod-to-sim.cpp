@@ -413,6 +413,7 @@ int main()
         }
 
         expect(buffer.size() > 0u);
+        fmt::print("Buffer: {:{}}\n", buffer.data(), buffer.size());
 
         {
             irt::modeling_initializer mod_init;
@@ -428,7 +429,7 @@ int main()
             reg.path  = temp_path;
 
             mod.create_directories(reg);
-            mod.fill_components();
+            expect(irt::is_success(mod.fill_components()) >> fatal);
 
             expect(irt::is_success(irt::project_load(
               pj, mod, sim, cache, std::span(buffer.data(), buffer.size()))));
