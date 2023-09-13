@@ -72,6 +72,19 @@ static bool show_random_graph_type(graph_component& graph) noexcept
         }
     }
 
+    ImGui::SameLine();
+    HelpMarker(
+      "scale_free: graph typically has a very skewed degree distribution, "
+      "where few vertices have a very high degree and a large number of "
+      "vertices have a very small degree. Many naturally evolving networks, "
+      "such as the World Wide Web, are scale-free graphs, making these "
+      "graphs "
+      "a good model for certain networking problems.\n\n"
+      "small_world: consists of a ring graph (where each vertex is connected "
+      "to its k nearest neighbors) .Edges in the graph are randomly rewired "
+      "to "
+      "different vertices with a probability p.");
+
     return is_changed;
 }
 
