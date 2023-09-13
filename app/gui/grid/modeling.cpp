@@ -90,12 +90,148 @@ static void show_type_widgets(grid_component& grid) noexcept
     }
 }
 
+static bool new_name_4(modeling& mod, component& compo) noexcept
+{
+    if (mod.ports.can_alloc(8)) {
+        const auto id = mod.components.get_id(compo);
+
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("N", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("S", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("W", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("E", id)));
+
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("N", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("S", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("W", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("E", id)));
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool new_number_4(modeling& mod, component& compo) noexcept
+{
+    if (mod.ports.can_alloc(2)) {
+        const auto id = mod.components.get_id(compo);
+
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("in", id)));
+        compo.y_names.emplace_back(
+          mod.ports.get_id(mod.ports.alloc("out", id)));
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool new_name_8(modeling& mod, component& compo) noexcept
+{
+    if (mod.ports.can_alloc(16)) {
+        const auto id = mod.components.get_id(compo);
+
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("N", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("S", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("W", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("E", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("NE", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("SE", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("NW", id)));
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("SW", id)));
+
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("N", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("S", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("W", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("E", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("NE", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("SE", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("NW", id)));
+        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("SW", id)));
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool new_number_8(modeling& mod, component& compo) noexcept
+{
+    if (mod.ports.can_alloc(2)) {
+        const auto id = mod.components.get_id(compo);
+
+        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("in", id)));
+        compo.y_names.emplace_back(
+          mod.ports.get_id(mod.ports.alloc("out", id)));
+
+        return true;
+    }
+
+    return false;
+}
+
+static bool assign_name(modeling&       mod,
+                        grid_component& grid,
+                        component&      compo) noexcept
+{
+
+    switch (grid.neighbors) {
+    case grid_component::neighborhood::four:
+        switch (grid.connection_type) {
+        case grid_component::type::name:
+            return new_name_4(mod, compo);
+
+        case grid_component::type::number:
+            return new_number_4(mod, compo);
+        }
+
+        irt_unreachable();
+        break;
+
+    case grid_component::neighborhood::eight:
+        switch (grid.connection_type) {
+        case grid_component::type::name:
+            return new_name_8(mod, compo);
+
+        case grid_component::type::number:
+            return new_number_8(mod, compo);
+        }
+
+        irt_unreachable();
+        break;
+    }
+
+    irt_unreachable();
+}
+
 void show_default_component_widgets(application& app, grid_component& grid)
 {
     auto id = get_default_component_id(grid);
     if (app.component_sel.combobox("Default component", &id)) {
         std::fill_n(grid.children.data(), grid.children.ssize(), id);
     }
+
+    ImGui::BeginDisabled(!(app.mod.components.can_alloc(1) &&
+                           app.mod.generic_components.can_alloc(1)));
+
+    if (ImGui::Button("+ generic")) {
+        auto& compo = app.mod.alloc_generic_component();
+        assign_name(app.mod, grid, compo);
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("+ grid")) {
+        auto& compo = app.mod.alloc_grid_component();
+        assign_name(app.mod, grid, compo);
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("+ graph")) {
+        auto& compo = app.mod.alloc_graph_component();
+        assign_name(app.mod, grid, compo);
+    }
+
+    ImGui::EndDisabled();
 }
 
 /**
