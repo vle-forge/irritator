@@ -27,11 +27,14 @@ static const char* grid_options[] = {
 constexpr auto grid_options_count = 4;
 
 static const char* grid_type[] = {
-    "number",
-    "name",
+    "number (in - out port)",
+    "name (N, W, S, E ports)",
 };
 
 constexpr auto grid_type_count = 2;
+
+static const char* grid_neighborhood[]     = { "four", "eight" };
+constexpr auto     grid_neighborhood_count = 2;
 
 constexpr inline auto get_default_component_id(const grid_component& g) noexcept
   -> component_id
@@ -74,6 +77,16 @@ static void show_type_widgets(grid_component& grid) noexcept
         if (selected_type != ordinal(grid.connection_type))
             grid.connection_type =
               enum_cast<grid_component::type>(selected_type);
+    }
+
+    int selected_neighbors = ordinal(grid.neighbors);
+    if (ImGui::Combo("Neighbors",
+                     &selected_neighbors,
+                     grid_neighborhood,
+                     grid_neighborhood_count)) {
+        if (selected_neighbors != ordinal(grid.neighbors))
+            grid.neighbors =
+              enum_cast<grid_component::neighborhood>(selected_neighbors);
     }
 }
 
