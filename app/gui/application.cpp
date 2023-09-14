@@ -234,8 +234,6 @@ static void application_show_menu(application& app) noexcept
             ImGui::MenuItem("Show data editor", nullptr, &app.data_ed.is_open);
 
             ImGui::MenuItem(
-              "Show preview window", nullptr, &app.preview_wnd.is_open);
-            ImGui::MenuItem(
               "Show component hierarchy", nullptr, &app.library_wnd.is_open);
 
             ImGui::MenuItem(
@@ -408,7 +406,6 @@ static void application_show_windows(application& app) noexcept
         ImGui::DockBuilderDockWindow(data_window::name, dockspace_id);
 
         ImGui::DockBuilderDockWindow(app.library_wnd.name, dock_id_right);
-        ImGui::DockBuilderDockWindow(app.preview_wnd.name, dock_id_right);
 
         ImGui::DockBuilderDockWindow(window_logger::name, dock_id_down);
 
@@ -432,9 +429,6 @@ static void application_show_windows(application& app) noexcept
 
     if (app.library_wnd.is_open)
         app.library_wnd.show();
-
-    if (app.preview_wnd.is_open)
-        app.preview_wnd.show();
 }
 
 void application::show() noexcept

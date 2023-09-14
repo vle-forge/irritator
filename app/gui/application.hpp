@@ -381,20 +381,6 @@ struct output_editor
     bool is_open      = true;
 };
 
-struct preview_window
-{
-    constexpr static inline const char* name = "Preview";
-
-    preview_window() noexcept = default;
-
-    void show() noexcept;
-
-    double preview_history   = 10.;
-    bool   preview_scrolling = true;
-
-    bool is_open = true;
-};
-
 //! An ImNodes editor for HSM.
 //! Default, node 0 is the top state.
 class hsm_editor
@@ -968,7 +954,6 @@ struct application
 
     settings_window settings_wnd;
     library_window  library_wnd;
-    preview_window  preview_wnd;
     memory_window   memory_wnd;
     window_logger   log_wnd;
     task_window     task_wnd;
