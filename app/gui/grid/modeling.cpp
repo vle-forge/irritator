@@ -282,9 +282,8 @@ static void show_selection(application&                app,
                            grid_component_editor_data& ed,
                            grid_component&             grid) noexcept
 {
-    if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen))
         app.component_sel.combobox("component paint", &ed.selected_id);
-    }
 
     if (ImGui::CollapsingHeader("Selected", ImGuiTreeNodeFlags_DefaultOpen)) {
         for (int row = 0; row < grid.row; ++row) {

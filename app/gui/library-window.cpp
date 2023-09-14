@@ -185,10 +185,12 @@ static void show_file_component(application& app,
 
     ImGui::PushID(&c);
 
-    ImGui::ColorEdit4("Color selection",
-                      to_float_ptr(app.mod.component_colors[get_index(id)]),
-                      ImGuiColorEditFlags_NoInputs |
-                        ImGuiColorEditFlags_NoLabel);
+    if (ImGui::ColorEdit4("Color selection",
+                          to_float_ptr(app.mod.component_colors[get_index(id)]),
+                          ImGuiColorEditFlags_NoInputs |
+                            ImGuiColorEditFlags_NoLabel |
+                            ImGuiColorEditFlags_NoAlpha))
+        app.mod.component_colors[get_index(id)][3] = 1.f;
 
     format(buffer, "{} ({})", c.name.sv(), file.path.sv());
 
@@ -261,10 +263,12 @@ static void show_notsaved_components(irt::component_editor& ed,
             const bool selected = head ? id == head->id : false;
 
             ImGui::PushID(reinterpret_cast<const void*>(&compo));
-            ImGui::ColorEdit4(
-              "Color selection",
-              to_float_ptr(app.mod.component_colors[get_index(id)]),
-              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+            if (ImGui::ColorEdit4(
+                  "Color selection",
+                  to_float_ptr(app.mod.component_colors[get_index(id)]),
+                  ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel |
+                    ImGuiColorEditFlags_NoAlpha))
+                app.mod.component_colors[get_index(id)][3] = 1.f;
 
             ImGui::SameLine(50.f);
             if (ImGui::Selectable(compo.name.c_str(), selected))
