@@ -114,7 +114,7 @@ auto write_raw_data(observer& obs, OutputIterator it) noexcept -> void
     while (head != tail) {
         *it++ = { head->data[0], head->data[1] };
 
-        obs.buffer.pop_front();
+        obs.buffer.pop_head();
         head = obs.buffer.head();
     }
 }
@@ -157,6 +157,59 @@ auto compute_interpolate(const observation_message& msg,
     }
 }
 
+inline auto write_raw_data(observer& obs) noexcept -> void
+{
+    irt_assert(obs.buffer.ssize() >= 2);
+
+    auto head = obs.buffer.head();
+    auto tail = obs.buffer.tail();
+
+    while (head != tail) {
+        obs.linearized_buffer.emplace_tail(head->data[0], head->data[1]);
+        obs.buffer.pop_head();
+        head = obs.buffer.head();
+    }
+}
+
+inline auto flush_raw_data(observer& obs) noexcept -> void
+{
+    while (obs.buffer.ssize() >= 2)
+        write_raw_data(obs);
+
+    if (!obs.buffer.empty()) {
+        auto head = obs.buffer.head();
+        obs.linearized_buffer.emplace_tail(head->data[0], head->data[1]);
+    }
+
+    obs.clear();
+}
+
+template<int QssLevel>
+auto compute_interpolate(const observation_message& msg,
+                         ring_buffer<observation>&  out,
+                         const time                 until,
+                         const time                 time_step) noexcept -> void
+{
+    static_assert(1 <= QssLevel && QssLevel <= 3);
+
+    out.emplace_tail(msg[0], compute_value<QssLevel>(msg, 0));
+
+    auto duration = until - msg[0] - time_step;
+    if (duration > 0) {
+        time elapsed = time_step;
+        for (; elapsed < duration; elapsed += time_step) {
+            out.emplace_tail(msg[0] + elapsed,
+                             compute_value<QssLevel>(msg, elapsed));
+        }
+
+        if (duration < elapsed) {
+            auto limit = duration - std::numeric_limits<real>::epsilon();
+            out.emplace_tail(msg[0] + limit,
+                             compute_value<QssLevel>(msg, limit));
+        }
+    }
+}
+
 template<typename OutputIterator>
 auto write_interpolate_data(observer&      obs,
                             OutputIterator it,
@@ -171,7 +224,7 @@ auto write_interpolate_data(observer&      obs,
     case interpolate_type::none:
         while (head != tail) {
             *it++ = observation(head->data[0], head->data[1]);
-            obs.buffer.pop_front();
+            obs.buffer.pop_head();
             head = obs.buffer.head();
         }
         break;
@@ -180,7 +233,7 @@ auto write_interpolate_data(observer&      obs,
             auto next{ head };
             ++next;
             compute_interpolate<1>(*head, it, next->data[0], time_step);
-            obs.buffer.pop_front();
+            obs.buffer.pop_head();
             head = obs.buffer.head();
         }
         break;
@@ -189,7 +242,7 @@ auto write_interpolate_data(observer&      obs,
             auto next{ head };
             ++next;
             compute_interpolate<2>(*head, it, next->data[0], time_step);
-            obs.buffer.pop_front();
+            obs.buffer.pop_head();
             head = obs.buffer.head();
         }
         break;
@@ -198,7 +251,7 @@ auto write_interpolate_data(observer&      obs,
             auto next{ head };
             ++next;
             compute_interpolate<3>(*head, it, next->data[0], time_step);
-            obs.buffer.pop_front();
+            obs.buffer.pop_head();
             head = obs.buffer.head();
         }
         break;
@@ -208,8 +261,51 @@ auto write_interpolate_data(observer&      obs,
 inline auto write_interpolate_data(observer& obs, real time_step) noexcept
   -> void
 {
-    return write_interpolate_data(
-      obs, std::back_inserter(obs.linearized_buffer), time_step);
+    irt_assert(obs.buffer.ssize() >= 2);
+
+    auto head = obs.buffer.head();
+    auto tail = obs.buffer.tail();
+
+    switch (get_interpolate_type(obs.type)) {
+    case interpolate_type::none:
+        while (head != tail) {
+            obs.linearized_buffer.emplace_tail(
+              observation(head->data[0], head->data[1]));
+            obs.buffer.pop_head();
+            head = obs.buffer.head();
+        }
+        break;
+    case interpolate_type::qss1:
+        while (head != tail) {
+            auto next{ head };
+            ++next;
+            compute_interpolate<1>(
+              *head, obs.linearized_buffer, next->data[0], time_step);
+            obs.buffer.pop_head();
+            head = obs.buffer.head();
+        }
+        break;
+    case interpolate_type::qss2:
+        while (head != tail) {
+            auto next{ head };
+            ++next;
+            compute_interpolate<2>(
+              *head, obs.linearized_buffer, next->data[0], time_step);
+            obs.buffer.pop_head();
+            head = obs.buffer.head();
+        }
+        break;
+    case interpolate_type::qss3:
+        while (head != tail) {
+            auto next{ head };
+            ++next;
+            compute_interpolate<3>(
+              *head, obs.linearized_buffer, next->data[0], time_step);
+            obs.buffer.pop_head();
+            head = obs.buffer.head();
+        }
+        break;
+    }
 }
 
 template<typename OutputIterator>
@@ -229,8 +325,13 @@ constexpr auto flush_interpolate_data(observer&      obs,
 inline constexpr auto flush_interpolate_data(observer& obs,
                                              real time_step) noexcept -> void
 {
-    flush_interpolate_data(
-      obs, std::back_inserter(obs.linearized_buffer), time_step);
+    while (obs.buffer.ssize() >= 2)
+        write_interpolate_data(obs, time_step);
+
+    if (!obs.buffer.empty())
+        flush_raw_data(obs);
+
+    obs.buffer.clear();
 }
 
 } // namespace irt

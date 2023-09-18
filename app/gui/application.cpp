@@ -444,7 +444,7 @@ void application::show() noexcept
     if (!mod.log_entries.empty()) {
         while (!mod.log_entries.empty()) {
             auto& w = mod.log_entries.front();
-            mod.log_entries.pop_front();
+            mod.log_entries.pop_head();
 
             auto& n   = notifications.alloc();
             n.level   = w.level;

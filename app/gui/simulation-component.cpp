@@ -289,8 +289,9 @@ static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
             }
         }
 
-        if (!app.sim.immediate_observers.empty())
+        if (!app.sim.immediate_observers.empty()) {
             app.sim_obs.update();
+        }
 
         if (!sim_ed.infinity_simulation &&
             sim_ed.simulation_current >= sim_ed.simulation_end) {

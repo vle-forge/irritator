@@ -109,6 +109,9 @@ void simulation_observation::update() noexcept
                 obs_max = 0;
         }
     } else {
+        irt_assert(app.simulation_ed.simulation_state !=
+                   simulation_status::finished);
+
         int obs_max = app.sim.immediate_observers.ssize();
         int current = 0;
 
@@ -119,7 +122,7 @@ void simulation_observation::update() noexcept
                 auto obs_id = app.sim.immediate_observers[i + current];
 
                 jobs[i] = { .app = &app, .id = obs_id };
-                task_list.add(simulation_observation_job_finish, &jobs[i]);
+                task_list.add(simulation_observation_job_update, &jobs[i]);
             }
 
             task_list.submit();

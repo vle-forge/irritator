@@ -21,9 +21,9 @@ auto window_logger::enqueue() noexcept -> window_logger::string_t&
     irt_assert(entries.capacity() > 0);
 
     if (entries.full())
-        entries.pop_front();
+        entries.pop_head();
 
-    entries.push_back("");
+    entries.push_tail("");
     return entries.back();
 }
 

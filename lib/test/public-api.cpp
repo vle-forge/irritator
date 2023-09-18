@@ -23,8 +23,6 @@
 #include <boost/ut.hpp>
 #include <type_traits>
 
-
-
 struct file_output
 {
     using value_type = irt::observation;
@@ -940,19 +938,19 @@ int main()
     "ring-buffer-front-back-access"_test = [] {
         irt::ring_buffer<int> ring(4);
 
-        expect(ring.push_front(0) == true);
-        expect(ring.push_front(-1) == true);
-        expect(ring.push_front(-2) == true);
-        expect(ring.push_front(-3) == false);
-        expect(ring.push_front(-4) == false);
+        expect(ring.push_head(0) == true);
+        expect(ring.push_head(-1) == true);
+        expect(ring.push_head(-2) == true);
+        expect(ring.push_head(-3) == false);
+        expect(ring.push_head(-4) == false);
 
-        ring.pop_back();
+        ring.pop_tail();
 
         expect(ring.ssize() == 2);
         expect(ring.front() == -2);
         expect(ring.back() == -1);
 
-        expect(ring.push_back(1) == true);
+        expect(ring.push_tail(1) == true);
 
         expect(ring.front() == -2);
         expect(ring.back() == 1);

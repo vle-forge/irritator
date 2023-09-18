@@ -1114,14 +1114,14 @@ public:
     constexpr void reserve(std::integral auto capacity) noexcept;
 
     template<typename... Args>
-    constexpr bool emplace_front(Args&&... args) noexcept;
+    constexpr bool emplace_head(Args&&... args) noexcept;
     template<typename... Args>
-    constexpr bool emplace_back(Args&&... args) noexcept;
+    constexpr bool emplace_tail(Args&&... args) noexcept;
 
-    constexpr bool push_front(const T& item) noexcept;
-    constexpr void pop_front() noexcept;
-    constexpr bool push_back(const T& item) noexcept;
-    constexpr void pop_back() noexcept;
+    constexpr bool push_head(const T& item) noexcept;
+    constexpr void pop_head() noexcept;
+    constexpr bool push_tail(const T& item) noexcept;
+    constexpr void pop_tail() noexcept;
     constexpr void erase_after(iterator not_included) noexcept;
     constexpr void erase_before(iterator not_included) noexcept;
 
@@ -9321,7 +9321,7 @@ constexpr ring_buffer<T>::ring_buffer(const ring_buffer& rhs) noexcept
         }
 
         for (auto it = rhs.begin(), et = rhs.end(); it != et; ++it)
-            push_back(*it);
+            push_tail(*it);
     }
 }
 
@@ -9343,7 +9343,7 @@ constexpr ring_buffer<T>& ring_buffer<T>::operator=(
         }
 
         for (auto it = rhs.begin(), et = rhs.end(); it != et; ++it)
-            push_back(*it);
+            push_tail(*it);
     }
 
     return *this;
@@ -9430,10 +9430,10 @@ constexpr void ring_buffer<T>::reserve(std::integral auto capacity) noexcept
 
         if constexpr (std::is_move_constructible_v<T>)
             for (auto it = begin(), et = end(); it != et; ++it)
-                tmp.emplace_back(std::move(*it));
+                tmp.emplace_tail(std::move(*it));
         else
             for (auto it = begin(), et = end(); it != et; ++it)
-                tmp.push_back(*it);
+                tmp.push_tail(*it);
 
         swap(tmp);
     }
@@ -9441,7 +9441,7 @@ constexpr void ring_buffer<T>::reserve(std::integral auto capacity) noexcept
 
 template<class T>
 template<typename... Args>
-constexpr bool ring_buffer<T>::emplace_front(Args&&... args) noexcept
+constexpr bool ring_buffer<T>::emplace_head(Args&&... args) noexcept
 {
     if (full())
         return false;
@@ -9454,7 +9454,7 @@ constexpr bool ring_buffer<T>::emplace_front(Args&&... args) noexcept
 
 template<class T>
 template<typename... Args>
-constexpr bool ring_buffer<T>::emplace_back(Args&&... args) noexcept
+constexpr bool ring_buffer<T>::emplace_tail(Args&&... args) noexcept
 {
     if (full())
         return false;
@@ -9466,7 +9466,7 @@ constexpr bool ring_buffer<T>::emplace_back(Args&&... args) noexcept
 }
 
 template<class T>
-constexpr bool ring_buffer<T>::push_front(const T& item) noexcept
+constexpr bool ring_buffer<T>::push_head(const T& item) noexcept
 {
     if (full())
         return false;
@@ -9478,7 +9478,7 @@ constexpr bool ring_buffer<T>::push_front(const T& item) noexcept
 }
 
 template<class T>
-constexpr void ring_buffer<T>::pop_front() noexcept
+constexpr void ring_buffer<T>::pop_head() noexcept
 {
     if (!empty()) {
         std::destroy_at(&buffer[m_head]);
@@ -9487,7 +9487,7 @@ constexpr void ring_buffer<T>::pop_front() noexcept
 }
 
 template<class T>
-constexpr bool ring_buffer<T>::push_back(const T& item) noexcept
+constexpr bool ring_buffer<T>::push_tail(const T& item) noexcept
 {
     if (full())
         return false;
@@ -9499,7 +9499,7 @@ constexpr bool ring_buffer<T>::push_back(const T& item) noexcept
 }
 
 template<class T>
-constexpr void ring_buffer<T>::pop_back() noexcept
+constexpr void ring_buffer<T>::pop_tail() noexcept
 {
     if (!empty()) {
         m_tail = back(m_tail);
@@ -9516,7 +9516,7 @@ constexpr void ring_buffer<T>::erase_after(iterator this_it) noexcept
         return;
 
     while (this_it != tail())
-        pop_back();
+        pop_tail();
 }
 
 template<class T>
@@ -9529,7 +9529,7 @@ constexpr void ring_buffer<T>::erase_before(iterator this_it) noexcept
 
     auto it = head();
     while (it != head())
-        pop_front();
+        pop_head();
 }
 
 template<class T>
@@ -10086,7 +10086,7 @@ inline void observer::update(observation_message msg) noexcept
 
 inline void observer::push_back(const observation& vec) noexcept
 {
-    linearized_buffer.push_back(vec);
+    linearized_buffer.push_tail(vec);
 }
 
 inline bool observer::full() const noexcept

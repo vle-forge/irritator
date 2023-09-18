@@ -6,12 +6,11 @@
 #define ORG_VLEPROJECT_IRRITATOR_2022_LIB_FORMAT_HPP
 
 #include <irritator/core.hpp>
-#include <irritator/modeling.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling.hpp>
 
 #include <fmt/compile.h>
 #include <fmt/format.h>
-
 
 namespace irt {
 
@@ -41,12 +40,13 @@ inline void debug_component(const modeling& mod, component& c) noexcept
     auto* dir  = mod.dir_paths.try_to_get(c.dir);
     auto* file = mod.file_paths.try_to_get(c.file);
 
-    fmt::print("component {} in registred path {} directory {} file {} status {}\n",
-               ordinal(mod.components.get_id(c)),
-               reg ? reg->path.sv() : empty_path,
-               dir ? dir->path.sv() : empty_path,
-               file ? file->path.sv() : empty_path,
-               component_status_string[ordinal(c.state)]);
+    fmt::print(
+      "component {} in registred path {} directory {} file {} status {}\n",
+      ordinal(mod.components.get_id(c)),
+      reg ? reg->path.sv() : empty_path,
+      dir ? dir->path.sv() : empty_path,
+      file ? file->path.sv() : empty_path,
+      component_status_string[ordinal(c.state)]);
 #else
     (void)mod;
     (void)id;
@@ -84,9 +84,9 @@ constexpr void log_warning(modeling& mod,
     using size_type = typename log_str::size_type;
 
     if (mod.log_entries.full())
-        mod.log_entries.pop_front();
+        mod.log_entries.pop_head();
 
-    mod.log_entries.push_back(
+    mod.log_entries.push_tail(
       { .buffer = "", .level = level, .st = status::success });
     auto& warning = mod.log_entries.back();
 
@@ -107,9 +107,9 @@ constexpr void log_warning(modeling& mod,
 constexpr void log_warning(modeling& mod, log_level level, status st) noexcept
 {
     if (mod.log_entries.full())
-        mod.log_entries.pop_front();
+        mod.log_entries.pop_head();
 
-    mod.log_entries.push_back(
+    mod.log_entries.push_tail(
       { .buffer = "", .level = level, .st = status::success });
     auto& warning = mod.log_entries.back();
     warning.st    = st;
