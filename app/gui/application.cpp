@@ -581,6 +581,35 @@ static void show_select_model_box_recursive(application&   app,
         show_select_model_box_recursive(app, *sibling, access);
 }
 
+auto build_unique_component_vector(application& app, tree_node& tn)
+  -> vector<component_id>
+{
+    vector<component_id> ret;
+    vector<tree_node*>   stack;
+
+    if (auto* child = tn.tree.get_child(); child)
+        stack.emplace_back(child);
+
+    while (!stack.empty()) {
+        auto* cur = stack.back();
+        stack.pop_back();
+
+        if (auto* compo = app.mod.components.try_to_get(cur->id); compo) {
+            if (auto it = std::find(ret.begin(), ret.end(), cur->id);
+                it == ret.end())
+                ret.emplace_back(cur->id);
+        }
+
+        if (auto* sibling = cur->tree.get_sibling(); sibling)
+            stack.emplace_back(sibling);
+
+        if (auto* child = cur->tree.get_child(); child)
+            stack.emplace_back(child);
+    }
+
+    return ret;
+}
+
 bool show_select_model_box(const char*    button_label,
                            const char*    popup_label,
                            application&   app,
@@ -588,10 +617,12 @@ bool show_select_model_box(const char*    button_label,
                            global_access& access) noexcept
 {
     static global_access copy;
+    // static vector<component_id> selectable_components;
 
     auto ret = false;
 
     if (ImGui::Button(button_label)) {
+        // selectable_components = build_unique_component_vector(app, tn);
         copy = access;
         ImGui::OpenPopup(popup_label);
     }

@@ -188,6 +188,81 @@ void for_specified_data(const Data&                                   d,
     }
 }
 
+template<typename Data, typename Function, typename... Args>
+auto try_for_specified_data(Data& d, 
+                            const vector<typename Data::identifier_type>& vec,
+                            Function&& f) noexcept
+  -> std::invoke_result_t<Function, typename Data::value_type&>
+{
+    using return_type =
+      std::invoke_result_t<Function, typename Data::value_type&>;
+
+    static_assert(std::is_same_v<return_type, bool> ||
+                  std::is_same_v<return_type, irt::status>);
+
+    if constexpr (std::is_same_v<return_type, bool>) {
+        for (unsigned i = 0, e = vec.size(); i != e; ++i) {
+            if (const auto* ptr = d.try_to_get(vec[i]); ptr)
+                if (!f(*ptr))
+                    return false;
+        }
+
+        return true;
+    } else if constexpr (std::is_same_v<return_type, irt::status>) {
+        for (unsigned i = 0, e = vec.size(); i != e; ++i) {
+            if (const auto* ptr = d.try_to_get(vec[i]); ptr)
+                if (auto ret = f(*ptr); is_bad(ret))
+                    return ret;
+        }
+
+        return status::success;
+    }
+}
+
+template<typename Data, typename Function, typename... Args>
+auto try_for_specified_data(Data& d, 
+                            vector<typename Data::identifier_type>& vec,
+                            Function&& f) noexcept
+  -> std::invoke_result_t<Function, typename Data::value_type&>
+{
+    using return_type =
+      std::invoke_result_t<Function, typename Data::value_type&>;
+
+    static_assert(std::is_same_v<return_type, bool> ||
+                  std::is_same_v<return_type, irt::status>);
+
+    if constexpr (std::is_same_v<return_type, bool>) {
+        unsigned i = 0;
+
+        while (i < vec.size()) {
+            if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+                if (!f(*ptr))
+                    return false;
+                ++i;
+            } else {
+                vec.swap_pop_back(i);
+            }
+        }
+
+        return true;
+    } else if constexpr (std::is_same_v<return_type, irt::status>) {
+
+        unsigned i = 0;
+
+        while (i < vec.size()) {
+            if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+                if (auto ret = f(*ptr); is_bad(ret))
+                    return ret;
+                ++i;
+            } else {
+                vec.swap_pop_back(i);
+            }
+        }
+
+        return status::success;
+    }
+}
+
 template<typename Data, typename Predicate>
 void remove_data_if(Data& d, Predicate&& pred) noexcept
 {

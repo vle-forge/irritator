@@ -305,40 +305,40 @@ static bool grid_simulation_show_observations(application&            app,
     ImGui::PopStyleVar();
     ImGui::EndChild();
 
-    // if (grid_sim.selected_position.has_value())
-    //     ImGui::OpenPopup("Choose model to observe");
-    //
-    // ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-    // ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    // if (grid_sim.selected_position.has_value() &&
-    //     ImGui::BeginPopupModal("Choose model to observe",
-    //                            nullptr,
-    //                            ImGuiWindowFlags_AlwaysAutoResize)) {
-    //
-    //     ImGui::Text("Select the model to observe");
-    //
-    //     irt_assert(grid_sim.selected_tn != nullptr);
-    //     show_select_observation_model(app,
-    //                                   grid_sim,
-    //                                   *grid_sim.selected_tn,
-    //                                   &grid_sim.selected_observation_model);
-    //
-    //     if (ImGui::Button("OK", ImVec2(120, 0))) {
-    //         grid_sim.selected_position.reset();
-    //         ImGui::CloseCurrentPopup();
-    //     }
-    //
-    //     ImGui::SetItemDefaultFocus();
-    //     ImGui::SameLine();
-    //     if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-    //         grid_sim.selected_position.reset();
-    //         grid_sim.selected_tn                = nullptr;
-    //         grid_sim.selected_observation_model = undefined<model_id>();
-    //         ImGui::CloseCurrentPopup();
-    //     }
-    //
-    //     ImGui::EndPopup();
-    // }
+    if (grid_sim.selected_position.has_value())
+        ImGui::OpenPopup("Choose model to observe");
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if (grid_sim.selected_position.has_value() &&
+        ImGui::BeginPopupModal("Choose model to observe",
+                               nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
+
+        ImGui::Text("Select the model to observe");
+
+        irt_assert(grid_sim.selected_tn != nullptr);
+        //show_select_observation_model(app,
+        //                              grid_sim,
+        //                              *grid_sim.selected_tn,
+        //                              &grid_sim.selected_observation_model);
+
+        if (ImGui::Button("OK", ImVec2(120, 0))) {
+            grid_sim.selected_position.reset();
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            grid_sim.selected_position.reset();
+            grid_sim.selected_tn                = nullptr;
+            grid_sim.selected_observation_model = undefined<model_id>();
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
 
     return ret;
 }

@@ -7,6 +7,7 @@
 #include "application.hpp"
 #include "internal.hpp"
 #include "irritator/core.hpp"
+#include "irritator/helpers.hpp"
 #include "irritator/modeling.hpp"
 
 namespace irt {
@@ -22,6 +23,22 @@ static void simulation_clear(component_editor&  ed,
     sim_ed.display_graph = true;
 }
 
+static status simulation_init_grid_observation(application& app) noexcept
+{
+    return try_for_each_data(
+      app.pj.tree_nodes, [&](auto& tn) noexcept -> status {
+          tn.grid_observation_systems.clear();
+
+          return try_for_specified_data(
+            app.pj.grid_observers,
+            tn.grid_observer_ids,
+            [&](auto& grid_obs) -> status {
+                auto& sys = tn.grid_observation_systems.emplace_back();
+                return sys.init(app.pj, app.mod, app.sim, grid_obs);
+            });
+      });
+}
+
 static status simulation_init_observation(application& app) noexcept
 {
     app.simulation_ed.plot_obs.init(app);
@@ -29,18 +46,8 @@ static status simulation_init_observation(application& app) noexcept
     app.simulation_ed.graph_obs.clear();
 
     irt_return_if_bad(app.simulation_ed.plot_obs.init(app));
-
-    irt_return_if_bad(try_for_each_data(
-      app.pj.grid_observers, [&](grid_observer& obs) noexcept -> status {
-          auto& grid_ed = app.simulation_ed.grid_obs.emplace_back();
-          return grid_ed.init(app, obs);
-      }));
-
-    // irt_return_if_bad(try_for_each_data(
-    //   app.pj.graph_observers, [&](graph_observer& obs) noexcept -> status {
-    //       auto& graph_ed = app.simulation_ed.graph_obs.emplace_back();
-    //       return graph_ed.init(app, obs);
-    //   }));
+    irt_return_if_bad(simulation_init_grid_observation(app));
+    // irt_return_if_bad(simulation_init_graph_observation(app));
 
     app.sim_obs.init();
 
@@ -142,28 +149,6 @@ static void simulation_init(component_editor&  ed,
         make_init_error_msg(ed, "Empty component");
         sim_ed.simulation_state = simulation_status::not_started;
         return;
-    }
-
-    {
-        // app.simulation_ed.plot_obs.init(app);
-        // app.simulation_ed.grid_obs.resize(app.pj.grid_observers.size());
-        // // app.simulation_ed.graph_obs.resize(app.pj.graph_observers.size());
-
-        // grid_observer* grid = nullptr;
-        // while (app.pj.grid_observers.next(grid)) {
-        //     const auto id  = app.pj.grid_observers.get_id(grid);
-        //     const auto idx = get_index(id);
-
-        //     app.simulation_ed.grid_obs[idx].init(app, *grid);
-        // }
-
-        // graph_observer* graph = nullptr;
-        // while (app.pj.graph_observers.next(graph)) {
-        //     const auto id  = app.pj.graph_observers.get_id(graph);
-        //     const auto idx = get_index(id);
-
-        //     app.simulation_ed.graph_obs[idx].init(app, *graph);
-        // }
     }
 
     if (auto ret = simulation_init_observation(app); is_bad(ret)) {

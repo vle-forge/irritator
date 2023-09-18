@@ -190,6 +190,51 @@ void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
     }
 }
 
+template<typename Function>
+void if_tree_node_is_grid_do(project&     pj,
+                             modeling&    mod,
+                             tree_node_id tn_id,
+                             Function&&   f)
+{
+    tree_node*      grid_tn{};
+    component*      compo{};
+    grid_component* g_compo{};
+
+    if (grid_tn = pj.tree_nodes.try_to_get(tn_id); grid_tn) {
+        if (compo = mod.components.try_to_get(grid_tn->id); compo) {
+            if (compo->type == component_type::grid) {
+                if (g_compo = mod.grid_components.try_to_get(compo->id.grid_id);
+                    g_compo) {
+                    f(*grid_tn, *compo, *g_compo);
+                }
+            }
+        }
+    }
+}
+
+template<typename Function>
+void if_tree_node_is_graph_do(project&     pj,
+                              modeling&    mod,
+                              tree_node_id tn_id,
+                              Function&&   f)
+{
+    tree_node*       graph_tn{};
+    component*       compo{};
+    graph_component* g_compo{};
+
+    if (graph_tn = pj.tree_nodes.try_to_get(tn_id); graph_tn) {
+        if (compo = mod.components.try_to_get(graph_tn->id); compo) {
+            if (compo->type == component_type::graph) {
+                if (g_compo =
+                      mod.graph_components.try_to_get(compo->id.graph_id);
+                    g_compo) {
+                    f(*graph_tn, *compo, *g_compo);
+                }
+            }
+        }
+    }
+}
+
 } // namespace irt
 
 #endif

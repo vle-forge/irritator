@@ -485,6 +485,7 @@ static bool is_ports_compatible(modeling&          mod,
     return is_compatible;
 }
 
+#if 0
 static bool is_ports_compatible(modeling&          mod,
                                 generic_component& compo_src,
                                 port_id            port_src,
@@ -520,7 +521,9 @@ static bool is_ports_compatible(modeling&          mod,
 
     return is_compatible;
 }
+#endif
 
+#if 0
 static bool is_ports_compatible(modeling&          mod,
                                 generic_component& compo_src,
                                 port_id            port_src,
@@ -558,6 +561,7 @@ static bool is_ports_compatible(modeling&          mod,
 
     return is_compatible;
 }
+#endif
 
 // static bool is_ports_compatible(modeling& mod,
 //                                 generic_component& /*parent*/,

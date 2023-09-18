@@ -327,12 +327,13 @@ static bool show_main_simulation_settings(application& app) noexcept
     return is_modified > 0;
 }
 
-static bool show_local_simulation_observers(application& app,
-                                            tree_node&   tn) noexcept
+static bool show_local_simulation_plot_observers_table(application& app,
+                                                       tree_node&   tn) noexcept
 {
     int is_modified = 0;
 
-    if (ImGui::CollapsingHeader("Observers", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Plot observers",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
         const auto can_add = app.pj.variable_observers.can_alloc();
 
         if (!can_add)
@@ -410,6 +411,27 @@ static bool show_local_simulation_observers(application& app,
     return is_modified > 0;
 }
 
+static bool show_local_grid_observers(application&    app,
+                                      tree_node&      tn,
+                                      component&      compo,
+                                      grid_component& grid) noexcept
+{
+    return show_local_observers(app, tn, compo, grid);
+}
+
+static bool show_local_graph_observers(application&     app,
+                                       tree_node&       tn,
+                                       component&       compo,
+                                       graph_component& graph) noexcept
+{
+    (void)app;
+    (void)tn;
+    (void)compo;
+    (void)graph;
+
+    return false;
+}
+
 static bool show_local_simulation_settings(application& app,
                                            tree_node&   tn) noexcept
 {
@@ -481,7 +503,8 @@ static bool show_local_simulation_settings(application& app,
     return is_modified > 0;
 }
 
-static bool show_local_observers(application& app, tree_node& tn) noexcept
+static bool show_local_simulation_specific_observers(application& app,
+                                                     tree_node&   tn) noexcept
 {
     return if_data_exists_return(
       app.mod.components,
@@ -492,8 +515,8 @@ static bool show_local_observers(application& app, tree_node& tn) noexcept
               return if_data_exists_return(
                 app.mod.graph_components,
                 compo.id.graph_id,
-                [&](auto& /*graph*/) noexcept {
-                    return show_local_simulation_observers(app, tn);
+                [&](auto& graph) noexcept {
+                    return show_local_graph_observers(app, tn, compo, graph);
                 },
                 false);
 
@@ -502,7 +525,7 @@ static bool show_local_observers(application& app, tree_node& tn) noexcept
                 app.mod.grid_components,
                 compo.id.grid_id,
                 [&](auto& grid) noexcept {
-                    return show_local_observers(app, tn, compo, grid);
+                    return show_local_grid_observers(app, tn, compo, grid);
                 },
                 false);
 
@@ -581,12 +604,12 @@ static void show_local_variables_plot(application& app, tree_node& tn) noexcept
 // show_simulation_main_observations(application& app, DataArray& d)
 // noexcept {...}
 
-static bool show_simulation_grid_observations(application& app) noexcept
+static bool show_simulation_grid_observers(application& app) noexcept
 {
     auto to_delete   = undefined<grid_observer_id>();
     bool is_modified = false;
 
-    if (ImGui::BeginTable("Observers", 5)) {
+    if (ImGui::BeginTable("Grid observers", 5)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("child");
@@ -640,12 +663,12 @@ static bool show_simulation_grid_observations(application& app) noexcept
     return is_modified;
 }
 
-static bool show_simulation_graph_observations(application& app) noexcept
+static bool show_simulation_graph_observers(application& app) noexcept
 {
     auto to_delete   = undefined<graph_observer_id>();
     bool is_modified = false;
 
-    if (ImGui::BeginTable("Observers", 5)) {
+    if (ImGui::BeginTable("Graph observers", 5)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("child");
@@ -699,12 +722,12 @@ static bool show_simulation_graph_observations(application& app) noexcept
     return is_modified;
 }
 
-static bool show_simulation_variable_observations(application& app) noexcept
+static bool show_simulation_variable_observers(application& app) noexcept
 {
     auto to_delete   = undefined<variable_observer_id>();
     bool is_modified = false;
 
-    if (ImGui::BeginTable("Observers", 5)) {
+    if (ImGui::BeginTable("Plot observers", 5)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("child");
@@ -758,24 +781,26 @@ static bool show_simulation_variable_observations(application& app) noexcept
     return is_modified;
 }
 
-static bool show_main_simulation_observations(application& app) noexcept
+static bool show_main_simulation_observers(application& app) noexcept
 {
+    constexpr static auto flags = ImGuiTreeNodeFlags_DefaultOpen;
+
     bool variable_updated = false;
     bool grid_updated     = false;
     bool graph_updated    = false;
 
-    if (ImGui::CollapsingHeader("Main observations")) {
+    if (ImGui::CollapsingHeader("Main observations", flags)) {
         if (app.pj.variable_observers.ssize() > 0 &&
-            ImGui::CollapsingHeader("Plots"))
-            variable_updated = show_simulation_variable_observations(app);
+            ImGui::CollapsingHeader("All plots", flags))
+            variable_updated = show_simulation_variable_observers(app);
 
         if (app.pj.grid_observers.ssize() > 0 &&
-            ImGui::CollapsingHeader("Grids"))
-            grid_updated = show_simulation_grid_observations(app);
+            ImGui::CollapsingHeader("All grids", flags))
+            grid_updated = show_simulation_grid_observers(app);
 
         if (app.pj.graph_observers.ssize() > 0 &&
-            ImGui::CollapsingHeader("Graphs"))
-            graph_updated = show_simulation_graph_observations(app);
+            ImGui::CollapsingHeader("All graphs", flags))
+            graph_updated = show_simulation_graph_observers(app);
     }
 
     return variable_updated or grid_updated or graph_updated;
@@ -849,12 +874,14 @@ void simulation_editor::show() noexcept
                 }
 
                 if (ImGui::BeginTabItem("Observations")) {
-                    show_main_simulation_observations(app);
+                    show_main_simulation_observers(app);
 
                     auto selected_tn = app.project_wnd.selected_tn();
                     if (auto* selected = app.pj.node(selected_tn); selected) {
-                        show_local_simulation_observers(app, *selected);
-                        show_local_observers(app, *selected);
+                        show_local_simulation_plot_observers_table(app,
+                                                                   *selected);
+                        show_local_simulation_specific_observers(app,
+                                                                 *selected);
 
                         if (!selected->variable_observer_ids.data.empty())
                             show_local_variables_plot(app, *selected);

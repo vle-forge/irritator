@@ -251,38 +251,11 @@ public:
     }
 };
 
-class grid_observation_widget
+struct grid_observation_widget
 {
-public:
-    //! @brief Clear, initialize the grid and connect to @c observer_id.
-    //! @details Clear the @c grid_observation_widget and use the @c
-    //!  grid_observer data to initialize all @c observer_id from the
-    //!  simulation layer.
-    //!
-    //! @return The status.
-    status init(application& app, grid_observer& grid) noexcept;
+    // @TODO perhaps add colomap here ?
 
-    //! Assign a new size to children and remove all @c model_id.
-    void resize(int row, int col) noexcept;
-
-    //! Assign @c undefined<model_id> to all children.
-    void clear() noexcept;
-
-    //! Display the values vector using the ImGui::PlotHeatMap function.
-    void show(application& app) noexcept;
-
-    //! Update the values vector with observation values from the simulation
-    //! observers object.
-    void update(application& app) noexcept;
-
-    vector<observer_id> observers;
-    vector<real>        values;
-
-    real none_value = 0.f;
-    int  rows       = 0;
-    int  cols       = 0;
-
-    grid_observer_id id = undefined<grid_observer_id>();
+    void show(application& app, grid_observation_system& grid) noexcept;
 };
 
 class graph_observation_widget

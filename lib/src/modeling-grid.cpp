@@ -527,4 +527,138 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
     return build_grid_children_and_connections(grid, s.children, s.connections);
 }
 
+//
+//
+//
+
+static observer_id get_observer_id(project&             pj,
+                                   simulation&          sim,
+                                   const tree_node&     tn,
+                                   const std::span<u64> unique_ids,
+                                   const model_id       mdl_id) noexcept
+{
+    const tree_node* ptr = &tn;
+
+    for (const auto unique_id : unique_ids) {
+        if (auto tree_node_id_opt = ptr->get_tree_node_id(unique_id);
+            tree_node_id_opt.has_value()) {
+            ptr = pj.tree_nodes.try_to_get(*tree_node_id_opt);
+        }
+    }
+
+    if (auto mdl_id_opt = ptr->get_model_id(mdl_id); mdl_id_opt.has_value())
+        if (auto* mdl = sim.models.try_to_get(*mdl_id_opt); mdl)
+            return mdl->obs_id;
+
+    return undefined<observer_id>();
+}
+
+static status build_grid(grid_observation_system& grid_system,
+                         project&                 pj,
+                         simulation&              sim,
+                         tree_node&               grid_parent,
+                         grid_component&          grid_compo,
+                         grid_observer&           grid_obs) noexcept
+{
+    status ret = status::unknown_dynamics;
+
+    if_data_exists_do(
+      pj.tree_nodes, grid_obs.child.tn_id, [&](auto& tn) noexcept {
+          small_vector<u64, 16> stack;
+
+          // First step, build the stack with unique_id from parent to
+          // grid_parent.
+          stack.emplace_back(tn.unique_id);
+          auto* parent = tn.tree.get_parent();
+          while (parent && parent != &grid_parent) {
+              stack.emplace_back(parent->unique_id);
+              parent = parent->tree.get_parent();
+          }
+
+          // Second step, from grid parent, search child
+          if (const auto* child = grid_parent.tree.get_child(); child) {
+              do {
+                  if (child->unique_id == stack.back()) {
+                      auto [row, col] = unpack_doubleword(child->unique_id);
+
+                      grid_system.observers[row * grid_compo.column + col] =
+                        get_observer_id(
+                          pj,
+                          sim,
+                          *child,
+                          std::span(stack.begin(), stack.end() - 1),
+                          grid_obs.child.mdl_id);
+                  }
+              } while (child);
+          }
+          ret = status::success;
+      });
+
+    return ret;
+}
+
+status grid_observation_system::init(project&       pj,
+                                     modeling&      mod,
+                                     simulation&    sim,
+                                     grid_observer& grid_obs) noexcept
+{
+    status ret = status::unknown_dynamics;
+
+    if_tree_node_is_grid_do(
+      pj,
+      mod,
+      grid_obs.child.parent_id,
+      [&](auto& parent_tn, auto& /*compo*/, auto& grid) {
+          const auto len = grid.row * grid.column;
+
+          observers.resize(len);
+          values.resize(len);
+
+          std::fill_n(observers.data(), len, undefined<observer_id>());
+          std::fill_n(values.data(), len, none_value);
+
+          id = pj.grid_observers.get_id(grid_obs);
+
+          ret = build_grid(*this, pj, sim, parent_tn, grid, grid_obs);
+      });
+
+    return ret;
+}
+
+void grid_observation_system::resize(int rows_, int cols_) noexcept
+{
+    const auto len = rows_ * cols_;
+    rows           = rows_;
+    cols           = cols_;
+
+    irt_assert(len > 0);
+
+    observers.resize(len);
+    values.resize(len);
+    clear();
+}
+
+void grid_observation_system::clear() noexcept
+{
+    std::fill_n(observers.data(), observers.size(), undefined<observer_id>());
+    std::fill_n(values.data(), values.size(), none_value);
+}
+
+void grid_observation_system::update(simulation& sim) noexcept
+{
+    irt_assert(rows * cols == observers.ssize());
+
+    for (int row = 0; row < rows; ++row) {
+        for (int col = 0; col < cols; ++col) {
+            values[row * cols + col] = if_data_exists_return(
+              sim.observers,
+              observers[row * cols + col],
+              [&](auto& obs) noexcept -> real {
+                  return obs.linearized_buffer.back().y;
+              },
+              none_value);
+        }
+    }
+}
+
 } // namespace irt

@@ -545,6 +545,41 @@ struct modeling_initializer
     bool is_fixed_window_placement = true;
 };
 
+class grid_observation_system
+{
+public:
+    //! @brief Clear, initialize the grid according to the @c grid_observer.
+    //! @details Clear the @c grid_observation_widget and use the @c
+    //!  grid_observer data to initialize all @c observer_id from the
+    //!  simulation layer.
+    //!
+    //! @return The status.
+    status init(project&       pj,
+                modeling&      mod,
+                simulation&    sim,
+                grid_observer& grid) noexcept;
+
+    //! Assign a new size to children and remove all @c model_id.
+    void resize(int row, int col) noexcept;
+
+    //! Assign @c undefined<model_id> to all children.
+    void clear() noexcept;
+
+    //! Update the values vector with observation values from the simulation
+    //! observers object.
+    void update(simulation& pj) noexcept;
+
+    vector<observer_id> observers;
+    vector<real>        values;
+
+    real none_value = 0.f;
+    int  rows       = 0;
+    int  cols       = 0;
+
+    grid_observer_id id = undefined<grid_observer_id>();
+};
+
+
 struct tree_node
 {
     tree_node(component_id id_, u64 unique_id_) noexcept;
@@ -570,6 +605,9 @@ struct tree_node
     table<u64, variable_observer_id> variable_observer_ids;
     vector<graph_observer_id>        graph_observer_ids;
     vector<grid_observer_id>         grid_observer_ids;
+
+    vector<grid_observation_system> grid_observation_systems;
+    // vector<graph_observation_system> graph_observation_systems;
 
     auto get_model_id(const node_v v) const noexcept -> std::optional<model_id>
     {
