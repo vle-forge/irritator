@@ -340,12 +340,11 @@ static bool show_local_simulation_observers(application& app,
               "Not enough variable observers memory available (default: {})",
               app.pj.variable_observers.capacity());
 
-        if (ImGui::BeginTable("Observation table", 5)) {
+        if (ImGui::BeginTable("Observation table", 4)) {
             ImGui::TableSetupColumn("enable");
             ImGui::TableSetupColumn("unique id");
             ImGui::TableSetupColumn("model type");
             ImGui::TableSetupColumn("type");
-            ImGui::TableSetupColumn("color");
             ImGui::TableHeadersRow();
 
             for_each_model(
@@ -370,6 +369,7 @@ static bool show_local_simulation_observers(application& app,
                           gp.child.tn_id     = app.pj.tree_nodes.get_id(tn);
                           gp.child.mdl_id    = sim.models.get_id(mdl);
                           gp.type = variable_observer::type_options::line;
+                          format(gp.name, "{}", ordinal(gp_id));
 
                           tn.variable_observer_ids.data.emplace_back(unique_id,
                                                                      gp_id);
@@ -394,24 +394,8 @@ static bool show_local_simulation_observers(application& app,
 
                   if (enable) {
                       irt_assert(ptr != nullptr);
-                      auto& gp = app.pj.variable_observers.get(*ptr);
-
                       ImGui::TextUnformatted("line");
-                      ImGui::TableNextColumn();
-
-                      auto color =
-                        ImGui::ColorConvertU32ToFloat4(gp.default_color);
-                      if (ImGui::ColorEdit4("Color selection",
-                                            &color.x,
-                                            ImGuiColorEditFlags_NoInputs |
-                                              ImGuiColorEditFlags_NoLabel)) {
-                          gp.default_color =
-                            ImGui::ColorConvertFloat4ToU32(color);
-                      }
-
                   } else {
-                      ImGui::TextUnformatted("-");
-                      ImGui::TableNextColumn();
                       ImGui::TextUnformatted("-");
                   }
                   ImGui::TableNextColumn();
@@ -539,6 +523,56 @@ static bool show_local_observers(application& app, tree_node& tn) noexcept
           return false;
       },
       false);
+}
+
+static void show_local_variable_plot(variable_observer& var_obs,
+                                     observer&          sim_obs) noexcept
+{
+    if (sim_obs.linearized_buffer.size() > 0) {
+        switch (var_obs.type) {
+        case variable_observer::type_options::line:
+            ImPlot::PlotLineG(var_obs.name.c_str(),
+                              ring_buffer_getter,
+                              &sim_obs.linearized_buffer,
+                              sim_obs.linearized_buffer.ssize());
+            break;
+
+        case variable_observer::type_options::dash:
+            ImPlot::PlotScatterG(var_obs.name.c_str(),
+                                 ring_buffer_getter,
+                                 &sim_obs.linearized_buffer,
+                                 sim_obs.linearized_buffer.ssize());
+            break;
+
+        default:
+            irt_unreachable();
+        }
+    }
+}
+
+static void show_local_variables_plot(application& app, tree_node& tn) noexcept
+{
+    if (ImPlot::BeginPlot("variables", ImVec2(-1, -1))) {
+        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+
+        for (const auto v : tn.variable_observer_ids.data) {
+            if_data_exists_do(
+              app.pj.variable_observers, v.value, [&](auto& var_obs) {
+                  if_data_exists_do(
+                    app.sim.models, var_obs.child.mdl_id, [&](auto& sim_mdl) {
+                        if_data_exists_do(app.sim.observers,
+                                          sim_mdl.obs_id,
+                                          [&](auto& sim_obs) {
+                                              show_local_variable_plot(var_obs,
+                                                                       sim_obs);
+                                          });
+                    });
+              });
+        }
+        ImPlot::PopStyleVar(2);
+        ImPlot::EndPlot();
+    }
 }
 
 // @TODO merge the three next functions with a template on
@@ -732,7 +766,7 @@ static bool show_main_simulation_observations(application& app) noexcept
 
     if (ImGui::CollapsingHeader("Main observations")) {
         if (app.pj.variable_observers.ssize() > 0 &&
-            ImGui::CollapsingHeader("Variables"))
+            ImGui::CollapsingHeader("Plots"))
             variable_updated = show_simulation_variable_observations(app);
 
         if (app.pj.grid_observers.ssize() > 0 &&
@@ -821,6 +855,9 @@ void simulation_editor::show() noexcept
                     if (auto* selected = app.pj.node(selected_tn); selected) {
                         show_local_simulation_observers(app, *selected);
                         show_local_observers(app, *selected);
+
+                        if (!selected->variable_observer_ids.data.empty())
+                            show_local_variables_plot(app, *selected);
                     }
 
                     ImGui::EndTabItem();
