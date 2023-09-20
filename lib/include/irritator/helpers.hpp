@@ -5,8 +5,10 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_HELPERS_2023
 #define ORG_VLEPROJECT_IRRITATOR_HELPERS_2023
 
-#include "irritator/core.hpp"
+#include <irritator/core.hpp>
+
 #include <type_traits>
+
 namespace irt {
 
 template<typename T>
@@ -28,18 +30,18 @@ struct limiter
     }
 };
 
-template<typename Data, typename Function, typename... Args>
-void for_each_data(Data& d, Function&& f, Args... args) noexcept
+template<typename Data, typename Function>
+void for_each_data(Data& d, Function&& f) noexcept
 {
     using value_type = typename Data::value_type;
 
     value_type* ptr = nullptr;
     while (d.next(ptr)) {
-        f(*ptr, args...);
+        f(*ptr);
     }
 }
 
-template<typename Data, typename Function, typename... Args>
+template<typename Data, typename Function>
 auto try_for_each_data(Data& d, Function&& f) noexcept
   -> std::invoke_result_t<Function, typename Data::value_type&>
 {
@@ -69,14 +71,14 @@ auto try_for_each_data(Data& d, Function&& f) noexcept
     }
 }
 
-template<typename Data, typename Function, typename... Args>
-void for_each_data(const Data& d, Function&& f, Args... args) noexcept
+template<typename Data, typename Function>
+void for_each_data(const Data& d, Function&& f) noexcept
 {
     using value_type = typename Data::value_type;
 
     const value_type* ptr = nullptr;
     while (d.next(ptr)) {
-        f(*ptr, args...);
+        f(*ptr);
     }
 }
 
@@ -128,17 +130,16 @@ auto if_data_exists_do(Data&                          d,
         f(*ptr);
 }
 
-template<typename Data, typename Function, typename... Args>
+template<typename Data, typename Function>
 void for_specified_data(Data&                                   d,
                         vector<typename Data::identifier_type>& vec,
-                        Function&&                              f,
-                        Args... args) noexcept
+                        Function&&                              f) noexcept
 {
     unsigned i = 0;
 
     while (i < vec.size()) {
         if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-            f(*ptr, args...);
+            f(*ptr);
             ++i;
         } else {
             vec.swap_pop_back(i);
@@ -146,17 +147,16 @@ void for_specified_data(Data&                                   d,
     }
 }
 
-template<typename Data, typename Function, typename... Args>
+template<typename Data, typename Function>
 void for_specified_data(const Data&                             d,
                         vector<typename Data::identifier_type>& vec,
-                        Function&&                              f,
-                        Args... args) noexcept
+                        Function&&                              f) noexcept
 {
     unsigned i = 0;
 
     while (i < vec.size()) {
         if (const auto* ptr = d.try_to_get(vec[i]); ptr) {
-            f(*ptr, args...);
+            f(*ptr);
             ++i;
         } else {
             vec.swap_pop_back(i);
@@ -164,31 +164,29 @@ void for_specified_data(const Data&                             d,
     }
 }
 
-template<typename Data, typename Function, typename... Args>
+template<typename Data, typename Function>
 void for_specified_data(Data&                                         d,
                         const vector<typename Data::identifier_type>& vec,
-                        Function&&                                    f,
-                        Args... args) noexcept
+                        Function&&                                    f) noexcept
 {
     for (unsigned i = 0, e = vec.size(); i != e; ++i) {
         if (auto* ptr = d.try_to_get(vec[i]); ptr)
-            f(*ptr, args...);
+            f(*ptr);
     }
 }
 
-template<typename Data, typename Function, typename... Args>
+template<typename Data, typename Function>
 void for_specified_data(const Data&                                   d,
                         const vector<typename Data::identifier_type>& vec,
-                        Function&&                                    f,
-                        Args... args) noexcept
+                        Function&&                                    f) noexcept
 {
     for (unsigned i = 0, e = vec.size(); i != e; ++i) {
         if (const auto* ptr = d.try_to_get(vec[i]); ptr)
-            f(*ptr, args...);
+            f(*ptr);
     }
 }
 
-template<typename Data, typename Function, typename... Args>
+template<typename Data, typename Function>
 auto try_for_specified_data(Data& d, 
                             const vector<typename Data::identifier_type>& vec,
                             Function&& f) noexcept
@@ -219,7 +217,7 @@ auto try_for_specified_data(Data& d,
     }
 }
 
-template<typename Data, typename Function, typename... Args>
+template<typename Data, typename Function>
 auto try_for_specified_data(Data& d, 
                             vector<typename Data::identifier_type>& vec,
                             Function&& f) noexcept
