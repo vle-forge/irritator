@@ -52,6 +52,16 @@ void for_each_data(const Data& d, Function&& f) noexcept
     }
 }
 
+/**
+ * @brief Apply function @c f until an error occurend in @f.
+ * @details For all element in data_array @c d try to call the function @c f. If
+ * this function return false or return a @c is_bad status, then the function
+ * return this error.
+ *
+ * @return If @c f returns a boolean, this function return true or false if a
+ * call to @c f fail. If @c f returns a irt::status, this function return @c
+ * irt::status::success or the firt error that occured in @c f.
+ */
 template<typename Data, typename Function>
 auto try_for_each_data(Data& d, Function&& f) noexcept
   -> std::invoke_result_t<Function, typename Data::value_type&>
