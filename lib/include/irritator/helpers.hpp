@@ -35,20 +35,16 @@ void for_each_data(Data& d, Function&& f) noexcept
 {
     using value_type = typename Data::value_type;
 
-    value_type* ptr = nullptr;
-    while (d.next(ptr)) {
-        f(*ptr);
-    }
-}
-
-template<typename Data, typename Function>
-void for_each_data(const Data& d, Function&& f) noexcept
-{
-    using value_type = typename Data::value_type;
-
-    const value_type* ptr = nullptr;
-    while (d.next(ptr)) {
-        f(*ptr);
+    if constexpr (std::is_const_v<Data>) {
+        const value_type* ptr = nullptr;
+        while (d.next(ptr)) {
+            f(*ptr);
+        }
+    } else {
+        value_type* ptr = nullptr;
+        while (d.next(ptr)) {
+            f(*ptr);
+        }
     }
 }
 
@@ -102,9 +98,13 @@ auto if_data_exists_return(Data&                          d,
       std::is_same_v<std::invoke_result_t<Function, typename Data::value_type&>,
                      Return>);
 
-    auto* ptr = d.try_to_get(id);
-
-    return ptr ? f(*ptr) : default_return;
+    if constexpr (std::is_const_v<Data>) {
+        const auto* ptr = d.try_to_get(id);
+        return ptr ? f(*ptr) : default_return;
+    } else {
+        auto* ptr = d.try_to_get(id);
+        return ptr ? f(*ptr) : default_return;
+    }
 }
 
 template<typename Data, typename Function>

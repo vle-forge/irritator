@@ -61,9 +61,9 @@ static bool get_parent(modeling&   mod,
     return false;
 }
 
-bool get_graph_connections(const modeling&         mod,
-                           const component&        compo,
-                           vector<connection_id>*& out) noexcept
+bool get_graph_connections(const modeling&                 mod,
+                           const component&                compo,
+                           std::span<const connection_id>& out) noexcept
 {
     irt_assert(compo.type == component_type::graph);
 
@@ -71,44 +71,47 @@ bool get_graph_connections(const modeling&         mod,
       mod.graph_components,
       compo.id.graph_id,
       [&](auto& graph) noexcept -> bool {
-          out = &graph.cache_connections;
+          out = std::span<const connection_id>(graph.cache_connections.data(),
+                                               graph.cache_connections.ssize());
           return true;
       },
       false);
 }
 
-bool get_grid_connections(const modeling&         mod,
-                          const component&        compo,
-                          vector<connection_id>*& out) noexcept
+bool get_grid_connections(const modeling&                 mod,
+                          const component&                compo,
+                          std::span<const connection_id>& out) noexcept
 {
     irt_assert(compo.type == component_type::grid);
 
     if (auto* ptr = mod.grid_components.try_to_get(compo.id.grid_id); ptr) {
-        out = &ptr->cache_connections;
+        out = std::span<const connection_id>(ptr->cache_connections.data(),
+                                             ptr->cache_connections.ssize());
         return true;
     }
 
     return false;
 }
 
-bool get_generic_connections(const modeling&         mod,
-                             const component&        compo,
-                             vector<connection_id>*& out) noexcept
+bool get_generic_connections(const modeling&                 mod,
+                             const component&                compo,
+                             std::span<const connection_id>& out) noexcept
 {
     irt_assert(compo.type == component_type::simple);
 
     if (auto* ptr = mod.generic_components.try_to_get(compo.id.generic_id);
         ptr) {
-        out = &ptr->connections;
+        out = std::span<const connection_id>(ptr->connections.data(),
+                                             ptr->connections.ssize());
         return true;
     }
 
     return false;
 }
 
-bool get_connections(const modeling&         mod,
-                     const component&        compo,
-                     vector<connection_id>*& out) noexcept
+bool get_connections(const modeling&                 mod,
+                     const component&                compo,
+                     std::span<const connection_id>& out) noexcept
 {
     switch (compo.type) {
     case component_type::grid:
@@ -130,10 +133,10 @@ bool get_connections(const modeling&         mod,
     irt_unreachable();
 }
 
-static bool count_inputs_connections(const modeling&              mod,
-                                     const vector<connection_id>& cnts,
-                                     const child_id               child,
-                                     int&                         nb) noexcept
+static bool count_inputs_connections(const modeling&                       mod,
+                                     const std::span<const connection_id>& cnts,
+                                     const child_id child,
+                                     int&           nb) noexcept
 {
     for (const auto c_id : cnts) {
         if (auto* c = mod.connections.try_to_get(c_id); c) {
@@ -150,11 +153,11 @@ static bool count_inputs_connections(const modeling&              mod,
     return true;
 }
 
-static bool count_inputs_connections(const modeling&              mod,
-                                     const vector<connection_id>& cnts,
-                                     const child_id               child,
-                                     const port_id                port,
-                                     int&                         nb) noexcept
+static bool count_inputs_connections(const modeling&                       mod,
+                                     const std::span<const connection_id>& cnts,
+                                     const child_id child,
+                                     const port_id  port,
+                                     int&           nb) noexcept
 {
     for (const auto c_id : cnts) {
         if (auto* c = mod.connections.try_to_get(c_id); c) {
@@ -172,10 +175,11 @@ static bool count_inputs_connections(const modeling&              mod,
     return true;
 }
 
-static bool count_outputs_connections(const modeling&              mod,
-                                      const vector<connection_id>& cnts,
-                                      const child_id               child,
-                                      int&                         nb) noexcept
+static bool count_outputs_connections(
+  const modeling&                       mod,
+  const std::span<const connection_id>& cnts,
+  const child_id                        child,
+  int&                                  nb) noexcept
 {
     for (const auto c_id : cnts) {
         if (auto* c = mod.connections.try_to_get(c_id); c) {
@@ -192,11 +196,12 @@ static bool count_outputs_connections(const modeling&              mod,
     return true;
 }
 
-static bool count_outputs_connections(const modeling&              mod,
-                                      const vector<connection_id>& cnts,
-                                      const child_id               child,
-                                      const port_id                port,
-                                      int&                         nb) noexcept
+static bool count_outputs_connections(
+  const modeling&                       mod,
+  const std::span<const connection_id>& cnts,
+  const child_id                        child,
+  const port_id                         port,
+  int&                                  nb) noexcept
 {
     for (const auto c_id : cnts) {
         if (auto* c = mod.connections.try_to_get(c_id); c) {
@@ -231,16 +236,16 @@ static bool search_child(const tree_node& child,
 static int compute_incoming_component(modeling& mod, tree_node& node) noexcept
 
 {
-    tree_node*             parent = nullptr;
-    component*             compo  = nullptr;
-    vector<connection_id>* vector = nullptr;
-    child_id               id     = undefined<child_id>();
-    int                    nb     = 0;
+    tree_node*                     parent = nullptr;
+    component*                     compo  = nullptr;
+    std::span<const connection_id> vector;
+    child_id                       id = undefined<child_id>();
+    int                            nb = 0;
 
     return get_parent(mod, node, parent, compo) &&
                search_child(node, *parent, id) &&
                get_connections(mod, *compo, vector) &&
-               count_inputs_connections(mod, *vector, id, nb)
+               count_inputs_connections(mod, vector, id, nb)
              ? nb
              : 0;
 }
@@ -248,16 +253,16 @@ static int compute_incoming_component(modeling& mod, tree_node& node) noexcept
 static int compute_outcoming_component(modeling& mod, tree_node& node) noexcept
 
 {
-    tree_node*             parent = nullptr;
-    component*             compo  = nullptr;
-    vector<connection_id>* vector = nullptr;
-    child_id               id     = undefined<child_id>();
-    int                    nb     = 0;
+    tree_node*                     parent = nullptr;
+    component*                     compo  = nullptr;
+    std::span<const connection_id> vector;
+    child_id                       id = undefined<child_id>();
+    int                            nb = 0;
 
     return get_parent(mod, node, parent, compo) &&
                search_child(node, *parent, id) &&
                get_connections(mod, *compo, vector) &&
-               count_outputs_connections(mod, *vector, id, nb)
+               count_outputs_connections(mod, vector, id, nb)
              ? nb
              : 0;
 }
@@ -266,16 +271,16 @@ static int compute_incoming_component(modeling&  mod,
                                       tree_node& node,
                                       port_id    port) noexcept
 {
-    tree_node*             parent = nullptr;
-    component*             compo  = nullptr;
-    vector<connection_id>* vector = nullptr;
-    child_id               id     = undefined<child_id>();
-    int                    nb     = 0;
+    tree_node*                     parent = nullptr;
+    component*                     compo  = nullptr;
+    std::span<const connection_id> vector;
+    child_id                       id = undefined<child_id>();
+    int                            nb = 0;
 
     return get_parent(mod, node, parent, compo) &&
                search_child(node, *parent, id) &&
                get_connections(mod, *compo, vector) &&
-               count_inputs_connections(mod, *vector, id, port, nb)
+               count_inputs_connections(mod, vector, id, port, nb)
              ? nb
              : 0;
 }
@@ -284,16 +289,16 @@ static int compute_outcoming_component(modeling&  mod,
                                        tree_node& node,
                                        port_id    port) noexcept
 {
-    tree_node*             parent = nullptr;
-    component*             compo  = nullptr;
-    vector<connection_id>* vector = nullptr;
-    child_id               id     = undefined<child_id>();
-    int                    nb     = 0;
+    tree_node*                     parent = nullptr;
+    component*                     compo  = nullptr;
+    std::span<const connection_id> vector;
+    child_id                       id = undefined<child_id>();
+    int                            nb = 0;
 
     return get_parent(mod, node, parent, compo) &&
                search_child(node, *parent, id) &&
                get_connections(mod, *compo, vector) &&
-               count_outputs_connections(mod, *vector, id, port, nb)
+               count_outputs_connections(mod, vector, id, port, nb)
              ? nb
              : 0;
 }
