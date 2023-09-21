@@ -424,12 +424,7 @@ static bool show_local_graph_observers(application&     app,
                                        component&       compo,
                                        graph_component& graph) noexcept
 {
-    (void)app;
-    (void)tn;
-    (void)compo;
-    (void)graph;
-
-    return false;
+    return show_local_observers(app, tn, compo, graph);
 }
 
 static bool show_local_simulation_settings(application& app,
