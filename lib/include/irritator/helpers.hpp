@@ -42,6 +42,17 @@ void for_each_data(Data& d, Function&& f) noexcept
 }
 
 template<typename Data, typename Function>
+void for_each_data(const Data& d, Function&& f) noexcept
+{
+    using value_type = typename Data::value_type;
+
+    const value_type* ptr = nullptr;
+    while (d.next(ptr)) {
+        f(*ptr);
+    }
+}
+
+template<typename Data, typename Function>
 auto try_for_each_data(Data& d, Function&& f) noexcept
   -> std::invoke_result_t<Function, typename Data::value_type&>
 {
@@ -68,41 +79,6 @@ auto try_for_each_data(Data& d, Function&& f) noexcept
             }
         }
         return status::success;
-    }
-}
-
-template<typename Data, typename Function>
-void for_each_data(const Data& d, Function&& f) noexcept
-{
-    using value_type = typename Data::value_type;
-
-    const value_type* ptr = nullptr;
-    while (d.next(ptr)) {
-        f(*ptr);
-    }
-}
-
-template<typename Data, typename FunctionIf, typename FunctionElse>
-auto if_or_else_data_exists_do(Data&                          d,
-                               typename Data::identifier_type id,
-                               FunctionIf&&                   if_cb,
-                               FunctionElse&&                 else_cb) noexcept
-  -> std::invoke_result_t<FunctionIf, typename Data::value_type&>
-{
-    using r1 = std::invoke_result_t<FunctionIf, typename Data::value_type&>;
-    using r2 = std::invoke_result_t<FunctionElse>;
-
-    static_assert(std::is_same_v<r1, r2>);
-
-    if constexpr (std::is_void_v<r1>) {
-        if (auto* ptr = d.try_to_get(id); ptr)
-            if_cb(*ptr);
-        else
-            else_cb();
-    } else {
-        auto* ptr = d.try_to_get(id);
-
-        return ptr ? if_cb(*ptr) : else_cb();
     }
 }
 
@@ -167,7 +143,7 @@ void for_specified_data(const Data&                             d,
 template<typename Data, typename Function>
 void for_specified_data(Data&                                         d,
                         const vector<typename Data::identifier_type>& vec,
-                        Function&&                                    f) noexcept
+                        Function&& f) noexcept
 {
     for (unsigned i = 0, e = vec.size(); i != e; ++i) {
         if (auto* ptr = d.try_to_get(vec[i]); ptr)
@@ -178,7 +154,7 @@ void for_specified_data(Data&                                         d,
 template<typename Data, typename Function>
 void for_specified_data(const Data&                                   d,
                         const vector<typename Data::identifier_type>& vec,
-                        Function&&                                    f) noexcept
+                        Function&& f) noexcept
 {
     for (unsigned i = 0, e = vec.size(); i != e; ++i) {
         if (const auto* ptr = d.try_to_get(vec[i]); ptr)
@@ -187,7 +163,7 @@ void for_specified_data(const Data&                                   d,
 }
 
 template<typename Data, typename Function>
-auto try_for_specified_data(Data& d, 
+auto try_for_specified_data(Data&                                         d,
                             const vector<typename Data::identifier_type>& vec,
                             Function&& f) noexcept
   -> std::invoke_result_t<Function, typename Data::value_type&>
@@ -218,9 +194,9 @@ auto try_for_specified_data(Data& d,
 }
 
 template<typename Data, typename Function>
-auto try_for_specified_data(Data& d, 
+auto try_for_specified_data(Data&                                   d,
                             vector<typename Data::identifier_type>& vec,
-                            Function&& f) noexcept
+                            Function&&                              f) noexcept
   -> std::invoke_result_t<Function, typename Data::value_type&>
 {
     using return_type =
