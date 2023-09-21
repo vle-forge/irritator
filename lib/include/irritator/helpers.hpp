@@ -116,66 +116,46 @@ auto if_data_exists_do(Data&                          d,
         f(*ptr);
 }
 
-template<typename Data, typename Function>
-void for_specified_data(Data&                                   d,
-                        vector<typename Data::identifier_type>& vec,
-                        Function&&                              f) noexcept
+/**
+ * @brief Apply function @c f for all element in vector @c.
+ * @details For each element in vector @c (type must be @c typename @c
+ * Data::identifier_type with @c Data a @c data_array) call the function @c f.
+ * If the @c vec vector is no-const then, undefined element are removed from the
+ * vector.
+ */
+template<typename Data, typename Vector, typename Function>
+void for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
 {
-    unsigned i = 0;
+    if constexpr (std::is_const_v<Vector>) {
+        for (unsigned i = 0, e = vec.size(); i != e; ++i) {
+            if (auto* ptr = d.try_to_get(vec[i]); ptr)
+                f(*ptr);
+        }
+    } else {
+        unsigned i = 0;
 
-    while (i < vec.size()) {
-        if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-            f(*ptr);
-            ++i;
-        } else {
-            vec.swap_pop_back(i);
+        while (i < vec.size()) {
+            if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+                f(*ptr);
+                ++i;
+            } else {
+                vec.swap_pop_back(i);
+            }
         }
     }
 }
 
-template<typename Data, typename Function>
-void for_specified_data(const Data&                             d,
-                        vector<typename Data::identifier_type>& vec,
-                        Function&&                              f) noexcept
-{
-    unsigned i = 0;
-
-    while (i < vec.size()) {
-        if (const auto* ptr = d.try_to_get(vec[i]); ptr) {
-            f(*ptr);
-            ++i;
-        } else {
-            vec.swap_pop_back(i);
-        }
-    }
-}
-
-template<typename Data, typename Function>
-void for_specified_data(Data&                                         d,
-                        const vector<typename Data::identifier_type>& vec,
-                        Function&& f) noexcept
-{
-    for (unsigned i = 0, e = vec.size(); i != e; ++i) {
-        if (auto* ptr = d.try_to_get(vec[i]); ptr)
-            f(*ptr);
-    }
-}
-
-template<typename Data, typename Function>
-void for_specified_data(const Data&                                   d,
-                        const vector<typename Data::identifier_type>& vec,
-                        Function&& f) noexcept
-{
-    for (unsigned i = 0, e = vec.size(); i != e; ++i) {
-        if (const auto* ptr = d.try_to_get(vec[i]); ptr)
-            f(*ptr);
-    }
-}
-
-template<typename Data, typename Function>
-auto try_for_specified_data(Data&                                         d,
-                            const vector<typename Data::identifier_type>& vec,
-                            Function&& f) noexcept
+/**
+ * @brief Apply function @c f for all element in vector @c and stop if @c f
+ * fail.
+ * @details For each element in vector @c (type must be @c typename @c
+ * Data::identifier_type with @c Data a @c data_array) call the function @c f.
+ * If the call failed, then function return false or the bad status. (see @c
+ * try_for_each_data function) If the @c vec vector is no-const then, undefined
+ * element are removed from the vector.
+ */
+template<typename Data, typename Vector, typename Function>
+auto try_for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
   -> std::invoke_result_t<Function, typename Data::value_type&>
 {
     using return_type =
@@ -184,66 +164,55 @@ auto try_for_specified_data(Data&                                         d,
     static_assert(std::is_same_v<return_type, bool> ||
                   std::is_same_v<return_type, irt::status>);
 
-    if constexpr (std::is_same_v<return_type, bool>) {
-        for (unsigned i = 0, e = vec.size(); i != e; ++i) {
-            if (const auto* ptr = d.try_to_get(vec[i]); ptr)
-                if (!f(*ptr))
-                    return false;
-        }
+    if constexpr (std::is_const_v<Vector>) {
+        if constexpr (std::is_same_v<return_type, bool>) {
+            for (unsigned i = 0, e = vec.size(); i != e; ++i) {
+                if (const auto* ptr = d.try_to_get(vec[i]); ptr)
+                    if (!f(*ptr))
+                        return false;
+            }
 
-        return true;
-    } else if constexpr (std::is_same_v<return_type, irt::status>) {
-        for (unsigned i = 0, e = vec.size(); i != e; ++i) {
-            if (const auto* ptr = d.try_to_get(vec[i]); ptr)
-                if (auto ret = f(*ptr); is_bad(ret))
-                    return ret;
-        }
+            return true;
+        } else if constexpr (std::is_same_v<return_type, irt::status>) {
+            for (unsigned i = 0, e = vec.size(); i != e; ++i) {
+                if (const auto* ptr = d.try_to_get(vec[i]); ptr)
+                    if (auto ret = f(*ptr); is_bad(ret))
+                        return ret;
+            }
 
-        return status::success;
-    }
-}
+            return status::success;
+        } else {
+            if constexpr (std::is_same_v<return_type, bool>) {
+                unsigned i = 0;
 
-template<typename Data, typename Function>
-auto try_for_specified_data(Data&                                   d,
-                            vector<typename Data::identifier_type>& vec,
-                            Function&&                              f) noexcept
-  -> std::invoke_result_t<Function, typename Data::value_type&>
-{
-    using return_type =
-      std::invoke_result_t<Function, typename Data::value_type&>;
+                while (i < vec.size()) {
+                    if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+                        if (!f(*ptr))
+                            return false;
+                        ++i;
+                    } else {
+                        vec.swap_pop_back(i);
+                    }
+                }
 
-    static_assert(std::is_same_v<return_type, bool> ||
-                  std::is_same_v<return_type, irt::status>);
+                return true;
+            } else if constexpr (std::is_same_v<return_type, irt::status>) {
 
-    if constexpr (std::is_same_v<return_type, bool>) {
-        unsigned i = 0;
+                unsigned i = 0;
 
-        while (i < vec.size()) {
-            if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-                if (!f(*ptr))
-                    return false;
-                ++i;
-            } else {
-                vec.swap_pop_back(i);
+                while (i < vec.size()) {
+                    if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+                        if (auto ret = f(*ptr); is_bad(ret))
+                            return ret;
+                        ++i;
+                    } else {
+                        vec.swap_pop_back(i);
+                    }
+                }
+
+                return status::success;
             }
         }
-
-        return true;
-    } else if constexpr (std::is_same_v<return_type, irt::status>) {
-
-        unsigned i = 0;
-
-        while (i < vec.size()) {
-            if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-                if (auto ret = f(*ptr); is_bad(ret))
-                    return ret;
-                ++i;
-            } else {
-                vec.swap_pop_back(i);
-            }
-        }
-
-        return status::success;
     }
 }
 
