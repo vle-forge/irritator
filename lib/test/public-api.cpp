@@ -1379,16 +1379,12 @@ int main()
 
         expect(ret == 1);
 
-        auto ret_2 = irt::dispatch(
-          mdl,
-          []([[maybe_unused]] const auto& dyns, int v1, double v2) {
-              std::cout << "ok" << v1 << ' ' << v2;
-              return v2 + v1;
-          },
-          123,
-          456.0);
+        auto ret_2 = irt::dispatch(mdl, []([[maybe_unused]] const auto& dyns) {
+            std::cout << "ok";
+            return 579.0;
+        });
 
-        expect(ret_2 == 579.0);
+        expect(eq(ret_2, 579.0));
     };
 
     "input-output"_test = [] {

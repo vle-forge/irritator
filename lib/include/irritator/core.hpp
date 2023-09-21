@@ -7082,269 +7082,269 @@ static constexpr dynamics_type dynamics_typeof() noexcept
     irt_unreachable();
 }
 
-template<typename Function, typename... Args>
-constexpr auto dispatch(const model& mdl, Function&& f, Args... args) noexcept
+template<typename Function>
+constexpr auto dispatch(const model& mdl, Function&& f) noexcept
 {
     switch (mdl.type) {
     case dynamics_type::qss1_integrator:
-        return f(*reinterpret_cast<const qss1_integrator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_integrator*>(&mdl.dyn));
     case dynamics_type::qss1_multiplier:
-        return f(*reinterpret_cast<const qss1_multiplier*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_multiplier*>(&mdl.dyn));
     case dynamics_type::qss1_cross:
-        return f(*reinterpret_cast<const qss1_cross*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_cross*>(&mdl.dyn));
     case dynamics_type::qss1_filter:
-        return f(*reinterpret_cast<const qss1_filter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_filter*>(&mdl.dyn));
     case dynamics_type::qss1_power:
-        return f(*reinterpret_cast<const qss1_power*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_power*>(&mdl.dyn));
     case dynamics_type::qss1_square:
-        return f(*reinterpret_cast<const qss1_square*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_square*>(&mdl.dyn));
     case dynamics_type::qss1_sum_2:
-        return f(*reinterpret_cast<const qss1_sum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_sum_2*>(&mdl.dyn));
     case dynamics_type::qss1_sum_3:
-        return f(*reinterpret_cast<const qss1_sum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_sum_3*>(&mdl.dyn));
     case dynamics_type::qss1_sum_4:
-        return f(*reinterpret_cast<const qss1_sum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_sum_4*>(&mdl.dyn));
     case dynamics_type::qss1_wsum_2:
-        return f(*reinterpret_cast<const qss1_wsum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_wsum_2*>(&mdl.dyn));
     case dynamics_type::qss1_wsum_3:
-        return f(*reinterpret_cast<const qss1_wsum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss1_wsum_4:
-        return f(*reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn));
 
     case dynamics_type::qss2_integrator:
-        return f(*reinterpret_cast<const qss2_integrator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_integrator*>(&mdl.dyn));
     case dynamics_type::qss2_multiplier:
-        return f(*reinterpret_cast<const qss2_multiplier*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_multiplier*>(&mdl.dyn));
     case dynamics_type::qss2_cross:
-        return f(*reinterpret_cast<const qss2_cross*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_cross*>(&mdl.dyn));
     case dynamics_type::qss2_filter:
-        return f(*reinterpret_cast<const qss2_filter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_filter*>(&mdl.dyn));
     case dynamics_type::qss2_power:
-        return f(*reinterpret_cast<const qss2_power*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_power*>(&mdl.dyn));
     case dynamics_type::qss2_square:
-        return f(*reinterpret_cast<const qss2_square*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_square*>(&mdl.dyn));
     case dynamics_type::qss2_sum_2:
-        return f(*reinterpret_cast<const qss2_sum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_sum_2*>(&mdl.dyn));
     case dynamics_type::qss2_sum_3:
-        return f(*reinterpret_cast<const qss2_sum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_sum_3*>(&mdl.dyn));
     case dynamics_type::qss2_sum_4:
-        return f(*reinterpret_cast<const qss2_sum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_sum_4*>(&mdl.dyn));
     case dynamics_type::qss2_wsum_2:
-        return f(*reinterpret_cast<const qss2_wsum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_wsum_2*>(&mdl.dyn));
     case dynamics_type::qss2_wsum_3:
-        return f(*reinterpret_cast<const qss2_wsum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss2_wsum_4:
-        return f(*reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn));
 
     case dynamics_type::qss3_integrator:
-        return f(*reinterpret_cast<const qss3_integrator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_integrator*>(&mdl.dyn));
     case dynamics_type::qss3_multiplier:
-        return f(*reinterpret_cast<const qss3_multiplier*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_multiplier*>(&mdl.dyn));
     case dynamics_type::qss3_cross:
-        return f(*reinterpret_cast<const qss3_cross*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_cross*>(&mdl.dyn));
     case dynamics_type::qss3_filter:
-        return f(*reinterpret_cast<const qss3_filter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_filter*>(&mdl.dyn));
     case dynamics_type::qss3_power:
-        return f(*reinterpret_cast<const qss3_power*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_power*>(&mdl.dyn));
     case dynamics_type::qss3_square:
-        return f(*reinterpret_cast<const qss3_square*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_square*>(&mdl.dyn));
     case dynamics_type::qss3_sum_2:
-        return f(*reinterpret_cast<const qss3_sum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_sum_2*>(&mdl.dyn));
     case dynamics_type::qss3_sum_3:
-        return f(*reinterpret_cast<const qss3_sum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_sum_3*>(&mdl.dyn));
     case dynamics_type::qss3_sum_4:
-        return f(*reinterpret_cast<const qss3_sum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_sum_4*>(&mdl.dyn));
     case dynamics_type::qss3_wsum_2:
-        return f(*reinterpret_cast<const qss3_wsum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_wsum_2*>(&mdl.dyn));
     case dynamics_type::qss3_wsum_3:
-        return f(*reinterpret_cast<const qss3_wsum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss3_wsum_4:
-        return f(*reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn));
 
     case dynamics_type::integrator:
-        return f(*reinterpret_cast<const integrator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const integrator*>(&mdl.dyn));
     case dynamics_type::quantifier:
-        return f(*reinterpret_cast<const quantifier*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const quantifier*>(&mdl.dyn));
     case dynamics_type::adder_2:
-        return f(*reinterpret_cast<const adder_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const adder_2*>(&mdl.dyn));
     case dynamics_type::adder_3:
-        return f(*reinterpret_cast<const adder_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const adder_3*>(&mdl.dyn));
     case dynamics_type::adder_4:
-        return f(*reinterpret_cast<const adder_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const adder_4*>(&mdl.dyn));
     case dynamics_type::mult_2:
-        return f(*reinterpret_cast<const mult_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const mult_2*>(&mdl.dyn));
     case dynamics_type::mult_3:
-        return f(*reinterpret_cast<const mult_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const mult_3*>(&mdl.dyn));
     case dynamics_type::mult_4:
-        return f(*reinterpret_cast<const mult_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const mult_4*>(&mdl.dyn));
     case dynamics_type::counter:
-        return f(*reinterpret_cast<const counter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const counter*>(&mdl.dyn));
     case dynamics_type::queue:
-        return f(*reinterpret_cast<const queue*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const queue*>(&mdl.dyn));
     case dynamics_type::dynamic_queue:
-        return f(*reinterpret_cast<const dynamic_queue*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const dynamic_queue*>(&mdl.dyn));
     case dynamics_type::priority_queue:
-        return f(*reinterpret_cast<const priority_queue*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const priority_queue*>(&mdl.dyn));
     case dynamics_type::generator:
-        return f(*reinterpret_cast<const generator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const generator*>(&mdl.dyn));
     case dynamics_type::constant:
-        return f(*reinterpret_cast<const constant*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const constant*>(&mdl.dyn));
     case dynamics_type::cross:
-        return f(*reinterpret_cast<const cross*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const cross*>(&mdl.dyn));
     case dynamics_type::accumulator_2:
-        return f(*reinterpret_cast<const accumulator_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const accumulator_2*>(&mdl.dyn));
     case dynamics_type::time_func:
-        return f(*reinterpret_cast<const time_func*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const time_func*>(&mdl.dyn));
     case dynamics_type::filter:
-        return f(*reinterpret_cast<const filter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const filter*>(&mdl.dyn));
 
     case dynamics_type::logical_and_2:
-        return f(*reinterpret_cast<const logical_and_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const logical_and_2*>(&mdl.dyn));
     case dynamics_type::logical_and_3:
-        return f(*reinterpret_cast<const logical_and_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const logical_and_3*>(&mdl.dyn));
     case dynamics_type::logical_or_2:
-        return f(*reinterpret_cast<const logical_or_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const logical_or_2*>(&mdl.dyn));
     case dynamics_type::logical_or_3:
-        return f(*reinterpret_cast<const logical_or_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const logical_or_3*>(&mdl.dyn));
     case dynamics_type::logical_invert:
-        return f(*reinterpret_cast<const logical_invert*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const logical_invert*>(&mdl.dyn));
 
     case dynamics_type::hsm_wrapper:
-        return f(*reinterpret_cast<const hsm_wrapper*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<const hsm_wrapper*>(&mdl.dyn));
     }
 
     irt_unreachable();
 }
 
-template<typename Function, typename... Args>
-constexpr auto dispatch(model& mdl, Function&& f, Args... args) noexcept
+template<typename Function>
+constexpr auto dispatch(model& mdl, Function&& f) noexcept
 {
     switch (mdl.type) {
     case dynamics_type::qss1_integrator:
-        return f(*reinterpret_cast<qss1_integrator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_integrator*>(&mdl.dyn));
     case dynamics_type::qss1_multiplier:
-        return f(*reinterpret_cast<qss1_multiplier*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_multiplier*>(&mdl.dyn));
     case dynamics_type::qss1_cross:
-        return f(*reinterpret_cast<qss1_cross*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_cross*>(&mdl.dyn));
     case dynamics_type::qss1_filter:
-        return f(*reinterpret_cast<qss1_filter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_filter*>(&mdl.dyn));
     case dynamics_type::qss1_power:
-        return f(*reinterpret_cast<qss1_power*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_power*>(&mdl.dyn));
     case dynamics_type::qss1_square:
-        return f(*reinterpret_cast<qss1_square*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_square*>(&mdl.dyn));
     case dynamics_type::qss1_sum_2:
-        return f(*reinterpret_cast<qss1_sum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_sum_2*>(&mdl.dyn));
     case dynamics_type::qss1_sum_3:
-        return f(*reinterpret_cast<qss1_sum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_sum_3*>(&mdl.dyn));
     case dynamics_type::qss1_sum_4:
-        return f(*reinterpret_cast<qss1_sum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_sum_4*>(&mdl.dyn));
     case dynamics_type::qss1_wsum_2:
-        return f(*reinterpret_cast<qss1_wsum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_wsum_2*>(&mdl.dyn));
     case dynamics_type::qss1_wsum_3:
-        return f(*reinterpret_cast<qss1_wsum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss1_wsum_4:
-        return f(*reinterpret_cast<qss1_wsum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss1_wsum_4*>(&mdl.dyn));
 
     case dynamics_type::qss2_integrator:
-        return f(*reinterpret_cast<qss2_integrator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_integrator*>(&mdl.dyn));
     case dynamics_type::qss2_multiplier:
-        return f(*reinterpret_cast<qss2_multiplier*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_multiplier*>(&mdl.dyn));
     case dynamics_type::qss2_cross:
-        return f(*reinterpret_cast<qss2_cross*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_cross*>(&mdl.dyn));
     case dynamics_type::qss2_filter:
-        return f(*reinterpret_cast<qss2_filter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_filter*>(&mdl.dyn));
     case dynamics_type::qss2_power:
-        return f(*reinterpret_cast<qss2_power*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_power*>(&mdl.dyn));
     case dynamics_type::qss2_square:
-        return f(*reinterpret_cast<qss2_square*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_square*>(&mdl.dyn));
     case dynamics_type::qss2_sum_2:
-        return f(*reinterpret_cast<qss2_sum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_sum_2*>(&mdl.dyn));
     case dynamics_type::qss2_sum_3:
-        return f(*reinterpret_cast<qss2_sum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_sum_3*>(&mdl.dyn));
     case dynamics_type::qss2_sum_4:
-        return f(*reinterpret_cast<qss2_sum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_sum_4*>(&mdl.dyn));
     case dynamics_type::qss2_wsum_2:
-        return f(*reinterpret_cast<qss2_wsum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_wsum_2*>(&mdl.dyn));
     case dynamics_type::qss2_wsum_3:
-        return f(*reinterpret_cast<qss2_wsum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss2_wsum_4:
-        return f(*reinterpret_cast<qss2_wsum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss2_wsum_4*>(&mdl.dyn));
 
     case dynamics_type::qss3_integrator:
-        return f(*reinterpret_cast<qss3_integrator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_integrator*>(&mdl.dyn));
     case dynamics_type::qss3_multiplier:
-        return f(*reinterpret_cast<qss3_multiplier*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_multiplier*>(&mdl.dyn));
     case dynamics_type::qss3_cross:
-        return f(*reinterpret_cast<qss3_cross*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_cross*>(&mdl.dyn));
     case dynamics_type::qss3_filter:
-        return f(*reinterpret_cast<qss3_filter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_filter*>(&mdl.dyn));
     case dynamics_type::qss3_power:
-        return f(*reinterpret_cast<qss3_power*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_power*>(&mdl.dyn));
     case dynamics_type::qss3_square:
-        return f(*reinterpret_cast<qss3_square*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_square*>(&mdl.dyn));
     case dynamics_type::qss3_sum_2:
-        return f(*reinterpret_cast<qss3_sum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_sum_2*>(&mdl.dyn));
     case dynamics_type::qss3_sum_3:
-        return f(*reinterpret_cast<qss3_sum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_sum_3*>(&mdl.dyn));
     case dynamics_type::qss3_sum_4:
-        return f(*reinterpret_cast<qss3_sum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_sum_4*>(&mdl.dyn));
     case dynamics_type::qss3_wsum_2:
-        return f(*reinterpret_cast<qss3_wsum_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_wsum_2*>(&mdl.dyn));
     case dynamics_type::qss3_wsum_3:
-        return f(*reinterpret_cast<qss3_wsum_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss3_wsum_4:
-        return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn));
 
     case dynamics_type::integrator:
-        return f(*reinterpret_cast<integrator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<integrator*>(&mdl.dyn));
     case dynamics_type::quantifier:
-        return f(*reinterpret_cast<quantifier*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<quantifier*>(&mdl.dyn));
     case dynamics_type::adder_2:
-        return f(*reinterpret_cast<adder_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<adder_2*>(&mdl.dyn));
     case dynamics_type::adder_3:
-        return f(*reinterpret_cast<adder_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<adder_3*>(&mdl.dyn));
     case dynamics_type::adder_4:
-        return f(*reinterpret_cast<adder_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<adder_4*>(&mdl.dyn));
     case dynamics_type::mult_2:
-        return f(*reinterpret_cast<mult_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<mult_2*>(&mdl.dyn));
     case dynamics_type::mult_3:
-        return f(*reinterpret_cast<mult_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<mult_3*>(&mdl.dyn));
     case dynamics_type::mult_4:
-        return f(*reinterpret_cast<mult_4*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<mult_4*>(&mdl.dyn));
     case dynamics_type::counter:
-        return f(*reinterpret_cast<counter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<counter*>(&mdl.dyn));
     case dynamics_type::queue:
-        return f(*reinterpret_cast<queue*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<queue*>(&mdl.dyn));
     case dynamics_type::dynamic_queue:
-        return f(*reinterpret_cast<dynamic_queue*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<dynamic_queue*>(&mdl.dyn));
     case dynamics_type::priority_queue:
-        return f(*reinterpret_cast<priority_queue*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<priority_queue*>(&mdl.dyn));
     case dynamics_type::generator:
-        return f(*reinterpret_cast<generator*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<generator*>(&mdl.dyn));
     case dynamics_type::constant:
-        return f(*reinterpret_cast<constant*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<constant*>(&mdl.dyn));
     case dynamics_type::cross:
-        return f(*reinterpret_cast<cross*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<cross*>(&mdl.dyn));
     case dynamics_type::accumulator_2:
-        return f(*reinterpret_cast<accumulator_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<accumulator_2*>(&mdl.dyn));
     case dynamics_type::time_func:
-        return f(*reinterpret_cast<time_func*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<time_func*>(&mdl.dyn));
     case dynamics_type::filter:
-        return f(*reinterpret_cast<filter*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<filter*>(&mdl.dyn));
 
     case dynamics_type::logical_and_2:
-        return f(*reinterpret_cast<logical_and_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<logical_and_2*>(&mdl.dyn));
     case dynamics_type::logical_and_3:
-        return f(*reinterpret_cast<logical_and_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<logical_and_3*>(&mdl.dyn));
     case dynamics_type::logical_or_2:
-        return f(*reinterpret_cast<logical_or_2*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<logical_or_2*>(&mdl.dyn));
     case dynamics_type::logical_or_3:
-        return f(*reinterpret_cast<logical_or_3*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<logical_or_3*>(&mdl.dyn));
     case dynamics_type::logical_invert:
-        return f(*reinterpret_cast<logical_invert*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<logical_invert*>(&mdl.dyn));
 
     case dynamics_type::hsm_wrapper:
-        return f(*reinterpret_cast<hsm_wrapper*>(&mdl.dyn), args...);
+        return f(*reinterpret_cast<hsm_wrapper*>(&mdl.dyn));
     }
 
     irt_unreachable();
