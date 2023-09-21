@@ -181,37 +181,37 @@ auto try_for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
             }
 
             return status::success;
-        } else {
-            if constexpr (std::is_same_v<return_type, bool>) {
-                unsigned i = 0;
+        }
+    } else {
+        if constexpr (std::is_same_v<return_type, bool>) {
+            unsigned i = 0;
 
-                while (i < vec.size()) {
-                    if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-                        if (!f(*ptr))
-                            return false;
-                        ++i;
-                    } else {
-                        vec.swap_pop_back(i);
-                    }
+            while (i < vec.size()) {
+                if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+                    if (!f(*ptr))
+                        return false;
+                    ++i;
+                } else {
+                    vec.swap_pop_back(i);
                 }
-
-                return true;
-            } else if constexpr (std::is_same_v<return_type, irt::status>) {
-
-                unsigned i = 0;
-
-                while (i < vec.size()) {
-                    if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-                        if (auto ret = f(*ptr); is_bad(ret))
-                            return ret;
-                        ++i;
-                    } else {
-                        vec.swap_pop_back(i);
-                    }
-                }
-
-                return status::success;
             }
+
+            return true;
+        } else if constexpr (std::is_same_v<return_type, irt::status>) {
+
+            unsigned i = 0;
+
+            while (i < vec.size()) {
+                if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+                    if (auto ret = f(*ptr); is_bad(ret))
+                        return ret;
+                    ++i;
+                } else {
+                    vec.swap_pop_back(i);
+                }
+            }
+
+            return status::success;
         }
     }
 }
@@ -219,6 +219,8 @@ auto try_for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
 template<typename Data, typename Predicate>
 void remove_data_if(Data& d, Predicate&& pred) noexcept
 {
+    static_assert(std::is_const_v<Data> == false);
+
     using value_type = typename Data::value_type;
 
     value_type* to_del = nullptr;
@@ -240,11 +242,12 @@ void remove_data_if(Data& d, Predicate&& pred) noexcept
     }
 }
 
-template<typename Data, typename Predicate>
-void remove_specified_data_if(Data&                                   d,
-                              vector<typename Data::identifier_type>& vec,
-                              Predicate&& pred) noexcept
+template<typename Data, typename Vector, typename Predicate>
+void remove_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept
 {
+    static_assert(std::is_const_v<Data> == false &&
+                  std::is_const_v<Vector> == false);
+
     for (unsigned i = 0; i < vec.size(); ++i) {
         if (auto* ptr = d.try_to_get(vec[i]); ptr) {
             if (pred(*ptr)) {
