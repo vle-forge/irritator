@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <cstdint>
 #include <irritator/core.hpp>
 #include <irritator/examples.hpp>
 #include <irritator/ext.hpp>
@@ -564,6 +565,39 @@ int main()
         expect(v2[5] == 5);
     };
 
+    "vector-iterator-valid"_test = [] {
+        irt::vector<int> vec(4);
+
+        expect(eq(vec.ssize(), 0));
+        expect(eq(vec.capacity(), 4));
+
+        vec.emplace_back(INT32_MAX);
+        irt::vector<int>::iterator it = vec.begin();
+
+        vec.reserve(512);
+        if (vec.is_iterator_valid(it))
+            expect(eq(it, vec.begin()));
+
+        expect(eq(vec.front(), INT32_MAX));
+
+        vec.emplace_back(INT32_MIN);
+        expect(eq(vec.ssize(), 2));
+        expect(eq(vec.capacity(), 512));
+
+        vec.emplace_back(INT32_MAX);
+        expect(eq(vec.ssize(), 3));
+        expect(eq(vec.capacity(), 512));
+
+        vec.emplace_back(INT32_MIN);
+        expect(eq(vec.ssize(), 4));
+        expect(eq(vec.capacity(), 512));
+
+        it = vec.begin() + 2;
+
+        expect(eq(*it, INT32_MAX));
+        expect(eq(vec.index_from_ptr(it), 2));
+    };
+
     "vector-erase"_test = [] {
         struct t_1
         {
@@ -580,16 +614,22 @@ int main()
         irt::vector<t_1> v_1(10, 10);
         std::iota(v_1.begin(), v_1.end(), 0);
 
-        assert(v_1[0].x == 0);
-        assert(v_1[9].x == 9);
+        expect(v_1.is_iterator_valid(v_1.begin()));
+
+        expect(eq(v_1[0].x, 0));
+        expect(eq(v_1[9].x, 9));
         v_1.erase(v_1.begin());
-        assert(v_1[0].x == 1);
-        assert(v_1[8].x == 9);
-        assert(v_1.ssize() == 9);
+        expect(v_1.is_iterator_valid(v_1.begin()));
+
+        expect(eq(v_1[0].x, 1));
+        expect(eq(v_1[8].x, 9));
+        expect(eq(v_1.ssize(), 9));
         v_1.erase(v_1.begin(), v_1.begin() + 5);
-        assert(v_1[0].x == 6);
-        assert(v_1[3].x == 9);
-        assert(v_1.ssize() == 4);
+        expect(v_1.is_iterator_valid(v_1.begin()));
+
+        expect(eq(v_1[0].x, 6));
+        expect(eq(v_1[3].x, 9));
+        expect(eq(v_1.ssize(), 4));
     };
 
     "vector-static-member"_test = [] {

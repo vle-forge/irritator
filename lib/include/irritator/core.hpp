@@ -691,6 +691,9 @@ public:
     constexpr void erase(iterator it) noexcept;
     constexpr void erase(iterator begin, iterator end) noexcept;
 
+    constexpr int  index_from_ptr(const T* data) const noexcept;
+    constexpr bool is_iterator_valid(const_iterator it) const noexcept;
+
 private:
     i32 compute_new_capacity(i32 new_capacity) const;
 };
@@ -9008,6 +9011,25 @@ inline constexpr void vector<T>::erase(iterator first, iterator last) noexcept
     }
 
     m_size -= static_cast<i32>(count);
+}
+
+template<typename T>
+inline constexpr int vector<T>::index_from_ptr(const T* data) const noexcept
+{
+    irt_assert(is_iterator_valid(const_iterator(data)));
+
+    const auto off = data - m_data;
+
+    irt_assert(0 <= off && off < INT32_MAX);
+
+    return static_cast<int>(off);
+}
+
+template<typename T>
+inline constexpr bool vector<T>::is_iterator_valid(
+  const_iterator it) const noexcept
+{
+    return it >= m_data && it < m_data + m_size;
 }
 
 template<typename T>
