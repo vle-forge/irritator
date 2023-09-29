@@ -300,7 +300,7 @@ inline ImPlotPoint ring_buffer_getter(int idx, void* data)
     return ImPlotPoint{ (*ring)[index].x, (*ring)[index].y };
 };
 
-struct plot_copy
+struct plot_copy_widget
 {
     small_string<16u>        name;
     ring_buffer<observation> linear_outputs;
@@ -676,7 +676,7 @@ struct simulation_editor
     visualization_mode mode = visualization_mode::flat;
 
     simulation_status simulation_state = simulation_status::not_started;
-    data_array<plot_copy, plot_copy_id> copy_obs;
+    data_array<plot_copy_widget, plot_copy_id> copy_obs;
 
     plot_observation_widget          plot_obs;
     vector<grid_observation_widget>  grid_obs;

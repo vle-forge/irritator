@@ -121,7 +121,7 @@ static void show_observation_table(application& app) noexcept
                   show_plot_observation(app, *obs, *var_obs);
           });
 
-        plot_copy *copy = nullptr, *prev = nullptr;
+        plot_copy_widget *copy = nullptr, *prev = nullptr;
         while (app.simulation_ed.copy_obs.next(copy)) {
             const auto id = app.simulation_ed.copy_obs.get_id(*copy);
             ImGui::PushID(copy);
