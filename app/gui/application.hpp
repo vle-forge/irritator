@@ -326,8 +326,6 @@ void task_simulation_model_add(void* param) noexcept;
 void task_simulation_model_del(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
-void task_remove_simulation_observation(application& app, model_id id) noexcept;
-void task_add_simulation_observation(application& app, model_id id) noexcept;
 
 struct gui_task
 {
