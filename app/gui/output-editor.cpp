@@ -63,19 +63,15 @@ static void show_plot_observation(application&       app,
         var.type = enum_cast<variable_observer::type_options>(plot_type);
 
     ImGui::TableNextColumn();
+
+    const bool can_copy = app.simulation_ed.copy_obs.can_alloc(1);
+    ImGui::BeginDisabled(!can_copy);
     if (ImGui::Button("copy")) {
-        // if (app.simulation_ed.copy_obs.can_alloc(out->children.ssize())) {
-        //     for_specified_data(app.sim.models, out->children, [&](auto& mdl)
-        //     {
-        //         if_data_exists_do(
-        //           app.sim.observers, mdl.obs_id, [&](auto& obs) noexcept {
-        //               auto& new_obs = app.simulation_ed.copy_obs.alloc();
-        //               new_obs.name  = out->name.sv();
-        //               new_obs.linear_outputs = obs.linearized_buffer;
-        //           });
-        //     });
-        // }
+        auto& new_obs          = app.simulation_ed.copy_obs.alloc();
+        new_obs.name           = var.name.sv();
+        new_obs.linear_outputs = obs.linearized_buffer;
     }
+    ImGui::EndDisabled();
 
     ImGui::SameLine();
     if (ImGui::Button("write")) {
