@@ -121,7 +121,7 @@ static void show_observation_table(application& app) noexcept
                   show_plot_observation(app, *obs, *var_obs);
           });
 
-        plot_copy_widget *copy = nullptr, *prev = nullptr;
+        plot_copy *copy = nullptr, *prev = nullptr;
         while (app.simulation_ed.copy_obs.next(copy)) {
             const auto id = app.simulation_ed.copy_obs.get_id(*copy);
             ImGui::PushID(copy);
@@ -140,7 +140,7 @@ static void show_observation_table(application& app) noexcept
 
             ImGui::TableNextColumn();
             ImGui::TextUnformatted("-");
-            ;
+
             ImGui::TableNextColumn();
             ImGui::TextFormat("{}", copy->linear_outputs.size());
 
@@ -166,16 +166,6 @@ static void show_observation_table(application& app) noexcept
     }
 }
 
-static void show_observation_plot(application& app) noexcept
-{
-    ImPlot::SetCurrentContext(app.output_ed.implot_context);
-
-    app.simulation_ed.plot_obs.show(app);
-
-    for_each_data(app.simulation_ed.copy_obs,
-                  [](auto& plot) noexcept -> void { plot.show(); });
-}
-
 void output_editor::show() noexcept
 {
     if (!ImGui::Begin(output_editor::name, &is_open)) {
@@ -190,8 +180,10 @@ void output_editor::show() noexcept
     if (ImGui::CollapsingHeader("Observations list", flags))
         show_observation_table(app);
 
-    if (ImGui::CollapsingHeader("Plots outputs", flags))
-        show_observation_plot(app);
+    if (ImGui::CollapsingHeader("Plots outputs", flags)) {
+        ImPlot::SetCurrentContext(app.output_ed.implot_context);
+        app.simulation_ed.plot_copy_wgt.show("Copy");
+    }
 
     ImGui::End();
 }

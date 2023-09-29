@@ -300,14 +300,22 @@ inline ImPlotPoint ring_buffer_getter(int idx, void* data)
     return ImPlotPoint{ (*ring)[index].x, (*ring)[index].y };
 };
 
-struct plot_copy_widget
+struct plot_copy
 {
     small_string<16u>        name;
     ring_buffer<observation> linear_outputs;
     simulation_plot_type     plot_type = simulation_plot_type::none;
+};
 
-    //! Display the @c plot_copy data into a ImPlot widget.
-    void show() noexcept;
+struct plot_copy_widget
+{
+    /** Display all plot_copy data into a ImPlot widget. */
+    void show(const char* name) noexcept;
+
+    /** Display a @c plot_copy using @c ImPlot::PlogLineG or @c
+     * ImPlot::PlotScatterG but without @c ImPlot::BeginPlot and @c
+     * ImPlot::EndPlot */
+    void show_plot_line(const plot_copy_id id) noexcept;
 };
 
 void task_save_component(void* param) noexcept;
@@ -676,11 +684,13 @@ struct simulation_editor
     visualization_mode mode = visualization_mode::flat;
 
     simulation_status simulation_state = simulation_status::not_started;
-    data_array<plot_copy_widget, plot_copy_id> copy_obs;
+    data_array<plot_copy, plot_copy_id> copy_obs;
 
     plot_observation_widget          plot_obs;
     vector<grid_observation_widget>  grid_obs;
     vector<graph_observation_widget> graph_obs;
+
+    plot_copy_widget plot_copy_wgt;
 
     grid_simulation_editor  grid_sim;
     graph_simulation_editor graph_sim;
