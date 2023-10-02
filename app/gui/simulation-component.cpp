@@ -25,17 +25,15 @@ static void simulation_clear(component_editor&  ed,
 
 static status simulation_init_grid_observation(application& app) noexcept
 {
-    return try_for_each_data(
-      app.pj.tree_nodes, [&](auto& tn) noexcept -> status {
-          tn.grid_observation_systems.clear();
+    app.pj.grid_observation_systems.resize(app.pj.grid_observers.size());
 
-          return try_for_specified_data(
-            app.pj.grid_observers,
-            tn.grid_observer_ids,
-            [&](auto& grid_obs) -> status {
-                auto& sys = tn.grid_observation_systems.emplace_back();
-                return sys.init(app.pj, app.mod, app.sim, grid_obs);
-            });
+    return try_for_each_data(
+      app.pj.grid_observers, [&](auto& grid_obs) noexcept -> status {
+          auto id  = app.pj.grid_observers.get_id(grid_obs);
+          auto idx = get_index(id);
+
+          return app.pj.grid_observation_systems[idx].init(
+            app.pj, app.mod, app.sim, grid_obs);
       });
 }
 

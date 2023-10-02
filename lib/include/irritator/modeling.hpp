@@ -545,6 +545,13 @@ struct modeling_initializer
     bool is_fixed_window_placement = true;
 };
 
+/**
+ * @brief A simulation structure to stores the matrix of @c observer_id
+ * identifier, a cache for the last value from the observer.
+ *
+ * @c grid_observation_system stores simulation informations and can be used to
+ * dipslay or write data into files.
+ */
 class grid_observation_system
 {
 public:
@@ -579,7 +586,6 @@ public:
     grid_observer_id id = undefined<grid_observer_id>();
 };
 
-
 struct tree_node
 {
     tree_node(component_id id_, u64 unique_id_) noexcept;
@@ -605,9 +611,6 @@ struct tree_node
     table<u64, variable_observer_id> variable_observer_ids;
     vector<graph_observer_id>        graph_observer_ids;
     vector<grid_observer_id>         grid_observer_ids;
-
-    vector<grid_observation_system> grid_observation_systems;
-    // vector<graph_observation_system> graph_observation_systems;
 
     auto get_model_id(const node_v v) const noexcept -> std::optional<model_id>
     {
@@ -1024,6 +1027,12 @@ public:
     data_array<graph_observer, graph_observer_id>       graph_observers;
 
     data_array<global_parameter, global_parameter_id> global_parameters;
+
+    /** Use the index of the @c get_index<grid_observer_id>. */
+    vector<grid_observation_system> grid_observation_systems;
+
+    /** Use the index of the @c get_index<graph_observer_id>. */
+    // vector<graph_observation_system> graph_observation_systems;
 
 private:
     component_id m_head    = undefined<component_id>();
