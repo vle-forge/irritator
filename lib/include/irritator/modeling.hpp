@@ -551,6 +551,17 @@ struct modeling_initializer
  *
  * @c grid_observation_system stores simulation informations and can be used to
  * dipslay or write data into files.
+ *
+ *   +---------+         +--------------+
+ *   |grid     |         | grid         |         +-----------+
+ *   |observer +---------> observation  |         | observer  |
+ *   +---------+         | system       |         +-----------+
+ *                       +--------------+         | model_id  |
+ *                       |              |         | vec<real> |
+ *                       | vec<obs_id>  +---------> ...       |
+ *                       | vec<real>    |    cols |           |
+ *                       | cols, rows   |    *    +-----------+
+ *                       +--------------+    rows
  */
 class grid_observation_system
 {
