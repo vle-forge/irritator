@@ -1121,11 +1121,24 @@ void project::clear() noexcept
 
     m_head    = undefined<component_id>();
     m_tn_head = undefined<tree_node_id>();
+
+    variable_observers.clear();
+    grid_observers.clear();
+    graph_observers.clear();
+    global_parameters.clear();
+    grid_observation_systems.clear();
 }
 
 void project::clean_simulation() noexcept
 {
     for_all_tree_nodes([](auto& tn) { tn.child_to_node.data.clear(); });
+
+    for_each_data(grid_observers, [&](auto& grid_obs) noexcept {
+        auto id  = grid_observers.get_id(grid_obs);
+        auto idx = get_index(id);
+
+        grid_observation_systems[idx].clear();
+    });
 }
 
 status project::load(modeling&   mod,

@@ -11,7 +11,6 @@ namespace irt {
 void grid_observation_widget::show(application&             app,
                                    grid_observation_system& grid) noexcept
 {
-
     if_data_exists_do(
       app.pj.grid_observers, grid.id, [&](auto& grid_obs) noexcept {
           ImGui::PushID(reinterpret_cast<void*>(&grid));
