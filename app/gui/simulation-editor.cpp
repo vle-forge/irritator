@@ -450,10 +450,20 @@ static bool show_local_simulation_settings(application& app,
             for_each_model(
               app.sim,
               tn,
-              [&](auto& sim, auto& /*tn*/, auto unique_id, auto& mdl) noexcept {
+              [&](auto& sim,
+                  auto& /*tn*/,
+                  auto /*unique_id*/,
+                  auto& mdl) noexcept {
                   const auto mdl_id = sim.get_id(mdl);
-                  auto*      ptr    = tn.parameters.get(unique_id);
-                  bool       enable = ptr != nullptr;
+
+                  auto* current_selection = find_specified_data_if(
+                    app.pj.global_parameters,
+                    tn.parameters_ids,
+                    [&](auto& global_param) {
+                        return global_param.access.mdl_id == mdl_id;
+                    });
+
+                  bool enable = current_selection != nullptr;
 
                   ImGui::PushID(static_cast<int>(get_index(mdl_id)));
 
@@ -462,20 +472,23 @@ static bool show_local_simulation_settings(application& app,
 
                   if (ImGui::Checkbox("##enable", &enable)) {
                       if (enable) {
-                          irt_assert(ptr == nullptr);
+                          irt_assert(current_selection == nullptr);
                           auto& gp    = app.pj.global_parameters.alloc();
                           auto  gp_id = app.pj.global_parameters.get_id(gp);
-                          gp.access.mdl_id = sim.models.get_id(mdl);
-                          gp.access.tn_id  = app.pj.tree_nodes.get_id(tn);
+                          gp.access.parent_id = app.pj.tree_nodes.get_id(tn);
+                          gp.access.tn_id     = app.pj.tree_nodes.get_id(tn);
+                          gp.access.mdl_id    = sim.models.get_id(mdl);
                           gp.param.copy_from(mdl);
-                          tn.parameters.data.emplace_back(unique_id, gp_id);
-                          tn.parameters.sort();
-                          ptr = tn.parameters.get(unique_id);
-                          irt_assert(ptr != nullptr);
+                          format(gp.name, "{}", ordinal(gp_id));
+
+                          tn.parameters_ids.emplace_back(gp_id);
+                          current_selection = &gp;
+                          irt_assert(current_selection != nullptr);
                       } else {
-                          irt_assert(ptr != nullptr);
-                          app.pj.global_parameters.free(*ptr);
-                          tn.parameters.erase(unique_id);
+                          irt_assert(current_selection != nullptr);
+                          app.pj.global_parameters.free(*current_selection);
+                          current_selection = nullptr;
+                          enable            = false;
                       }
                   }
 
@@ -489,9 +502,8 @@ static bool show_local_simulation_settings(application& app,
                   ImGui::TableNextColumn();
 
                   if (enable) {
-                      irt_assert(ptr != nullptr);
-                      auto* gp = app.pj.global_parameters.try_to_get(*ptr);
-                      show_parameter_editor(app, mdl, gp->param);
+                      irt_assert(current_selection != nullptr);
+                      show_parameter_editor(app, mdl, current_selection->param);
                   }
 
                   ImGui::TableNextColumn();

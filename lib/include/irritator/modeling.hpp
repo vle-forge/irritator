@@ -616,9 +616,9 @@ struct tree_node
 
     using node_v = std::variant<tree_node_id, model_id>;
 
-    table<u64, node_v>              nodes_v;
-    table<u64, global_parameter_id> parameters;
+    table<u64, node_v> nodes_v;
 
+    vector<global_parameter_id>  parameters_ids;
     vector<variable_observer_id> variable_observer_ids;
     vector<graph_observer_id>    graph_observer_ids;
     vector<grid_observer_id>     grid_observer_ids;
