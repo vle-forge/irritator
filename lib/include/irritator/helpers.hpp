@@ -262,6 +262,41 @@ void remove_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept
     }
 }
 
+/**
+ * @brief Search in @c vec and element of @c d which valid the predicate @c
+ * pred.
+ * @details Do a `O(n)` search in @c vec to search the first element which the
+ * call to @c pref function returns true. All invalid identifier in the vector
+ * @c vec will be removed.
+ *
+ * @param d [description]
+ * @param vec [description]
+ * @param pred [description]
+ *
+ * @return A `nullptr` if no element in @c vec validates the @c pred predicte
+ * otherwise returns the first element.
+ */
+template<typename Data, typename Vector, typename Predicate>
+auto find_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept ->
+  typename Data::value_type*
+{
+    static_assert(std::is_const_v<Data> == false &&
+                  std::is_const_v<Vector> == false);
+
+    for (unsigned i = 0; i < vec.size(); ++i) {
+        if (auto* ptr = d.try_to_get(vec[i]); ptr) {
+            if (pred(*ptr))
+                return ptr;
+
+            ++i;
+        } else {
+            vec.swap_pop_back(i);
+        }
+    }
+
+    return nullptr;
+}
+
 } // namespace irt
 
 #endif
