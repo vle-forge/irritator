@@ -351,10 +351,20 @@ static bool show_local_simulation_plot_observers_table(application& app,
             for_each_model(
               app.sim,
               tn,
-              [&](auto& sim, auto& /*tn*/, auto unique_id, auto& mdl) noexcept {
+              [&](auto& sim,
+                  auto& /*tn*/,
+                  auto /*unique_id*/,
+                  auto& mdl) noexcept {
                   const auto mdl_id = sim.get_id(mdl);
-                  auto*      ptr    = tn.variable_observer_ids.get(unique_id);
-                  bool       enable = ptr != nullptr;
+
+                  auto* current_selection = find_specified_data_if(
+                    app.pj.variable_observers,
+                    tn.variable_observer_ids,
+                    [&](auto& var_obs) {
+                        return var_obs.child.mdl_id == mdl_id;
+                    });
+
+                  bool enable = current_selection != nullptr;
 
                   ImGui::PushID(static_cast<int>(get_index(mdl_id)));
 
@@ -363,7 +373,7 @@ static bool show_local_simulation_plot_observers_table(application& app,
 
                   if (can_add && ImGui::Checkbox("##enable", &enable)) {
                       if (enable) {
-                          irt_assert(ptr == nullptr);
+                          irt_assert(current_selection == nullptr);
                           auto& gp    = app.pj.variable_observers.alloc();
                           auto  gp_id = app.pj.variable_observers.get_id(gp);
                           gp.child.parent_id = app.pj.tree_nodes.get_id(tn);
@@ -372,17 +382,14 @@ static bool show_local_simulation_plot_observers_table(application& app,
                           gp.type = variable_observer::type_options::line;
                           format(gp.name, "{}", ordinal(gp_id));
 
-                          tn.variable_observer_ids.data.emplace_back(unique_id,
-                                                                     gp_id);
-                          tn.variable_observer_ids.sort();
-                          ptr = tn.variable_observer_ids.get(unique_id);
-                          irt_assert(ptr != nullptr);
+                          tn.variable_observer_ids.emplace_back(gp_id);
+                          current_selection = &gp;
+                          irt_assert(current_selection != nullptr);
                       } else {
-                          irt_assert(ptr != nullptr);
-                          app.pj.variable_observers.free(*ptr);
-                          tn.variable_observer_ids.erase(unique_id);
-                          ptr    = nullptr;
-                          enable = false;
+                          irt_assert(current_selection != nullptr);
+                          app.pj.variable_observers.free(*current_selection);
+                          current_selection = nullptr;
+                          enable            = false;
                       }
                   }
 
@@ -394,7 +401,7 @@ static bool show_local_simulation_plot_observers_table(application& app,
                   ImGui::TableNextColumn();
 
                   if (enable) {
-                      irt_assert(ptr != nullptr);
+                      irt_assert(current_selection != nullptr);
                       ImGui::TextUnformatted("line");
                   } else {
                       ImGui::TextUnformatted("-");
@@ -574,20 +581,19 @@ static void show_local_variables_plot(application& app, tree_node& tn) noexcept
         ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
         ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-        for (const auto v : tn.variable_observer_ids.data) {
-            if_data_exists_do(
-              app.pj.variable_observers, v.value, [&](auto& var_obs) {
-                  if_data_exists_do(
-                    app.sim.models, var_obs.child.mdl_id, [&](auto& sim_mdl) {
-                        if_data_exists_do(app.sim.observers,
-                                          sim_mdl.obs_id,
-                                          [&](auto& sim_obs) {
-                                              show_local_variable_plot(var_obs,
-                                                                       sim_obs);
-                                          });
-                    });
-              });
-        }
+        for_specified_data(
+          app.pj.variable_observers,
+          tn.variable_observer_ids,
+          [&](auto& var_obs) noexcept {
+              if_data_exists_do(
+                app.sim.models, var_obs.child.mdl_id, [&](auto& sim_mdl) {
+                    if_data_exists_do(
+                      app.sim.observers, sim_mdl.obs_id, [&](auto& sim_obs) {
+                          show_local_variable_plot(var_obs, sim_obs);
+                      });
+                });
+          });
+
         ImPlot::PopStyleVar(2);
         ImPlot::EndPlot();
     }
@@ -878,7 +884,7 @@ void simulation_editor::show() noexcept
                         show_local_simulation_specific_observers(app,
                                                                  *selected);
 
-                        if (!selected->variable_observer_ids.data.empty())
+                        if (!selected->variable_observer_ids.empty())
                             show_local_variables_plot(app, *selected);
                     }
 

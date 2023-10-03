@@ -619,9 +619,9 @@ struct tree_node
     table<u64, node_v>              nodes_v;
     table<u64, global_parameter_id> parameters;
 
-    table<u64, variable_observer_id> variable_observer_ids;
-    vector<graph_observer_id>        graph_observer_ids;
-    vector<grid_observer_id>         grid_observer_ids;
+    vector<variable_observer_id> variable_observer_ids;
+    vector<graph_observer_id>    graph_observer_ids;
+    vector<grid_observer_id>     grid_observer_ids;
 
     auto get_model_id(const node_v v) const noexcept -> std::optional<model_id>
     {
