@@ -269,6 +269,31 @@ inline std::pair<irt::u32, irt::u32> get_model_output_port(
     return std::make_pair(index, port);
 }
 
+template<typename Data>
+static bool check_data_array_loop(const Data& d) noexcept
+{
+    using value_type = typename Data::value_type;
+
+    irt::small_vector<const value_type*, 16> test_vec;
+
+    if (test_vec.capacity() < d.ssize())
+        return false;
+
+    const value_type* ptr = nullptr;
+    while (d.next(ptr))
+        test_vec.emplace_back(ptr);
+
+    int i = 0;
+    for (const auto& elem : d) {
+        if (test_vec[i] != &elem)
+            return false;
+
+        ++i;
+    }
+
+    return true;
+}
+
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
@@ -1108,6 +1133,8 @@ int main()
             auto& d2 = array.alloc(2.f);
             auto& d3 = array.alloc(3.f);
 
+            expect(check_data_array_loop(array));
+
             expect(array.max_size() == 3);
             expect(array.max_used() == 3);
             expect(array.capacity() == 3);
@@ -1115,6 +1142,8 @@ int main()
             expect(array.is_free_list_empty());
 
             array.free(d1);
+
+            expect(check_data_array_loop(array));
 
             expect(array.max_size() == 2);
             expect(array.max_used() == 3);
@@ -1124,6 +1153,8 @@ int main()
 
             array.free(d2);
 
+            expect(check_data_array_loop(array));
+
             expect(array.max_size() == 1);
             expect(array.max_used() == 3);
             expect(array.capacity() == 3);
@@ -1131,6 +1162,9 @@ int main()
             expect(!array.is_free_list_empty());
 
             array.free(d3);
+
+            expect(check_data_array_loop(array));
+
             expect(array.max_size() == 0);
             expect(array.max_used() == 3);
             expect(array.capacity() == 3);
@@ -1150,6 +1184,8 @@ int main()
             expect(array.capacity() == 3);
             expect(array.next_key() == 7);
             expect(array.is_free_list_empty());
+
+            expect(check_data_array_loop(array));
         }
     };
 

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <concepts>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -2046,6 +2047,7 @@ public:
 
     using identifier_type = Identifier;
     using value_type      = T;
+    using this_container  = data_array<T, Identifier>;
 
 private:
     struct item
@@ -2210,6 +2212,72 @@ public:
     //!
     //! @return true if the paramter @c t is valid false otherwise.
     bool next(const T*& t) const noexcept;
+
+    template<bool is_const>
+    struct iterator_base
+    {
+        using iterator_concept = std::forward_iterator_tag;
+        using difference_type  = std::ptrdiff_t;
+        using element_type =
+          std::conditional_t<is_const, const value_type, value_type>;
+        using pointer   = element_type*;
+        using reference = element_type&;
+        using container_type =
+          std::conditional_t<is_const, const this_container, this_container>;
+
+        iterator_base() noexcept = default;
+
+        template<typename Container>
+        iterator_base(Container* self_, identifier_type id_) noexcept
+            requires(!std::is_const_v<Container> && !is_const)
+          : self{ self_ }
+          , id{ id_ }
+        {
+        }
+
+        template<typename Container>
+        iterator_base(Container* self_, identifier_type id_) noexcept
+            requires(std::is_const_v<Container> && is_const)
+          : self{ self_ }
+          , id{ id_ }
+        {
+        }
+
+        reference operator*() const noexcept { return *self->try_to_get(id); }
+        pointer   operator->() const noexcept { return self->try_to_get(id); }
+
+        iterator_base& operator++() noexcept
+        {
+            pointer next    = self->try_to_get(id);
+            bool    success = self->next(next);
+            id = success ? self->get_id(*next) : undefined<identifier_type>();
+
+            return *this;
+        }
+
+        iterator_base operator++(int) noexcept
+        {
+            auto    old_id  = id;
+            pointer next    = self->try_to_get(id);
+            bool    success = self->next(next);
+            id = success ? self->get_id(*next) : undefined<identifier_type>();
+
+            return iterator_base{ .self = self, .id = old_id };
+        }
+
+        auto operator<=>(const iterator_base&) const noexcept = default;
+
+        container_type* self = {};
+        identifier_type id   = { 0 };
+    };
+
+    using iterator       = iterator_base<false>;
+    using const_iterator = iterator_base<true>;
+
+    constexpr iterator       begin() noexcept;
+    constexpr const_iterator begin() const noexcept;
+    constexpr iterator       end() noexcept;
+    constexpr const_iterator end() const noexcept;
 
     constexpr bool       full() const noexcept;
     constexpr unsigned   size() const noexcept;
@@ -8603,6 +8671,42 @@ template<typename T, typename Identifier>
 constexpr bool data_array<T, Identifier>::is_free_list_empty() const noexcept
 {
     return m_free_head == none;
+}
+
+template<typename T, typename Identifier>
+constexpr typename data_array<T, Identifier>::iterator
+data_array<T, Identifier>::begin() noexcept
+{
+    for (index_type index = 0; index < m_max_used; ++index)
+        if (is_valid(m_items[index].id))
+            return iterator(this, m_items[index].id);
+
+    return iterator(this, undefined<identifier_type>());
+}
+
+template<typename T, typename Identifier>
+constexpr typename data_array<T, Identifier>::iterator
+data_array<T, Identifier>::end() noexcept
+{
+    return iterator(this, undefined<identifier_type>());
+}
+
+template<typename T, typename Identifier>
+constexpr typename data_array<T, Identifier>::const_iterator
+data_array<T, Identifier>::begin() const noexcept
+{
+    for (index_type index = 0; index < m_max_used; ++index)
+        if (is_valid(m_items[index].id))
+            return const_iterator(this, m_items[index].id);
+
+    return const_iterator(this, undefined<identifier_type>());
+}
+
+template<typename T, typename Identifier>
+constexpr typename data_array<T, Identifier>::const_iterator
+data_array<T, Identifier>::end() const noexcept
+{
+    return const_iterator(this, undefined<identifier_type>());
 }
 
 // template<typename T>
