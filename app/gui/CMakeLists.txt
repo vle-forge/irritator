@@ -31,6 +31,7 @@ set(gui_sources
     ${PROJECT_SOURCE_DIR}/../../lib/src/modeling-generic.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/modeling-graph.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/modeling-grid.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/modeling-internal.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/project.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/timeline.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.cpp
