@@ -622,7 +622,9 @@ bool show_select_model_box(const char*    button_label,
     auto ret = false;
 
     if (ImGui::Button(button_label)) {
-        app.component_model_sel.select(app.pj.tree_nodes.get_id(tn), access);
+        irt_assert(app.pj.tree_nodes.get_id(tn) == access.parent_id);
+        app.component_model_sel.select(
+          access.parent_id, access.compo_id, access.tn_id, access.mdl_id);
         copy = access;
         ImGui::OpenPopup(popup_label);
     }
@@ -633,7 +635,10 @@ bool show_select_model_box(const char*    button_label,
           popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 
         app.component_model_sel.combobox("Select model to grid-observe",
-                                         access);
+                                         access.parent_id,
+                                         access.compo_id,
+                                         access.tn_id,
+                                         access.mdl_id);
 
         if (ImGui::Button("OK", ImVec2(120, 0))) {
             ImGui::CloseCurrentPopup();

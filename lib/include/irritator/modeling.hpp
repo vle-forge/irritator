@@ -708,7 +708,8 @@ struct grid_observer
 {
     name_str name;
 
-    tree_node_id parent_id; //< @c tree_node identifier ancestor of the model.
+    tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model
+                            ///< A grid component.
     component_id compo_id;  //< @c component in the grid to observe.
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
@@ -721,7 +722,8 @@ struct graph_observer
 {
     name_str name;
 
-    tree_node_id parent_id; //< @c tree_node identifier ancestor of the model.
+    tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model.
+                            ///< A graph component.
     component_id compo_id;  //< @c component in the graph to observe.
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.

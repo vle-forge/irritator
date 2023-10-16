@@ -914,16 +914,23 @@ class component_model_selector
 public:
     component_model_selector() noexcept = default;
 
-    //! If @c id is not equal to @c current_tree_node the clear and
-    //! rebuild vector and cache from the @c tree_node @c id.
-    void select(tree_node_id id) noexcept;
+    /// If @c id is not equal to @c current_tree_node the clear and rebuild
+    /// vector and cache from the @c tree_node @c id.
+    void select(const tree_node_id parent_id) noexcept;
 
-    //! If @c id is not equal to @c current_tree_node the clear and
-    //! rebuild vector and cache from the @c tree_node @c id. Component selected
-    //! are read from the @c g_obs.
-    void select(tree_node_id id, const grid_observer& g_obs) noexcept;
+    /// If @c id is not equal to @c current_tree_node the clear and rebuild
+    /// vector and cache from the @c tree_node @c id. Component selected are
+    /// read from the @c g_obs.
+    void select(const tree_node_id parent_id,
+                const component_id compo_id,
+                const tree_node_id tn_id,
+                const model_id     mdl_id) noexcept;
 
-    bool combobox(const char* label, grid_observer& out) noexcept;
+    bool combobox(const char*   label,
+                  tree_node_id& parent_id,
+                  component_id& compo_id,
+                  tree_node_id& tn_id,
+                  model_id&     mdl_id) noexcept;
 
 private:
     // Used in the component ComboBox to select the grid element.
@@ -936,9 +943,18 @@ private:
     tree_node_id current_tree_node;
     int          component_selected = -1;
 
-    bool component_comboxbox(const char* label, grid_observer& out) noexcept;
-    bool observable_model_treenode(grid_observer& out) noexcept;
-    bool observable_model_treenode(tree_node& tn, grid_observer& out) noexcept;
+    bool component_comboxbox(const char*   label,
+                             component_id& compo_id,
+                             tree_node_id& tn_id) noexcept;
+
+    bool observable_model_treenode(component_id& compo_id,
+                                   tree_node_id& tn_id,
+                                   model_id&     mdl_id) noexcept;
+
+    bool observable_model_treenode(tree_node&    tn,
+                                   component_id& compo_id,
+                                   tree_node_id& tn_id,
+                                   model_id&     mdl_id) noexcept;
 };
 
 struct application

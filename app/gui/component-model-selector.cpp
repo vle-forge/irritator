@@ -60,18 +60,19 @@ static void build_component_list(
     }
 }
 
-void component_model_selector::select(tree_node_id id) noexcept
+void component_model_selector::select(const tree_node_id parent_id) noexcept
 {
-    if (id != current_tree_node) {
+
+    if (parent_id != current_tree_node) {
         auto& app = container_of(this, &application::component_model_sel);
 
         components.clear();
         names.clear();
         stack_tree_nodes.clear();
         component_selected = -1;
-        current_tree_node  = id;
+        current_tree_node  = parent_id;
 
-        if (auto* tn = app.pj.tree_nodes.try_to_get(id); tn) {
+        if (auto* tn = app.pj.tree_nodes.try_to_get(parent_id); tn) {
             build_component_list(app, *tn, stack_tree_nodes, components, names);
         } else {
             current_tree_node = undefined<tree_node_id>();
@@ -79,23 +80,26 @@ void component_model_selector::select(tree_node_id id) noexcept
     }
 }
 
-void component_model_selector::select(tree_node_id         id,
-                                      const grid_observer& g_obs) noexcept
+void component_model_selector::select(const tree_node_id parent_id,
+                                      const component_id compo_id,
+                                      const tree_node_id tn_id,
+                                      const model_id /*mdl_id*/) noexcept
+
 {
-    select(id);
+    select(parent_id);
 
     component_selected = -1;
     for (int i = 0, e = components.ssize(); i != e; ++i) {
-        if (components[i].second == g_obs.compo_id &&
-            components[i].first == g_obs.tn_id) {
+        if (components[i].second == compo_id && components[i].first == tn_id) {
             component_selected = i;
             break;
         }
     }
 }
 
-bool component_model_selector::component_comboxbox(const char*    label,
-                                                   grid_observer& out) noexcept
+bool component_model_selector::component_comboxbox(const char*   label,
+                                                   component_id& compo_id,
+                                                   tree_node_id& tn_id) noexcept
 {
     static constexpr const char* empty = "undefined";
 
@@ -106,17 +110,15 @@ bool component_model_selector::component_comboxbox(const char*    label,
     if (ImGui::BeginCombo(label, preview)) {
         if (ImGui::Selectable("undefined", component_selected == -1)) {
             component_selected = -1;
-            out.parent_id      = current_tree_node;
-            out.compo_id       = undefined<component_id>();
+            compo_id           = undefined<component_id>();
             ret                = true;
         }
 
         for (int i = 0, e = names.ssize(); i != e; ++i) {
             if (ImGui::Selectable(names[i].c_str(), i == component_selected)) {
                 component_selected = i;
-                out.parent_id      = current_tree_node;
-                out.tn_id          = components[component_selected].first;
-                out.compo_id       = components[component_selected].second;
+                tn_id              = components[component_selected].first;
+                compo_id           = components[component_selected].second;
                 ret                = true;
             }
         }
@@ -128,8 +130,10 @@ bool component_model_selector::component_comboxbox(const char*    label,
 }
 
 bool component_model_selector::observable_model_treenode(
-  tree_node&     tn,
-  grid_observer& out) noexcept
+  tree_node&    tn,
+  component_id& compo_id,
+  tree_node_id& tn_id,
+  model_id&     mdl_id) noexcept
 {
     auto& app = container_of(this, &application::component_model_sel);
     bool  ret = false;
@@ -163,18 +167,18 @@ bool component_model_selector::observable_model_treenode(
                       auto& tn,
                       u64 /*unique_id*/,
                       auto& mdl) noexcept {
-                      const auto mdl_id = sim.models.get_id(mdl);
-                      ImGui::PushID(get_index(mdl_id));
+                      const auto current_mdl_id = sim.models.get_id(mdl);
+                      ImGui::PushID(get_index(current_mdl_id));
 
                       const auto current_tn_id = app.pj.node(tn);
                       str = dynamics_type_names[ordinal(mdl.type)];
                       if (ImGui::Selectable(
                             str.c_str(),
-                            out.tn_id == current_tn_id && out.mdl_id == mdl_id,
+                            tn_id == current_tn_id && mdl_id == current_mdl_id,
                             ImGuiSelectableFlags_DontClosePopups)) {
-                          out.tn_id  = current_tn_id;
-                          out.mdl_id = mdl_id;
-                          ret        = true;
+                          tn_id  = current_tn_id;
+                          mdl_id = current_mdl_id;
+                          ret    = true;
                       }
 
                       ImGui::PopID();
@@ -190,60 +194,66 @@ bool component_model_selector::observable_model_treenode(
 }
 
 bool component_model_selector::observable_model_treenode(
-  grid_observer& out) noexcept
+  component_id& compo_id,
+  tree_node_id& tn_id,
+  model_id&     mdl_id) noexcept
 {
-    irt_assert(out.parent_id == current_tree_node);
     irt_assert(0 <= component_selected);
     irt_assert(component_selected < names.ssize());
-    irt_assert(is_defined(out.compo_id));
-    irt_assert(out.compo_id == components[component_selected].second);
-    irt_assert(is_defined(out.tn_id));
-    irt_assert(out.tn_id == components[component_selected].first);
+    irt_assert(is_defined(compo_id));
+    irt_assert(compo_id == components[component_selected].second);
+    irt_assert(is_defined(tn_id));
+    irt_assert(tn_id == components[component_selected].first);
 
     stack_tree_nodes.clear();
 
     auto& app = container_of(this, &application::component_model_sel);
     bool  ret = false;
 
-    if_data_exists_do(
-      app.pj.tree_nodes, out.tn_id, [&](auto& tn_grid) noexcept {
-          auto selected = observable_model_treenode(tn_grid, out);
-          if (!ret)
-              ret = selected;
+    if_data_exists_do(app.pj.tree_nodes, tn_id, [&](auto& tn_grid) noexcept {
+        auto selected =
+          observable_model_treenode(tn_grid, compo_id, tn_id, mdl_id);
+        if (!ret)
+            ret = selected;
 
-          if (auto* top = tn_grid.tree.get_child(); top) {
-              stack_tree_nodes.emplace_back(top);
+        if (auto* top = tn_grid.tree.get_child(); top) {
+            stack_tree_nodes.emplace_back(top);
 
-              while (!stack_tree_nodes.empty()) {
-                  auto cur = stack_tree_nodes.back();
-                  stack_tree_nodes.pop_back();
+            while (!stack_tree_nodes.empty()) {
+                auto cur = stack_tree_nodes.back();
+                stack_tree_nodes.pop_back();
 
-                  auto selected = observable_model_treenode(*cur, out);
-                  if (!ret)
-                      ret = selected;
+                auto selected =
+                  observable_model_treenode(*cur, compo_id, tn_id, mdl_id);
+                if (!ret)
+                    ret = selected;
 
-                  if (auto* sibling = cur->tree.get_sibling(); sibling)
-                      stack_tree_nodes.emplace_back(sibling);
+                if (auto* sibling = cur->tree.get_sibling(); sibling)
+                    stack_tree_nodes.emplace_back(sibling);
 
-                  if (auto* child = cur->tree.get_child(); child)
-                      stack_tree_nodes.emplace_back(child);
-              }
-          }
-      });
+                if (auto* child = cur->tree.get_child(); child)
+                    stack_tree_nodes.emplace_back(child);
+            }
+        }
+    });
 
     return ret;
 }
 
-bool component_model_selector::combobox(const char*    label,
-                                        grid_observer& out) noexcept
+bool component_model_selector::combobox(const char*   label,
+                                        tree_node_id& parent_id,
+                                        component_id& compo_id,
+                                        tree_node_id& tn_id,
+                                        model_id&     mdl_id) noexcept
 {
     irt_assert(components.ssize() == names.ssize());
     irt_assert(component_selected < names.ssize());
+    irt_assert(parent_id == current_tree_node);
 
-    bool ret = component_comboxbox(label, out);
+    bool ret = component_comboxbox(label, compo_id, tn_id);
 
-    if (is_defined(out.compo_id))
-        if (observable_model_treenode(out))
+    if (is_defined(compo_id))
+        if (observable_model_treenode(compo_id, tn_id, mdl_id))
             ret = true;
 
     return ret;
