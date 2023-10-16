@@ -30,7 +30,8 @@ enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
 
-constexpr i32 max_component_dirs = 64;
+constexpr i32 max_component_dirs       = 64;
+constexpr i32 max_component_stack_size = 16;
 
 using port_str           = small_string<7>;
 using name_str           = small_string<31>;
@@ -39,6 +40,10 @@ using registred_path_str = small_string<256 * 16 - 2>;
 using directory_path_str = small_string<512 - 2>;
 using file_path_str      = small_string<512 - 2>;
 using log_str            = small_string<512 - 2>;
+
+/// Stores the path from the head of the project to the model by following
+/// the path of tree_node and/or component @c unique_id.
+using unique_id_path = small_vector<u64, max_component_stack_size>;
 
 enum class child_type : i8
 {
@@ -1006,10 +1011,6 @@ public:
     };
 
     enum class observation_id : u32;
-
-    /// Stores the path from the head of the project to the model by following
-    /// the path of tree_node and/or component @c unique_id.
-    using unique_id_path = small_vector<u64, 16>;
 
     void build_unique_id_path(const tree_node_id tn_id,
                               const model_id     mdl_id,

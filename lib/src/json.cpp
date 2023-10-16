@@ -3703,7 +3703,7 @@ struct reader
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              project::unique_id_path path;
+              unique_id_path path;
 
               if ("name"sv == name)
                   return read_temp_string(value) && copy_to(param.name);
@@ -3765,9 +3765,9 @@ struct reader
           });
     }
 
-    bool convert_to_tn_model_ids(const project::unique_id_path& path,
-                                 tree_node_id&                  parent_id,
-                                 model_id&                      mdl_id) noexcept
+    bool convert_to_tn_model_ids(const unique_id_path& path,
+                                 tree_node_id&         parent_id,
+                                 model_id&             mdl_id) noexcept
     {
         auto_stack s(this, stack_id::project_convert_to_tn_model_ids);
 
@@ -3781,8 +3781,8 @@ struct reader
           error_id::project_fail_convert_access_to_tn_model_ids);
     }
 
-    bool convert_to_tn_id(const project::unique_id_path& path,
-                          tree_node_id&                  tn_id) noexcept
+    bool convert_to_tn_id(const unique_id_path& path,
+                          tree_node_id&         tn_id) noexcept
     {
         auto_stack s(this, stack_id::project_convert_to_tn_id);
 
@@ -3794,8 +3794,8 @@ struct reader
         report_json_error(error_id::project_fail_convert_access_to_tn_id);
     }
 
-    bool read_project_unique_id_path(const rapidjson::Value&  val,
-                                     project::unique_id_path& out) noexcept
+    bool read_project_unique_id_path(const rapidjson::Value& val,
+                                     unique_id_path&         out) noexcept
     {
         auto_stack s(this, stack_id::project_unique_id_path);
 
@@ -3839,7 +3839,7 @@ struct reader
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              project::unique_id_path path;
+              unique_id_path path;
 
               if ("name"sv == name)
                   return read_temp_string(value) && copy_to(plot.name);
@@ -3919,7 +3919,7 @@ struct reader
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              project::unique_id_path path;
+              unique_id_path path;
 
               if ("name"sv == name)
                   return read_temp_string(value) && copy_to(grid.name);
@@ -6326,9 +6326,8 @@ static void write_color(Writer& w, std::array<u8, 4> color) noexcept
 }
 
 template<typename Writer>
-static void write_project_unique_id_path(
-  Writer&                        w,
-  const project::unique_id_path& path) noexcept
+static void write_project_unique_id_path(Writer&               w,
+                                         const unique_id_path& path) noexcept
 {
     w.StartArray();
     for (auto elem : path)
@@ -6357,7 +6356,7 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
     w.StartArray();
 
     for_each_data(pj.variable_observers, [&](auto& plot) noexcept {
-        project::unique_id_path path;
+        unique_id_path path;
 
         w.StartObject();
         w.Key("name");
@@ -6391,7 +6390,7 @@ static status do_project_save_grid_observations(Writer& w, project& pj) noexcept
         w.Key("name");
         w.String(grid.name.begin(), grid.name.size());
 
-        project::unique_id_path path;
+        unique_id_path path;
         w.Key("grid");
         write_project_unique_id_path(w, path);
         pj.build_unique_id_path(grid.child.parent_id, path);
@@ -6448,7 +6447,7 @@ static status do_project_save_global_parameter(Writer&           w,
     w.Key("name");
     w.String(param.name.begin(), param.name.size());
 
-    project::unique_id_path path;
+    unique_id_path path;
     w.Key("access");
     pj.build_unique_id_path(param.access.tn_id, param.access.mdl_id, path);
     write_project_unique_id_path(w, path);

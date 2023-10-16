@@ -1157,15 +1157,15 @@ status project::save(modeling&   mod,
     return project_save(*this, mod, sim, cache, filename);
 }
 
-static void project_build_unique_id_path(const u64 model_unique_id,
-                                         project::unique_id_path& out) noexcept
+static void project_build_unique_id_path(const u64       model_unique_id,
+                                         unique_id_path& out) noexcept
 {
     out.clear();
     out.emplace_back(model_unique_id);
 }
 
-static void project_build_unique_id_path(const tree_node&         tn,
-                                         project::unique_id_path& out) noexcept
+static void project_build_unique_id_path(const tree_node& tn,
+                                         unique_id_path&  out) noexcept
 {
     out.clear();
 
@@ -1178,9 +1178,9 @@ static void project_build_unique_id_path(const tree_node&         tn,
 }
 
 static void project_build_unique_id_path(
-  const tree_node&         model_unique_id_parent,
-  const u64                model_unique_id,
-  project::unique_id_path& out) noexcept
+  const tree_node& model_unique_id_parent,
+  const u64        model_unique_id,
+  unique_id_path&  out) noexcept
 {
     project_build_unique_id_path(model_unique_id_parent, out);
     out.emplace_back(model_unique_id);
@@ -1233,8 +1233,8 @@ auto project::get_model_path(u64 id) noexcept
              : std::nullopt;
 }
 
-static auto project_get_model_path(const project&                 pj,
-                                   const project::unique_id_path& path) noexcept
+static auto project_get_model_path(const project&        pj,
+                                   const unique_id_path& path) noexcept
   -> std::optional<std::pair<tree_node_id, model_id>>
 {
     std::optional<tree_node_id> tn_id_opt;
@@ -1340,7 +1340,7 @@ static auto project_get_tn_id(const project&             pj,
     return std::nullopt;
 }
 
-auto project::get_tn_id(const project::unique_id_path& path) noexcept
+auto project::get_tn_id(const unique_id_path& path) noexcept
   -> std::optional<tree_node_id>
 {
     if (const auto* head = tn_head(); head) {
