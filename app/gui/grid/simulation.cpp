@@ -398,9 +398,10 @@ bool show_local_observers(application& app,
         if (app.pj.grid_observers.can_alloc() && ImGui::Button("+##grid")) {
             auto& grid = app.pj.grid_observers.alloc();
 
-            grid.child.parent_id = app.pj.tree_nodes.get_id(tn);
-            grid.child.tn_id     = undefined<tree_node_id>();
-            grid.child.mdl_id    = undefined<model_id>();
+            grid.parent_id = app.pj.tree_nodes.get_id(tn);
+            grid.compo_id  = undefined<component_id>();
+            grid.tn_id     = undefined<tree_node_id>();
+            grid.mdl_id    = undefined<model_id>();
             tn.grid_observer_ids.emplace_back(
               app.pj.grid_observers.get_id(grid));
 
@@ -428,19 +429,20 @@ bool show_local_observers(application& app,
                     std::make_optional(app.pj.grid_observers.get_id(grid));
 
               ImGui::TextFormatDisabled(
-                "grid-id {} tree-node-id {} model-id {}",
-                ordinal(grid.child.parent_id),
-                ordinal(grid.child.tn_id),
-                ordinal(grid.child.mdl_id));
+                "grid-id {} component_id {} tree-node-id {} model-id {}",
+                ordinal(grid.parent_id),
+                ordinal(grid.compo_id),
+                ordinal(grid.tn_id),
+                ordinal(grid.mdl_id));
 
               if_data_exists_do(
-                app.sim.models, grid.child.mdl_id, [&](auto& mdl) noexcept {
+                app.sim.models, grid.mdl_id, [&](auto& mdl) noexcept {
                     ImGui::TextUnformatted(
                       dynamics_type_names[ordinal(mdl.type)]);
                 });
 
               show_select_model_box(
-                "Select model", "Choose model to observe", app, tn, grid.child);
+                "Select model", "Choose model to observe", app, tn, grid);
 
               ImGui::PopID();
           });

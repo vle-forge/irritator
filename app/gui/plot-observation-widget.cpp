@@ -18,15 +18,14 @@ status plot_observation_widget::init(application& app) noexcept
     for_each_data(app.pj.variable_observers, [&](auto& var) noexcept {
         const auto var_id = app.pj.variable_observers.get_id(var);
 
-        if_data_exists_do(
-          app.sim.models, var.child.mdl_id, [&](auto& mdl) noexcept {
-              auto& obs =
-                app.sim.observers.alloc(var.name.sv(), ordinal(var_id), 0);
-              app.sim.observe(mdl, obs);
+        if_data_exists_do(app.sim.models, var.mdl_id, [&](auto& mdl) noexcept {
+            auto& obs =
+              app.sim.observers.alloc(var.name.sv(), ordinal(var_id), 0);
+            app.sim.observe(mdl, obs);
 
-              observers.emplace_back(mdl.obs_id);
-              ids.emplace_back(app.pj.variable_observers.get_id(var));
-          });
+            observers.emplace_back(mdl.obs_id);
+            ids.emplace_back(app.pj.variable_observers.get_id(var));
+        });
     });
 
     return status::success;

@@ -525,7 +525,7 @@ void application::show() noexcept
 
 static void show_select_model_box_recursive(application&   app,
                                             tree_node&     tn,
-                                            global_access& access) noexcept
+                                            grid_observer& access) noexcept
 {
     constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -614,9 +614,9 @@ bool show_select_model_box(const char*    button_label,
                            const char*    popup_label,
                            application&   app,
                            tree_node&     tn,
-                           global_access& access) noexcept
+                           grid_observer& access) noexcept
 {
-    static global_access copy;
+    static grid_observer copy;
     // static vector<component_id> selectable_components;
 
     auto ret = false;

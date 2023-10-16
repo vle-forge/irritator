@@ -30,9 +30,10 @@ bool show_local_observers(application& app,
         if (app.pj.graph_observers.can_alloc() && ImGui::Button("+##graph")) {
             auto& graph = app.pj.graph_observers.alloc();
 
-            graph.child.parent_id = app.pj.tree_nodes.get_id(tn);
-            graph.child.tn_id     = undefined<tree_node_id>();
-            graph.child.mdl_id    = undefined<model_id>();
+            graph.parent_id = app.pj.tree_nodes.get_id(tn);
+            graph.compo_id  = undefined<component_id>();
+            graph.tn_id     = undefined<tree_node_id>();
+            graph.mdl_id    = undefined<model_id>();
 
             tn.graph_observer_ids.emplace_back(
               app.pj.graph_observers.get_id(graph));
@@ -61,22 +62,20 @@ bool show_local_observers(application& app,
                     std::make_optional(app.pj.graph_observers.get_id(graph));
 
               ImGui::TextFormatDisabled(
-                "graph-id {} tree-node-id {} model-id {}",
-                ordinal(graph.child.parent_id),
-                ordinal(graph.child.tn_id),
-                ordinal(graph.child.mdl_id));
+                "graph-id {} component {} tree-node-id {} model-id {}",
+                ordinal(graph.parent_id),
+                ordinal(graph.compo_id),
+                ordinal(graph.tn_id),
+                ordinal(graph.mdl_id));
 
               if_data_exists_do(
-                app.sim.models, graph.child.mdl_id, [&](auto& mdl) noexcept {
+                app.sim.models, graph.mdl_id, [&](auto& mdl) noexcept {
                     ImGui::TextUnformatted(
                       dynamics_type_names[ordinal(mdl.type)]);
                 });
 
-              show_select_model_box("Select model",
-                                    "Choose model to observe",
-                                    app,
-                                    tn,
-                                    graph.child);
+              // show_select_model_box(
+              //   "Select model", "Choose model to observe", app, tn, graph);
 
               ImGui::PopID();
           });

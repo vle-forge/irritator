@@ -361,7 +361,7 @@ static bool show_local_simulation_plot_observers_table(application& app,
                     app.pj.variable_observers,
                     tn.variable_observer_ids,
                     [&](auto& var_obs) {
-                        return var_obs.child.mdl_id == mdl_id;
+                        return var_obs.mdl_id == mdl_id;
                     });
 
                   bool enable = current_selection != nullptr;
@@ -376,10 +376,9 @@ static bool show_local_simulation_plot_observers_table(application& app,
                           irt_assert(current_selection == nullptr);
                           auto& gp    = app.pj.variable_observers.alloc();
                           auto  gp_id = app.pj.variable_observers.get_id(gp);
-                          gp.child.parent_id = app.pj.tree_nodes.get_id(tn);
-                          gp.child.tn_id     = app.pj.tree_nodes.get_id(tn);
-                          gp.child.mdl_id    = sim.models.get_id(mdl);
-                          gp.type = variable_observer::type_options::line;
+                          gp.tn_id    = app.pj.tree_nodes.get_id(tn);
+                          gp.mdl_id   = sim.models.get_id(mdl);
+                          gp.type     = variable_observer::type_options::line;
                           format(gp.name, "{}", ordinal(gp_id));
 
                           tn.variable_observer_ids.emplace_back(gp_id);
@@ -460,7 +459,7 @@ static bool show_local_simulation_settings(application& app,
                     app.pj.global_parameters,
                     tn.parameters_ids,
                     [&](auto& global_param) {
-                        return global_param.access.mdl_id == mdl_id;
+                        return global_param.mdl_id == mdl_id;
                     });
 
                   bool enable = current_selection != nullptr;
@@ -475,9 +474,8 @@ static bool show_local_simulation_settings(application& app,
                           irt_assert(current_selection == nullptr);
                           auto& gp    = app.pj.global_parameters.alloc();
                           auto  gp_id = app.pj.global_parameters.get_id(gp);
-                          gp.access.parent_id = app.pj.tree_nodes.get_id(tn);
-                          gp.access.tn_id     = app.pj.tree_nodes.get_id(tn);
-                          gp.access.mdl_id    = sim.models.get_id(mdl);
+                          gp.mdl_id = sim.models.get_id(mdl);
+                          gp.tn_id  = app.pj.tree_nodes.get_id(tn);
                           gp.param.copy_from(mdl);
                           format(gp.name, "{}", ordinal(gp_id));
 
@@ -598,7 +596,7 @@ static void show_local_variables_plot(application& app, tree_node& tn) noexcept
           tn.variable_observer_ids,
           [&](auto& var_obs) noexcept {
               if_data_exists_do(
-                app.sim.models, var_obs.child.mdl_id, [&](auto& sim_mdl) {
+                app.sim.models, var_obs.mdl_id, [&](auto& sim_mdl) {
                     if_data_exists_do(
                       app.sim.observers, sim_mdl.obs_id, [&](auto& sim_obs) {
                           show_local_variable_plot(var_obs, sim_obs);
@@ -648,7 +646,7 @@ static bool show_simulation_grid_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
 
-            ImGui::TextFormat("{}", ordinal(grid.child.mdl_id));
+            ImGui::TextFormat("{}", ordinal(grid.mdl_id));
 
             ImGui::TableNextColumn();
 
@@ -707,7 +705,7 @@ static bool show_simulation_graph_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
 
-            ImGui::TextFormat("{}", ordinal(graph.child.mdl_id));
+            ImGui::TextFormat("{}", ordinal(graph.mdl_id));
 
             ImGui::TableNextColumn();
 
@@ -766,7 +764,7 @@ static bool show_simulation_variable_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
 
-            ImGui::TextFormat("{}", ordinal(variable.child.mdl_id));
+            ImGui::TextFormat("{}", ordinal(variable.mdl_id));
 
             ImGui::TableNextColumn();
 

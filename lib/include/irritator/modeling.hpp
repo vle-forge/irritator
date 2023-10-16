@@ -690,18 +690,6 @@ struct tree_node
     table<child_id, node> child_to_node;
 };
 
-struct global_access
-{
-    tree_node_id parent_id; //< @c tree_node identifier ancestor of the model.
-    tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
-    model_id     mdl_id;    //< @c model to observe.
-
-    global_access() noexcept = default;
-
-    void clear() noexcept;
-    bool is_defined() const noexcept;
-};
-
 struct parameter
 {
     std::array<real, 4> reals;
@@ -720,24 +708,33 @@ struct grid_observer
 {
     name_str name;
 
-    global_access child;
-    real          min_range = -1.e4;
-    real          max_range = 1.e4;
+    tree_node_id parent_id; //< @c tree_node identifier ancestor of the model.
+    component_id compo_id;  //< @c component in the grid to observe.
+    tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
+    model_id     mdl_id;    //< @c model to observe.
+
+    real min_range = -1.e4;
+    real max_range = 1.e4;
 };
 
 struct graph_observer
 {
     name_str name;
 
-    global_access child;
+    tree_node_id parent_id; //< @c tree_node identifier ancestor of the model.
+    component_id compo_id;  //< @c component in the graph to observe.
+    tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
+    model_id     mdl_id;    //< @c model to observe.
 };
 
 struct variable_observer
 {
     name_str name;
 
-    global_access child;
-    color         default_color;
+    tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
+    model_id     mdl_id; //< @c model to observe.
+
+    color default_color;
 
     enum class type_options
     {
@@ -750,8 +747,10 @@ struct global_parameter
 {
     name_str name;
 
-    global_access access;
-    parameter     param;
+    tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
+    model_id     mdl_id; //< @c model to observe.
+
+    parameter param;
 };
 
 struct log_entry
@@ -1052,19 +1051,6 @@ private:
 
     cache m_cache;
 };
-
-inline void global_access::clear() noexcept
-{
-    parent_id = undefined<tree_node_id>();
-    tn_id     = undefined<tree_node_id>();
-    mdl_id    = undefined<model_id>();
-}
-
-inline bool global_access::is_defined() const noexcept
-{
-    return tn_id != undefined<tree_node_id>() and
-           mdl_id != undefined<model_id>();
-}
 
 /* ------------------------------------------------------------------
    Child part

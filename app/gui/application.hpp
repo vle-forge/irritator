@@ -1018,7 +1018,7 @@ bool show_select_model_box(const char*    button_label,
                            const char*    popup_label,
                            application&   app,
                            tree_node&     tn,
-                           global_access& access) noexcept;
+                           grid_observer& access) noexcept;
 
 bool show_local_observers(application&     app,
                           tree_node&       tn,

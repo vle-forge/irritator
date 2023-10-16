@@ -563,7 +563,7 @@ static status build_grid(grid_observation_system& grid_system,
     status ret = status::unknown_dynamics;
 
     if_data_exists_do(
-      pj.tree_nodes, grid_obs.child.tn_id, [&](auto& tn) noexcept {
+      pj.tree_nodes, grid_obs.tn_id, [&](auto& tn) noexcept {
           small_vector<u64, 16> stack;
 
           // First step, build the stack with unique_id from parent to
@@ -587,7 +587,7 @@ static status build_grid(grid_observation_system& grid_system,
                           sim,
                           *child,
                           std::span(stack.begin(), stack.end() - 1),
-                          grid_obs.child.mdl_id);
+                          grid_obs.mdl_id);
                   }
               } while (child);
           }
@@ -607,7 +607,7 @@ status grid_observation_system::init(project&       pj,
     if_tree_node_is_grid_do(
       pj,
       mod,
-      grid_obs.child.parent_id,
+      grid_obs.parent_id,
       [&](auto& parent_tn, auto& /*compo*/, auto& grid) {
           const auto len = grid.row * grid.column;
 

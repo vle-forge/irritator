@@ -3711,7 +3711,7 @@ struct reader
               if ("access"sv == name)
                   return read_project_unique_id_path(val, path) &&
                          convert_to_tn_model_ids(
-                           path, param.access.tn_id, param.access.mdl_id);
+                           path, param.tn_id, param.mdl_id);
 
               if ("parameter"sv == name)
                   return read_parameter(value, param.param);
@@ -3846,8 +3846,7 @@ struct reader
 
               if ("access"sv == name)
                   return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(
-                           path, plot.child.tn_id, plot.child.mdl_id);
+                         convert_to_tn_model_ids(path, plot.tn_id, plot.mdl_id);
 
               if ("color"sv == name)
                   return read_color(value, plot.default_color);
@@ -3926,12 +3925,11 @@ struct reader
 
               if ("grid"sv == name)
                   return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_id(path, grid.child.parent_id);
+                         convert_to_tn_id(path, grid.parent_id);
 
               if ("access"sv == name)
                   return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(
-                           path, grid.child.tn_id, grid.child.mdl_id);
+                         convert_to_tn_model_ids(path, grid.tn_id, grid.mdl_id);
 
               return true;
           });
@@ -6363,7 +6361,7 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
         w.String(plot.name.begin(), plot.name.size());
 
         w.Key("access");
-        pj.build_unique_id_path(plot.child.tn_id, plot.child.mdl_id, path);
+        pj.build_unique_id_path(plot.tn_id, plot.mdl_id, path);
         write_project_unique_id_path(w, path);
 
         w.Key("color");
@@ -6393,10 +6391,10 @@ static status do_project_save_grid_observations(Writer& w, project& pj) noexcept
         unique_id_path path;
         w.Key("grid");
         write_project_unique_id_path(w, path);
-        pj.build_unique_id_path(grid.child.parent_id, path);
+        pj.build_unique_id_path(grid.parent_id, path);
 
         w.Key("access");
-        pj.build_unique_id_path(grid.child.tn_id, grid.child.mdl_id, path);
+        pj.build_unique_id_path(grid.tn_id, grid.mdl_id, path);
 
         w.EndObject();
     });
@@ -6449,7 +6447,7 @@ static status do_project_save_global_parameter(Writer&           w,
 
     unique_id_path path;
     w.Key("access");
-    pj.build_unique_id_path(param.access.tn_id, param.access.mdl_id, path);
+    pj.build_unique_id_path(param.tn_id, param.mdl_id, path);
     write_project_unique_id_path(w, path);
 
     write_parameter(w, param.param);
