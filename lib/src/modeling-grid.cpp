@@ -562,37 +562,36 @@ static status build_grid(grid_observation_system& grid_system,
 {
     status ret = status::unknown_dynamics;
 
-    if_data_exists_do(
-      pj.tree_nodes, grid_obs.tn_id, [&](auto& tn) noexcept {
-          small_vector<u64, 16> stack;
+    if_data_exists_do(pj.tree_nodes, grid_obs.tn_id, [&](auto& tn) noexcept {
+        small_vector<u64, 16> stack;
 
-          // First step, build the stack with unique_id from parent to
-          // grid_parent.
-          stack.emplace_back(tn.unique_id);
-          auto* parent = tn.tree.get_parent();
-          while (parent && parent != &grid_parent) {
-              stack.emplace_back(parent->unique_id);
-              parent = parent->tree.get_parent();
-          }
+        // First step, build the stack with unique_id from parent to
+        // grid_parent.
+        stack.emplace_back(tn.unique_id);
+        auto* parent = tn.tree.get_parent();
+        while (parent && parent != &grid_parent) {
+            stack.emplace_back(parent->unique_id);
+            parent = parent->tree.get_parent();
+        }
 
-          // Second step, from grid parent, search child
-          if (const auto* child = grid_parent.tree.get_child(); child) {
-              do {
-                  if (child->unique_id == stack.back()) {
-                      auto [row, col] = unpack_doubleword(child->unique_id);
+        // Second step, from grid parent, search child
+        if (const auto* child = grid_parent.tree.get_child(); child) {
+            do {
+                if (child->unique_id == stack.back()) {
+                    auto [row, col] = unpack_doubleword(child->unique_id);
 
-                      grid_system.observers[row * grid_compo.column + col] =
-                        get_observer_id(
-                          pj,
-                          sim,
-                          *child,
-                          std::span(stack.begin(), stack.end() - 1),
-                          grid_obs.mdl_id);
-                  }
-              } while (child);
-          }
-          ret = status::success;
-      });
+                    grid_system.observers[row * grid_compo.column + col] =
+                      get_observer_id(pj,
+                                      sim,
+                                      *child,
+                                      std::span(stack.begin(), stack.end() - 1),
+                                      grid_obs.mdl_id);
+                }
+                child = child->tree.get_sibling();
+            } while (child);
+        }
+        ret = status::success;
+    });
 
     return ret;
 }

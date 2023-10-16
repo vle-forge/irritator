@@ -550,24 +550,23 @@ struct modeling_initializer
     bool is_fixed_window_placement = true;
 };
 
-/**
- * @brief A simulation structure to stores the matrix of @c observer_id
- * identifier, a cache for the last value from the observer.
- *
- * @c grid_observation_system stores simulation informations and can be used to
- * dipslay or write data into files.
- *
- *   +---------+         +--------------+
- *   |grid     |         | grid         |         +-----------+
- *   |observer +---------> observation  |         | observer  |
- *   +---------+         | system       |         +-----------+
- *                       +--------------+         | model_id  |
- *                       |              |         | vec<real> |
- *                       | vec<obs_id>  +---------> ...       |
- *                       | vec<real>    |    cols |           |
- *                       | cols, rows   |    *    +-----------+
- *                       +--------------+    rows
- */
+/// A simulation structure to stores the matrix of @c observer_id identifier, a
+/// cache for the last value from the observer.
+///
+/// @c grid_observation_system stores simulation informations and can be used to
+/// dipslay or write data into files.
+///
+///   +---------+         +--------------+
+///   |grid     |         | grid         |         +-----------+
+///   |observer +---------> observation  |         | observer  |
+///   +---------+         | system       |         +-----------+
+///                       +--------------+         | model_id  |
+///                       |              |         | vec<real> |
+///                       | vec<obs_id>  +---------> ...       |
+///                       | vec<real>    |    cols |           |
+///                       | cols, rows   |    *    +-----------+
+///                       +--------------+    rows
+///
 class grid_observation_system
 {
 public:
