@@ -1062,12 +1062,21 @@ struct application
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
 };
 
-//! Display dialog box to choose a @c model in a hierarchy of a @c tree_node.
+/// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
+/// build from the @c tree_node @c tn that reference a grid component.
 bool show_select_model_box(const char*    button_label,
                            const char*    popup_label,
                            application&   app,
                            tree_node&     tn,
                            grid_observer& access) noexcept;
+
+/// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
+/// build from the @c tree_node @c tn that reference a graph component.
+bool show_select_model_box(const char*     button_label,
+                           const char*     popup_label,
+                           application&    app,
+                           tree_node&      tn,
+                           graph_observer& access) noexcept;
 
 bool show_local_observers(application&     app,
                           tree_node&       tn,

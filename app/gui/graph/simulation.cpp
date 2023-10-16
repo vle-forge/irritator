@@ -74,8 +74,8 @@ bool show_local_observers(application& app,
                       dynamics_type_names[ordinal(mdl.type)]);
                 });
 
-              // show_select_model_box(
-              //   "Select model", "Choose model to observe", app, tn, graph);
+              show_select_model_box(
+                "Select model", "Choose model to observe", app, tn, graph);
 
               ImGui::PopID();
           });

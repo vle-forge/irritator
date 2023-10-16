@@ -9,6 +9,7 @@
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
+#include "irritator/modeling.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -635,6 +636,53 @@ bool show_select_model_box(const char*    button_label,
           popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 
         app.component_model_sel.combobox("Select model to grid-observe",
+                                         access.parent_id,
+                                         access.compo_id,
+                                         access.tn_id,
+                                         access.mdl_id);
+
+        if (ImGui::Button("OK", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+            ret = true;
+        }
+
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            access = copy;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+
+    return ret;
+}
+
+bool show_select_model_box(const char*     button_label,
+                           const char*     popup_label,
+                           application&    app,
+                           tree_node&      tn,
+                           graph_observer& access) noexcept
+{
+    static graph_observer copy;
+
+    auto ret = false;
+
+    if (ImGui::Button(button_label)) {
+        irt_assert(app.pj.tree_nodes.get_id(tn) == access.parent_id);
+        app.component_model_sel.select(
+          access.parent_id, access.compo_id, access.tn_id, access.mdl_id);
+        copy = access;
+        ImGui::OpenPopup(popup_label);
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if (ImGui::BeginPopupModal(
+          popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+
+        app.component_model_sel.combobox("Select model to graph-observe",
                                          access.parent_id,
                                          access.compo_id,
                                          access.tn_id,
