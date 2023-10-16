@@ -622,7 +622,7 @@ bool show_select_model_box(const char*    button_label,
     auto ret = false;
 
     if (ImGui::Button(button_label)) {
-        // selectable_components = build_unique_component_vector(app, tn);
+        app.component_model_sel.select(app.pj.tree_nodes.get_id(tn), access);
         copy = access;
         ImGui::OpenPopup(popup_label);
     }
@@ -631,7 +631,9 @@ bool show_select_model_box(const char*    button_label,
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
     if (ImGui::BeginPopupModal(
           popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        show_select_model_box_recursive(app, tn, access);
+
+        app.component_model_sel.combobox("Select model to grid-observe",
+                                         access);
 
         if (ImGui::Button("OK", ImVec2(120, 0))) {
             ImGui::CloseCurrentPopup();

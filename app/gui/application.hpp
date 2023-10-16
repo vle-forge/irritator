@@ -909,6 +909,38 @@ private:
     int unsaved   = 0; //! Number of unsaved component
 };
 
+class component_model_selector
+{
+public:
+    component_model_selector() noexcept = default;
+
+    //! If @c id is not equal to @c current_tree_node the clear and
+    //! rebuild vector and cache from the @c tree_node @c id.
+    void select(tree_node_id id) noexcept;
+
+    //! If @c id is not equal to @c current_tree_node the clear and
+    //! rebuild vector and cache from the @c tree_node @c id. Component selected
+    //! are read from the @c g_obs.
+    void select(tree_node_id id, const grid_observer& g_obs) noexcept;
+
+    bool combobox(const char* label, grid_observer& out) noexcept;
+
+private:
+    // Used in the component ComboBox to select the grid element.
+    vector<std::pair<tree_node_id, component_id>> components;
+    vector<small_string<254>>                     names;
+
+    // A cache to proceed recursive search.
+    vector<tree_node*> stack_tree_nodes;
+
+    tree_node_id current_tree_node;
+    int          component_selected = -1;
+
+    bool component_comboxbox(const char* label, grid_observer& out) noexcept;
+    bool observable_model_treenode(grid_observer& out) noexcept;
+    bool observable_model_treenode(tree_node& tn, grid_observer& out) noexcept;
+};
+
 struct application
 {
     application() noexcept;
@@ -918,8 +950,9 @@ struct application
     simulation sim;
     project    pj;
 
-    component_selector     component_sel;
-    simulation_observation sim_obs;
+    component_selector       component_sel;
+    component_model_selector component_model_sel;
+    simulation_observation   sim_obs;
 
     project_window project_wnd;
 
