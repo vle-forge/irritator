@@ -13,6 +13,20 @@
 
 namespace irt {
 
+/// Checks the type of @c component pointed by the @c tree_node @c.
+///
+/// @return true in the underlying @c component in the @c tree_node @c is a
+/// graph or a grid otherwise return false. If the component does not exists
+/// this function returns false.
+inline bool component_is_grid_or_graph(const modeling&  mod,
+                                       const tree_node& tn) noexcept
+{
+    if (const auto* compo = mod.components.try_to_get(tn.id); compo)
+        return match(compo->type, component_type::graph, component_type::grid);
+
+    return false;
+}
+
 template<typename Function>
 void for_each_component(modeling&       mod,
                         registred_path& reg_path,

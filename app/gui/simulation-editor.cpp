@@ -330,6 +330,8 @@ static bool show_main_simulation_settings(application& app) noexcept
 static bool show_local_simulation_plot_observers_table(application& app,
                                                        tree_node&   tn) noexcept
 {
+    irt_assert(!component_is_grid_or_graph(app.mod, tn));
+
     int is_modified = 0;
 
     if (ImGui::CollapsingHeader("Plot observers",
@@ -360,9 +362,7 @@ static bool show_local_simulation_plot_observers_table(application& app,
                   auto* current_selection = find_specified_data_if(
                     app.pj.variable_observers,
                     tn.variable_observer_ids,
-                    [&](auto& var_obs) {
-                        return var_obs.mdl_id == mdl_id;
-                    });
+                    [&](auto& var_obs) { return var_obs.mdl_id == mdl_id; });
 
                   bool enable = current_selection != nullptr;
 
@@ -474,8 +474,8 @@ static bool show_local_simulation_settings(application& app,
                           irt_assert(current_selection == nullptr);
                           auto& gp    = app.pj.global_parameters.alloc();
                           auto  gp_id = app.pj.global_parameters.get_id(gp);
-                          gp.mdl_id = sim.models.get_id(mdl);
-                          gp.tn_id  = app.pj.tree_nodes.get_id(tn);
+                          gp.mdl_id   = sim.models.get_id(mdl);
+                          gp.tn_id    = app.pj.tree_nodes.get_id(tn);
                           gp.param.copy_from(mdl);
                           format(gp.name, "{}", ordinal(gp_id));
 
@@ -889,8 +889,9 @@ void simulation_editor::show() noexcept
 
                     auto selected_tn = app.project_wnd.selected_tn();
                     if (auto* selected = app.pj.node(selected_tn); selected) {
-                        show_local_simulation_plot_observers_table(app,
-                                                                   *selected);
+                        if (!component_is_grid_or_graph(app.mod, *selected))
+                            show_local_simulation_plot_observers_table(
+                              app, *selected);
                         show_local_simulation_specific_observers(app,
                                                                  *selected);
 
