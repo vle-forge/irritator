@@ -41,7 +41,7 @@ int main()
         irt::simulation           sim;
 
         mod.init(mod_init);
-        pj.init(32);
+        pj.init(mod_init);
         sim.init(256, 4096);
 
         auto& c1    = mod.alloc_generic_component();
@@ -97,7 +97,7 @@ int main()
         irt::simulation           sim;
 
         mod.init(mod_init);
-        pj.init(32);
+        pj.init(mod_init);
         sim.init(256, 4096);
 
         auto& c1 = mod.alloc_generic_component();
@@ -134,7 +134,7 @@ int main()
         irt::simulation           sim;
 
         mod.init(mod_init);
-        pj.init(32);
+        pj.init(mod_init);
         sim.init(256, 4096);
 
         auto& c1    = mod.alloc_generic_component();
@@ -204,7 +204,7 @@ int main()
         irt::simulation           sim;
 
         mod.init(mod_init);
-        pj.init(mod_init.tree_capacity *= 10);
+        pj.init(mod_init);
         sim.init(256, 4096);
 
         auto& c = mod.alloc_generic_component();
@@ -231,7 +231,7 @@ int main()
         irt::simulation           sim;
 
         mod.init(mod_init);
-        pj.init(mod_init.tree_capacity *= 10);
+        pj.init(mod_init);
         sim.init(256, 4096);
 
         auto& c = mod.alloc_generic_component();
@@ -258,7 +258,7 @@ int main()
         irt::simulation           sim;
 
         mod.init(mod_init);
-        pj.init(mod_init.tree_capacity *= 10);
+        pj.init(mod_init);
         sim.init(256, 4096);
 
         auto& c = mod.alloc_generic_component();
@@ -284,7 +284,7 @@ int main()
         irt::simulation           sim;
 
         mod.init(mod_init);
-        pj.init(mod_init.tree_capacity *= 10);
+        pj.init(mod_init);
         sim.init(256, 4096);
 
         auto& c = mod.alloc_generic_component();
@@ -322,7 +322,7 @@ int main()
             irt::simulation           sim;
 
             mod.init(mod_init);
-            pj.init(mod_init.tree_capacity *= 10);
+            pj.init(mod_init);
             sim.init(256, 4096);
 
             auto& c1    = mod.alloc_generic_component();
@@ -422,7 +422,7 @@ int main()
             irt::simulation           sim;
 
             mod.init(mod_init);
-            pj.init(mod_init.tree_capacity *= 10);
+            pj.init(mod_init);
             sim.init(256, 4096);
 
             auto& reg = mod.alloc_registred("temp", 0);
@@ -520,7 +520,7 @@ int main()
             irt::simulation           sim;
 
             mod.init(mod_init);
-            pj.init(mod_init.tree_capacity *= 10);
+            pj.init(mod_init);
             sim.init(256, 4096);
 
             auto& c1    = mod.alloc_generic_component();
@@ -600,7 +600,7 @@ int main()
             irt::simulation           sim;
 
             mod.init(mod_init);
-            pj.init(mod_init.tree_capacity *= 10);
+            pj.init(mod_init);
             sim.init(256, 4096);
 
             auto& c1    = mod.alloc_generic_component();
@@ -678,7 +678,7 @@ int main()
             irt::simulation           sim;
 
             mod.init(mod_init);
-            pj.init(mod_init.tree_capacity *= 10);
+            pj.init(mod_init);
             sim.init(256, 4096);
 
             auto& c1    = mod.alloc_generic_component();

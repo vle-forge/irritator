@@ -6,16 +6,25 @@
 
 #include <irritator/helpers.hpp>
 
+#include <fmt/format.h>
+
 namespace irt {
 
-void grid_observation_widget::show(application&             app,
-                                   grid_observation_system& grid) noexcept
+void grid_observation_widget::show(grid_observation_system& grid) noexcept
 {
+    auto& sim_ed = container_of(this, &simulation_editor::grid_obs);
+    auto& app    = container_of(&sim_ed, &application::simulation_ed);
+
     if_data_exists_do(
       app.pj.grid_observers, grid.id, [&](auto& grid_obs) noexcept {
           ImGui::PushID(reinterpret_cast<void*>(&grid));
 
-          if (ImPlot::BeginPlot(grid_obs.name.c_str(), ImVec2(-1, -1))) {
+          grid.update(app.sim);
+
+          if (ImPlot::BeginPlot(grid_obs.name.c_str(),
+                                ImVec2(-1, -1),
+                                ImPlotFlags_NoLegend |
+                                  ImPlotFlags_NoMouseText)) {
               ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
               ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 

@@ -8,6 +8,7 @@
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
+#include <memory>
 #include <optional>
 #include <variant>
 
@@ -44,6 +45,18 @@ using log_str            = small_string<512 - 2>;
 /// Stores the path from the head of the project to the model by following
 /// the path of tree_node and/or component @c unique_id.
 using unique_id_path = small_vector<u64, max_component_stack_size>;
+
+/// Stores the path from the @c tree_node_id @c tn to the model.
+/// Use the function in class project to easily build instances:
+///
+///    const auto rel_path = project.build_relative_path(tn, mdl);
+///    ...
+///    const auto [tn_id, mdl_id] = project.get_model(rel_path);
+struct relative_id_path
+{
+    tree_node_id   tn;
+    unique_id_path ids;
+};
 
 enum class child_type : i8
 {
@@ -944,7 +957,7 @@ struct modeling
 class project
 {
 public:
-    status init(int size) noexcept;
+    status init(const modeling_initializer& init) noexcept;
 
     status load(modeling&   mod,
                 simulation& sim,
@@ -1012,6 +1025,18 @@ public:
 
     enum class observation_id : u32;
 
+    /// Build a @c from is excluced from the relative_id_path
+    auto build_relative_path(const tree_node& from,
+                             const tree_node& to,
+                             const model_id   mdl_id) noexcept
+      -> relative_id_path;
+
+    auto get_model(const relative_id_path& path) noexcept
+      -> std::pair<tree_node_id, model_id>;
+
+    auto get_model(const tree_node& tn, const relative_id_path& path) noexcept
+      -> std::pair<tree_node_id, model_id>;
+
     void build_unique_id_path(const tree_node_id tn_id,
                               const model_id     mdl_id,
                               unique_id_path&    out) noexcept;
@@ -1023,13 +1048,13 @@ public:
                               const u64        model_unique_id,
                               unique_id_path&  out) noexcept;
 
-    auto get_model_path(u64 id) noexcept
+    auto get_model_path(u64 id) const noexcept
       -> std::optional<std::pair<tree_node_id, model_id>>;
 
-    auto get_model_path(const unique_id_path& path) noexcept
+    auto get_model_path(const unique_id_path& path) const noexcept
       -> std::optional<std::pair<tree_node_id, model_id>>;
 
-    auto get_tn_id(const unique_id_path& path) noexcept
+    auto get_tn_id(const unique_id_path& path) const noexcept
       -> std::optional<tree_node_id>;
 
     data_array<tree_node, tree_node_id> tree_nodes;

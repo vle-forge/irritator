@@ -531,28 +531,6 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
 //
 //
 
-static observer_id get_observer_id(project&             pj,
-                                   simulation&          sim,
-                                   const tree_node&     tn,
-                                   const std::span<u64> unique_ids,
-                                   const model_id       mdl_id) noexcept
-{
-    const tree_node* ptr = &tn;
-
-    for (const auto unique_id : unique_ids) {
-        if (auto tree_node_id_opt = ptr->get_tree_node_id(unique_id);
-            tree_node_id_opt.has_value()) {
-            ptr = pj.tree_nodes.try_to_get(*tree_node_id_opt);
-        }
-    }
-
-    if (auto mdl_id_opt = ptr->get_model_id(mdl_id); mdl_id_opt.has_value())
-        if (auto* mdl = sim.models.try_to_get(*mdl_id_opt); mdl)
-            return mdl->obs_id;
-
-    return undefined<observer_id>();
-}
-
 static status build_grid(grid_observation_system& grid_system,
                          project&                 pj,
                          simulation&              sim,
@@ -560,40 +538,48 @@ static status build_grid(grid_observation_system& grid_system,
                          grid_component&          grid_compo,
                          grid_observer&           grid_obs) noexcept
 {
-    status ret = status::unknown_dynamics;
+    irt_assert(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
 
-    if_data_exists_do(pj.tree_nodes, grid_obs.tn_id, [&](auto& tn) noexcept {
-        small_vector<u64, 16> stack;
+    const auto* to = pj.tree_nodes.try_to_get(grid_obs.tn_id);
 
-        // First step, build the stack with unique_id from parent to
-        // grid_parent.
-        stack.emplace_back(tn.unique_id);
-        auto* parent = tn.tree.get_parent();
-        while (parent && parent != &grid_parent) {
-            stack.emplace_back(parent->unique_id);
-            parent = parent->tree.get_parent();
+    if (!to)
+        return status::unknown_dynamics;
+
+    const auto relative_path =
+      pj.build_relative_path(grid_parent, *to, grid_obs.mdl_id);
+
+    fmt::print("Relative path: {}\n", ordinal(relative_path.tn));
+    for (int i = 0, e = relative_path.ids.ssize(); i != e; ++i)
+        fmt::print("{} ", relative_path.ids[i]);
+    fmt::print("\n");
+
+    const auto* child = grid_parent.tree.get_child();
+    while (child) {
+        if (child->id == grid_obs.compo_id) {
+            const auto  tn_mdl = pj.get_model(*child, relative_path);
+            const auto* tn     = pj.tree_nodes.try_to_get(tn_mdl.first);
+            auto*       mdl    = sim.models.try_to_get(tn_mdl.second);
+
+            if (tn && mdl) {
+                const auto w     = unpack_doubleword(child->unique_id);
+                const auto index = w.first * grid_compo.column + w.second;
+
+                irt_assert(0 <= index);
+                irt_assert(index < grid_system.observers.size());
+
+                auto&      obs    = sim.observers.alloc("tmp");
+                const auto obs_id = sim.observers.get_id(obs);
+
+                sim.observe(*mdl, obs);
+
+                grid_system.observers[index] = obs_id;
+            }
         }
 
-        // Second step, from grid parent, search child
-        if (const auto* child = grid_parent.tree.get_child(); child) {
-            do {
-                if (child->unique_id == stack.back()) {
-                    auto [row, col] = unpack_doubleword(child->unique_id);
+        child = child->tree.get_sibling();
+    }
 
-                    grid_system.observers[row * grid_compo.column + col] =
-                      get_observer_id(pj,
-                                      sim,
-                                      *child,
-                                      std::span(stack.begin(), stack.end() - 1),
-                                      grid_obs.mdl_id);
-                }
-                child = child->tree.get_sibling();
-            } while (child);
-        }
-        ret = status::success;
-    });
-
-    return ret;
+    return status::success;
 }
 
 status grid_observation_system::init(project&       pj,
@@ -607,8 +593,12 @@ status grid_observation_system::init(project&       pj,
       pj,
       mod,
       grid_obs.parent_id,
-      [&](auto& parent_tn, auto& /*compo*/, auto& grid) {
+      [&](auto& grid_parent_tn, auto& compo, auto& grid) {
+          irt_assert(compo.type == component_type::grid);
+
           const auto len = grid.row * grid.column;
+          rows           = grid.row;
+          cols           = grid.column;
 
           observers.resize(len);
           values.resize(len);
@@ -618,7 +608,7 @@ status grid_observation_system::init(project&       pj,
 
           id = pj.grid_observers.get_id(grid_obs);
 
-          ret = build_grid(*this, pj, sim, parent_tn, grid, grid_obs);
+          ret = build_grid(*this, pj, sim, grid_parent_tn, grid, grid_obs);
       });
 
     return ret;
@@ -639,8 +629,8 @@ void grid_observation_system::resize(int rows_, int cols_) noexcept
 
 void grid_observation_system::clear() noexcept
 {
-    std::fill_n(observers.data(), observers.size(), undefined<observer_id>());
-    std::fill_n(values.data(), values.size(), none_value);
+    observers.clear();
+    values.clear();
 }
 
 void grid_observation_system::update(simulation& sim) noexcept
@@ -649,13 +639,12 @@ void grid_observation_system::update(simulation& sim) noexcept
 
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
-            values[row * cols + col] = if_data_exists_return(
-              sim.observers,
-              observers[row * cols + col],
-              [&](auto& obs) noexcept -> real {
-                  return obs.linearized_buffer.back().y;
-              },
-              none_value);
+            const auto  id  = observers[row * cols + col];
+            const auto* obs = sim.observers.try_to_get(id);
+
+            values[row * cols + col] = obs && !obs->linearized_buffer.empty()
+                                             ? obs->linearized_buffer.back().y
+                                             : none_value;
         }
     }
 }

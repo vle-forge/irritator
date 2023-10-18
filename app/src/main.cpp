@@ -273,7 +273,7 @@ void run_simulation(irt::real   begin,
     irt::external_source      srcs;
     irt::io_cache             cache;
 
-    if (irt::is_bad(pj.init(10u))) {
+    if (irt::is_bad(pj.init(init))) {
         fmt::print(stderr, "Fail to allocate project structure\n");
         return;
     }

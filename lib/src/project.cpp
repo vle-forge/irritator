@@ -9,6 +9,7 @@
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 #include <optional>
+#include <utility>
 
 namespace irt {
 
@@ -86,7 +87,7 @@ bool get_grid_connections(const modeling&                 mod,
 
     if (auto* ptr = mod.grid_components.try_to_get(compo.id.grid_id); ptr) {
         out = std::span<const connection_id>(ptr->cache_connections.data(),
-                                             ptr->cache_connections.ssize());
+                                             ptr->cache_connections.size());
         return true;
     }
 
@@ -102,7 +103,7 @@ bool get_generic_connections(const modeling&                 mod,
     if (auto* ptr = mod.generic_components.try_to_get(compo.id.generic_id);
         ptr) {
         out = std::span<const connection_id>(ptr->connections.data(),
-                                             ptr->connections.ssize());
+                                             ptr->connections.size());
         return true;
     }
 
@@ -1053,12 +1054,14 @@ static status make_tree_from(simulation_copy&                     sc,
     return status::success;
 }
 
-status project::init(int size) noexcept
+status project::init(const modeling_initializer& init) noexcept
 {
-    irt_return_if_bad(tree_nodes.init(size));
-    irt_return_if_bad(variable_observers.init(size));
-    irt_return_if_bad(grid_observers.init(size));
-    irt_return_if_bad(global_parameters.init(size));
+    irt_return_if_bad(tree_nodes.init(init.tree_capacity));
+    irt_return_if_bad(variable_observers.init(init.tree_capacity));
+    irt_return_if_bad(grid_observers.init(init.tree_capacity));
+    irt_return_if_bad(global_parameters.init(init.tree_capacity));
+
+    grid_observation_systems.resize(init.tree_capacity);
 
     return status::success;
 }
@@ -1126,7 +1129,6 @@ void project::clear() noexcept
     grid_observers.clear();
     graph_observers.clear();
     global_parameters.clear();
-    grid_observation_systems.clear();
 }
 
 void project::clean_simulation() noexcept
@@ -1186,6 +1188,85 @@ static void project_build_unique_id_path(
     out.emplace_back(model_unique_id);
 }
 
+auto project::build_relative_path(const tree_node& from,
+                                  const tree_node& to,
+                                  const model_id   mdl_id) noexcept
+  -> relative_id_path
+{
+    irt_assert(tree_nodes.get_id(from) != tree_nodes.get_id(to));
+    irt_assert(to.tree.get_parent() != nullptr);
+
+    relative_id_path ret;
+
+    const auto mdl_unique_id = to.get_unique_id(mdl_id);
+
+    if (mdl_unique_id) {
+        const auto from_id = tree_nodes.get_id(from);
+
+        ret.tn = tree_nodes.get_id(from);
+        ret.ids.emplace_back(mdl_unique_id);
+        ret.ids.emplace_back(to.unique_id);
+
+        auto* parent    = to.tree.get_parent();
+        auto  parent_id = tree_nodes.get_id(*parent);
+        while (parent && parent_id != from_id) {
+            ret.ids.emplace_back(parent->unique_id);
+            parent = parent->tree.get_parent();
+        }
+    }
+
+    return ret;
+}
+
+auto project::get_model(const relative_id_path& path) noexcept
+  -> std::pair<tree_node_id, model_id>
+{
+    const auto* tn = tree_nodes.try_to_get(path.tn);
+
+    return tn
+             ? get_model(*tn, path)
+             : std::make_pair(undefined<tree_node_id>(), undefined<model_id>());
+}
+
+auto project::get_model(const tree_node&        tn,
+                        const relative_id_path& path) noexcept
+  -> std::pair<tree_node_id, model_id>
+{
+    irt_assert(path.ids.ssize() >= 2);
+
+    tree_node_id ret_node_id = tree_nodes.get_id(tn);
+    model_id     ret_mdl_id  = undefined<model_id>();
+
+    const auto* from = &tn;
+    const int   first =
+      path.ids.ssize() - 2; // Do not read the first child of the grid component
+                            // tree node. Use tn instead.
+
+    for (int i = first; i >= 0; --i) {
+        const tree_node::node_v* ptr = from->nodes_v.get(path.ids[i]);
+
+        if (!ptr)
+            break;
+
+        if (i != 0) {
+            const auto* tn_id = std::get_if<tree_node_id>(ptr);
+            if (!tn_id)
+                break;
+
+            ret_node_id = *tn_id;
+            from        = tree_nodes.try_to_get(*tn_id);
+        } else {
+            const auto* mdl_id = std::get_if<model_id>(ptr);
+            if (!mdl_id)
+                break;
+
+            ret_mdl_id = *mdl_id;
+        }
+    }
+
+    return std::make_pair(ret_node_id, ret_mdl_id);
+}
+
 void project::build_unique_id_path(const tree_node_id tn_id,
                                    const model_id     mdl_id,
                                    unique_id_path&    out) noexcept
@@ -1223,7 +1304,7 @@ void project::build_unique_id_path(const tree_node& model_unique_id_parent,
                  model_unique_id_parent, model_unique_id, out);
 }
 
-auto project::get_model_path(u64 id) noexcept
+auto project::get_model_path(u64 id) const noexcept
   -> std::optional<std::pair<tree_node_id, model_id>>
 {
     auto model_id_opt = tn_head()->get_model_id(id);
@@ -1275,7 +1356,7 @@ static auto project_get_model_path(const project&        pj,
                   : std::nullopt;
 }
 
-auto project::get_model_path(const unique_id_path& path) noexcept
+auto project::get_model_path(const unique_id_path& path) const noexcept
   -> std::optional<std::pair<tree_node_id, model_id>>
 {
     switch (path.ssize()) {
@@ -1340,7 +1421,7 @@ static auto project_get_tn_id(const project&             pj,
     return std::nullopt;
 }
 
-auto project::get_tn_id(const unique_id_path& path) noexcept
+auto project::get_tn_id(const unique_id_path& path) const noexcept
   -> std::optional<tree_node_id>
 {
     if (const auto* head = tn_head(); head) {

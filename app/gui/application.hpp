@@ -251,43 +251,19 @@ public:
     }
 };
 
+/// Use to display a grid_observation_system into ImGui widget. An instance of
+/// this class is available in @c application::simulation_editor::grid_obs.
 struct grid_observation_widget
 {
-    // @TODO perhaps add colomap here ?
-
-    void show(application& app, grid_observation_system& grid) noexcept;
+    /// Display the @c grid_observation_system into ImPlot::PlotHeatmap plot.
+    void show(grid_observation_system& grid) noexcept;
 };
 
 class graph_observation_widget
 {
 public:
-    //! @brief Clear, initialize the graph and connect to @c observer_id.
-    //! @details Clear the @c graph_observation_widget and use the @c
-    //!  graph_observer data to initialize all @c observer_id from the
-    //!  simulation layer.
-    //!
-    //! @return The status.
-    status init(application& app, graph_observer& graph) noexcept;
-
-    //! Assign a new size to children and remove all @c model_id.
-    void resize(int row, int col) noexcept;
-
-    //! Assign @c undefined<model_id> to all children.
-    void clear() noexcept;
-
     //! Display the values vector using the ImGui::PlotHeatMap function.
-    void show(application& app) noexcept;
-
-    //! Update the values vector with observation values from the simulation
-    //! observers object.
-    void update(application& app) noexcept;
-
-    vector<observer_id> observers;
-    vector<real>        values;
-
-    real none_value = 0.0;
-
-    graph_observer_id id = undefined<graph_observer_id>();
+    // void show(graph_observation_system& graph) noexcept;
 };
 
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
@@ -684,9 +660,9 @@ struct simulation_editor
     simulation_status simulation_state = simulation_status::not_started;
     data_array<plot_copy, plot_copy_id> copy_obs;
 
-    plot_observation_widget          plot_obs;
-    vector<grid_observation_widget>  grid_obs;
-    vector<graph_observation_widget> graph_obs;
+    plot_observation_widget  plot_obs;
+    grid_observation_widget  grid_obs;
+    graph_observation_widget graph_obs;
 
     plot_copy_widget plot_copy_wgt;
 

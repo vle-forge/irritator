@@ -25,12 +25,12 @@ static void simulation_clear(component_editor&  ed,
 
 static status simulation_init_grid_observation(application& app) noexcept
 {
-    app.pj.grid_observation_systems.resize(app.pj.grid_observers.size());
+    app.pj.grid_observation_systems.resize(app.pj.grid_observers.capacity());
 
     return try_for_each_data(
       app.pj.grid_observers, [&](auto& grid_obs) noexcept -> status {
-          auto id  = app.pj.grid_observers.get_id(grid_obs);
-          auto idx = get_index(id);
+          const auto id  = app.pj.grid_observers.get_id(grid_obs);
+          const auto idx = get_index(id);
 
           return app.pj.grid_observation_systems[idx].init(
             app.pj, app.mod, app.sim, grid_obs);
@@ -40,8 +40,12 @@ static status simulation_init_grid_observation(application& app) noexcept
 static status simulation_init_observation(application& app) noexcept
 {
     app.simulation_ed.plot_obs.init(app);
-    app.simulation_ed.grid_obs.clear();
-    app.simulation_ed.graph_obs.clear();
+    // @TODO maybe clear project grid and graph obs ?
+    for (auto& elem : app.pj.grid_observation_systems)
+        elem.clear();
+
+    // app.simulation_ed.grid_obs.clear();
+    // app.simulation_ed.graph_obs.clear();
 
     irt_return_if_bad(app.simulation_ed.plot_obs.init(app));
     irt_return_if_bad(simulation_init_grid_observation(app));

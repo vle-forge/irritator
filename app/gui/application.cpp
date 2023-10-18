@@ -55,7 +55,7 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = pj.init(mod_init.tree_capacity); is_bad(ret)) {
+    if (auto ret = pj.init(mod_init); is_bad(ret)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize project: {}\n",
@@ -120,8 +120,9 @@ bool application::init() noexcept
     }
 
     simulation_ed.displacements.resize(mod_init.model_capacity);
-    simulation_ed.plot_obs.clear();
-    simulation_ed.grid_obs.resize(pj.grid_observers.size());
+    // @TODO Maybe clear or reinit pj.grid_obs_system and pj.graph_obs_system ?
+    // simulation_ed.plot_obs.clear();
+    // simulation_ed.grid_obs.resize(pj.grid_observers.size());
 
     if (auto ret = simulation_ed.copy_obs.init(16); is_bad(ret)) {
         log_w(*this,

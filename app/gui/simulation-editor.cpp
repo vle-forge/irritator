@@ -165,7 +165,10 @@ void simulation_editor::clear() noexcept
     simulation_state = simulation_status::not_started;
 
     plot_obs.clear();
-    grid_obs.clear();
+
+    // @TODO maybe clear project grid and graph obs ?
+    // grid_obs.clear();
+    // graph_obs.clear();
 
     selected_links.clear();
     selected_nodes.clear();
@@ -609,6 +612,22 @@ static void show_local_variables_plot(application& app, tree_node& tn) noexcept
     }
 }
 
+static void show_local_grid(application& app, tree_node& tn) noexcept
+{
+    // @TODO get a grid_observation_system then
+
+    for_specified_data(
+      app.pj.grid_observers, tn.grid_observer_ids, [&](auto& grid) noexcept {
+          const auto id    = app.pj.grid_observers.get_id(grid);
+          const auto index = get_index(id);
+
+          ImGui::PushID(&grid);
+          app.simulation_ed.grid_obs.show(
+            app.pj.grid_observation_systems[index]);
+          ImGui::PopID();
+      });
+}
+
 // @TODO merge the three next functions with a template on
 // template<typename DataArray>
 // static bool
@@ -897,6 +916,9 @@ void simulation_editor::show() noexcept
 
                         if (!selected->variable_observer_ids.empty())
                             show_local_variables_plot(app, *selected);
+
+                        if (!selected->grid_observer_ids.empty())
+                            show_local_grid(app, *selected);
                     }
 
                     ImGui::EndTabItem();
