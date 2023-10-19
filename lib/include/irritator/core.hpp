@@ -725,12 +725,12 @@ public:
     using const_pointer   = const T*;
 
     constexpr small_vector() noexcept;
-    constexpr small_vector(const small_vector& other) noexcept;
     constexpr ~small_vector() noexcept;
 
+    constexpr small_vector(const small_vector& other) noexcept;
     constexpr small_vector& operator=(const small_vector& other) noexcept;
-    constexpr small_vector(small_vector&& other) noexcept            = delete;
-    constexpr small_vector& operator=(small_vector&& other) noexcept = delete;
+    constexpr small_vector(small_vector&& other) noexcept;
+    constexpr small_vector& operator=(small_vector&& other) noexcept;
 
     constexpr status resize(std::integral auto capacity) noexcept;
     constexpr void   clear() noexcept;
@@ -9162,6 +9162,15 @@ constexpr small_vector<T, length>::small_vector(
 }
 
 template<typename T, int length>
+constexpr small_vector<T, length>::small_vector(
+  small_vector<T, length>&& other) noexcept
+{
+    std::uninitialized_copy_n(other.data(), other.m_size, data());
+
+    m_size = std::exchange(other.m_size, 0);
+}
+
+template<typename T, int length>
 constexpr small_vector<T, length>::~small_vector() noexcept
 {
     std::destroy_n(data(), m_size);
@@ -9176,6 +9185,20 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
         std::uninitialized_copy_n(other.data(), other.m_size, data());
 
         m_size = other.m_size;
+    }
+
+    return *this;
+}
+
+template<typename T, int length>
+constexpr small_vector<T, length>& small_vector<T, length>::operator=(
+  small_vector<T, length>&& other) noexcept
+{
+    if (&other != this) {
+        std::destroy_n(data(), m_size);
+        std::uninitialized_copy_n(other.data(), other.m_size, data());
+
+        m_size = std::exchange(other.m_size, 0);
     }
 
     return *this;
