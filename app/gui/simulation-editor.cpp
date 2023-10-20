@@ -642,8 +642,8 @@ static bool show_simulation_grid_observers(application& app) noexcept
     if (ImGui::BeginTable("Grid observers", 5)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
-        ImGui::TableSetupColumn("child");
-        ImGui::TableSetupColumn("enable");
+        ImGui::TableSetupColumn("scale");
+        ImGui::TableSetupColumn("color");
         ImGui::TableSetupColumn("delete");
         ImGui::TableHeadersRow();
 
@@ -664,17 +664,20 @@ static bool show_simulation_grid_observers(application& app) noexcept
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
-
-            ImGui::TextFormat("{}", ordinal(grid.mdl_id));
-
-            ImGui::TableNextColumn();
-
-            bool enable = true;
-            ImGui::PushItemWidth(-1.0f);
-            ImGui::Checkbox("##button", &enable);
+            ImGui::PushItemWidth(-1);
+            ImGui::DragFloatRange2(
+              "##scale", &grid.scale_min, &grid.scale_max, 0.01f);
             ImGui::PopItemWidth();
+            ImGui::TableNextColumn();
+            if (ImPlot::ColormapButton(ImPlot::GetColormapName(grid.color_map),
+                                       ImVec2(225, 0),
+                                       grid.color_map)) {
+                grid.color_map =
+                  (grid.color_map + 1) % ImPlot::GetColormapCount();
+            }
 
             ImGui::TableNextColumn();
+
 
             if (ImGui::Button("del"))
                 to_delete = app.pj.grid_observers.get_id(grid);
