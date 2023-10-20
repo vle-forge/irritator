@@ -726,8 +726,9 @@ struct grid_observer
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
 
-    real min_range = -1.e4;
-    real max_range = 1.e4;
+    float scale_min = -100.f;
+    float scale_max = +100.f;
+    i32  color_map = 0;
 };
 
 struct graph_observer
