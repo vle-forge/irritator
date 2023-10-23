@@ -31,9 +31,6 @@ enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
 
-constexpr i32 max_component_dirs       = 64;
-constexpr i32 max_component_stack_size = 16;
-
 using port_str           = small_string<7>;
 using name_str           = small_string<31>;
 using description_str    = small_string<1022>;
@@ -41,6 +38,9 @@ using registred_path_str = small_string<256 * 16 - 2>;
 using directory_path_str = small_string<512 - 2>;
 using file_path_str      = small_string<512 - 2>;
 using log_str            = small_string<512 - 2>;
+
+/// Maximum deepth of the component tree.
+constexpr i32 max_component_stack_size = 16;
 
 /// Stores the path from the head of the project to the model by following
 /// the path of tree_node and/or component @c unique_id.
@@ -99,21 +99,21 @@ constexpr int internal_component_count =
 
 enum class component_type
 {
-    none,     //<! The component does not reference any container.
-    internal, //<! The component reference a c++ code.
-    simple,   //<! A classic component-model graph coupling.
-    grid,     //!< Grid with 4, 8 neighbourhood.
-    graph     //!< Random graph generator
+    none,     ///< The component does not reference any container.
+    internal, ///< The component reference a c++ code.
+    simple,   ///< A classic component-model graph coupling.
+    grid,     ///< Grid with 4, 8 neighbourhood.
+    graph     ///< Random graph generator
 };
 
 enum class component_status
 {
-    unread,     //!< The component is not read (It is referenced by another
-                //!< component).
-    read_only,  //!< The component file is in read-only.
-    modified,   //!< The component is not saved.
-    unmodified, //!< or you show an internal component.
-    unreadable  //!< When an error occurred during load-component.
+    unread,     ///< The component is not read (It is referenced by another
+                ///< component).
+    read_only,  ///< The component file is in read-only.
+    modified,   ///< The component is not saved.
+    unmodified, ///< or you show an internal component.
+    unreadable  ///< When an error occurred during load-component.
 };
 
 enum class modeling_status
@@ -144,11 +144,11 @@ struct variable_observer;
 struct grid_observer;
 struct graph_observer;
 
-//! A structure use to cache data when read or write json component.
-//! - @c buffer is used to store the full file content or output buffer.
-//! - @c string_buffer is used when reading string.
-//! - @c stack is used when parsing project file.
-//! - other variable are used to link file identifier with new identifier.
+/// A structure use to cache data when read or write json component.
+/// - @c buffer is used to store the full file content or output buffer.
+/// - @c string_buffer is used when reading string.
+/// - @c stack is used when parsing project file.
+/// - other variable are used to link file identifier with new identifier.
 struct io_cache
 {
     vector<char> buffer;
@@ -165,12 +165,12 @@ struct io_cache
     void clear() noexcept;
 };
 
-//! Description store the description of a compenent in a text way. A
-//! description is attached to only one component (@c description_id). The
-//! filename is the same than the component
-//! @c file_path but with the extension ".txt".
-//!
-//! @note  The size of the buffer is static for now
+/// Description store the description of a compenent in a text way. A
+/// description is attached to only one component (@c description_id). The
+/// filename is the same than the component
+/// @c file_path but with the extension ".txt".
+///
+/// @note  The size of the buffer is static for now
 struct description
 {
     description_str    data;
@@ -202,10 +202,10 @@ struct child
     child_type  type  = child_type::model;
     child_flags flags = child_flags_none;
 
-    //! An identifier provided by the component parent to easily found a child
-    //! in project. The value 0 means unique_id is undefined. @c grid-component
-    //! stores a double word (row x column), graph-component stores the nth
-    //! vertex, @c generic-component stores a incremental integer.
+    /// An identifier provided by the component parent to easily found a child
+    /// in project. The value 0 means unique_id is undefined. @c grid-component
+    /// stores a double word (row x column), graph-component stores the nth
+    /// vertex, @c generic-component stores a incremental integer.
     u64 unique_id = 0;
 };
 
@@ -288,9 +288,9 @@ struct generic_component
     vector<child_id>      children;
     vector<connection_id> connections;
 
-    //! Use to affect @c child::unique_id when the component is saved. The value
-    //! 0 means unique_id is undefined. Mutable variable to allow function @c
-    //! make_next_unique_id to be const and called in json const functions.
+    /// Use to affect @c child::unique_id when the component is saved. The value
+    /// 0 means unique_id is undefined. Mutable variable to allow function @c
+    /// make_next_unique_id to be const and called in json const functions.
     mutable u64 next_unique_id = 1;
 
     u64 make_next_unique_id() const noexcept { return next_unique_id++; }
@@ -314,8 +314,8 @@ struct grid_component
 
     enum class type : i8
     {
-        number, //!< Only one port for all neighbor.
-        name    //!< One, two, three or four ports according to neighbor.
+        number, ///< Only one port for all neighbor.
+        name    ///< One, two, three or four ports according to neighbor.
     };
 
     enum class neighborhood : i8
@@ -384,15 +384,15 @@ struct grid_component
     neighborhood neighbors       = neighborhood::four;
 };
 
-//! random-graph type:
-//! - scale_free: graph typically has a very skewed degree distribution, where
-//!   few vertices have a very high degree and a large number of vertices have a
-//!   very small degree. Many naturally evolving networks, such as the World
-//!   Wide Web, are scale-free graphs, making these graphs a good model for
-//!   certain networking problems.
-//! - small_world: consists of a ring graph (where each vertex is connected to
-//!   its k nearest neighbors). Edges in the graph are randomly rewired to
-//!   different vertices with a probability p.
+/// random-graph type:
+/// - scale_free: graph typically has a very skewed degree distribution, where
+///   few vertices have a very high degree and a large number of vertices have a
+///   very small degree. Many naturally evolving networks, such as the World
+///   Wide Web, are scale-free graphs, making these graphs a good model for
+///   certain networking problems.
+/// - small_world: consists of a ring graph (where each vertex is connected to
+///   its k nearest neighbors). Edges in the graph are randomly rewired to
+///   different vertices with a probability p.
 struct graph_component
 {
     static inline constexpr i32 children_max = 4096;
@@ -406,8 +406,8 @@ struct graph_component
 
     enum class connection_type : i8
     {
-        number, //!< Only one port for all neighbor.
-        name    //!< One, two, three or four ports according to neighbor.
+        number, ///< Only one port for all neighbor.
+        name    ///< One, two, three or four ports according to neighbor.
     };
 
     struct dot_file_param
@@ -502,7 +502,7 @@ struct registred_path
         error,
     };
 
-    //! Use to store a absolute path in utf8.
+    /// Use to store a absolute path in utf8.
     registred_path_str path;
 
     name_str name;
@@ -523,7 +523,7 @@ struct dir_path
         error,
     };
 
-    //! use to store a directory name in utf8.
+    /// use to store a directory name in utf8.
     directory_path_str path;
 
     state             status = state::unread;
@@ -534,7 +534,7 @@ struct dir_path
 
 struct file_path
 {
-    //! use to store a file name in utf8.
+    /// use to store a file name in utf8.
     file_path_str path;
 
     dir_path_id  parent{ 0 };
@@ -583,25 +583,25 @@ struct modeling_initializer
 class grid_observation_system
 {
 public:
-    //! @brief Clear, initialize the grid according to the @c grid_observer.
-    //! @details Clear the @c grid_observation_widget and use the @c
-    //!  grid_observer data to initialize all @c observer_id from the
-    //!  simulation layer.
-    //!
-    //! @return The status.
+    /// @brief Clear, initialize the grid according to the @c grid_observer.
+    /// @details Clear the @c grid_observation_widget and use the @c
+    ///  grid_observer data to initialize all @c observer_id from the
+    ///  simulation layer.
+    ///
+    /// @return The status.
     status init(project&       pj,
                 modeling&      mod,
                 simulation&    sim,
                 grid_observer& grid) noexcept;
 
-    //! Assign a new size to children and remove all @c model_id.
+    /// Assign a new size to children and remove all @c model_id.
     void resize(int row, int col) noexcept;
 
-    //! Assign @c undefined<model_id> to all children.
+    /// Assign @c undefined<model_id> to all children.
     void clear() noexcept;
 
-    //! Update the values vector with observation values from the simulation
-    //! observers object.
+    /// Update the values vector with observation values from the simulation
+    /// observers object.
     void update(simulation& pj) noexcept;
 
     vector<observer_id> observers;
@@ -618,17 +618,17 @@ struct tree_node
 {
     tree_node(component_id id_, u64 unique_id_) noexcept;
 
-    //! Intrusive hierarchy to the children, sibling and parent @c tree_node.
+    /// Intrusive hierarchy to the children, sibling and parent @c tree_node.
     hierarchy<tree_node> tree;
 
-    //! Reference the current component
+    /// Reference the current component
     component_id id = undefined<component_id>();
 
-    //! A unique identifier provided by component parent.
+    /// A unique identifier provided by component parent.
     u64 unique_id = 0;
 
-    //! Map component children into simulation model. Table build in @c
-    //! project::set or @c project::rebuild functions.
+    /// Map component children into simulation model. Table build in @c
+    /// project::set or @c project::rebuild functions.
     table<child_id, model_id> child_to_sim;
 
     using node_v = std::variant<tree_node_id, model_id>;
@@ -696,9 +696,9 @@ struct tree_node
         model*     mdl; // model in simluation models.
     };
 
-    //! Stores for each component in children list the identifier of the
-    //! tree_node. This variable allows to quickly build the connection
-    //! network at build time.
+    /// Stores for each component in children list the identifier of the
+    /// tree_node. This variable allows to quickly build the connection
+    /// network at build time.
     table<child_id, node> child_to_node;
 };
 
@@ -707,10 +707,10 @@ struct parameter
     std::array<real, 4> reals;
     std::array<i64, 4>  integers;
 
-    //! Copy data from the vectors of this parameter to the simulation model.
+    /// Copy data from the vectors of this parameter to the simulation model.
     status copy_to(model& mdl) const noexcept;
 
-    //! Copy data from model to the vectors of this parameter.
+    /// Copy data from model to the vectors of this parameter.
     void copy_from(const model& mdl) noexcept;
 
     void clear() noexcept;
@@ -728,7 +728,7 @@ struct grid_observer
 
     float scale_min = -100.f;
     float scale_max = +100.f;
-    i32  color_map = 0;
+    i32   color_map = 0;
 };
 
 struct graph_observer
@@ -809,20 +809,20 @@ struct modeling
     status fill_components() noexcept;
     status fill_components(registred_path& path) noexcept;
 
-    //! Clean data used as cache for simulation.
+    /// Clean data used as cache for simulation.
     void clean_simulation() noexcept;
 
-    //! If the @c child references a model, model is freed, otherwise, do
-    //! nothing. This function is useful to replace the content of a existing @c
-    //! child
+    /// If the @c child references a model, model is freed, otherwise, do
+    /// nothing. This function is useful to replace the content of a existing @c
+    /// child
     void clear(child& c) noexcept;
 
-    //! Clear and free all dependencies of the component but let the component
-    //! alive.
+    /// Clear and free all dependencies of the component but let the component
+    /// alive.
     void clear(component& c) noexcept;
 
-    //! Deletes the component, the file (@c file_path_id) and the description
-    //! (@c description_id) objects attached.
+    /// Deletes the component, the file (@c file_path_id) and the description
+    /// (@c description_id) objects attached.
     void free(component& c) noexcept;
     void free(generic_component& c) noexcept;
     void free(graph_component& c) noexcept;
@@ -868,10 +868,10 @@ struct modeling
     component& alloc_generic_component() noexcept;
     component& alloc_graph_component() noexcept;
 
-    //! For grid_component, build the children and connections
-    //! based on children vectors and grid_component options (torus, cylinder
-    //! etc.). The newly allocated child and connection are append to the output
-    //! vectors. The vectors are not cleared.
+    /// For grid_component, build the children and connections
+    /// based on children vectors and grid_component options (torus, cylinder
+    /// etc.). The newly allocated child and connection are append to the output
+    /// vectors. The vectors are not cleared.
     status build_grid_children_and_connections(grid_component&        grid,
                                                vector<child_id>&      ids,
                                                vector<connection_id>& cnts,
@@ -880,10 +880,10 @@ struct modeling
                                                i32 space_x     = 30,
                                                i32 space_y     = 50) noexcept;
 
-    //! For graph_component, build the children and connections
-    //! based on children vectors and graph_component options (torus, cylinder
-    //! etc.). The newly allocated child and connection are append to the output
-    //! vectors. The vectors are not cleared.
+    /// For graph_component, build the children and connections
+    /// based on children vectors and graph_component options (torus, cylinder
+    /// etc.). The newly allocated child and connection are append to the output
+    /// vectors. The vectors are not cleared.
     status build_graph_children_and_connections(graph_component&       graph,
                                                 vector<child_id>&      ids,
                                                 vector<connection_id>& cnts,
@@ -892,26 +892,26 @@ struct modeling
                                                 i32 space_x     = 30,
                                                 i32 space_y     = 50) noexcept;
 
-    //! For grid_component, build the real children and connections grid
-    //! based on default_chidren and specific_children vectors and
-    //! grid_component options (torus, cylinder etc.).
+    /// For grid_component, build the real children and connections grid
+    /// based on default_chidren and specific_children vectors and
+    /// grid_component options (torus, cylinder etc.).
     status build_grid_component_cache(grid_component& grid) noexcept;
 
-    //! For graph_component, build the real children and connections graph
-    //! based on default_chidren and specific_children vectors and
-    //! graph_component options (torus, cylinder etc.).
+    /// For graph_component, build the real children and connections graph
+    /// based on default_chidren and specific_children vectors and
+    /// graph_component options (torus, cylinder etc.).
     status build_graph_component_cache(graph_component& graph) noexcept;
 
-    //! Delete children and connections from @c modeling for the @c
-    //! grid_component cache.
+    /// Delete children and connections from @c modeling for the @c
+    /// grid_component cache.
     void clear_grid_component_cache(grid_component& grid) noexcept;
 
-    //! Delete children and connections from @c modeling for the @c
-    //! graph_component cache.
+    /// Delete children and connections from @c modeling for the @c
+    /// graph_component cache.
     void clear_graph_component_cache(graph_component& graph) noexcept;
 
-    //! Checks if the child can be added to the parent to avoid recursive loop
-    //! (ie. a component child which need the same component in sub-child).
+    /// Checks if the child can be added to the parent to avoid recursive loop
+    /// (ie. a component child which need the same component in sub-child).
     bool can_add(const component& parent,
                  const component& child) const noexcept;
 
@@ -970,18 +970,18 @@ public:
                 io_cache&   cache,
                 const char* filename) noexcept;
 
-    //! Assign a new @c component head. The previously allocated tree_node
-    //! hierarchy is removed and a newly one is allocated.
+    /// Assign a new @c component head. The previously allocated tree_node
+    /// hierarchy is removed and a newly one is allocated.
     status set(modeling& mod, simulation& sim, component& compo) noexcept;
 
-    //! Build the complete @c tree_node hierarchy from the @c component head.
+    /// Build the complete @c tree_node hierarchy from the @c component head.
     status rebuild(modeling& mod, simulation& sim) noexcept;
 
-    //! Remove @c tree_node hierarchy and clear the @c component head.
+    /// Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;
 
-    //! For all @c tree_node remove the simulation mapping between modelling and
-    //! simulation part (ie @c tree_node::sim variable).
+    /// For all @c tree_node remove the simulation mapping between modelling and
+    /// simulation part (ie @c tree_node::sim variable).
     void clean_simulation() noexcept;
 
     auto head() const noexcept -> component_id;
@@ -1000,18 +1000,18 @@ public:
     template<typename Function, typename... Args>
     void for_each_children(tree_node& tn, Function&& f, Args... args) noexcept;
 
-    //! Return the size and the capacity of the tree_nodes data_array.
+    /// Return the size and the capacity of the tree_nodes data_array.
     auto tree_nodes_size() const noexcept -> std::pair<int, int>;
 
-    //! Clear all vector and table in @c cache.
+    /// Clear all vector and table in @c cache.
     void clear_cache() noexcept;
 
-    //! Release all memory for vectors and tables in @c cache.
+    /// Release all memory for vectors and tables in @c cache.
     void destroy_cache() noexcept;
 
-    //! Used to cache memory allocation when user import a model into
-    //! simulation. The memory cached can be reused using clear but memory
-    //! cached can be completely free using the @c destroy_cache function.
+    /// Used to cache memory allocation when user import a model into
+    /// simulation. The memory cached can be reused using clear but memory
+    /// cached can be completely free using the @c destroy_cache function.
     struct cache
     {
         vector<tree_node*>             stack;
