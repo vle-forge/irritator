@@ -459,6 +459,14 @@ using component_color = std::array<float, 4>;
 
 struct port
 {
+    port() noexcept = default;
+
+    port(const std::string_view name_, const component_id parent_) noexcept
+      : name{ name_ }
+      , parent{ parent_ }
+    {
+    }
+
     port_str     name;
     component_id parent;
 };
