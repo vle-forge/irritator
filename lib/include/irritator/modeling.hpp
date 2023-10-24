@@ -192,13 +192,13 @@ enum child_flags_ : u8
 struct child
 {
     child() noexcept;
-    child(model_id model) noexcept;
+    child(dynamics_type type) noexcept;
     child(component_id component) noexcept;
 
     union
     {
-        model_id     mdl_id;
-        component_id compo_id;
+        dynamics_type mdl_type;
+        component_id  compo_id;
     } id;
 
     child_type  type  = child_type::model;
@@ -810,7 +810,6 @@ struct modeling
     data_array<registred_path, registred_path_id>       registred_paths;
     data_array<dir_path, dir_path_id>                   dir_paths;
     data_array<file_path, file_path_id>                 file_paths;
-    data_array<model, model_id>                         models;
     data_array<hierarchical_state_machine, hsm_id>      hsms;
     data_array<child, child_id>                         children;
     data_array<connection, connection_id>               connections;
@@ -1186,21 +1185,21 @@ inline connection::connection(child_id src, int p_src, port_id p_dst)
 }
 
 inline child::child() noexcept
-  : id{ undefined<model_id>() }
+  : id{ .mdl_type = dynamics_type::constant }
   , type{ child_type::model }
 {
 }
 
-inline child::child(model_id model) noexcept
-  : type{ child_type::model }
+inline child::child(dynamics_type type) noexcept
+  : id{ .mdl_type = type }
+  , type{ child_type::model }
 {
-    id.mdl_id = model;
 }
 
 inline child::child(component_id component) noexcept
-  : type{ child_type::component }
+  : id{ .compo_id = component }
+  , type{ child_type::component }
 {
-    id.compo_id = component;
 }
 
 inline tree_node::tree_node(component_id id_, u64 unique_id_) noexcept

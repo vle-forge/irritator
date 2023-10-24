@@ -2,49 +2,43 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/core.hpp"
 #include <irritator/modeling.hpp>
 
 namespace irt {
 
 template<typename Dynamics>
-static std::pair<Dynamics*, child_id> alloc(
-  modeling&              mod,
-  generic_component&     parent,
-  const std::string_view name  = {},
-  child_flags            param = child_flags_none) noexcept
+static child_id alloc(modeling&              mod,
+                      generic_component&     parent,
+                      const std::string_view name  = {},
+                      child_flags            param = child_flags_none) noexcept
 {
-    irt_assert(!mod.models.full());
     irt_assert(!mod.children.full());
     irt_assert(!mod.hsms.full());
 
-    auto& child    = mod.alloc(parent, dynamics_typeof<Dynamics>());
-    auto  child_id = mod.children.get_id(child);
-    child.flags    = param;
+    auto&      child = mod.alloc(parent, dynamics_typeof<Dynamics>());
+    const auto id    = mod.children.get_id(child);
+    const auto index = get_index(id);
 
-    mod.children_names[get_index(child_id)] = name;
+    child.flags = param;
 
-    return std::make_pair(&get_dyn<Dynamics>(mod.models.get(child.id.mdl_id)),
-                          child_id);
+    mod.children_names[index] = name;
+    mod.children_parameters[index].clear();
+
+    return id;
 }
 
-template<typename DynamicsSrc, typename DynamicsDst>
 static void connect(modeling&          mod,
                     generic_component& c,
-                    DynamicsSrc&       src,
+                    child_id           src,
                     int                port_src,
-                    DynamicsDst&       dst,
+                    child_id           dst,
                     int                port_dst) noexcept
 {
-    model& src_model = get_model(*src.first);
-    model& dst_model = get_model(*dst.first);
+    [[maybe_unused]] const auto ret = mod.connect(
+      c, mod.children.get(src), port_src, mod.children.get(dst), port_dst);
 
-    irt_assert(is_ports_compatible(src_model, port_src, dst_model, port_dst));
-
-    irt_assert(is_success(mod.connect(c,
-                                      mod.children.get(src.second),
-                                      port_src,
-                                      mod.children.get(dst.second),
-                                      port_dst)));
+    irt_assert(is_success(ret));
 }
 
 static void add_integrator_component_port(modeling&          mod,
@@ -69,6 +63,59 @@ static void add_integrator_component_port(modeling&          mod,
     c->unique_id = com.make_next_unique_id();
 }
 
+static void affect_abstract_integrator(modeling&      mod,
+                                       const child_id id,
+                                       const real     X,
+                                       const real     dQ) noexcept
+{
+    const auto idx = get_index(id);
+
+    mod.children_parameters[idx].reals[0] = X;
+    mod.children_parameters[idx].reals[1] = dQ;
+}
+
+static void affect_abstract_multiplier(modeling&      mod,
+                                       const child_id id,
+                                       const real     coeff_0,
+                                       const real     coeff_1) noexcept
+{
+    const auto idx = get_index(id);
+
+    mod.children_parameters[idx].reals[0] = coeff_0;
+    mod.children_parameters[idx].reals[1] = coeff_1;
+}
+
+static void affect_abstract_wsum(modeling&      mod,
+                                 const child_id id,
+                                 const real     coeff_0,
+                                 const real     coeff_1) noexcept
+{
+    const auto idx = get_index(id);
+
+    mod.children_parameters[idx].reals[0] = coeff_0;
+    mod.children_parameters[idx].reals[1] = coeff_1;
+}
+
+static void affect_abstract_cross(modeling&      mod,
+                                  const child_id id,
+                                  const real     threshold) noexcept
+{
+    const auto idx = get_index(id);
+
+    mod.children_parameters[idx].reals[0] = threshold;
+}
+
+static void affect_abstract_constant(modeling&      mod,
+                                     const child_id id,
+                                     const real     value,
+                                     const real     offset) noexcept
+{
+    const auto idx = get_index(id);
+
+    mod.children_parameters[idx].reals[0] = value;
+    mod.children_parameters[idx].reals[1] = offset;
+}
+
 template<int QssLevel>
 status add_lotka_volterra(modeling&          mod,
                           component&         dst,
@@ -77,30 +124,26 @@ status add_lotka_volterra(modeling&          mod,
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = mod.models.can_alloc(5);
+    bool success = mod.children.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
     auto integrator_a =
       alloc<abstract_integrator<QssLevel>>(mod, com, "X", child_flags_both);
-    integrator_a.first->default_X  = 18.0_r;
-    integrator_a.first->default_dQ = 0.1_r;
+    affect_abstract_integrator(mod, integrator_a, 18.0_r, 0.1_r);
 
     auto integrator_b =
       alloc<abstract_integrator<QssLevel>>(mod, com, "Y", child_flags_both);
-    integrator_b.first->default_X  = 7.0_r;
-    integrator_b.first->default_dQ = 0.1_r;
+    affect_abstract_integrator(mod, integrator_b, 7.0_r, 0.1_r);
 
     auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
 
     auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(
       mod, com, "X+XY", child_flags_configurable);
-    sum_a.first->default_input_coeffs[0] = 2.0_r;
-    sum_a.first->default_input_coeffs[1] = -0.4_r;
+    affect_abstract_multiplier(mod, sum_a, 2.0_r, -0.4_r);
 
     auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(
       mod, com, "Y+XY", child_flags_configurable);
-    sum_b.first->default_input_coeffs[0] = -1.0_r;
-    sum_b.first->default_input_coeffs[1] = 0.1_r;
+    affect_abstract_multiplier(mod, sum_b, -1.0_r, 0.1_r);
 
     connect(mod, com, sum_a, 0, integrator_a, 0);
     connect(mod, com, sum_b, 0, integrator_b, 0);
@@ -123,7 +166,7 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = mod.models.can_alloc(5);
+    bool success = mod.children.can_alloc(5);
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
     constexpr irt::real tau = 10.0_r;
@@ -131,23 +174,21 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     constexpr irt::real V0  = 10.0_r;
     constexpr irt::real Vr  = -V0;
 
-    auto cst                 = alloc<constant>(mod, com);
-    cst.first->default_value = 1.0;
+    auto cst = alloc<constant>(mod, com);
+    affect_abstract_constant(mod, cst, 1.0, 0.0);
 
-    auto cst_cross                 = alloc<constant>(mod, com);
-    cst_cross.first->default_value = Vr;
+    auto cst_cross = alloc<constant>(mod, com);
+    affect_abstract_constant(mod, cst, Vr, 0.0);
 
     auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    sum.first->default_input_coeffs[0] = -irt::one / tau;
-    sum.first->default_input_coeffs[1] = V0 / tau;
+    affect_abstract_wsum(mod, sum, -irt::one / tau, V0 / tau);
 
     auto integrator =
       alloc<abstract_integrator<QssLevel>>(mod, com, "lif", child_flags_both);
-    integrator.first->default_X  = 0._r;
-    integrator.first->default_dQ = 0.001_r;
+    affect_abstract_integrator(mod, integrator, 0._r, 0.001_r);
 
-    auto cross                     = alloc<abstract_cross<QssLevel>>(mod, com);
-    cross.first->default_threshold = Vt;
+    auto cross = alloc<abstract_cross<QssLevel>>(mod, com);
+    affect_abstract_cross(mod, cross, Vt);
 
     connect(mod, com, cross, 0, integrator, 1);
     connect(mod, com, cross, 1, sum, 0);
@@ -168,7 +209,7 @@ status add_izhikevich(modeling&          mod,
                       generic_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(12);
+    bool success = mod.children.can_alloc(12);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -194,27 +235,27 @@ status add_izhikevich(modeling&          mod,
     constexpr irt::real I  = -99.0_r;
     constexpr irt::real vt = 30.0_r;
 
-    cst.first->default_value  = 1.0_r;
-    cst2.first->default_value = c;
-    cst3.first->default_value = I;
+    affect_abstract_constant(mod, cst, 1.0_r, 0.0);
+    affect_abstract_constant(mod, cst2, c, 0.0);
+    affect_abstract_constant(mod, cst3, I, 0.0);
 
-    cross.first->default_threshold  = vt;
-    cross2.first->default_threshold = vt;
+    affect_abstract_cross(mod, cross, vt);
+    affect_abstract_cross(mod, cross2, vt);
 
-    integrator_a.first->default_X  = 0.0_r;
-    integrator_a.first->default_dQ = 0.01_r;
-
-    integrator_b.first->default_X  = 0.0_r;
-    integrator_b.first->default_dQ = 0.01_r;
+    affect_abstract_integrator(mod, integrator_a, 0.0_r, 0.01_r);
+    affect_abstract_integrator(mod, integrator_b, 0.0_r, 0.01_r);
 
     sum_a.first->default_input_coeffs[0] = 1.0_r;
     sum_a.first->default_input_coeffs[1] = -1.0_r;
+
     sum_b.first->default_input_coeffs[0] = -a;
     sum_b.first->default_input_coeffs[1] = a * b;
+
     sum_c.first->default_input_coeffs[0] = 0.04_r;
     sum_c.first->default_input_coeffs[1] = 5.0_r;
     sum_c.first->default_input_coeffs[2] = 140.0_r;
     sum_c.first->default_input_coeffs[3] = 1.0_r;
+
     sum_d.first->default_input_coeffs[0] = 1.0_r;
     sum_d.first->default_input_coeffs[1] = d;
 
