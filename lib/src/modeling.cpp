@@ -84,7 +84,6 @@ modeling::modeling() noexcept
 status modeling::init(modeling_initializer& p) noexcept
 {
     irt_return_if_bad(descriptions.init(p.description_capacity));
-    irt_return_if_bad(parameters.init(p.parameter_capacity));
     irt_return_if_bad(ports.init(p.model_capacity));
     irt_return_if_bad(components.init(p.component_capacity));
     irt_return_if_bad(grid_components.init(p.component_capacity));
@@ -102,6 +101,7 @@ status modeling::init(modeling_initializer& p) noexcept
 
     children_positions.resize(children.capacity());
     children_names.resize(children.capacity());
+    children_parameters.resize(children.capacity());
     component_colors.resize(components.capacity());
 
     return status::success;

@@ -810,7 +810,6 @@ struct modeling
     data_array<registred_path, registred_path_id>       registred_paths;
     data_array<dir_path, dir_path_id>                   dir_paths;
     data_array<file_path, file_path_id>                 file_paths;
-    data_array<model, model_id>                         parameters;
     data_array<model, model_id>                         models;
     data_array<hierarchical_state_machine, hsm_id>      hsms;
     data_array<child, child_id>                         children;
@@ -818,6 +817,7 @@ struct modeling
 
     vector<child_position>  children_positions;
     vector<name_str>        children_names;
+    vector<parameter>       children_parameters;
     vector<component_color> component_colors;
 
     vector<registred_path_id> component_repertories;
