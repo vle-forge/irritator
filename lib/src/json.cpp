@@ -59,6 +59,7 @@ enum class stack_id
     component_graph_param,
     component_graph_type,
     component_graph_children,
+    component_hsm,
     component_children,
     component_generic,
     component_generic_connections,
@@ -185,6 +186,7 @@ static inline constexpr std::string_view stack_id_names[] = {
     "component_graph_param",
     "component_graph_type",
     "component_graph_children",
+    "component_hsm",
     "component_children",
     "component_generic",
     "component_generic_connections",
@@ -1819,11 +1821,6 @@ struct reader
               if ("b"sv == name)
                   read_temp_integer(value) && copy_to(wrapper.exec.b);
 
-              // if ("states"sv == name)
-              //     return read_hsm_states(value, hsm.states);
-              // if ("outputs"sv == name)
-              //     return read_hsm_outputs(value, wrapper.exec.outputs);
-
               report_json_error(error_id::unknown_element);
           });
     }
@@ -3297,6 +3294,27 @@ struct reader
           });
     }
 
+    bool read_hsm_component(const rapidjson::Value& val,
+                            component&              compo) noexcept
+    {
+        auto_stack s(this, stack_id::component_hsm);
+
+        auto& hsm       = mod().hsm_components.alloc();
+        compo.type      = component_type::hsm;
+        compo.id.hsm_id = mod().hsm_components.get_id(hsm);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("states"sv == name)
+                  return read_hsm_states(value, hsm.machine.states);
+
+              if ("top"sv == name)
+                  return read_temp_unsigned_integer(value) &&
+                         copy_to(hsm.machine.top_state);
+              return true;
+          });
+    }
+
     bool dispatch_component_type(const rapidjson::Value& val,
                                  component&              compo) noexcept
     {
@@ -3315,6 +3333,9 @@ struct reader
 
         case component_type::graph:
             return read_graph_component(val, compo);
+
+        case component_type::hsm:
+            return read_hsm_component(val, compo);
         }
 
         report_json_error(error_id::unknown_element);
@@ -5812,6 +5833,61 @@ static status write_graph_component(io_cache& /*cache*/,
 }
 
 template<typename Writer>
+static status write_hsm_component(io_cache& /*cache*/,
+                                  const modeling&      mod,
+                                  const hsm_component& grid,
+                                  Writer&              w) noexcept
+{
+    w.Key("states");
+    w.StartArray();
+
+    constexpr auto length =
+      to_unsigned(hierarchical_state_machine::max_number_of_state);
+    constexpr auto invalid = hierarchical_state_machine::invalid_state_id;
+
+    std::array<bool, length> states_to_write;
+    states_to_write.fill(false);
+    auto& machine = grid.machine;
+
+    for (unsigned i = 0; i != length; ++i) {
+        if (machine.states[i].if_transition != invalid)
+            states_to_write[machine.states[i].if_transition] = true;
+        if (machine.states[i].else_transition != invalid)
+            states_to_write[machine.states[i].else_transition] = true;
+        if (machine.states[i].super_id != invalid)
+            states_to_write[machine.states[i].super_id] = true;
+        if (machine.states[i].sub_id != invalid)
+            states_to_write[machine.states[i].sub_id] = true;
+    }
+
+    for (unsigned i = 0; i != length; ++i) {
+        if (states_to_write[i]) {
+            w.Key("id");
+            w.Uint(i);
+            write(w, "enter", machine.states[i].enter_action);
+            write(w, "exit", machine.states[i].exit_action);
+            write(w, "if", machine.states[i].if_action);
+            write(w, "else", machine.states[i].else_action);
+            write(w, "condition", machine.states[i].condition);
+
+            w.Key("if-transition");
+            w.Int(machine.states[i].if_transition);
+            w.Key("else-transition");
+            w.Int(machine.states[i].else_transition);
+            w.Key("super-id");
+            w.Int(machine.states[i].super_id);
+            w.Key("sub-id");
+            w.Int(machine.states[i].sub_id);
+        }
+    }
+    w.EndArray();
+
+    w.Key("top");
+    w.Uint(machine.top_state);
+
+    return status::success;
+}
+template<typename Writer>
 static void write_internal_component(io_cache& /*cache*/,
                                      const modeling& /* mod */,
                                      const internal_component id,
@@ -5886,8 +5962,15 @@ static status do_component_save(Writer&    w,
           status::unknown_dynamics); // @TODO undefined component
     } break;
 
-    default:
-        break;
+    case component_type::hsm: {
+        ret = if_data_exists_return(
+          mod.hsm_components,
+          compo.id.hsm_id,
+          [&](auto& hsm) noexcept -> status {
+              return write_hsm_component(cache, mod, hsm, w);
+          },
+          status::unknown_dynamics);
+    } break;
     }
 
     w.EndObject();
