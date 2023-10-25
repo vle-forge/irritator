@@ -329,24 +329,7 @@ static void show(component_editor&              ed,
       mdl, [&mdl, &app, &data, &parent, id]<typename Dynamics>(Dynamics& dyn) {
           add_input_attribute(dyn, id);
           ImGui::PushItemWidth(120.0f);
-
-          if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-              auto  s_compo_id = parent.id.generic_id;
-              auto* s_compo = app.mod.generic_components.try_to_get(s_compo_id);
-              if (s_compo) {
-                  if (auto* machine = app.mod.hsms.try_to_get(dyn.id);
-                      machine) {
-                      show_dynamics_inputs(app,
-                                           app.mod.components.get_id(parent),
-                                           app.mod.models.get_id(mdl),
-                                           *machine);
-                      ImNodes::EditorContextSet(data.context);
-                  }
-              }
-          } else {
-              show_dynamics_inputs(app.mod.srcs, dyn);
-          }
-
+          show_dynamics_inputs(app.mod.srcs, dyn);
           ImGui::PopItemWidth();
           add_output_attribute(dyn, id);
       });
@@ -382,7 +365,7 @@ static void show_generic(component_editor& ed,
                          generic_component_editor_data& /*data*/,
                          component& compo,
                          generic_component& /*s_compo*/,
-                         child&  /*c*/,
+                         child& /*c*/,
                          child_id c_id) noexcept
 {
     auto& app      = container_of(&ed, &application::component_ed);

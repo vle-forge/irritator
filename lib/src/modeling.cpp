@@ -90,6 +90,7 @@ status modeling::init(modeling_initializer& p) noexcept
     irt_return_if_bad(grid_components.init(p.component_capacity));
     irt_return_if_bad(graph_components.init(p.component_capacity));
     irt_return_if_bad(generic_components.init(p.component_capacity));
+    irt_return_if_bad(hsm_components.init(p.component_capacity));
     irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
     irt_return_if_bad(file_paths.init(p.file_path_capacity));
     irt_return_if_bad(registred_paths.init(p.dir_path_capacity));
@@ -790,6 +791,11 @@ void modeling::clear(component& compo) noexcept
                           [&](auto& graph) { free(graph); });
         compo.id.graph_id = undefined<graph_component_id>();
         break;
+    case component_type::hsm:
+        if_data_exists_do(
+          hsm_components, compo.id.hsm_id, [&](auto& h) { free(h); });
+        compo.id.hsm_id = undefined<hsm_component_id>();
+        break;
     }
 }
 
@@ -881,6 +887,8 @@ void modeling::free(generic_component& gen) noexcept
 
 void modeling::free(grid_component& gen) noexcept { grid_components.free(gen); }
 
+void modeling::free(hsm_component& c) noexcept { hsm_components.free(c); }
+
 void modeling::free(graph_component& gen) noexcept
 {
     graph_components.free(gen);
@@ -903,6 +911,10 @@ void modeling::free(component& compo) noexcept
         if_data_exists_do(
           graph_components, compo.id.graph_id, [&](auto& g) { free(g); });
         break;
+
+    case component_type::hsm:
+        if_data_exists_do(
+          hsm_components, compo.id.hsm_id, [&](auto& h) { free(h); });
 
     default:
         break;
@@ -1036,6 +1048,18 @@ status modeling::copy(const component& src, component& dst) noexcept
             dst.id.graph_id = d_id;
             dst.type        = component_type::graph;
             d               = *s;
+        }
+        break;
+
+    case component_type::hsm:
+        if (const auto* s = hsm_components.try_to_get(src.id.hsm_id); s) {
+            irt_return_if_fail(hsm_components.can_alloc(),
+                               status::data_array_not_enough_memory);
+
+            auto& d       = hsm_components.alloc(*s);
+            auto  d_id    = hsm_components.get_id(d);
+            dst.id.hsm_id = d_id;
+            dst.type      = component_type::hsm;
         }
         break;
 

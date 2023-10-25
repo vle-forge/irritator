@@ -595,16 +595,7 @@ static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
         if (ed.allow_user_changes) {
             auto& app = container_of(&ed, &application::simulation_ed);
             ImGui::PushItemWidth(120.0f);
-
-            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                auto* machine = app.sim.hsms.try_to_get(dyn.id);
-                irt_assert(machine != nullptr);
-
-                show_dynamics_inputs(app, app.sim.models.get_id(mdl), *machine);
-            } else {
-                show_dynamics_inputs(app.mod.srcs, dyn);
-            }
-
+            show_dynamics_inputs(app.mod.srcs, dyn);
             ImGui::PopItemWidth();
         }
 

@@ -2,11 +2,11 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/modeling.hpp"
 #include "application.hpp"
 #include "imgui.h"
 #include "internal.hpp"
 #include "irritator/core.hpp"
-#include "irritator/modeling.hpp"
 
 namespace irt {
 
@@ -518,11 +518,10 @@ hsm_editor::~hsm_editor() noexcept
 
 void hsm_editor::clear() noexcept
 {
-    m_hsm.clear();
     m_enabled.fill(false);
     m_hsm.set_state(0u, hsm_t::invalid_state_id, hsm_t::invalid_state_id);
-    m_hsm.m_top_state = 0u;
-    m_enabled[0]      = true;
+    m_hsm.top_state = 0u;
+    m_enabled[0]    = true;
 
     m_selected_links.clear();
     m_selected_nodes.clear();
@@ -716,8 +715,9 @@ static void task_hsm_test_start(void* param) noexcept
 void hsm_editor::show_panel() noexcept
 {
     if (ImGui::CollapsingHeader("parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::InputScalar("a", ImGuiDataType_S32, &m_hsm.a);
-        ImGui::InputScalar("b", ImGuiDataType_S32, &m_hsm.a);
+        ImGui::TextUnformatted("Re-add a and b?");
+        // ImGui::InputScalar("a", ImGuiDataType_S32, &m_hsm.a);
+        // ImGui::InputScalar("b", ImGuiDataType_S32, &m_hsm.a);
     }
 
     if (ImGui::CollapsingHeader("selected states",

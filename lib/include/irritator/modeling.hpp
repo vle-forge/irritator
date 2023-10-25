@@ -16,6 +16,7 @@ namespace irt {
 
 enum class port_id : u64;
 enum class component_id : u64;
+enum class hsm_component_id : u64;
 enum class generic_component_id : u64;
 enum class graph_component_id : u64;
 enum class grid_component_id : u64;
@@ -103,7 +104,8 @@ enum class component_type
     internal, ///< The component reference a c++ code.
     simple,   ///< A classic component-model graph coupling.
     grid,     ///< Grid with 4, 8 neighbourhood.
-    graph     ///< Random graph generator
+    graph,    ///< Random graph generator
+    hsm       ///< HSM component
 };
 
 enum class component_status
@@ -281,6 +283,11 @@ struct connection
         input_t    input;
         output_t   output;
     };
+};
+
+struct hsm_component
+{
+    hierarchical_state_machine machine;
 };
 
 struct generic_component
@@ -494,6 +501,7 @@ struct component
         generic_component_id generic_id;
         grid_component_id    grid_id;
         graph_component_id   graph_id;
+        hsm_component_id     hsm_id;
     } id = {};
 
     component_type   type  = component_type::none;
@@ -789,6 +797,7 @@ struct modeling
     data_array<generic_component, generic_component_id> generic_components;
     data_array<grid_component, grid_component_id>       grid_components;
     data_array<graph_component, graph_component_id>     graph_components;
+    data_array<hsm_component, hsm_component_id>         hsm_components;
     data_array<port, port_id>                           ports;
     data_array<component, component_id>                 components;
     data_array<registred_path, registred_path_id>       registred_paths;
@@ -835,6 +844,7 @@ struct modeling
     void free(generic_component& c) noexcept;
     void free(graph_component& c) noexcept;
     void free(grid_component& c) noexcept;
+    void free(hsm_component& c) noexcept;
     void free(child& c) noexcept;
     void free(connection& c) noexcept;
 

@@ -571,37 +571,46 @@ void show_dynamics_inputs(external_source& /*srcs*/, logical_or_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
 
-void show_dynamics_inputs(application&                app,
-                          component_id                compo,
-                          model_id                    id,
-                          hierarchical_state_machine& machine,
-                          hsm_wrapper&                wrapper)
+void show_dynamics_inputs(external_source& /*srcs*/, hsm_wrapper& dyn)
 {
-    hierarchical_state_machine copy{ machine };
-
-    ImGui::Text("current state: %d", static_cast<int>(wrapper.current_state));
-
-    if (ImGui::Button("Edit")) {
-        app.hsm_ed.load(compo, id);
-        app.show_hsm_editor = true;
-    }
+    // @TODO Select the hsm_component ?
+    ImGui::InputInt("a", &dyn.exec.a);
+    ImGui::InputInt("b", &dyn.exec.b);
 }
 
-void show_dynamics_inputs(application&                app,
-                          model_id                    id,
-                          hierarchical_state_machine& machine,
-    hsm_wrapper& wrapper)
-{
-    hierarchical_state_machine copy{ machine };
-
-    ImGui::Text("current state: %d", static_cast<int>(wrapper.current_state));
-
-    if (ImGui::Button("Edit")) {
-        app.hsm_ed.clear();
-        app.hsm_ed.load(id);
-        app.show_hsm_editor = true;
-    }
-}
+//void show_dynamics_inputs(application&                app,
+//                          component_id                compo,
+//                          model_id                    id,
+//                          hierarchical_state_machine& machine,
+//                          hsm_wrapper&                wrapper)
+//{
+//    hierarchical_state_machine copy{ machine };
+//
+//    ImGui::Text("current state: %d",
+//                static_cast<int>(wrapper.exec.current_state));
+//
+//    if (ImGui::Button("Edit")) {
+//        app.hsm_ed.load(compo, id);
+//        app.show_hsm_editor = true;
+//    }
+//}
+//
+//void show_dynamics_inputs(application&                app,
+//                          model_id                    id,
+//                          hierarchical_state_machine& machine,
+//                          hsm_wrapper&                wrapper)
+//{
+//    hierarchical_state_machine copy{ machine };
+//
+//    ImGui::Text("current state: %d",
+//                static_cast<int>(wrapper.exec.current_state));
+//
+//    if (ImGui::Button("Edit")) {
+//        app.hsm_ed.clear();
+//        app.hsm_ed.load(id);
+//        app.show_hsm_editor = true;
+//    }
+//}
 
 void show_dynamics_inputs(external_source& /*srcs*/, time_func& dyn)
 {

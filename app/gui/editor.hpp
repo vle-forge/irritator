@@ -72,13 +72,16 @@ void show_dynamics_inputs(external_source& srcs, logical_or_2& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_and_3& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_or_3& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_invert& dyn);
-void show_dynamics_inputs(application&                app,
-                          model_id                    id,
-                          hierarchical_state_machine& machine);
-void show_dynamics_inputs(application&                app,
-                          component_id                compo,
-                          model_id                    id,
-                          hierarchical_state_machine& machine);
+void show_dynamics_inputs(external_source& app, hsm_wrapper& dyn);
+
+// void show_dynamics_inputs(application&                app,
+//                           model_id                    id,
+//                           hierarchical_state_machine& machine);
+// void show_dynamics_inputs(application&                app,
+//                           component_id                compo,
+//                           model_id                    id,
+//                           hierarchical_state_machine& machine);
+
 void show_dynamics_inputs(external_source& srcs, time_func& dyn);
 
 /**

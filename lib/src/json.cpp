@@ -1803,18 +1803,26 @@ struct reader
           });
     }
 
-    bool read_dynamics(const rapidjson::Value&     val,
-                       hierarchical_state_machine& hsm,
-                       hsm_wrapper&                wrapper) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       hsm_wrapper&            wrapper) noexcept
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("states"sv == name)
-                  return read_hsm_states(value, hsm.states);
-              if ("outputs"sv == name)
-                  return read_hsm_outputs(value, wrapper.exec.outputs);
+              if ("hsm"sv == name) {
+                  component_id hsm_compo{};
+                  return read_child_component(value, hsm_compo);
+              }
+              if ("a"sv == name)
+                  read_temp_integer(value) && copy_to(wrapper.exec.a);
+              if ("b"sv == name)
+                  read_temp_integer(value) && copy_to(wrapper.exec.b);
+
+              // if ("states"sv == name)
+              //     return read_hsm_states(value, hsm.states);
+              // if ("outputs"sv == name)
+              //     return read_hsm_outputs(value, wrapper.exec.outputs);
 
               report_json_error(error_id::unknown_element);
           });
@@ -1887,14 +1895,7 @@ struct reader
           val, "dynamics"sv, [&](const auto& value) noexcept -> bool {
               return dispatch(
                 mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                        if (auto* hsm = mod().hsms.try_to_get(dyn.id); hsm)
-                            return read_dynamics(value, *hsm);
-
-                        report_json_error(error_id::modeling_hsm_id_error);
-                    } else {
-                        return read_dynamics(value, dyn);
-                    }
+                    return read_dynamics(value, dyn);
                 });
           });
     }
@@ -2149,6 +2150,9 @@ struct reader
 
         case component_type::graph:
             return read_child_simple_or_grid_component(val, c_id);
+
+        case component_type::hsm:
+            return read_child_simple_or_grid_component(val, c_id);
         }
 
         report_json_error(error_id::unknown_element);
@@ -2202,14 +2206,7 @@ struct reader
           val, "dynamics", [&](const auto& value) noexcept -> bool {
               return dispatch(
                 mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                        if (auto* hsm = mod().hsms.try_to_get(dyn.id); hsm)
-                            return read_dynamics(value, *hsm);
-
-                        report_json_error(error_id::modeling_hsm_id_error);
-                    } else {
-                        return read_dynamics(value, dyn);
-                    }
+                    return read_dynamics(value, dyn);
                 });
           });
     }
@@ -3430,14 +3427,7 @@ struct reader
 
               return dispatch(
                 mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                        if (auto* hsm = sim().hsms.try_to_get(dyn.id); hsm)
-                            return read_dynamics(value, *hsm);
-
-                        report_json_error(error_id::modeling_hsm_id_error);
-                    } else {
-                        return read_dynamics(value, dyn);
-                    }
+                    return read_dynamics(value, dyn);
                 });
           });
     }
@@ -4900,8 +4890,8 @@ status write(Writer&                                             writer,
 }
 
 template<typename Writer>
-status write(Writer& writer,
-             const hsm_wrapper& dyn,
+status write(Writer&                           writer,
+             const hsm_wrapper&                dyn,
              const hierarchical_state_machine& machine) noexcept
 {
     writer.StartObject();
