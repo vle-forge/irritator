@@ -1804,7 +1804,8 @@ struct reader
     }
 
     bool read_dynamics(const rapidjson::Value&     val,
-                       hierarchical_state_machine& hsm) noexcept
+                       hierarchical_state_machine& hsm,
+                       hsm_wrapper&                wrapper) noexcept
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
@@ -1813,7 +1814,7 @@ struct reader
               if ("states"sv == name)
                   return read_hsm_states(value, hsm.states);
               if ("outputs"sv == name)
-                  return read_hsm_outputs(value, hsm.outputs);
+                  return read_hsm_outputs(value, wrapper.exec.outputs);
 
               report_json_error(error_id::unknown_element);
           });
@@ -4900,7 +4901,7 @@ status write(Writer&                                             writer,
 
 template<typename Writer>
 status write(Writer& writer,
-             const hsm_wrapper& /*dyn*/,
+             const hsm_wrapper& dyn,
              const hierarchical_state_machine& machine) noexcept
 {
     writer.StartObject();
@@ -4949,12 +4950,12 @@ status write(Writer& writer,
 
     writer.Key("outputs");
     writer.StartArray();
-    for (int i = 0, e = machine.outputs.ssize(); i != e; ++i) {
+    for (int i = 0, e = dyn.exec.outputs.ssize(); i != e; ++i) {
         writer.StartObject();
         writer.Key("port");
-        writer.Int(machine.outputs[i].port);
+        writer.Int(dyn.exec.outputs[i].port);
         writer.Key("value");
-        writer.Int(machine.outputs[i].value);
+        writer.Int(dyn.exec.outputs[i].value);
         writer.EndObject();
     }
 

@@ -6071,29 +6071,55 @@ public:
         i32 value{};
     };
 
+    struct execution
+    {
+        i32 a      = 0;
+        i32 b      = 0;
+        u8  values = 0;
+
+        state_id current_state        = invalid_state_id;
+        state_id next_state           = invalid_state_id;
+        state_id source_state         = invalid_state_id;
+        state_id current_source_state = invalid_state_id;
+        state_id previous_state       = invalid_state_id;
+        bool     disallow_transition  = false;
+
+        small_vector<output_message, 4> outputs;
+
+        void clear() noexcept
+        {
+            values = 0u;
+            outputs.clear();
+
+            current_state        = invalid_state_id;
+            next_state           = invalid_state_id;
+            source_state         = invalid_state_id;
+            current_source_state = invalid_state_id;
+            previous_state       = invalid_state_id;
+            disallow_transition  = false;
+        }
+    };
+
     hierarchical_state_machine() noexcept = default;
     hierarchical_state_machine(const hierarchical_state_machine&) noexcept;
     hierarchical_state_machine& operator=(
       const hierarchical_state_machine&) noexcept;
 
-    status start() noexcept;
-    void   clear() noexcept;
+    status start(execution& state) noexcept;
 
     /// Dispatches an event.
     /// @return If status is success, return true if the event was
     /// processed, otherwise false. Status can return error if automata is badly
     /// defined.
-    std::pair<status, bool> dispatch(const event_type e) noexcept;
+    std::pair<status, bool> dispatch(const event_type e,
+                                     execution&       exec) noexcept;
 
     /// Return true if the state machine is currently dispatching an event.
-    bool is_dispatching() const noexcept;
+    bool is_dispatching(execution& state) const noexcept;
 
     /// Transitions the state machine. This function can not be called from
     /// Enter / Exit events in the state handler.
-    void transition(state_id target) noexcept;
-
-    state_id get_current_state() const noexcept;
-    state_id get_source_state() const noexcept;
+    void transition(state_id target, execution& exec) noexcept;
 
     /// Set a handler for a state ID. This function will overwrite the current
     /// state handler.
@@ -6110,28 +6136,19 @@ public:
     /// Resets the state to invalid mode.
     void clear_state(state_id id) noexcept;
 
-    bool is_in_state(state_id id) const noexcept;
+    bool is_in_state(execution& state, state_id id) const noexcept;
 
-    bool handle(const state_id state, const event_type event) noexcept;
+    bool handle(const state_id   state,
+                const event_type event,
+                execution&       exec) noexcept;
 
     int    steps_to_common_root(state_id source, state_id target) noexcept;
-    status on_enter_sub_state() noexcept;
+    status on_enter_sub_state(execution& state) noexcept;
 
-    void affect_action(const state_action& action) noexcept;
+    void affect_action(const state_action& action, execution& exec) noexcept;
 
     std::array<state, max_number_of_state> states;
-    small_vector<output_message, 4>        outputs;
-
-    i32 a      = 0;
-    i32 b      = 0;
-    u8  values = 0;
-
-    state_id m_current_state        = invalid_state_id;
-    state_id m_next_state           = invalid_state_id;
-    state_id m_source_state         = invalid_state_id;
-    state_id m_current_source_state = invalid_state_id;
-    state_id m_top_state            = invalid_state_id;
-    bool     m_disallow_transition  = false;
+    state_id                               top_state = invalid_state_id;
 };
 
 enum class hsm_id : u64;
@@ -6148,9 +6165,10 @@ struct hsm_wrapper
     input_port  x[4];
     output_port y[4];
 
-    hsm_id   id;
-    state_id m_previous_state;
-    real     sigma;
+    hsm_id         id;
+    hsm::execution exec;
+
+    real sigma;
 
     hsm_wrapper() noexcept;
     hsm_wrapper(const hsm_wrapper& other) noexcept;
@@ -10349,8 +10367,8 @@ inline status simulation::run(time& t) noexcept
 inline hsm_wrapper::hsm_wrapper() noexcept = default;
 
 inline hsm_wrapper::hsm_wrapper(const hsm_wrapper& other) noexcept
-  : id{ undefined<hsm_id>() }
-  , m_previous_state{ other.m_previous_state }
+  : id{ other.id }
+  , exec{ other.exec }
   , sigma{ other.sigma }
 {
 }
@@ -10360,8 +10378,7 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
     hierarchical_state_machine* machine = nullptr;
     irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
 
-    m_previous_state = hierarchical_state_machine::invalid_state_id;
-    irt_return_if_bad(machine->start());
+    irt_return_if_bad(machine->start(exec));
 
     sigma = time_domain<time>::infinity;
 
@@ -10376,13 +10393,13 @@ inline status hsm_wrapper::transition(simulation& sim,
     hierarchical_state_machine* machine = nullptr;
     irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
 
-    machine->outputs.clear();
+    exec.outputs.clear();
     sigma                       = time_domain<time>::infinity;
-    const auto old_values_state = machine->values;
+    const auto old_values_state = exec.values;
 
     for (int i = 0, e = length(x); i != e; ++i) {
         if (have_message(x[i]))
-            machine->values |= static_cast<u8>(1u << i);
+            exec.values |= static_cast<u8>(1u << i);
 
         // notice for clear a bit if negative value ? or 0 value ?
         // for (const auto& msg : span) {
@@ -10400,16 +10417,16 @@ inline status hsm_wrapper::transition(simulation& sim,
         //  number = (number & ~(1UL << n)) | (x << n);
     }
 
-    if (old_values_state != machine->values) {
-        m_previous_state = machine->get_current_state();
+    if (old_values_state != exec.values) {
+        exec.previous_state = exec.current_state;
 
         auto ret = machine->dispatch(
-          hierarchical_state_machine::event_type::input_changed);
+          hierarchical_state_machine::event_type::input_changed, exec);
 
         if (is_bad(ret.first))
             irt_bad_return(ret.first);
 
-        if (ret.second && !machine->outputs.empty())
+        if (ret.second && !exec.outputs.empty())
             sigma = time_domain<time>::zero;
     }
 
@@ -10421,13 +10438,13 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
     hierarchical_state_machine* machine = nullptr;
     irt_return_if_bad(get_hierarchical_state_machine(sim, machine, id));
 
-    if (m_previous_state != hierarchical_state_machine::invalid_state_id &&
-        !machine->outputs.empty()) {
-        for (int i = 0, e = machine->outputs.ssize(); i != e; ++i) {
-            const u8  port  = machine->outputs[i].port;
-            const i32 value = machine->outputs[i].value;
+    if (exec.previous_state != hierarchical_state_machine::invalid_state_id &&
+        !exec.outputs.empty()) {
+        for (int i = 0, e = exec.outputs.ssize(); i != e; ++i) {
+            const u8  port  = exec.outputs[i].port;
+            const i32 value = exec.outputs[i].value;
 
-            irt_assert(port >= 0 && port < machine->outputs.size());
+            irt_assert(port >= 0 && port < exec.outputs.size());
 
             irt_return_if_bad(send_message(sim, y[port], to_real(value)));
         }

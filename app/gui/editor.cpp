@@ -574,12 +574,12 @@ void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
 void show_dynamics_inputs(application&                app,
                           component_id                compo,
                           model_id                    id,
-                          hierarchical_state_machine& machine)
+                          hierarchical_state_machine& machine,
+                          hsm_wrapper&                wrapper)
 {
     hierarchical_state_machine copy{ machine };
 
-    ImGui::Text("current state: %d",
-                static_cast<int>(machine.get_current_state()));
+    ImGui::Text("current state: %d", static_cast<int>(wrapper.current_state));
 
     if (ImGui::Button("Edit")) {
         app.hsm_ed.load(compo, id);
@@ -589,12 +589,12 @@ void show_dynamics_inputs(application&                app,
 
 void show_dynamics_inputs(application&                app,
                           model_id                    id,
-                          hierarchical_state_machine& machine)
+                          hierarchical_state_machine& machine,
+    hsm_wrapper& wrapper)
 {
     hierarchical_state_machine copy{ machine };
 
-    ImGui::Text("current state: %d",
-                static_cast<int>(machine.get_current_state()));
+    ImGui::Text("current state: %d", static_cast<int>(wrapper.current_state));
 
     if (ImGui::Button("Edit")) {
         app.hsm_ed.clear();

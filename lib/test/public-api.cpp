@@ -1627,6 +1627,7 @@ int main()
 
     "hsm_automata"_test = [] {
         irt::hierarchical_state_machine hsmw;
+        irt::hierarchical_state_machine::execution exec;
 
         hsmw.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u);
@@ -1646,20 +1647,20 @@ int main()
           irt::hierarchical_state_machine::variable::port_0;
         hsmw.states[2u].enter_action.parameter = 1;
 
-        hsmw.start();
+        hsmw.start(exec);
 
-        expect((int)hsmw.get_current_state() == 1);
-        hsmw.values = 0b00000011;
+        expect((int)exec.current_state == 1);
+        exec.values = 0b00000011;
 
-        expect(hsmw.outputs.ssize() == 0);
+        expect(exec.outputs.ssize() == 0);
 
         const auto processed = hsmw.dispatch(
-          irt::hierarchical_state_machine::event_type::input_changed);
+          irt::hierarchical_state_machine::event_type::input_changed, exec);
 
         expect(processed.first == irt::status::success);
         expect(processed.second == true);
 
-        expect(hsmw.outputs.ssize() == 1);
+        expect(exec.outputs.ssize() == 1);
     };
 
     "hsm_simulation"_test = [] {

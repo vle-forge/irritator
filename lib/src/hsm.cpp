@@ -9,16 +9,7 @@ namespace irt {
 hierarchical_state_machine::hierarchical_state_machine(
   const hierarchical_state_machine& other) noexcept
   : states(other.states)
-  , outputs(other.outputs)
-  , a(other.a)
-  , b(other.b)
-  , values(other.values)
-  , m_current_state(other.m_current_state)
-  , m_next_state(other.m_next_state)
-  , m_source_state(other.m_source_state)
-  , m_current_source_state(other.m_current_source_state)
-  , m_top_state(other.m_top_state)
-  , m_disallow_transition(other.m_disallow_transition)
+  , top_state(other.top_state)
 {
 }
 
@@ -26,37 +17,16 @@ hierarchical_state_machine& hierarchical_state_machine::operator=(
   const hierarchical_state_machine& other) noexcept
 {
     if (this != &other) {
-        states                 = other.states;
-        outputs                = other.outputs;
-        a                      = other.a;
-        b                      = other.b;
-        values                 = other.values;
-        m_current_state        = other.m_current_state;
-        m_next_state           = other.m_next_state;
-        m_source_state         = other.m_source_state;
-        m_current_source_state = other.m_current_source_state;
-        m_top_state            = other.m_top_state;
-        m_disallow_transition  = other.m_disallow_transition;
+        states    = other.states;
+        top_state = other.top_state;
     }
 
     return *this;
 }
 
-bool hierarchical_state_machine::is_dispatching() const noexcept
+bool hierarchical_state_machine::is_dispatching(execution& exec) const noexcept
 {
-    return m_current_source_state != invalid_state_id;
-}
-
-typename hierarchical_state_machine::state_id
-hierarchical_state_machine::get_current_state() const noexcept
-{
-    return m_current_state;
-}
-
-typename hierarchical_state_machine::state_id
-hierarchical_state_machine::get_source_state() const noexcept
-{
-    return m_source_state;
+    return exec.current_source_state != invalid_state_id;
 }
 
 void hierarchical_state_machine::state_action::clear() noexcept
@@ -75,58 +45,47 @@ void hierarchical_state_machine::condition_action::clear() noexcept
     mask      = 0;
 }
 
-status hierarchical_state_machine::start() noexcept
+status hierarchical_state_machine::start(execution& exec) noexcept
 {
     if (states.empty())
         return status::success;
 
-    irt_return_if_fail(m_top_state != invalid_state_id,
+    irt_return_if_fail(top_state != invalid_state_id,
                        status::model_hsm_bad_top_state);
 
-    m_current_state = m_top_state;
-    m_next_state    = invalid_state_id;
+    exec.current_state = top_state;
+    exec.next_state    = invalid_state_id;
 
-    handle(m_current_state, event_type::enter);
+    handle(exec.current_state, event_type::enter, exec);
 
-    while ((m_next_state = states[m_current_state].sub_id) !=
+    while ((exec.next_state = states[exec.current_state].sub_id) !=
            invalid_state_id) {
-        irt_return_if_bad(on_enter_sub_state());
+        irt_return_if_bad(on_enter_sub_state(exec));
     }
 
     return status::success;
 }
 
-void hierarchical_state_machine::clear() noexcept
-{
-    values = 0u;
-    outputs.clear();
-
-    m_top_state            = invalid_state_id;
-    m_current_state        = invalid_state_id;
-    m_next_state           = invalid_state_id;
-    m_source_state         = invalid_state_id;
-    m_current_source_state = invalid_state_id;
-    m_disallow_transition  = false;
-}
-
 std::pair<status, bool> hierarchical_state_machine::dispatch(
-  const event_type event) noexcept
+  const event_type event,
+  execution&       exec) noexcept
 {
-    irt_assert(!is_dispatching());
+    irt_assert(!is_dispatching(exec));
 
     bool is_processed = false;
 
-    for (state_id sid = m_current_state; sid != invalid_state_id;) {
-        auto& state            = states[sid];
-        m_current_source_state = sid;
+    for (state_id sid = exec.current_state; sid != invalid_state_id;) {
+        auto& state               = states[sid];
+        exec.current_source_state = sid;
 
-        if (handle(sid, event)) {
-            if (m_next_state != invalid_state_id) {
+        if (handle(sid, event, exec)) {
+            if (exec.next_state != invalid_state_id) {
                 do {
-                    if (auto ret = on_enter_sub_state(); is_bad(ret))
+                    if (auto ret = on_enter_sub_state(exec); is_bad(ret))
                         return { ret, false };
-                } while ((m_next_state = states[m_current_state].sub_id) !=
-                         invalid_state_id);
+                } while (
+                  (exec.next_state = states[exec.current_state].sub_id) !=
+                  invalid_state_id);
             }
             is_processed = true;
             break;
@@ -134,18 +93,18 @@ std::pair<status, bool> hierarchical_state_machine::dispatch(
 
         sid = state.super_id;
     }
-    m_current_source_state = invalid_state_id;
+    exec.current_source_state = invalid_state_id;
 
     return { status::success, is_processed };
 }
 
-status hierarchical_state_machine::on_enter_sub_state() noexcept
+status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
 {
-    irt_return_if_fail(m_next_state != invalid_state_id,
+    irt_return_if_fail(exec.next_state != invalid_state_id,
                        status::model_hsm_bad_next_state);
 
     small_vector<state_id, max_number_of_state> entry_path;
-    for (state_id sid = m_next_state; sid != m_current_state;) {
+    for (state_id sid = exec.next_state; sid != exec.current_state;) {
         auto& state = states[sid];
 
         entry_path.emplace_back(sid);
@@ -156,51 +115,52 @@ status hierarchical_state_machine::on_enter_sub_state() noexcept
     }
 
     while (!entry_path.empty()) {
-        m_disallow_transition = true;
+        exec.disallow_transition = true;
 
-        handle(entry_path.back(), event_type::enter);
+        handle(entry_path.back(), event_type::enter, exec);
 
-        m_disallow_transition = false;
+        exec.disallow_transition = false;
         entry_path.pop_back();
     }
 
-    m_current_state = m_next_state;
-    m_next_state    = invalid_state_id;
+    exec.current_state = exec.next_state;
+    exec.next_state    = invalid_state_id;
 
     return status::success;
 }
 
-void hierarchical_state_machine::transition(state_id target) noexcept
+void hierarchical_state_machine::transition(state_id   target,
+                                            execution& exec) noexcept
 {
     irt_assert(target < max_number_of_state);
-    irt_assert(m_disallow_transition == false);
-    irt_assert(is_dispatching());
+    irt_assert(exec.disallow_transition == false);
+    irt_assert(is_dispatching(exec));
 
-    if (m_disallow_transition)
+    if (exec.disallow_transition)
         return;
 
-    if (m_current_source_state != invalid_state_id)
-        m_source_state = m_current_source_state;
+    if (exec.current_source_state != invalid_state_id)
+        exec.source_state = exec.current_source_state;
 
-    m_disallow_transition = true;
+    exec.disallow_transition = true;
     state_id sid;
-    for (sid = m_current_state; sid != m_source_state;) {
-        handle(sid, event_type::exit);
+    for (sid = exec.source_state; sid != exec.source_state;) {
+        handle(sid, event_type::exit, exec);
         sid = states[sid].super_id;
     }
 
-    int stepsToCommonRoot = steps_to_common_root(m_source_state, target);
+    int stepsToCommonRoot = steps_to_common_root(exec.source_state, target);
     irt_assert(stepsToCommonRoot >= 0);
 
     while (stepsToCommonRoot--) {
-        handle(sid, event_type::exit);
+        handle(sid, event_type::exit, exec);
         sid = states[sid].super_id;
     }
 
-    m_disallow_transition = false;
+    exec.disallow_transition = false;
 
-    m_current_state = sid;
-    m_next_state    = target;
+    exec.current_state = sid;
+    exec.next_state    = target;
 }
 
 status hierarchical_state_machine::set_state(state_id id,
@@ -208,9 +168,9 @@ status hierarchical_state_machine::set_state(state_id id,
                                              state_id sub_id) noexcept
 {
     if (super_id == invalid_state_id) {
-        irt_return_if_fail(m_top_state == invalid_state_id,
+        irt_return_if_fail(top_state == invalid_state_id,
                            status::model_hsm_bad_top_state);
-        m_top_state = id;
+        top_state = id;
     }
 
     states[id].super_id = super_id;
@@ -237,9 +197,10 @@ void hierarchical_state_machine::clear_state(state_id id) noexcept
     states[id].sub_id          = invalid_state_id;
 }
 
-bool hierarchical_state_machine::is_in_state(state_id id) const noexcept
+bool hierarchical_state_machine::is_in_state(execution& exec,
+                                             state_id   id) const noexcept
 {
-    state_id sid = m_current_state;
+    state_id sid = exec.current_state;
 
     while (sid != invalid_state_id) {
         if (sid == id)
@@ -252,27 +213,28 @@ bool hierarchical_state_machine::is_in_state(state_id id) const noexcept
 }
 
 bool hierarchical_state_machine::handle(const state_id   state,
-                                        const event_type event) noexcept
+                                        const event_type event,
+                                        execution&       exec) noexcept
 {
     switch (event) {
     case event_type::enter:
-        affect_action(states[state].enter_action);
+        affect_action(states[state].enter_action, exec);
         return true;
 
     case event_type::exit:
-        affect_action(states[state].exit_action);
+        affect_action(states[state].exit_action, exec);
         return true;
 
     case event_type::input_changed:
-        if (states[state].condition.check(values, a, b)) {
-            affect_action(states[state].if_action);
+        if (states[state].condition.check(exec.values, exec.a, exec.b)) {
+            affect_action(states[state].if_action, exec);
             if (states[state].if_transition != invalid_state_id)
-                transition(states[state].if_transition);
+                transition(states[state].if_transition, exec);
             return true;
         } else {
-            affect_action(states[state].else_action);
+            affect_action(states[state].else_action, exec);
             if (states[state].else_transition != invalid_state_id)
-                transition(states[state].else_transition);
+                transition(states[state].else_transition, exec);
             return true;
         }
         return false;
@@ -284,8 +246,8 @@ bool hierarchical_state_machine::handle(const state_id   state,
     irt_unreachable();
 }
 
-void hierarchical_state_machine::affect_action(
-  const state_action& action) noexcept
+void hierarchical_state_machine::affect_action(const state_action& action,
+                                               execution& exec) noexcept
 {
     i32 param = action.parameter;
     u8  port  = 255; // @TODO better code need
@@ -293,12 +255,12 @@ void hierarchical_state_machine::affect_action(
     if (action.var1 >= variable::port_0 && action.var1 <= variable::port_3)
         port = ordinal(action.var1) - 1; // @TODO better code need
 
-    i32* var_1 = action.var1 == variable::var_a   ? &a
-                 : action.var1 == variable::var_b ? &b
+    i32* var_1 = action.var1 == variable::var_a   ? &exec.a
+                 : action.var1 == variable::var_b ? &exec.b
                                                   : nullptr;
 
-    i32* var_2 = action.var2 == variable::var_a      ? &a
-                 : action.var2 == variable::var_b    ? &b
+    i32* var_2 = action.var2 == variable::var_a      ? &exec.a
+                 : action.var2 == variable::var_b    ? &exec.b
                  : action.var2 == variable::constant ? &param
                                                      : nullptr;
 
@@ -307,18 +269,18 @@ void hierarchical_state_machine::affect_action(
         break;
     case action_type::set:
         irt_assert(port >= 0 && port <= 3);
-        values |= static_cast<u8>(1u << port);
+        exec.values |= static_cast<u8>(1u << port);
         break;
     case action_type::unset:
         irt_assert(port >= 0 && port <= 3);
-        values &= static_cast<u8>(~(1u << port));
+        exec.values &= static_cast<u8>(~(1u << port));
         break;
     case action_type::reset:
-        values = static_cast<u8>(0u);
+        exec.values = static_cast<u8>(0u);
         break;
     case action_type::output:
         irt_assert(port >= 0 && port <= 3);
-        outputs.emplace_back(hierarchical_state_machine::output_message{
+        exec.outputs.emplace_back(hierarchical_state_machine::output_message{
           .port = port, .value = action.parameter });
         break;
     case action_type::affect:

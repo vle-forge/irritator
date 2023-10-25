@@ -679,7 +679,22 @@ static void do_serialize_dynamics(const Archiver s,
         io(index);
     }
 
-    io(dyn.m_previous_state);
+    {
+        auto size = dyn.exec.outputs.size();
+        io(size);
+
+        if (size > 0u)
+            io(std::span(dyn.exec.outputs.data(),
+                         dyn.exec.outputs.size()));
+    }
+
+    io(dyn.exec.current_state);
+    io(dyn.exec.next_state);
+    io(dyn.exec.source_state);
+    io(dyn.exec.current_source_state);
+    io(dyn.exec.previous_state);
+    io(dyn.exec.disallow_transition);
+    io(dyn.exec.previous_state);
     io(dyn.sigma);
 }
 
@@ -915,20 +930,7 @@ static void do_serialize(const Archiver              s,
         }
     }
 
-    {
-        auto size = hsm.outputs.size();
-        io(size);
-
-        if (size > 0)
-            io(std::span(hsm.outputs.data(), hsm.outputs.size()));
-    }
-
-    io(hsm.m_current_state);
-    io(hsm.m_next_state);
-    io(hsm.m_source_state);
-    io(hsm.m_current_source_state);
-    io(hsm.m_top_state);
-    io(hsm.m_disallow_transition);
+    io(hsm.top_state);
 }
 
 template<typename Archiver, typename IO>
