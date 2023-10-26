@@ -561,11 +561,16 @@ static status build_grid(grid_observation_system& grid_system,
             auto*       mdl    = sim.models.try_to_get(tn_mdl.second);
 
             if (tn && mdl) {
-                const auto w     = unpack_doubleword(child->unique_id);
-                const auto index = w.first * grid_compo.column + w.second;
+                const auto w = unpack_doubleword(child->unique_id);
+                irt_assert(w.first < static_cast<u32>(grid_compo.row));
+                irt_assert(w.second < static_cast<u32>(grid_compo.column));
+
+                const auto index =
+                  static_cast<i32>(w.first) * grid_compo.column +
+                  static_cast<i32>(w.second);
 
                 irt_assert(0 <= index);
-                irt_assert(index < grid_system.observers.size());
+                irt_assert(index < grid_system.observers.ssize());
 
                 auto&      obs    = sim.observers.alloc("tmp");
                 const auto obs_id = sim.observers.get_id(obs);
@@ -643,8 +648,8 @@ void grid_observation_system::update(simulation& sim) noexcept
             const auto* obs = sim.observers.try_to_get(id);
 
             values[row * cols + col] = obs && !obs->linearized_buffer.empty()
-                                             ? obs->linearized_buffer.back().y
-                                             : none_value;
+                                         ? obs->linearized_buffer.back().y
+                                         : none_value;
         }
     }
 }
