@@ -753,12 +753,8 @@ void modeling::clean_simulation() noexcept
 
 void modeling::clear(child& c) noexcept
 {
-    if (c.type == child_type::model)
-        if (auto* mdl = models.try_to_get(c.id.mdl_id); mdl)
-            models.free(*mdl);
-
-    c.id.mdl_id = undefined<model_id>();
-    c.type      = child_type::model;
+    c.id.mdl_type = dynamics_type::constant;
+    c.type        = child_type::model;
 }
 
 void modeling::clear(component& compo) noexcept
@@ -944,53 +940,19 @@ child& modeling::alloc(generic_component& parent, component_id id) noexcept
 
 child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
 {
-    irt_assert(models.can_alloc());
     irt_assert(children.can_alloc());
 
-    auto& mdl    = models.alloc();
-    auto  mdl_id = models.get_id(mdl);
-    mdl.type     = type;
-    mdl.handle   = nullptr;
+    auto&      child = children.alloc(type);
+    const auto id    = children.get_id(child);
+    const auto index = get_index(id);
 
-    dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
-        new (&dyn) Dynamics{};
-
-        if constexpr (has_input_port<Dynamics>)
-            for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = static_cast<u64>(-1);
-
-        if constexpr (has_output_port<Dynamics>)
-            for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i] = static_cast<u64>(-1);
-
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            irt_assert(this->hsms.can_alloc());
-
-            auto& machine = this->hsms.alloc();
-            dyn.id        = this->hsms.get_id(machine);
-        }
-    });
-
-    auto& child     = children.alloc(mdl_id);
-    auto  child_id  = children.get_id(child);
     child.unique_id = parent.make_next_unique_id();
-    child.type      = child_type::model;
-    child.id.mdl_id = mdl_id;
-    parent.children.emplace_back(child_id);
 
-    return child;
-}
+    parent.children.emplace_back(id);
 
-child& modeling::alloc(generic_component& parent, model_id id) noexcept
-{
-    irt_assert(children.can_alloc());
-
-    auto& child     = children.alloc(id);
-    auto  child_id  = children.get_id(child);
-    child.unique_id = parent.make_next_unique_id();
-    child.type      = child_type::model;
-    child.id.mdl_id = id;
-    parent.children.emplace_back(child_id);
+    children_names[index].clear();
+    children_parameters[index].clear();
+    children_positions[index] = child_position(0.f, 0.f);
 
     return child;
 }

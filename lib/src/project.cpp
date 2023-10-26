@@ -31,6 +31,7 @@ struct simulation_copy
     simulation&     sim;
 
     data_array<tree_node, tree_node_id>& tree_nodes;
+    table<hsm_component_id, hsm_id>      hsm_mod_to_sim;
 };
 
 static status simulation_copy_source(simulation_copy& sc,
@@ -310,6 +311,122 @@ static int compute_outcoming_component(modeling&  mod,
 static status make_tree_leaf(simulation_copy& sc,
                              tree_node&       parent,
                              u64              unique_id,
+                             dynamics_type    mdl_type,
+                             child_id         ch_id,
+                             child&           ch) noexcept
+{
+    irt_return_if_fail(sc.sim.models.can_alloc(),
+                       status::simulation_not_enough_model);
+
+    if (mdl_type == dynamics_type::hsm_wrapper)
+        irt_return_if_fail(sc.sim.hsms.can_alloc(1),
+                           status::simulation_not_enough_model);
+
+    auto& new_mdl    = sc.sim.models.alloc();
+    auto  new_mdl_id = sc.sim.models.get_id(new_mdl);
+    new_mdl.type     = mdl_type;
+    new_mdl.handle   = nullptr;
+
+    dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+        std::construct_at(&dyn);
+
+        if constexpr (has_input_port<Dynamics>)
+            for (int i = 0, e = length(dyn.x); i != e; ++i)
+                dyn.x[i] = static_cast<u64>(-1);
+
+        if constexpr (has_output_port<Dynamics>)
+            for (int i = 0, e = length(dyn.y); i != e; ++i)
+                dyn.y[i] = static_cast<u64>(-1);
+
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            const auto child_index = get_index(ch_id);
+            const auto mod_hsm_id  = enum_cast<hsm_component_id>(
+              sc.mod.children_parameters[child_index].integers[0]);
+
+            const auto* sim_hsm_id = sc.hsm_mod_to_sim.get(mod_hsm_id);
+            if (sim_hsm_id) {
+                const auto* hsm = sc.sim.hsms.try_to_get(*sim_hsm_id);
+                irt_assert(hsm);
+                dyn.id = *sim_hsm_id;
+            }
+        }
+
+        // @TODO 26/10 re-enable this part when parameter are ok
+
+        // if constexpr (std::is_same_v<Dynamics, generator>) {
+        //     simulation_copy_source(
+        //       sc, src_dyn.default_source_ta, dyn.default_source_ta);
+        //     simulation_copy_source(
+        //       sc, src_dyn.default_source_value, dyn.default_source_value);
+        // }
+
+        // if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
+        //     simulation_copy_source(
+        //       sc, src_dyn.default_source_ta, dyn.default_source_ta);
+        // }
+
+        // if constexpr (std::is_same_v<Dynamics, priority_queue>) {
+        //     simulation_copy_source(
+        //       sc, src_dyn.default_source_ta, dyn.default_source_ta);
+        // }
+
+        // if constexpr (std::is_same_v<Dynamics, constant>) {
+        //     switch (dyn.type) {
+        //     case constant::init_type::constant:
+        //         break;
+        //     case constant::init_type::incoming_component_all:
+        //         dyn.default_value = compute_incoming_component(sc.mod,
+        //         parent); break;
+        //     case constant::init_type::outcoming_component_all:
+        //         dyn.default_value = compute_outcoming_component(sc.mod,
+        //         parent); break;
+        //     case constant::init_type::incoming_component_n: {
+        //         const auto id          = enum_cast<port_id>(dyn.port);
+        //         auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
+
+        //         if (port_id_ptr)
+        //             dyn.default_value =
+        //               compute_incoming_component(sc.mod, parent, id);
+        //     } break;
+        //     case constant::init_type::outcoming_component_n: {
+        //         const auto id          = enum_cast<port_id>(dyn.port);
+        //         auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
+
+        //         if (port_id_ptr)
+        //             dyn.default_value =
+        //               compute_outcoming_component(sc.mod, parent, id);
+        //         break;
+        //     }
+        //     }
+        // }
+    });
+
+    {
+        auto& x     = parent.child_to_node.data.emplace_back();
+        x.id        = sc.mod.children.get_id(ch);
+        x.value.mdl = &new_mdl;
+    }
+
+    {
+        auto& x = parent.child_to_sim.data.emplace_back();
+        x.id    = sc.mod.children.get_id(ch);
+        x.value = new_mdl_id;
+    }
+
+    {
+        irt_assert(unique_id != 0);
+
+        if (ch.flags & child_flags_configurable ||
+            ch.flags & child_flags_observable)
+            parent.nodes_v.data.emplace_back(unique_id, new_mdl_id);
+    }
+
+    return status::success;
+}
+
+static status make_tree_leaf(simulation_copy& sc,
+                             tree_node&       parent,
+                             u64              unique_id,
                              model&           mod_mdl,
                              child&           ch) noexcept
 {
@@ -435,11 +552,10 @@ static status make_tree_recursive(simulation_copy&   sc,
                       sc, new_tree, *compo, child_id, child->unique_id));
                 }
             } else {
-                auto mdl_id = child->id.mdl_id;
-                if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
-                    irt_return_if_bad(make_tree_leaf(
-                      sc, new_tree, child->unique_id, *mdl, *child));
-                }
+                const auto mdl_type = child->id.mdl_type;
+
+                irt_return_if_bad(make_tree_leaf(
+                  sc, new_tree, child->unique_id, mdl_type, child_id, *child));
             }
         }
     }
@@ -465,11 +581,12 @@ static status make_tree_recursive(simulation_copy& sc,
                       sc, new_tree, *compo, src.cache[i], child->unique_id));
                 }
             } else {
-                auto mdl_id = child->id.mdl_id;
-                if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
-                    irt_return_if_bad(make_tree_leaf(
-                      sc, new_tree, src.unique_id(i), *mdl, *child));
-                }
+                irt_return_if_bad(make_tree_leaf(sc,
+                                                 new_tree,
+                                                 src.unique_id(i),
+                                                 child->id.mdl_type,
+                                                 src.cache[i],
+                                                 *child));
             }
         }
     }
@@ -495,11 +612,12 @@ static status make_tree_recursive(simulation_copy& sc,
                       sc, new_tree, *compo, src.cache[i], child->unique_id));
                 }
             } else {
-                auto mdl_id = child->id.mdl_id;
-                if (auto* mdl = sc.mod.models.try_to_get(mdl_id); mdl) {
-                    irt_return_if_bad(make_tree_leaf(
-                      sc, new_tree, src.unique_id(i), *mdl, *child));
-                }
+                irt_return_if_bad(make_tree_leaf(sc,
+                                                 new_tree,
+                                                 src.unique_id(i),
+                                                 child->id.mdl_type,
+                                                 src.cache[i],
+                                                 *child));
             }
         }
     }

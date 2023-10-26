@@ -299,11 +299,10 @@ static bool show_connection(modeling&         mod,
     return false;
 }
 
-static void show(component_editor&              ed,
-                 generic_component_editor_data& data,
-                 component&                     parent,
-                 model&                         mdl,
-                 child& /*c*/,
+static void show(component_editor& ed,
+                 generic_component_editor_data& /*data*/,
+                 component& /*parent*/,
+                 child&   c,
                  child_id id) noexcept
 {
     auto& app      = container_of(&ed, &application::component_ed);
@@ -322,17 +321,17 @@ static void show(component_editor&              ed,
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}",
                       app.mod.children_names[get_index(id)].sv(),
-                      dynamics_type_names[ordinal(mdl.type)]);
+                      dynamics_type_names[ordinal(c.id.mdl_type)]);
     ImNodes::EndNodeTitleBar();
 
-    dispatch(
-      mdl, [&mdl, &app, &data, &parent, id]<typename Dynamics>(Dynamics& dyn) {
-          add_input_attribute(dyn, id);
-          ImGui::PushItemWidth(120.0f);
-          show_dynamics_inputs(app.mod.srcs, dyn);
-          ImGui::PopItemWidth();
-          add_output_attribute(dyn, id);
-      });
+    // @TODO To reenable with new parameters
+    // dispatch(c.id.mdl_type, [&]<typename Dynamics>(Dynamics& dyn) {
+    //     add_input_attribute(dyn, id);
+    //     ImGui::PushItemWidth(120.0f);
+    //     show_dynamics_inputs(app.mod.srcs, dyn);
+    //     ImGui::PopItemWidth();
+    //     add_output_attribute(dyn, id);
+    // });
 
     ImNodes::EndNode();
 
@@ -578,9 +577,7 @@ static void show_graph(component_editor&              ed,
             continue;
 
         if (c->type == child_type::model) {
-            auto id = c->id.mdl_id;
-            if (auto* mdl = app.mod.models.try_to_get(id); mdl)
-                show(ed, data, parent, *mdl, *c, child_id);
+            show(ed, data, parent, *c, child_id);
         } else {
             auto id = c->id.compo_id;
             if (auto* compo = app.mod.components.try_to_get(id); compo) {
@@ -611,6 +608,10 @@ static void show_graph(component_editor&              ed,
 
                 case component_type::internal:
                     break;
+
+                case component_type::hsm:
+                    irt_breakpoint(); // @TODO to enable
+                    break;
                 }
             }
         }
@@ -634,7 +635,7 @@ static void add_popup_menuitem(component_editor&              ed,
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    if (!app.mod.models.can_alloc(1)) {
+    if (!app.mod.children.can_alloc(1)) {
         auto& app = container_of(&ed, &application::component_ed);
         auto& n   = app.notifications.alloc();
         n.level   = log_level::error;
@@ -1174,8 +1175,7 @@ static void show_component_editor(component_editor&              ed,
             for (sz i = size, e = s_compo.children.size(); i != e; ++i) {
                 if_data_exists_do(
                   app.mod.children, s_compo.children[i], [&](auto& c) noexcept {
-                      if ((c.type == child_type::model &&
-                           app.mod.models.try_to_get(c.id.mdl_id) != nullptr) ||
+                      if (c.type == child_type::model ||
                           (c.type == child_type::component &&
                            app.mod.components.try_to_get(c.id.compo_id) !=
                              nullptr))
@@ -1198,8 +1198,7 @@ static void show_component_editor(component_editor&              ed,
             for (sz i = size, e = s_compo.children.size(); i != e; ++i) {
                 if_data_exists_do(
                   app.mod.children, s_compo.children[i], [&](auto& c) noexcept {
-                      if ((c.type == child_type::model &&
-                           app.mod.models.try_to_get(c.id.mdl_id) != nullptr) ||
+                      if (c.type == child_type::model ||
                           (c.type == child_type::component &&
                            app.mod.components.try_to_get(c.id.compo_id) !=
                              nullptr))

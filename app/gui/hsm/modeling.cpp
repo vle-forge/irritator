@@ -7,6 +7,7 @@
 #include "imgui.h"
 #include "internal.hpp"
 #include "irritator/core.hpp"
+#include "irritator/helpers.hpp"
 
 namespace irt {
 
@@ -807,39 +808,18 @@ bool hsm_editor::valid() noexcept
     return true;
 }
 
-static auto get(hsm_editor& ed, component_id cid, model_id mid) noexcept
+static auto get(hsm_editor& ed, component_id cid) noexcept
   -> hierarchical_state_machine*
 {
     auto& app = container_of(&ed, &application::hsm_ed);
 
-    if (is_defined(cid)) {
-        auto& mod = app.mod;
-
-        if (auto* compo = mod.components.try_to_get(cid); compo) {
-            auto s_compo_id = compo->id.generic_id;
-            if (auto* s_compo = mod.generic_components.try_to_get(s_compo_id);
-                s_compo) {
-                if (auto* mdl = mod.models.try_to_get(mid); mdl) {
-                    if (mdl->type == dynamics_type::hsm_wrapper) {
-                        auto& hsmw = get_dyn<hsm_wrapper>(*mdl);
-                        if (auto* machine = mod.hsms.try_to_get(hsmw.id);
-                            machine)
-                            return machine;
-                    }
-                }
-            }
+    if_data_exists_do(app.mod.components, cid, [&](auto& compo) noexcept {
+        if (compo.type == component_type::hsm) {
+            if_data_exists_do(app.mod.hsm_components,
+                              compo.id.hsm_id,
+                              [&](auto& hsm) noexcept { return &hsm.machine; });
         }
-    } else {
-        auto& sim = app.sim;
-
-        if (auto* mdl = sim.models.try_to_get(mid); mdl) {
-            if (mdl->type == dynamics_type::hsm_wrapper) {
-                auto& hsmw = get_dyn<hsm_wrapper>(*mdl);
-                if (auto* machine = sim.hsms.try_to_get(hsmw.id); machine)
-                    return machine;
-            }
-        }
-    }
+    });
 
     return nullptr;
 }
@@ -851,7 +831,7 @@ void hsm_editor::load(component_id c_id, model_id m_id) noexcept
     m_compo_id = c_id;
     m_model_id = m_id;
 
-    if (auto* machine = get(*this, m_compo_id, m_model_id); machine) {
+    if (auto* machine = get(*this, m_compo_id); machine) {
         m_stack.push_back(0);
 
         while (!m_stack.empty()) {
@@ -885,7 +865,7 @@ void hsm_editor::load(model_id m_id) noexcept
     m_compo_id = undefined<component_id>();
     m_model_id = m_id;
 
-    if (auto* machine = get(*this, m_compo_id, m_model_id); machine) {
+    if (auto* machine = get(*this, m_compo_id); machine) {
         m_stack.push_back(0);
 
         while (!m_stack.empty()) {
@@ -916,7 +896,7 @@ void hsm_editor::load(model_id m_id) noexcept
 
 void hsm_editor::save() noexcept
 {
-    if (auto* machine = get(*this, m_compo_id, m_model_id); machine)
+    if (auto* machine = get(*this, m_compo_id); machine)
         *machine = m_hsm;
 }
 

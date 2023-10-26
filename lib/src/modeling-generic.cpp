@@ -454,68 +454,66 @@ static status modeling_connect(modeling&          mod,
 status modeling::copy(const generic_component& src,
                       generic_component&       dst) noexcept
 {
-    table<child_id, child_id> mapping;
+    table<child_id, child_id> mapping; // @TODO move this mapping variable into
+                                       // the modeling or cache class.
 
-    for (auto child_id : src.children) {
-        auto* c = children.try_to_get(child_id);
-        if (!c)
-            continue;
+    for_specified_data(children, src.children, [&](auto& c) noexcept {
+        const auto src_id  = children.get_id(c);
+        const auto src_idx = get_index(src_id);
 
-        if (c->type == child_type::model) {
-            auto id      = c->id.mdl_id;
-            auto src_idx = get_index(id);
+        if (c.type == child_type::model) {
+            auto&      new_child     = alloc(dst, c.id.mdl_type);
+            const auto new_child_id  = children.get_id(new_child);
+            const auto new_child_idx = get_index(new_child_id);
 
-            if (auto* mdl = models.try_to_get(id); mdl) {
-                auto& new_child                   = alloc(dst, mdl->type);
-                auto  new_child_id                = children.get_id(new_child);
-                auto  new_child_idx               = get_index(new_child_id);
-                children_names[new_child_idx]     = children_names[src_idx];
-                children_positions[new_child_idx] = {
-                    .x = children_positions[src_idx].x,
-                    .y = children_positions[src_idx].y
-                };
+            children_names[new_child_idx]     = children_names[src_idx];
+            children_positions[new_child_idx] = {
+                .x = children_positions[src_idx].x,
+                .y = children_positions[src_idx].y
+            };
+            children_parameters[new_child_idx] = children_parameters[src_idx];
 
-                mapping.data.emplace_back(child_id, new_child_id);
-            }
+            mapping.data.emplace_back(src_id, new_child_id);
         } else {
-            auto compo_id = c->id.compo_id;
-            auto src_idx  = get_index(compo_id);
+            const auto compo_id = c.id.compo_id;
 
             if (auto* compo = components.try_to_get(compo_id); compo) {
-                auto& new_child                   = alloc(dst, compo_id);
-                auto  new_child_id                = children.get_id(new_child);
-                auto  new_child_idx               = get_index(new_child_id);
+                auto& new_child     = alloc(dst, compo_id);
+                auto  new_child_id  = children.get_id(new_child);
+                auto  new_child_idx = get_index(new_child_id);
+
                 children_names[new_child_idx]     = children_names[src_idx];
                 children_positions[new_child_idx] = {
                     .x = children_positions[src_idx].x,
                     .y = children_positions[src_idx].y
                 };
+                children_parameters[new_child_idx] =
+                  children_parameters[src_idx];
 
-                mapping.data.emplace_back(child_id, new_child_id);
+                mapping.data.emplace_back(src_id, new_child_id);
             }
         }
-    }
+    });
 
     mapping.sort();
 
-    for (auto connection_id : src.connections) {
-        auto* con = connections.try_to_get(connection_id);
-
-        if (con->type == connection::connection_type::internal) {
-            if (auto* child_src = mapping.get(con->internal.src); child_src) {
-                if (auto* child_dst = mapping.get(con->internal.dst);
+    for_specified_data(connections, src.connections, [&](auto& con) noexcept {
+        if (con.type == connection::connection_type::internal) {
+            if (auto* child_src = mapping.get(con.internal.src); child_src) {
+                if (auto* child_dst = mapping.get(con.internal.dst);
                     child_dst) {
-                    irt_return_if_bad(
-                      modeling_connect(*this,
-                                       dst,
-                                       *child_src,
-                                       con->internal.index_src,
-                                       *child_dst,
-                                       con->internal.index_dst));
+                    irt_return_if_bad(modeling_connect(*this,
+                                                       dst,
+                                                       *child_src,
+                                                       con.internal.index_src,
+                                                       *child_dst,
+                                                       con.internal.index_dst));
                 }
             }
         }
-    }
+
+        return status::success;
+    });
 
     return status::success;
 }

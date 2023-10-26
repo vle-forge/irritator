@@ -917,14 +917,6 @@ struct reader
         return true;
     }
 
-    bool modeling_can_alloc_model(std::integral auto i) noexcept
-    {
-        if (!mod().models.can_alloc(i))
-            report_json_error(error_id::modeling_not_enough_model);
-
-        return true;
-    }
-
     bool is_double_greater_than(double excluded_min) noexcept
     {
         if (temp_double <= excluded_min)
@@ -1884,31 +1876,44 @@ struct reader
     }
 
     bool read_child_model_dynamics(const rapidjson::Value& val,
+                                   child&                  c,
                                    model&                  mdl) noexcept
     {
         auto_stack a(this, stack_id::child_model_dynamics);
 
+        const auto c_id  = mod().children.get_id(c);
+        const auto c_idx = get_index(c_id);
+
+        auto& param = mod().children_parameters[c_idx];
+        param.clear();
+
         return for_first_member(
-          val, "dynamics"sv, [&](const auto& value) noexcept -> bool {
-              return dispatch(
-                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                    return read_dynamics(value, dyn);
-                });
-          });
+                 val,
+                 "dynamics"sv,
+                 [&](const auto& value) noexcept -> bool {
+                     return dispatch(
+                       mdl,
+                       [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
+                           return read_dynamics(value, dyn);
+                       });
+                 }) &&
+                 [&param, &mdl]() -> bool {
+            param.copy_from(mdl);
+            return true;
+        }();
     }
 
     bool read_child_model(const rapidjson::Value& val,
-                          child&                  c,
-                          dynamics_type           type) noexcept
+                          const dynamics_type     type,
+                          child&                  c) noexcept
     {
         auto_stack a(this, stack_id::child_model);
 
-        auto& mdl    = mod().models.alloc();
-        auto  mdl_id = mod().models.get_id(mdl);
-        mdl.type     = type;
-        mdl.handle   = nullptr;
-        c.type       = child_type::model;
-        c.id.mdl_id  = mdl_id;
+        c.type        = child_type::model;
+        c.id.mdl_type = type;
+
+        model mdl;
+        mdl.type = type;
 
         dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
             new (&dyn) Dynamics{};
@@ -1929,7 +1934,7 @@ struct reader
             }
         });
 
-        return read_child_model_dynamics(val, mdl);
+        return read_child_model_dynamics(val, c, mdl);
     }
 
     bool copy_internal_component(internal_component type,
@@ -2169,45 +2174,6 @@ struct reader
           });
     }
 
-    bool read_child_model(const rapidjson::Value& val,
-                          dynamics_type           type,
-                          model_id&               c) noexcept
-    {
-        auto_stack a(this, stack_id::child_model);
-
-        auto& mdl  = mod().models.alloc();
-        c          = mod().models.get_id(mdl);
-        mdl.type   = type;
-        mdl.handle = nullptr;
-
-        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
-            new (&dyn) Dynamics{};
-
-            if constexpr (has_input_port<Dynamics>)
-                for (int i = 0, e = length(dyn.x); i != e; ++i)
-                    dyn.x[i] = static_cast<u64>(-1);
-
-            if constexpr (has_output_port<Dynamics>)
-                for (int i = 0, e = length(dyn.y); i != e; ++i)
-                    dyn.y[i] = static_cast<u64>(-1);
-
-            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                irt_assert(mod().hsms.can_alloc());
-
-                auto& machine = mod().hsms.alloc();
-                dyn.id        = mod().hsms.get_id(machine);
-            }
-        });
-
-        return for_first_member(
-          val, "dynamics", [&](const auto& value) noexcept -> bool {
-              return dispatch(
-                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                    return read_dynamics(value, dyn);
-                });
-          });
-    }
-
     bool dispatch_child_component_or_model(const rapidjson::Value& val,
                                            dynamics_type           d_type,
                                            child&                  c) noexcept
@@ -2216,8 +2182,7 @@ struct reader
 
         return c.type == child_type::component
                  ? read_child_component(val, c.id.compo_id)
-                 : modeling_can_alloc_model(1) &&
-                     read_child_model(val, d_type, c.id.mdl_id);
+                 : read_child_model(val, d_type, c);
     }
 
     bool read_child_component_or_model(const rapidjson::Value& val,
@@ -5420,13 +5385,22 @@ static status write_child(const modeling& mod,
             irt_return_if_bad(write_child_component(mod, compo_id, w));
         }
     } else {
-        const auto mdl_id = ch.id.mdl_id;
-        if (auto* mdl = mod.models.try_to_get(mdl_id); mdl) {
-            w.Key("type");
-            w.String(dynamics_type_names[ordinal(mdl->type)]);
+        const auto ch_id    = mod.children.get_id(ch);
+        const auto ch_index = get_index(ch_id);
 
-            irt_return_if_bad(write_child_model(mod, *mdl, w));
-        }
+        model mdl;
+        mdl.type = ch.id.mdl_type;
+
+        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+            std::construct_at<Dynamics>(&dyn);
+        });
+
+        mod.children_parameters[ch_index].copy_to(mdl);
+
+        w.Key("type");
+        w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
+
+        irt_return_if_bad(write_child_model(mod, mdl, w));
     }
 
     w.EndObject();

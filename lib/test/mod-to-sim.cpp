@@ -550,10 +550,16 @@ int main()
             auto  p32_id = mod.get_or_add_y_index(c3, "out");
             auto* p32    = mod.ports.try_to_get(p32_id);
             expect((p32 != nullptr) >> fatal);
-            auto& mdl          = mod.models.get(ch5.id.mdl_id);
-            auto& dyn          = irt::get_dyn<irt::constant>(mdl);
-            dyn.default_offset = 0;
-            dyn.type = irt::constant::init_type::incoming_component_all;
+            // auto& mdl          = mod.models.get(ch5.id.mdl_id);
+            // auto& dyn          = irt::get_dyn<irt::constant>(mdl);
+            // dyn.default_offset = 0;
+            // dyn.type = irt::constant::init_type::incoming_component_all;
+
+            const auto ch5_id = mod.children.get_id(ch5);
+            auto&      p_ch5  = mod.children_parameters[get_index(ch5_id)];
+            p_ch5.reals[0]    = 0.0;
+            p_ch5.integers[0] =
+              ordinal(irt::constant::init_type::incoming_component_all);
 
             expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
             expect(irt::is_success(mod.connect_input(s3, *p31, ch4, p1_id)));
@@ -630,11 +636,19 @@ int main()
             auto  p32_id = mod.get_or_add_y_index(c3, "out");
             auto* p32    = mod.ports.try_to_get(p32_id);
             expect(p32 != nullptr);
-            auto& mdl          = mod.models.get(ch5.id.mdl_id);
-            auto& dyn          = irt::get_dyn<irt::constant>(mdl);
-            dyn.default_offset = 0;
-            dyn.type           = irt::constant::init_type::incoming_component_n;
-            dyn.port           = ordinal(p31_id);
+            // auto& mdl          = mod.models.get(ch5.id.mdl_id);
+            // auto& dyn          = irt::get_dyn<irt::constant>(mdl);
+            // dyn.default_offset = 0;
+            // dyn.type           =
+            // irt::constant::init_type::incoming_component_n; dyn.port =
+            // ordinal(p31_id);
+
+            const auto ch5_id = mod.children.get_id(ch5);
+            auto&      p_ch5  = mod.children_parameters[get_index(ch5_id)];
+            p_ch5.reals[0]    = 0.0;
+            p_ch5.integers[0] =
+              ordinal(irt::constant::init_type::incoming_component_n);
+            p_ch5.integers[1] = ordinal(p31_id);
 
             expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
             expect(irt::is_success(mod.connect_input(s3, *p31, ch4, p1_id)));
@@ -697,16 +711,24 @@ int main()
             expect(p2 != nullptr);
             expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
 
-            auto& c3           = mod.alloc_generic_component();
-            auto& s3           = mod.generic_components.get(c3.id.generic_id);
-            auto& ch3          = mod.alloc(s3, mod.components.get_id(c2));
-            auto& ch4          = mod.alloc(s3, mod.components.get_id(c1));
-            auto& ch5          = mod.alloc(s3, irt::dynamics_type::constant);
-            auto& mdl          = mod.models.get(ch5.id.mdl_id);
-            auto& dyn          = irt::get_dyn<irt::constant>(mdl);
-            dyn.default_offset = 0;
-            dyn.type           = irt::constant::init_type::incoming_component_n;
-            dyn.port           = 17; // Impossible port
+            auto& c3  = mod.alloc_generic_component();
+            auto& s3  = mod.generic_components.get(c3.id.generic_id);
+            auto& ch3 = mod.alloc(s3, mod.components.get_id(c2));
+            auto& ch4 = mod.alloc(s3, mod.components.get_id(c1));
+            auto& ch5 = mod.alloc(s3, irt::dynamics_type::constant);
+            // auto& mdl          = mod.models.get(ch5.id.mdl_id);
+            // auto& dyn          = irt::get_dyn<irt::constant>(mdl);
+            // dyn.default_offset = 0;
+            // dyn.type           =
+            // irt::constant::init_type::incoming_component_n; dyn.port = 17; //
+            // Impossible port
+
+            const auto ch5_id = mod.children.get_id(ch5);
+            auto&      p_ch5  = mod.children_parameters[get_index(ch5_id)];
+            p_ch5.reals[0]    = 0.0;
+            p_ch5.integers[0] =
+              ordinal(irt::constant::init_type::incoming_component_n);
+            p_ch5.integers[1] = 17; // Impossible port
 
             expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
 

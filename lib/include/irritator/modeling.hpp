@@ -941,7 +941,6 @@ struct modeling
 
     child& alloc(generic_component& parent, dynamics_type type) noexcept;
     child& alloc(generic_component& parent, component_id id) noexcept;
-    child& alloc(generic_component& parent, model_id id) noexcept;
 
     status copy(const generic_component& src, generic_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;

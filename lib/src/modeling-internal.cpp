@@ -96,13 +96,43 @@ static void affect_abstract_wsum(modeling&      mod,
     mod.children_parameters[idx].reals[1] = coeff_1;
 }
 
-static void affect_abstract_cross(modeling&      mod,
-                                  const child_id id,
-                                  const real     threshold) noexcept
+static void affect_abstract_wsum(modeling&      mod,
+                                 const child_id id,
+                                 const real     coeff_0,
+                                 const real     coeff_1,
+                                 const real     coeff_2) noexcept
 {
     const auto idx = get_index(id);
 
-    mod.children_parameters[idx].reals[0] = threshold;
+    mod.children_parameters[idx].reals[0] = coeff_0;
+    mod.children_parameters[idx].reals[1] = coeff_1;
+    mod.children_parameters[idx].reals[2] = coeff_2;
+}
+
+static void affect_abstract_wsum(modeling&      mod,
+                                 const child_id id,
+                                 const real     coeff_0,
+                                 const real     coeff_1,
+                                 const real     coeff_2,
+                                 const real     coeff_3) noexcept
+{
+    const auto idx = get_index(id);
+
+    mod.children_parameters[idx].reals[0] = coeff_0;
+    mod.children_parameters[idx].reals[1] = coeff_1;
+    mod.children_parameters[idx].reals[2] = coeff_2;
+    mod.children_parameters[idx].reals[3] = coeff_3;
+}
+
+static void affect_abstract_cross(modeling&      mod,
+                                  const child_id id,
+                                  const real     threshold,
+                                  const bool     detect_up) noexcept
+{
+    const auto idx = get_index(id);
+
+    mod.children_parameters[idx].reals[0]    = threshold;
+    mod.children_parameters[idx].integers[0] = detect_up ? 1 : 0;
 }
 
 static void affect_abstract_constant(modeling&      mod,
@@ -154,8 +184,8 @@ status add_lotka_volterra(modeling&          mod,
     connect(mod, com, product, 0, sum_a, 1);
     connect(mod, com, product, 0, sum_b, 1);
 
-    add_integrator_component_port(mod, dst, com, integrator_a.second, "X");
-    add_integrator_component_port(mod, dst, com, integrator_b.second, "Y");
+    add_integrator_component_port(mod, dst, com, integrator_a, "X");
+    add_integrator_component_port(mod, dst, com, integrator_b, "Y");
 
     return status::success;
 }
@@ -188,7 +218,7 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     affect_abstract_integrator(mod, integrator, 0._r, 0.001_r);
 
     auto cross = alloc<abstract_cross<QssLevel>>(mod, com);
-    affect_abstract_cross(mod, cross, Vt);
+    affect_abstract_cross(mod, cross, Vt, false);
 
     connect(mod, com, cross, 0, integrator, 1);
     connect(mod, com, cross, 1, sum, 0);
@@ -198,7 +228,7 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
 
-    add_integrator_component_port(mod, dst, com, integrator.second, "V");
+    add_integrator_component_port(mod, dst, com, integrator, "V");
 
     return status::success;
 }
@@ -239,25 +269,16 @@ status add_izhikevich(modeling&          mod,
     affect_abstract_constant(mod, cst2, c, 0.0);
     affect_abstract_constant(mod, cst3, I, 0.0);
 
-    affect_abstract_cross(mod, cross, vt);
-    affect_abstract_cross(mod, cross2, vt);
+    affect_abstract_cross(mod, cross, vt, true);
+    affect_abstract_cross(mod, cross2, vt, true);
 
     affect_abstract_integrator(mod, integrator_a, 0.0_r, 0.01_r);
     affect_abstract_integrator(mod, integrator_b, 0.0_r, 0.01_r);
 
-    sum_a.first->default_input_coeffs[0] = 1.0_r;
-    sum_a.first->default_input_coeffs[1] = -1.0_r;
-
-    sum_b.first->default_input_coeffs[0] = -a;
-    sum_b.first->default_input_coeffs[1] = a * b;
-
-    sum_c.first->default_input_coeffs[0] = 0.04_r;
-    sum_c.first->default_input_coeffs[1] = 5.0_r;
-    sum_c.first->default_input_coeffs[2] = 140.0_r;
-    sum_c.first->default_input_coeffs[3] = 1.0_r;
-
-    sum_d.first->default_input_coeffs[0] = 1.0_r;
-    sum_d.first->default_input_coeffs[1] = d;
+    affect_abstract_wsum(mod, sum_a, 1.0_r, -1.0_r);
+    affect_abstract_wsum(mod, sum_b, -a, a * b);
+    affect_abstract_wsum(mod, sum_c, 0.04_r, 5.0_r, 140.0_r, 1.0_r);
+    affect_abstract_wsum(mod, sum_d, 1.0_r, d);
 
     connect(mod, com, integrator_a, 0, cross, 0);
     connect(mod, com, cst2, 0, cross, 1);
@@ -287,8 +308,8 @@ status add_izhikevich(modeling&          mod,
     connect(mod, com, integrator_b, 0, sum_d, 0);
     connect(mod, com, cst, 0, sum_d, 1);
 
-    add_integrator_component_port(mod, dst, com, integrator_a.second, "V");
-    add_integrator_component_port(mod, dst, com, integrator_b.second, "U");
+    add_integrator_component_port(mod, dst, com, integrator_a, "V");
+    add_integrator_component_port(mod, dst, com, integrator_b, "U");
 
     return status::success;
 }
@@ -299,7 +320,7 @@ status add_van_der_pol(modeling&          mod,
                        generic_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(5);
+    bool success = mod.children.can_alloc(5);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -311,16 +332,11 @@ status add_van_der_pol(modeling&          mod,
     auto integrator_b =
       alloc<abstract_integrator<QssLevel>>(mod, com, "Y", child_flags_both);
 
-    integrator_a.first->default_X  = 0.0_r;
-    integrator_a.first->default_dQ = 0.001_r;
+    affect_abstract_integrator(mod, integrator_a, 0.0_r, 0.001_r);
+    affect_abstract_integrator(mod, integrator_b, 10.0_r, 0.001_r);
 
-    integrator_b.first->default_X  = 10.0_r;
-    integrator_b.first->default_dQ = 0.001_r;
-
-    constexpr double mu                = 4.0_r;
-    sum.first->default_input_coeffs[0] = mu;
-    sum.first->default_input_coeffs[1] = -mu;
-    sum.first->default_input_coeffs[2] = -1.0_r;
+    constexpr double mu = 4.0_r;
+    affect_abstract_wsum(mod, sum, mu, -mu, -1.0_r);
 
     connect(mod, com, integrator_b, 0, integrator_a, 0);
     connect(mod, com, sum, 0, integrator_b, 0);
@@ -332,8 +348,8 @@ status add_van_der_pol(modeling&          mod,
     connect(mod, com, product1, 0, product2, 0);
     connect(mod, com, integrator_a, 0, product2, 1);
 
-    add_integrator_component_port(mod, dst, com, integrator_a.second, "X");
-    add_integrator_component_port(mod, dst, com, integrator_b.second, "Y");
+    add_integrator_component_port(mod, dst, com, integrator_a, "X");
+    add_integrator_component_port(mod, dst, com, integrator_b, "Y");
 
     return status::success;
 }
@@ -344,7 +360,7 @@ status add_negative_lif(modeling&          mod,
                         generic_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(5);
+    bool success = mod.children.can_alloc(5);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
@@ -360,17 +376,11 @@ status add_negative_lif(modeling&          mod,
     constexpr real V0  = -10.0_r;
     constexpr real Vr  = 0.0_r;
 
-    sum.first->default_input_coeffs[0] = -1.0_r / tau;
-    sum.first->default_input_coeffs[1] = V0 / tau;
-
-    cst.first->default_value       = 1.0_r;
-    cst_cross.first->default_value = Vr;
-
-    integrator.first->default_X  = 0.0_r;
-    integrator.first->default_dQ = 0.001_r;
-
-    cross.first->default_threshold = Vt;
-    cross.first->default_detect_up = false;
+    affect_abstract_wsum(mod, sum, -1.0_r / tau, V0 / tau);
+    affect_abstract_constant(mod, cst, 1.0_r, 0.0_r);
+    affect_abstract_constant(mod, cst_cross, Vr, 0.0_r);
+    affect_abstract_integrator(mod, integrator, 0.0_r, 0.001_r);
+    affect_abstract_cross(mod, cross, Vt, true);
 
     connect(mod, com, cross, 0, integrator, 1);
     connect(mod, com, cross, 1, sum, 0);
@@ -380,7 +390,7 @@ status add_negative_lif(modeling&          mod,
     connect(mod, com, cst, 0, sum, 1);
     connect(mod, com, sum, 0, integrator, 0);
 
-    add_integrator_component_port(mod, dst, com, integrator.second, "V");
+    add_integrator_component_port(mod, dst, com, integrator, "V");
 
     return status::success;
 }
@@ -389,38 +399,34 @@ template<int QssLevel>
 status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.models.can_alloc(17);
+    bool success = mod.children.can_alloc(17);
 
     irt_return_if_fail(success, status::simulation_not_enough_model);
 
     auto dS =
       alloc<abstract_integrator<QssLevel>>(mod, com, "dS", child_flags_both);
-    dS.first->default_X  = 0.999_r;
-    dS.first->default_dQ = 0.0001_r;
+    affect_abstract_integrator(mod, dS, 0.999_r, 0.0001_r);
 
     auto dE =
       alloc<abstract_integrator<QssLevel>>(mod, com, "dE", child_flags_both);
-    dE.first->default_X  = 0.0_r;
-    dE.first->default_dQ = 0.0001_r;
+    affect_abstract_integrator(mod, dE, 0.0_r, 0.0001_r);
 
     auto dI =
       alloc<abstract_integrator<QssLevel>>(mod, com, "dI", child_flags_both);
-    dI.first->default_X  = 0.001_r;
-    dI.first->default_dQ = 0.0001_r;
+    affect_abstract_integrator(mod, dI, 0.001_r, 0.0001_r);
 
     auto dR =
       alloc<abstract_integrator<QssLevel>>(mod, com, "dR", child_flags_both);
-    dR.first->default_X  = 0.0_r;
-    dR.first->default_dQ = 0.0001_r;
+    affect_abstract_integrator(mod, dR, 0.0_r, 0.0001_r);
 
-    auto beta                  = alloc<constant>(mod, com, "beta");
-    beta.first->default_value  = 0.5_r;
-    auto rho                   = alloc<constant>(mod, com, "rho");
-    rho.first->default_value   = 0.00274397_r;
-    auto sigma                 = alloc<constant>(mod, com, "sigma");
-    sigma.first->default_value = 0.33333_r;
-    auto gamma                 = alloc<constant>(mod, com, "gamma");
-    gamma.first->default_value = 0.142857_r;
+    auto beta = alloc<constant>(mod, com, "beta");
+    affect_abstract_constant(mod, beta, 0.5_r, 0.0_r);
+    auto rho = alloc<constant>(mod, com, "rho");
+    affect_abstract_constant(mod, rho, 0.00274397_r, 0.0_r);
+    auto sigma = alloc<constant>(mod, com, "sigma");
+    affect_abstract_constant(mod, sigma, 0.33333_r, 0.0_r);
+    auto gamma = alloc<constant>(mod, com, "gamma");
+    affect_abstract_constant(mod, gamma, 0.142857_r, 0.0_r);
 
     auto rho_R    = alloc<abstract_multiplier<QssLevel>>(mod, com, "rho R");
     auto beta_S   = alloc<abstract_multiplier<QssLevel>>(mod, com, "beta S");
@@ -428,24 +434,20 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 
     auto rho_R_beta_S_I =
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "rho R - beta S I");
-    rho_R_beta_S_I.first->default_input_coeffs[0] = 1.0_r;
-    rho_R_beta_S_I.first->default_input_coeffs[1] = -1.0_r;
+    affect_abstract_wsum(mod, rho_R_beta_S_I, 1.0_r, -1.0_r);
     auto beta_S_I_sigma_E =
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "beta S I - sigma E");
-    beta_S_I_sigma_E.first->default_input_coeffs[0] = 1.0_r;
-    beta_S_I_sigma_E.first->default_input_coeffs[1] = -1.0_r;
+    affect_abstract_wsum(mod, beta_S_I_sigma_E, 1.0_r, -1.0_r);
 
     auto sigma_E = alloc<abstract_multiplier<QssLevel>>(mod, com, "sigma E");
     auto gamma_I = alloc<abstract_multiplier<QssLevel>>(mod, com, "gamma I");
 
     auto sigma_E_gamma_I =
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "sigma E - gamma I");
-    sigma_E_gamma_I.first->default_input_coeffs[0] = 1.0_r;
-    sigma_E_gamma_I.first->default_input_coeffs[1] = -1.0_r;
+    affect_abstract_wsum(mod, sigma_E_gamma_I, 1.0_r, -1.0_r);
     auto gamma_I_rho_R =
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "gamma I - rho R");
-    gamma_I_rho_R.first->default_input_coeffs[0] = -1.0_r;
-    gamma_I_rho_R.first->default_input_coeffs[1] = 1.0_r;
+    affect_abstract_wsum(mod, gamma_I_rho_R, -1.0_r, 1.0_r);
 
     connect(mod, com, rho, 0, rho_R, 0);
     connect(mod, com, beta, 0, rho_R, 1);
@@ -470,10 +472,10 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
     connect(mod, com, gamma_I, 0, gamma_I_rho_R, 1);
     connect(mod, com, gamma_I_rho_R, 0, dR, 0);
 
-    add_integrator_component_port(mod, dst, com, dS.second, "S");
-    add_integrator_component_port(mod, dst, com, dE.second, "E");
-    add_integrator_component_port(mod, dst, com, dI.second, "I");
-    add_integrator_component_port(mod, dst, com, dR.second, "R");
+    add_integrator_component_port(mod, dst, com, dS, "S");
+    add_integrator_component_port(mod, dst, com, dE, "E");
+    add_integrator_component_port(mod, dst, com, dI, "I");
+    add_integrator_component_port(mod, dst, com, dR, "R");
 
     return status::success;
 }

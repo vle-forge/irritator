@@ -8,8 +8,8 @@
 
 namespace irt {
 
-static void show_plot_line_widget(simulation_editor& sim_ed,
-                                  plot_copy&         p) noexcept
+static void show_plot_line_widget(simulation_editor& /*sim_ed*/,
+                                  plot_copy& p) noexcept
 {
     if (p.linear_outputs.ssize() > 0) {
         switch (p.plot_type) {
