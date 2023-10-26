@@ -129,6 +129,9 @@ bool get_connections(const modeling&                 mod,
 
     case component_type::simple:
         return get_generic_connections(mod, compo, out);
+
+    case component_type::hsm:
+        return false;
     }
 
     irt_unreachable();
@@ -553,6 +556,9 @@ static status make_tree_recursive(simulation_copy& sc,
 
     case component_type::none:
         break;
+
+    case component_type::hsm:
+        break;
     }
 
     return status::success;
@@ -740,6 +746,9 @@ static status get_input_models(simulation_copy& sc,
 
         case component_type::none:
             break;
+
+        case component_type::hsm:
+            break;
         }
     }
 
@@ -806,6 +815,9 @@ static status get_output_models(simulation_copy& sc,
             break;
 
         case component_type::none:
+            break;
+
+        case component_type::hsm:
             break;
         }
     }
@@ -908,6 +920,9 @@ static status simulation_copy_connections(simulation_copy& sc,
         break;
 
     case component_type::none:
+        break;
+
+    case component_type::hsm:
         break;
     }
 
@@ -1046,6 +1061,9 @@ static status make_tree_from(simulation_copy&                     sc,
         break;
 
     case component_type::none:
+        break;
+
+    case component_type::hsm:
         break;
     }
 
