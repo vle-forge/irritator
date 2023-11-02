@@ -323,11 +323,13 @@ static auto model_init(const parameter& param, generator& dyn) noexcept
 static auto parameter_init(parameter& param, const generator& dyn) noexcept
   -> void
 {
-    param.integers[0] = dyn.stop_on_error ? 1 : 0;
-    param.integers[1] = static_cast<i64>(dyn.default_source_ta.id);
-    param.integers[2] = ordinal(dyn.default_source_ta.type);
-    param.integers[3] = static_cast<i64>(dyn.default_source_value.id);
-    param.integers[4] = ordinal(dyn.default_source_value.type);
+    using generator_parameter_index;
+
+    param.integers[stop_on_error] = dyn.stop_on_error ? 1 : 0;
+    param.integers[ta_id]         = static_cast<i64>(dyn.default_source_ta.id);
+    param.integers[ta_type]       = ordinal(dyn.default_source_ta.type);
+    param.integers[value_id]   = static_cast<i64>(dyn.default_source_value.id);
+    param.integers[value_type] = ordinal(dyn.default_source_value.type);
 }
 
 template<int QssLevel>
@@ -500,11 +502,11 @@ static auto parameter_init(
   const abstract_logical<AbstractLogicalTester, PortNumber>& dyn) noexcept
   -> void
 {
-    param.reals[0] = dyn.default_values[0];
-    param.reals[1] = dyn.default_values[1];
+    param.integers[0] = dyn.default_values[0];
+    param.integers[1] = dyn.default_values[1];
 
     if constexpr (PortNumber == 3)
-        param.reals[2] = dyn.default_values[2];
+        param.integers[2] = dyn.default_values[2];
 }
 
 static auto model_init(const parameter& /*param*/,

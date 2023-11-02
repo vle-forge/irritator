@@ -2,14 +2,18 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/helpers.hpp"
-#include <cstdint>
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
+#include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
+
 #include <optional>
 #include <utility>
+
+#include <cstdint>
+
+#include "parameter.hpp"
 
 namespace irt {
 
@@ -33,6 +37,11 @@ struct simulation_copy
     data_array<tree_node, tree_node_id>& tree_nodes;
     table<hsm_component_id, hsm_id>      hsm_mod_to_sim;
 };
+
+static status simulation_copy_source(simulation_copy& sc,
+                                     const u64        id,
+                                     const u64        type,
+                                     source&          dst) noexcept;
 
 static status simulation_copy_source(simulation_copy& sc,
                                      const source&    src,
@@ -322,10 +331,14 @@ static status make_tree_leaf(simulation_copy& sc,
         irt_return_if_fail(sc.sim.hsms.can_alloc(1),
                            status::simulation_not_enough_model);
 
-    auto& new_mdl    = sc.sim.models.alloc();
-    auto  new_mdl_id = sc.sim.models.get_id(new_mdl);
-    new_mdl.type     = mdl_type;
-    new_mdl.handle   = nullptr;
+    const auto ch_idx     = get_index(ch_id);
+    auto&      new_mdl    = sc.sim.models.alloc();
+    auto       new_mdl_id = sc.sim.models.get_id(new_mdl);
+
+    new_mdl.type   = mdl_type;
+    new_mdl.handle = nullptr;
+
+    sc.mod.children_parameters[ch_idx].copy_to(new_mdl);
 
     dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
         std::construct_at(&dyn);
@@ -351,54 +364,71 @@ static status make_tree_leaf(simulation_copy& sc,
             }
         }
 
-        // @TODO 26/10 re-enable this part when parameter are ok
+        if constexpr (std::is_same_v<Dynamics, generator>) {
+            using enum generator_parameter_indices;
 
-        // if constexpr (std::is_same_v<Dynamics, generator>) {
-        //     simulation_copy_source(
-        //       sc, src_dyn.default_source_ta, dyn.default_source_ta);
-        //     simulation_copy_source(
-        //       sc, src_dyn.default_source_value, dyn.default_source_value);
-        // }
+            simulation_copy_source(
+              sc,
+              sc.mod.children_parameters[ch_idx].integers[ordinal(ta_id)],
+              sc.mod.children_parameters[ch_idx].integers[ordinal(ta_type)],
+              dyn.default_source_ta);
 
-        // if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
-        //     simulation_copy_source(
-        //       sc, src_dyn.default_source_ta, dyn.default_source_ta);
-        // }
+            simulation_copy_source(
+              sc,
+              sc.mod.children_parameters[ch_idx].integers[ordinal(value_id)],
+              sc.mod.children_parameters[ch_idx].integers[ordinal(value_type)],
+              dyn.default_source_value);
+        }
 
-        // if constexpr (std::is_same_v<Dynamics, priority_queue>) {
-        //     simulation_copy_source(
-        //       sc, src_dyn.default_source_ta, dyn.default_source_ta);
-        // }
+        if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
+            using enum dynamic_queue_parameter_indices;
 
-        // if constexpr (std::is_same_v<Dynamics, constant>) {
-        //     switch (dyn.type) {
-        //     case constant::init_type::constant:
-        //         break;
-        //     case constant::init_type::incoming_component_all:
-        //         dyn.default_value = compute_incoming_component(sc.mod,
-        //         parent); break;
-        //     case constant::init_type::outcoming_component_all:
-        //         dyn.default_value = compute_outcoming_component(sc.mod,
-        //         parent); break;
-        //     case constant::init_type::incoming_component_n: {
-        //         const auto id          = enum_cast<port_id>(dyn.port);
-        //         auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
+            simulation_copy_source(
+              sc,
+              sc.mod.children_parameters[ch_idx].integers[ordinal(ta_id)],
+              sc.mod.children_parameters[ch_idx].integers[ordinal(ta_type)],
+              dyn.default_source_ta);
+        }
 
-        //         if (port_id_ptr)
-        //             dyn.default_value =
-        //               compute_incoming_component(sc.mod, parent, id);
-        //     } break;
-        //     case constant::init_type::outcoming_component_n: {
-        //         const auto id          = enum_cast<port_id>(dyn.port);
-        //         auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
+        if constexpr (std::is_same_v<Dynamics, priority_queue>) {
+            using enum priority_queue_parameter_indices;
 
-        //         if (port_id_ptr)
-        //             dyn.default_value =
-        //               compute_outcoming_component(sc.mod, parent, id);
-        //         break;
-        //     }
-        //     }
-        // }
+            simulation_copy_source(
+              sc,
+              sc.mod.children_parameters[ch_idx].integers[ordinal(ta_id)],
+              sc.mod.children_parameters[ch_idx].integers[ordinal(ta_type)],
+              dyn.default_source_ta);
+        }
+
+         if constexpr (std::is_same_v<Dynamics, constant>) {
+             switch (dyn.type) {
+             case constant::init_type::constant:
+                 break;
+             case constant::init_type::incoming_component_all:
+                 dyn.default_value = compute_incoming_component(sc.mod,
+                 parent); break;
+             case constant::init_type::outcoming_component_all:
+                 dyn.default_value = compute_outcoming_component(sc.mod,
+                 parent); break;
+             case constant::init_type::incoming_component_n: {
+                 const auto id          = enum_cast<port_id>(dyn.port);
+                 auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
+
+                 if (port_id_ptr)
+                     dyn.default_value =
+                       compute_incoming_component(sc.mod, parent, id);
+             } break;
+             case constant::init_type::outcoming_component_n: {
+                 const auto id          = enum_cast<port_id>(dyn.port);
+                 auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
+
+                 if (port_id_ptr)
+                     dyn.default_value =
+                       compute_outcoming_component(sc.mod, parent, id);
+                 break;
+             }
+             }
+         }
     });
 
     {
@@ -680,6 +710,43 @@ static status make_tree_recursive(simulation_copy& sc,
     }
 
     return status::success;
+}
+
+static status simulation_copy_source(simulation_copy& sc,
+                                     const u64        id,
+                                     const u64        type,
+                                     source&          dst) noexcept
+{
+    switch (enum_cast<source::source_type>(type)) {
+    case source::source_type::none:
+        break;
+    case source::source_type::constant:
+        if (auto* ret = sc.cache.constants.get(id); ret) {
+            dst.id = ordinal(*ret);
+            return status::success;
+        }
+        break;
+    case source::source_type::binary_file:
+        if (auto* ret = sc.cache.binary_files.get(id); ret) {
+            dst.id = ordinal(*ret);
+            return status::success;
+        }
+        break;
+    case source::source_type::text_file:
+        if (auto* ret = sc.cache.text_files.get(id); ret) {
+            dst.id = ordinal(*ret);
+            return status::success;
+        }
+        break;
+    case source::source_type::random:
+        if (auto* ret = sc.cache.randoms.get(id); ret) {
+            dst.id = ordinal(*ret);
+            return status::success;
+        }
+        break;
+    }
+
+    irt_bad_return(status::source_unknown);
 }
 
 static status simulation_copy_source(simulation_copy& sc,
