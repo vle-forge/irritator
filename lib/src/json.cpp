@@ -1,10 +1,11 @@
 // Copyright (c) 2022 INRA Distributed under the Boost Software License,
+// Copyright (c) 2022 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/format.hpp"
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
+#include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
@@ -123,6 +124,8 @@ enum class stack_id
     dynamics_hsm_outputs,
     dynamics_hsm,
     simulation_model_dynamics,
+    simulation_hsm,
+    simulation_hsms,
     simulation_model,
     simulation_models,
     simulation_connections,
@@ -250,6 +253,8 @@ static inline constexpr std::string_view stack_id_names[] = {
     "dynamics_hsm_outputs",
     "dynamics_hsm",
     "simulation_model_dynamics",
+    "simulation_hsm",
+    "simulation_hsms",
     "simulation_model",
     "simulation_models",
     "simulation_connections",
@@ -351,6 +356,7 @@ enum class error_id
     value_not_object,
     unknown_element,
     cache_model_mapping_unfound,
+    simulation_hsms_not_enough,
     simulation_models_not_enough,
     simulation_connect_src_unknown,
     simulation_connect_dst_unknown,
@@ -429,6 +435,7 @@ static inline constexpr std::string_view error_id_names[] = {
     "value_not_object",
     "unknown_element",
     "cache_model_mapping_unfound",
+    "simulation_hsms_not_enough",
     "simulation_models_not_enough",
     "simulation_connect_src_unknown",
     "simulation_connect_dst_unknown",
@@ -454,6 +461,7 @@ static_assert(std::cmp_equal(std::size(error_id_names),
 #define report_json_error(error_id__)                                          \
     do {                                                                       \
         error = error_id__;                                                    \
+        irt_breakpoint();                                                      \
         return false;                                                          \
     } while (0)
 
@@ -483,10 +491,50 @@ struct reader
         rapidjson::SizeType i = 0, e = array.GetArray().Size();
         for (; i != e; ++i) {
 #ifdef IRRITATOR_ENABLE_DEBUG
-            // fmt::print("for-array: {}/{}\n", i, e);
+            fmt::print("for-array: {}/{}\n", i, e);
 #endif
             if (!f(i, array.GetArray()[i], args...))
                 return false;
+        }
+
+        return true;
+    }
+
+    template<size_t N, typename Function>
+    bool for_members(const rapidjson::Value& val,
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
+    {
+        if (!val.IsObject())
+            report_json_error(error_id::value_not_object);
+
+        auto       it = val.MemberBegin();
+        const auto et = val.MemberEnd();
+
+        while (it != et) {
+            const auto x =
+              binary_find(std::begin(names),
+                          std::end(names),
+                          std::string_view{ it->name.GetString(),
+                                            it->name.GetStringLength() });
+
+            if (x == std::end(names)) {
+#ifdef IRRITATOR_ENABLE_DEBUG
+                fmt::print("for-member: unknown element {}\n",
+                           it->name.GetString());
+#endif
+                report_json_error(error_id::unknown_element);
+            }
+
+            if (!fn(std::distance(std::begin(names), x), it->value)) {
+#ifdef IRRITATOR_ENABLE_DEBUG
+                fmt::print("for-member: element {} return false\n",
+                           it->name.GetString());
+                return false;
+#endif
+            }
+
+            ++it;
         }
 
         return true;
@@ -503,7 +551,7 @@ struct reader
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et;
              ++it) {
 #ifdef IRRITATOR_ENABLE_DEBUG
-            // fmt::print("for-member: {}\n", it->name.GetString());
+            fmt::print("for-member: {}\n", it->name.GetString());
 #endif
             if (!f(it->name.GetString(), it->value, args...))
                 return false;
@@ -556,6 +604,26 @@ struct reader
         temp_u64 = val.GetUint64();
 
         return true;
+    }
+
+    bool read_u64(const rapidjson::Value& val, u64& integer) noexcept
+    {
+        if (val.IsUint64()) {
+            integer = val.GetUint64();
+            return true;
+        }
+
+        report_json_error(error_id::missing_u64);
+    }
+
+    bool read_real(const rapidjson::Value& val, double& r) noexcept
+    {
+        if (val.IsDouble()) {
+            r = val.GetDouble();
+            return true;
+        }
+
+        report_json_error(error_id::missing_double);
     }
 
     bool read_temp_real(const rapidjson::Value& val) noexcept
@@ -1021,15 +1089,18 @@ struct reader
     {
         auto_stack a(this, stack_id::dynamics_qss_integrator);
 
-        return for_each_member(
-          val, [&](const auto name, const auto& val) noexcept -> bool {
-              if ("X"sv == name)
-                  return read_temp_real(val) and copy_to(dyn.default_X);
-              if ("dQ"sv == name)
-                  return read_temp_real(val) and copy_to(dyn.default_dQ);
+        static constexpr std::string_view n[] = { "X", "dQ" };
 
-              report_json_error(error_id::unknown_element);
-          });
+        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
+            switch (idx) {
+            case 0:
+                return read_real(value, dyn.default_X);
+            case 1:
+                return read_real(value, dyn.default_dQ);
+            default:
+                return false;
+            }
+        });
     }
 
     template<int QssLevel>
@@ -1057,16 +1128,18 @@ struct reader
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_2);
 
-        return for_each_member(
-          val, [&](const auto name, const auto& val) noexcept -> bool {
-              if ("coeff-0"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[1]);
+        static constexpr std::string_view n[] = { "coeff-0", "coeff-1" };
 
-              report_json_error(error_id::unknown_element);
+        return for_members(
+          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
+              switch (idx) {
+              case 0:
+                  return read_real(value, dyn.default_input_coeffs[0]);
+              case 1:
+                  return read_real(value, dyn.default_input_coeffs[1]);
+              default:
+                  return false;
+              }
           });
     }
 
@@ -1797,24 +1870,57 @@ struct reader
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
-                       hsm_wrapper&            wrapper) noexcept
+    bool read_simulation_dynamics(const rapidjson::Value& val,
+                                  hsm_wrapper&            wrapper) noexcept
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("hsm"sv == name) {
-                  component_id hsm_compo{};
-                  return read_child_component(value, hsm_compo);
-              }
-              if ("a"sv == name)
-                  read_temp_integer(value) && copy_to(wrapper.exec.a);
-              if ("b"sv == name)
-                  read_temp_integer(value) && copy_to(wrapper.exec.b);
+        static constexpr std::string_view n[] = { "a", "b", "hsm" };
 
-              report_json_error(error_id::unknown_element);
-          });
+        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
+            switch (idx) {
+            case 0:
+                return read_temp_integer(value) && copy_to(wrapper.exec.a);
+            case 1:
+                return read_temp_integer(value) && copy_to(wrapper.exec.b);
+            case 2: {
+                // @TODO maybe return a warning about a hsm_wrapper which does
+                // not reference a valid hsm_id.
+                u64 id_in_file = 0;
+
+                return read_u64(value, id_in_file) &&
+                       ((std::cmp_greater(id_in_file, 0) &&
+                         sim_hsms_mapping_get(id_in_file, wrapper.id)) ||
+                        copy<hsm_id>(0, wrapper.id));
+            }
+            default:
+                return false;
+            }
+        });
+    }
+
+    bool read_modeling_dynamics(const rapidjson::Value& val,
+                                hsm_wrapper&            wrapper) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm);
+
+        static constexpr std::string_view n[] = { "a", "b", "hsm" };
+
+        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
+            switch (idx) {
+            case 0:
+                return read_temp_integer(value) && copy_to(wrapper.exec.a);
+            case 1:
+                return read_temp_integer(value) && copy_to(wrapper.exec.b);
+            case 2: {
+                component_id c;
+                return read_child_component(value, c) &&
+                       copy<component_id>(c, wrapper.compo_id);
+            }
+            default:
+                return false;
+            }
+        });
     }
 
     ////
@@ -1829,6 +1935,38 @@ struct reader
         }
 
         report_json_error(error_id::integer_min_error);
+    }
+
+    template<typename T>
+    bool copy(const u64 from, T& id) noexcept
+    {
+        if constexpr (std::is_enum_v<T>) {
+            id = enum_cast<T>(from);
+            return true;
+        } else if constexpr (std::is_integral_v<T>) {
+            if (is_numeric_castable<T>(id)) {
+                id = numeric_cast<T>(id);
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    template<typename T>
+    bool copy(const T from, u64& id) noexcept
+    {
+        if constexpr (std::is_enum_v<T>) {
+            id = ordinal(from);
+            return true;
+        } else if constexpr (std::is_integral_v<T>) {
+            if (is_numeric_castable<u64>(id)) {
+                id = numeric_cast<u64>(id);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     bool read_child(const rapidjson::Value& val,
@@ -1850,7 +1988,7 @@ struct reader
                          return read_temp_unsigned_integer(value) &&
                                 copy_to(unique_id) &&
                                 std::cmp_greater(unique_id.value(), 0) &&
-                                copy(unique_id.value(), c.unique_id);
+                                copy(unique_id, c.unique_id);
                      if ("x"sv == name)
                          return read_temp_real(value) and
                                 copy_to(
@@ -1894,7 +2032,12 @@ struct reader
                      return dispatch(
                        mdl,
                        [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                           return read_dynamics(value, dyn);
+                           if constexpr (std::is_same_v<Dynamics,
+                                                        hsm_wrapper>) {
+                               return read_modeling_dynamics(value, dyn);
+                           } else {
+                               return read_dynamics(value, dyn);
+                           }
                        });
                  }) &&
                  [&param, &mdl]() -> bool {
@@ -1925,13 +2068,6 @@ struct reader
             if constexpr (has_output_port<Dynamics>)
                 for (int i = 0, e = length(dyn.y); i != e; ++i)
                     dyn.y[i] = static_cast<u64>(-1);
-
-            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                irt_assert(mod().hsms.can_alloc());
-
-                auto& machine = mod().hsms.alloc();
-                dyn.id        = mod().hsms.get_id(machine);
-            }
         });
 
         return read_child_model_dynamics(val, c, mdl);
@@ -3393,27 +3529,23 @@ struct reader
 
         return for_first_member(
           val, "dynamics"sv, [&](const auto& value) -> bool {
-              dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
-                  new (&dyn) Dynamics{};
-
-                  if constexpr (has_input_port<Dynamics>)
-                      for (int i = 0, e = length(dyn.x); i != e; ++i)
-                          dyn.x[i] = static_cast<u64>(-1);
-
-                  if constexpr (has_output_port<Dynamics>)
-                      for (int i = 0, e = length(dyn.y); i != e; ++i)
-                          dyn.y[i] = static_cast<u64>(-1);
-
-                  if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                      irt_assert(sim().hsms.can_alloc());
-                      auto& machine = sim().hsms.alloc();
-                      dyn.id        = sim().hsms.get_id(machine);
-                  }
-              });
-
               return dispatch(
-                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                    return read_dynamics(value, dyn);
+                mdl, [&]<typename Dynamics>(Dynamics& dyn) -> bool {
+                    new (&dyn) Dynamics{};
+
+                    if constexpr (has_input_port<Dynamics>)
+                        for (int i = 0, e = length(dyn.x); i != e; ++i)
+                            dyn.x[i] = static_cast<u64>(-1);
+
+                    if constexpr (has_output_port<Dynamics>)
+                        for (int i = 0, e = length(dyn.y); i != e; ++i)
+                            dyn.y[i] = static_cast<u64>(-1);
+
+                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                        return read_simulation_dynamics(value, dyn);
+                    } else {
+                        return read_dynamics(value, dyn);
+                    }
                 });
           });
     }
@@ -3421,6 +3553,34 @@ struct reader
     bool cache_model_mapping_add(u64 id_in_file, u64 id) noexcept
     {
         cache().model_mapping.data.emplace_back(id_in_file, id);
+        return true;
+    }
+
+    bool sim_hsms_mapping_clear() noexcept
+    {
+        cache().sim_hsms_mapping.data.clear();
+        return true;
+    }
+
+    bool sim_hsms_mapping_add(const u64 id_in_file, const hsm_id id) noexcept
+    {
+        cache().sim_hsms_mapping.data.emplace_back(id_in_file, id);
+        return true;
+    }
+
+    bool sim_hsms_mapping_get(const u64 id_in_file, hsm_id& id) noexcept
+    {
+        if (auto* ptr = cache().sim_hsms_mapping.get(id_in_file); ptr) {
+            id = *ptr;
+            return true;
+        }
+
+        report_json_error(error_id::cache_model_mapping_unfound);
+    }
+
+    bool sim_hsms_mapping_sort() noexcept
+    {
+        cache().sim_hsms_mapping.sort();
         return true;
     }
 
@@ -3448,12 +3608,63 @@ struct reader
           });
     }
 
+    bool read_simulation_hsm(const rapidjson::Value&     val,
+                             hierarchical_state_machine& machine) noexcept
+    {
+        auto_stack s(this, stack_id::simulation_hsm);
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("id"sv == name) {
+                  const auto machine_id = sim().hsms.get_id(machine);
+                  u64        id_in_file = 0;
+
+                  return read_u64(value, id_in_file) &&
+                         sim_hsms_mapping_add(id_in_file, machine_id);
+              }
+
+              if ("states"sv == name)
+                  return read_hsm_states(value, machine.states);
+
+              if ("top"sv == name)
+                  return read_temp_unsigned_integer(value) &&
+                         copy_to(machine.top_state);
+              return true;
+          });
+    }
+
     bool sim_models_can_alloc(std::integral auto i) noexcept
     {
         if (sim().models.can_alloc(i))
             return true;
 
         report_json_error(error_id::simulation_models_not_enough);
+    }
+
+    bool sim_hsms_can_alloc(std::integral auto i) noexcept
+    {
+        if (sim().hsms.can_alloc(i))
+            return true;
+
+        report_json_error(error_id::simulation_hsms_not_enough);
+    }
+
+    bool read_simulation_hsms(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, stack_id::simulation_hsms);
+
+        i64 len = 0;
+
+        return is_value_array(val) && copy_array_size(val, len) &&
+               sim_hsms_mapping_clear() && sim_hsms_can_alloc(len) &&
+               for_each_array(
+                 val,
+                 [&](const auto /* i */, const auto& value) noexcept -> bool {
+                     auto& hsm = sim().hsms.alloc();
+
+                     return read_simulation_hsm(value, hsm);
+                 }) &&
+               sim_hsms_mapping_sort();
     }
 
     bool read_simulation_models(const rapidjson::Value& val) noexcept
@@ -3570,6 +3781,8 @@ struct reader
                   return read_text_file_sources(value, sim().srcs);
               if ("random-sources"sv == name)
                   return read_random_sources(value, sim().srcs);
+              if ("hsms"sv == name)
+                  return read_simulation_hsms(value);
               if ("models"sv == name)
                   return read_simulation_models(value);
               if ("connections"sv == name)
@@ -4838,6 +5051,36 @@ status write(Writer& writer, const logical_invert& /*dyn*/) noexcept
 }
 
 template<typename Writer>
+status write(Writer& writer, const hsm_wrapper& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("hsm");
+    writer.Uint64(get_index(dyn.id));
+    writer.Key("a");
+    writer.Int(dyn.exec.a);
+    writer.Key("b");
+    writer.Int(dyn.exec.b);
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
+status write(modeling& mod, Writer& writer, const hsm_wrapper& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("hsm");
+    write_child_component(mod, dyn.id, writer);
+
+    writer.Uint64(ordinal(dyn.id));
+    writer.Key("a");
+    writer.Int(dyn.exec.a);
+    writer.Key("b");
+    writer.Int(dyn.exec.b);
+    writer.EndObject();
+    return status::success;
+}
+
+template<typename Writer>
 status write(Writer&                                         writer,
              std::string_view                                name,
              const hierarchical_state_machine::state_action& state) noexcept
@@ -4872,72 +5115,6 @@ status write(Writer&                                             writer,
     writer.Key("mask");
     writer.Int(static_cast<int>(state.mask));
     writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer&                           writer,
-             const hsm_wrapper&                dyn,
-             const hierarchical_state_machine& machine) noexcept
-{
-    writer.StartObject();
-    writer.Key("states");
-    writer.StartArray();
-
-    constexpr auto length =
-      to_unsigned(hierarchical_state_machine::max_number_of_state);
-    constexpr auto invalid = hierarchical_state_machine::invalid_state_id;
-
-    std::array<bool, length> states_to_write;
-    states_to_write.fill(false);
-
-    for (unsigned i = 0; i != length; ++i) {
-        if (machine.states[i].if_transition != invalid)
-            states_to_write[machine.states[i].if_transition] = true;
-        if (machine.states[i].else_transition != invalid)
-            states_to_write[machine.states[i].else_transition] = true;
-        if (machine.states[i].super_id != invalid)
-            states_to_write[machine.states[i].super_id] = true;
-        if (machine.states[i].sub_id != invalid)
-            states_to_write[machine.states[i].sub_id] = true;
-    }
-
-    for (unsigned i = 0; i != length; ++i) {
-        if (states_to_write[i]) {
-            writer.Key("id");
-            writer.Uint(i);
-            write(writer, "enter", machine.states[i].enter_action);
-            write(writer, "exit", machine.states[i].exit_action);
-            write(writer, "if", machine.states[i].if_action);
-            write(writer, "else", machine.states[i].else_action);
-            write(writer, "condition", machine.states[i].condition);
-
-            writer.Key("if-transition");
-            writer.Int(machine.states[i].if_transition);
-            writer.Key("else-transition");
-            writer.Int(machine.states[i].else_transition);
-            writer.Key("super-id");
-            writer.Int(machine.states[i].super_id);
-            writer.Key("sub-id");
-            writer.Int(machine.states[i].sub_id);
-        }
-    }
-    writer.EndArray();
-
-    writer.Key("outputs");
-    writer.StartArray();
-    for (int i = 0, e = dyn.exec.outputs.ssize(); i != e; ++i) {
-        writer.StartObject();
-        writer.Key("port");
-        writer.Int(dyn.exec.outputs[i].port);
-        writer.Key("value");
-        writer.Int(dyn.exec.outputs[i].value);
-        writer.EndObject();
-    }
-
-    writer.EndArray();
-    writer.EndObject();
-
     return status::success;
 }
 
@@ -5338,13 +5515,14 @@ static status write_child_model(const modeling& mod,
 
     return dispatch(mdl,
                     [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> status {
-                        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                            auto* hsm = mod.hsms.try_to_get(dyn.id);
-                            irt_assert(hsm);
-                            return write(w, dyn, *hsm);
-                        } else {
-                            return write(w, dyn);
-                        }
+                        // if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+                        // {
+                        //     auto* hsm = mod.hsms.try_to_get(dyn.id);
+                        //     irt_assert(hsm);
+                        //     return write(w, dyn, *hsm);
+                        // } else {
+                        return write(w, dyn);
+                        //}
                     });
 }
 
@@ -5807,10 +5985,8 @@ static status write_graph_component(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static status write_hsm_component(io_cache& /*cache*/,
-                                  const modeling&      mod,
-                                  const hsm_component& grid,
-                                  Writer&              w) noexcept
+static status write_hsm_component(const hierarchical_state_machine& hsm,
+                                  Writer&                           w) noexcept
 {
     w.Key("states");
     w.StartArray();
@@ -5821,43 +5997,42 @@ static status write_hsm_component(io_cache& /*cache*/,
 
     std::array<bool, length> states_to_write;
     states_to_write.fill(false);
-    auto& machine = grid.machine;
 
     for (unsigned i = 0; i != length; ++i) {
-        if (machine.states[i].if_transition != invalid)
-            states_to_write[machine.states[i].if_transition] = true;
-        if (machine.states[i].else_transition != invalid)
-            states_to_write[machine.states[i].else_transition] = true;
-        if (machine.states[i].super_id != invalid)
-            states_to_write[machine.states[i].super_id] = true;
-        if (machine.states[i].sub_id != invalid)
-            states_to_write[machine.states[i].sub_id] = true;
+        if (hsm.states[i].if_transition != invalid)
+            states_to_write[hsm.states[i].if_transition] = true;
+        if (hsm.states[i].else_transition != invalid)
+            states_to_write[hsm.states[i].else_transition] = true;
+        if (hsm.states[i].super_id != invalid)
+            states_to_write[hsm.states[i].super_id] = true;
+        if (hsm.states[i].sub_id != invalid)
+            states_to_write[hsm.states[i].sub_id] = true;
     }
 
     for (unsigned i = 0; i != length; ++i) {
         if (states_to_write[i]) {
             w.Key("id");
             w.Uint(i);
-            write(w, "enter", machine.states[i].enter_action);
-            write(w, "exit", machine.states[i].exit_action);
-            write(w, "if", machine.states[i].if_action);
-            write(w, "else", machine.states[i].else_action);
-            write(w, "condition", machine.states[i].condition);
+            write(w, "enter", hsm.states[i].enter_action);
+            write(w, "exit", hsm.states[i].exit_action);
+            write(w, "if", hsm.states[i].if_action);
+            write(w, "else", hsm.states[i].else_action);
+            write(w, "condition", hsm.states[i].condition);
 
             w.Key("if-transition");
-            w.Int(machine.states[i].if_transition);
+            w.Int(hsm.states[i].if_transition);
             w.Key("else-transition");
-            w.Int(machine.states[i].else_transition);
+            w.Int(hsm.states[i].else_transition);
             w.Key("super-id");
-            w.Int(machine.states[i].super_id);
+            w.Int(hsm.states[i].super_id);
             w.Key("sub-id");
-            w.Int(machine.states[i].sub_id);
+            w.Int(hsm.states[i].sub_id);
         }
     }
     w.EndArray();
 
     w.Key("top");
-    w.Uint(machine.top_state);
+    w.Uint(hsm.top_state);
 
     return status::success;
 }
@@ -5941,7 +6116,7 @@ static status do_component_save(Writer&    w,
           mod.hsm_components,
           compo.id.hsm_id,
           [&](auto& hsm) noexcept -> status {
-              return write_hsm_component(cache, mod, hsm, w);
+              return write_hsm_component(hsm.machine, w);
           },
           status::unknown_dynamics);
     } break;
@@ -6038,9 +6213,19 @@ status component_save(modeling&         mod,
 template<typename Writer>
 static status write_simulation_model(const simulation& sim, Writer& w) noexcept
 {
+    w.Key("hsms");
+    w.StartArray();
+    for_each_data(sim.hsms, [&](auto& machine) noexcept {
+        w.StartObject();
+        w.Key("hsm");
+        w.Uint64(ordinal(sim.hsms.get_id(machine)));
+        write_hsm_component(machine, w);
+        w.EndObject();
+    });
+    w.EndArray();
+
     w.Key("models");
     w.StartArray();
-
     const model* mdl = nullptr;
     while (sim.models.next(mdl)) {
         const auto mdl_id = sim.models.get_id(*mdl);
@@ -6054,13 +6239,7 @@ static status write_simulation_model(const simulation& sim, Writer& w) noexcept
 
         dispatch(*mdl,
                  [&w, &sim]<typename Dynamics>(const Dynamics& dyn) -> void {
-                     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                         auto* hsm = sim.hsms.try_to_get(dyn.id);
-                         irt_assert(hsm);
-                         write(w, dyn, *hsm);
-                     } else {
-                         write(w, dyn);
-                     }
+                     write(w, dyn);
                  });
 
         w.EndObject();
@@ -6535,6 +6714,7 @@ static status do_project_save_component(Writer&               w,
 
     case component_type::simple:
     case component_type::grid:
+    case component_type::hsm:
         w.Key("component-path");
         w.String(reg.name.c_str(), reg.name.size(), false);
 

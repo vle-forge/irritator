@@ -1545,8 +1545,10 @@ int main()
             auto            temp = std::filesystem::temp_directory_path(ec);
             temp /= "unit-test.irt";
 
-            if (std::ofstream ofs(temp); ofs.is_open())
+            if (std::ofstream ofs(temp); ofs.is_open()) {
+                fmt::print("`{}`\n", std::string_view(out.data(), out.size()));
                 ofs << std::string_view(out.data(), out.size()) << '\n';
+            }
         } catch (...) {
         }
 
@@ -1626,7 +1628,7 @@ int main()
     };
 
     "hsm_automata"_test = [] {
-        irt::hierarchical_state_machine hsmw;
+        irt::hierarchical_state_machine            hsmw;
         irt::hierarchical_state_machine::execution exec;
 
         hsmw.set_state(

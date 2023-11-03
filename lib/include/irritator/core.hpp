@@ -6166,6 +6166,7 @@ struct hsm_wrapper
     output_port y[4];
 
     hsm_id         id;
+    u64 compo_id;
     hsm::execution exec;
 
     real sigma;

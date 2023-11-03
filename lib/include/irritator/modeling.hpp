@@ -162,6 +162,8 @@ struct io_cache
     table<u64, u64> random_mapping;
     table<u64, u64> text_file_mapping;
 
+    table<u64, hsm_id> sim_hsms_mapping;
+
     vector<i32> stack;
 
     void clear() noexcept;
