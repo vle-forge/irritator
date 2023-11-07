@@ -5501,23 +5501,13 @@ static status write_child_component(const modeling&    mod,
 }
 
 template<typename Writer>
-static status write_child_model(const modeling& mod,
-                                model&          mdl,
-                                Writer&         w) noexcept
+static status write_child_model(model& mdl, Writer& w) noexcept
 {
     w.Key("dynamics");
 
-    return dispatch(mdl,
-                    [&mod, &w]<typename Dynamics>(Dynamics& dyn) -> status {
-                        // if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-                        // {
-                        //     auto* hsm = mod.hsms.try_to_get(dyn.id);
-                        //     irt_assert(hsm);
-                        //     return write(w, dyn, *hsm);
-                        // } else {
-                        return write(w, dyn);
-                        //}
-                    });
+    return dispatch(mdl, [&w]<typename Dynamics>(Dynamics& dyn) -> status {
+        return write(w, dyn);
+    });
 }
 
 template<typename Writer>
@@ -5572,7 +5562,7 @@ static status write_child(const modeling& mod,
         w.Key("type");
         w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
 
-        irt_return_if_bad(write_child_model(mod, mdl, w));
+        irt_return_if_bad(write_child_model(mdl, w));
     }
 
     w.EndObject();
@@ -6234,10 +6224,9 @@ static status write_simulation_model(const simulation& sim, Writer& w) noexcept
         w.String(dynamics_type_names[ordinal(mdl->type)]);
         w.Key("dynamics");
 
-        dispatch(*mdl,
-                 [&w, &sim]<typename Dynamics>(const Dynamics& dyn) -> void {
-                     write(w, dyn);
-                 });
+        dispatch(*mdl, [&w]<typename Dynamics>(const Dynamics& dyn) -> void {
+            write(w, dyn);
+        });
 
         w.EndObject();
     }
