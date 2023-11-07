@@ -5478,19 +5478,17 @@ static status write_child_component(const modeling&    mod,
             w.Key("component-type");
             w.String(component_type_names[ordinal(component_type::none)]);
             return status::success;
-
         case component_type::internal:
             w.Key("parameter");
             w.String(internal_component_names[ordinal(compo->id.internal_id)]);
             return status::success;
-
         case component_type::grid:
             return write_child_component_path(mod, *compo, w);
-
         case component_type::graph:
             return write_child_component_path(mod, *compo, w);
-
         case component_type::simple:
+            return write_child_component_path(mod, *compo, w);
+        case component_type::hsm:
             return write_child_component_path(mod, *compo, w);
         }
         irt_unreachable();
@@ -6073,6 +6071,9 @@ static status do_component_save(Writer&    w,
     w.String(component_type_names[ordinal(compo.type)]);
 
     switch (compo.type) {
+    case component_type::none:
+        break;
+
     case component_type::internal:
         write_internal_component(cache, mod, compo.id.internal_id, w);
         break;
