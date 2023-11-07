@@ -490,9 +490,8 @@ struct reader
 
         rapidjson::SizeType i = 0, e = array.GetArray().Size();
         for (; i != e; ++i) {
-#ifdef IRRITATOR_ENABLE_DEBUG
-            fmt::print("for-array: {}/{}\n", i, e);
-#endif
+            debug_log("for-array: {}/{}\n", i, e);
+
             if (!f(i, array.GetArray()[i], args...))
                 return false;
         }
@@ -519,19 +518,18 @@ struct reader
                                             it->name.GetStringLength() });
 
             if (x == std::end(names)) {
-#ifdef IRRITATOR_ENABLE_DEBUG
-                fmt::print("for-member: unknown element {}\n",
-                           it->name.GetString());
-#endif
+                debug_log("for-member: unknown element {}\n",
+                          std::string_view{ it->name.GetString(),
+                                            it->name.GetStringLength() });
+
                 report_json_error(error_id::unknown_element);
             }
 
             if (!fn(std::distance(std::begin(names), x), it->value)) {
-#ifdef IRRITATOR_ENABLE_DEBUG
-                fmt::print("for-member: element {} return false\n",
-                           it->name.GetString());
+                debug_log("for-member: element {} return false\n",
+                          std::string_view{ it->name.GetString(),
+                                            it->name.GetStringLength() });
                 return false;
-#endif
             }
 
             ++it;
@@ -550,9 +548,7 @@ struct reader
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et;
              ++it) {
-#ifdef IRRITATOR_ENABLE_DEBUG
-            fmt::print("for-member: {}\n", it->name.GetString());
-#endif
+            debug_log("for-member: {}\n", it->name.GetString());
             if (!f(it->name.GetString(), it->value, args...))
                 return false;
         }
