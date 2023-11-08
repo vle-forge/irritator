@@ -43,10 +43,6 @@ static status simulation_copy_source(simulation_copy& sc,
                                      const u64        type,
                                      source&          dst) noexcept;
 
-static status simulation_copy_source(simulation_copy& sc,
-                                     const source&    src,
-                                     source&          dst) noexcept;
-
 static status make_tree_recursive(simulation_copy& sc,
                                   tree_node&       parent,
                                   component&       compo,
@@ -338,8 +334,6 @@ static status make_tree_leaf(simulation_copy& sc,
     new_mdl.type   = mdl_type;
     new_mdl.handle = nullptr;
 
-    sc.mod.children_parameters[ch_idx].copy_to(new_mdl);
-
     dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
         std::construct_at(&dyn);
 
@@ -350,6 +344,8 @@ static status make_tree_leaf(simulation_copy& sc,
         if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
                 dyn.y[i] = static_cast<u64>(-1);
+
+        sc.mod.children_parameters[ch_idx].copy_to(new_mdl);
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
             const auto child_index = get_index(ch_id);
@@ -398,119 +394,6 @@ static status make_tree_leaf(simulation_copy& sc,
               sc.mod.children_parameters[ch_idx].integers[ordinal(ta_id)],
               sc.mod.children_parameters[ch_idx].integers[ordinal(ta_type)],
               dyn.default_source_ta);
-        }
-
-         if constexpr (std::is_same_v<Dynamics, constant>) {
-             switch (dyn.type) {
-             case constant::init_type::constant:
-                 break;
-             case constant::init_type::incoming_component_all:
-                 dyn.default_value = compute_incoming_component(sc.mod,
-                 parent); break;
-             case constant::init_type::outcoming_component_all:
-                 dyn.default_value = compute_outcoming_component(sc.mod,
-                 parent); break;
-             case constant::init_type::incoming_component_n: {
-                 const auto id          = enum_cast<port_id>(dyn.port);
-                 auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
-
-                 if (port_id_ptr)
-                     dyn.default_value =
-                       compute_incoming_component(sc.mod, parent, id);
-             } break;
-             case constant::init_type::outcoming_component_n: {
-                 const auto id          = enum_cast<port_id>(dyn.port);
-                 auto*      port_id_ptr = sc.mod.ports.try_to_get(id);
-
-                 if (port_id_ptr)
-                     dyn.default_value =
-                       compute_outcoming_component(sc.mod, parent, id);
-                 break;
-             }
-             }
-         }
-    });
-
-    {
-        auto& x     = parent.child_to_node.data.emplace_back();
-        x.id        = sc.mod.children.get_id(ch);
-        x.value.mdl = &new_mdl;
-    }
-
-    {
-        auto& x = parent.child_to_sim.data.emplace_back();
-        x.id    = sc.mod.children.get_id(ch);
-        x.value = new_mdl_id;
-    }
-
-    {
-        irt_assert(unique_id != 0);
-
-        if (ch.flags & child_flags_configurable ||
-            ch.flags & child_flags_observable)
-            parent.nodes_v.data.emplace_back(unique_id, new_mdl_id);
-    }
-
-    return status::success;
-}
-
-static status make_tree_leaf(simulation_copy& sc,
-                             tree_node&       parent,
-                             u64              unique_id,
-                             model&           mod_mdl,
-                             child&           ch) noexcept
-{
-    irt_return_if_fail(sc.sim.models.can_alloc(),
-                       status::simulation_not_enough_model);
-
-    if (mod_mdl.type == dynamics_type::hsm_wrapper)
-        irt_return_if_fail(sc.sim.hsms.can_alloc(1),
-                           status::simulation_not_enough_model);
-
-    auto& new_mdl    = sc.sim.models.alloc();
-    auto  new_mdl_id = sc.sim.models.get_id(new_mdl);
-    new_mdl.type     = mod_mdl.type;
-    new_mdl.handle   = nullptr;
-
-    dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
-        const auto& src_dyn = get_dyn<Dynamics>(mod_mdl);
-        std::construct_at(&dyn, src_dyn);
-
-        if constexpr (has_input_port<Dynamics>)
-            for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = static_cast<u64>(-1);
-
-        if constexpr (has_output_port<Dynamics>)
-            for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i] = static_cast<u64>(-1);
-
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            if (auto* hsm_src = sc.mod.hsms.try_to_get(src_dyn.id); hsm_src) {
-                auto& hsm = sc.sim.hsms.alloc(*hsm_src);
-                auto  id  = sc.sim.hsms.get_id(hsm);
-                dyn.id    = id;
-            } else {
-                auto& hsm = sc.sim.hsms.alloc();
-                auto  id  = sc.sim.hsms.get_id(hsm);
-                dyn.id    = id;
-            }
-        }
-
-        if constexpr (std::is_same_v<Dynamics, generator>) {
-            simulation_copy_source(
-              sc, src_dyn.default_source_ta, dyn.default_source_ta);
-            simulation_copy_source(
-              sc, src_dyn.default_source_value, dyn.default_source_value);
-        }
-
-        if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
-            simulation_copy_source(
-              sc, src_dyn.default_source_ta, dyn.default_source_ta);
-        }
-
-        if constexpr (std::is_same_v<Dynamics, priority_queue>) {
-            simulation_copy_source(
-              sc, src_dyn.default_source_ta, dyn.default_source_ta);
         }
 
         if constexpr (std::is_same_v<Dynamics, constant>) {
@@ -659,6 +542,15 @@ static status make_tree_recursive(simulation_copy& sc,
     return status::success;
 }
 
+static status make_tree_recursive([[maybe_unused]] simulation_copy& sc,
+                                  [[maybe_unused]] tree_node&       new_tree,
+                                  [[maybe_unused]] hsm_component& src) noexcept
+{
+    irt_assert(false && "missing hsm-component implementation");
+
+    return status::success;
+}
+
 static status make_tree_recursive(simulation_copy& sc,
                                   tree_node&       parent,
                                   component&       compo,
@@ -740,42 +632,6 @@ static status simulation_copy_source(simulation_copy& sc,
         break;
     case source::source_type::random:
         if (auto* ret = sc.cache.randoms.get(id); ret) {
-            dst.id = ordinal(*ret);
-            return status::success;
-        }
-        break;
-    }
-
-    irt_bad_return(status::source_unknown);
-}
-
-static status simulation_copy_source(simulation_copy& sc,
-                                     const source&    src,
-                                     source&          dst) noexcept
-{
-    switch (src.type) {
-    case source::source_type::none:
-        break;
-    case source::source_type::constant:
-        if (auto* ret = sc.cache.constants.get(src.id); ret) {
-            dst.id = ordinal(*ret);
-            return status::success;
-        }
-        break;
-    case source::source_type::binary_file:
-        if (auto* ret = sc.cache.binary_files.get(src.id); ret) {
-            dst.id = ordinal(*ret);
-            return status::success;
-        }
-        break;
-    case source::source_type::text_file:
-        if (auto* ret = sc.cache.text_files.get(src.id); ret) {
-            dst.id = ordinal(*ret);
-            return status::success;
-        }
-        break;
-    case source::source_type::random:
-        if (auto* ret = sc.cache.randoms.get(src.id); ret) {
             dst.id = ordinal(*ret);
             return status::success;
         }
@@ -1242,13 +1098,17 @@ static status make_tree_from(simulation_copy&                     sc,
             irt_return_if_bad(make_tree_recursive(sc, new_tree, *g));
     } break;
 
+    case component_type::hsm: {
+        auto h_id = parent.id.hsm_id;
+        if (auto* h = sc.mod.hsm_components.try_to_get(h_id); h)
+            irt_return_if_bad(make_tree_recursive(sc, new_tree, *h));
+        break;
+    }
+
     case component_type::internal:
         break;
 
     case component_type::none:
-        break;
-
-    case component_type::hsm:
         break;
     }
 
@@ -1798,11 +1658,7 @@ static auto model_init(const parameter& param, constant& dyn) noexcept -> status
         return status::unknown_dynamics; // modeling_parameter_error;
 
     dyn.type = enum_cast<constant::init_type>(param.integers[0]);
-
-    if (!(0 <= param.integers[0] && param.integers[0] < INT8_MAX))
-        return status::unknown_dynamics; // modeling_parameter_error;
-
-    dyn.port = static_cast<i8>(param.integers[1]);
+    dyn.port = param.integers[1];
 
     return status::success;
 }
@@ -1813,7 +1669,7 @@ static auto parameter_init(parameter& param, const constant& dyn) noexcept
     param.reals[0]    = dyn.default_value;
     param.reals[1]    = dyn.default_offset;
     param.integers[0] = ordinal(dyn.type);
-    param.integers[1] = static_cast<u64>(dyn.port);
+    param.integers[1] = dyn.port;
 }
 
 template<int PortNumber>

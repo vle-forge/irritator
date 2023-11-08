@@ -550,16 +550,15 @@ int main()
             auto  p32_id = mod.get_or_add_y_index(c3, "out");
             auto* p32    = mod.ports.try_to_get(p32_id);
             expect((p32 != nullptr) >> fatal);
-            // auto& mdl          = mod.models.get(ch5.id.mdl_id);
-            // auto& dyn          = irt::get_dyn<irt::constant>(mdl);
-            // dyn.default_offset = 0;
-            // dyn.type = irt::constant::init_type::incoming_component_all;
 
-            const auto ch5_id = mod.children.get_id(ch5);
-            auto&      p_ch5  = mod.children_parameters[get_index(ch5_id)];
-            p_ch5.reals[0]    = 0.0;
-            p_ch5.integers[0] =
+            const auto ch5_id  = mod.children.get_id(ch5);
+            const auto ch5_idx = get_index(ch5_id);
+            auto&      p       = mod.children_parameters[ch5_idx];
+            p.reals[0]         = 0.0;
+            p.reals[1]         = 0.0;
+            p.integers[0] =
               ordinal(irt::constant::init_type::incoming_component_all);
+            p.integers[1] = 0;
 
             expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
             expect(irt::is_success(mod.connect_input(s3, *p31, ch4, p1_id)));
@@ -587,6 +586,11 @@ int main()
                 if (cst_mdl->type == irt::dynamics_type::constant) {
                     ++nb_constant_model;
                     auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
+                    expect(
+                      eq(ordinal(dyn.type),
+                         ordinal(
+                           irt::constant::init_type::incoming_component_all)));
+                    expect(eq(dyn.port, 0));
                     expect(neq(dyn.default_value, 0.0));
                 }
             }
@@ -674,6 +678,9 @@ int main()
                     ++nb_constant_model;
                     auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
                     expect(neq(dyn.default_value, 0.0));
+                    expect(eq(
+                      ordinal(dyn.type),
+                      ordinal(irt::constant::init_type::incoming_component_n)));
                 }
             }
 
