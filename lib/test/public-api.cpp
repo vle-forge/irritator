@@ -1465,7 +1465,7 @@ int main()
 
     "input-output"_test = [] {
         irt::vector<char> out;
-        irt::io_cache     cache;
+        irt::io_manager   cache;
 
         {
             irt::simulation sim;

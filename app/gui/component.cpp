@@ -155,7 +155,7 @@ static status save_component_impl(modeling&             mod,
         p /= file.path.sv();
         p.replace_extension(".irt");
 
-        io_cache cache;
+        io_manager cache;
         irt_return_if_bad(
           component_save(mod, compo, cache, p.string().c_str()));
     } catch (...) {

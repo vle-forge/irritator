@@ -310,7 +310,7 @@ int main()
 
     "grid-3x3"_test = [] {
         irt::vector<char>       buffer;
-        irt::io_cache           cache;
+        irt::io_manager         cache;
         irt::registred_path_str temp_path;
 
         expect(get_temp_registred_path(temp_path) == true);
@@ -511,7 +511,7 @@ int main()
 
     "grid-3x3-constant-model-init-port-all"_test = [] {
         irt::vector<char> buffer;
-        irt::io_cache     cache;
+        irt::io_manager   cache;
 
         {
             irt::modeling_initializer mod_init;
@@ -601,7 +601,7 @@ int main()
 
     "grid-3x3-constant-model-init-port-n"_test = [] {
         irt::vector<char> buffer;
-        irt::io_cache     cache;
+        irt::io_manager   cache;
 
         {
             irt::modeling_initializer mod_init;
@@ -690,7 +690,7 @@ int main()
 
     "grid-3x3-constant-model-init-port-empty"_test = [] {
         irt::vector<char> buffer;
-        irt::io_cache     cache;
+        irt::io_manager   cache;
 
         {
             irt::modeling_initializer mod_init;

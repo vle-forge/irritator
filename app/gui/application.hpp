@@ -982,7 +982,7 @@ struct application
 
     modeling_initializer mod_init;
 
-    io_cache cache;
+    io_manager cache;
 
     notification_manager notifications;
 

@@ -130,8 +130,8 @@ bool component_model_selector::component_comboxbox(const char*   label,
 }
 
 bool component_model_selector::observable_model_treenode(
-  tree_node&    tn,
-  component_id& compo_id,
+  tree_node& tn,
+  component_id& /*compo_id*/,
   tree_node_id& tn_id,
   model_id&     mdl_id) noexcept
 {

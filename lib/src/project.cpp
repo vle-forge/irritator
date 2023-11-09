@@ -1208,7 +1208,7 @@ void project::clean_simulation() noexcept
 
 status project::load(modeling&   mod,
                      simulation& sim,
-                     io_cache&   cache,
+                     io_manager& cache,
                      const char* filename) noexcept
 {
     return project_load(*this, mod, sim, cache, filename);
@@ -1216,7 +1216,7 @@ status project::load(modeling&   mod,
 
 status project::save(modeling&   mod,
                      simulation& sim,
-                     io_cache&   cache,
+                     io_manager& cache,
                      const char* filename) noexcept
 {
     return project_save(*this, mod, sim, cache, filename);

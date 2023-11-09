@@ -40,47 +40,47 @@ enum class json_pretty_print
 
 //! Load a simulation structure from a json file.
 status simulation_load(simulation& sim,
-                       io_cache&   cache,
+                       io_manager& cache,
                        const char* filename) noexcept;
 
 //! Load a simulation structure from a json memory buffer. This function is
 //! mainly used in unit-test to check i/o functions.
 status simulation_load(simulation&     sim,
-                       io_cache&       cache,
+                       io_manager&     cache,
                        std::span<char> in) noexcept;
 
 //! Save a component structure into a json memory buffer. This function is
 //! mainly used in unit-test to check i/o functions.
 status simulation_save(
   const simulation& sim,
-  io_cache&         cache,
+  io_manager&       cache,
   vector<char>&     out,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Save a component structure into a json file.
 status simulation_save(
   const simulation& sim,
-  io_cache&         cache,
+  io_manager&       cache,
   const char*       filename,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Load a component structure from a json file.
 status component_load(modeling&   mod,
                       component&  compo,
-                      io_cache&   cache,
+                      io_manager& cache,
                       const char* filename) noexcept;
 
 //! Load a component structure from a json file.
 status component_load(modeling&       mod,
                       component&      compo,
-                      io_cache&       cache,
+                      io_manager&     cache,
                       std::span<char> buffer) noexcept;
 
 //! Save a component structure into a json file.
 status component_save(
   modeling&         mod,
   component&        compo,
-  io_cache&         cache,
+  io_manager&       cache,
   const char*       filename,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
@@ -88,7 +88,7 @@ status component_save(
 status component_save(
   modeling&         mod,
   component&        compo,
-  io_cache&         cache,
+  io_manager&       cache,
   vector<char>&     out,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
@@ -96,14 +96,14 @@ status component_save(
 status project_load(project&    pj,
                     modeling&   mod,
                     simulation& sim,
-                    io_cache&   cache,
+                    io_manager& cache,
                     const char* filename) noexcept;
 
 //! Load a project from a project json file.
 status project_load(project&        pj,
                     modeling&       mod,
                     simulation&     sim,
-                    io_cache&       cache,
+                    io_manager&     cache,
                     std::span<char> buffer) noexcept;
 
 //! Save a project from the current modeling.
@@ -111,7 +111,7 @@ status project_save(
   project&          pj,
   modeling&         mod,
   simulation&       sim,
-  io_cache&         cache,
+  io_manager&       cache,
   const char*       filename,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
@@ -120,7 +120,7 @@ status project_save(
   project&          pj,
   modeling&         mod,
   simulation&       sim,
-  io_cache&         cache,
+  io_manager&       cache,
   vector<char>&     buffer,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 

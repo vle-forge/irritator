@@ -312,8 +312,8 @@ static status load_component(modeling& mod, component& compo) noexcept
 
             bool read_description = false;
 
-            io_cache cache; // TODO move into modeling or parameter
-            auto     ret =
+            io_manager cache; // TODO move into modeling or parameter
+            auto       ret =
               component_load(mod, compo, cache, file_path.string().c_str());
 
             if (is_success(ret)) {
@@ -1073,7 +1073,7 @@ status modeling::save(component& c) noexcept
         p.replace_extension(".irt");
 
         std::error_code ec;
-        io_cache        cache;
+        io_manager      cache;
 
         irt_return_if_bad(component_save(*this, c, cache, p.string().c_str()));
     }

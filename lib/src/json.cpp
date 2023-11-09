@@ -1880,14 +1880,14 @@ struct reader
             case 1:
                 return read_temp_integer(value) && copy_to(wrapper.exec.b);
             case 2: {
-                // @TODO maybe return a warning about a hsm_wrapper which does
-                // not reference a valid hsm_id.
                 u64 id_in_file = 0;
 
                 return read_u64(value, id_in_file) &&
                        ((std::cmp_greater(id_in_file, 0) &&
                          sim_hsms_mapping_get(id_in_file, wrapper.id)) ||
-                        copy<hsm_id>(0, wrapper.id));
+                        (copy<hsm_id>(0, wrapper.id) &&
+                         warning("hsm_wrapper does not reference a valid hsm",
+                                 log_level::error)));
             }
             default:
                 return false;
@@ -4168,7 +4168,7 @@ struct reader
         error = error_id::none;
     }
 
-    io_cache*   m_cache = nullptr;
+    io_manager* m_cache = nullptr;
     modeling*   m_mod   = nullptr;
     simulation* m_sim   = nullptr;
     project*    m_pj    = nullptr;
@@ -4192,19 +4192,19 @@ struct reader
 
     error_id error = error_id::none;
 
-    reader(io_cache& cache_, modeling& mod_) noexcept
+    reader(io_manager& cache_, modeling& mod_) noexcept
       : m_cache(&cache_)
       , m_mod(&mod_)
     {
     }
 
-    reader(io_cache& cache_, simulation& mod_) noexcept
+    reader(io_manager& cache_, simulation& mod_) noexcept
       : m_cache(&cache_)
       , m_sim(&mod_)
     {
     }
 
-    reader(io_cache&   cache_,
+    reader(io_manager& cache_,
            modeling&   mod_,
            simulation& sim_,
            project&    pj_) noexcept
@@ -4272,10 +4272,22 @@ struct reader
         return *m_pj;
     }
 
-    io_cache& cache() const noexcept
+    io_manager& cache() const noexcept
     {
         irt_assert(m_cache);
         return *m_cache;
+    }
+
+    bool return_true() const noexcept { return true; }
+    bool return_false() const noexcept { return false; }
+    bool can_warning() const noexcept { return !!cache().warning_cb; }
+
+    bool warning(const std::string_view str, const log_level level) noexcept
+    {
+        if (can_warning())
+            cache().warning_cb(str, ordinal(level));
+
+        return true;
     }
 };
 
@@ -4323,7 +4335,8 @@ static bool buffer_fill(std::ifstream& ifs, vector<char>& vec) noexcept
     return ifs.read(vec.data(), vec.size()).good();
 }
 
-static bool read_file_to_buffer(io_cache& cache, const char* filename) noexcept
+static bool read_file_to_buffer(io_manager& cache,
+                                const char* filename) noexcept
 {
     std::filesystem::path path;
     std::ifstream         ifs;
@@ -5114,21 +5127,39 @@ status write(Writer&                                             writer,
     return status::success;
 }
 
-void io_cache::clear() noexcept
+void io_manager::clear() noexcept
 {
     buffer.clear();
+    stack.clear();
     string_buffer.clear();
-
     model_mapping.data.clear();
     constant_mapping.data.clear();
     binary_file_mapping.data.clear();
     random_mapping.data.clear();
     text_file_mapping.data.clear();
+    sim_hsms_mapping.data.clear();
+}
+
+void io_manager::destroy() noexcept
+{
+    buffer.destroy();
+    stack.destroy();
+    std::string{}.swap(string_buffer);
+
+    model_mapping.data.destroy();
+    constant_mapping.data.destroy();
+    binary_file_mapping.data.destroy();
+    random_mapping.data.destroy();
+    text_file_mapping.data.destroy();
+    sim_hsms_mapping.data.destroy();
+
+    std::function<void(std::string_view, int level)>{}.swap(warning_cb);
+    std::function<void(std::string_view, status status)>{}.swap(error_cb);
 }
 
 static bool parse_json_component(modeling&                  mod,
                                  component&                 compo,
-                                 io_cache&                  cache,
+                                 io_manager&                cache,
                                  const rapidjson::Document& doc) noexcept
 {
     reader r{ cache, mod };
@@ -5175,7 +5206,7 @@ static bool parse_json_component(modeling&                  mod,
 
 static bool parse_component(modeling&   mod,
                             component&  compo,
-                            io_cache&   cache,
+                            io_manager& cache,
                             const char* filename) noexcept
 {
     rapidjson::Document doc;
@@ -5189,7 +5220,7 @@ static bool parse_component(modeling&   mod,
 
 static bool parse_component(modeling&       mod,
                             component&      compo,
-                            io_cache&       cache,
+                            io_manager&     cache,
                             std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
@@ -5200,7 +5231,7 @@ static bool parse_component(modeling&       mod,
 
 status component_load(modeling&   mod,
                       component&  compo,
-                      io_cache&   cache,
+                      io_manager& cache,
                       const char* filename) noexcept
 {
     irt_return_if_fail(parse_component(mod, compo, cache, filename),
@@ -5211,7 +5242,7 @@ status component_load(modeling&   mod,
 
 status component_load(modeling&       mod,
                       component&      compo,
-                      io_cache&       cache,
+                      io_manager&     cache,
                       std::span<char> buffer) noexcept
 {
     irt_return_if_fail(parse_component(mod, compo, cache, buffer),
@@ -5221,7 +5252,7 @@ status component_load(modeling&       mod,
 }
 
 template<typename Writer>
-static void write_constant_sources(io_cache& /*cache*/,
+static void write_constant_sources(io_manager& /*cache*/,
                                    const external_source& srcs,
                                    Writer&                w) noexcept
 {
@@ -5247,7 +5278,7 @@ static void write_constant_sources(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_binary_file_sources(io_cache& /*cache*/,
+static void write_binary_file_sources(io_manager& /*cache*/,
                                       const external_source& srcs,
                                       Writer&                w) noexcept
 {
@@ -5270,7 +5301,7 @@ static void write_binary_file_sources(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_text_file_sources(io_cache& /*cache*/,
+static void write_text_file_sources(io_manager& /*cache*/,
                                     const external_source& srcs,
                                     Writer&                w) noexcept
 {
@@ -5291,7 +5322,7 @@ static void write_text_file_sources(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static void write_random_sources(io_cache& /*cache*/,
+static void write_random_sources(io_manager& /*cache*/,
                                  const external_source& srcs,
                                  Writer&                w) noexcept
 {
@@ -5572,7 +5603,7 @@ static status write_child(const modeling& mod,
 
 template<typename Writer>
 static status write_generic_component_children(
-  io_cache& /*cache*/,
+  io_manager& /*cache*/,
   const modeling&          mod,
   const generic_component& simple_compo,
   Writer&                  w) noexcept
@@ -5595,7 +5626,7 @@ static status write_generic_component_children(
 }
 
 template<typename Writer>
-static status write_component_ports(io_cache& /*cache*/,
+static status write_component_ports(io_manager& /*cache*/,
                                     const modeling&  mod,
                                     const component& compo,
                                     Writer&          w) noexcept
@@ -5829,7 +5860,7 @@ bool write_internal_connection(modeling&        mod,
 }
 
 template<typename Writer>
-static status write_generic_component_connections(io_cache& /*cache*/,
+static status write_generic_component_connections(io_manager& /*cache*/,
                                                   modeling&          mod,
                                                   generic_component& compo,
                                                   Writer&            w) noexcept
@@ -5856,7 +5887,7 @@ static status write_generic_component_connections(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static status write_generic_component(io_cache&          cache,
+static status write_generic_component(io_manager&        cache,
                                       modeling&          mod,
                                       generic_component& s_compo,
                                       Writer&            w) noexcept
@@ -5871,7 +5902,7 @@ static status write_generic_component(io_cache&          cache,
 }
 
 template<typename Writer>
-static status write_grid_component(io_cache& /*cache*/,
+static status write_grid_component(io_manager& /*cache*/,
                                    const modeling&       mod,
                                    const grid_component& grid,
                                    Writer&               w) noexcept
@@ -5948,7 +5979,7 @@ static status write_graph_component_param(
 }
 
 template<typename Writer>
-static status write_graph_component(io_cache& /*cache*/,
+static status write_graph_component(io_manager& /*cache*/,
                                     const modeling&        mod,
                                     const graph_component& graph,
                                     Writer&                w) noexcept
@@ -6021,7 +6052,7 @@ static status write_hsm_component(const hierarchical_state_machine& hsm,
     return status::success;
 }
 template<typename Writer>
-static void write_internal_component(io_cache& /*cache*/,
+static void write_internal_component(io_manager& /*cache*/,
                                      const modeling& /* mod */,
                                      const internal_component id,
                                      Writer&                  w) noexcept
@@ -6031,10 +6062,10 @@ static void write_internal_component(io_cache& /*cache*/,
 }
 
 template<typename Writer>
-static status do_component_save(Writer&    w,
-                                modeling&  mod,
-                                component& compo,
-                                io_cache&  cache) noexcept
+static status do_component_save(Writer&     w,
+                                modeling&   mod,
+                                component&  compo,
+                                io_manager& cache) noexcept
 {
     status ret = status::success;
 
@@ -6116,7 +6147,7 @@ static status do_component_save(Writer&    w,
 
 status component_save(modeling&         mod,
                       component&        compo,
-                      io_cache&         cache,
+                      io_manager&       cache,
                       const char*       filename,
                       json_pretty_print print_options) noexcept
 {
@@ -6153,7 +6184,7 @@ status component_save(modeling&         mod,
 
 status component_save(modeling&         mod,
                       component&        compo,
-                      io_cache&         cache,
+                      io_manager&       cache,
                       vector<char>&     out,
                       json_pretty_print print_options) noexcept
 {
@@ -6276,7 +6307,7 @@ static status write_simulation_connections(const simulation& sim,
 template<typename Writer>
 status do_simulation_save(Writer&           w,
                           const simulation& sim,
-                          io_cache&         cache) noexcept
+                          io_manager&       cache) noexcept
 {
     w.StartObject();
 
@@ -6294,7 +6325,7 @@ status do_simulation_save(Writer&           w,
 }
 
 status simulation_save(const simulation& sim,
-                       io_cache&         cache,
+                       io_manager&       cache,
                        const char*       filename,
                        json_pretty_print print_options) noexcept
 {
@@ -6329,7 +6360,7 @@ status simulation_save(const simulation& sim,
 }
 
 status simulation_save(const simulation& sim,
-                       io_cache&         cache,
+                       io_manager&       cache,
                        vector<char>&     out,
                        json_pretty_print print_options) noexcept
 {
@@ -6368,7 +6399,7 @@ status simulation_save(const simulation& sim,
 }
 
 static bool parse_json_simulation(simulation&                sim,
-                                  io_cache&                  cache,
+                                  io_manager&                cache,
                                   const rapidjson::Document& doc) noexcept
 {
     sim.clear();
@@ -6393,7 +6424,7 @@ static bool parse_json_simulation(simulation&                sim,
 }
 
 static bool parse_simulation(simulation& sim,
-                             io_cache&   cache,
+                             io_manager& cache,
                              const char* filename) noexcept
 {
     rapidjson::Document doc;
@@ -6406,7 +6437,7 @@ static bool parse_simulation(simulation& sim,
 }
 
 static bool parse_simulation(simulation&     sim,
-                             io_cache&       cache,
+                             io_manager&     cache,
                              std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
@@ -6416,7 +6447,7 @@ static bool parse_simulation(simulation&     sim,
 }
 
 status simulation_load(simulation& sim,
-                       io_cache&   cache,
+                       io_manager& cache,
                        const char* filename) noexcept
 {
     irt_return_if_fail(parse_simulation(sim, cache, filename),
@@ -6426,7 +6457,7 @@ status simulation_load(simulation& sim,
 }
 
 status simulation_load(simulation&     sim,
-                       io_cache&       cache,
+                       io_manager&     cache,
                        std::span<char> buffer) noexcept
 {
     irt_return_if_fail(parse_simulation(sim, cache, buffer),
@@ -6444,7 +6475,7 @@ status simulation_load(simulation&     sim,
 static bool parse_json_project(project&                   pj,
                                modeling&                  mod,
                                simulation&                sim,
-                               io_cache&                  cache,
+                               io_manager&                cache,
                                const rapidjson::Document& doc) noexcept
 {
     pj.clear();
@@ -6471,7 +6502,7 @@ static bool parse_json_project(project&                   pj,
 bool parse_project(project&    pj,
                    modeling&   mod,
                    simulation& sim,
-                   io_cache&   cache,
+                   io_manager& cache,
                    const char* filename) noexcept
 {
     rapidjson::Document doc;
@@ -6486,7 +6517,7 @@ bool parse_project(project&    pj,
 bool parse_project(project&        pj,
                    modeling&       mod,
                    simulation&     sim,
-                   io_cache&       cache,
+                   io_manager&     cache,
                    std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
@@ -6498,7 +6529,7 @@ bool parse_project(project&        pj,
 status project_load(project&    pj,
                     modeling&   mod,
                     simulation& sim,
-                    io_cache&   cache,
+                    io_manager& cache,
                     const char* filename) noexcept
 {
     irt_return_if_fail(parse_project(pj, mod, sim, cache, filename),
@@ -6510,7 +6541,7 @@ status project_load(project&    pj,
 status project_load(project&        pj,
                     modeling&       mod,
                     simulation&     sim,
-                    io_cache&       cache,
+                    io_manager&     cache,
                     std::span<char> buffer) noexcept
 {
     irt_return_if_fail(parse_project(pj, mod, sim, cache, buffer),
@@ -6723,7 +6754,7 @@ static status do_project_save(Writer&    w,
                               project&   pj,
                               modeling&  mod,
                               component& compo,
-                              io_cache& /* cache */) noexcept
+                              io_manager& /* cache */) noexcept
 {
     auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
     irt_return_if_fail(reg, status::io_project_file_component_directory_error);
@@ -6753,7 +6784,7 @@ static status do_project_save(Writer&    w,
 status project_save(project&  pj,
                     modeling& mod,
                     simulation& /* sim */,
-                    io_cache&         cache,
+                    io_manager&       cache,
                     const char*       filename,
                     json_pretty_print print_options) noexcept
 {
@@ -6805,7 +6836,7 @@ status project_save(project&  pj,
 status project_save(project&  pj,
                     modeling& mod,
                     simulation& /* sim */,
-                    io_cache&         cache,
+                    io_manager&       cache,
                     vector<char>&     out,
                     json_pretty_print print_options) noexcept
 {

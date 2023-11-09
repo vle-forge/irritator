@@ -656,6 +656,7 @@ public:
                              // capacity = 0 after).
 
     constexpr void clear() noexcept; // clear all elements (size = 0 after).
+    constexpr void swap(vector<T>& other) noexcept;
 
     constexpr T*       data() noexcept;
     constexpr const T* data() const noexcept;
@@ -6166,7 +6167,7 @@ struct hsm_wrapper
     output_port y[4];
 
     hsm_id         id;
-    u64 compo_id;
+    u64            compo_id;
     hsm::execution exec;
 
     real sigma;
@@ -8850,6 +8851,14 @@ inline constexpr void vector<T>::clear() noexcept
     std::destroy_n(data(), m_size);
 
     m_size = 0;
+}
+
+template<typename T>
+inline constexpr void vector<T>::swap(vector<T>& other) noexcept
+{
+    std::swap(m_data, other.m_data);
+    std::swap(m_size, other.m_size);
+    std::swap(m_capacity, other.m_capacity);
 }
 
 template<typename T>

@@ -8,6 +8,7 @@
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <variant>
@@ -140,7 +141,7 @@ struct child;
 struct generic_component;
 struct modeling;
 struct description;
-struct io_cache;
+struct io_manager;
 struct tree_node;
 struct variable_observer;
 struct grid_observer;
@@ -151,25 +152,32 @@ struct graph_observer;
 /// - @c string_buffer is used when reading string.
 /// - @c stack is used when parsing project file.
 /// - other variable are used to link file identifier with new identifier.
-struct io_cache
+struct io_manager
 {
     vector<char> buffer;
-    std::string  string_buffer;
+    vector<i32>  stack;
 
-    table<u64, u64> model_mapping;
-    table<u64, u64> constant_mapping;
-    table<u64, u64> binary_file_mapping;
-    table<u64, u64> random_mapping;
-    table<u64, u64> text_file_mapping;
+    std::string string_buffer;
 
+    table<u64, u64>    model_mapping;
+    table<u64, u64>    constant_mapping;
+    table<u64, u64>    binary_file_mapping;
+    table<u64, u64>    random_mapping;
+    table<u64, u64>    text_file_mapping;
     table<u64, hsm_id> sim_hsms_mapping;
 
-    vector<i32> stack;
+    std::function<void(std::string_view, int level)>     warning_cb;
+    std::function<void(std::string_view, status status)> error_cb;
 
+    //! Clear @c resize(0) all vector, table and string.
+    //! @attention @c warning_cb and @c error_cb are untouched.
     void clear() noexcept;
+
+    //! Delete buffers for all vector, table and string and reset other object.
+    void destroy() noexcept;
 };
 
-/// Description store the description of a compenent in a text way. A
+/// Description store the description of a component in a text way. A
 /// description is attached to only one component (@c description_id). The
 /// filename is the same than the component
 /// @c file_path but with the extension ".txt".
@@ -987,12 +995,12 @@ public:
 
     status load(modeling&   mod,
                 simulation& sim,
-                io_cache&   cache,
+                io_manager& cache,
                 const char* filename) noexcept;
 
     status save(modeling&   mod,
                 simulation& sim,
-                io_cache&   cache,
+                io_manager& cache,
                 const char* filename) noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
