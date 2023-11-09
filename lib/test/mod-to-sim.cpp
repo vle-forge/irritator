@@ -590,7 +590,7 @@ int main()
                       eq(ordinal(dyn.type),
                          ordinal(
                            irt::constant::init_type::incoming_component_all)));
-                    expect(eq(dyn.port, 0));
+                    expect(eq(dyn.port, 0u));
                     expect(neq(dyn.default_value, 0.0));
                 }
             }
