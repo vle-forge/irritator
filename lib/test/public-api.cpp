@@ -302,6 +302,44 @@ int main()
 
     using namespace boost::ut;
 
+    "small-function-1"_test = [] {
+        irt::small_function<3, double(double, double)> f1;
+        f1 = +[](double x, double y) noexcept -> double { return x + y; };
+        expect(eq(f1(1.0, 2.0), 3.0));
+
+        f1 = [](double x, double z) noexcept -> double { return x * z; };
+        expect(eq(f1(3.0, 2.0), 6.0));
+
+        double o = 15.0, p = 2.0, uu = 10.0;
+        f1 = [o, p, uu](double x, double z) noexcept -> double {
+            return o * p * uu + x + z;
+        };
+        expect(eq(f1(1.0, 1.0), o * p * uu + 2.0));
+
+        f1 = [&](double x, double z) noexcept -> double {
+            return o * p * uu + x + z;
+        };
+        expect(eq(f1(2.0, 2.0), o * p * uu + 4.0));
+
+        auto array = std::make_unique<double[]>(100);
+        f1         = [&array](double x, double y) noexcept -> double {
+            for (double i = 0; i != 100.0; i += 1.0)
+                array.get()[static_cast<int>(i)] = i;
+
+            return x + y + array.get()[99];
+        };
+
+        // small_function need to be improved for lambda move capture.
+        //
+        // auto array2 = std::make_unique<double[]>(100);
+        // f1 = [cap = std::move(array2)](double x, double y) noexcept -> double
+        // {
+        //    for (double i = 0; i != 100.0; i += 1.0)
+        //        cap.get()[static_cast<int>(i)] = i;
+        //    return x + y + cap.get()[99];
+        //};
+    };
+
     "model-id-port-node-id"_test = [] {
         auto i  = make_input_node_id(irt::model_id{ 50 }, 7);
         auto j  = make_output_node_id(irt::model_id{ 50 }, 3);

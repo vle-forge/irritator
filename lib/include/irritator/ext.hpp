@@ -15,6 +15,137 @@
 
 namespace irt {
 
+/// An efficient, type-erasing, onwning callable. This is intended for use as
+/// the type of a function parameter that is not used after the function in
+/// question returns.
+///
+/// This class owns the callable, so it is safe to store a small_function.
+/// @c tparam Size number of std::max_align_t to be used. Requires 1 at minimum.
+template<size_t Size, typename Fn>
+class small_function;
+
+template<size_t Size, typename Ret, typename... Params>
+class small_function<Size, Ret(Params...)>
+{
+public:
+    small_function() noexcept = default;
+
+    small_function(const small_function& other) noexcept
+    {
+        if (other) {
+            other.manager(data, other.data, Operation::Clone);
+            invoker = other.invoker;
+            manager = other.manager;
+        }
+    }
+
+    small_function(small_function&& other) noexcept { other.swap(*this); }
+
+    template<class F>
+    small_function(F&& f) noexcept
+    {
+        using f_type = typename std::decay<F>::type;
+
+        static_assert(sizeof(f_type) <= sizeof(Storage), "storage too small");
+
+        new (&data) f_type(std::forward<F>(f));
+        invoker = &invoke<f_type>;
+        manager = &manage<f_type>;
+    }
+
+    ~small_function() noexcept
+    {
+        if (manager)
+            manager(&data, nullptr, Operation::Destroy);
+    }
+
+    small_function& operator=(const small_function& other) noexcept
+    {
+        small_function(other).swap(*this);
+        return *this;
+    }
+
+    small_function& operator=(small_function&& other) noexcept
+    {
+        small_function(std::move(other)).swap(*this);
+        return *this;
+    }
+
+    small_function& operator=(std::nullptr_t) noexcept
+    {
+        if (manager) {
+            manager(&data, nullptr, Operation::Destroy);
+            manager = nullptr;
+            invoker = nullptr;
+        }
+        return *this;
+    }
+
+    template<typename F>
+    small_function& operator=(F&& f) noexcept
+    {
+        small_function(std::forward<F>(f)).swap(*this);
+        return *this;
+    }
+
+    template<typename F>
+    small_function& operator=(std::reference_wrapper<F> f) noexcept
+    {
+        small_function(f).swap(*this);
+        return *this;
+    }
+
+    void swap(small_function& other) noexcept
+    {
+        std::swap(data, other.data);
+        std::swap(manager, other.manager);
+        std::swap(invoker, other.invoker);
+    }
+
+    explicit operator bool() const noexcept { return !!manager; }
+
+    Ret operator()(Params... args) noexcept
+    {
+        irt_assert(invoker && "Bad small_function call");
+        return invoker(&data, std::forward<Params>(args)...);
+    }
+
+private:
+    enum class Operation
+    {
+        Clone,
+        Destroy
+    };
+
+    using Invoker = Ret (*)(void*, Params&&...);
+    using Manager = void (*)(void*, void*, Operation);
+    using Storage = std::array<std::byte, sizeof(std::max_align_t) * Size>;
+
+    template<typename F>
+    static Ret invoke(void* data, Params&&... args)
+    {
+        F& f = *static_cast<F*>(data);
+        return f(std::forward<Params>(args)...);
+    }
+
+    template<typename F>
+    static void manage(void* dest, void* src, Operation op)
+    {
+        switch (op) {
+        case Operation::Clone:
+            new (dest) F(*static_cast<F*>(src));
+            break;
+        case Operation::Destroy:
+            static_cast<F*>(dest)->~F();
+            break;
+        }
+    }
+
+    Storage data;
+    Invoker invoker = nullptr;
+    Manager manager = nullptr;
+};
+
 //! An efficient, type-erasing, non-owning reference to a callable. This is
 //! intended for use as the type of a function parameter that is not used
 //! after the function in question returns.
@@ -59,6 +190,7 @@ public:
 
     Ret operator()(Params... params) const
     {
+        irt_assert(callable && "Bad function_ref call");
         return callback(callable, std::forward<Params>(params)...);
     }
 
