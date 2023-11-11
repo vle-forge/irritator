@@ -157,8 +157,6 @@ struct io_manager
     vector<char> buffer;
     vector<i32>  stack;
 
-    std::string string_buffer;
-
     table<u64, u64>    model_mapping;
     table<u64, u64>    constant_mapping;
     table<u64, u64>    binary_file_mapping;
@@ -166,14 +164,15 @@ struct io_manager
     table<u64, u64>    text_file_mapping;
     table<u64, hsm_id> sim_hsms_mapping;
 
-    std::function<void(std::string_view, int level)>     warning_cb;
-    std::function<void(std::string_view, status status)> error_cb;
+    small_function<1, void(std::string_view, int level)>     warning_cb;
+    small_function<1, void(std::string_view, status status)> error_cb;
 
     //! Clear @c resize(0) all vector, table and string.
-    //! @attention @c warning_cb and @c error_cb are untouched.
+    //! @attention @c warning_cb and @c error_cb are unmodified.
     void clear() noexcept;
 
-    //! Delete buffers for all vector, table and string and reset other object.
+    //! Delete buffers for all vector, table and string.
+    //! @attention @c warning_cb and @c error_cb are unmodified.
     void destroy() noexcept;
 };
 

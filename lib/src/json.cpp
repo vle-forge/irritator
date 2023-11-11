@@ -5131,7 +5131,7 @@ void io_manager::clear() noexcept
 {
     buffer.clear();
     stack.clear();
-    string_buffer.clear();
+
     model_mapping.data.clear();
     constant_mapping.data.clear();
     binary_file_mapping.data.clear();
@@ -5144,7 +5144,6 @@ void io_manager::destroy() noexcept
 {
     buffer.destroy();
     stack.destroy();
-    std::string{}.swap(string_buffer);
 
     model_mapping.data.destroy();
     constant_mapping.data.destroy();
@@ -5152,9 +5151,6 @@ void io_manager::destroy() noexcept
     random_mapping.data.destroy();
     text_file_mapping.data.destroy();
     sim_hsms_mapping.data.destroy();
-
-    std::function<void(std::string_view, int level)>{}.swap(warning_cb);
-    std::function<void(std::string_view, status status)>{}.swap(error_cb);
 }
 
 static bool parse_json_component(modeling&                  mod,
