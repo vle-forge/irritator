@@ -910,7 +910,7 @@ struct reader
 
     bool copy_to(std::optional<i8>& dst) noexcept
     {
-        if (!(0 <= temp_integer && temp_integer < INT8_MAX))
+        if (!(INT8_MIN <= temp_integer && temp_integer < INT8_MAX))
             report_json_error(error_id::integer_to_i8_error);
 
         dst = static_cast<i8>(temp_integer);
