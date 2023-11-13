@@ -1,5 +1,4 @@
 // Copyright (c) 2022 INRA Distributed under the Boost Software License,
-// Copyright (c) 2022 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -914,17 +913,15 @@ struct reader
             report_json_error(error_id::integer_to_i8_error);
 
         dst = static_cast<i8>(temp_integer);
-
         return true;
     }
 
-    bool copy_to(std::optional<int>& dst) noexcept
+    bool copy_to(std::optional<i32>& dst) noexcept
     {
         if (!(INT32_MIN <= temp_integer && temp_integer < INT32_MAX))
-            report_json_error(error_id::integer_to_i8_error); // @TODO ERROR
+            report_json_error(error_id::integer_to_i32_error);
 
         dst = static_cast<int>(temp_integer);
-
         return true;
     }
 
