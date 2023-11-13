@@ -442,8 +442,10 @@ static status make_tree_leaf(simulation_copy& sc,
     {
         irt_assert(unique_id != 0);
 
-        if (ch.flags & child_flags_configurable ||
-            ch.flags & child_flags_observable)
+        std::bitset<4> conf_or_obs_bit{ ordinal(child_flags::both) };
+        conf_or_obs_bit |= ch.flags;
+
+        if (conf_or_obs_bit.any())
             parent.nodes_v.data.emplace_back(unique_id, new_mdl_id);
     }
 

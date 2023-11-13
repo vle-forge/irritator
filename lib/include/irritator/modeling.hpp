@@ -8,6 +8,7 @@
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
+#include <bitset>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -188,14 +189,12 @@ struct description
     description_status status = description_status::unread;
 };
 
-using child_flags = u8;
-
-enum child_flags_ : u8
+enum class child_flags : u32
 {
-    child_flags_none         = 0,
-    child_flags_configurable = 1 << 0,
-    child_flags_observable   = 1 << 1,
-    child_flags_both = child_flags_configurable | child_flags_observable,
+    none         = 0b0000,
+    configurable = 0b0001,
+    observable   = 0b0010,
+    both         = 0b0011,
 };
 
 struct child
@@ -210,8 +209,8 @@ struct child
         component_id  compo_id;
     } id;
 
-    child_type  type  = child_type::model;
-    child_flags flags = child_flags_none;
+    child_type     type = child_type::model;
+    std::bitset<4> flags{ ordinal(child_flags::none) };
 
     /// An identifier provided by the component parent to easily found a child
     /// in project. The value 0 means unique_id is undefined. @c grid-component

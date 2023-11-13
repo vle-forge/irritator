@@ -1056,22 +1056,30 @@ struct reader
         return true;
     }
 
-    bool affect_configurable_to(child_flags& flag) noexcept
+    bool affect_configurable_to(std::bitset<4>& flag) noexcept
     {
-        if (temp_bool)
-            flag |= child_flags_configurable;
-        else
-            flag &= ~child_flags_configurable;
+        std::bitset<4> obs{ ordinal(child_flags::configurable) };
+
+        if (temp_bool) {
+            flag |= obs;
+        } else {
+            obs.flip();
+            flag &= obs;
+        }
 
         return true;
     }
 
-    bool affect_observable_to(child_flags& flag) noexcept
+    bool affect_observable_to(std::bitset<4>& flag) noexcept
     {
-        if (temp_bool)
-            flag |= child_flags_observable;
-        else
-            flag &= ~child_flags_observable;
+        std::bitset<4> obs{ ordinal(child_flags::observable) };
+
+        if (temp_bool) {
+            flag |= obs;
+        } else {
+            obs.flip();
+            flag &= obs;
+        }
 
         return true;
     }
@@ -5557,10 +5565,16 @@ static status write_child(const modeling& mod,
     w.Double(mod.children_positions[get_index(child_id)].y);
     w.Key("name");
     w.String(mod.children_names[get_index(child_id)].c_str());
+
     w.Key("configurable");
-    w.Bool(ch.flags & child_flags_configurable);
+    std::bitset<4> conf{ ordinal(child_flags::configurable) };
+    conf &= ch.flags;
+    w.Bool(conf.any());
+
     w.Key("observable");
-    w.Bool(ch.flags & child_flags_observable);
+    std::bitset<4> obs{ ordinal(child_flags::observable) };
+    conf &= ch.flags;
+    w.Bool(conf.any());
 
     if (ch.type == child_type::component) {
         const auto compo_id = ch.id.compo_id;
