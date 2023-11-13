@@ -406,16 +406,15 @@ status modeling::fill_components() noexcept
         });
     }
 
-#ifdef IRRITATOR_ENABLE_DEBUG
-    fmt::print("components loaded:\n");
+    debug_log("{} components loaded\n", components.size());
     for_each_data(components, [&](auto& compo) noexcept {
-        fmt::print("  {} {} - ",
+        debug_logi(2,
+                   "{} {} - ",
                    ordinal(components.get_id(compo)),
                    component_type_names[ordinal(compo.type)]);
 
         debug_component(*this, compo);
     });
-#endif
 
     return status::success;
 }
