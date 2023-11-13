@@ -843,6 +843,7 @@ public:
     using const_reference = const T&;
     using pointer         = T*;
     using const_pointer   = const T*;
+    using this_container  = ring_buffer<T>;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
                    std::is_nothrow_move_constructible_v<
@@ -860,52 +861,56 @@ private:
     constexpr i32 back(i32 position) const noexcept;
 
 public:
-    class iterator;
-    class const_iterator;
-
-    class iterator
+    template<bool is_const>
+    struct iterator_base
     {
     public:
         using iterator_category = std::bidirectional_iterator_tag;
         using difference_type   = std::ptrdiff_t;
-        using value_type        = T;
-        using pointer           = T*;
-        using reference         = T&;
-        using const_pointer     = const T*;
-        using const_reference   = const T&;
+        using value_type        = std::conditional_t<is_const, const T, T>;
+        using pointer           = value_type*;
+        using reference         = value_type&;
+        using container_type =
+          std::conditional_t<is_const, const this_container, this_container>;
 
         friend ring_buffer;
 
     private:
-        ring_buffer* ring;
-        i32          i;
+        container_type* ring{};
+        i32             i{};
 
-        iterator(ring_buffer* ring_, i32 i_) noexcept
+        template<typename Container>
+        iterator_base(Container* ring_, i32 i_) noexcept
+            requires(!std::is_const_v<Container> && !is_const)
+          : ring(ring_)
+          , i(i_)
+        {
+        }
+
+        template<typename Container>
+        iterator_base(Container* ring_, i32 i_) noexcept
+            requires(std::is_const_v<Container> && is_const)
           : ring(ring_)
           , i(i_)
         {
         }
 
     public:
-        ring_buffer* buffer() noexcept { return ring; }
-        i32          index() noexcept { return i; }
+        container_type* buffer() noexcept { return ring; }
+        i32             index() noexcept { return i; }
 
-        iterator() noexcept
-          : ring(nullptr)
-          , i(0)
-        {
-        }
+        iterator_base() noexcept = default;
 
-        iterator(const iterator& other) noexcept
+        iterator_base(const iterator_base& other) noexcept
           : ring(other.ring)
           , i(other.i)
         {
         }
 
-        iterator& operator=(const iterator& other) noexcept
+        iterator_base& operator=(const iterator_base& other) noexcept
         {
             if (this != &other) {
-                ring = const_cast<ring_buffer*>(other.ring);
+                ring = other.ring;
                 i    = other.i;
             }
 
@@ -915,7 +920,7 @@ public:
         reference operator*() const noexcept { return ring->buffer[i]; }
         pointer   operator->() const noexcept { return &ring->buffer[i]; }
 
-        iterator& operator++() noexcept
+        iterator_base& operator++() noexcept
         {
             if (ring) {
                 i = ring->advance(i);
@@ -927,15 +932,15 @@ public:
             return *this;
         }
 
-        iterator operator++(int) noexcept
+        iterator_base operator++(int) noexcept
         {
-            iterator orig(*this);
+            iterator_base orig(*this);
             ++(*this);
 
             return orig;
         }
 
-        iterator& operator--() noexcept
+        iterator_base& operator--() noexcept
         {
             if (ring) {
                 i = ring->back(i);
@@ -947,32 +952,18 @@ public:
             return *this;
         }
 
-        iterator operator--(int) noexcept
+        iterator_base operator--(int) noexcept
         {
-            iterator orig(*this);
+            iterator_base orig(*this);
             --(*orig);
 
             return orig;
         }
 
-        bool operator==(const_iterator rhs) const noexcept
+        template<bool R>
+        bool operator==(const iterator_base<R>& other) const
         {
-            return ring == rhs.ring && i == rhs.i;
-        }
-
-        bool operator==(iterator rhs) const noexcept
-        {
-            return ring == rhs.ring && i == rhs.i;
-        }
-
-        bool operator!=(const_iterator rhs) const noexcept
-        {
-            return !(ring == rhs.ring && i == rhs.i);
-        }
-
-        bool operator!=(iterator rhs) const noexcept
-        {
-            return !(ring == rhs.ring && i == rhs.i);
+            return other.ring == ring && other.i == i;
         }
 
         void reset() noexcept
@@ -982,127 +973,8 @@ public:
         }
     };
 
-    class const_iterator
-    {
-    public:
-        using iterator_category = std::bidirectional_iterator_tag;
-        using difference_type   = std::ptrdiff_t;
-        using value_type        = T;
-        using pointer           = T*;
-        using reference         = T&;
-        using const_pointer     = const T*;
-        using const_reference   = const T&;
-
-        friend ring_buffer;
-
-    private:
-        const ring_buffer* ring;
-        i32                i;
-
-        const_iterator(const ring_buffer* ring_, i32 i_) noexcept
-          : ring(ring_)
-          , i(i_)
-        {
-        }
-
-    public:
-        const ring_buffer* buffer() const noexcept { return ring; }
-        i32                index() const noexcept { return i; }
-
-        const_iterator() noexcept
-          : ring(nullptr)
-          , i(0)
-        {
-        }
-
-        const_iterator(const const_iterator& other) noexcept
-          : ring(other.ring)
-          , i(other.i)
-        {
-        }
-
-        const_iterator& operator=(const const_iterator& other) noexcept
-        {
-            if (this != &other) {
-                ring = const_cast<const ring_buffer*>(other.ring);
-                i    = other.i;
-            }
-
-            return *this;
-        }
-
-        const_reference operator*() const noexcept { return ring->buffer[i]; }
-        const_pointer   operator->() const noexcept { return &ring->buffer[i]; }
-
-        const_iterator& operator++() noexcept
-        {
-            if (ring) {
-                i = ring->advance(i);
-
-                if (i == ring->m_tail)
-                    reset();
-            }
-
-            return *this;
-        }
-
-        const_iterator operator++(int) noexcept
-        {
-            const_iterator orig(*this);
-            ++(*this);
-
-            return orig;
-        }
-
-        const_iterator& operator--() noexcept
-        {
-            if (ring) {
-                i = ring->back(i);
-
-                if (i == ring->m_tail)
-                    reset();
-            }
-
-            return *this;
-        }
-
-        const_iterator operator--(int) noexcept
-        {
-            const_iterator orig(*this);
-            --(*orig);
-
-            return orig;
-        }
-
-        bool operator==(const_iterator rhs) const noexcept
-        {
-            return ring == rhs.ring && i == rhs.i;
-        }
-
-        bool operator==(iterator rhs) const noexcept
-        {
-            return ring == rhs.ring && i == rhs.i;
-        }
-
-        bool operator!=(const_iterator rhs) const noexcept
-        {
-            return !(ring == rhs.ring && i == rhs.i);
-        }
-
-        bool operator!=(iterator rhs) const noexcept
-        {
-            return !(ring == rhs.ring && i == rhs.i);
-        }
-
-        void reset() noexcept
-        {
-            ring = nullptr;
-            i    = 0;
-        }
-    };
-
-    friend class iterator;
-    friend class const_iterator;
+    using iterator       = iterator_base<false>;
+    using const_iterator = iterator_base<true>;
 
     constexpr ring_buffer() noexcept = default;
     constexpr ring_buffer(std::integral auto capacity) noexcept;
@@ -9767,56 +9639,53 @@ constexpr void ring_buffer<T>::dequeue() noexcept
 template<class T>
 constexpr typename ring_buffer<T>::iterator ring_buffer<T>::head() noexcept
 {
-    return empty() ? iterator{ nullptr, 0 } : iterator{ this, m_head };
+    return empty() ? iterator{} : iterator{ this, m_head };
 }
 
 template<class T>
 constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::head()
   const noexcept
 {
-    return empty() ? const_iterator{ nullptr, 0 }
-                   : const_iterator{ this, m_head };
+    return empty() ? const_iterator{} : const_iterator{ this, m_head };
 }
 
 template<class T>
 constexpr typename ring_buffer<T>::iterator ring_buffer<T>::tail() noexcept
 {
-    return empty() ? iterator{ nullptr, 0 } : iterator{ this, back(m_tail) };
+    return empty() ? iterator{} : iterator{ this, back(m_tail) };
 }
 
 template<class T>
 constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::tail()
   const noexcept
 {
-    return empty() ? const_iterator{ nullptr, 0 }
-                   : const_iterator{ this, back(m_tail) };
+    return empty() ? const_iterator{} : const_iterator{ this, back(m_tail) };
 }
 
 template<class T>
 constexpr typename ring_buffer<T>::iterator ring_buffer<T>::begin() noexcept
 {
-    return empty() ? iterator{ nullptr, 0 } : iterator{ this, m_head };
+    return empty() ? iterator{} : iterator{ this, m_head };
 }
 
 template<class T>
 constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::begin()
   const noexcept
 {
-    return empty() ? const_iterator{ nullptr, 0 }
-                   : const_iterator{ this, m_head };
+    return empty() ? const_iterator{} : const_iterator{ this, m_head };
 }
 
 template<class T>
 constexpr typename ring_buffer<T>::iterator ring_buffer<T>::end() noexcept
 {
-    return iterator{ nullptr, 0 };
+    return iterator{};
 }
 
 template<class T>
 constexpr typename ring_buffer<T>::const_iterator ring_buffer<T>::end()
   const noexcept
 {
-    return const_iterator{ nullptr, 0 };
+    return const_iterator{};
 }
 
 template<class T>
