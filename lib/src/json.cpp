@@ -6099,7 +6099,7 @@ static status do_component_save(Writer&     w,
           [&](auto& generic) noexcept -> status {
               return write_generic_component(cache, mod, generic, w);
           },
-          status::unknown_dynamics); // @TODO undefined component.
+          status::io_project_component_empty);
     } break;
 
     case component_type::grid: {
@@ -6109,7 +6109,7 @@ static status do_component_save(Writer&     w,
           [&](auto& grid) noexcept -> status {
               return write_grid_component(cache, mod, grid, w);
           },
-          status::unknown_dynamics); // @TODO undefined component
+          status::io_project_component_empty);
     } break;
 
     case component_type::graph: {
@@ -6119,7 +6119,7 @@ static status do_component_save(Writer&     w,
           [&](auto& graph) noexcept -> status {
               return write_graph_component(cache, mod, graph, w);
           },
-          status::unknown_dynamics); // @TODO undefined component
+          status::io_project_component_empty);
     } break;
 
     case component_type::hsm: {
@@ -6129,7 +6129,7 @@ static status do_component_save(Writer&     w,
           [&](auto& hsm) noexcept -> status {
               return write_hsm_component(hsm.machine, w);
           },
-          status::unknown_dynamics);
+          status::io_project_component_empty);
     } break;
     }
 
@@ -6781,49 +6781,46 @@ status project_save(project&  pj,
                     const char*       filename,
                     json_pretty_print print_options) noexcept
 {
-    if (auto* compo = mod.components.try_to_get(pj.head()); compo) {
-        if (auto* parent = pj.tn_head(); parent) {
-            irt_assert(mod.components.get_id(compo) == parent->id);
+    auto* compo  = mod.components.try_to_get(pj.head());
+    auto* parent = pj.tn_head();
 
-            file f{ filename, open_mode::write };
-            irt_return_if_fail(f.is_open(), status::io_project_file_error);
+    irt_return_if_fail(compo && parent, status::block_allocator_bad_capacity);
 
-            auto* reg  = mod.registred_paths.try_to_get(compo->reg_path);
-            auto* dir  = mod.dir_paths.try_to_get(compo->dir);
-            auto* file = mod.file_paths.try_to_get(compo->file);
-            irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
+    irt_assert(mod.components.get_id(compo) == parent->id);
 
-            auto* fp = reinterpret_cast<FILE*>(f.get_handle());
-            cache.clear();
-            cache.buffer.resize(4096);
+    file f{ filename, open_mode::write };
+    irt_return_if_fail(f.is_open(), status::io_project_file_error);
 
-            rapidjson::FileWriteStream os(
-              fp, cache.buffer.data(), cache.buffer.size());
-            rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+    auto* reg  = mod.registred_paths.try_to_get(compo->reg_path);
+    auto* dir  = mod.dir_paths.try_to_get(compo->dir);
+    auto* file = mod.file_paths.try_to_get(compo->file);
+    irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
 
-            switch (print_options) {
-            case json_pretty_print::indent_2:
-                w.SetIndent(' ', 2);
-                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
-                break;
+    auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+    cache.clear();
+    cache.buffer.resize(4096);
 
-            case json_pretty_print::indent_2_one_line_array:
-                w.SetIndent(' ', 2);
-                w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
-                break;
+    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
 
-            default:
-                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
-                break;
-            }
+    switch (print_options) {
+    case json_pretty_print::indent_2:
+        w.SetIndent(' ', 2);
+        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        break;
 
-            return status::success;
-        }
+    case json_pretty_print::indent_2_one_line_array:
+        w.SetIndent(' ', 2);
+        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
+        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        break;
+
+    default:
+        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        break;
     }
 
-    // @TODO head is not defined
-    irt_bad_return(status::block_allocator_bad_capacity);
+    return status::success;
 }
 
 status project_save(project&  pj,
@@ -6833,45 +6830,42 @@ status project_save(project&  pj,
                     vector<char>&     out,
                     json_pretty_print print_options) noexcept
 {
-    if (auto* compo = mod.components.try_to_get(pj.head()); compo) {
-        if (auto* parent = pj.tn_head(); parent) {
-            irt_assert(mod.components.get_id(compo) == parent->id);
+    auto* compo  = mod.components.try_to_get(pj.head());
+    auto* parent = pj.tn_head();
 
-            rapidjson::StringBuffer buffer;
-            buffer.Reserve(4096u);
+    irt_return_if_fail(compo && parent, status::block_allocator_bad_capacity);
 
-            switch (print_options) {
-            case json_pretty_print::indent_2: {
-                rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
-                w.SetIndent(' ', 2);
-                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
-            } break;
+    irt_assert(mod.components.get_id(compo) == parent->id);
 
-            case json_pretty_print::indent_2_one_line_array: {
-                rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
-                w.SetIndent(' ', 2);
-                w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
-            } break;
+    rapidjson::StringBuffer buffer;
+    buffer.Reserve(4096u);
 
-            default: {
+    switch (print_options) {
+    case json_pretty_print::indent_2: {
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        w.SetIndent(' ', 2);
+        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+    } break;
 
-                rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
-                irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
-            } break;
-            }
+    case json_pretty_print::indent_2_one_line_array: {
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        w.SetIndent(' ', 2);
+        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
+        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+    } break;
 
-            auto length = buffer.GetSize();
-            auto str    = buffer.GetString();
-            out.resize(static_cast<int>(length));
-            std::copy_n(str, length, out.data());
-
-            return status::success;
-        }
+    default: {
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+    } break;
     }
 
-    // @TODO head is not defined
-    irt_bad_return(status::block_allocator_bad_capacity);
+    auto length = buffer.GetSize();
+    auto str    = buffer.GetString();
+    out.resize(static_cast<int>(length));
+    std::copy_n(str, length, out.data());
+
+    return status::success;
 }
 
 } //  irt
