@@ -1944,14 +1944,23 @@ struct reader
         if constexpr (std::is_enum_v<T>) {
             id = enum_cast<T>(from);
             return true;
-        } else if constexpr (std::is_integral_v<T>) {
+        }
+
+        if constexpr (std::is_integral_v<T>) {
             if (is_numeric_castable<T>(id)) {
                 id = numeric_cast<T>(id);
                 return true;
             }
 
-            return false;
+            report_json_error(error_id::missing_integer);
         }
+
+        if constexpr (std::is_same_v<T, std::optional<u64>>) {
+            id = from;
+            return true;
+        }
+
+        report_json_error(error_id::missing_integer);
     }
 
     template<typename T>
@@ -1960,14 +1969,27 @@ struct reader
         if constexpr (std::is_enum_v<T>) {
             id = ordinal(from);
             return true;
-        } else if constexpr (std::is_integral_v<T>) {
+        }
+
+        if constexpr (std::is_integral_v<T>) {
             if (is_numeric_castable<u64>(id)) {
                 id = numeric_cast<u64>(id);
                 return true;
             }
+
+            report_json_error(error_id::missing_integer);
         }
 
-        return false;
+        if constexpr (std::is_same_v<T, std::optional<u64>>) {
+            if (from.has_value()) {
+                id = *from;
+                return true;
+            }
+
+            report_json_error(error_id::missing_integer);
+        }
+
+        report_json_error(error_id::missing_integer);
     }
 
     bool read_child(const rapidjson::Value& val,
