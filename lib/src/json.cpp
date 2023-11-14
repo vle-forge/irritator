@@ -1099,7 +1099,7 @@ struct reader
             case 1:
                 return read_real(value, dyn.default_dQ);
             default:
-                return false;
+                report_json_error(error_id::unknown_element);
             }
         });
     }
@@ -1139,7 +1139,7 @@ struct reader
               case 1:
                   return read_real(value, dyn.default_input_coeffs[1]);
               default:
-                  return false;
+                  report_json_error(error_id::unknown_element);
               }
           });
     }
@@ -1895,7 +1895,7 @@ struct reader
                                  log_level::error)));
             }
             default:
-                return false;
+                report_json_error(error_id::unknown_element);
             }
         });
     }
@@ -1919,7 +1919,7 @@ struct reader
                        copy<component_id>(c, wrapper.compo_id);
             }
             default:
-                return false;
+                report_json_error(error_id::unknown_element);
             }
         });
     }
@@ -2253,7 +2253,7 @@ struct reader
             const auto id = mod().components.get_id(*c);
             if (c->state == component_status::unread) {
                 append_dependency(id);
-                return false;
+                report_json_error(error_id::unknown_element);
             }
 
             c_id = id;
@@ -2833,7 +2833,7 @@ struct reader
             }
         }
 
-        return false;
+        report_json_error(error_id::modeling_connect_error);
     }
 
     bool modeling_connect_input(generic_component& compo,
@@ -2848,7 +2848,7 @@ struct reader
                 return is_success(
                   mod().connect_input(compo, *port, *c_dst, p_dst));
 
-        return false;
+        report_json_error(error_id::modeling_connect_error);
     }
 
     bool modeling_connect_output(generic_component& compo,
@@ -2863,7 +2863,7 @@ struct reader
                 return is_success(
                   mod().connect_output(compo, *c_src, p_src, *port));
 
-        return false;
+        report_json_error(error_id::modeling_connect_error);
     }
 
     bool cache_model_mapping_to(child_id& dst) noexcept
@@ -2923,7 +2923,7 @@ struct reader
             }
         }
 
-        return false;
+        report_json_error(error_id::unknown_element);
     }
 
     bool get_y_port(const child_id                    src_id,
@@ -2963,7 +2963,7 @@ struct reader
             }
         }
 
-        return false;
+        report_json_error(error_id::unknown_element);
     }
 
     bool get_x_port(component&                        compo,
@@ -3958,7 +3958,7 @@ struct reader
               if ("global"sv == name)
                   return read_global_parameters(value);
 
-              return false;
+              report_json_error(error_id::unknown_element);
           });
     }
 
@@ -3974,7 +3974,7 @@ struct reader
               if ("grid"sv == name)
                   return read_project_grid_observations(value);
 
-              return false;
+              report_json_error(error_id::unknown_element);
           });
     }
 
@@ -4067,7 +4067,7 @@ struct reader
               if ("type"sv == name)
                   return read_temp_string(value) && copy_to(plot.type);
 
-              return false;
+              report_json_error(error_id::unknown_element);
           });
     }
 
@@ -4079,7 +4079,7 @@ struct reader
         if (temp_string == "dash")
             type = variable_observer::type_options::dash;
 
-        return false;
+        report_json_error(error_id::unknown_element);
     }
 
     bool read_project_plot_observation_children(
