@@ -209,14 +209,14 @@ struct child
         component_id  compo_id;
     } id;
 
-    child_type     type = child_type::model;
-    std::bitset<4> flags{ ordinal(child_flags::none) };
-
     /// An identifier provided by the component parent to easily found a child
     /// in project. The value 0 means unique_id is undefined. @c grid-component
     /// stores a double word (row x column), graph-component stores the nth
     /// vertex, @c generic-component stores a incremental integer.
     u64 unique_id = 0;
+
+    child_type     type = child_type::model;
+    std::bitset<4> flags{ ordinal(child_flags::none) };
 };
 
 struct child_position
@@ -772,7 +772,6 @@ struct graph_observer
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
 };
-
 struct variable_observer
 {
     name_str name;
