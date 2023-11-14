@@ -13,6 +13,7 @@ add_executable(app src/main.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/modeling-graph.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/modeling-grid.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/modeling-internal.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/parameter.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/project.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/timeline.cpp)
 

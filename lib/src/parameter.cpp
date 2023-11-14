@@ -5,20 +5,12 @@
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 
+#include "parameter.hpp"
+
 #include <optional>
 #include <utility>
 
 namespace irt {
-
-static auto model_init_integrator(const parameter& param,
-                                  real&            current_value,
-                                  real& reset_value) noexcept -> status
-{
-    current_value = param.reals[0];
-    reset_value   = param.reals[1];
-
-    return status::success;
-}
 
 static auto model_init(const parameter& param, integrator& dyn) noexcept
   -> status
@@ -36,14 +28,6 @@ static auto parameter_init(parameter& param, const integrator& dyn) noexcept
     param.reals[1] = dyn.default_reset_value;
 }
 
-static auto parameter_init_integrator(parameter& param,
-                                      const real current_value,
-                                      const real reset_value) noexcept -> void
-{
-    param.reals[0] = current_value;
-    param.reals[1] = reset_value;
-}
-
 static auto model_init(const parameter& param, quantifier& dyn) noexcept
   -> status
 {
@@ -51,24 +35,6 @@ static auto model_init(const parameter& param, quantifier& dyn) noexcept
     dyn.default_past_length = static_cast<int>(param.integers[0]);
 
     return status::success;
-}
-
-static auto model_init_quantier(const parameter& param,
-                                real&            step_size,
-                                i64&             past_length) noexcept -> status
-{
-    step_size   = param.reals[0];
-    past_length = param.integers[0];
-
-    return status::success;
-}
-
-static auto parameter_init_quantifier(parameter& param,
-                                      const real step_size,
-                                      const i64  past_length) noexcept -> void
-{
-    param.reals[0]    = step_size;
-    param.integers[1] = past_length;
 }
 
 static auto parameter_init(parameter& param, const quantifier& dyn) noexcept
@@ -194,11 +160,7 @@ static auto model_init(const parameter& param, constant& dyn) noexcept -> status
         return status::unknown_dynamics; // modeling_parameter_error;
 
     dyn.type = enum_cast<constant::init_type>(param.integers[0]);
-
-    if (!(0 <= param.integers[0] && param.integers[0] < INT8_MAX))
-        return status::unknown_dynamics; // modeling_parameter_error;
-
-    dyn.port = static_cast<i8>(param.integers[1]);
+    dyn.port = param.integers[1];
 
     return status::success;
 }
@@ -209,7 +171,7 @@ static auto parameter_init(parameter& param, const constant& dyn) noexcept
     param.reals[0]    = dyn.default_value;
     param.reals[1]    = dyn.default_offset;
     param.integers[0] = ordinal(dyn.type);
-    param.integers[1] = static_cast<u64>(dyn.port);
+    param.integers[1] = dyn.port;
 }
 
 template<int PortNumber>
@@ -323,13 +285,11 @@ static auto model_init(const parameter& param, generator& dyn) noexcept
 static auto parameter_init(parameter& param, const generator& dyn) noexcept
   -> void
 {
-    using generator_parameter_index;
-
-    param.integers[stop_on_error] = dyn.stop_on_error ? 1 : 0;
-    param.integers[ta_id]         = static_cast<i64>(dyn.default_source_ta.id);
-    param.integers[ta_type]       = ordinal(dyn.default_source_ta.type);
-    param.integers[value_id]   = static_cast<i64>(dyn.default_source_value.id);
-    param.integers[value_type] = ordinal(dyn.default_source_value.type);
+    param.integers[0] = dyn.stop_on_error ? 1 : 0;
+    param.integers[1] = static_cast<i64>(dyn.default_source_ta.id);
+    param.integers[2] = ordinal(dyn.default_source_ta.type);
+    param.integers[3] = static_cast<i64>(dyn.default_source_value.id);
+    param.integers[4] = ordinal(dyn.default_source_value.type);
 }
 
 template<int QssLevel>

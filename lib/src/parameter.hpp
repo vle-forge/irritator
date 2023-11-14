@@ -381,6 +381,35 @@ enum class priority_queue_parameter_indices
     ta_type
 };
 
+// union parameter_type
+// {
+//     accumulator_2_parameters, aqss_adder_2_parameters,
+//     aqss_adder_3_parameters,
+//       aqss_adder_4_parameters, aqss_cross_parameters, aqss_filter_parameters,
+//       aqss_integrator_parameters, , aqss_mult_2_parameters,
+//       aqss_mult_3_parameters, aqss_mult_4_parameters,
+//       aqss_quantifier_parameters, constant_parameters, counter_parameters,
+//       dynamic_queue_parameters, generator_parameters, hsm_wapper_parameters,
+//       logical_and_2_parameters, logical_and_3_parameters,
+//       logical_invert_parameters, logical_or_2_parameters,
+//       logical_or_3_parameters, priority_queue_parameters,
+//       qss1_cross_parameters, qss1_filter_parameters,
+//       qss1_integrator_parameters, qss1_multiplier_parameters,
+//       qss1_power_parameters, qss1_square_parameters, qss1_sum_2_parameters,
+//       qss1_sum_3_parameters, qss1_sum_4_parameters, qss1_wsum_2_parameters,
+//       qss1_wsum_3_parameters, qss1_wsum_4_parameters, qss2_cross_parameters,
+//       qss2_filter_parameters, qss2_integrator_parameters,
+//       qss2_multiplier_parameters, qss2_power_parameters,
+//       qss2_square_parameters, qss2_sum_2_parameters, qss2_sum_3_parameters,
+//       qss2_sum_4_parameters, qss2_wsum_2_parameters, qss2_wsum_3_parameters,
+//       qss2_wsum_4_parameters, qss3_cross_parameters, qss3_filter_parameters,
+//       qss3_integrator_parameters, qss3_multiplier_parameters,
+//       qss3_power_parameters, qss3_square_parameters, qss3_sum_2_parameters,
+//       qss3_sum_3_parameters, qss3_sum_4_parameters, qss3_wsum_2_parameters,
+//       qss3_wsum_3_parameters, qss3_wsum_4_parameters, queue_parameters,
+//       time_func_parameters,
+// };
+
 } // namespace irt
 
 #endif

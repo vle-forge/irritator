@@ -1229,28 +1229,6 @@ inline tree_node::node::node(model* mdl_) noexcept
    Project part
  */
 
-inline auto project::head() const noexcept -> component_id { return m_head; }
-
-inline auto project::tn_head() const noexcept -> tree_node*
-{
-    return tree_nodes.try_to_get(m_tn_head);
-}
-
-inline auto project::node(tree_node_id id) const noexcept -> tree_node*
-{
-    return tree_nodes.try_to_get(id);
-}
-
-inline auto project::node(tree_node& node) const noexcept -> tree_node_id
-{
-    return tree_nodes.get_id(node);
-}
-
-inline auto project::node(const tree_node& node) const noexcept -> tree_node_id
-{
-    return tree_nodes.get_id(node);
-}
-
 template<typename Function, typename... Args>
 inline auto project::for_all_tree_nodes(Function&& f, Args... args) noexcept
 {
@@ -1291,11 +1269,6 @@ inline void project::for_each_children(tree_node& tn,
         if (auto* child = cur->tree.get_child(); child)
             stack.emplace_back(child);
     }
-}
-
-inline auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
-{
-    return std::make_pair(tree_nodes.ssize(), tree_nodes.capacity());
 }
 
 } // namespace irt

@@ -5573,8 +5573,8 @@ static status write_child(const modeling& mod,
 
     w.Key("observable");
     std::bitset<4> obs{ ordinal(child_flags::observable) };
-    conf &= ch.flags;
-    w.Bool(conf.any());
+    obs &= ch.flags;
+    w.Bool(obs.any());
 
     if (ch.type == child_type::component) {
         const auto compo_id = ch.id.compo_id;
