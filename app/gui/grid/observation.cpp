@@ -10,7 +10,7 @@
 
 namespace irt {
 
-void grid_observation_widget::show(grid_observation_system& grid) noexcept
+void grid_observation_widget::show(grid_simulation_observer& grid) noexcept
 {
     constexpr ImPlotAxisFlags axes_flags = ImPlotAxisFlags_Lock |
                                            ImPlotAxisFlags_NoGridLines |

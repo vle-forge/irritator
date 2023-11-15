@@ -256,7 +256,7 @@ public:
 struct grid_observation_widget
 {
     /// Display the @c grid_observation_system into ImPlot::PlotHeatmap plot.
-    void show(grid_observation_system& grid) noexcept;
+    void show(grid_simulation_observer& grid) noexcept;
 };
 
 class graph_observation_widget
@@ -1044,7 +1044,7 @@ bool show_select_model_box(const char*    button_label,
                            const char*    popup_label,
                            application&   app,
                            tree_node&     tn,
-                           grid_observer& access) noexcept;
+                           grid_modeling_observer& access) noexcept;
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
 /// build from the @c tree_node @c tn that reference a graph component.
@@ -1052,7 +1052,7 @@ bool show_select_model_box(const char*     button_label,
                            const char*     popup_label,
                            application&    app,
                            tree_node&      tn,
-                           graph_observer& access) noexcept;
+                           graph_modeling_observer& access) noexcept;
 
 bool show_local_observers(application&     app,
                           tree_node&       tn,

@@ -531,12 +531,12 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
 //
 //
 
-static status build_grid(grid_observation_system& grid_system,
+static status build_grid(grid_simulation_observer& grid_system,
                          project&                 pj,
                          simulation&              sim,
                          tree_node&               grid_parent,
                          grid_component&          grid_compo,
-                         grid_observer&           grid_obs) noexcept
+                         grid_modeling_observer&           grid_obs) noexcept
 {
     irt_assert(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
 
@@ -587,10 +587,10 @@ static status build_grid(grid_observation_system& grid_system,
     return status::success;
 }
 
-status grid_observation_system::init(project&       pj,
+status grid_simulation_observer::init(project&       pj,
                                      modeling&      mod,
                                      simulation&    sim,
-                                     grid_observer& grid_obs) noexcept
+                                     grid_modeling_observer& grid_obs) noexcept
 {
     status ret = status::unknown_dynamics;
 
@@ -619,7 +619,7 @@ status grid_observation_system::init(project&       pj,
     return ret;
 }
 
-void grid_observation_system::resize(int rows_, int cols_) noexcept
+void grid_simulation_observer::resize(int rows_, int cols_) noexcept
 {
     const auto len = rows_ * cols_;
     rows           = rows_;
@@ -632,13 +632,13 @@ void grid_observation_system::resize(int rows_, int cols_) noexcept
     clear();
 }
 
-void grid_observation_system::clear() noexcept
+void grid_simulation_observer::clear() noexcept
 {
     observers.clear();
     values.clear();
 }
 
-void grid_observation_system::update(simulation& sim) noexcept
+void grid_simulation_observer::update(simulation& sim) noexcept
 {
     irt_assert(rows * cols == observers.ssize());
 
