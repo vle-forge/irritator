@@ -204,39 +204,25 @@ inline std::pair<u32, u32> unpack_out(const int attribute) noexcept
     return std::make_pair(static_cast<u32>(child), static_cast<u32>(port));
 }
 
-template<typename Dynamics>
-static void add_input_attribute(const Dynamics& dyn, child_id id) noexcept
+static void add_input_attribute(const std::span<const std::string_view> names,
+                                const child_id id) noexcept
 {
-    if constexpr (has_input_port<Dynamics>) {
-        const auto** names = get_input_port_names<Dynamics>();
-
-        irt_assert(length(dyn.x) < 8);
-
-        for (int i = 0; i < length(dyn.x); ++i) {
-            ImNodes::BeginInputAttribute(pack_in(id, i),
-                                         ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(names[i]);
-            ImNodes::EndInputAttribute();
-        }
+    for (size_t i = 0, e = names.size(); i != e; ++i) {
+        ImNodes::BeginInputAttribute(pack_in(id, static_cast<int>(i)),
+                                     ImNodesPinShape_TriangleFilled);
+        ImGui::TextFormat("{}", names[i]);
+        ImNodes::EndInputAttribute();
     }
 }
 
-template<typename Dynamics>
-static void add_output_attribute(const Dynamics& dyn, child_id id) noexcept
+static void add_output_attribute(const std::span<const std::string_view> names,
+                                 const child_id id) noexcept
 {
-    if constexpr (has_output_port<Dynamics>) {
-        const auto** names = get_output_port_names<Dynamics>();
-        const auto   e     = length(dyn.y);
-
-        irt_assert(names != nullptr);
-        irt_assert(0 <= e && e < 8);
-
-        for (int i = 0; i != e; ++i) {
-            ImNodes::BeginOutputAttribute(pack_out(id, i),
-                                          ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(names[i]);
-            ImNodes::EndOutputAttribute();
-        }
+    for (size_t i = 0, e = names.size(); i != e; ++i) {
+        ImNodes::BeginOutputAttribute(pack_out(id, static_cast<int>(i)),
+                                      ImNodesPinShape_TriangleFilled);
+        ImGui::TextFormat("{}", names[i]);
+        ImNodes::EndOutputAttribute();
     }
 }
 
@@ -308,6 +294,9 @@ static void show(component_editor& ed,
     auto& app      = container_of(&ed, &application::component_ed);
     auto& settings = app.settings_wnd;
 
+    const auto type  = c.id.mdl_type;
+    const auto index = get_index(id);
+
     ImNodes::PushColorStyle(
       ImNodesCol_TitleBar,
       ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
@@ -324,14 +313,26 @@ static void show(component_editor& ed,
                       dynamics_type_names[ordinal(c.id.mdl_type)]);
     ImNodes::EndNodeTitleBar();
 
-    // @TODO To reenable with new parameters
-    // dispatch(c.id.mdl_type, [&]<typename Dynamics>(Dynamics& dyn) {
-    //     add_input_attribute(dyn, id);
-    //     ImGui::PushItemWidth(120.0f);
-    //     show_dynamics_inputs(app.mod.srcs, dyn);
-    //     ImGui::PopItemWidth();
-    //     add_output_attribute(dyn, id);
-    // });
+    auto changed = dispatcher(
+      type,
+      [](auto tag, auto& app, auto& p, auto id) noexcept -> bool {
+          const auto X = get_dynamics_input_names(tag);
+          const auto Y = get_dynamics_output_names(tag);
+
+          add_input_attribute(X, id);
+          ImGui::PushItemWidth(120.0f);
+          bool updated = show_parameter(tag, app, p);
+          ImGui::PopItemWidth();
+          add_output_attribute(Y, id);
+
+          return updated;
+      },
+      app,
+      app.mod.children_parameters[index],
+      id);
+
+    if (changed)
+        fmt::print("Echo");
 
     ImNodes::EndNode();
 

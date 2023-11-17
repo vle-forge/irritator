@@ -2,29 +2,13 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <irritator/core.hpp>
-
-#include "application.hpp"
 #include "editor.hpp"
-#include "imgui.h"
+#include "application.hpp"
 #include "internal.hpp"
 
 #include <utility>
 
 namespace irt {
-
-template<typename T>
-    requires(std::is_integral_v<T>)
-inline u8 to_u8(T value) noexcept
-{
-    if constexpr (std::is_signed_v<T>) {
-        irt_assert(INT8_MIN <= value && value <= INT8_MAX);
-        return static_cast<u8>(value);
-    }
-
-    irt_assert(value <= INT8_MAX);
-    return static_cast<u8>(value);
-}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_integrator& dyn)
 {
@@ -467,9 +451,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, constant& dyn)
     if (match(dyn.type,
               constant::init_type::incoming_component_n,
               constant::init_type::outcoming_component_n)) {
-        int port = dyn.port;
-        if (ImGui::InputInt("port", &port))
-            dyn.port = port < 0 ? 0 : port > 127 ? 127 : static_cast<i8>(port);
+        ImGui::InputScalar("port", ImGuiDataType_U64, &dyn.port);
     }
 }
 
@@ -578,39 +560,39 @@ void show_dynamics_inputs(external_source& /*srcs*/, hsm_wrapper& dyn)
     ImGui::InputInt("b", &dyn.exec.b);
 }
 
-//void show_dynamics_inputs(application&                app,
-//                          component_id                compo,
-//                          model_id                    id,
-//                          hierarchical_state_machine& machine,
-//                          hsm_wrapper&                wrapper)
+// void show_dynamics_inputs(application&                app,
+//                           component_id                compo,
+//                           model_id                    id,
+//                           hierarchical_state_machine& machine,
+//                           hsm_wrapper&                wrapper)
 //{
-//    hierarchical_state_machine copy{ machine };
+//     hierarchical_state_machine copy{ machine };
 //
-//    ImGui::Text("current state: %d",
-//                static_cast<int>(wrapper.exec.current_state));
+//     ImGui::Text("current state: %d",
+//                 static_cast<int>(wrapper.exec.current_state));
 //
-//    if (ImGui::Button("Edit")) {
-//        app.hsm_ed.load(compo, id);
-//        app.show_hsm_editor = true;
-//    }
-//}
+//     if (ImGui::Button("Edit")) {
+//         app.hsm_ed.load(compo, id);
+//         app.show_hsm_editor = true;
+//     }
+// }
 //
-//void show_dynamics_inputs(application&                app,
-//                          model_id                    id,
-//                          hierarchical_state_machine& machine,
-//                          hsm_wrapper&                wrapper)
+// void show_dynamics_inputs(application&                app,
+//                           model_id                    id,
+//                           hierarchical_state_machine& machine,
+//                           hsm_wrapper&                wrapper)
 //{
-//    hierarchical_state_machine copy{ machine };
+//     hierarchical_state_machine copy{ machine };
 //
-//    ImGui::Text("current state: %d",
-//                static_cast<int>(wrapper.exec.current_state));
+//     ImGui::Text("current state: %d",
+//                 static_cast<int>(wrapper.exec.current_state));
 //
-//    if (ImGui::Button("Edit")) {
-//        app.hsm_ed.clear();
-//        app.hsm_ed.load(id);
-//        app.show_hsm_editor = true;
-//    }
-//}
+//     if (ImGui::Button("Edit")) {
+//         app.hsm_ed.clear();
+//         app.hsm_ed.load(id);
+//         app.show_hsm_editor = true;
+//     }
+// }
 
 void show_dynamics_inputs(external_source& /*srcs*/, time_func& dyn)
 {
@@ -1297,6 +1279,1756 @@ bool show_parameter_editor(application& app, model& mdl, parameter& p) noexcept
       mdl, [&app, &p]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
           return show_parameter_editor(app, dyn, p);
       });
+}
+
+/////////////////////////////////////////////////////////////////////
+
+bool show_parameter(dynamics_qss1_integrator_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("value", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("dQ", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss2_integrator_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("value", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("dQ", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss3_integrator_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("value", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("dQ", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss1_multiplier_tag,
+                    application& /* app */,
+                    parameter& /* p */) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss1_sum_2_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss1_sum_3_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss1_sum_4_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss1_wsum_2_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss1_wsum_3_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+
+    return b1 or b2 or b3;
+}
+
+bool show_parameter(dynamics_qss1_wsum_4_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
+
+    return b1 or b2 or b3 or b4;
+}
+
+bool show_parameter(dynamics_qss2_multiplier_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss2_sum_2_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss2_sum_3_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss2_sum_4_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss2_wsum_2_tag,
+                    application& /* app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss2_wsum_3_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+
+    return b1 or b2 or b3;
+}
+
+bool show_parameter(dynamics_qss2_wsum_4_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
+
+    return b1 or b2 or b3 or b4;
+}
+
+bool show_parameter(dynamics_qss3_multiplier_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss3_sum_2_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss3_sum_3_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss3_sum_4_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss3_wsum_2_tag,
+                    application& /* app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss3_wsum_3_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+
+    return b1 or b2 or b3;
+}
+
+bool show_parameter(dynamics_qss3_wsum_4_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
+
+    return b1 or b2 or b3 or b4;
+}
+
+bool show_parameter(dynamics_integrator_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("value", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("reset", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_quantifier_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("quantum", &p.reals[0]);
+
+    auto       i  = static_cast<int>(p.integers[0]);
+    const auto b2 = ImGui::SliderInt("archive length", &i, 3, 100);
+
+    if (b2)
+        p.integers[0] = static_cast<i64>(i);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_adder_2_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_adder_3_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+
+    return b1 or b2 or b3;
+}
+
+bool show_parameter(dynamics_adder_4_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
+
+    return b1 or b2 or b3 or b4;
+}
+
+bool show_parameter(dynamics_mult_2_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_mult_3_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+
+    return b1 or b2 or b3;
+}
+
+bool show_parameter(dynamics_mult_4_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
+
+    return b1 or b2 or b3 or b4;
+}
+
+bool show_parameter(dynamics_counter_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_queue_tag,
+                    application& /* app */,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("delay", &p.reals[0]);
+    ImGui::SameLine();
+    HelpMarker("Delay to resent the first input receives (FIFO queue)");
+
+    return b1;
+}
+
+bool show_parameter(dynamics_dynamic_queue_tag,
+                    application& app,
+                    parameter&   p) noexcept
+{
+    auto       stop_on_error = p.integers[0] != 0;
+    const auto b1            = ImGui::Checkbox("Stop on error", &stop_on_error);
+    if (b1)
+        p.integers[0] = stop_on_error ? 1 : 0;
+
+    ImGui::SameLine();
+    HelpMarker(
+      "Unchecked, the dynamic queue stops to send data if the source are "
+      "empty or undefined. Checked, the simulation will stop.");
+
+    const auto b2 = show_external_sources_combo(
+      app.sim.srcs, "time", p.integers[1], p.integers[2]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_priority_queue_tag,
+                    application& app,
+                    parameter&   p) noexcept
+{
+    bool is_changed = false;
+    bool value      = p.integers[0] != 0;
+
+    if (ImGui::Checkbox("Stop on error", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (show_external_sources_combo(
+          app.mod.srcs, "time", p.integers[1], p.integers[2])) {
+        is_changed = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_generator_tag,
+                    application& app,
+                    parameter&   p) noexcept
+{
+    bool is_changed = false;
+    bool value      = p.integers[0] != 0;
+
+    if (ImGui::Checkbox("Stop on error", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (show_external_sources_combo(
+          app.mod.srcs, "source", p.integers[1], p.integers[2])) {
+        is_changed = true;
+    }
+
+    if (show_external_sources_combo(
+          app.mod.srcs, "time", p.integers[3], p.integers[4])) {
+        is_changed = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_constant_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    static const char* type_names[] = { "constant",
+                                        "incoming_component_all",
+                                        "outcoming_component_all",
+                                        "incoming_component_n",
+                                        "outcoming_component_n" };
+
+    bool is_changed = false;
+    irt_assert(
+      std::cmp_equal(std::size(type_names), constant::init_type_count));
+
+    if (ImGui::InputReal("value", &p.reals[0]))
+        is_changed = true;
+
+    if (ImGui::InputReal("offset", &p.reals[1]))
+        is_changed = true;
+
+    irt_assert(std::cmp_less_equal(0, p.integers[0]) &&
+               std::cmp_less(p.integers[0], constant::init_type_count));
+
+    int i = static_cast<int>(p.integers[0]);
+    if (ImGui::Combo("type", &i, type_names, length(type_names))) {
+        p.integers[0] = i;
+        is_changed    = true;
+    }
+
+    if (i == ordinal(constant::init_type::incoming_component_n) ||
+        i == ordinal(constant::init_type::outcoming_component_n)) {
+        int port = static_cast<int>(p.integers[1]);
+        if (ImGui::InputInt("port", &port)) {
+            p.integers[1] = static_cast<i64>(port);
+            is_changed    = true;
+        }
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_qss1_cross_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
+
+    bool value = p.integers[0] != 0;
+    if (ImGui::Checkbox("up detection", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_qss2_cross_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+
+{
+    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
+
+    bool value = p.integers[0] != 0;
+    if (ImGui::Checkbox("up detection", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_qss3_cross_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
+
+    bool value = p.integers[0] != 0;
+    if (ImGui::Checkbox("up detection", &value)) {
+        p.integers[0] = value ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_qss1_filter_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("upper threshold", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss2_filter_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("upper threshold", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss3_filter_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("upper threshold", &p.reals[1]);
+
+    return b1 or b2;
+}
+
+bool show_parameter(dynamics_qss1_power_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    return ImGui::InputReal("n", &p.reals[0]);
+}
+
+bool show_parameter(dynamics_qss2_power_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    return ImGui::InputReal("n", &p.reals[0]);
+}
+
+bool show_parameter(dynamics_qss3_power_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    return ImGui::InputReal("n", &p.reals[0]);
+}
+
+bool show_parameter(dynamics_qss1_square_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss2_square_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_qss3_square_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_cross_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    return ImGui::InputReal("threshold", &p.reals[0]);
+}
+
+bool show_parameter(dynamics_accumulator_2_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_time_func_tag,
+                    application& /* app */,
+                    parameter& p) noexcept
+{
+    static const char* items[] = { "time", "square", "sin" };
+
+    irt_assert(std::cmp_less_equal(0, p.integers[0]) &&
+               std::cmp_less(p.integers[0], 3));
+
+    bool is_changed = false;
+    auto value      = static_cast<int>(p.integers[0]);
+
+    ImGui::PushItemWidth(120.0f);
+    if (ImGui::Combo("function", &value, items, IM_ARRAYSIZE(items))) {
+        p.integers[0] = value;
+        is_changed    = true;
+    }
+    ImGui::PopItemWidth();
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_filter_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    const auto a = ImGui::InputReal("lower threshold", &p.reals[0]);
+    const auto b = ImGui::InputReal("upper threshold", &p.reals[1]);
+
+    return a or b;
+}
+
+bool show_parameter(dynamics_logical_and_2_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_logical_or_2_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_logical_and_3_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+    bool value_2    = p.integers[2] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 3", &value_2)) {
+        p.integers[2] = value_2 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_logical_or_3_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+    bool value_2    = p.integers[2] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 3", &value_2)) {
+        p.integers[2] = value_2 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+bool show_parameter(dynamics_logical_invert_tag,
+                    application& /*app*/,
+                    parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+bool show_parameter(dynamics_hsm_wrapper_tag,
+                    application& /*app*/,
+                    parameter& p) noexcept
+{
+    auto a = static_cast<i32>(p.integers[0]);
+    auto b = static_cast<i32>(p.integers[1]);
+
+    const auto b1 = ImGui::InputInt("A", &a);
+    if (a)
+        p.integers[0] = a;
+
+    const auto b2 = ImGui::InputInt("B", &b);
+    if (b)
+        p.integers[0] = b;
+
+    return b1 or b2;
+}
+
+bool show_parameter_editor(application&  app,
+                           dynamics_type type,
+                           parameter&    p) noexcept
+{
+    return dispatcher(
+      type,
+      [](auto tag, application& app, parameter& p) noexcept -> bool {
+          return show_parameter(tag, app, p);
+      },
+      app,
+      p);
+}
+
+///////////////////////////////////////////////////////////
+
+auto get_dynamics_input_names(dynamics_qss1_integrator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "x-dot", "reset" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_multiplier_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_cross_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "value", "if", "else", "threshold"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_filter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_power_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_square_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_sum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_sum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_sum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_wsum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_wsum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss1_wsum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_integrator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "x-dot", "reset" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_multiplier_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_cross_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "value", "if", "else", "threshold"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_filter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_power_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_square_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_sum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_sum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_sum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_wsum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_wsum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss2_wsum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_integrator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "x-dot", "reset" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_multiplier_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_cross_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "value", "if", "else", "threshold"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_filter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_power_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_square_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_sum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_sum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_sum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_wsum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_wsum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_qss3_wsum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_integrator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "quanta",
+                                                           "x-dot",
+                                                           "reset" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_quantifier_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_adder_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_adder_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_adder_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_mult_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_mult_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_mult_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_counter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_queue_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_dynamic_queue_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_priority_queue_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_generator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    return std::span<const std::string_view>{};
+}
+
+auto get_dynamics_input_names(dynamics_constant_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    return std::span<const std::string_view>{};
+}
+
+auto get_dynamics_input_names(dynamics_cross_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "value", "if", "else", "threshold"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_accumulator_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "nb-1", "nb-2"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_time_func_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    return std::span<const std::string_view>{};
+}
+
+auto get_dynamics_input_names(dynamics_filter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_logical_and_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_logical_and_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_logical_or_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_logical_or_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "in-1",
+                                                           "in-2",
+                                                           "in-3" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_logical_invert_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "in" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(dynamics_hsm_wrapper_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "in-1", "in-2", "in-3", "in-4"
+    };
+
+    return std::span{ names.data(), names.size() };
+}
+
+// Dynamics output names
+
+auto get_dynamics_output_names(dynamics_qss1_integrator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_multiplier_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_cross_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "if-value",
+                                                           "else-value",
+                                                           "event" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_filter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "value",
+                                                           "up",
+                                                           "down" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_power_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_square_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_sum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_sum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_sum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_wsum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_wsum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss1_wsum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_integrator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_multiplier_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_cross_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "if-value",
+                                                           "else-value",
+                                                           "event" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_filter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "value",
+                                                           "up",
+                                                           "down" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_power_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_square_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_sum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_sum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_sum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_wsum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_wsum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss2_wsum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_integrator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_multiplier_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_cross_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "if-value",
+                                                           "else-value",
+                                                           "event" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_filter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "value",
+                                                           "up",
+                                                           "down" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_power_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_square_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_sum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_sum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_sum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_wsum_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_wsum_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_qss3_wsum_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_integrator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_quantifier_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_adder_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_adder_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_adder_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_mult_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_mult_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_mult_4_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_counter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    return std::span<const std::string_view>{};
+}
+
+auto get_dynamics_output_names(dynamics_queue_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_dynamic_queue_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_priority_queue_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_generator_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_constant_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_cross_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "if-value",
+                                                           "else-value",
+                                                           "event" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_accumulator_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    return std::span<const std::string_view>{};
+}
+
+auto get_dynamics_output_names(dynamics_time_func_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_filter_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 3> names = { "value",
+                                                           "up",
+                                                           "down" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_logical_and_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_logical_and_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_logical_or_2_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_logical_or_3_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_logical_invert_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 1> names = { "out" };
+
+    return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_output_names(dynamics_hsm_wrapper_tag) noexcept
+  -> std::span<const std::string_view>
+{
+    static const std::array<std::string_view, 4> names = {
+        "out-1", "out-2", "out-3", "out-4"
+    };
+
+    return std::span{ names.data(), names.size() };
 }
 
 } // irt
