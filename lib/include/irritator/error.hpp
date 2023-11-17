@@ -10,15 +10,15 @@
 
 #define irt_check BOOST_LEAF_CHECK
 
-namespace hal {
+namespace irt {
 
 template<typename T, T... value>
-using match = boost::leaf::match<T, value...>;
+using match2 = boost::leaf::match<T, value...>;
 
 template<class T>
-using result        = boost::leaf::result<T>;
+using result = boost::leaf::result<T>;
 
-using status        = result<void>;
+using status2 = result<void>;
 
 using error_handler = void(void);
 
@@ -39,11 +39,11 @@ inline error_handler* on_error_callback = nullptr;
  *
  * @return status - that is always successful
  */
-inline status success()
+inline status2 success()
 {
     // Default initialize the status object using the brace initialization,
     // which will set the status to the default "success" state.
-    status successful_status{};
+    status2 successful_status{};
     return successful_status;
 }
 

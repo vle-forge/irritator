@@ -15,6 +15,7 @@ set_property(TARGET threads PROPERTY
 find_package(Fontconfig)
 
 add_definitions(-DFMT_HEADER_ONLY)
+include_directories(${CMAKE_SOURCE_DIR}/external/leaf/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/fmt/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/ut/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/rapidjson/include)

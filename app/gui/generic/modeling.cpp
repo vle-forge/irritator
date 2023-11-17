@@ -331,9 +331,6 @@ static void show(component_editor& ed,
       app.mod.children_parameters[index],
       id);
 
-    if (changed)
-        fmt::print("Echo");
-
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
