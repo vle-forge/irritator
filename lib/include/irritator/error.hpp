@@ -18,7 +18,7 @@ using match2 = boost::leaf::match<T, value...>;
 template<class T>
 using result = boost::leaf::result<T>;
 
-using status2 = result<void>;
+using void_success = result<void>;
 
 using error_handler = void(void);
 
@@ -39,11 +39,11 @@ inline error_handler* on_error_callback = nullptr;
  *
  * @return status - that is always successful
  */
-inline status2 success()
+inline void_success success()
 {
     // Default initialize the status object using the brace initialization,
     // which will set the status to the default "success" state.
-    status2 successful_status{};
+    void_success successful_status{};
     return successful_status;
 }
 

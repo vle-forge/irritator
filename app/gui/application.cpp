@@ -78,31 +78,61 @@ bool application::init() noexcept
     }
 
     if (mod.registred_paths.size() == 0) {
-        if (auto path = get_system_component_dir(); path) {
-            auto& new_dir    = mod.registred_paths.alloc();
-            auto  new_dir_id = mod.registred_paths.get_id(new_dir);
-            new_dir.name     = "System directory";
-            new_dir.path     = path.value().string().c_str();
-            log_w(*this,
-                  log_level::info,
-                  "Add system directory: {}\n",
-                  new_dir.path.c_str());
+        attempt_all(
+          [&]() -> result<void> {
+              auto path = get_system_component_dir();
+              if (!path)
+                  return path.error();
 
-            mod.component_repertories.emplace_back(new_dir_id);
-        }
+              auto& new_dir    = mod.registred_paths.alloc();
+              auto  new_dir_id = mod.registred_paths.get_id(new_dir);
+              new_dir.name     = "System directory";
+              new_dir.path     = path.value().string().c_str();
+              log_w(*this,
+                    log_level::info,
+                    "Add system directory: {}\n",
+                    new_dir.path.c_str());
 
-        if (auto path = get_default_user_component_dir(); path) {
-            auto& new_dir    = mod.registred_paths.alloc();
-            auto  new_dir_id = mod.registred_paths.get_id(new_dir);
-            new_dir.name     = "User directory";
-            new_dir.path     = path.value().string().c_str();
-            log_w(*this,
-                  log_level::info,
-                  "Add user directory: {}\n",
-                  new_dir.path.c_str());
+              mod.component_repertories.emplace_back(new_dir_id);
+              return success();
+          },
+          [&](fs_error /*code*/) -> void {
+              log_w(*this,
+                    log_level::error,
+                    "Fail to use the system directory path");
+          },
+          [&]() -> void {
+              log_w(*this,
+                    log_level::error,
+                    "Fail to use the system directory path");
+          });
 
-            mod.component_repertories.emplace_back(new_dir_id);
-        }
+        attempt_all(
+          [&]() -> result<void> {
+              auto path = get_default_user_component_dir();
+              if (!path)
+                  return path.error();
+
+              auto& new_dir    = mod.registred_paths.alloc();
+              auto  new_dir_id = mod.registred_paths.get_id(new_dir);
+              new_dir.name     = "User directory";
+              new_dir.path     = path.value().string().c_str();
+              log_w(*this,
+                    log_level::info,
+                    "Add user directory: {}\n",
+                    new_dir.path.c_str());
+
+              mod.component_repertories.emplace_back(new_dir_id);
+              return success();
+          },
+          [&](fs_error /*code*/) -> void {
+              log_w(
+                *this, log_level::error, "Fail to use the user directory path");
+          },
+          [&]() -> void {
+              log_w(
+                *this, log_level::error, "Fail to use the user directory path");
+          });
     }
 
     if (auto ret = save_settings(); is_bad(ret)) {
@@ -525,9 +555,10 @@ void application::show() noexcept
 #endif
 }
 
-static void show_select_model_box_recursive(application&   app,
-                                            tree_node&     tn,
-                                            grid_modeling_observer& access) noexcept
+static void show_select_model_box_recursive(
+  application&            app,
+  tree_node&              tn,
+  grid_modeling_observer& access) noexcept
 {
     constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -612,10 +643,10 @@ auto build_unique_component_vector(application& app, tree_node& tn)
     return ret;
 }
 
-bool show_select_model_box(const char*    button_label,
-                           const char*    popup_label,
-                           application&   app,
-                           tree_node&     tn,
+bool show_select_model_box(const char*             button_label,
+                           const char*             popup_label,
+                           application&            app,
+                           tree_node&              tn,
                            grid_modeling_observer& access) noexcept
 {
     static grid_modeling_observer copy;
@@ -660,10 +691,10 @@ bool show_select_model_box(const char*    button_label,
     return ret;
 }
 
-bool show_select_model_box(const char*     button_label,
-                           const char*     popup_label,
-                           application&    app,
-                           tree_node&      tn,
+bool show_select_model_box(const char*              button_label,
+                           const char*              popup_label,
+                           application&             app,
+                           tree_node&               tn,
                            graph_modeling_observer& access) noexcept
 {
     static graph_modeling_observer copy;

@@ -6,16 +6,31 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_DIALOG_2021
 
 #include <filesystem>
-#include <optional>
 #include <vector>
+
+#include <irritator/error.hpp>
 
 namespace irt {
 
-std::optional<std::filesystem::path> get_home_directory() noexcept;
-std::optional<std::filesystem::path> get_executable_directory() noexcept;
-std::optional<std::filesystem::path> get_system_component_dir() noexcept;
-std::optional<std::filesystem::path> get_default_user_component_dir() noexcept;
-std::optional<std::filesystem::path> get_settings_filename() noexcept;
+enum class fs_error
+{
+    user_directory_access_fail,
+    user_directory_file_access_fail,
+    user_component_directory_access_fail,
+    executable_access_fail,
+};
+
+/// - unix/linux : Get the user home directory from the @c $HOME environment
+///   variable or operating system file entry using @c getpwuid_r otherwise
+///   use the current directory.
+/// - win32: Use the @c SHGetKnownFolderPath to retrieves the path of the user
+///   directory otherwise use the current directory.
+result<std::filesystem::path> get_home_directory() noexcept;
+
+result<std::filesystem::path> get_executable_directory() noexcept;
+result<std::filesystem::path> get_system_component_dir() noexcept;
+result<std::filesystem::path> get_default_user_component_dir() noexcept;
+result<std::filesystem::path> get_settings_filename() noexcept;
 
 struct file_dialog
 {
@@ -41,7 +56,7 @@ struct file_dialog
     const char8_t** extension_filters;
 
     file_dialog() noexcept;
-    
+
     void clear() noexcept;
 
     bool show_load_file(const char* title, const char8_t** filters) noexcept;

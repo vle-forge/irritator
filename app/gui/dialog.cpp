@@ -43,7 +43,7 @@
 namespace irt {
 
 #if defined(__linux__) || defined(__APPLE__)
-static std::optional<std::filesystem::path> get_local_home_directory() noexcept
+static result<std::filesystem::path> get_local_home_directory() noexcept
 {
     if (auto* home = std::getenv("HOME"); home)
         return std::filesystem::path{ home };
@@ -57,38 +57,48 @@ static std::optional<std::filesystem::path> get_local_home_directory() noexcept
     struct passwd*    result = nullptr;
 
     const auto s = getpwuid_r(getpid(), &pwd, buf.data(), size, &result);
-    if (s || !result)
-        return std::nullopt;
+    if (s || !result) {
+        std::error_code ec;
+        if (auto ret = std::filesystem::current_path(ec); !ec)
+            if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
+                return ret;
 
-    return std::filesystem::path{ std::string_view{ buf.data() } };
+        return new_error(fs_error::user_directory_access_fail);
+    } else {
+        return std::filesystem::path{ std::string_view{ buf.data() } };
+    }
+
+    return new_error(fs_error::user_directory_access_fail);
 }
 #elif defined(_WIN32)
-static std::optional<std::filesystem::path> get_local_home_directory() noexcept
+static result<std::filesystem::path> get_local_home_directory() noexcept
 {
-    PWSTR      path{ nullptr };
-    const auto hr =
-      ::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &path);
+    PWSTR path{ nullptr };
 
-    std::filesystem::path ret;
-
-    if (SUCCEEDED(hr))
+    if (SUCCEEDED(::SHGetKnownFolderPath(
+                    FOLDERID_LocalAppData, 0, nullptr, &path) >= 0)) {
+        std::filesystem::path ret;
         ret = path;
+        ::CoTaskMemFree(path);
+        return ret;
+    } else {
+        std::error_code ec;
+        if (auto ret = std::filesystem::current_path(ec); !ec)
+            if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
+                return ret;
 
-    ::CoTaskMemFree(path);
-
-    return ret;
+        return new_error(fs_error::user_directory_access_fail);
+    }
 }
 #endif
 
-std::optional<std::filesystem::path> get_home_directory() noexcept
+result<std::filesystem::path> get_home_directory() noexcept
 {
     try {
-        std::error_code ec;
-
         auto ret = get_local_home_directory();
-        if (!ret) {
-            ret = std::filesystem::current_path(ec);
-        }
+
+        if (!ret)
+            return ret.error();
 
 #if defined(_WIN32)
         *ret /= "irritator-" irritator_to_string(
@@ -97,6 +107,7 @@ std::optional<std::filesystem::path> get_home_directory() noexcept
         *ret /= ".irritator-" irritator_to_string(
           VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
 #endif
+        std::error_code ec;
         if (std::filesystem::is_directory(*ret, ec))
             return ret;
 
@@ -105,136 +116,145 @@ std::optional<std::filesystem::path> get_home_directory() noexcept
     } catch (...) {
     }
 
-    return std::nullopt;
+    return new_error(fs_error::user_directory_access_fail);
 }
 
 #if defined(__linux__)
-std::optional<std::filesystem::path> get_executable_directory() noexcept
+result<std::filesystem::path> get_executable_directory() noexcept
 {
     std::vector<char> buf(PATH_MAX, '\0');
     const auto        ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
 
     if (ssize <= 0)
-        return std::nullopt;
+        return new_error(fs_error::executable_access_fail);
 
     const auto size = static_cast<size_t>(ssize);
 
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(__APPLE__)
-std::optional<std::filesystem::path> get_executable_directory() noexcept
+result<std::filesystem::path> get_executable_directory() noexcept
 {
     std::vector<char> buf(MAXPATHLEN, '\0');
     uint32_t          size{ 0 };
 
     if (_NSGetExecutablePath(buf.data(), &size))
-        return std::nullopt;
+        return new_error(fs_error::executable_access_fail);
 
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path> get_executable_directory() noexcept
+result<std::filesystem::path> get_executable_directory() noexcept
 {
     std::wstring filepath;
-    auto         size = ::GetModuleFileNameW(NULL, &filepath[0], 0u);
 
-    while (static_cast<size_t>(size) > filepath.size()) {
+    auto size = ::GetModuleFileNameW(NULL, &filepath[0], 0u);
+
+    while (std::cmp_greater(size, filepath.size())) {
         filepath.resize(size, '\0');
         size = ::GetModuleFileNameW(
           NULL, &filepath[0], static_cast<DWORD>(filepath.size()));
     }
 
     if (!size)
-        return std::nullopt;
+        return new_error(fs_error::executable_access_fail);
 
     return std::filesystem::path{ filepath };
 }
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-std::optional<std::filesystem::path> get_system_component_dir() noexcept
+result<std::filesystem::path> get_system_component_dir() noexcept
 {
-    if (auto executable_path = get_executable_directory(); executable_path) {
-        auto install_path = executable_path.value().parent_path();
-        install_path /= "share";
-        install_path /= "irritator-" irritator_to_string(
-          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
-        install_path /= "components";
+    auto exe = get_executable_directory();
+    if (!exe)
+        return exe.error();
 
-        std::error_code ec;
-        if (std::filesystem::exists(install_path, ec))
-            return install_path;
+    auto install_path = exe.value().parent_path();
+    install_path /= "share";
+    install_path /= "irritator-" irritator_to_string(
+      VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+    install_path /= "components";
 
-        if (std::filesystem::create_directories(install_path, ec))
-            return install_path;
-    }
+    std::error_code ec;
+    if (std::filesystem::exists(install_path, ec))
+        return install_path;
 
-    return std::nullopt;
+    if (std::filesystem::create_directories(install_path, ec))
+        return install_path;
+
+    return new_error(fs_error::executable_access_fail);
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path> get_system_component_dir() noexcept
+result<std::filesystem::path> get_system_component_dir() noexcept
 {
-    if (auto executable_path = get_executable_directory(); executable_path) {
-        auto install_path = executable_path.value().parent_path();
-        install_path /= "components";
+    auto exe = get_executable_directory();
+    if (!exe)
+        return exe.error();
 
-        std::error_code ec;
-        if (std::filesystem::exists(install_path, ec))
-            return install_path;
+    auto install_path = exe.value().parent_path();
+    install_path /= "components";
 
-        if (std::filesystem::create_directories(install_path, ec))
-            return install_path;
-    }
+    std::error_code ec;
+    if (auto exists = std::filesystem::exists(install_path, ec); !ec && exists)
+        return install_path;
 
-    return std::nullopt;
+    if (auto success = std::filesystem::create_directories(install_path, ec);
+        !ec && success)
+        return install_path;
+
+    return new_error(fs_error::executable_access_fail);
 }
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-std::optional<std::filesystem::path> get_default_user_component_dir() noexcept
+result<std::filesystem::path> get_default_user_component_dir() noexcept
 {
-    if (auto home_path = get_home_directory(); home_path) {
-        auto compo_path = home_path.value();
-        compo_path /= "components";
+    auto home_path = get_home_directory();
 
-        std::error_code ec;
-        if (std::filesystem::exists(compo_path, ec))
-            return compo_path;
+    if (!home_path)
+        return home_path.error();
 
-        if (std::filesystem::create_directories(compo_path, ec))
-            return compo_path;
-    }
+    auto compo_path = home_path.value();
+    compo_path /= "components";
 
-    return std::nullopt;
+    std::error_code ec;
+    if (std::filesystem::exists(compo_path, ec))
+        return compo_path;
+
+    if (std::filesystem::create_directories(compo_path, ec))
+        return compo_path;
+
+    return new_error(fs_error::user_component_directory_access_fail);
 }
 #elif defined(_WIN32)
-std::optional<std::filesystem::path> get_default_user_component_dir() noexcept
+result<std::filesystem::path> get_default_user_component_dir() noexcept
 {
-    if (auto home_path = get_home_directory(); home_path) {
-        auto compo_path = home_path.value();
-        compo_path /= "components";
+    auto home_path = get_home_directory();
+    if (!home_path)
+        return home_path.error();
 
-        std::error_code ec;
-        if (std::filesystem::exists(compo_path, ec))
-            return compo_path;
+    auto compo_path = home_path.value();
+    compo_path /= "components";
 
-        if (std::filesystem::create_directories(compo_path, ec))
-            return compo_path;
-    }
+    std::error_code ec;
+    if (std::filesystem::exists(compo_path, ec))
+        return compo_path;
 
-    return std::nullopt;
+    if (std::filesystem::create_directories(compo_path, ec))
+        return compo_path;
+
+    return new_error(fs_error::user_component_directory_access_fail);
 }
 #endif
 
-static std::optional<std::filesystem::path> get_home_filename(
+static result<std::filesystem::path> get_home_filename(
   const char* filename) noexcept
 {
     try {
         auto ret = get_home_directory();
-        if (!ret) {
-            std::error_code ec;
-            ret = std::filesystem::current_path(ec);
-        }
+        if (!ret)
+            return ret.error();
 
         *ret /= filename;
 
@@ -242,10 +262,10 @@ static std::optional<std::filesystem::path> get_home_filename(
     } catch (...) {
     }
 
-    return std::nullopt;
+    return new_error(fs_error::user_directory_file_access_fail);
 }
 
-std::optional<std::filesystem::path> get_settings_filename() noexcept
+result<std::filesystem::path> get_settings_filename() noexcept
 {
     return get_home_filename("settings.ini");
 }
