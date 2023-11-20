@@ -594,23 +594,31 @@ struct modeling_initializer
     bool is_fixed_window_placement = true;
 };
 
-/// A simulation structure to stores the matrix of @c observer_id identifier, a
-/// cache for the last value from the observer.
-///
-/// @c grid_observation_system stores simulation informations and can be used to
-/// dipslay or write data into files.
-///
-///   +---------+         +--------------+
-///   |grid     |         | grid         |         +-----------+
-///   |observer +---------> observation  |         | observer  |
-///   +---------+         | system       |         +-----------+
-///                       +--------------+         | model_id  |
-///                       |              |         | vec<real> |
-///                       | vec<obs_id>  +---------> ...       |
-///                       | vec<real>    |    cols |           |
-///                       | cols, rows   |    *    +-----------+
-///                       +--------------+    rows
-///
+//! A simulation structure to stores the matrix of @c observer_id identifier and
+//! a matrix of the last value from each observers.
+//!
+//! @c grid_simulation_observer stores simulation informations and can be used
+//! to dipslay or write data into files.
+//!
+//!    simulation              modeling
+//!   +----------------+      +-----------------+
+//!   | grid           |      | grid            |
+//!   | simulation     |      | modeling        |
+//!   | observer       |      | observer        |
+//!   +----------------+      +-----------------+
+//!   | vector<obs_id> |      | tree_node       |
+//!   | vector<float>  |<-----+                 |
+//!   |                |      | compo_id        |
+//!   +-----+----------+      | tn_id           |
+//!         |  ^  cols        | mdl_id          |
+//!         |  |  * rows      |                 |
+//!         v  |              +-----------------+
+//!   +--------+--+
+//!   | observer  |
+//!   +-----------+
+//!   | mdl_id    |
+//!   +-----------+
+//!
 class grid_simulation_observer
 {
 public:
@@ -620,9 +628,9 @@ public:
     ///  simulation layer.
     ///
     /// @return The status.
-    status init(project&       pj,
-                modeling&      mod,
-                simulation&    sim,
+    status init(project&                pj,
+                modeling&               mod,
+                simulation&             sim,
                 grid_modeling_observer& grid) noexcept;
 
     /// Assign a new size to children and remove all @c model_id.
@@ -666,10 +674,10 @@ struct tree_node
 
     table<u64, node_v> nodes_v;
 
-    vector<global_parameter_id>  parameters_ids;
-    vector<variable_observer_id> variable_observer_ids;
-    vector<graph_modeling_observer_id>    graph_observer_ids;
-    vector<grid_modeling_observer_id>     grid_observer_ids;
+    vector<global_parameter_id>        parameters_ids;
+    vector<variable_observer_id>       variable_observer_ids;
+    vector<graph_modeling_observer_id> graph_observer_ids;
+    vector<grid_modeling_observer_id>  grid_observer_ids;
 
     auto get_model_id(const node_v v) const noexcept -> std::optional<model_id>
     {
@@ -1091,8 +1099,10 @@ public:
     data_array<tree_node, tree_node_id> tree_nodes;
 
     data_array<variable_observer, variable_observer_id> variable_observers;
-    data_array<grid_modeling_observer, grid_modeling_observer_id>         grid_observers;
-    data_array<graph_modeling_observer, graph_modeling_observer_id>       graph_observers;
+    data_array<grid_modeling_observer, grid_modeling_observer_id>
+      grid_observers;
+    data_array<graph_modeling_observer, graph_modeling_observer_id>
+      graph_observers;
 
     data_array<global_parameter, global_parameter_id> global_parameters;
 
