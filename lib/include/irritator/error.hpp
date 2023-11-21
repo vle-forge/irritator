@@ -5,8 +5,18 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2023_ERROR_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2023_ERROR_HPP
 
+#define BOOST_LEAF_EMBEDDED
 #include <boost/leaf.hpp>
-#include <system_error>
+
+namespace boost {
+
+inline void throw_exception(std::exception const& e)
+{
+    std::puts(e.what());
+    std::puts("\n");
+}
+
+} // namespace boost
 
 #define irt_check BOOST_LEAF_CHECK
 
