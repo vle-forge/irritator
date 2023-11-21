@@ -66,7 +66,39 @@ template<class... Item>
     if (on_error_callback) {
         on_error_callback();
     }
-    __asm__ __volatile__("int $03");
+
+#if !defined(NDEBUG) && defined(IRRITATOR_ENABLE_DEBUG)
+#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
+  __GNUC__ >= 2
+    do {
+        __asm__ __volatile__("int $03");
+    } while (0);
+#elif (defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86)
+    do {
+        __asm int 3h
+    } while (0);
+#elif defined(_MSC_VER)
+    do {
+        __debugbreak();
+    } while (0);
+#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&          \
+  __GNUC__ >= 2
+    do {
+        __asm__ __volatile__("bpt");
+    } while (0);
+#elif defined(__APPLE__)
+    do {
+        __builtin_trap();
+    } while (0);
+#else  /* !__i386__ && !__alpha__ */
+    do {
+        raise(SIGTRAP);
+    } while (0);
+#endif /* __i386__ */
+#else
+    do {
+    } while (0);
+#endif
 
     return boost::leaf::new_error(std::forward<Item>(p_item)...);
 }
