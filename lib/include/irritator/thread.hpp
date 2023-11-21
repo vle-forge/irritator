@@ -278,8 +278,8 @@ public:
     task_manager& operator=(task_manager&&)      = delete;
 
     // creating task lists and spawning workers
-    status start() noexcept;
-    void   finalize() noexcept;
+    void start() noexcept;
+    void finalize() noexcept;
 };
 
 /*****************************************************************************
@@ -601,15 +601,13 @@ inline task_manager::task_manager() noexcept
 
 inline task_manager::~task_manager() noexcept { finalize(); }
 
-inline status task_manager::start() noexcept
+inline void task_manager::start() noexcept
 {
     for (auto i = 0; i < main_task_size; ++i)
         main_workers[i].start();
 
     for (auto i = 0; i < temp_workers.ssize(); ++i)
         temp_workers[i].start();
-
-    return status::success;
 }
 
 inline void task_manager::finalize() noexcept
